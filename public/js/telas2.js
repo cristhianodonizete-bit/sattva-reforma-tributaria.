@@ -120,11 +120,33 @@ function resumoPreco(itens) {
   const perda = rs.reduce((s, r) => s + r.precoCongelado.variacaoMargem, 0);
   const reajusteMedio = rs.reduce((s, r) => s + r.precoNeutro.reajusteNecessario, 0) / rs.length;
   const semCredito = rs.filter((r) => !r.cliente.credita).length;
+  const grupos = Object.values(itens.reduce((mapa, item) => {
+    const chave = item.tipo === 'servico' ? 'servico' : 'mercadoria';
+    const r = item.resultado;
+    const grupo = mapa[chave] || { grupo: chave === 'servico' ? 'Serviços' : 'Mercadorias', itens: 0, margemHoje: 0, margemCongelada: 0, perda: 0, reajuste: 0, semCredito: 0 };
+    grupo.itens++; grupo.margemHoje += r.hoje.margem; grupo.margemCongelada += r.precoCongelado.margem;
+    grupo.perda += r.precoCongelado.variacaoMargem; grupo.reajuste += r.precoNeutro.reajusteNecessario;
+    if (!r.cliente.credita) grupo.semCredito++;
+    mapa[chave] = grupo; return mapa;
+  }, {})).map((g) => ({ ...g, reajuste: g.reajuste / g.itens }));
+  const faixa = (reajuste) => reajuste >= 0.07 ? ['a', 'Reajuste prioritário'] : reajuste >= 0.02 ? ['b', 'Reajuste planejado'] : ['c', 'Monitorar'];
   return `<div class="grade g4">
     ${A.kpi('Itens simulados', itens.length)}
     ${A.kpi('Margem em risco', A.setaR$(perda), 'se nenhum preço for ajustado')}
     ${A.kpi('Reajuste médio necessário', A.setaPct(reajusteMedio), 'para preservar a margem', 'destaque')}
     ${A.kpi('Itens com cliente que não credita', semCredito, 'repasse comercialmente sensível')}
+  </div><div class="grade g2 resumo-precificacao">
+    <div class="cartao"><h2>Margem consolidada da carteira</h2><p class="desc">Compara a margem atual com a margem mantida em preço congelado.</p>
+      ${A.tabela([
+        { t: 'Visão', r: (x) => x.grupo }, { t: 'Itens', num: true, r: (x) => x.itens },
+        { t: 'Margem hoje', num: true, r: (x) => A.moeda(x.margemHoje) },
+        { t: 'Margem sem reajuste', num: true, r: (x) => A.moeda(x.margemCongelada) },
+        { t: 'Variação', num: true, r: (x) => A.setaR$(x.perda) },
+      ], grupos.concat([{ grupo: 'Carteira total', itens: itens.length, margemHoje: rs.reduce((s, r) => s + r.hoje.margem, 0), margemCongelada: rs.reduce((s, r) => s + r.precoCongelado.margem, 0), perda }]))}
+    </div>
+    <div class="cartao"><h2>Régua de reposicionamento</h2><p class="desc">Orientação comercial por grupo, a partir do reajuste necessário para preservar a margem.</p>
+      ${grupos.map((g) => { const f = faixa(g.reajuste); return `<div class="regua-preco"><div><b>${g.grupo}</b><span>${g.itens} itens · ${g.semCredito} sem crédito econômico</span></div><div><span class="tag ${f[0]}">${f[1]}</span><strong>${A.pct(g.reajuste)}</strong></div></div>`; }).join('')}
+    </div>
   </div><div style="height:16px"></div>`;
 }
 
