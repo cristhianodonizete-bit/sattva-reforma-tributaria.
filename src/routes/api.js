@@ -68,9 +68,9 @@ router.get('/operacao/dashboard', async (_req, res) => {
     const acompPorProjeto = new Map((acompanhamentos || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const responsaveisPorProjeto = new Map((responsaveis || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const tarefasPorProjeto = new Map((tarefas || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
-    const responsavelDaEntrega = (projetoId, entregaId) => {
+    const responsavelDaEntrega = (projetoId, entregaId, lado = 'sattva') => {
       const lista = responsaveisPorProjeto.get(projetoId) || [];
-      return lista.find((x) => x.lado === 'sattva' && x.entrega_id === entregaId)?.nome || lista.find((x) => x.lado === 'sattva' && !x.entrega_id)?.nome || lista.find((x) => x.lado === 'sattva')?.nome || null;
+      return lista.find((x) => x.lado === lado && x.entrega_id === entregaId)?.nome || lista.find((x) => x.lado === lado && !x.entrega_id)?.nome || lista.find((x) => x.lado === lado)?.nome || null;
     };
     const hoje = new Date().toISOString().slice(0, 10);
     const carteira = (projetos || []).map((p) => {
@@ -94,11 +94,11 @@ router.get('/operacao/dashboard', async (_req, res) => {
     const agenda = [
       ...(tarefas || []).filter((t) => t.status !== 'concluida' && t.data_conclusao).map((t) => {
         const p = projetoPorId.get(t.projeto_id), entrega = entregaPorId.get(t.entrega_id);
-        return { tipo: 'tarefa', projetoId: t.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', projetoStatus: p?.status || '', responsavelSattva: responsavelDaEntrega(t.projeto_id, t.entrega_id) || p?.responsavelSattva || null, pendenciasCliente: p?.pendenciasCliente || 0, titulo: t.titulo, etapa: entrega?.titulo || null, data: t.data_conclusao, atrasado: t.data_conclusao < hoje, envolveCliente: Boolean(t.envolve_cliente) };
+        return { tipo: 'tarefa', projetoId: t.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', projetoStatus: p?.status || '', responsavelSattva: responsavelDaEntrega(t.projeto_id, t.entrega_id) || p?.responsavelSattva || null, responsavelCliente: responsavelDaEntrega(t.projeto_id, t.entrega_id, 'cliente'), pendenciasCliente: p?.pendenciasCliente || 0, titulo: t.titulo, etapa: entrega?.titulo || null, data: t.data_conclusao, atrasado: t.data_conclusao < hoje, envolveCliente: Boolean(t.envolve_cliente) };
       }),
       ...(acompanhamentos || []).filter((a) => a.status !== 'concluido' && a.competencia).map((a) => {
         const p = projetoPorId.get(a.projeto_id);
-        return { tipo: 'acompanhamento', projetoId: a.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', projetoStatus: p?.status || '', responsavelSattva: p?.responsavelSattva || null, pendenciasCliente: p?.pendenciasCliente || 0, titulo: 'Acompanhamento previsto', etapa: null, data: a.competencia, atrasado: a.competencia < hoje.slice(0, 7), envolveCliente: false };
+        return { tipo: 'acompanhamento', projetoId: a.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', projetoStatus: p?.status || '', responsavelSattva: p?.responsavelSattva || null, responsavelCliente: responsavelDaEntrega(a.projeto_id, null, 'cliente'), pendenciasCliente: p?.pendenciasCliente || 0, titulo: 'Acompanhamento previsto', etapa: null, data: a.competencia, atrasado: a.competencia < hoje.slice(0, 7), envolveCliente: false };
       }),
     ].sort((a, b) => String(a.data).localeCompare(String(b.data)));
     ok(res, { empresas: empresas.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
