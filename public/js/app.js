@@ -172,9 +172,7 @@ const App = (() => {
     document.querySelectorAll('#menu a').forEach((a) => { a.onclick = () => ir(a.dataset.tela); });
     const sair = document.querySelector('#menu [data-sair]');
     if (sair) sair.onclick = () => { localStorage.removeItem('sattva_token'); location.reload(); };
-    document.querySelectorAll('#menu .grupo').forEach((g) => { g.onclick = () => {
-      let n = g.nextElementSibling; while (n && !n.classList.contains('grupo')) { n.classList.toggle('menu-item-oculto'); n = n.nextElementSibling; }
-    }; });
+    document.querySelectorAll('#menu .grupo').forEach((g, i) => { const chave = `sattva_grupo_${i}`; let n = g.nextElementSibling; const itens=[]; while (n && !n.classList.contains('grupo')) { itens.push(n); n=n.nextElementSibling; } const ativo=itens.some((x)=>x.classList.contains('ativo')); const aberto=ativo || localStorage.getItem(chave)!=='fechado'; itens.forEach((x)=>x.classList.toggle('menu-item-oculto',!aberto)); g.onclick=()=>{const fechado=itens[0] && !itens[0].classList.contains('menu-item-oculto');itens.forEach((x)=>x.classList.toggle('menu-item-oculto',fechado));localStorage.setItem(chave,fechado?'fechado':'aberto');}; });
   }
 
   async function ir(tela) {
