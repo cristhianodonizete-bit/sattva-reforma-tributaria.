@@ -393,6 +393,7 @@ async function telaCadeia(el, tipo) {
   const eForn = tipo === 'fornecedor';
   const t = analise.totais;
   const ultimo = analise.cenarios[analise.cenarios.length - 1] || {};
+  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
 
   el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
     eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
@@ -404,7 +405,7 @@ async function telaCadeia(el, tipo) {
       ${A.kpi(eForn ? 'Volume de compras' : 'Faturamento', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
       ${A.kpi('Carga efetiva hoje', A.pct(t.cargaEfetivaHoje))}
       ${A.kpi('Créditos aproveitados hoje', A.moeda(t.creditoHoje))}
-      ${A.kpi(eForn ? 'Custo efetivo 2033' : 'Custo para o cliente 2033', A.moeda(ultimo.custoEfetivo || 0),
+      ${A.kpi(eForn ? `Custo efetivo ${ibsAtivo ? 'final' : 'CBS'}` : `Custo para o cliente ${ibsAtivo ? 'final' : 'CBS'}`, A.moeda(ultimo.custoEfetivo || 0),
         A.setaPct(ultimo.variacaoCustoPerc || 0) + ' vs. hoje', 'destaque')}
     </div>
     <div class="cartao" style="margin-top:16px">
@@ -422,13 +423,13 @@ async function telaCadeia(el, tipo) {
           { t: 'Valor', num: true, r: (r) => A.moeda(r.valor) },
           { t: 'Part.', num: true, r: (r) => A.pct(r.representatividade, 1) },
           { t: 'Crédito hoje', num: true, r: (r) => A.moeda(r.creditoHoje) },
-          { t: 'Crédito 2033', num: true, r: (r) => A.moeda(r.creditoFinal) },
+          { t: ibsAtivo ? 'Crédito final' : 'Crédito CBS', num: true, r: (r) => A.moeda(r.creditoFinal) },
           { t: 'Δ custo', num: true, r: (r) => A.setaR$(r.variacaoCusto) },
         ], analise.regimes)}
       </div>
     </div>
-    <div class="cartao"><h2>Projeção ano a ano</h2>
-      ${A.tabela([
+    <div class="cartao"><h2>${ibsAtivo ? 'Projeção ano a ano' : 'Referência CBS'}</h2>
+      ${ibsAtivo ? A.tabela([
         { t: 'Ano', r: (c) => `<b class="mono">${c.ano}</b>` },
         { t: 'Tributos', num: true, r: (c) => A.moeda(c.tributos) },
         { t: 'Créditos', num: true, r: (c) => A.moeda(c.credito) },
@@ -436,7 +437,11 @@ async function telaCadeia(el, tipo) {
         { t: eForn ? 'Custo efetivo' : 'Custo p/ cliente', num: true, r: (c) => A.moeda(c.custoEfetivo) },
         { t: 'Variação', num: true, r: (c) => A.setaPct(c.variacaoCustoPerc) },
         { t: 'Marco', r: (c) => `<span class="mini">${A.esc(c.nota)}</span>` },
-      ], analise.cenarios)}
+      ], analise.cenarios) : `<div class="grade g3 projecao-cbs-resumo">
+        ${A.kpi('Tributos CBS', A.moeda(ultimo.tributos || 0), 'projeção de referência')}
+        ${A.kpi('Crédito CBS', A.moeda(ultimo.credito || 0), 'crédito econômico estimado')}
+        ${A.kpi(eForn ? 'Custo efetivo' : 'Custo para o cliente', A.moeda(ultimo.custoEfetivo || 0), A.setaPct(ultimo.variacaoCustoPerc || 0) + ' vs. hoje', 'destaque')}
+      </div>`}
     </div>
     <div class="cartao"><h2>Curva ABC — ${eForn ? 'fornecedores' : 'clientes'}</h2>
       <p class="desc">Classe A concentra 80% do volume. É por onde a renegociação começa.</p>
@@ -447,9 +452,9 @@ async function telaCadeia(el, tipo) {
         { t: 'Valor', num: true, r: (p) => A.moeda(p.valor) },
         { t: 'Part.', num: true, r: (p) => A.pct(p.representatividade, 1) },
         { t: 'Crédito hoje', num: true, r: (p) => A.moeda(p.creditoHoje) },
-        { t: 'Crédito 2033', num: true, r: (p) => A.moeda(p.creditoFinal) },
+        { t: ibsAtivo ? 'Crédito final' : 'Crédito CBS', num: true, r: (p) => A.moeda(p.creditoFinal) },
         { t: 'Custo hoje', num: true, r: (p) => A.moeda(p.custoHoje) },
-        { t: 'Custo 2033', num: true, r: (p) => A.moeda(p.custoFinal) },
+        { t: ibsAtivo ? 'Custo final' : 'Custo CBS', num: true, r: (p) => A.moeda(p.custoFinal) },
         { t: 'Δ %', num: true, r: (p) => A.setaPct(p.variacaoCustoPerc) },
       ], analise.parceiros.slice(0, 200))}
     </div>` : A.vazio('Sem movimentação importada',
@@ -469,14 +474,15 @@ Telas.cenarios = async (el) => {
   const rep = S.cache.repCen === undefined ? 1 : S.cache.repCen;
   const d = await A.api(`/empresas/${S.empresaId}/cenarios?repasse=${rep}`);
   const base = d.consolidado[0] || {}, fim = d.consolidado[d.consolidado.length - 1] || {};
+  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   el.innerHTML = cab('Módulo 1.d', 'Projeção de cenários',
-    'Receita, custo e resultado bruto ano a ano, aplicando o cronograma constitucional sobre a movimentação real da empresa.',
+    ibsAtivo ? 'Receita, custo e resultado bruto ano a ano, aplicando o cronograma constitucional sobre a movimentação real da empresa.' : 'Receita, custo e resultado bruto na projeção CBS de referência, sobre a movimentação real da empresa.',
     `<button class="btn vazio" id="salvarCen">Salvar cenário</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/diagnostico?repasse=${rep}')">Exportar Excel</button>`) +
-    A.regua(2033, null) +
+    (ibsAtivo ? A.regua(2033, null) : '<div class="aviso bom"><b>Projeção CBS</b> Esta análise usa uma referência única. A transição anual ficará disponível somente quando o IBS for habilitado.</div>') +
     `<div class="grade g4">
       ${A.kpi('Resultado bruto hoje', A.moeda(base.resultadoBruto || 0), `margem ${A.pct(base.margemPerc || 0)}`)}
-      ${A.kpi('Resultado bruto 2033', A.moeda(fim.resultadoBruto || 0), `margem ${A.pct(fim.margemPerc || 0)}`, 'destaque')}
+      ${A.kpi(`Resultado bruto ${ibsAtivo ? 'final' : 'CBS'}`, A.moeda(fim.resultadoBruto || 0), `margem ${A.pct(fim.margemPerc || 0)}`, 'destaque')}
       ${A.kpi('Variação de resultado', A.setaR$(d.resumo.variacaoResultado), 'no cenário final')}
       ${A.kpi('Variação da carga', A.setaPct(d.resumo.variacaoCarga), 'sobre as saídas')}
     </div>
@@ -485,9 +491,9 @@ Telas.cenarios = async (el) => {
       <input type="range" min="0" max="1" step="0.1" value="${rep}" id="repCen">
       <div style="display:flex;justify-content:space-between" class="mini"><span>0%</span><b class="mono">${A.pct(rep, 0)}</b><span>100%</span></div>
     </div>
-    <div class="cartao"><h2>Demonstrativo projetado</h2>
+    <div class="cartao"><h2>${ibsAtivo ? 'Demonstrativo projetado' : 'Demonstrativo CBS projetado'}</h2>
       <p class="desc">Receita (-) impostos (-) custos = margem bruta, na estrutura da cartilha</p>
-      ${A.tabela([
+      ${ibsAtivo ? A.tabela([
         { t: 'Ano', r: (c) => `<b class="mono">${c.ano}</b>` },
         { t: 'Receita bruta', num: true, r: (c) => A.moeda(c.receitaBruta) },
         { t: '(-) Tributos', num: true, r: (c) => A.moeda(c.tributosSaida) },
@@ -497,7 +503,15 @@ Telas.cenarios = async (el) => {
         { t: 'Margem', num: true, r: (c) => A.pct(c.margemPerc) },
         { t: 'Carga', num: true, r: (c) => A.pct(c.cargaEfetiva) },
         { t: 'Marco do ano', r: (c) => `<span class="mini">${A.esc(c.nota)}</span>` },
-      ], d.consolidado)}
+      ], d.consolidado) : A.tabela([
+        { t: 'Receita bruta', num: true, r: () => A.moeda(fim.receitaBruta) },
+        { t: '(-) Tributos CBS', num: true, r: () => A.moeda(fim.tributosSaida) },
+        { t: '= Receita líquida', num: true, r: () => A.moeda(fim.receitaLiquida) },
+        { t: '(-) Custo efetivo', num: true, r: () => A.moeda(fim.custoEfetivo) },
+        { t: '= Resultado bruto', num: true, r: () => `<b>${A.moeda(fim.resultadoBruto)}</b>` },
+        { t: 'Margem', num: true, r: () => A.pct(fim.margemPerc) },
+        { t: 'Carga CBS', num: true, r: () => A.pct(fim.cargaEfetiva) },
+      ], [{}])}
     </div>
     <div class="cartao"><h2>Riscos consolidados</h2>${A.avisos(d.riscos)}</div>`;
 
