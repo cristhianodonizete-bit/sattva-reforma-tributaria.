@@ -58,6 +58,7 @@ const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/operacao/.test(caminho)) return 'visao_geral';
   if (/^\/acessos/.test(caminho)) return 'acessos';
   if (/^\/empresas\/\d+\/turmas/.test(caminho) || /^\/(turmas|participantes)/.test(caminho)) return 'capacitacao';
+  if (/^\/empresas\/\d+\/contratos/.test(caminho) || /^\/contratos/.test(caminho)) return 'contratos';
   if (/^\/empresas/.test(caminho)) return metodo === 'GET' ? 'visao_geral' : 'diagnostico';
   if (/^\/(contratacoes|projeto|servicos|combos|gestao)/.test(caminho)) return 'gestao_projetos';
   if (/^\/(config|regras|questor|conhecimento|rag|ia)/.test(caminho)) return 'configuracoes';
@@ -90,6 +91,12 @@ async function contratacaoPermitida(req, contratacaoId) {
   if (!contratacao) throw new Error('Projeto não encontrado.');
   await garantirEmpresaPermitida(req, contratacao.empresa_id);
   return contratacao;
+}
+async function contratoPermitido(req, contratoId) {
+  const contrato = db.prepare('SELECT * FROM contratos WHERE id=?').get(contratoId);
+  if (!contrato) throw new Error('Contrato não encontrado.');
+  await garantirEmpresaPermitida(req, contrato.empresa_id);
+  return contrato;
 }
 async function turmaPermitida(req, turmaId) {
   const turma = db.prepare('SELECT * FROM turmas WHERE id=?').get(turmaId);
@@ -734,10 +741,9 @@ router.get('/empresas/:id/contratos', (req, res) => {
 });
 
 // Vínculo entre a revisão contratual e o diagnóstico da contraparte.
-router.get('/contratos/:id/impacto-diagnostico', (req, res) => {
+router.get('/contratos/:id/impacto-diagnostico', async (req, res) => {
   try {
-    const contrato = db.prepare('SELECT * FROM contratos WHERE id=?').get(req.params.id);
-    if (!contrato) throw new Error('Contrato não encontrado.');
+    const contrato = await contratoPermitido(req, req.params.id);
     const cnpj = imp.soDigitos(contrato.cnpj_contraparte || '');
     const execucao = db.prepare('SELECT id FROM motor_execucoes WHERE empresa_id=? ORDER BY id DESC LIMIT 1').get(contrato.empresa_id);
     if (!cnpj) return ok(res, { encontrado: false, motivo: 'Informe o CNPJ da contraparte para relacionar o contrato ao diagnóstico.' });
@@ -764,24 +770,28 @@ router.post('/empresas/:id/contratos', (req, res) => {
     // pré-carrega o checklist com as cláusulas aplicáveis ao tipo
     const ins = db.prepare(`INSERT INTO contrato_checklist (contrato_id, clausula_id, situacao) VALUES (?,?, 'ausente')`);
     CLAUSULAS.filter((c) => c.aplicacao.includes(b.tipo || 'compra')).forEach((c) => ins.run(r.lastInsertRowid, c.id));
+    auditar(req, { empresaId: req.params.id, acao: 'Criou contrato para revisão', entidade: 'contrato', entidadeId: r.lastInsertRowid, depois: { contraparte: b.contraparte || '', tipo: b.tipo || 'compra' } });
     ok(res, { id: r.lastInsertRowid });
   } catch (e) { erro(res, e); }
 });
 
-router.put('/contratos/:id', (req, res) => {
+router.put('/contratos/:id', async (req, res) => {
   try {
     const b = req.body;
+    const antes = await contratoPermitido(req, req.params.id);
     db.prepare(`UPDATE contratos SET tipo=?, contraparte=?, cnpj_contraparte=?, regime_contraparte=?, objeto=?,
       valor=?, vigencia_inicio=?, vigencia_fim=?, reajuste=?, preco_com_tributo=?, status=?, risco=?, parecer=? WHERE id=?`)
       .run(b.tipo, b.contraparte, imp.soDigitos(b.cnpj_contraparte), b.regime_contraparte, b.objeto, +b.valor || 0,
         b.vigencia_inicio || '', b.vigencia_fim || '', b.reajuste || '', b.preco_com_tributo ? 1 : 0,
         b.status, b.risco, b.parecer || '', req.params.id);
+    auditar(req, { empresaId: antes.empresa_id, acao: 'Atualizou contrato', entidade: 'contrato', entidadeId: req.params.id, antes: { status: antes.status, risco: antes.risco }, depois: { status: b.status, risco: b.risco } });
     ok(res, {});
   } catch (e) { erro(res, e); }
 });
 
-router.put('/contratos/:id/checklist', (req, res) => {
+router.put('/contratos/:id/checklist', async (req, res) => {
   try {
+    const contrato = await contratoPermitido(req, req.params.id);
     const up = db.prepare('UPDATE contrato_checklist SET situacao=?, observacao=? WHERE contrato_id=? AND clausula_id=?');
     const ins = db.prepare('INSERT INTO contrato_checklist (contrato_id, clausula_id, situacao, observacao) VALUES (?,?,?,?)');
     db.transaction(() => {
@@ -796,11 +806,12 @@ router.put('/contratos/:id/checklist', (req, res) => {
       (CLAUSULAS.find((c) => c.id === i.clausula_id) || {}).risco === 'alto').length;
     const risco = criticasAusentes >= 3 ? 'alto' : criticasAusentes >= 1 ? 'medio' : 'baixo';
     db.prepare('UPDATE contratos SET risco = ?, status = ? WHERE id = ?').run(risco, 'em_revisao', req.params.id);
+    auditar(req, { empresaId: contrato.empresa_id, acao: 'Atualizou checklist contratual', entidade: 'contrato', entidadeId: req.params.id, depois: { risco, criticas_ausentes: criticasAusentes } });
     ok(res, { risco, criticasAusentes });
   } catch (e) { erro(res, e); }
 });
 
-router.delete('/contratos/:id', (req, res) => { db.prepare('DELETE FROM contratos WHERE id=?').run(req.params.id); ok(res, {}); });
+router.delete('/contratos/:id', async (req, res) => { try { const contrato = await contratoPermitido(req, req.params.id); db.prepare('DELETE FROM contratos WHERE id=?').run(req.params.id); auditar(req, { empresaId: contrato.empresa_id, acao: 'Excluiu contrato', entidade: 'contrato', entidadeId: req.params.id, antes: { contraparte: contrato.contraparte } }); ok(res, {}); } catch (e) { erro(res, e); } });
 
 // ===========================================================================
 // MÓDULO 4 — CAPACITAÇÃO
