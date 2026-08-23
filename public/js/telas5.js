@@ -300,8 +300,19 @@ async function projRiscos(el) {
 async function projClassificacoes(el) {
   const d = await A.api(`/empresas/${S.empresaId}/motor/classificacoes?limite=400`);
   const ibsAtivo = d.itens.some((i) => Number(i.detalhe?.aliquotas?.parametros?.calcular_ibs) === 1);
+  const divergentes = d.itens.filter((i) => {
+    const declarado = i.detalhe?.classificacao?.declarado || {};
+    return (declarado.cst && declarado.cst !== i.cst) || (declarado.cclasstrib && declarado.cclasstrib !== i.cclasstrib);
+  }).length;
+  const requerValidacao = d.itens.filter((i) => i.status_classificacao === 'REQUER_VALIDACAO').length;
   el.innerHTML = seletorAno(() => A.ir('bases')) +
-    `<div class="cartao">
+    `<div class="grade g3 resumo-classificacao">
+      ${A.kpi('Itens analisados', d.itens.length, 'resultado do motor')}
+      ${A.kpi('Divergências XML × base', divergentes, 'requerem conferência', divergentes ? 'destaque' : '')}
+      ${A.kpi('Requer validação', requerValidacao, 'dados ou regra insuficientes')}
+    </div>
+    <div class="aviso classificacao-orientacao"><b>Como o motor decide</b> O documento mostra como a operação veio declarada. A recomendação da base é a referência aplicada pelo motor; quando houver divergência, o resultado fica sinalizado para validação.</div>
+    <div class="cartao">
       <h2>Classificação item a item</h2>
       <p class="desc">${ibsAtivo ? 'Resultado do motor IBS/CBS.' : 'Análise CBS: IBS não está habilitado nesta configuração.'} Clique numa linha para ver a rastreabilidade completa: de onde veio cada número.</p>
       ${A.tabela([
@@ -310,8 +321,8 @@ async function projClassificacoes(el) {
         { t: 'NCM/NBS', r: (i) => `<span class="mono mini">${A.esc(i.detalhe.ncm || i.detalhe.nbs || '—')}</span>` },
         { t: 'CFOP', r: (i) => `<span class="mono mini">${A.esc(i.detalhe.cfop || '—')}</span>` },
         { t: 'CST atual', r: (i) => `<span class="mono mini">${A.esc(i.detalhe.cstAtual || i.detalhe.csosn || '—')}</span>` },
-        { t: 'Declarado no XML', r: (i) => `<span class="mono mini">CST ${A.esc(i.detalhe.classificacao?.declarado?.cst || '—')}<br>cCT ${A.esc(i.detalhe.classificacao?.declarado?.cclasstrib || '—')}</span>` },
-        { t: 'Recomendado pela base', r: (i) => `<span class="mono mini">CST ${A.esc(i.cst || '—')}<br>cCT ${A.esc(i.cclasstrib || '—')}</span>` },
+        { t: 'Declarado no XML', r: (i) => `<span class="classif-origem declarado"><b>Como veio</b><span class="mono">CST ${A.esc(i.detalhe.classificacao?.declarado?.cst || '—')}<br>cCT ${A.esc(i.detalhe.classificacao?.declarado?.cclasstrib || '—')}</span></span>` },
+        { t: 'Recomendado pela base', r: (i) => `<span class="classif-origem recomendado"><b>Usado pelo motor</b><span class="mono">CST ${A.esc(i.cst || '—')}<br>cCT ${A.esc(i.cclasstrib || '—')}</span></span>` },
         { t: 'Tratamento', r: (i) => `<span class="mini">${A.esc((i.tratamento || '').slice(0, 42))}</span>` },
         { t: 'Base econômica', num: true, r: (i) => A.moeda(i.base_economica) },
         ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (i) => A.moeda(i.ibs) }] : []),
@@ -331,6 +342,7 @@ async function projClassificacoes(el) {
 /** Item 40 — de onde veio este número */
 function rastreabilidade(x) {
   const rec = x.reconstrucao || {}, cls = x.classificacao || {}, al = x.aliquotas || {};
+  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   A.modal({
     titulo: 'Rastreabilidade do cálculo', largura: 900, confirmar: null,
     descricao: `${A.esc(x.descricao || '')} · documento ${A.esc(x.documento || '—')} item ${x.item_numero || '—'}`,
@@ -363,7 +375,7 @@ function rastreabilidade(x) {
       <h3 style="font-size:13px;margin-top:16px">3. Alíquota</h3>
       ${A.tabela([
         { t: 'Etapa', r: (t) => t.etapa },
-        { t: 'IBS', num: true, r: (t) => A.pct(t.ibs) },
+        ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (t) => A.pct(t.ibs) }] : []),
         { t: 'CBS', num: true, r: (t) => A.pct(t.cbs) },
         { t: 'Origem', r: (t) => `<span class="mini">${A.esc(t.origem || '')}</span>` },
       ], al.trilha || [])}
@@ -371,9 +383,9 @@ function rastreabilidade(x) {
         Este percentual é parâmetro de simulação, não alíquota legal definitiva.</div>` : ''}
       <h3 style="font-size:13px;margin-top:16px">4. Tributo e crédito</h3>
       <table>
-        <tr><td>IBS projetado</td><td class="num mono">${A.moeda(x.ibs)}</td></tr>
+        ${ibsAtivo ? `<tr><td>IBS projetado</td><td class="num mono">${A.moeda(x.ibs)}</td></tr>` : ''}
         <tr><td>CBS projetada</td><td class="num mono">${A.moeda(x.cbs)}</td></tr>
-        <tr><td>Crédito IBS</td><td class="num mono">${A.moeda(x.creditoIbs)}</td></tr>
+        ${ibsAtivo ? `<tr><td>Crédito IBS</td><td class="num mono">${A.moeda(x.creditoIbs)}</td></tr>` : ''}
         <tr><td>Crédito CBS</td><td class="num mono">${A.moeda(x.creditoCbs)}</td></tr>
         <tr><td>Status do crédito</td><td><span class="tag ${stCred(x.credito && x.credito.status)[0]}">${stCred(x.credito && x.credito.status)[1]}</span></td></tr>
         <tr><td>Motivo</td><td class="mini">${A.esc((x.credito && x.credito.motivo) || '')}</td></tr>
