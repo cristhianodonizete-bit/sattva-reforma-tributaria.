@@ -29,9 +29,10 @@ function gravar(tabela, linhas) {
   db.transaction(() => linhas.forEach((x) => inserir.run(...campos.map((c) => x[c] ?? null))))();
   return linhas.length;
 }
-function gravarGestao(projetos, entregas, acompanhamentos) {
+function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], tarefas = []) {
   const comboPorNome = new Map(db.prepare('SELECT id,nome FROM combos').all().map((x) => [x.nome, x.id]));
   const localPorRemoto = new Map();
+  const entregaLocalPorRemota = new Map();
   const insProjeto = db.prepare(`INSERT INTO contratacoes (id,empresa_id,combo_id,servicos_json,valor_bruto,desconto,valor_final,status,observacoes,criado_em,aprovado_em,competencia_referencia,acompanhamento_meses,modulos_json)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET empresa_id=excluded.empresa_id,combo_id=excluded.combo_id,servicos_json=excluded.servicos_json,status=excluded.status,aprovado_em=excluded.aprovado_em,competencia_referencia=excluded.competencia_referencia,acompanhamento_meses=excluded.acompanhamento_meses,modulos_json=excluded.modulos_json`);
@@ -51,20 +52,24 @@ function gravarGestao(projetos, entregas, acompanhamentos) {
     }
     for (const e of entregas) {
       const contratacaoId = localPorRemoto.get(e.projeto_id); const id = Number(e.origem_local_id);
-      if (contratacaoId && id) insEntrega.run(id, contratacaoId, e.chave, e.titulo, e.status, e.concluido_em || null, e.observacoes || null);
+      if (contratacaoId && id) { insEntrega.run(id, contratacaoId, e.chave, e.titulo, e.status, e.concluido_em || null, e.observacoes || null); entregaLocalPorRemota.set(e.id, id); }
     }
     for (const a of acompanhamentos) {
       const contratacaoId = localPorRemoto.get(a.projeto_id); const id = Number(a.origem_local_id);
       if (contratacaoId && id) insAcomp.run(id, contratacaoId, a.competencia, a.nome || '', a.status, a.observacoes || '', a.criado_em || null);
     }
+    const insResp = db.prepare('INSERT OR REPLACE INTO projeto_responsaveis (id,contratacao_id,entrega_id,lado,nome,telefone,email,funcao,criado_em) VALUES (?,?,?,?,?,?,?,?,?)');
+    const insTarefa = db.prepare('INSERT OR REPLACE INTO projeto_tarefas (id,contratacao_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente,interacoes_cliente,criado_em,atualizado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    for (const r of responsaveis) { const entregaId=entregaLocalPorRemota.get(r.entrega_id); const contratacaoId=localPorRemoto.get(r.projeto_id); const id=Number(r.origem_local_id); if(contratacaoId&&id) insResp.run(id,contratacaoId,entregaId||null,r.lado,r.nome,r.telefone||'',r.email||'',r.funcao||'',r.criado_em||null); }
+    for (const t of tarefas) { const entregaId=entregaLocalPorRemota.get(t.entrega_id); const contratacaoId=localPorRemoto.get(t.projeto_id); const id=Number(t.origem_local_id); if(contratacaoId&&entregaId&&id) insTarefa.run(id,contratacaoId,entregaId,t.titulo,t.descricao||'',t.status,t.data_abertura||null,t.data_conclusao||null,t.envolve_cliente?1:0,t.pendencia_cliente||'',t.interacoes_cliente||'',t.criado_em||null,t.atualizado_em||null); }
   })();
-  return { projetos: localPorRemoto.size, entregas: entregas.length, acompanhamentos: acompanhamentos.length };
+  return { projetos: localPorRemoto.size, entregas: entregas.length, acompanhamentos: acompanhamentos.length, responsaveis: responsaveis.length, tarefas: tarefas.length };
 }
 async function baixar() {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {};
   for (const tabela of Object.keys(CAMPOS)) resultado[tabela] = gravar(tabela, await buscarTudo(remoto, tabela));
-  resultado.gestao = gravarGestao(await buscarTudo(remoto, 'projetos'), await buscarTudo(remoto, 'projeto_entregas'), await buscarTudo(remoto, 'projeto_acompanhamentos'));
+  resultado.gestao = gravarGestao(await buscarTudo(remoto, 'projetos'), await buscarTudo(remoto, 'projeto_entregas'), await buscarTudo(remoto, 'projeto_acompanhamentos'), await buscarTudo(remoto, 'projeto_responsaveis'), await buscarTudo(remoto, 'projeto_tarefas'));
   return resultado;
 }
 async function publicar() {

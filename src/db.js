@@ -393,6 +393,24 @@ CREATE TABLE IF NOT EXISTS projeto_acompanhamentos (
   UNIQUE(contratacao_id, competencia)
 );
 
+CREATE TABLE IF NOT EXISTS projeto_responsaveis (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contratacao_id INTEGER NOT NULL REFERENCES contratacoes(id) ON DELETE CASCADE,
+  entrega_id INTEGER REFERENCES projeto_entregas(id) ON DELETE CASCADE,
+  lado TEXT NOT NULL, -- sattva | cliente
+  nome TEXT NOT NULL, telefone TEXT, email TEXT, funcao TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS projeto_tarefas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contratacao_id INTEGER NOT NULL REFERENCES contratacoes(id) ON DELETE CASCADE,
+  entrega_id INTEGER NOT NULL REFERENCES projeto_entregas(id) ON DELETE CASCADE,
+  titulo TEXT NOT NULL, descricao TEXT, status TEXT DEFAULT 'aberta',
+  data_abertura TEXT, data_conclusao TEXT,
+  envolve_cliente INTEGER DEFAULT 0, pendencia_cliente TEXT, interacoes_cliente TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT
+);
+
 -- ============ PLANO DE ADEQUAÇÃO ============
 CREATE TABLE IF NOT EXISTS acoes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -701,9 +701,11 @@ router.get('/gestao/projetos', (_req, res) => {
     const projetos = contratos.filter((c) => { if (vistos.has(c.empresa_id)) return false; vistos.add(c.empresa_id); return true; }).map((c) => {
       const entregas = db.prepare('SELECT * FROM projeto_entregas WHERE contratacao_id=?').all(c.id);
       const acompanhamentos = db.prepare('SELECT * FROM projeto_acompanhamentos WHERE contratacao_id=?').all(c.id);
+      const responsaveis = db.prepare('SELECT * FROM projeto_responsaveis WHERE contratacao_id=? ORDER BY id').all(c.id);
+      const tarefas = db.prepare('SELECT * FROM projeto_tarefas WHERE contratacao_id=? ORDER BY data_conclusao, id').all(c.id);
       const concluidas = entregas.filter((x) => x.status === 'concluida' || x.status === 'nao_aplicavel').length;
       const acompConcluidos = acompanhamentos.filter((x) => x.status === 'concluido').length;
-      return { ...c, modulos: modulosDaContratacao(c), entregas, acompanhamentos, concluidas,
+      return { ...c, modulos: modulosDaContratacao(c), entregas, acompanhamentos, responsaveis, tarefas, concluidas,
         progresso: entregas.length ? Math.round((concluidas / entregas.length) * 100) : 0,
         acompanhamentoConcluido: acompConcluidos, proximaCompetencia: (acompanhamentos.find((x) => x.status !== 'concluido') || {}).competencia || null };
     });
@@ -765,8 +767,26 @@ router.put('/projeto/entregas/:id', (req, res) => {
     const status = req.body.status || 'pendente';
     db.prepare("UPDATE projeto_entregas SET status=?, observacoes=?, concluido_em=CASE WHEN ?='concluida' THEN datetime('now','localtime') ELSE NULL END WHERE id=?")
       .run(status, req.body.observacoes || '', status, req.params.id);
+    const entrega = db.prepare('SELECT contratacao_id FROM projeto_entregas WHERE id=?').get(req.params.id);
+    const incluirResponsavel = (lado, nome, telefone, email, funcao) => {
+      if (String(nome || '').trim()) db.prepare('INSERT INTO projeto_responsaveis (contratacao_id,entrega_id,lado,nome,telefone,email,funcao) VALUES (?,?,?,?,?,?,?)')
+        .run(entrega.contratacao_id, req.params.id, lado, nome.trim(), telefone || '', email || '', funcao || '');
+    };
+    incluirResponsavel('sattva', req.body.responsavel_sattva, req.body.telefone_sattva, req.body.email_sattva, req.body.funcao_sattva);
+    incluirResponsavel('cliente', req.body.responsavel_cliente, req.body.telefone_cliente, req.body.email_cliente, req.body.funcao_cliente);
+    if (String(req.body.tarefa_titulo || '').trim()) db.prepare(`INSERT INTO projeto_tarefas (contratacao_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente,interacoes_cliente,atualizado_em)
+      VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))`).run(entrega.contratacao_id, req.params.id, req.body.tarefa_titulo.trim(), req.body.tarefa_descricao || '', req.body.tarefa_status || 'aberta', req.body.tarefa_abertura || null, req.body.tarefa_conclusao || null, req.body.envolve_cliente ? 1 : 0, req.body.pendencia_cliente || '', req.body.interacoes_cliente || '');
     ok(res, {});
     sincronizarGestao();
+  } catch (e) { erro(res, e); }
+});
+
+router.put('/projeto/tarefas/:id', (req, res) => {
+  try {
+    const b = req.body;
+    db.prepare(`UPDATE projeto_tarefas SET titulo=?,descricao=?,status=?,data_abertura=?,data_conclusao=?,envolve_cliente=?,pendencia_cliente=?,interacoes_cliente=?,atualizado_em=datetime('now','localtime') WHERE id=?`)
+      .run(b.titulo || '', b.descricao || '', b.status || 'aberta', b.data_abertura || null, b.data_conclusao || null, b.envolve_cliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '', req.params.id);
+    ok(res, {}); sincronizarGestao();
   } catch (e) { erro(res, e); }
 });
 

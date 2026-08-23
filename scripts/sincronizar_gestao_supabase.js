@@ -32,7 +32,21 @@ async function executar() {
   const acompanhamentos = db.prepare('SELECT * FROM projeto_acompanhamentos').all().map((a) => ({ origem_local_id: a.id, projeto_id: mapaProjeto.get(a.contratacao_id), competencia: a.competencia, nome: a.nome || null, status: a.status, observacoes: a.observacoes || null })).filter((a) => a.projeto_id);
   await upsert('projeto_entregas', entregas);
   await upsert('projeto_acompanhamentos', acompanhamentos);
-  console.log(JSON.stringify({ empresas: empresas.length, projetos: projetos.length, entregas: entregas.length, acompanhamentos: acompanhamentos.length }));
+  const { data: entregasRemotas, error: erroEntregas } = await supabase.from('projeto_entregas').select('id,origem_local_id,projeto_id');
+  if (erroEntregas) throw erroEntregas;
+  const mapaEntrega = new Map(entregasRemotas.map((e) => [Number(e.origem_local_id), e]));
+  const responsaveis = db.prepare('SELECT * FROM projeto_responsaveis').all().map((r) => {
+    const entrega = r.entrega_id ? mapaEntrega.get(Number(r.entrega_id)) : null;
+    const projeto = entrega?.projeto_id || mapaProjeto.get(r.contratacao_id);
+    return { origem_local_id:r.id, projeto_id:projeto, entrega_id:entrega?.id || null, lado:r.lado, nome:r.nome, telefone:r.telefone||null, email:r.email||null, funcao:r.funcao||null, criado_em:r.criado_em||null };
+  }).filter((r) => r.projeto_id);
+  const tarefas = db.prepare('SELECT * FROM projeto_tarefas').all().map((t) => {
+    const entrega = mapaEntrega.get(Number(t.entrega_id)); const projeto = entrega?.projeto_id || mapaProjeto.get(t.contratacao_id);
+    return { origem_local_id:t.id, projeto_id:projeto, entrega_id:entrega?.id, titulo:t.titulo, descricao:t.descricao||null, status:t.status, data_abertura:t.data_abertura||null, data_conclusao:t.data_conclusao||null, envolve_cliente:!!t.envolve_cliente, pendencia_cliente:t.pendencia_cliente||null, interacoes_cliente:t.interacoes_cliente||null, criado_em:t.criado_em||null, atualizado_em:t.atualizado_em||null };
+  }).filter((t) => t.projeto_id && t.entrega_id);
+  await upsert('projeto_responsaveis', responsaveis);
+  await upsert('projeto_tarefas', tarefas);
+  console.log(JSON.stringify({ empresas: empresas.length, projetos: projetos.length, entregas: entregas.length, acompanhamentos: acompanhamentos.length, responsaveis: responsaveis.length, tarefas: tarefas.length }));
 }
 if (require.main === module) executar().catch((e) => { console.error('ERRO:', e.message); process.exitCode = 1; });
 module.exports = { executar };
