@@ -34,8 +34,11 @@ button,input,select,textarea{font-family:inherit;font-size:inherit}
 .empresa-ativa select option{color:#16232b}
 
 nav{padding:10px 10px 24px;flex:1}
+nav .grupo{cursor:pointer;user-select:none}
+nav .grupo:nth-of-type(n){margin-top:6px}
 nav .grupo{font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#7d9cb0;padding:16px 10px 6px}
 nav a{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:8px;color:#cfe0e9;text-decoration:none;font-size:13.5px;cursor:pointer;border-left:3px solid transparent}
+.menu-item-oculto{display:none!important}
 nav a:hover{background:rgba(255,255,255,.07);color:#fff}
 nav a.ativo{background:rgba(242,172,0,.14);color:#fff;border-left-color:var(--ouro);font-weight:600}
 nav a .n{margin-left:auto;font-size:11px;font-family:var(--mono);color:var(--ouro)}

@@ -172,6 +172,9 @@ const App = (() => {
     document.querySelectorAll('#menu a').forEach((a) => { a.onclick = () => ir(a.dataset.tela); });
     const sair = document.querySelector('#menu [data-sair]');
     if (sair) sair.onclick = () => { localStorage.removeItem('sattva_token'); location.reload(); };
+    document.querySelectorAll('#menu .grupo').forEach((g) => { g.onclick = () => {
+      let n = g.nextElementSibling; while (n && !n.classList.contains('grupo')) { n.classList.toggle('menu-item-oculto'); n = n.nextElementSibling; }
+    }; });
   }
 
   async function ir(tela) {
