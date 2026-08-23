@@ -90,11 +90,11 @@ router.get('/operacao/dashboard', async (_req, res) => {
     const agenda = [
       ...(tarefas || []).filter((t) => t.status !== 'concluida' && t.data_conclusao).map((t) => {
         const p = projetoPorId.get(t.projeto_id), entrega = entregaPorId.get(t.entrega_id);
-        return { tipo: 'tarefa', projetoId: t.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', responsavelSattva: p?.responsavelSattva || null, titulo: t.titulo, etapa: entrega?.titulo || null, data: t.data_conclusao, atrasado: t.data_conclusao < hoje, envolveCliente: Boolean(t.envolve_cliente) };
+        return { tipo: 'tarefa', projetoId: t.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', projetoStatus: p?.status || '', responsavelSattva: p?.responsavelSattva || null, pendenciasCliente: p?.pendenciasCliente || 0, titulo: t.titulo, etapa: entrega?.titulo || null, data: t.data_conclusao, atrasado: t.data_conclusao < hoje, envolveCliente: Boolean(t.envolve_cliente) };
       }),
       ...(acompanhamentos || []).filter((a) => a.status !== 'concluido' && a.competencia).map((a) => {
         const p = projetoPorId.get(a.projeto_id);
-        return { tipo: 'acompanhamento', projetoId: a.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', responsavelSattva: p?.responsavelSattva || null, titulo: 'Acompanhamento previsto', etapa: null, data: a.competencia, atrasado: a.competencia < hoje.slice(0, 7), envolveCliente: false };
+        return { tipo: 'acompanhamento', projetoId: a.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', projetoStatus: p?.status || '', responsavelSattva: p?.responsavelSattva || null, pendenciasCliente: p?.pendenciasCliente || 0, titulo: 'Acompanhamento previsto', etapa: null, data: a.competencia, atrasado: a.competencia < hoje.slice(0, 7), envolveCliente: false };
       }),
     ].sort((a, b) => String(a.data).localeCompare(String(b.data)));
     ok(res, { empresas: empresas.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
