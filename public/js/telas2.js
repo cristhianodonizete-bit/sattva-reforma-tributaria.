@@ -387,7 +387,10 @@ Telas.plano = async (el) => {
 // SERVIÇOS E COMBOS
 // ===========================================================================
 Telas.servicos = async (el) => {
-  const { servicos, combos } = await A.api('/servicos');
+  const dados = await A.api('/servicos');
+  const nomesLegados = new Set(['diagnóstico completo', 'implementação integral', 'essencial', 'margem protegida', 'blindagem contratual', 'time preparado']);
+  const servicos = dados.servicos.filter((s) => !nomesLegados.has(String(s.nome || '').trim().toLowerCase()));
+  const combos = dados.combos.filter((c) => !nomesLegados.has(String(c.nome || '').trim().toLowerCase()));
   const sel = S.cache.selServ || [];
   const modulos = [...new Set(servicos.map((s) => s.modulo))];
 
@@ -411,14 +414,14 @@ Telas.servicos = async (el) => {
             </label>`).join('')}</div></div>`).join('')}
       </div>
       <div>
-        <div class="cartao" style="position:sticky;top:20px"><h2>Proposta</h2><p class="desc">Resumo da seleção</p>
-          <div id="orcamento"><p class="mini">Selecione os serviços ao lado.</p></div>
+        <div class="cartao" style="position:sticky;top:20px"><h2>Escopo selecionado</h2><p class="desc">Resumo das entregas que serão registradas para aprovação.</p>
+          <div id="resumoEscopo"><p class="mini">Selecione os serviços ao lado.</p></div>
         </div>
       </div>
     </div>`;
 
   const recalcular = async () => {
-    const box = document.getElementById('orcamento');
+    const box = document.getElementById('resumoEscopo');
     if (!sel.length) { box.innerHTML = '<p class="mini">Selecione os serviços ao lado.</p>'; return; }
     const itens = servicos.filter((s) => sel.includes(s.id));
     const combo = combos.filter((c) => c.servicos.length && c.servicos.every((id) => sel.includes(id)))[0] || null;

@@ -306,7 +306,10 @@ Telas.conhecimento = async (el) => {
 // CONFIGURAÇÃO DE ESCOPO — SERVIÇOS E COMBOS
 // ===========================================================================
 Telas.configComercial = async (el) => {
-  const { servicos, combos } = await A.api('/servicos');
+  const dados = await A.api('/servicos');
+  const nomesLegados = new Set(['diagnóstico completo', 'implementação integral', 'essencial', 'margem protegida', 'blindagem contratual', 'time preparado']);
+  const servicos = dados.servicos.filter((s) => !nomesLegados.has(String(s.nome || '').trim().toLowerCase()));
+  const combos = dados.combos.filter((c) => !nomesLegados.has(String(c.nome || '').trim().toLowerCase()));
   el.innerHTML = cab('Configuração', 'Combos e módulos',
     'Monte os escopos entregáveis e indique quais módulos cada serviço libera. Não há valores comerciais nesta ferramenta.',
     '<button class="btn" id="novoServico">Novo serviço</button><button class="btn vazio" id="novoCombo">Novo combo</button>') +
