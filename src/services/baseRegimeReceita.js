@@ -271,6 +271,21 @@ async function consultarCompartilhada(cnpjs, ano) {
       if (!atual || Number(r.ano) > Number(atual.ano)) encontrados.set(r.cnpj, r);
     }
   }
+  // A RFB 2024 desta instalação foi publicada com CNPJ completo. Para que
+  // filiais encontrem o regime da matriz, a raiz precisa ser comparada com a
+  // coluna `raiz` — procurar uma raiz na coluna `cnpj` nunca encontraria nada.
+  const raizes = [...new Set(chaves.filter((x) => x.length === 8))];
+  for (let i = 0; i < raizes.length; i += 500) {
+    let consulta = remoto.from('base_regime').select('cnpj,raiz,regime,ano,fonte')
+      .in('raiz', raizes.slice(i, i + 500));
+    if (ano) consulta = consulta.eq('ano', Number(ano));
+    const { data, error } = await consulta;
+    if (error) throw new Error(`Base RFB compartilhada: ${error.message}`);
+    for (const r of (data || [])) {
+      const atual = encontrados.get(r.raiz);
+      if (!atual || Number(r.ano) > Number(atual.ano)) encontrados.set(r.raiz, r);
+    }
+  }
   return encontrados;
 }
 
