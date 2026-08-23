@@ -494,12 +494,9 @@ async function basesReceita(el) {
     </div>
     <div class="cartao" style="margin-top:16px">
       <h2>Importar relação anual</h2>
-      <p class="desc">O arquivo é lido direto do disco do servidor, não por upload — CSV de dezenas de
-        megabytes por HTTP é frágil e desnecessário quando o sistema roda na mesma máquina.
-        A leitura é em streaming: 1,4 milhão de linhas leva cerca de 40 segundos.</p>
+      <p class="desc">Selecione o CSV no seu computador. Ele é enviado temporariamente, importado em lotes na base compartilhada e removido do servidor ao final.</p>
       <div class="grade g4" style="align-items:end">
-        <label class="campo" style="margin:0;grid-column:span 2"><span>Caminho do arquivo no servidor</span>
-          <input type="text" id="brCaminho" placeholder="C:\\Sattva\\bases\\Lucro Presumido 2024.csv"></label>
+        <label class="campo" style="margin:0;grid-column:span 2"><span>Arquivo CSV</span><input type="file" id="brArquivo" accept=".csv,.txt"></label>
         <label class="campo" style="margin:0"><span>Regime</span>
           <select id="brRegime">${(e.regimesAceitos || []).map((r) =>
             `<option value="${r.chave}">${A.esc(r.nome)}</option>`).join('')}</select></label>
@@ -509,7 +506,6 @@ async function basesReceita(el) {
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <label style="display:flex;gap:6px;align-items:center;font-size:12.5px">
           <input type="checkbox" id="brSubst" checked> substituir o que já existe deste regime e ano</label>
-        <button class="btn vazio" id="brInspecionar" style="margin-left:auto">Inspecionar leiaute</button>
         <button class="btn ouro" id="brImportar">Importar</button>
       </div>
       <div id="brStatus" style="margin-top:12px"></div>
@@ -537,44 +533,22 @@ async function basesReceita(el) {
       ], e.importacoes, { vazio: 'Nenhuma base importada.' })}
     </div>`;
 
-  const cam = () => document.getElementById('brCaminho').value.trim();
+  const arquivo = () => document.getElementById('brArquivo').files[0];
   const box = document.getElementById('brStatus');
 
-  document.getElementById('brInspecionar').onclick = async () => {
-    if (!cam()) return A.toast('Informe o caminho do arquivo.', 'erro');
-    box.innerHTML = '<div class="carregando">Lendo as primeiras linhas…</div>';
-    try {
-      const { leiaute: l } = await A.api('/base-regime/inspecionar', { metodo: 'POST', corpo: { caminho: cam() } });
-      const selRegime = document.getElementById('brRegime');
-      const selAno = document.getElementById('brAno');
-      box.innerHTML = `<div class="aviso bom"><b>Leiaute reconhecido</b>
-        Codificação ${l.encoding} · separador "${A.esc(l.separador)}" · ${l.temCabecalho ? 'com' : 'sem'} cabeçalho ·
-        CNPJ na coluna ${l.colCnpj + 1} (${l.formatoCnpj === 'raiz' ? 'raiz de 8 dígitos' : 'CNPJ completo'})
-        <div class="acao">Exemplo lido: ${A.esc(l.exemplo)} · colunas: ${A.esc((l.colunas || []).join(', ').slice(0, 120))}</div></div>
-        ${l.regimePorLinha ? `<div class="aviso bom"><b>O arquivo já traz o regime por linha</b>
-          (coluna "${A.esc(l.colunas[l.colForma])}"). O regime selecionado ao lado é ignorado — cada CNPJ
-          recebe o que estiver escrito na própria linha, e um mesmo arquivo pode conter mais de um regime.</div>` : ''}
-        ${l.anoPorLinha ? `<div class="aviso"><b>Ano lido da própria linha</b>
-          (coluna "${A.esc(l.colunas[l.colAno])}"). O ano informado ao lado só vale para linhas sem esse dado.</div>` : ''}`;
-      if (l.regimePorLinha) { selRegime.disabled = true; selRegime.title = 'ignorado — o arquivo define o regime por linha'; }
-      if (l.anoPorLinha) { selAno.placeholder = 'lido da própria linha'; }
-    } catch (err) { box.innerHTML = `<div class="aviso alto">${A.esc(err.message)}</div>`; }
-  };
-
   document.getElementById('brImportar').onclick = async () => {
-    if (!cam()) return A.toast('Informe o caminho do arquivo.', 'erro');
-    box.innerHTML = `<div class="aviso"><b>Importando…</b>Arquivos grandes levam de 30 a 60 segundos.
+    if (!arquivo()) return A.toast('Selecione o arquivo CSV.', 'erro');
+    box.innerHTML = `<div class="aviso"><b>Importando e sincronizando…</b>Arquivos grandes podem levar alguns minutos.
       Não feche esta janela.</div><div class="barra-prog"><i style="width:45%"></i></div>`;
     try {
-      const r = await A.api('/base-regime/importar', { metodo: 'POST', corpo: {
-        caminho: cam(), regime: document.getElementById('brRegime').value,
-        ano: Number(document.getElementById('brAno').value) || undefined,
-        substituir: document.getElementById('brSubst').checked } });
+      const fd = new FormData(); fd.append('arquivo', arquivo()); fd.append('regime', document.getElementById('brRegime').value);
+      fd.append('ano', String(Number(document.getElementById('brAno').value) || '')); fd.append('substituir', document.getElementById('brSubst').checked ? 'true' : '');
+      const r = await A.api('/base-regime/upload', { metodo: 'POST', corpo: fd });
       box.innerHTML = `<div class="aviso bom"><b>${r.importados.toLocaleString('pt-BR')} CNPJs importados em ${r.segundos}s</b>
         ${r.linhas.toLocaleString('pt-BR')} linhas lidas${r.invalidos ? ` · ${r.invalidos} sem CNPJ válido` : ''}${r.duplicados ? ` · ${r.duplicados} repetidos` : ''}${r.semRegime ? ` · ${r.semRegime} com forma de tributação não reconhecida (ignoradas)` : ''}</div>
         ${Object.keys(r.porRegime || {}).length > 1 || (r.porAno && Object.keys(r.porAno).length > 1) ? `<table class="compacta"><thead><tr><th>Regime</th><th class="num">CNPJs</th></tr></thead>
           <tbody>${Object.entries(r.porRegime).map(([k, v]) => `<tr><td>${A.regimeLabel(k)}</td><td class="num mono">${v.toLocaleString('pt-BR')}</td></tr>`).join('')}</tbody></table>` : ''}
-        ${r.comScp ? `<div class="mini" style="margin-top:8px">${r.comScp} registros de Sociedade em Conta de Participação (SCP) — o CNPJ importado é o do sócio ostensivo.</div>` : ''}`;
+        ${r.compartilhada ? `<div class="mini" style="margin-top:8px">${r.compartilhada.enviados.toLocaleString('pt-BR')} registros sincronizados no Supabase.</div>` : ''}`;
       setTimeout(() => A.ir('bases'), 2000);
     } catch (err) { box.innerHTML = `<div class="aviso alto">${A.esc(err.message)}</div>`; }
   };

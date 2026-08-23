@@ -219,6 +219,34 @@ async function importar(caminho, regime, opcoes = {}) {
   return rel;
 }
 
+/** Publica uma importação recém-realizada para a fonte compartilhada. */
+async function publicarImportacaoCompartilhada(arquivo, rel, substituir = false) {
+  if (!supabase.configurado()) throw new Error('Supabase não configurado para receber a base compartilhada.');
+  const remoto = supabase.admin(); const D = db();
+  if (substituir) {
+    const { error } = await remoto.from('base_regime').delete().eq('fonte', arquivo);
+    if (error) throw new Error(`Não foi possível substituir a base compartilhada: ${error.message}`);
+  }
+  const buscar = D.prepare('SELECT cnpj,raiz,regime,ano,fonte FROM base_regime WHERE fonte=? AND rowid>? ORDER BY rowid LIMIT 500');
+  let ultimo = 0; let enviados = 0;
+  for (;;) {
+    const linhas = buscar.all(arquivo, ultimo);
+    if (!linhas.length) break;
+    const { error } = await remoto.from('base_regime').upsert(linhas, { onConflict: 'cnpj,ano' });
+    if (error) throw new Error(`Base compartilhada: ${error.message}`);
+    ultimo = D.prepare('SELECT rowid FROM base_regime WHERE cnpj=? AND ano=?').get(linhas[linhas.length - 1].cnpj, linhas[linhas.length - 1].ano).rowid;
+    enviados += linhas.length;
+  }
+  await remoto.from('base_regime_importacoes').delete().eq('arquivo', arquivo);
+  const { error: erroHistorico } = await remoto.from('base_regime_importacoes').insert({
+    arquivo, regime: Object.keys(rel.porRegime).join(', ') || rel.regime, ano: rel.ano,
+    linhas: rel.linhas, importados: rel.importados, invalidos: rel.invalidos,
+    duplicados: rel.duplicados, segundos: rel.segundos,
+  });
+  if (erroHistorico) throw new Error(`Histórico compartilhado: ${erroHistorico.message}`);
+  return { enviados };
+}
+
 // --------------------------------------------------------------------------
 // CONSULTA
 // --------------------------------------------------------------------------
@@ -356,4 +384,4 @@ function limpar(regime, ano) {
   return D.prepare('DELETE FROM base_regime').run().changes;
 }
 
-module.exports = { detectar, importar, regimePorTexto, consultar, consultarCompartilhada, refinarParceiros, estatisticas, limpar, REGIMES_VALIDOS };
+module.exports = { detectar, importar, publicarImportacaoCompartilhada, regimePorTexto, consultar, consultarCompartilhada, refinarParceiros, estatisticas, limpar, REGIMES_VALIDOS };

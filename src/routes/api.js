@@ -1,5 +1,7 @@
 const express = require('express');
 const multer = require('multer');
+const fs = require('fs');
+const os = require('os');
 const db = require('../db');
 const P = require('../config/parametros');
 const { CLAUSULAS, TRILHAS } = require('../config/conteudo');
@@ -46,6 +48,10 @@ router.get('/cadastros-cnpj', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });
+const uploadBaseRegime = multer({
+  dest: os.tmpdir(), limits: { fileSize: 150 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => cb(null, /\.(csv|txt)$/i.test(file.originalname)),
+});
 
 // As alterações feitas nas telas passam a ser publicadas na fonte compartilhada.
 // A resposta não espera a rede: em caso de falha, o SQLite preserva o trabalho
@@ -2302,6 +2308,25 @@ router.post('/base-regime/importar', async (req, res) => {
       ano: b.ano, substituir: !!b.substituir });
     ok(res, r);
   } catch (e) { erro(res, e); }
+});
+
+// No Render o usuário envia o CSV pelo navegador; nunca se usa um caminho do
+// computador dele. O arquivo é temporário e a fonte definitiva é o Supabase.
+router.post('/base-regime/upload', uploadBaseRegime.single('arquivo'), async (req, res) => {
+  try {
+    if (!req.file) throw new Error('Selecione um arquivo CSV.');
+    const b = req.body;
+    const nome = String(req.file.originalname || 'base-rfb.csv');
+    const r = await baseRegime.importar(req.file.path, b.regime, { ano: b.ano, substituir: !!b.substituir });
+    // O nome apresentado e gravado no histórico é o do arquivo do usuário,
+    // não o nome aleatório criado na pasta temporária do Render.
+    const D = db();
+    D.prepare('UPDATE base_regime SET fonte=? WHERE fonte=?').run(nome, r.arquivo);
+    r.arquivo = nome;
+    const compartilhada = await baseRegime.publicarImportacaoCompartilhada(nome, r, !!b.substituir);
+    ok(res, { ...r, compartilhada });
+  } catch (e) { erro(res, e); }
+  finally { if (req.file?.path) fs.unlink(req.file.path, () => {}); }
 });
 
 router.get('/base-regime/consultar/:cnpj', (req, res) => {
