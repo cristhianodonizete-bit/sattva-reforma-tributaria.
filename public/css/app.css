@@ -93,6 +93,7 @@ td{padding:8px 10px;border-bottom:1px solid #eef1f3;vertical-align:middle}
 tbody tr:hover{background:#f7fafb}
 td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
 .tabela-rolagem{overflow-x:auto;margin:0 -20px;padding:0 20px}
+ .tabela-rolagem{max-height:620px;overflow:auto}.tabela-rolagem thead th{position:sticky;top:0;background:var(--branco);z-index:2}.tabela-rolagem tbody tr:nth-child(even){background:rgba(17,72,102,.018)}.tabela-rolagem td{padding-top:11px;padding-bottom:11px}.cartao .tabela-rolagem{margin-top:12px}
 
 .tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:600;background:#eef3f6;color:var(--navy-700);white-space:nowrap}
 .tag.a{background:#fde9e7;color:var(--sobe)} .tag.b{background:var(--ouro-100);color:#8a6200}
