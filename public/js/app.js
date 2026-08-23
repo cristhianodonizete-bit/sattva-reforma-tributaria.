@@ -145,16 +145,16 @@ const App = (() => {
       { id: 'dados', t: 'Cadastros e importação', i: '⇧' }, { id: 'bases', t: 'Bases de classificação', i: '⌘' },
       { id: 'perfil', t: 'Perfil tributário', i: '◉' }, { id: 'fornecedores', t: 'Cadeia de fornecedores', i: '↙' },
       { id: 'clientes', t: 'Cadeia de clientes', i: '↗' }, { id: 'cenarios', t: 'Projeção de cenários', i: '⌁' },
-      { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' },
+      { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' }, { id: 'tarefasDiagnostico', t: 'Tarefas', i: '✓' },
     ] },
     { id: 'precificacao', titulo: 'Módulo 2 · Precificação', itens: [
-      { id: 'precificacao', t: 'Precificação e margem', i: '◫' },
+      { id: 'precificacao', t: 'Precificação e margem', i: '◫' }, { id: 'tarefasPrecificacao', t: 'Tarefas', i: '✓' },
     ] },
     { id: 'contratos', titulo: 'Módulo 3 · Contratos', itens: [
-      { id: 'contratos', t: 'Revisão de contratos', i: '▤' }, { id: 'analise', t: 'Análise de contrato (IA)', i: '✦' },
+      { id: 'contratos', t: 'Revisão de contratos', i: '▤' }, { id: 'analise', t: 'Análise de contrato (IA)', i: '✦' }, { id: 'tarefasContratos', t: 'Tarefas', i: '✓' },
     ] },
     { id: 'capacitacao', titulo: 'Módulo 4 · Capacitação', itens: [
-      { id: 'capacitacao', t: 'Capacitação do time', i: '◌' },
+      { id: 'capacitacao', t: 'Capacitação do time', i: '◌' }, { id: 'tarefasCapacitacao', t: 'Tarefas', i: '✓' },
     ] },
     { id: 'gestao', titulo: 'Gestão do produto', itens: [
       { id: 'plano', t: 'Plano de adequação', i: '✓' }, { id: 'servicos', t: 'Escopos e combos', i: '⊞' },
@@ -166,8 +166,8 @@ const App = (() => {
   const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens);
   const PERMISSAO_TELA = {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
-    dados: 'diagnostico', bases: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico',
-    precificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', capacitacao: 'capacitacao',
+    dados: 'diagnostico', bases: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
+    precificacao: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao',
     servicos: 'gestao_projetos', gestaoProjetos: 'gestao_projetos', configComercial: 'configuracoes', conhecimento: 'configuracoes', configuracoes: 'configuracoes', questor: 'configuracoes', acessos: 'acessos',
   };
   const pode = (tela, acao = 'ver') => {
@@ -175,6 +175,16 @@ const App = (() => {
     if (!S.usuario || !permissoes) return true; // compatibilidade até todos os usuários receberem um perfil
     return Boolean(permissoes[PERMISSAO_TELA[tela] || tela]?.[acao]);
   };
+  const TAREFAS_POR_TELA = {
+    tarefasDiagnostico: ['diagnostico', 'Diagnóstico'], tarefasPrecificacao: ['precificacao', 'Precificação'],
+    tarefasContratos: ['contratos', 'Contratos'], tarefasCapacitacao: ['capacitacao', 'Capacitação'],
+  };
+
+  async function telaTarefasModulo(el, chave, titulo) {
+    el.innerHTML = `<div class="topo"><div><div class="olho">GESTÃO DO MÓDULO</div><h1>Tarefas — ${esc(titulo)}</h1><p>Planeje, registre pendências do cliente e acompanhe a execução deste módulo.</p></div></div>`;
+    const host = document.createElement('div'); host.className = 'tarefas-modulo-host'; el.appendChild(host);
+    await tarefasModulo(host, chave, titulo);
+  }
 
   function desenharMenu() {
     const menu = document.getElementById('menu');
@@ -212,7 +222,8 @@ const App = (() => {
     const alvo = document.getElementById('tela');
     alvo.innerHTML = '<div class="carregando">Carregando…</div>';
     try {
-      const fn = Telas[tela];
+      const tarefasDaTela = TAREFAS_POR_TELA[tela];
+      const fn = tarefasDaTela ? ((host) => telaTarefasModulo(host, ...tarefasDaTela)) : Telas[tela];
       if (!fn) { alvo.innerHTML = vazio('Tela não encontrada', 'Escolha uma opção no menu.'); return; }
       const semEmpresa = ['empresas', 'dashboardOperacao', 'servicos', 'gestaoProjetos', 'configComercial', 'conhecimento', 'questor', 'bases', 'configuracoes', 'acessos'];
       if (!semEmpresa.includes(tela) && !S.empresaId) {
@@ -224,8 +235,8 @@ const App = (() => {
       // módulos presentes naquela fotografia ficam disponíveis ao projeto.
       const moduloPorTela = {
         dados: 'diagnostico', bases: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico',
-        clientes: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico',
-        precificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', capacitacao: 'capacitacao',
+        clientes: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
+        precificacao: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao',
       };
       if (S.empresaId && moduloPorTela[tela]) {
         const acesso = await api(`/empresas/${S.empresaId}/acesso`);
@@ -240,11 +251,6 @@ const App = (() => {
         }
       }
       await fn(alvo);
-      const tarefaPorTela = { painel: ['diagnostico', 'Diagnóstico'], precificacao: ['precificacao', 'Precificação'], contratos: ['contratos', 'Contratos'], capacitacao: ['capacitacao', 'Capacitação'] };
-      if (tarefaPorTela[tela]) {
-        const hostTarefas = document.createElement('div'); hostTarefas.className = 'tarefas-modulo-host'; alvo.appendChild(hostTarefas);
-        await tarefasModulo(hostTarefas, ...tarefaPorTela[tela]);
-      }
     } catch (e) {
       alvo.innerHTML = `<div class="aviso alto"><b>Não foi possível carregar</b>${esc(e.message)}</div>`;
     }
