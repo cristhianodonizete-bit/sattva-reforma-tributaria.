@@ -355,7 +355,13 @@ const App = (() => {
       const entregas = d.entregas || [];
       if (!entregas.length) { host.innerHTML = ''; return; }
       const tarefas = d.tarefas || [];
-      host.innerHTML = `<section class="cartao tarefas-modulo"><div class="cabecalho-lista"><div><h2>Tarefas do módulo</h2><p class="desc">Execução de ${esc(tituloModulo)}. As tarefas também aparecem consolidadas no Acompanhamento geral.</p></div>${podeExecutar ? '<button class="btn pq" data-nova-tarefa>Nova tarefa</button>' : `<span class="tag">${tarefas.length} tarefas</span>`}</div>${tarefas.length ? tabela([
+      const responsaveisDaEntrega = (entregaId, lado) => (d.responsaveis || []).find((r) => r.entrega_id === entregaId && r.lado === lado);
+      const contatos = entregas.map((e) => {
+        const sattva = responsaveisDaEntrega(e.id, 'sattva'), cliente = responsaveisDaEntrega(e.id, 'cliente');
+        const pessoa = (r, rotulo) => r ? `<span><b>${rotulo}:</b> ${esc(r.nome)}${r.telefone ? ` · ${esc(r.telefone)}` : ''}${r.email ? ` · ${esc(r.email)}` : ''}</span>` : `<span><b>${rotulo}:</b> não definido</span>`;
+        return `<div class="responsavel-modulo-item"><div>${entregas.length > 1 ? `<strong>${esc(e.titulo)}</strong>` : ''}${pessoa(sattva, 'Sattva')}${pessoa(cliente, 'Cliente')}</div>${podeExecutar ? `<button class="btn pq vazio" data-responsaveis="${e.id}">Editar</button>` : ''}</div>`;
+      }).join('');
+      host.innerHTML = `<section class="cartao tarefas-modulo"><div class="cabecalho-lista"><div><h2>Tarefas do módulo</h2><p class="desc">Execução de ${esc(tituloModulo)}. As tarefas também aparecem consolidadas no Acompanhamento geral.</p></div>${podeExecutar ? '<button class="btn pq" data-nova-tarefa>Nova tarefa</button>' : `<span class="tag">${tarefas.length} tarefas</span>`}</div><div class="responsaveis-modulo"><div class="mini">RESPONSÁVEIS DO MÓDULO</div>${contatos}</div>${tarefas.length ? tabela([
         { t: 'Situação', r: (t) => `<span class="tag ${t.status === 'concluida' ? 'c' : t.status === 'em_andamento' ? 'b' : 'n'}">${esc(t.status.replace('_', ' '))}</span>` },
         { t: 'Tarefa', r: (t) => `<b>${esc(t.titulo)}</b>${entregas.length > 1 ? `<small class="mini">${esc(t.entrega_titulo || 'Capacitação')}</small>` : ''}${t.pendencia_cliente ? `<small class="mini pendencia-cliente">Pendência: ${esc(t.pendencia_cliente)}</small>` : ''}` },
         { t: 'Prazo', r: (t) => `<span class="mono mini">${esc(t.data_conclusao || '—')}</span>` },
@@ -366,6 +372,13 @@ const App = (() => {
         aoConfirmar: async (form) => { await api(tarefa ? `/projeto/tarefas/${tarefa.id}` : `/empresas/${S.empresaId}/projeto/tarefas/${chave}`, { metodo: tarefa ? 'PUT' : 'POST', corpo: form }); await carregar(); } });
       host.querySelector('[data-nova-tarefa]')?.addEventListener('click', () => abrir());
       host.querySelectorAll('[data-editar-tarefa]').forEach((b) => b.addEventListener('click', () => abrir(tarefas.find((t) => t.id === Number(b.dataset.editarTarefa)))));
+      host.querySelectorAll('[data-responsaveis]').forEach((b) => b.addEventListener('click', () => {
+        const entrega = entregas.find((e) => e.id === Number(b.dataset.responsaveis));
+        const sattva = responsaveisDaEntrega(entrega.id, 'sattva') || {}, cliente = responsaveisDaEntrega(entrega.id, 'cliente') || {};
+        modal({ titulo: `Responsáveis — ${entrega.titulo}`, largura: 720,
+          corpo: `<h3 class="subtitulo-modal">Responsável pela Sattva</h3><div class="grade g2">${campo('responsavel_sattva', 'Nome', sattva.nome || '')}${campo('funcao_sattva', 'Função / papel', sattva.funcao || '')}${campo('telefone_sattva', 'Telefone', sattva.telefone || '')}${campo('email_sattva', 'E-mail', sattva.email || '', 'email')}</div><h3 class="subtitulo-modal">Responsável pelo cliente</h3><div class="grade g2">${campo('responsavel_cliente', 'Nome', cliente.nome || '')}${campo('funcao_cliente', 'Função / área', cliente.funcao || '')}${campo('telefone_cliente', 'Telefone', cliente.telefone || '')}${campo('email_cliente', 'E-mail', cliente.email || '', 'email')}</div>`,
+          aoConfirmar: async (form) => { await api(`/empresas/${S.empresaId}/projeto/responsaveis/${chave}`, { metodo: 'POST', corpo: { ...form, entrega_id: entrega.id } }); await carregar(); } });
+      }));
     };
     await carregar();
   }

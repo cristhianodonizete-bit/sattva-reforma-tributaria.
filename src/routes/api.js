@@ -65,6 +65,8 @@ const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/empresas\/\d+\/contratos/.test(caminho) || /^\/contratos/.test(caminho)) return 'contratos';
   const tarefaDoModulo = caminho.match(/^\/empresas\/\d+\/projeto\/tarefas\/([^/]+)$/);
   if (tarefaDoModulo) return areaDaTarefaModulo(tarefaDoModulo[1]);
+  const responsavelDoModulo = caminho.match(/^\/empresas\/\d+\/projeto\/responsaveis\/([^/]+)$/);
+  if (responsavelDoModulo) return areaDaTarefaModulo(responsavelDoModulo[1]);
   // A edição identifica o módulo pela entrega vinculada, dentro da própria rota.
   if (/^\/projeto\/tarefas\/\d+$/.test(caminho)) return null;
   if (/^\/empresas\/\d+\/acoes/.test(caminho) || /^\/acoes/.test(caminho)) return 'gestao_projetos';
@@ -1067,18 +1069,19 @@ const chavesDeTarefaModulo = (chave) => (chave === 'capacitacao'
 router.get('/empresas/:id/projeto/tarefas/:chave', async (req, res) => {
   try {
     const projeto = db.prepare(`SELECT id FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(req.params.id);
-    if (!projeto) return ok(res, { entregas: [], tarefas: [] });
+    if (!projeto) return ok(res, { entregas: [], tarefas: [], responsaveis: [] });
     const projetoPermitido = await contratacaoPermitida(req, projeto.id);
     const chaves = chavesDeTarefaModulo(req.params.chave);
     const marcadores = chaves.map(() => '?').join(',');
     const entregas = db.prepare(`SELECT * FROM projeto_entregas WHERE contratacao_id=? AND chave IN (${marcadores}) ORDER BY id`).all(projetoPermitido.id, ...chaves);
-    if (!entregas.length) return ok(res, { entregas: [], tarefas: [] });
+    if (!entregas.length) return ok(res, { entregas: [], tarefas: [], responsaveis: [] });
     const ids = entregas.map(() => '?').join(',');
     const tarefas = db.prepare(`SELECT t.*, e.titulo AS entrega_titulo, e.chave AS entrega_chave
       FROM projeto_tarefas t JOIN projeto_entregas e ON e.id=t.entrega_id
       WHERE t.entrega_id IN (${ids})
       ORDER BY CASE t.status WHEN 'concluida' THEN 2 ELSE 1 END, t.data_conclusao, t.id`).all(...entregas.map((e) => e.id));
-    ok(res, { entregas, tarefas });
+    const responsaveis = db.prepare(`SELECT * FROM projeto_responsaveis WHERE entrega_id IN (${ids}) ORDER BY lado, id`).all(...entregas.map((e) => e.id));
+    ok(res, { entregas, tarefas, responsaveis });
   } catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/projeto/tarefas/:chave', async (req, res) => {
@@ -1097,6 +1100,28 @@ router.post('/empresas/:id/projeto/tarefas/:chave', async (req, res) => {
       VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))`).run(projeto.id, entrega.id, b.titulo.trim(), b.descricao || '', b.status || 'aberta', b.data_abertura || null, b.data_conclusao || null, b.envolve_cliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '');
     auditar(req, { empresaId: projeto.empresa_id, acao: 'Criou tarefa do módulo', entidade: 'tarefa', entidadeId: r.lastInsertRowid, depois: { modulo: req.params.chave, titulo: b.titulo.trim() } });
     ok(res, { id: r.lastInsertRowid }); sincronizarGestao();
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/projeto/responsaveis/:chave', async (req, res) => {
+  try {
+    const projetoBase = db.prepare(`SELECT id FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(req.params.id);
+    if (!projetoBase) throw new Error('Não há um projeto aprovado para esta empresa.');
+    const projeto = await contratacaoPermitida(req, projetoBase.id);
+    const b = req.body, chaves = chavesDeTarefaModulo(req.params.chave), marcadores = chaves.map(() => '?').join(',');
+    const entregas = db.prepare(`SELECT * FROM projeto_entregas WHERE contratacao_id=? AND chave IN (${marcadores}) ORDER BY id`).all(projeto.id, ...chaves);
+    const entrega = entregas.length === 1 ? entregas[0] : entregas.find((e) => String(e.id) === String(b.entrega_id));
+    if (!entrega) throw new Error(entregas.length > 1 ? 'Selecione a entrega de capacitação.' : 'Este módulo não está liberado no escopo aprovado.');
+    const salvar = (lado, nome, telefone, email, funcao) => {
+      if (!String(nome || '').trim()) return;
+      const existente = db.prepare('SELECT id FROM projeto_responsaveis WHERE contratacao_id=? AND entrega_id=? AND lado=? ORDER BY id LIMIT 1').get(projeto.id, entrega.id, lado);
+      if (existente) db.prepare('UPDATE projeto_responsaveis SET nome=?, telefone=?, email=?, funcao=? WHERE id=?').run(nome.trim(), telefone || '', email || '', funcao || '', existente.id);
+      else db.prepare('INSERT INTO projeto_responsaveis (contratacao_id,entrega_id,lado,nome,telefone,email,funcao) VALUES (?,?,?,?,?,?,?)').run(projeto.id, entrega.id, lado, nome.trim(), telefone || '', email || '', funcao || '');
+    };
+    salvar('sattva', b.responsavel_sattva, b.telefone_sattva, b.email_sattva, b.funcao_sattva);
+    salvar('cliente', b.responsavel_cliente, b.telefone_cliente, b.email_cliente, b.funcao_cliente);
+    auditar(req, { empresaId: projeto.empresa_id, acao: 'Atualizou responsáveis do módulo', entidade: 'entrega', entidadeId: entrega.id, depois: { modulo: req.params.chave } });
+    ok(res, {}); sincronizarGestao();
   } catch (e) { erro(res, e); }
 });
 
