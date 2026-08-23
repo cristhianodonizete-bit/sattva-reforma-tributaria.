@@ -47,6 +47,8 @@ function comAbas(nome, abas, padrao) {
 
 /** Seletor de ano da transição, comum a todas as visões do motor */
 function seletorAno(aoTrocar) {
+  if (!S.params.modoAnalise?.ibsAtivo) return `<div class="cartao" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
+    <b style="font-size:13px">Projeção CBS</b><span class="mini">Análise única, sem segmentação anual. A visão por anos será liberada na etapa de IBS.</span></div>`;
   const anos = (S.params.anos || []);
   const html = `<div class="cartao" style="display:flex;gap:14px;align-items:center;flex-wrap:wrap">
     <b style="font-size:13px">Ano analisado</b>

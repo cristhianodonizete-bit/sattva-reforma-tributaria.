@@ -88,6 +88,7 @@ router.get('/parametros', (_req, res) => ok(res, {
   padroes: P.PADROES, seletivo: P.IMPOSTO_SELETIVO,
   classificacao: P.CLASSIFICACAO_TRIBUTARIA,
   clausulas: CLAUSULAS, trilhas: TRILHAS,
+  modoAnalise: { ibsAtivo: db.prepare('SELECT COUNT(*) c FROM param_aliquotas WHERE calcular_ibs = 1').get().c > 0 },
 }));
 
 // ===========================================================================
