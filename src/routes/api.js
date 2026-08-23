@@ -59,6 +59,7 @@ const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/acessos/.test(caminho)) return 'acessos';
   if (/^\/empresas\/\d+\/turmas/.test(caminho) || /^\/(turmas|participantes)/.test(caminho)) return 'capacitacao';
   if (/^\/empresas\/\d+\/contratos/.test(caminho) || /^\/contratos/.test(caminho)) return 'contratos';
+  if (/^\/empresas\/\d+\/projeto\/tarefas/.test(caminho)) return 'gestao_projetos';
   if (/^\/empresas\/\d+\/acoes/.test(caminho) || /^\/acoes/.test(caminho)) return 'gestao_projetos';
   if (/^\/empresas/.test(caminho)) return metodo === 'GET' ? 'visao_geral' : 'diagnostico';
   if (/^\/(contratacoes|projeto|servicos|combos|gestao)/.test(caminho)) return 'gestao_projetos';
@@ -1046,6 +1047,46 @@ router.put('/projeto/tarefas/:id', async (req, res) => {
     auditar(req, { empresaId: tarefa.empresa_id, acao: 'Atualizou tarefa do projeto', entidade: 'tarefa', entidadeId: req.params.id,
       antes: { status: tarefa.status, data_conclusao: tarefa.data_conclusao }, depois: { status: b.status || 'aberta', data_conclusao: b.data_conclusao || null } });
     ok(res, {}); sincronizarGestao();
+  } catch (e) { erro(res, e); }
+});
+
+const chavesDeTarefaModulo = (chave) => (chave === 'capacitacao'
+  ? ['treinamento_boas_praticas', 'capacitacao_operacional']
+  : [chave]);
+
+router.get('/empresas/:id/projeto/tarefas/:chave', async (req, res) => {
+  try {
+    const projeto = db.prepare(`SELECT id FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(req.params.id);
+    if (!projeto) return ok(res, { entregas: [], tarefas: [] });
+    const projetoPermitido = await contratacaoPermitida(req, projeto.id);
+    const chaves = chavesDeTarefaModulo(req.params.chave);
+    const marcadores = chaves.map(() => '?').join(',');
+    const entregas = db.prepare(`SELECT * FROM projeto_entregas WHERE contratacao_id=? AND chave IN (${marcadores}) ORDER BY id`).all(projetoPermitido.id, ...chaves);
+    if (!entregas.length) return ok(res, { entregas: [], tarefas: [] });
+    const ids = entregas.map(() => '?').join(',');
+    const tarefas = db.prepare(`SELECT t.*, e.titulo AS entrega_titulo, e.chave AS entrega_chave
+      FROM projeto_tarefas t JOIN projeto_entregas e ON e.id=t.entrega_id
+      WHERE t.entrega_id IN (${ids})
+      ORDER BY CASE t.status WHEN 'concluida' THEN 2 ELSE 1 END, t.data_conclusao, t.id`).all(...entregas.map((e) => e.id));
+    ok(res, { entregas, tarefas });
+  } catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/projeto/tarefas/:chave', async (req, res) => {
+  try {
+    const projetoBase = db.prepare(`SELECT id FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(req.params.id);
+    if (!projetoBase) throw new Error('Não há um projeto aprovado para esta empresa.');
+    const projeto = await contratacaoPermitida(req, projetoBase.id);
+    const b = req.body;
+    const chaves = chavesDeTarefaModulo(req.params.chave);
+    const marcadores = chaves.map(() => '?').join(',');
+    const entregas = db.prepare(`SELECT * FROM projeto_entregas WHERE contratacao_id=? AND chave IN (${marcadores}) ORDER BY id`).all(projeto.id, ...chaves);
+    const entrega = entregas.length === 1 ? entregas[0] : entregas.find((e) => String(e.id) === String(b.entrega_id));
+    if (!entrega) throw new Error(entregas.length > 1 ? 'Selecione a entrega de capacitação.' : 'Este módulo não está liberado no escopo aprovado.');
+    if (!String(b.titulo || '').trim()) throw new Error('Informe o título da tarefa.');
+    const r = db.prepare(`INSERT INTO projeto_tarefas (contratacao_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente,interacoes_cliente,atualizado_em)
+      VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))`).run(projeto.id, entrega.id, b.titulo.trim(), b.descricao || '', b.status || 'aberta', b.data_abertura || null, b.data_conclusao || null, b.envolve_cliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '');
+    auditar(req, { empresaId: projeto.empresa_id, acao: 'Criou tarefa do módulo', entidade: 'tarefa', entidadeId: r.lastInsertRowid, depois: { modulo: req.params.chave, titulo: b.titulo.trim() } });
+    ok(res, { id: r.lastInsertRowid }); sincronizarGestao();
   } catch (e) { erro(res, e); }
 });
 

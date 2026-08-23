@@ -240,6 +240,11 @@ const App = (() => {
         }
       }
       await fn(alvo);
+      const tarefaPorTela = { painel: ['diagnostico', 'Diagnóstico'], precificacao: ['precificacao', 'Precificação'], contratos: ['contratos', 'Contratos'], capacitacao: ['capacitacao', 'Capacitação'] };
+      if (tarefaPorTela[tela]) {
+        const hostTarefas = document.createElement('div'); hostTarefas.className = 'tarefas-modulo-host'; alvo.appendChild(hostTarefas);
+        await tarefasModulo(hostTarefas, ...tarefaPorTela[tela]);
+      }
     } catch (e) {
       alvo.innerHTML = `<div class="aviso alto"><b>Não foi possível carregar</b>${esc(e.message)}</div>`;
     }
@@ -333,7 +338,32 @@ const App = (() => {
     return `<div class="dropzone" id="${id}">${texto}</div>`;
   }
 
+  async function tarefasModulo(host, chave, tituloModulo) {
+    if (!host || !S.empresaId) return;
+    const podeExecutar = !S.usuario?.permissoes || Boolean(S.usuario.permissoes.gestao_projetos?.executar);
+    const carregar = async () => {
+      let d;
+      try { d = await api(`/empresas/${S.empresaId}/projeto/tarefas/${chave}`); }
+      catch (e) { host.innerHTML = ''; return; }
+      const entregas = d.entregas || [];
+      if (!entregas.length) { host.innerHTML = ''; return; }
+      const tarefas = d.tarefas || [];
+      host.innerHTML = `<section class="cartao tarefas-modulo"><div class="cabecalho-lista"><div><h2>Tarefas do módulo</h2><p class="desc">Execução de ${esc(tituloModulo)}. As tarefas também aparecem consolidadas no Acompanhamento geral.</p></div>${podeExecutar ? '<button class="btn pq" data-nova-tarefa>Nova tarefa</button>' : `<span class="tag">${tarefas.length} tarefas</span>`}</div>${tarefas.length ? tabela([
+        { t: 'Situação', r: (t) => `<span class="tag ${t.status === 'concluida' ? 'c' : t.status === 'em_andamento' ? 'b' : 'n'}">${esc(t.status.replace('_', ' '))}</span>` },
+        { t: 'Tarefa', r: (t) => `<b>${esc(t.titulo)}</b>${entregas.length > 1 ? `<small class="mini">${esc(t.entrega_titulo || 'Capacitação')}</small>` : ''}${t.pendencia_cliente ? `<small class="mini pendencia-cliente">Pendência: ${esc(t.pendencia_cliente)}</small>` : ''}` },
+        { t: 'Prazo', r: (t) => `<span class="mono mini">${esc(t.data_conclusao || '—')}</span>` },
+        ...(podeExecutar ? [{ t: '', r: (t) => `<button class="btn pq vazio" data-editar-tarefa="${t.id}">Atualizar</button>` }] : []),
+      ], tarefas, { vazio: 'Nenhuma tarefa neste módulo.' }) : vazio('Nenhuma tarefa neste módulo.', podeExecutar ? 'Registre a primeira atividade de execução.' : 'Acompanhe o andamento pelo painel geral.')}</section>`;
+      const abrir = (tarefa = null) => modal({ titulo: tarefa ? `Tarefa — ${tarefa.titulo}` : `Nova tarefa — ${tituloModulo}`, largura: 720,
+        corpo: `${!tarefa && entregas.length > 1 ? selecao('entrega_id', 'Entrega de capacitação', entregas.map((e) => ({ v: e.id, t: e.titulo })), '') : ''}${selecao('status', 'Situação', [{ v: 'aberta', t: 'Aberta' }, { v: 'em_andamento', t: 'Em andamento' }, { v: 'concluida', t: 'Concluída' }], tarefa?.status || 'aberta')}${campo('titulo', 'Título', tarefa?.titulo || '')}<div class="grade g2">${campo('data_abertura', 'Data de abertura', tarefa?.data_abertura || '', 'date')}${campo('data_conclusao', 'Previsão/conclusão', tarefa?.data_conclusao || '', 'date')}</div><label class="check"><input type="checkbox" name="envolve_cliente" ${tarefa?.envolve_cliente ? 'checked' : ''}> Envolve pendência ou interação do cliente</label>${area('pendencia_cliente', 'Pendência do cliente', tarefa?.pendencia_cliente || '', 2)}${area('interacoes_cliente', 'Interações / histórico', tarefa?.interacoes_cliente || '', 2)}${area('descricao', 'Detalhamento da tarefa', tarefa?.descricao || '', 2)}`,
+        aoConfirmar: async (form) => { await api(tarefa ? `/projeto/tarefas/${tarefa.id}` : `/empresas/${S.empresaId}/projeto/tarefas/${chave}`, { metodo: tarefa ? 'PUT' : 'POST', corpo: form }); await carregar(); } });
+      host.querySelector('[data-nova-tarefa]')?.addEventListener('click', () => abrir());
+      host.querySelectorAll('[data-editar-tarefa]').forEach((b) => b.addEventListener('click', () => abrir(tarefas.find((t) => t.id === Number(b.dataset.editarTarefa)))));
+    };
+    await carregar();
+  }
+
   return { S, api, ir, iniciar, carregarEmpresas, moeda, num, pct, esc, cnpjFmt, sinal, setaPct, setaR$,
     toast, modal, confirmar, campo, area, selecao, opcoesRegime, opcoesReducao, opcoesAno, regimeLabel,
-    kpi, avisos, vazio, regua, tabela, dropzone };
+    kpi, avisos, vazio, regua, tabela, dropzone, tarefasModulo };
 })();
