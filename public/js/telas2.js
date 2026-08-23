@@ -356,11 +356,23 @@ Telas.capacitacao = async (el) => {
 // ===========================================================================
 Telas.plano = async (el) => {
   const { acoes } = await A.api(`/empresas/${S.empresaId}/acoes`);
+  const abertas = acoes.filter((a) => a.status !== 'concluida');
+  const emAndamento = acoes.filter((a) => a.status === 'em_andamento').length;
+  const prioridadeAlta = abertas.filter((a) => a.prioridade === 'alta').length;
+  const vencidas = abertas.filter((a) => a.prazo && a.prazo < new Date().toISOString().slice(0, 10)).length;
+  const ordemPrioridade = { alta: 0, media: 1, baixa: 2 };
+  const ordenadas = [...acoes].sort((a, b) => (ordemPrioridade[a.prioridade] ?? 3) - (ordemPrioridade[b.prioridade] ?? 3));
   el.innerHTML = cab('Entregável', 'Plano de adequação',
     'O que precisa ser feito, por quem e até quando. É o entregável que transforma o diagnóstico em execução.',
     `<button class="btn" id="novaAcao">Nova ação</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/plano')">Exportar Excel</button>`) +
-    `<div class="cartao">${A.tabela([
+    `<div class="grade g4 resumo-plano">
+      ${A.kpi('Ações em aberto', abertas.length, `${emAndamento} em andamento`)}
+      ${A.kpi('Prioridade alta', prioridadeAlta, 'agir primeiro', prioridadeAlta ? 'destaque' : '')}
+      ${A.kpi('Prazo vencido', vencidas, vencidas ? 'replanejar execução' : 'nenhum prazo vencido', vencidas ? 'destaque' : '')}
+      ${A.kpi('Concluídas', acoes.filter((a) => a.status === 'concluida').length, `${acoes.length} ações no plano`)}
+    </div>
+    <div class="cartao plano-acoes"><div class="cabecalho-lista"><div><h2>Fila de execução</h2><p class="desc">Ações organizadas por prioridade. Atribua responsável e prazo para transformar recomendação em entrega.</p></div><span class="tag">${acoes.length} ações</span></div>${A.tabela([
       { t: 'Prioridade', r: (a) => `<span class="tag ${a.prioridade === 'alta' ? 'a' : a.prioridade === 'media' ? 'b' : 'n'}">${a.prioridade}</span>` },
       { t: 'Ação', r: (a) => `<b>${A.esc(a.titulo)}</b><div class="mini">${A.esc(a.descricao || '')}</div>` },
       { t: 'Origem', r: (a) => `<span class="mini">${A.esc(a.origem)}</span>` },
@@ -368,7 +380,7 @@ Telas.plano = async (el) => {
       { t: 'Prazo', r: (a) => `<span class="mono mini">${A.esc(a.prazo || '—')}</span>` },
       { t: 'Status', r: (a) => `<span class="tag ${a.status === 'concluida' ? 'c' : 'n'}">${A.esc(a.status)}</span>` },
       { t: '', r: (a) => `<button class="btn pq vazio" data-ea="${a.id}">Editar</button><button class="btn pq perigo" data-ra="${a.id}">Excluir</button>` },
-    ], acoes, { vazio: 'Nenhuma ação registrada. Use os riscos apontados no diagnóstico como ponto de partida.' })}</div>`;
+    ], ordenadas, { vazio: 'Nenhuma ação registrada. Use os riscos apontados no diagnóstico como ponto de partida.' })}</div>`;
 
   const form = (a = {}) => A.campo('titulo', 'Ação', a.titulo) + A.area('descricao', 'Descrição', a.descricao, 2) +
     `<div class="grade g2">${A.campo('responsavel', 'Responsável', a.responsavel)}${A.campo('prazo', 'Prazo', a.prazo, 'date')}</div>
