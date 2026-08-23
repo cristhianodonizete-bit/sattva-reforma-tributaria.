@@ -134,6 +134,18 @@ function resumoPreco(itens) {
 Telas.contratos = async (el) => {
   const { contratos, clausulas } = await A.api(`/empresas/${S.empresaId}/contratos`);
   const risco = (c) => `<span class="tag ${c.risco === 'alto' ? 'a' : c.risco === 'medio' ? 'b' : c.risco === 'baixo' ? 'c' : 'n'}">${c.risco.replace('_', ' ')}</span>`;
+  const eixos = [
+    { id: 'carga', titulo: 'Carga tributária e crédito', descricao: 'Preço líquido, reequilíbrio e crédito aproveitável.', clausulas: ['preco_liquido', 'reequilibrio', 'repasse_credito'] },
+    { id: 'responsabilidade', titulo: 'Responsabilidade das partes', descricao: 'Regime declarado, classificação correta e reparação.', clausulas: ['regime_fornecedor', 'responsabilidade_solidaria'] },
+    { id: 'preco', titulo: 'Reajuste, repasse e preço', descricao: 'Separação entre inflação, tributação e transição.', clausulas: ['reajuste_indice', 'contratos_longa_duracao'] },
+    { id: 'adequacao', titulo: 'Adequação ao novo modelo', descricao: 'Split payment, devoluções e contratos públicos.', clausulas: ['split_payment', 'devolucoes', 'orgao_publico'] },
+  ];
+  const clausulaCard = (c) => `<details class="clausula">
+    <summary>${A.esc(c.titulo)} ${risco(c)}</summary>
+    <p style="margin:10px 0 0;color:var(--tinta-2)">${A.esc(c.problema)}</p>
+    <div class="texto">${A.esc(c.texto)}</div>
+    <div class="mini" style="margin-top:8px">Aplicável a: ${c.aplicacao.join(', ')}</div>
+  </details>`;
 
   el.innerHTML = cab('Módulo 3', 'Revisão de contratos',
     'Contrato sem cláusula de tributo é contrato que decide sozinho quem paga a conta da transição.',
@@ -155,14 +167,11 @@ Telas.contratos = async (el) => {
           <button class="btn pq perigo" data-rc="${c.id}">Excluir</button>` },
       ], contratos, { vazio: 'Nenhum contrato cadastrado. Comece pelos contratos de maior valor e maior prazo.' })}
     </div>
-    <div class="cartao"><h2>Biblioteca de cláusulas</h2>
-      <p class="desc">Texto sugerido para cada risco identificado. Adapte ao caso concreto antes de usar.</p>
-      ${clausulas.map((c) => `<details class="clausula">
-        <summary>${A.esc(c.titulo)} <span class="tag ${c.risco === 'alto' ? 'a' : 'b'}">${c.risco}</span></summary>
-        <p style="margin:10px 0 0;color:var(--tinta-2)">${A.esc(c.problema)}</p>
-        <div class="texto">${A.esc(c.texto)}</div>
-        <div class="mini" style="margin-top:8px">Aplicável a: ${c.aplicacao.join(', ')}</div>
-      </details>`).join('')}
+    <div class="cartao biblioteca-eixos"><h2>Biblioteca de cláusulas por eixo</h2>
+      <p class="desc">Texto sugerido organizado pelos quatro eixos da revisão. Adapte ao caso concreto antes de usar.</p>
+      ${eixos.map((eixo) => `<section class="eixo-contratual"><div class="eixo-cabecalho"><div><h3>${eixo.titulo}</h3><p>${eixo.descricao}</p></div><span class="tag">${eixo.clausulas.length} cláusulas</span></div>
+        ${eixo.clausulas.map((id) => clausulas.find((c) => c.id === id)).filter(Boolean).map(clausulaCard).join('')}
+      </section>`).join('')}
     </div>`;
 
   const formContrato = (c = {}) => `<div class="grade g2">
