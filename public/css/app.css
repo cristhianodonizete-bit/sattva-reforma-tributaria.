@@ -131,6 +131,7 @@ td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabu
 /* ---------- MODAL ---------- */
 .modal-fundo{position:fixed;inset:0;background:rgba(11,49,73,.55);display:flex;align-items:flex-start;justify-content:center;padding:40px 20px;z-index:60;overflow-y:auto}
 .modal{background:var(--branco);border-radius:12px;max-width:760px;width:100%;padding:24px 26px;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal{border:1px solid rgba(17,72,102,.12);border-radius:16px;box-shadow:0 24px 70px rgba(11,49,73,.26)}.modal-rodape{position:sticky;bottom:0;background:#fff;padding-bottom:0}.modal-corpo{padding-right:2px}
 .modal h3{margin:0 0 4px;font-size:18px;color:var(--navy-900)}
 .modal .desc{color:var(--tinta-3);font-size:13px;margin:0 0 18px}
 .modal-rodape{display:flex;justify-content:flex-end;gap:9px;margin-top:20px;padding-top:16px;border-top:1px solid var(--linha)}
