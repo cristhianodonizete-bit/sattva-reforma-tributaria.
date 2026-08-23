@@ -27,7 +27,8 @@ Telas.painel = async (el) => {
 
   el.innerHTML = cab('Painel do projeto', A.esc(empresa.razao_social),
     `${A.cnpjFmt(empresa.cnpj)} · ${A.regimeLabel(empresa.regime)} · ${A.esc(empresa.municipio || '')} ${A.esc(empresa.uf || '')}`,
-    `<button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/tecnico')">Relatório técnico</button>
+    `<button class="btn" id="verRecomendacoes">Recomendações iniciais</button>
+     <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/tecnico')">Relatório técnico</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/riscos')">Mapa de riscos</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/diagnostico')">Relatório completo</button>`) +
     (S.params.modoAnalise?.ibsAtivo ? A.regua(2027, null) : '<div class="aviso bom"><b>Projeção CBS</b> A análise atual trabalha com uma referência única; a transição anual será exibida quando o IBS for habilitado.</div>') +
@@ -66,6 +67,17 @@ Telas.painel = async (el) => {
     </div>`;
   el.querySelector('[data-proximo]')?.addEventListener('click', () => A.ir(proximoPasso.tela));
   el.querySelectorAll('[data-etapa]').forEach((botao) => { botao.onclick = () => A.ir(botao.dataset.etapa); });
+  document.getElementById('verRecomendacoes').onclick = async () => {
+    try {
+      const d = await A.api(`/empresas/${S.empresaId}/motor/riscos`);
+      const prioridade = { alta: 'Prioridade alta', media: 'Prioridade média', baixa: 'Monitoramento' };
+      A.modal({ titulo: 'Recomendações iniciais', largura: 860, confirmar: null,
+        descricao: 'Leitura executiva derivada dos documentos importados, organizada por materialidade e prioridade de ação.',
+        corpo: `<div class="grade g3">${A.kpi('Recomendações', d.sintese.total, `${d.sintese.alta} prioritárias`)}${A.kpi('Exposição mapeada', A.moeda(d.sintese.exposicaoTotal), 'valor associado aos riscos')}${A.kpi('Dimensões', d.sintese.dimensoes.length, d.sintese.dimensoes.join(' · '), 'destaque')}</div>
+          <div class="aviso classificacao-orientacao"><b>O que exige validação</b> Itens sem cadastro, classificação ou regime confirmado devem ser revisados antes de uma decisão fiscal definitiva.</div>
+          <div class="recomendacoes-executivas">${d.riscos.map((r, i) => `<article class="recomendacao-executiva ${r.nivel}"><div><span class="tag ${r.nivel === 'alta' ? 'a' : r.nivel === 'media' ? 'b' : 'c'}">${prioridade[r.nivel] || r.nivel}</span><b>${i + 1}. ${A.esc(r.titulo)}</b><p>${A.esc(r.descricao)}</p></div><div class="recomendacao-acao"><strong>Recomendação</strong><span>${A.esc(r.acao)}</span>${r.impacto ? `<small>Impacto: ${A.esc(r.impacto)}</small>` : ''}</div></article>`).join('')}</div>` });
+    } catch (e) { A.toast(e.message || 'Não foi possível gerar as recomendações.', 'erro'); }
+  };
 };
 
 // ===========================================================================
