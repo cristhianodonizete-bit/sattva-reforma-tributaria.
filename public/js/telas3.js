@@ -509,7 +509,7 @@ Telas.dashboardOperacao = async (el) => {
        ${d.projetos.length ? `<div class="projetos-operacao">${d.projetos.map((p) => `<article class="projeto-operacao-card">
           <div class="projeto-operacao-cabecalho"><div><h3>${A.esc(p.empresa)}</h3><p>${A.esc(p.nome_plano || 'Escopo personalizado')}</p></div><span class="tag ${p.status === 'em_execucao' ? 'b' : p.status === 'concluido' ? 'c' : 'n'}">${A.esc(p.status)}</span></div>
           <div class="projeto-operacao-progresso"><div><span>Evolução das entregas</span><b>${p.entregasConcluidas}/${p.entregas} · ${p.progresso}%</b></div><div class="barra-prog"><i style="width:${p.progresso}%"></i></div></div>
-          <div class="projeto-operacao-rodape"><span><b>Próximo acompanhamento</b>${A.esc(p.proximoAcompanhamento || 'A definir')}</span><button class="btn pq vazio" data-ir-projeto="${p.empresa_id || ''}">Abrir projeto</button></div>
+          <div class="projeto-operacao-rodape"><span><b>Próximo marco</b>${p.proximoMarco ? `${A.esc(p.proximoMarco.titulo)} · ${A.esc(p.proximoMarco.data)}` : A.esc(p.proximoAcompanhamento ? `Acompanhamento · ${p.proximoAcompanhamento}` : 'A definir')}</span><button class="btn pq vazio" data-ir-projeto="${p.empresa_id || ''}">Abrir projeto</button></div>
         </article>`).join('')}</div>` : A.vazio('Nenhum escopo sincronizado ainda.', 'Registre e aprove o primeiro escopo do cliente.')}
      </div>`;
   el.querySelectorAll('[data-ir-projeto]').forEach((botao) => { botao.onclick = async () => {
