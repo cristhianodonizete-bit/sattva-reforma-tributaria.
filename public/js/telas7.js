@@ -487,7 +487,7 @@ async function basesReceita(el) {
       (Presumido), e errar aí distorce a base econômica.
       <div class="acao">Consulte o Simples primeiro — é ele que decide o crédito. Estas bases refinam o resto.</div></div>
     <div class="grade g4">
-      ${A.kpi('Registros na base', (e.total || 0).toLocaleString('pt-BR'))}
+      ${A.kpi('Registros na base', (e.total || 0).toLocaleString('pt-BR'), e.totalCompartilhado !== null ? 'referência compartilhada' : 'cópia local')}
       ${e.porRegime.slice(0, 2).map((r) => A.kpi(A.regimeLabel(r.regime),
         r.c.toLocaleString('pt-BR'), `ano ${r.ano}`)).join('')}
       ${A.kpi('Parceiros sem regime', pend ? pend.total : '—', pend ? 'nesta empresa' : 'selecione uma empresa')}
@@ -588,7 +588,8 @@ async function basesReceita(el) {
         corpo: { ano: Number(document.getElementById('brAno').value) } });
       b2.innerHTML = `<div class="aviso ${r.refinados ? 'bom' : 'atencao'}">
           <b>${r.refinados} parceiros refinados</b> de ${r.alvos} candidatos ·
-          ${r.semCorrespondencia} sem correspondência na base</div>
+          ${r.semCorrespondencia} sem correspondência na base
+          <div class="mini" style="margin-top:6px">Fonte consultada: ${A.esc(r.fonte || 'base local')}.</div></div>
         ${Object.keys(r.porRegime).length ? `<table class="compacta"><thead><tr><th>Regime</th><th class="num">Parceiros</th></tr></thead>
           <tbody>${Object.entries(r.porRegime).map(([k, v]) =>
             `<tr><td>${A.regimeLabel(k)}</td><td class="num mono">${v}</td></tr>`).join('')}</tbody></table>` : ''}

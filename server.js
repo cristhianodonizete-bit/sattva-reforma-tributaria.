@@ -62,9 +62,15 @@ async function iniciar() {
       const db = require('./src/db');
       const bases = require('./src/services/basesReforma');
       const motorExec = require('./src/services/motorExec');
+      const baseRegime = require('./src/services/baseRegimeReceita');
       for (const empresa of db.prepare('SELECT id FROM empresas').all()) {
+        // A RFB é consultada diretamente no Supabase. Assim, a classificação
+        // Real/Presumido não depende do disco efêmero do Render nem de ação
+        // manual depois de uma nova publicação.
+        const refinamento = await baseRegime.refinarParceiros(empresa.id);
         bases.classificarMovimentos(empresa.id);
         motorExec.executar(empresa.id, { ano: 2033 });
+        console.log(`  RFB compartilhada: empresa ${empresa.id}, ${refinamento.refinados} parceiro(s) refinado(s)`);
       }
       console.log('  classificações IBS/CBS recalculadas a partir das bases compartilhadas');
     }

@@ -2261,8 +2261,8 @@ router.post('/empresas/:id/parceiros/enriquecer', async (req, res) => {
 // ===========================================================================
 // BASES ANUAIS DA RECEITA — LUCRO REAL / PRESUMIDO
 // ===========================================================================
-router.get('/base-regime', (_req, res) => {
-  try { ok(res, baseRegime.estatisticas()); } catch (e) { erro(res, e); }
+router.get('/base-regime', async (_req, res) => {
+  try { ok(res, await baseRegime.estatisticas()); } catch (e) { erro(res, e); }
 });
 
 /** Inspeciona o leiaute antes de importar — evita importar errado 1 milhão de linhas */
@@ -2293,9 +2293,9 @@ router.get('/base-regime/consultar/:cnpj', (req, res) => {
 });
 
 /** Refina Real x Presumido nos parceiros já identificados como regime regular */
-router.post('/empresas/:id/parceiros/refinar-regime', (req, res) => {
+router.post('/empresas/:id/parceiros/refinar-regime', async (req, res) => {
   try {
-    const r = baseRegime.refinarParceiros(req.params.id, { ano: req.body.ano });
+    const r = await baseRegime.refinarParceiros(req.params.id, { ano: req.body.ano });
     let classificacao = null;
     try {
       const tem = db.prepare('SELECT (SELECT COUNT(*) FROM base_ncm) + (SELECT COUNT(*) FROM base_servicos) c').get().c;

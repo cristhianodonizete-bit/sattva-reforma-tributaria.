@@ -34,6 +34,7 @@
 const fs = require('fs');
 const readline = require('readline');
 const db = require('./db_ref');
+const supabase = require('./supabase');
 
 const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
 const norm = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -247,7 +248,33 @@ function consultar(cnpj, ano) {
  * NÃO toca em quem é Simples ou MEI: a informação do Simples tem precedência
  * porque é ela que determina o crédito. E não toca em definição manual.
  */
-function refinarParceiros(empresaId, opcoes = {}) {
+async function consultarCompartilhada(cnpjs, ano) {
+  if (!supabase.configurado() || !cnpjs.length) return new Map();
+
+  // A lista pública frequentemente usa a raiz; por isso consultamos as duas
+  // chaves. A consulta é em lote, nunca uma chamada por parceiro.
+  const chaves = [...new Set(cnpjs.flatMap((cnpj) => {
+    const d = soDigitos(cnpj);
+    return d.length === 14 ? [d, d.slice(0, 8)] : d.length === 8 ? [d] : [];
+  }))];
+  const encontrados = new Map();
+  const remoto = supabase.admin();
+
+  for (let i = 0; i < chaves.length; i += 500) {
+    let consulta = remoto.from('base_regime').select('cnpj,raiz,regime,ano,fonte')
+      .in('cnpj', chaves.slice(i, i + 500));
+    if (ano) consulta = consulta.eq('ano', Number(ano));
+    const { data, error } = await consulta;
+    if (error) throw new Error(`Base RFB compartilhada: ${error.message}`);
+    for (const r of (data || [])) {
+      const atual = encontrados.get(r.cnpj);
+      if (!atual || Number(r.ano) > Number(atual.ano)) encontrados.set(r.cnpj, r);
+    }
+  }
+  return encontrados;
+}
+
+async function refinarParceiros(empresaId, opcoes = {}) {
   const D = db();
   const alvos = D.prepare(`SELECT id, cnpj, descricao, regime, origem FROM parceiros
     WHERE empresa_id = ? AND cnpj <> ''
@@ -255,11 +282,18 @@ function refinarParceiros(empresaId, opcoes = {}) {
       AND origem <> 'manual'`).all(empresaId);
 
   const up = D.prepare(`UPDATE parceiros SET regime = ?, origem = 'base_receita' WHERE id = ?`);
-  const rel = { alvos: alvos.length, refinados: 0, semCorrespondencia: 0, porRegime: {}, porNivel: {} };
+  const rel = { alvos: alvos.length, refinados: 0, semCorrespondencia: 0, porRegime: {}, porNivel: {}, fonte: 'local' };
+  const remotos = await consultarCompartilhada(alvos.map((p) => p.cnpj), opcoes.ano);
+  if (remotos.size) rel.fonte = 'Supabase (RFB compartilhada)';
 
   D.transaction(() => {
     for (const p of alvos) {
-      const r = consultar(p.cnpj, opcoes.ano);
+      const cnpj = soDigitos(p.cnpj);
+      // A fonte compartilhada tem precedência: ela é a mesma para todos os
+      // projetos. A cópia SQLite só atende instalações sem Supabase.
+      const remoto = remotos.get(cnpj) || remotos.get(cnpj.slice(0, 8));
+      const r = remoto ? { ...remoto, nivel: remoto.cnpj === cnpj ? 'cnpj' : 'raiz' }
+        : consultar(p.cnpj, opcoes.ano);
       if (!r) { rel.semCorrespondencia++; continue; }
       up.run(r.regime, p.id);
       rel.refinados++;
@@ -278,13 +312,19 @@ function refinarParceiros(empresaId, opcoes = {}) {
   return rel;
 }
 
-function estatisticas() {
+async function estatisticas() {
   const D = db();
   const porRegime = D.prepare(`SELECT regime, ano, COUNT(*) c FROM base_regime
     GROUP BY regime, ano ORDER BY ano DESC, regime`).all();
   const total = D.prepare('SELECT COUNT(*) c FROM base_regime').get().c;
   const importacoes = D.prepare('SELECT * FROM base_regime_importacoes ORDER BY id DESC LIMIT 10').all();
-  return { total, porRegime, importacoes,
+  let totalCompartilhado = null;
+  if (supabase.configurado()) {
+    const { count, error } = await supabase.admin().from('base_regime')
+      .select('*', { count: 'exact', head: true });
+    if (!error) totalCompartilhado = count || 0;
+  }
+  return { total: totalCompartilhado ?? total, totalLocal: total, totalCompartilhado, porRegime, importacoes,
     regimesAceitos: Object.entries(REGIMES_VALIDOS).map(([k, v]) => ({ chave: k, nome: v })) };
 }
 
@@ -295,4 +335,4 @@ function limpar(regime, ano) {
   return D.prepare('DELETE FROM base_regime').run().changes;
 }
 
-module.exports = { detectar, importar, regimePorTexto, consultar, refinarParceiros, estatisticas, limpar, REGIMES_VALIDOS };
+module.exports = { detectar, importar, regimePorTexto, consultar, consultarCompartilhada, refinarParceiros, estatisticas, limpar, REGIMES_VALIDOS };
