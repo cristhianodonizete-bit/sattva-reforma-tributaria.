@@ -500,6 +500,7 @@ Telas.dashboardOperacao = async (el) => {
   const concluidos = d.projetos.filter((p) => p.status === 'concluido').length;
   const emAndamento = d.projetos.filter((p) => p.status === 'em_execucao').length;
   const agenda = d.projetos.filter((p) => p.proximoMarco || p.proximoAcompanhamento).slice(0, 6);
+  const responsaveis = [...new Set(d.projetos.map((p) => p.responsavelSattva).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const cartaoProjeto = (p) => `<article class="projeto-operacao-card">
     <div class="projeto-operacao-cabecalho"><div><h3>${A.esc(p.empresa)}</h3><p>${A.esc(p.nome_plano || 'Escopo personalizado')}</p></div><span class="tag ${p.status === 'em_execucao' ? 'b' : p.status === 'concluido' ? 'c' : 'n'}">${A.esc(p.status)}</span></div>
     <div class="projeto-operacao-progresso"><div><span>Evolução das entregas</span><b>${p.entregasConcluidas}/${p.entregas} · ${p.progresso}%</b></div><div class="barra-prog"><i style="width:${p.progresso}%"></i></div></div>
@@ -516,12 +517,12 @@ Telas.dashboardOperacao = async (el) => {
        ${agenda.length ? `<div class="agenda-marcos">${agenda.map((p) => { const marco = p.proximoMarco; const data = marco?.data || p.proximoAcompanhamento; return `<div class="agenda-marco${marco?.atrasado ? ' atrasado' : ''}"><div class="agenda-data"><b>${A.esc(data)}</b>${marco?.atrasado ? '<small>Atrasado</small>' : ''}</div><div class="agenda-conteudo"><b>${A.esc(marco?.titulo || 'Acompanhamento previsto')}</b><span>${A.esc(p.empresa)}${p.responsavelSattva ? ` · ${A.esc(p.responsavelSattva)}` : ''}</span></div><button class="btn pq vazio" data-ir-projeto="${p.empresa_id || ''}">Abrir</button></div>`; }).join('')}</div>` : A.vazio('Nenhum marco com data foi registrado.', 'Inclua prazos nas tarefas ou competências de acompanhamento.')}
      </div>
      <div class="cartao carteira-operacao"><div class="cabecalho-lista"><div><h2>Carteira de projetos</h2><p class="desc">Acompanhe o que está em execução e a próxima interação prevista para cada cliente.</p></div><span class="tag" id="totalCarteira">${d.projetos.length} projetos</span></div>
-       <div class="filtros-carteira"><label>Situação<select id="filtroStatus"><option value="">Todos</option><option value="em_execucao">Em execução</option><option value="aguardando_aprovacao">Aguardando aprovação</option><option value="concluido">Concluídos</option></select></label><label>Pendências do cliente<select id="filtroPendencia"><option value="">Todos</option><option value="com">Com pendência</option><option value="sem">Sem pendência</option></select></label></div>
+       <div class="filtros-carteira"><label>Situação<select id="filtroStatus"><option value="">Todos</option><option value="em_execucao">Em execução</option><option value="aguardando_aprovacao">Aguardando aprovação</option><option value="concluido">Concluídos</option></select></label><label>Responsável<select id="filtroResponsavel"><option value="">Todos</option><option value="sem_responsavel">Não definido</option>${responsaveis.map((nome) => `<option value="${A.esc(nome)}">${A.esc(nome)}</option>`).join('')}</select></label><label>Pendências do cliente<select id="filtroPendencia"><option value="">Todos</option><option value="com">Com pendência</option><option value="sem">Sem pendência</option></select></label></div>
        <div id="listaCarteira"></div>
      </div>`;
   const renderCarteira = () => {
-    const status = el.querySelector('#filtroStatus').value, pendencia = el.querySelector('#filtroPendencia').value;
-    const projetos = d.projetos.filter((p) => (!status || p.status === status) && (!pendencia || (pendencia === 'com' ? p.pendenciasCliente : !p.pendenciasCliente)));
+    const status = el.querySelector('#filtroStatus').value, responsavel = el.querySelector('#filtroResponsavel').value, pendencia = el.querySelector('#filtroPendencia').value;
+    const projetos = d.projetos.filter((p) => (!status || p.status === status) && (!responsavel || (responsavel === 'sem_responsavel' ? !p.responsavelSattva : p.responsavelSattva === responsavel)) && (!pendencia || (pendencia === 'com' ? p.pendenciasCliente : !p.pendenciasCliente)));
     el.querySelector('#totalCarteira').textContent = `${projetos.length} projeto${projetos.length === 1 ? '' : 's'}`;
     el.querySelector('#listaCarteira').innerHTML = projetos.length ? `<div class="projetos-operacao">${projetos.map(cartaoProjeto).join('')}</div>` : A.vazio('Nenhum projeto corresponde aos filtros.', 'Ajuste os filtros para ver a carteira completa.');
     el.querySelectorAll('[data-ir-projeto]').forEach((botao) => { botao.onclick = async () => {
@@ -529,7 +530,7 @@ Telas.dashboardOperacao = async (el) => {
     A.ir('painel');
     }; });
   };
-  el.querySelectorAll('#filtroStatus,#filtroPendencia').forEach((campo) => { campo.onchange = renderCarteira; });
+  el.querySelectorAll('#filtroStatus,#filtroResponsavel,#filtroPendencia').forEach((campo) => { campo.onchange = renderCarteira; });
   renderCarteira();
 };
 })();
