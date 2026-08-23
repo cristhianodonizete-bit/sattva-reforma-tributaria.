@@ -25,8 +25,11 @@ function analisarCadeia(movimentos, cfg = {}) {
 
   const porParceiro = new Map();
   const porRegime = new Map();
-  const porAno = new Map(anos.map((a) => [a, { ano: a, valor: 0, tributos: 0, credito: 0, custoEfetivo: 0, precoFinal: 0 }]));
-  let totalValor = 0, totalTributosHoje = 0, totalCreditoHoje = 0, totalCustoHoje = 0;
+  const porAno = new Map(anos.map((a) => [a, {
+    ano: a, valor: 0, baseEconomica: 0, ibs: 0, cbs: 0, tributos: 0,
+    credito: 0, custoEfetivo: 0, precoFinal: 0,
+  }]));
+  let totalValor = 0, totalBaseEconomica = 0, totalTributosHoje = 0, totalCreditoHoje = 0, totalCustoHoje = 0;
 
   const detalhes = [];
 
@@ -53,7 +56,7 @@ function analisarCadeia(movimentos, cfg = {}) {
       porParceiro.set(chave, {
         chave, nome: m.nome || m.descricao || chave, cnpj: m.cnpj || m.inscr_federal || '',
         regime: regimeParceiro, regimeLabel: (P.REGIMES[regimeParceiro] || {}).label || regimeParceiro,
-        itens: 0, valor: 0, tributos: 0, creditoHoje: 0, custoHoje: 0,
+        itens: 0, valor: 0, baseEconomica: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, custoHoje: 0,
         custoFinal: 0, precoFinal: 0, creditoFinal: 0,
       });
     }
@@ -61,6 +64,9 @@ function analisarCadeia(movimentos, cfg = {}) {
     const ultimo = res.projecao[res.projecao.length - 1];
     p.itens += 1;
     p.valor += res.atual.valorOperacao;
+    p.baseEconomica += ultimo.valorSemImposto;
+    p.ibs += ultimo.ibs;
+    p.cbs += ultimo.cbs;
     p.tributos += res.atual.totalTributos;
     p.creditoHoje += res.atual.credito.total;
     p.custoHoje += res.atual.custoEfetivo;
@@ -70,21 +76,28 @@ function analisarCadeia(movimentos, cfg = {}) {
 
     if (!porRegime.has(regimeParceiro)) {
       porRegime.set(regimeParceiro, { regime: regimeParceiro, label: (P.REGIMES[regimeParceiro] || {}).label || regimeParceiro,
-        parceiros: new Set(), valor: 0, tributos: 0, creditoHoje: 0, creditoFinal: 0, custoHoje: 0, custoFinal: 0 });
+        parceiros: new Set(), valor: 0, baseEconomica: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, creditoFinal: 0, custoHoje: 0, custoFinal: 0, precoFinal: 0 });
     }
     const rg = porRegime.get(regimeParceiro);
     rg.parceiros.add(chave);
     rg.valor += res.atual.valorOperacao;
+    rg.baseEconomica += ultimo.valorSemImposto;
+    rg.ibs += ultimo.ibs;
+    rg.cbs += ultimo.cbs;
     rg.tributos += res.atual.totalTributos;
     rg.creditoHoje += res.atual.credito.total;
     rg.creditoFinal += ultimo.credito.total;
     rg.custoHoje += res.atual.custoEfetivo;
     rg.custoFinal += ultimo.custoEfetivo;
+    rg.precoFinal += ultimo.precoFinal;
 
     for (const proj of res.projecao) {
       const a = porAno.get(proj.ano);
       if (!a) continue;
       a.valor += res.atual.valorOperacao;
+      a.baseEconomica += proj.valorSemImposto;
+      a.ibs += proj.ibs;
+      a.cbs += proj.cbs;
       a.tributos += proj.totalTributos;
       a.credito += proj.credito.total;
       a.custoEfetivo += proj.custoEfetivo;
@@ -92,6 +105,7 @@ function analisarCadeia(movimentos, cfg = {}) {
     }
 
     totalValor += res.atual.valorOperacao;
+    totalBaseEconomica += ultimo.valorSemImposto;
     totalTributosHoje += res.atual.totalTributos;
     totalCreditoHoje += res.atual.credito.total;
     totalCustoHoje += res.atual.custoEfetivo;
@@ -110,7 +124,9 @@ function analisarCadeia(movimentos, cfg = {}) {
     representatividade: totalValor ? r4(p.valor / totalValor) : 0,
     variacaoCusto: r2(p.custoFinal - p.custoHoje),
     variacaoCustoPerc: p.custoHoje ? r4((p.custoFinal - p.custoHoje) / p.custoHoje) : 0,
-    valor: r2(p.valor), tributos: r2(p.tributos), creditoHoje: r2(p.creditoHoje),
+    impactoOperacao: r2(p.precoFinal - p.valor),
+    impactoOperacaoPerc: p.valor ? r4((p.precoFinal - p.valor) / p.valor) : 0,
+    valor: r2(p.valor), baseEconomica: r2(p.baseEconomica), ibs: r2(p.ibs), cbs: r2(p.cbs), tributos: r2(p.tributos), creditoHoje: r2(p.creditoHoje),
     custoHoje: r2(p.custoHoje), custoFinal: r2(p.custoFinal), creditoFinal: r2(p.creditoFinal),
     precoFinal: r2(p.precoFinal),
   })).sort((a, b) => b.valor - a.valor);
@@ -126,26 +142,31 @@ function analisarCadeia(movimentos, cfg = {}) {
   const regimes = [...porRegime.values()].map((r) => ({
     regime: r.regime, label: r.label, parceiros: r.parceiros.size,
     valor: r2(r.valor), representatividade: totalValor ? r4(r.valor / totalValor) : 0,
-    tributos: r2(r.tributos), creditoHoje: r2(r.creditoHoje), creditoFinal: r2(r.creditoFinal),
+    baseEconomica: r2(r.baseEconomica), ibs: r2(r.ibs), cbs: r2(r.cbs), tributos: r2(r.tributos), creditoHoje: r2(r.creditoHoje), creditoFinal: r2(r.creditoFinal),
     variacaoCredito: r2(r.creditoFinal - r.creditoHoje),
     custoHoje: r2(r.custoHoje), custoFinal: r2(r.custoFinal),
     variacaoCusto: r2(r.custoFinal - r.custoHoje),
+    precoProjetado: r2(r.precoFinal),
+    impactoOperacao: r2(r.precoFinal - r.valor),
+    impactoOperacaoPerc: r.valor ? r4((r.precoFinal - r.valor) / r.valor) : 0,
   })).sort((a, b) => b.valor - a.valor);
 
   const cenarios = [...porAno.values()].map((a) => ({
     ano: a.ano, nota: P.CRONOGRAMA[a.ano] ? P.CRONOGRAMA[a.ano].nota : '',
-    valor: r2(a.valor), tributos: r2(a.tributos), credito: r2(a.credito),
+    valor: r2(a.valor), baseEconomica: r2(a.baseEconomica), ibs: r2(a.ibs), cbs: r2(a.cbs), tributos: r2(a.tributos), credito: r2(a.credito),
     custoEfetivo: r2(a.custoEfetivo), precoFinal: r2(a.precoFinal),
     cargaEfetiva: a.precoFinal ? r4(a.tributos / a.precoFinal) : 0,
     variacaoCusto: r2(a.custoEfetivo - totalCustoHoje),
     variacaoCustoPerc: totalCustoHoje ? r4((a.custoEfetivo - totalCustoHoje) / totalCustoHoje) : 0,
+    impactoOperacao: r2(a.precoFinal - a.valor),
+    impactoOperacaoPerc: a.valor ? r4((a.precoFinal - a.valor) / a.valor) : 0,
   }));
 
   return {
     lado, regimeEmpresa, anos,
     totais: {
       registros: movimentos.length, parceiros: parceiros.length,
-      valor: r2(totalValor), tributosHoje: r2(totalTributosHoje),
+      valor: r2(totalValor), baseEconomica: r2(totalBaseEconomica), tributosHoje: r2(totalTributosHoje),
       creditoHoje: r2(totalCreditoHoje), custoHoje: r2(totalCustoHoje),
       cargaEfetivaHoje: totalValor ? r4(totalTributosHoje / totalValor) : 0,
     },

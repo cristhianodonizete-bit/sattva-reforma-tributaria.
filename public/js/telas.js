@@ -410,16 +410,28 @@ async function telaCadeia(el, tipo) {
 
   el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
     eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
-    eForn ? 'Onde estão os créditos que a empresa vai deixar de tomar — e quanto isso custa no custo efetivo de aquisição.'
-          : 'Quem na carteira absorve o IVA sem dor (porque credita) e quem sente o preço cheio.',
+    eForn ? 'Impacto da reforma no preço das compras da empresa. O crédito potencial é exibido separadamente e não reduz o impacto do preço.'
+          : 'Impacto da reforma no preço das vendas da empresa. O crédito potencial do cliente é apenas um indicador complementar de competitividade.',
     `<button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/${eForn ? 'fornecedores' : 'clientes'}?repasse=${rep}')">Exportar Excel</button>`) +
     (t.registros ? `
     <div class="grade g4">
-      ${A.kpi(eForn ? 'Volume de compras' : 'Faturamento', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
-      ${A.kpi('Carga efetiva hoje', A.pct(t.cargaEfetivaHoje))}
-      ${A.kpi('Créditos aproveitados hoje', A.moeda(t.creditoHoje))}
-      ${A.kpi(eForn ? `Custo efetivo ${ibsAtivo ? 'final' : 'CBS'}` : `Custo para o cliente ${ibsAtivo ? 'final' : 'CBS'}`, A.moeda(ultimo.custoEfetivo || 0),
-        A.setaPct(ultimo.variacaoCustoPerc || 0) + ' vs. hoje', 'destaque')}
+      ${A.kpi(eForn ? 'Compra atual' : 'Venda atual', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
+      ${A.kpi('Base econômica', A.moeda(ultimo.baseEconomica || 0), 'preço atual menos tributos embutidos')}
+      ${A.kpi(eForn ? 'Compra projetada' : 'Venda projetada', A.moeda(ultimo.precoFinal || 0), ibsAtivo ? 'IBS + CBS' : 'CBS')}
+      ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' sobre o preço atual', 'destaque')}
+    </div>
+    <div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Impacto para a empresa — entradas' : 'Impacto para a empresa — saídas'}</h2>
+      <p class="desc">${eForn ? 'Compra atual − tributos atuais embutidos = base econômica + IBS + CBS = compra projetada − compra atual = impacto da compra.' : 'Preço atual − tributos atuais embutidos = base econômica + IBS + CBS = preço projetado − preço atual = impacto da venda.'}</p>
+      ${A.tabela([
+        { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: () => A.moeda(t.valor) },
+        { t: 'Base econômica', num: true, r: () => A.moeda(ultimo.baseEconomica || 0) },
+        ...(ibsAtivo ? [{ t: 'IBS projetado', num: true, r: () => A.moeda(ultimo.ibs || 0) }] : []),
+        { t: 'CBS projetada', num: true, r: () => A.moeda(ultimo.cbs || 0) },
+        { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: () => A.moeda(ultimo.precoFinal || 0) },
+        { t: 'Impacto R$', num: true, r: () => A.setaR$(ultimo.impactoOperacao || 0) },
+        { t: 'Impacto %', num: true, r: () => A.setaPct(ultimo.impactoOperacaoPerc || 0) },
+      ], [{}])}
+      <p class="mini" style="margin-top:12px"><b>${eForn ? 'Crédito potencial da empresa na entrada' : 'Crédito potencial do cliente na saída'}:</b> ${A.moeda(ultimo.credito || 0)}. Esta informação não é subtraída do impacto de preço.</p>
     </div>
     <div class="cartao" style="margin-top:16px">
       <h2>Grau de repasse simulado</h2>
@@ -435,25 +447,26 @@ async function telaCadeia(el, tipo) {
           { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}</div>` },
           { t: 'Valor', num: true, r: (r) => A.moeda(r.valor) },
           { t: 'Part.', num: true, r: (r) => A.pct(r.representatividade, 1) },
-          { t: 'Crédito hoje', num: true, r: (r) => A.moeda(r.creditoHoje) },
-          { t: ibsAtivo ? 'Crédito final' : 'Crédito CBS', num: true, r: (r) => A.moeda(r.creditoFinal) },
-          { t: 'Δ custo', num: true, r: (r) => A.setaR$(r.variacaoCusto) },
+          { t: 'CBS projetada', num: true, r: (r) => A.moeda(r.cbs) },
+          { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (r) => A.moeda(r.precoProjetado) },
+          { t: 'Impacto', num: true, r: (r) => A.setaR$(r.impactoOperacao) },
+          { t: eForn ? 'Crédito potencial da empresa' : 'Crédito potencial do cliente', num: true, r: (r) => A.moeda(r.creditoFinal) },
         ], analise.regimes)}
       </div>
     </div>
     <div class="cartao"><h2>${ibsAtivo ? 'Projeção ano a ano' : 'Referência CBS'}</h2>
       ${ibsAtivo ? A.tabela([
         { t: 'Ano', r: (c) => `<b class="mono">${c.ano}</b>` },
-        { t: 'Tributos', num: true, r: (c) => A.moeda(c.tributos) },
-        { t: 'Créditos', num: true, r: (c) => A.moeda(c.credito) },
-        { t: 'Carga efetiva', num: true, r: (c) => A.pct(c.cargaEfetiva) },
-        { t: eForn ? 'Custo efetivo' : 'Custo p/ cliente', num: true, r: (c) => A.moeda(c.custoEfetivo) },
-        { t: 'Variação', num: true, r: (c) => A.setaPct(c.variacaoCustoPerc) },
+        { t: 'Base econômica', num: true, r: (c) => A.moeda(c.baseEconomica) },
+        { t: 'IBS', num: true, r: (c) => A.moeda(c.ibs) },
+        { t: 'CBS', num: true, r: (c) => A.moeda(c.cbs) },
+        { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (c) => A.moeda(c.precoFinal) },
+        { t: 'Impacto', num: true, r: (c) => A.setaR$(c.impactoOperacao) },
         { t: 'Marco', r: (c) => `<span class="mini">${A.esc(c.nota)}</span>` },
       ], analise.cenarios) : `<div class="grade g3 projecao-cbs-resumo">
-        ${A.kpi('Tributos CBS', A.moeda(ultimo.tributos || 0), 'projeção de referência')}
-        ${A.kpi('Crédito CBS', A.moeda(ultimo.credito || 0), 'crédito econômico estimado')}
-        ${A.kpi(eForn ? 'Custo efetivo' : 'Custo para o cliente', A.moeda(ultimo.custoEfetivo || 0), A.setaPct(ultimo.variacaoCustoPerc || 0) + ' vs. hoje', 'destaque')}
+        ${A.kpi('CBS projetada', A.moeda(ultimo.cbs || 0), 'incidência sobre a base econômica')}
+        ${A.kpi(eForn ? 'Compra projetada' : 'Venda projetada', A.moeda(ultimo.precoFinal || 0), 'antes de qualquer crédito')}
+        ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' vs. hoje', 'destaque')}
       </div>`}
     </div>
     <div class="cartao"><h2>Curva ABC — ${eForn ? 'fornecedores' : 'clientes'}</h2>
@@ -464,11 +477,11 @@ async function telaCadeia(el, tipo) {
         { t: 'Regime', r: (p) => `<span class="tag ${['simples_nacional', 'mei'].includes(p.regime) ? 'a' : ''}">${A.esc(p.regimeLabel)}</span>` },
         { t: 'Valor', num: true, r: (p) => A.moeda(p.valor) },
         { t: 'Part.', num: true, r: (p) => A.pct(p.representatividade, 1) },
-        { t: 'Crédito hoje', num: true, r: (p) => A.moeda(p.creditoHoje) },
-        { t: ibsAtivo ? 'Crédito final' : 'Crédito CBS', num: true, r: (p) => A.moeda(p.creditoFinal) },
-        { t: 'Custo hoje', num: true, r: (p) => A.moeda(p.custoHoje) },
-        { t: ibsAtivo ? 'Custo final' : 'Custo CBS', num: true, r: (p) => A.moeda(p.custoFinal) },
-        { t: 'Δ %', num: true, r: (p) => A.setaPct(p.variacaoCustoPerc) },
+        { t: 'Base econômica', num: true, r: (p) => A.moeda(p.baseEconomica) },
+        { t: 'CBS', num: true, r: (p) => A.moeda(p.cbs) },
+        { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (p) => A.moeda(p.precoFinal) },
+        { t: 'Impacto', num: true, r: (p) => A.setaR$(p.impactoOperacao) },
+        { t: 'Crédito potencial', num: true, r: (p) => A.moeda(p.creditoFinal) },
       ], analise.parceiros.slice(0, 200))}
     </div>` : A.vazio('Sem movimentação importada',
       `Importe a movimentação de ${eForn ? 'fornecedores' : 'clientes'} para gerar esta análise.`,
