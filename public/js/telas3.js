@@ -324,16 +324,17 @@ Telas.configComercial = async (el) => {
         { t: '', r: (s) => `<button class="btn pq vazio" data-es="${s.id}">Editar</button>` },
       ], servicos)}
     </div>
-    <div class="cartao"><h2>Combos</h2>
-      <p class="desc">Pacotes de entrega. A aprovação congela os módulos e os meses de acompanhamento daquele projeto.</p>
-      ${A.tabela([
-        { t: 'Combo', r: (c) => `<b>${A.esc(c.nome)}</b>${c.destaque ? ' <span class="tag b">destaque</span>' : ''}<div class="mini">${A.esc(c.descricao || '')}</div>` },
-        { t: 'Serviços', num: true, r: (c) => c.servicos.length },
-        { t: 'Acomp.', num: true, r: (c) => `${c.acompanhamento_meses || 0} mês(es)` },
-        { t: 'Ativo', r: (c) => `<span class="tag ${c.ativo ? 'c' : 'n'}">${c.ativo ? 'sim' : 'não'}</span>` },
-        { t: '', r: (c) => `<button class="btn pq vazio" data-ec2="${c.id}">Editar</button>
-          <button class="btn pq perigo" data-rc2="${c.id}">Excluir</button>` },
-      ], combos)}
+    <div class="cartao combos-config"><div class="cabecalho-lista"><div><h2>Combos</h2><p class="desc">Pacotes de entrega. A aprovação congela os módulos e os meses de acompanhamento daquele projeto.</p></div><span class="tag">${combos.length} planos</span></div>
+      <div class="grade g3 cards-combo">${combos.map((c) => {
+        const incluidos = c.servicos.map((id) => servicos.find((s) => s.id === id)).filter(Boolean);
+        return `<article class="combo-config-card ${c.destaque ? 'destaque' : ''}">
+          <div class="combo-config-topo"><div><h3>${A.esc(c.nome)}</h3>${c.destaque ? '<span class="tag b">destaque</span>' : ''}</div><span class="tag ${c.ativo ? 'c' : 'n'}">${c.ativo ? 'ativo' : 'inativo'}</span></div>
+          <p>${A.esc(c.descricao || 'Sem descrição definida.')}</p>
+          <div class="combo-meses"><b>${c.acompanhamento_meses || 0}</b><span>meses de acompanhamento<br>após o Diagnóstico</span></div>
+          <div class="combo-servicos"><strong>Entregas incluídas</strong>${incluidos.length ? incluidos.map((s) => `<span>${A.esc(s.nome)}</span>`).join('') : '<span>Sem serviços vinculados</span>'}</div>
+          <div class="combo-config-acoes"><button class="btn pq vazio" data-ec2="${c.id}">Editar combo</button><button class="btn pq perigo" data-rc2="${c.id}">Excluir</button></div>
+        </article>`;
+      }).join('')}</div>
     </div>`;
 
   const formServico = (s = {}) => `<div class="grade g2">${A.campo('codigo', 'Código', s.codigo, 'text', s.id ? 'disabled' : '')}
