@@ -27,6 +27,7 @@ const supabase = require('../services/supabase');
 const { executar: sincronizarGestaoSupabase } = require('../../scripts/sincronizar_gestao_supabase');
 
 const router = express.Router();
+router.get('/cnpj/:cnpj/governo', async (req, res) => { try { const d = await cnpjReceita.consultar(req.params.cnpj); ok(res, { resultado: cnpjReceita.classificarEnteGovernamental(d, String(req.params.cnpj).replace(/\D/g, '')) }); } catch (e) { erro(res, e); } });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });
 
 // As alterações feitas nas telas passam a ser publicadas na fonte compartilhada.

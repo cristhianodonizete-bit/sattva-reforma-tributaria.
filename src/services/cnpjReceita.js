@@ -50,6 +50,8 @@ const PROVEDORES = {
       cnae: String(d.cnae_fiscal || ''),
       cnae_descricao: d.cnae_fiscal_descricao || '',
       uf: d.uf || '', municipio: d.municipio || '',
+      natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.codigo_natureza_juridica || ''),
+      efr: d.ente_federativo_responsavel || '',
       optante_simples: d.opcao_pelo_simples === true,
       data_opcao_simples: d.data_opcao_pelo_simples || null,
       data_exclusao_simples: d.data_exclusao_do_simples || null,
@@ -151,6 +153,23 @@ function derivarRegime(d) {
   }
   return { regime: 'regime_regular', confianca: 'alta',
     justificativa: 'Não optante pelo Simples Nacional — apura IBS/CBS pelo regime regular. O cadastro público não distingue Lucro Real de Presumido, e essa distinção não afeta o crédito de IBS/CBS.' };
+}
+
+function classificarEnteGovernamental(d, cnpj) {
+  const natureza = String(d.natureza_juridica || '').toLowerCase();
+  const efr = String(d.efr || '').toLowerCase();
+  const texto = `${natureza} ${efr} ${d.razao_social || ''}`.toLowerCase();
+  const tipo = /cons[oó]rcio p[uú]blico/.test(texto) ? ['Consórcio Público', 5]
+    : /comit[eê].*gestor.*ibs/.test(texto) ? ['Comitê Gestor do IBS', 6]
+      : /distrito federal/.test(texto) ? ['Distrito Federal', 3]
+        : /uni[aã]o|federal/.test(efr) ? ['União', 1]
+          : /estado/.test(efr) ? ['Estado', 2]
+            : /munic[ií]pio|prefeitura/.test(efr) ? ['Município', 4] : [null, null];
+  const publico = /administra[cç][aã]o p[uú]blica|autarquia|funda[cç][aã]o p[uú]blica/.test(natureza);
+  const privado = /empresa p[uú]blica|economia mista|sociedade empres/.test(natureza);
+  const confirmado = publico && !privado;
+  const validar = !confirmado && !privado && (!d.natureza_juridica || !d.efr);
+  return { cnpj, razao_social: d.razao_social || '', natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: d.codigo_natureza_juridica || '', efr: d.efr || '', situacao_cadastral: d.situacao || '', entidade_publica: confirmado ? 'SIM' : 'NÃO', enquadrado: confirmado ? 'SIM' : 'NÃO', tipo_ente_governamental: tipo?.[0] || '', tpEnteGov: tipo?.[1] || null, aplicar_regra_compra_governamental: confirmado && tipo?.[1] ? 'SIM' : validar ? 'A VALIDAR' : 'NÃO', justificativa: confirmado ? 'Natureza jurídica cadastral indica administração pública direta, autarquia ou fundação pública.' : validar ? 'Cadastro consultado não informa elementos suficientes (natureza jurídica e/ou EFR) para concluir o enquadramento.' : 'Não há enquadramento automático: empresa estatal, sociedade de economia mista ou pessoa jurídica privada não recebe a regra de compra governamental.', fonte_cadastral: d.fonte || '', data_consulta: d.consultado_em || new Date().toISOString() };
 }
 
 // --------------------------------------------------------------------------
@@ -378,4 +397,4 @@ function estatisticasCache() {
 }
 
 module.exports = { consultar, enriquecerParceiros, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
-  config, salvarConfig, derivarRegime, PROVEDORES };
+  config, salvarConfig, derivarRegime, classificarEnteGovernamental, PROVEDORES };
