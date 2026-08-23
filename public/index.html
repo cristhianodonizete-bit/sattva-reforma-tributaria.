@@ -8,9 +8,9 @@
 <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
-<div class="app">
+<div class="app" id="appShell">
   <aside class="lateral">
-    <div class="marca">
+    <div class="marca"><button class="menu-toggle" id="menuToggle" aria-label="Recolher menu">☰</button>
       <img src="img/logo_sattva.jpg" alt="Sattva">
       <div class="produto">Reforma Tributária</div>
       <div class="sub">Diagnóstico, adequação e margem</div>
@@ -21,7 +21,7 @@
     </div>
     <nav id="menu"></nav>
   </aside>
-  <main class="conteudo" id="tela"><div class="carregando">Carregando…</div></main>
+  <section class="area-app"><header class="app-header"><div><span class="crumb">Sattva · Reforma Tributária</span><strong id="tituloContexto">Visão geral</strong></div><div class="header-acoes"><select id="seletorEmpresaHeader" aria-label="Empresa em análise"></select><span id="usuarioHeader" class="usuario-header"></span></div></header><main class="conteudo" id="tela"><div class="carregando">Carregando…</div></main></section>
 </div>
 <div id="modais"></div>
 <script src="js/app.js"></script>

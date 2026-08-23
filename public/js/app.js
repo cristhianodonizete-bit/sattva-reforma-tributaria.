@@ -218,6 +218,7 @@ const App = (() => {
     const { empresas } = await api('/empresas');
     S.empresas = empresas;
     const sel = document.getElementById('seletorEmpresa');
+    const selHeader = document.getElementById('seletorEmpresaHeader');
     sel.innerHTML = empresas.length
       ? empresas.map((e) => `<option value="${e.id}">${esc(e.razao_social)}</option>`).join('')
       : '<option value="">— nenhuma empresa cadastrada —</option>';
@@ -227,6 +228,7 @@ const App = (() => {
       sel.value = S.empresaId;
       S.empresa = empresas.find((e) => e.id === S.empresaId);
     } else { S.empresaId = null; S.empresa = null; }
+    if (selHeader) { selHeader.innerHTML = sel.innerHTML; selHeader.value = sel.value; selHeader.onchange = () => { sel.value = selHeader.value; sel.onchange(); }; }
     sel.onchange = () => {
       S.empresaId = Number(sel.value) || null;
       S.empresa = S.empresas.find((e) => e.id === S.empresaId) || null;
@@ -246,6 +248,8 @@ const App = (() => {
       if (!sessao?.ok) { telaLogin(); return; }
       S.usuario = sessao.usuario;
     }
+    const usuarioHeader = document.getElementById('usuarioHeader'); if (usuarioHeader) usuarioHeader.textContent = S.usuario?.nome || S.usuario?.email || '';
+    const toggle = document.getElementById('menuToggle'); if (toggle) toggle.onclick = () => document.body.classList.toggle('menu-colapsado');
     try {
       const p = await api('/parametros');
       S.params = p;
@@ -256,8 +260,8 @@ const App = (() => {
   }
 
   function telaLogin() {
-    document.getElementById('tela').innerHTML = `<div style="max-width:440px;margin:80px auto" class="cartao"><div class="olho">Acesso restrito</div><h1>Entrar no Sattva</h1><p class="desc">Use seu e-mail e senha cadastrados no Supabase.</p>
-      <form id="formLogin"><label class="campo"><span>E-mail</span><input name="email" type="email" required autofocus></label><label class="campo"><span>Senha</span><input name="senha" type="password" required></label><button class="btn ouro" style="width:100%;margin-top:12px">Entrar</button><div id="erroLogin" class="mini" style="margin-top:12px"></div></form></div>`;
+    document.body.classList.add('auth-mode');
+    document.getElementById('tela').innerHTML = `<div class="auth-layout"><section class="auth-brand"><img src="img/logo_sattva.jpg" alt="Sattva"><span>REFORMA TRIBUTÁRIA</span><h1>Clareza tributária para proteger a margem.</h1><p>Diagnóstico, adequação e inteligência para decisões seguras.</p><div class="auth-chips"><b>Diagnóstico</b><b>Precificação</b><b>Contratos</b></div></section><section class="auth-form"><div class="auth-card"><div class="olho">Acesso seguro</div><h1>Bem-vindo</h1><p class="desc">Acesse sua conta para continuar.</p><form id="formLogin"><label class="campo"><span>E-mail</span><input name="email" type="email" required autofocus></label><label class="campo"><span>Senha</span><input name="senha" type="password" required></label><button class="btn ouro" style="width:100%;margin-top:12px">Entrar</button><div id="erroLogin" class="mini" style="margin-top:12px"></div></form></div></section></div>`;
     document.getElementById('formLogin').onsubmit = async (e) => {
       e.preventDefault(); const f = new FormData(e.currentTarget); const erro = document.getElementById('erroLogin'); erro.textContent = 'Entrando…';
       try { const r = await fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: f.get('email'), senha: f.get('senha') }) }); const j = await r.json(); if (!j.ok) throw new Error(j.erro); localStorage.setItem('sattva_token', j.sessao.access_token); location.reload(); }
