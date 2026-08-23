@@ -144,15 +144,17 @@ function normalizarPermissoes(permissoes) {
 router.get('/acessos', async (_req, res) => {
   try {
     const remoto = supabase.admin();
-    const [{ data: perfis, error: erroPerfis }, { data: usuariosPerfil, error: erroUsuariosPerfil }, usuariosAuth] = await Promise.all([
-      remoto.from('perfis_acesso').select('*').order('nome'), remoto.from('perfis').select('id,nome,papel,ativo,perfil_acesso_id'), remoto.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    const [{ data: perfis, error: erroPerfis }, { data: usuariosPerfil, error: erroUsuariosPerfil }, { data: empresas, error: erroEmpresas }, { data: vinculos, error: erroVinculos }, usuariosAuth] = await Promise.all([
+      remoto.from('perfis_acesso').select('*').order('nome'), remoto.from('perfis').select('id,nome,papel,ativo,perfil_acesso_id'), remoto.from('empresas').select('id,razao_social').order('razao_social'), remoto.from('empresas_usuarios').select('empresa_id,usuario_id,papel'), remoto.auth.admin.listUsers({ page: 1, perPage: 1000 }),
     ]);
     if (erroPerfis) throw erroPerfis;
     if (erroUsuariosPerfil) throw erroUsuariosPerfil;
+    if (erroEmpresas) throw erroEmpresas;
+    if (erroVinculos) throw erroVinculos;
     if (usuariosAuth.error) throw usuariosAuth.error;
     const perfilPorUsuario = new Map((usuariosPerfil || []).map((x) => [x.id, x]));
     const usuarios = (usuariosAuth.data.users || []).map((u) => ({ id: u.id, email: u.email, criado_em: u.created_at, ultimo_acesso: u.last_sign_in_at, ...(perfilPorUsuario.get(u.id) || { nome: '', papel: 'consultor', ativo: true, perfil_acesso_id: null }) }));
-    ok(res, { areas: AREAS_ACESSO, perfis: perfis || [], usuarios });
+    ok(res, { areas: AREAS_ACESSO, perfis: perfis || [], usuarios, empresas: empresas || [], vinculos: vinculos || [] });
   } catch (e) { erro(res, e); }
 });
 router.post('/acessos/perfis', async (req, res) => {
@@ -185,6 +187,8 @@ router.post('/acessos/usuarios', async (req, res) => {
     if (erroCriar) throw erroCriar;
     const { error } = await remoto.from('perfis').upsert({ id: criado.user.id, nome: String(b.nome || '').trim(), papel: 'consultor', ativo: true, perfil_acesso_id: b.perfil_acesso_id || null });
     if (error) throw error;
+    const empresas = Array.isArray(b.empresa_ids) ? b.empresa_ids.filter(Boolean).map((empresa_id) => ({ empresa_id, usuario_id: criado.user.id, papel: 'consultor' })) : [];
+    if (empresas.length) { const { error: erroVinculos } = await remoto.from('empresas_usuarios').upsert(empresas); if (erroVinculos) throw erroVinculos; }
     auditar(req, { acao: 'Criou usuário', entidade: 'usuario', entidadeId: criado.user.id, depois: { email, perfil_acesso_id: b.perfil_acesso_id || null } });
     ok(res, { usuario: { id: criado.user.id, email } });
   } catch (e) { erro(res, e); }
@@ -196,6 +200,12 @@ router.put('/acessos/usuarios/:id', async (req, res) => {
     if (erroAntes) throw erroAntes;
     const { error } = await remoto.from('perfis').upsert({ id: req.params.id, nome: String(b.nome ?? antes?.nome ?? '').trim(), papel: antes?.papel || 'consultor', ativo: b.ativo !== false, perfil_acesso_id: b.perfil_acesso_id || null, atualizado_em: new Date().toISOString() });
     if (error) throw error;
+    if (Array.isArray(b.empresa_ids)) {
+      const { error: erroRemover } = await remoto.from('empresas_usuarios').delete().eq('usuario_id', req.params.id);
+      if (erroRemover) throw erroRemover;
+      const empresas = b.empresa_ids.filter(Boolean).map((empresa_id) => ({ empresa_id, usuario_id: req.params.id, papel: 'consultor' }));
+      if (empresas.length) { const { error: erroVinculos } = await remoto.from('empresas_usuarios').upsert(empresas); if (erroVinculos) throw erroVinculos; }
+    }
     auditar(req, { acao: 'Atualizou usuário', entidade: 'usuario', entidadeId: req.params.id, antes: { perfil_acesso_id: antes?.perfil_acesso_id || null, ativo: antes?.ativo ?? true }, depois: { perfil_acesso_id: b.perfil_acesso_id || null, ativo: b.ativo !== false } });
     ok(res, {});
   } catch (e) { erro(res, e); }
@@ -218,13 +228,22 @@ router.get('/parametros', (_req, res) => ok(res, {
 // ===========================================================================
 // EMPRESAS
 // ===========================================================================
-router.get('/empresas', (_req, res) => ok(res, {
-  empresas: db.prepare(`SELECT e.*,
+router.get('/empresas', async (req, res) => {
+  try {
+    let ids = null;
+    if (req.usuario && !['administrador', 'gestor'].includes(req.usuario.papel)) {
+      const { data, error } = await supabase.admin().from('empresas_usuarios').select('empresa_id').eq('usuario_id', req.usuario.id);
+      if (error) throw error;
+      ids = (data || []).map((x) => Number(x.empresa_id)).filter(Number.isFinite);
+    }
+    const sql = `SELECT e.*,
     (SELECT COUNT(*) FROM parceiros p WHERE p.empresa_id = e.id AND p.tipo='fornecedor') fornecedores,
     (SELECT COUNT(*) FROM parceiros p WHERE p.empresa_id = e.id AND p.tipo='cliente') clientes,
     (SELECT COUNT(*) FROM movimentos m WHERE m.empresa_id = e.id) movimentos
-    FROM empresas e ORDER BY e.razao_social`).all(),
-}));
+    FROM empresas e ${ids === null ? '' : ids.length ? `WHERE e.id IN (${ids.map(() => '?').join(',')})` : 'WHERE 1=0'} ORDER BY e.razao_social`;
+    ok(res, { empresas: db.prepare(sql).all(...(ids || [])) });
+  } catch (e) { erro(res, e); }
+});
 
 router.post('/empresas', (req, res) => {
   try {
