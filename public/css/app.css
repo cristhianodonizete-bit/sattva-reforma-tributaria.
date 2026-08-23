@@ -53,6 +53,7 @@ nav a .n{margin-left:auto;font-size:11px;font-family:var(--mono);color:var(--our
 /* ---------- COMPONENTES ---------- */
 .cartao{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r);box-shadow:var(--sombra);padding:18px 20px;margin-bottom:16px}
 .cartao>h2{margin:0 0 4px;font-size:15px;font-weight:650;color:var(--navy-900)}
+.cartao>h2{font-size:17px;letter-spacing:-.01em}.cartao>h3{color:var(--navy-900);margin-top:20px}.cartao hr.sep{margin:22px 0}.grade>.cartao{margin-bottom:0}
 .cartao>h2+.desc{margin:0 0 16px;color:var(--tinta-3);font-size:12.5px}
 .grade{display:grid;gap:16px}
 .g2{grid-template-columns:repeat(2,minmax(0,1fr))}
