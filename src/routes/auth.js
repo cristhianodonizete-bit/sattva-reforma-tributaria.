@@ -26,10 +26,8 @@ router.post('/login', async (req, res) => {
   try {
     const { data, error } = await publico().auth.signInWithPassword({ email: String(req.body.email || '').trim(), password: String(req.body.senha || '') });
     if (error) throw error;
-    const admin = supabase.admin();
-    const { data: perfil } = await admin.from('perfis').select('nome,papel,ativo').eq('id', data.user.id).maybeSingle();
-    if (perfil && !perfil.ativo) throw new Error('Este usuário está desativado.');
-    res.json({ ok: true, sessao: { access_token: data.session.access_token, refresh_token: data.session.refresh_token, expira_em: data.session.expires_at }, usuario: { id: data.user.id, email: data.user.email, ...(perfil || { papel: 'consultor' }) } });
+    const usuario = await autenticacao.montarUsuario(data.user);
+    res.json({ ok: true, sessao: { access_token: data.session.access_token, refresh_token: data.session.refresh_token, expira_em: data.session.expires_at }, usuario });
   } catch (e) { res.status(401).json({ ok: false, erro: e.message || 'Não foi possível entrar.' }); }
 });
 
@@ -49,9 +47,7 @@ router.get('/me', async (req, res) => {
     if (!token) throw new Error('Sessão não informada.');
     const { data, error } = await publico().auth.getUser(token);
     if (error) throw error;
-    const { data: perfil } = await supabase.admin().from('perfis').select('nome,papel,ativo').eq('id', data.user.id).maybeSingle();
-    if (perfil && !perfil.ativo) throw new Error('Usuário desativado.');
-    res.json({ ok: true, usuario: { id: data.user.id, email: data.user.email, ...(perfil || { papel: 'consultor' }) } });
+    res.json({ ok: true, usuario: await autenticacao.montarUsuario(data.user) });
   } catch (e) { res.status(401).json({ ok: false, erro: e.message || 'Sessão inválida.' }); }
 });
 

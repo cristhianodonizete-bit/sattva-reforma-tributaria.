@@ -54,6 +54,25 @@ const auditar = (req, { empresaId, acao, entidade, entidadeId, antes = null, dep
     .then(({ error }) => { if (error) console.error('[supabase] auditoria:', error.message); })
     .catch((e) => console.error('[supabase] auditoria:', e.message));
 };
+const chaveAcessoApi = (caminho, metodo) => {
+  if (/^\/operacao/.test(caminho)) return 'visao_geral';
+  if (/^\/empresas/.test(caminho)) return metodo === 'GET' ? 'visao_geral' : 'diagnostico';
+  if (/^\/(contratacoes|projeto|servicos|combos|gestao)/.test(caminho)) return 'gestao_projetos';
+  if (/^\/(config|regras|questor|conhecimento|rag|ia)/.test(caminho)) return 'configuracoes';
+  if (/^\/precificacao/.test(caminho)) return 'precificacao';
+  if (/^\/contratos/.test(caminho)) return 'contratos';
+  if (/^\/capacitacao/.test(caminho)) return 'capacitacao';
+  if (/^\/(lotes|movimentos|motor|cenarios|bases|perfil|fornecedores|clientes|import)/.test(caminho)) return 'diagnostico';
+  return null;
+};
+router.use((req, res, next) => {
+  const chave = chaveAcessoApi(req.path, req.method);
+  const permissoes = req.usuario?.permissoes;
+  if (!chave || !permissoes) return next(); // usuários antigos continuam operando até receberem um perfil
+  const acao = req.method === 'GET' ? 'ver' : 'executar';
+  if (permissoes[chave]?.[acao]) return next();
+  return res.status(403).json({ ok: false, erro: `Seu perfil não pode ${acao === 'ver' ? 'acessar' : 'executar ações em'} esta área.` });
+});
 
 // ===========================================================================
 // OPERAÇÃO COMPARTILHADA — dashboard lido da base Supabase

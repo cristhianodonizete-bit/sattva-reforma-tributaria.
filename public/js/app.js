@@ -164,16 +164,29 @@ const App = (() => {
     ] },
   ];
   const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens);
+  const PERMISSAO_TELA = {
+    painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
+    dados: 'diagnostico', bases: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico',
+    precificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', capacitacao: 'capacitacao',
+    servicos: 'gestao_projetos', gestaoProjetos: 'gestao_projetos', configComercial: 'configuracoes', conhecimento: 'configuracoes', configuracoes: 'configuracoes', questor: 'configuracoes',
+  };
+  const pode = (tela, acao = 'ver') => {
+    const permissoes = S.usuario?.permissoes;
+    if (!S.usuario || !permissoes) return true; // compatibilidade até todos os usuários receberem um perfil
+    return Boolean(permissoes[PERMISSAO_TELA[tela] || tela]?.[acao]);
+  };
 
   function desenharMenu() {
     const menu = document.getElementById('menu');
     menu.innerHTML = MENU.map((grupo) => {
+      const itens = grupo.itens.filter((item) => pode(item.id));
+      if (!itens.length) return '';
       const contemAtiva = grupo.itens.some((item) => item.id === S.tela);
       const chave = `sattva_menu_grupo_${grupo.id}`;
       const aberto = contemAtiva || localStorage.getItem(chave) !== 'fechado';
       return `<section class="nav-grupo ${aberto ? 'aberto' : ''}" data-grupo="${grupo.id}">
         <button class="grupo-titulo" type="button" aria-expanded="${aberto}">${grupo.titulo}<span>${aberto ? '⌃' : '⌄'}</span></button>
-        <div class="grupo-itens">${grupo.itens.map((item) => `<a data-tela="${item.id}" title="${item.t}" class="${S.tela === item.id ? 'ativo' : ''}"><i aria-hidden="true">${item.i}</i><span>${item.t}</span></a>`).join('')}</div>
+        <div class="grupo-itens">${itens.map((item) => `<a data-tela="${item.id}" title="${item.t}" class="${S.tela === item.id ? 'ativo' : ''}"><i aria-hidden="true">${item.i}</i><span>${item.t}</span></a>`).join('')}</div>
       </section>`;
     }).join('') + (S.usuario ? `<section class="nav-grupo sessao aberto"><div class="grupo-titulo">${esc(S.usuario.nome || S.usuario.email)}</div><div class="grupo-itens"><a data-sair title="Sair"><i aria-hidden="true">↪</i><span>Sair</span></a></div></section>` : '');
     menu.querySelectorAll('[data-tela]').forEach((a) => { a.onclick = () => ir(a.dataset.tela); });
@@ -189,6 +202,7 @@ const App = (() => {
   }
 
   async function ir(tela) {
+    if (!pode(tela)) { toast('Seu perfil não possui acesso a esta área.', 'erro'); return; }
     S.tela = tela;
     location.hash = tela;
     desenharMenu();
