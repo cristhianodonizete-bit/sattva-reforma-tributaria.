@@ -895,22 +895,32 @@ router.delete('/participantes/:id', async (req, res) => { try { await participan
 
 router.post('/turmas/:id/importar', upload.single('arquivo'), async (req, res) => {
   try {
-    await turmaPermitida(req, req.params.id);
+    const turma = await turmaPermitida(req, req.params.id);
     const { linhas } = imp.lerPlanilha(req.file.buffer);
     const norm = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const acha = (l, nomes) => { for (const k of Object.keys(l)) { if (nomes.includes(norm(k))) return l[k]; } return ''; };
-    const turma = db.prepare('SELECT * FROM turmas WHERE id=?').get(req.params.id);
     const total = db.prepare('SELECT COUNT(*) AS total FROM participantes WHERE turma_id=?').get(req.params.id).total;
     const vagas = Math.max(0, Number(turma?.limite_participantes || 30) - total);
     const ins = db.prepare('INSERT INTO participantes (turma_id, empresa_id, nome, area, email) VALUES (?,?,?,?,?)');
-    let n = 0;
+    const empresas = db.prepare('SELECT id,cnpj,razao_social,nome_fantasia FROM empresas').all();
+    const permitidas = await empresasPermitidasUsuario(req.usuario);
+    const localizarEmpresa = (linha) => {
+      if (turma.trilha !== 'workshop_boas_praticas') return Number(turma.empresa_id);
+      const cnpj = String(acha(linha, ['cnpj', 'cnpjempresa', 'documentoempresa']) || '').replace(/\D/g, '');
+      const nome = String(acha(linha, ['empresa', 'razaosocial', 'nomeempresa']) || '').trim().toLowerCase();
+      const encontrada = empresas.find((e) => (cnpj && String(e.cnpj || '').replace(/\D/g, '') === cnpj) || (nome && [e.razao_social, e.nome_fantasia].some((v) => String(v || '').trim().toLowerCase() === nome)));
+      return encontrada ? Number(encontrada.id) : Number(turma.empresa_id);
+    };
+    let n = 0, foraDaCarteira = 0;
     db.transaction(() => { for (const l of linhas) {
       const nome = String(acha(l, ['nome', 'participante', 'colaborador']) || '').trim();
       if (!nome || n >= vagas) continue;
-      ins.run(req.params.id, turma.empresa_id, nome, String(acha(l, ['area', 'setor', 'departamento']) || ''), String(acha(l, ['email', 'mail']) || ''));
+      const empresaId = localizarEmpresa(l);
+      if (permitidas !== null && !permitidas.has(String(empresaId))) { foraDaCarteira++; continue; }
+      ins.run(req.params.id, empresaId, nome, String(acha(l, ['area', 'setor', 'departamento']) || ''), String(acha(l, ['email', 'mail']) || ''));
       n++;
     } })();
-    ok(res, { importados: n });
+    ok(res, { importados: n, foraDaCarteira, semVagas: Math.max(0, linhas.length - n - foraDaCarteira) });
   } catch (e) { erro(res, e); }
 });
 

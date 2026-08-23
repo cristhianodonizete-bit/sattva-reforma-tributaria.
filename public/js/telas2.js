@@ -324,9 +324,9 @@ Telas.capacitacao = async (el) => {
       corpo: `<div class="aviso ${t.trilha === 'workshop_boas_praticas' ? 'bom' : ''}"><b>${t.trilha === 'workshop_boas_praticas' ? 'Turma compartilhada.' : 'Turma exclusiva.'}</b> ${t.trilha === 'workshop_boas_praticas' ? 'Cada participante deve ser vinculado à respectiva empresa.' : 'Os participantes são vinculados automaticamente a esta empresa.'}</div><div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
           <input type="text" id="pNome" placeholder="Nome"><input type="text" id="pArea" placeholder="Área"><input type="email" id="pEmail" placeholder="E-mail">${t.trilha === 'workshop_boas_praticas' ? `<select id="pEmpresa">${baseEmpresas.empresas.map((e) => `<option value="${e.id}">${A.esc(e.razao_social)}</option>`).join('')}</select>` : ''}
           <button class="btn pq" id="pAdd">Incluir</button></div>
-        ${A.dropzone('zonaPart', '<b>Importar lista de participantes</b><div class="mini">colunas: Nome, Área, E-mail</div>', async (f) => {
+        ${A.dropzone('zonaPart', `<b>Importar lista de participantes</b><div class="mini">colunas: Nome, Área, E-mail${t.trilha === 'workshop_boas_praticas' ? ', Empresa ou CNPJ' : ''}</div>`, async (f) => {
           const fd = new FormData(); fd.append('arquivo', f);
-          try { const r = await A.api(`/turmas/${t.id}/importar`, { metodo: 'POST', corpo: fd }); A.toast(`${r.importados} participantes`, 'ok'); A.ir('capacitacao'); }
+          try { const r = await A.api(`/turmas/${t.id}/importar`, { metodo: 'POST', corpo: fd }); A.toast(`${r.importados} participantes${r.foraDaCarteira ? ` · ${r.foraDaCarteira} sem acesso` : ''}`, 'ok'); A.ir('capacitacao'); }
           catch (e) { A.toast(e.message, 'erro'); } })}
         <div style="margin-top:14px">${A.tabela([
           { t: 'Nome', r: (p) => A.esc(p.nome) },
