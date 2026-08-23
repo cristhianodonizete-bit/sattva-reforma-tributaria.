@@ -48,6 +48,12 @@ router.use((req, res, next) => {
 const ok = (res, dados) => res.json({ ok: true, ...dados });
 const erro = (res, e, status = 400) => res.status(status).json({ ok: false, erro: e.message || String(e) });
 const sincronizarGestao = () => sincronizarGestaoSupabase().catch((e) => console.error('[supabase] sincronização de gestão:', e.message));
+const auditar = (req, { empresaId, acao, entidade, entidadeId, antes = null, depois = null }) => {
+  if (!req.usuario?.id || !supabase.configurado()) return;
+  supabase.admin().from('auditoria').insert({ empresa_id: empresaId || null, usuario_id: req.usuario.id, acao, entidade, entidade_id: String(entidadeId || ''), antes, depois })
+    .then(({ error }) => { if (error) console.error('[supabase] auditoria:', error.message); })
+    .catch((e) => console.error('[supabase] auditoria:', e.message));
+};
 
 // ===========================================================================
 // OPERAÇÃO COMPARTILHADA — dashboard lido da base Supabase
@@ -786,6 +792,8 @@ router.post('/contratacoes/:id/aprovar', (req, res) => {
       db.prepare('DELETE FROM projeto_acompanhamentos WHERE contratacao_id=?').run(c.id);
       modulos.forEach((chave) => insEntrega.run(c.id, chave, ENTREGAS_PROJETO[chave]));
     })();
+    auditar(req, { empresaId: c.empresa_id, acao: 'Aprovou o escopo do projeto', entidade: 'contratacao', entidadeId: c.id,
+      antes: { status: c.status }, depois: { status: 'em_execucao', modulos, acompanhamento_meses: meses } });
     ok(res, { contratacao_id: c.id, modulos, acompanhamento_meses: meses });
     sincronizarGestao();
   } catch (e) { erro(res, e); }
@@ -807,6 +815,8 @@ router.post('/contratacoes/:id/liberar-acompanhamento', (req, res) => {
       for (let i = 0; i < meses; i++) { const comp = competenciaMais(competencia, i); ins.run(c.id, comp, tituloCompetencia(comp, i + 1)); }
       db.prepare('UPDATE contratacoes SET competencia_referencia=? WHERE id=?').run(competencia, c.id);
     })();
+    auditar(req, { empresaId: c.empresa_id, acao: 'Liberou acompanhamento do projeto', entidade: 'contratacao', entidadeId: c.id,
+      depois: { competencia_referencia: competencia, acompanhamento_meses: meses } });
     ok(res, { meses, competencia_referencia: competencia });
     sincronizarGestao();
   } catch (e) { erro(res, e); }
@@ -815,9 +825,11 @@ router.post('/contratacoes/:id/liberar-acompanhamento', (req, res) => {
 router.put('/projeto/entregas/:id', (req, res) => {
   try {
     const status = req.body.status || 'pendente';
+    const entregaAnterior = db.prepare(`SELECT pe.*, c.empresa_id FROM projeto_entregas pe JOIN contratacoes c ON c.id=pe.contratacao_id WHERE pe.id=?`).get(req.params.id);
+    if (!entregaAnterior) throw new Error('Entrega não encontrada.');
     db.prepare("UPDATE projeto_entregas SET status=?, observacoes=?, concluido_em=CASE WHEN ?='concluida' THEN datetime('now','localtime') ELSE NULL END WHERE id=?")
       .run(status, req.body.observacoes || '', status, req.params.id);
-    const entrega = db.prepare('SELECT contratacao_id FROM projeto_entregas WHERE id=?').get(req.params.id);
+    const entrega = entregaAnterior;
     const incluirResponsavel = (lado, nome, telefone, email, funcao) => {
       if (String(nome || '').trim()) db.prepare('INSERT INTO projeto_responsaveis (contratacao_id,entrega_id,lado,nome,telefone,email,funcao) VALUES (?,?,?,?,?,?,?)')
         .run(entrega.contratacao_id, req.params.id, lado, nome.trim(), telefone || '', email || '', funcao || '');
@@ -826,6 +838,8 @@ router.put('/projeto/entregas/:id', (req, res) => {
     incluirResponsavel('cliente', req.body.responsavel_cliente, req.body.telefone_cliente, req.body.email_cliente, req.body.funcao_cliente);
     if (String(req.body.tarefa_titulo || '').trim()) db.prepare(`INSERT INTO projeto_tarefas (contratacao_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente,interacoes_cliente,atualizado_em)
       VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))`).run(entrega.contratacao_id, req.params.id, req.body.tarefa_titulo.trim(), req.body.tarefa_descricao || '', req.body.tarefa_status || 'aberta', req.body.tarefa_abertura || null, req.body.tarefa_conclusao || null, req.body.envolve_cliente ? 1 : 0, req.body.pendencia_cliente || '', req.body.interacoes_cliente || '');
+    auditar(req, { empresaId: entrega.empresa_id, acao: 'Atualizou entrega do projeto', entidade: 'entrega', entidadeId: req.params.id,
+      antes: { status: entrega.status, observacoes: entrega.observacoes }, depois: { status, observacoes: req.body.observacoes || '' } });
     ok(res, {});
     sincronizarGestao();
   } catch (e) { erro(res, e); }
@@ -834,16 +848,24 @@ router.put('/projeto/entregas/:id', (req, res) => {
 router.put('/projeto/tarefas/:id', (req, res) => {
   try {
     const b = req.body;
+    const tarefa = db.prepare(`SELECT t.*, c.empresa_id FROM projeto_tarefas t JOIN contratacoes c ON c.id=t.contratacao_id WHERE t.id=?`).get(req.params.id);
+    if (!tarefa) throw new Error('Tarefa não encontrada.');
     db.prepare(`UPDATE projeto_tarefas SET titulo=?,descricao=?,status=?,data_abertura=?,data_conclusao=?,envolve_cliente=?,pendencia_cliente=?,interacoes_cliente=?,atualizado_em=datetime('now','localtime') WHERE id=?`)
       .run(b.titulo || '', b.descricao || '', b.status || 'aberta', b.data_abertura || null, b.data_conclusao || null, b.envolve_cliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '', req.params.id);
+    auditar(req, { empresaId: tarefa.empresa_id, acao: 'Atualizou tarefa do projeto', entidade: 'tarefa', entidadeId: req.params.id,
+      antes: { status: tarefa.status, data_conclusao: tarefa.data_conclusao }, depois: { status: b.status || 'aberta', data_conclusao: b.data_conclusao || null } });
     ok(res, {}); sincronizarGestao();
   } catch (e) { erro(res, e); }
 });
 
 router.put('/projeto/acompanhamentos/:id', (req, res) => {
   try {
+    const acompanhamento = db.prepare(`SELECT a.*, c.empresa_id FROM projeto_acompanhamentos a JOIN contratacoes c ON c.id=a.contratacao_id WHERE a.id=?`).get(req.params.id);
+    if (!acompanhamento) throw new Error('Acompanhamento não encontrado.');
     db.prepare('UPDATE projeto_acompanhamentos SET nome=?, status=?, observacoes=? WHERE id=?')
       .run(req.body.nome || '', req.body.status || 'planejado', req.body.observacoes || '', req.params.id);
+    auditar(req, { empresaId: acompanhamento.empresa_id, acao: 'Atualizou acompanhamento do projeto', entidade: 'acompanhamento', entidadeId: req.params.id,
+      antes: { status: acompanhamento.status }, depois: { status: req.body.status || 'planejado', nome: req.body.nome || '' } });
     ok(res, {});
     sincronizarGestao();
   } catch (e) { erro(res, e); }
