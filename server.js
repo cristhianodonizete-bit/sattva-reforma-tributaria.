@@ -53,7 +53,17 @@ function prepararMotor() {
   } catch (e) { console.error('  motor não pôde ser executado na inicialização:', e.message); }
 }
 
-app.listen(PORTA, () => {
+async function iniciar() {
+  try {
+    const operacao = require('./src/services/operacaoCompartilhada');
+    if (operacao.ativo()) {
+      const dados = await operacao.baixar();
+      console.log(`  operação compartilhada carregada: ${JSON.stringify(dados)}`);
+    }
+  } catch (e) {
+    console.error('  não foi possível carregar a operação compartilhada:', e.message);
+  }
+  app.listen(PORTA, () => {
   console.log('');
   console.log('  ███  SATTVA — IMPLEMENTAÇÃO DA REFORMA TRIBUTÁRIA');
   console.log('  ---------------------------------------------------');
@@ -61,4 +71,6 @@ app.listen(PORTA, () => {
   console.log(`  Banco de dados: ${process.env.SATTVA_DADOS || path.join(__dirname, 'dados')}`);
   prepararMotor();
   console.log('');
-});
+  });
+}
+iniciar();

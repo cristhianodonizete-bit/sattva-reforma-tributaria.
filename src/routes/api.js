@@ -29,6 +29,22 @@ const { executar: sincronizarGestaoSupabase } = require('../../scripts/sincroniz
 const router = express.Router();
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });
 
+// As alterações feitas nas telas passam a ser publicadas na fonte compartilhada.
+// A resposta não espera a rede: em caso de falha, o SQLite preserva o trabalho
+// e a próxima alteração/tentativa volta a sincronizar tudo.
+router.use((req, res, next) => {
+  if (!['POST', 'PUT', 'DELETE'].includes(req.method)) return next();
+  const responder = res.json.bind(res);
+  res.json = (corpo) => {
+    if (corpo?.ok) {
+      try { require('../services/operacaoCompartilhada').publicar()
+        .catch((e) => console.error('[supabase] publicação operacional:', e.message)); } catch (_) { /* opcional */ }
+    }
+    return responder(corpo);
+  };
+  next();
+});
+
 const ok = (res, dados) => res.json({ ok: true, ...dados });
 const erro = (res, e, status = 400) => res.status(status).json({ ok: false, erro: e.message || String(e) });
 const sincronizarGestao = () => sincronizarGestaoSupabase().catch((e) => console.error('[supabase] sincronização de gestão:', e.message));
