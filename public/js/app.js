@@ -147,9 +147,14 @@ const App = (() => {
       { id: 'clientes', t: 'Cadeia de clientes', i: '↗' }, { id: 'cenarios', t: 'Projeção de cenários', i: '⌁' },
       { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' },
     ] },
-    { id: 'entregas', titulo: 'Módulos 2 a 4', itens: [
-      { id: 'precificacao', t: 'Precificação e margem', i: '◫' }, { id: 'contratos', t: 'Revisão de contratos', i: '▤' },
-      { id: 'analise', t: 'Análise de contrato (IA)', i: '✦' }, { id: 'capacitacao', t: 'Capacitação do time', i: '◌' },
+    { id: 'precificacao', titulo: 'Módulo 2 · Precificação', itens: [
+      { id: 'precificacao', t: 'Precificação e margem', i: '◫' },
+    ] },
+    { id: 'contratos', titulo: 'Módulo 3 · Contratos', itens: [
+      { id: 'contratos', t: 'Revisão de contratos', i: '▤' }, { id: 'analise', t: 'Análise de contrato (IA)', i: '✦' },
+    ] },
+    { id: 'capacitacao', titulo: 'Módulo 4 · Capacitação', itens: [
+      { id: 'capacitacao', t: 'Capacitação do time', i: '◌' },
     ] },
     { id: 'gestao', titulo: 'Gestão do produto', itens: [
       { id: 'plano', t: 'Plano de adequação', i: '✓' }, { id: 'servicos', t: 'Escopos e combos', i: '⊞' },
