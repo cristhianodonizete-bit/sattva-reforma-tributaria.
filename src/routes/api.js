@@ -74,11 +74,26 @@ router.use((req, res, next) => {
   if (permissoes[chave]?.[acao]) return next();
   return res.status(403).json({ ok: false, erro: `Seu perfil não pode ${acao === 'ver' ? 'acessar' : 'executar ações em'} esta área.` });
 });
+async function empresasPermitidasUsuario(usuario) {
+  if (!usuario || ['administrador', 'gestor'].includes(usuario.papel)) return null;
+  const { data, error } = await supabase.admin().from('empresas_usuarios').select('empresa_id').eq('usuario_id', usuario.id);
+  if (error) throw error;
+  return new Set((data || []).map((x) => String(x.empresa_id)));
+}
+router.use(async (req, res, next) => {
+  const alvo = req.path.match(/^\/empresas\/(\d+)(?:\/|$)/)?.[1];
+  if (!alvo) return next();
+  try {
+    const permitidas = await empresasPermitidasUsuario(req.usuario);
+    if (permitidas === null || permitidas.has(String(alvo))) return next();
+    return res.status(403).json({ ok: false, erro: 'Seu usuário não está vinculado a esta empresa.' });
+  } catch (e) { return erro(res, e, 500); }
+});
 
 // ===========================================================================
 // OPERAÇÃO COMPARTILHADA — dashboard lido da base Supabase
 // ===========================================================================
-router.get('/operacao/dashboard', async (_req, res) => {
+router.get('/operacao/dashboard', async (req, res) => {
   try {
     const remoto = supabase.admin();
     const [{ data: empresas, error: erroEmpresas }, { data: projetos, error: erroProjetos }, { data: entregas, error: erroEntregas }, { data: acompanhamentos, error: erroAcomp }, { data: responsaveis, error: erroResponsaveis }, { data: tarefas, error: erroTarefas }] = await Promise.all([
@@ -88,7 +103,9 @@ router.get('/operacao/dashboard', async (_req, res) => {
       remoto.from('projeto_tarefas').select('*'),
     ]);
     for (const e of [erroEmpresas, erroProjetos, erroEntregas, erroAcomp, erroResponsaveis, erroTarefas]) if (e) throw e;
-    const empresaPorId = new Map(empresas.map((e) => [e.id, e]));
+    const permitidas = await empresasPermitidasUsuario(req.usuario);
+    const empresasVisiveis = permitidas === null ? empresas : empresas.filter((e) => permitidas.has(String(e.id)));
+    const empresaPorId = new Map(empresasVisiveis.map((e) => [e.id, e]));
     const entregaPorId = new Map((entregas || []).map((e) => [e.id, e]));
     const porProjeto = new Map((entregas || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const acompPorProjeto = new Map((acompanhamentos || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
@@ -99,7 +116,7 @@ router.get('/operacao/dashboard', async (_req, res) => {
       return lista.find((x) => x.lado === lado && x.entrega_id === entregaId)?.nome || lista.find((x) => x.lado === lado && !x.entrega_id)?.nome || lista.find((x) => x.lado === lado)?.nome || null;
     };
     const hoje = new Date().toISOString().slice(0, 10);
-    const carteira = (projetos || []).map((p) => {
+    const carteira = (projetos || []).filter((p) => empresaPorId.has(p.empresa_id)).map((p) => {
       const es = porProjeto.get(p.id) || [], as = acompPorProjeto.get(p.id) || [], ts = tarefasPorProjeto.get(p.id) || [], rs = responsaveisPorProjeto.get(p.id) || [];
       const feitas = es.filter((x) => ['concluida', 'nao_aplicavel'].includes(x.status)).length;
       const proximaTarefa = ts.filter((x) => x.status !== 'concluida' && x.data_conclusao).sort((a, b) => String(a.data_conclusao).localeCompare(String(b.data_conclusao)))[0];
@@ -118,16 +135,16 @@ router.get('/operacao/dashboard', async (_req, res) => {
     });
     const projetoPorId = new Map(carteira.map((p) => [p.id, p]));
     const agenda = [
-      ...(tarefas || []).filter((t) => t.status !== 'concluida' && t.data_conclusao).map((t) => {
+      ...(tarefas || []).filter((t) => projetoPorId.has(t.projeto_id) && t.status !== 'concluida' && t.data_conclusao).map((t) => {
         const p = projetoPorId.get(t.projeto_id), entrega = entregaPorId.get(t.entrega_id);
         return { tipo: 'tarefa', projetoId: t.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', projetoStatus: p?.status || '', responsavelSattva: responsavelDaEntrega(t.projeto_id, t.entrega_id) || p?.responsavelSattva || null, responsavelCliente: responsavelDaEntrega(t.projeto_id, t.entrega_id, 'cliente'), pendenciasCliente: p?.pendenciasCliente || 0, titulo: t.titulo, etapa: entrega?.titulo || null, data: t.data_conclusao, atrasado: t.data_conclusao < hoje, envolveCliente: Boolean(t.envolve_cliente), pendenciaCliente: t.pendencia_cliente || '' };
       }),
-      ...(acompanhamentos || []).filter((a) => a.status !== 'concluido' && a.competencia).map((a) => {
+      ...(acompanhamentos || []).filter((a) => projetoPorId.has(a.projeto_id) && a.status !== 'concluido' && a.competencia).map((a) => {
         const p = projetoPorId.get(a.projeto_id);
         return { tipo: 'acompanhamento', projetoId: a.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', projetoStatus: p?.status || '', responsavelSattva: p?.responsavelSattva || null, responsavelCliente: responsavelDaEntrega(a.projeto_id, null, 'cliente'), pendenciasCliente: p?.pendenciasCliente || 0, titulo: 'Acompanhamento previsto', etapa: null, data: a.competencia, atrasado: a.competencia < hoje.slice(0, 7), envolveCliente: false };
       }),
     ].sort((a, b) => String(a.data).localeCompare(String(b.data)));
-    ok(res, { empresas: empresas.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
+    ok(res, { empresas: empresasVisiveis.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
       aguardando: carteira.filter((p) => p.status === 'aguardando_aprovacao').length,
       entregasPendentes: carteira.reduce((n, p) => n + p.entregas - p.entregasConcluidas, 0) } });
   } catch (e) { erro(res, e); }
@@ -868,11 +885,12 @@ router.get('/empresas/:id/acesso', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.get('/gestao/projetos', (_req, res) => {
+router.get('/gestao/projetos', async (req, res) => {
   try {
+    const permitidas = await empresasPermitidasUsuario(req.usuario);
     const contratos = db.prepare(`SELECT c.*, e.razao_social, co.nome combo_nome FROM contratacoes c
       JOIN empresas e ON e.id=c.empresa_id LEFT JOIN combos co ON co.id=c.combo_id
-      WHERE c.aprovado_em IS NOT NULL ORDER BY c.aprovado_em DESC, c.id DESC`).all();
+      WHERE c.aprovado_em IS NOT NULL ORDER BY c.aprovado_em DESC, c.id DESC`).all().filter((c) => permitidas === null || permitidas.has(String(c.empresa_id)));
     const vistos = new Set();
     const projetos = contratos.filter((c) => { if (vistos.has(c.empresa_id)) return false; vistos.add(c.empresa_id); return true; }).map((c) => {
       const entregas = db.prepare('SELECT * FROM projeto_entregas WHERE contratacao_id=?').all(c.id);
@@ -888,6 +906,7 @@ router.get('/gestao/projetos', (_req, res) => {
     const propostas = db.prepare(`SELECT c.*, e.razao_social, co.nome combo_nome FROM contratacoes c
       JOIN empresas e ON e.id=c.empresa_id LEFT JOIN combos co ON co.id=c.combo_id
       WHERE c.aprovado_em IS NULL ORDER BY c.criado_em DESC, c.id DESC`).all()
+      .filter((c) => permitidas === null || permitidas.has(String(c.empresa_id)))
       .map((c) => ({ ...c, servicos: JSON.parse(c.servicos_json || '[]') }));
     ok(res, { projetos, propostas });
   } catch (e) { erro(res, e); }
