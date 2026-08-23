@@ -63,6 +63,7 @@ router.get('/operacao/dashboard', async (_req, res) => {
     ]);
     for (const e of [erroEmpresas, erroProjetos, erroEntregas, erroAcomp, erroResponsaveis, erroTarefas]) if (e) throw e;
     const empresaPorId = new Map(empresas.map((e) => [e.id, e]));
+    const entregaPorId = new Map((entregas || []).map((e) => [e.id, e]));
     const porProjeto = new Map((entregas || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const acompPorProjeto = new Map((acompanhamentos || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const responsaveisPorProjeto = new Map((responsaveis || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
@@ -85,7 +86,18 @@ router.get('/operacao/dashboard', async (_req, res) => {
       const dataB = b.proximoMarco?.data || b.proximoAcompanhamento || '9999-99';
       return String(dataA).localeCompare(String(dataB));
     });
-    ok(res, { empresas: empresas.length, projetos: carteira, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
+    const projetoPorId = new Map(carteira.map((p) => [p.id, p]));
+    const agenda = [
+      ...(tarefas || []).filter((t) => t.status !== 'concluida' && t.data_conclusao).map((t) => {
+        const p = projetoPorId.get(t.projeto_id), entrega = entregaPorId.get(t.entrega_id);
+        return { tipo: 'tarefa', projetoId: t.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', responsavelSattva: p?.responsavelSattva || null, titulo: t.titulo, etapa: entrega?.titulo || null, data: t.data_conclusao, atrasado: t.data_conclusao < hoje, envolveCliente: Boolean(t.envolve_cliente) };
+      }),
+      ...(acompanhamentos || []).filter((a) => a.status !== 'concluido' && a.competencia).map((a) => {
+        const p = projetoPorId.get(a.projeto_id);
+        return { tipo: 'acompanhamento', projetoId: a.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', responsavelSattva: p?.responsavelSattva || null, titulo: 'Acompanhamento previsto', etapa: null, data: a.competencia, atrasado: a.competencia < hoje.slice(0, 7), envolveCliente: false };
+      }),
+    ].sort((a, b) => String(a.data).localeCompare(String(b.data)));
+    ok(res, { empresas: empresas.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
       aguardando: carteira.filter((p) => p.status === 'aguardando_aprovacao').length,
       entregasPendentes: carteira.reduce((n, p) => n + p.entregas - p.entregasConcluidas, 0) } });
   } catch (e) { erro(res, e); }
