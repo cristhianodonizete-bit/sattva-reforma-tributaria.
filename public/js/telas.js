@@ -122,8 +122,19 @@ Telas.dados = async (el) => {
       <button data-aba="fornecedor" class="${aba === 'fornecedor' ? 'ativo' : ''}">Fornecedores</button>
       <button data-aba="cliente" class="${aba === 'cliente' ? 'ativo' : ''}">Clientes</button>
     </div>
+    <section class="fluxo-importacao" aria-label="Etapas da importação">
+      <button type="button" class="${parceiros.length ? 'feito' : 'atual'}" data-ir-importacao="cadastro">
+        <b>1</b><span><strong>Cadastre ${rotulo}</strong><small>${parceiros.length ? `${parceiros.length} registros disponíveis` : 'Importe ou inclua manualmente'}</small></span>
+      </button><span class="fluxo-linha"></span>
+      <button type="button" class="${total.c ? 'feito' : parceiros.length ? 'atual' : ''}" data-ir-importacao="movimentacao">
+        <b>2</b><span><strong>Importe a movimentação</strong><small>${total.c ? `${total.c} lançamentos analisáveis` : 'Envie a planilha de transações'}</small></span>
+      </button><span class="fluxo-linha"></span>
+      <button type="button" class="${total.c ? 'atual' : ''}" data-ir-importacao="historico">
+        <b>3</b><span><strong>Confira a base</strong><small>${lotes.length ? `${lotes.length} lotes registrados` : 'Acompanhe os arquivos enviados'}</small></span>
+      </button>
+    </section>
     <div class="grade g2">
-      <div class="cartao">
+      <div class="cartao" id="cadastro">
         <h2>1. Cadastro de ${rotulo}</h2>
         <p class="desc">Planilha com CNPJ, descrição e regime tributário. A ordem das colunas não importa.</p>
         ${A.dropzone('zonaParceiros', `<b>Solte a planilha de ${rotulo} aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>`, (f) => enviar(f, 'parceiros'))}
@@ -134,7 +145,7 @@ Telas.dados = async (el) => {
           <span class="mini" style="margin-left:auto;align-self:center">${parceiros.length} cadastrados</span>
         </div>
       </div>
-      <div class="cartao">
+      <div class="cartao" id="movimentacao">
         <h2>2. Movimentação de ${rotulo}</h2>
         <p class="desc">Nome, inscrição federal, descrição do produto, NCM, valor, base de cálculo e impostos.</p>
         ${A.dropzone('zonaMov', `<b>Solte a movimentação aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>`, (f) => enviar(f, 'movimentos'))}
@@ -145,7 +156,7 @@ Telas.dados = async (el) => {
         </div>
       </div>
     </div>
-    <div class="cartao">
+    <div class="cartao" id="historico">
       <h2>${rotulo[0].toUpperCase() + rotulo.slice(1)} cadastrados</h2>
       ${A.tabela([
         { t: 'CNPJ/CPF', r: (p) => `<span class="mono">${A.cnpjFmt(p.cnpj)}</span>` },
@@ -182,7 +193,8 @@ Telas.dados = async (el) => {
       ], lotes, { vazio: 'Nenhum lote importado.' })}
     </div>`;
 
-  el.querySelectorAll('[data-aba]').forEach((b) => { b.onclick = () => { S.aba.dados = b.dataset.aba; A.ir('dados'); }; });
+    el.querySelectorAll('[data-aba]').forEach((b) => { b.onclick = () => { S.aba.dados = b.dataset.aba; A.ir('dados'); }; });
+    el.querySelectorAll('[data-ir-importacao]').forEach((b) => { b.onclick = () => document.getElementById(b.dataset.irImportacao)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 
   async function enviar(arquivo, destino) {
     const fd = new FormData();
