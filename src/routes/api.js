@@ -80,6 +80,16 @@ async function empresasPermitidasUsuario(usuario) {
   if (error) throw error;
   return new Set((data || []).map((x) => String(x.empresa_id)));
 }
+async function garantirEmpresaPermitida(req, empresaId) {
+  const permitidas = await empresasPermitidasUsuario(req.usuario);
+  if (permitidas !== null && !permitidas.has(String(empresaId))) throw new Error('Seu usuário não está vinculado a esta empresa.');
+}
+async function contratacaoPermitida(req, contratacaoId) {
+  const contratacao = db.prepare('SELECT * FROM contratacoes WHERE id=?').get(contratacaoId);
+  if (!contratacao) throw new Error('Projeto não encontrado.');
+  await garantirEmpresaPermitida(req, contratacao.empresa_id);
+  return contratacao;
+}
 router.use(async (req, res, next) => {
   const alvo = req.path.match(/^\/empresas\/(\d+)(?:\/|$)/)?.[1];
   if (!alvo) return next();
@@ -912,10 +922,9 @@ router.get('/gestao/projetos', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.post('/contratacoes/:id/aprovar', (req, res) => {
+router.post('/contratacoes/:id/aprovar', async (req, res) => {
   try {
-    const c = db.prepare('SELECT * FROM contratacoes WHERE id=?').get(req.params.id);
-    if (!c) throw new Error('Proposta não encontrada.');
+    const c = await contratacaoPermitida(req, req.params.id);
     const combo = c.combo_id ? db.prepare('SELECT acompanhamento_meses FROM combos WHERE id=?').get(c.combo_id) : null;
     const meses = Math.max(0, Number(req.body.acompanhamento_meses ?? c.acompanhamento_meses ?? combo?.acompanhamento_meses ?? 0));
     const ids = JSON.parse(c.servicos_json || '[]');
@@ -938,10 +947,10 @@ router.post('/contratacoes/:id/aprovar', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.post('/contratacoes/:id/liberar-acompanhamento', (req, res) => {
+router.post('/contratacoes/:id/liberar-acompanhamento', async (req, res) => {
   try {
-    const c = db.prepare('SELECT * FROM contratacoes WHERE id=? AND aprovado_em IS NOT NULL').get(req.params.id);
-    if (!c) throw new Error('Aprove o plano antes de liberar o acompanhamento.');
+    const c = await contratacaoPermitida(req, req.params.id);
+    if (!c.aprovado_em) throw new Error('Aprove o plano antes de liberar o acompanhamento.');
     const diagnostico = db.prepare("SELECT status FROM projeto_entregas WHERE contratacao_id=? AND chave='diagnostico'").get(c.id);
     if (!diagnostico || diagnostico.status !== 'concluida') throw new Error('Conclua o Diagnóstico antes de liberar o acompanhamento.');
     const competencia = String(req.body.competencia_referencia || '');
@@ -961,11 +970,12 @@ router.post('/contratacoes/:id/liberar-acompanhamento', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.put('/projeto/entregas/:id', (req, res) => {
+router.put('/projeto/entregas/:id', async (req, res) => {
   try {
     const status = req.body.status || 'pendente';
     const entregaAnterior = db.prepare(`SELECT pe.*, c.empresa_id FROM projeto_entregas pe JOIN contratacoes c ON c.id=pe.contratacao_id WHERE pe.id=?`).get(req.params.id);
     if (!entregaAnterior) throw new Error('Entrega não encontrada.');
+    await garantirEmpresaPermitida(req, entregaAnterior.empresa_id);
     db.prepare("UPDATE projeto_entregas SET status=?, observacoes=?, concluido_em=CASE WHEN ?='concluida' THEN datetime('now','localtime') ELSE NULL END WHERE id=?")
       .run(status, req.body.observacoes || '', status, req.params.id);
     const entrega = entregaAnterior;
@@ -984,11 +994,12 @@ router.put('/projeto/entregas/:id', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.put('/projeto/tarefas/:id', (req, res) => {
+router.put('/projeto/tarefas/:id', async (req, res) => {
   try {
     const b = req.body;
     const tarefa = db.prepare(`SELECT t.*, c.empresa_id FROM projeto_tarefas t JOIN contratacoes c ON c.id=t.contratacao_id WHERE t.id=?`).get(req.params.id);
     if (!tarefa) throw new Error('Tarefa não encontrada.');
+    await garantirEmpresaPermitida(req, tarefa.empresa_id);
     db.prepare(`UPDATE projeto_tarefas SET titulo=?,descricao=?,status=?,data_abertura=?,data_conclusao=?,envolve_cliente=?,pendencia_cliente=?,interacoes_cliente=?,atualizado_em=datetime('now','localtime') WHERE id=?`)
       .run(b.titulo || '', b.descricao || '', b.status || 'aberta', b.data_abertura || null, b.data_conclusao || null, b.envolve_cliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '', req.params.id);
     auditar(req, { empresaId: tarefa.empresa_id, acao: 'Atualizou tarefa do projeto', entidade: 'tarefa', entidadeId: req.params.id,
@@ -997,10 +1008,11 @@ router.put('/projeto/tarefas/:id', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.put('/projeto/acompanhamentos/:id', (req, res) => {
+router.put('/projeto/acompanhamentos/:id', async (req, res) => {
   try {
     const acompanhamento = db.prepare(`SELECT a.*, c.empresa_id FROM projeto_acompanhamentos a JOIN contratacoes c ON c.id=a.contratacao_id WHERE a.id=?`).get(req.params.id);
     if (!acompanhamento) throw new Error('Acompanhamento não encontrado.');
+    await garantirEmpresaPermitida(req, acompanhamento.empresa_id);
     db.prepare('UPDATE projeto_acompanhamentos SET nome=?, status=?, observacoes=? WHERE id=?')
       .run(req.body.nome || '', req.body.status || 'planejado', req.body.observacoes || '', req.params.id);
     auditar(req, { empresaId: acompanhamento.empresa_id, acao: 'Atualizou acompanhamento do projeto', entidade: 'acompanhamento', entidadeId: req.params.id,
