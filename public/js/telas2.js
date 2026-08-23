@@ -199,15 +199,19 @@ Telas.contratos = async (el) => {
   el.querySelectorAll('[data-rc]').forEach((b) => { b.onclick = () => A.confirmar('Excluir este contrato?', async () => {
     await A.api(`/contratos/${b.dataset.rc}`, { metodo: 'DELETE' }); A.ir('contratos'); }); });
 
-  el.querySelectorAll('[data-rev]').forEach((b) => { b.onclick = () => {
+  el.querySelectorAll('[data-rev]').forEach((b) => { b.onclick = async () => {
     const c = contratos.find((x) => x.id === Number(b.dataset.rev));
     const aplicaveis = clausulas.filter((cl) => cl.aplicacao.includes(c.tipo));
     const sit = (id) => (c.checklist.find((k) => k.clausula_id === id) || {}).situacao || 'ausente';
     const obs = (id) => (c.checklist.find((k) => k.clausula_id === id) || {}).observacao || '';
+    let diagnostico;
+    try { diagnostico = await A.api(`/contratos/${c.id}/impacto-diagnostico`); }
+    catch (e) { diagnostico = { encontrado: false, motivo: 'Não foi possível consultar o diagnóstico desta contraparte.' }; }
+    const impacto = diagnostico.encontrado ? diagnostico.impacto : null;
     A.modal({
       titulo: `Revisar — ${c.contraparte}`, largura: 860, confirmar: 'Salvar revisão',
       descricao: 'Marque a situação de cada cláusula. O risco do contrato é recalculado automaticamente.',
-      corpo: aplicaveis.map((cl) => `<div class="cartao" style="box-shadow:none;margin-bottom:10px">
+      corpo: `${impacto ? `<section class="impacto-contrato"><div><span class="olho">VÍNCULO COM O DIAGNÓSTICO</span><strong>Impacto projetado da contraparte</strong><p>${impacto.movimentos} lançamento(s) vinculados ao CNPJ deste contrato.</p></div><div class="grade g3">${A.kpi('Movimentação analisada', A.moeda(impacto.valor))}${A.kpi('CBS projetada', A.moeda(impacto.cbs))}${A.kpi('Crédito projetado', A.moeda(impacto.credito), '', 'destaque')}</div></section>` : `<div class="aviso atencao"><b>Vínculo com o diagnóstico indisponível</b>${A.esc(diagnostico.motivo || '')}</div>`}` + aplicaveis.map((cl) => `<div class="cartao" style="box-shadow:none;margin-bottom:10px">
           <h2 style="font-size:13.5px">${A.esc(cl.titulo)} <span class="tag ${cl.risco === 'alto' ? 'a' : 'b'}">${cl.risco}</span></h2>
           <p class="desc">${A.esc(cl.problema)}</p>
           <div class="chips" data-cl="${cl.id}">

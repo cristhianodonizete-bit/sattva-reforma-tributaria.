@@ -537,6 +537,25 @@ router.get('/empresas/:id/contratos', (req, res) => {
   ok(res, { contratos: contratos.map((c) => ({ ...c, checklist: check.all(c.id) })), clausulas: CLAUSULAS });
 });
 
+// Vínculo entre a revisão contratual e o diagnóstico da contraparte.
+router.get('/contratos/:id/impacto-diagnostico', (req, res) => {
+  try {
+    const contrato = db.prepare('SELECT * FROM contratos WHERE id=?').get(req.params.id);
+    if (!contrato) throw new Error('Contrato não encontrado.');
+    const cnpj = imp.soDigitos(contrato.cnpj_contraparte || '');
+    const execucao = db.prepare('SELECT id FROM motor_execucoes WHERE empresa_id=? ORDER BY id DESC LIMIT 1').get(contrato.empresa_id);
+    if (!cnpj) return ok(res, { encontrado: false, motivo: 'Informe o CNPJ da contraparte para relacionar o contrato ao diagnóstico.' });
+    if (!execucao) return ok(res, { encontrado: false, motivo: 'Execute o motor do diagnóstico para calcular o impacto desta contraparte.' });
+    const impacto = db.prepare(`SELECT COUNT(DISTINCT m.id) movimentos, COALESCE(SUM(m.valor),0) valor,
+      COALESCE(SUM(r.ibs),0) ibs, COALESCE(SUM(r.cbs),0) cbs,
+      COALESCE(SUM(r.credito_ibs+r.credito_cbs),0) credito, COALESCE(SUM(r.custo_liquido),0) custo_liquido
+      FROM movimentos m LEFT JOIN motor_resultados r ON r.movimento_id=m.id AND r.execucao_id=?
+      WHERE m.empresa_id=? AND replace(replace(replace(m.inscr_federal,'.',''),'/',''),'-','')=?`).get(execucao.id, contrato.empresa_id, cnpj);
+    if (!impacto.movimentos) return ok(res, { encontrado: false, motivo: 'Não há movimentação importada para esta contraparte no diagnóstico.' });
+    ok(res, { encontrado: true, impacto });
+  } catch (e) { erro(res, e); }
+});
+
 router.post('/empresas/:id/contratos', (req, res) => {
   try {
     const b = req.body;
