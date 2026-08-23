@@ -59,6 +59,7 @@ const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/acessos/.test(caminho)) return 'acessos';
   if (/^\/empresas\/\d+\/turmas/.test(caminho) || /^\/(turmas|participantes)/.test(caminho)) return 'capacitacao';
   if (/^\/empresas\/\d+\/contratos/.test(caminho) || /^\/contratos/.test(caminho)) return 'contratos';
+  if (/^\/empresas\/\d+\/acoes/.test(caminho) || /^\/acoes/.test(caminho)) return 'gestao_projetos';
   if (/^\/empresas/.test(caminho)) return metodo === 'GET' ? 'visao_geral' : 'diagnostico';
   if (/^\/(contratacoes|projeto|servicos|combos|gestao)/.test(caminho)) return 'gestao_projetos';
   if (/^\/(config|regras|questor|conhecimento|rag|ia)/.test(caminho)) return 'configuracoes';
@@ -97,6 +98,12 @@ async function contratoPermitido(req, contratoId) {
   if (!contrato) throw new Error('Contrato não encontrado.');
   await garantirEmpresaPermitida(req, contrato.empresa_id);
   return contrato;
+}
+async function acaoPermitida(req, acaoId) {
+  const acao = db.prepare('SELECT * FROM acoes WHERE id=?').get(acaoId);
+  if (!acao) throw new Error('Ação não encontrada.');
+  await garantirEmpresaPermitida(req, acao.empresa_id);
+  return acao;
 }
 async function turmaPermitida(req, turmaId) {
   const turma = db.prepare('SELECT * FROM turmas WHERE id=?').get(turmaId);
@@ -1159,12 +1166,16 @@ router.get('/empresas/:id/contratacoes', (req, res) => ok(res, {
     .map((c) => ({ ...c, servicos: JSON.parse(c.servicos_json || '[]') })),
 }));
 
-router.put('/contratacoes/:id', (req, res) => {
-  db.prepare('UPDATE contratacoes SET status=?, observacoes=? WHERE id=?').run(req.body.status, req.body.observacoes || '', req.params.id);
-  ok(res, {});
+router.put('/contratacoes/:id', async (req, res) => {
+  try {
+    const antes = await contratacaoPermitida(req, req.params.id);
+    db.prepare('UPDATE contratacoes SET status=?, observacoes=? WHERE id=?').run(req.body.status, req.body.observacoes || '', req.params.id);
+    auditar(req, { empresaId: antes.empresa_id, acao: 'Atualizou escopo do projeto', entidade: 'contratacao', entidadeId: req.params.id, antes: { status: antes.status }, depois: { status: req.body.status } });
+    ok(res, {});
+  } catch (e) { erro(res, e); }
 });
 
-router.delete('/contratacoes/:id', (req, res) => { db.prepare('DELETE FROM contratacoes WHERE id=?').run(req.params.id); ok(res, {}); });
+router.delete('/contratacoes/:id', async (req, res) => { try { const contratacao = await contratacaoPermitida(req, req.params.id); db.prepare('DELETE FROM contratacoes WHERE id=?').run(req.params.id); auditar(req, { empresaId: contratacao.empresa_id, acao: 'Excluiu escopo do projeto', entidade: 'contratacao', entidadeId: req.params.id }); ok(res, {}); } catch (e) { erro(res, e); } });
 
 // ===========================================================================
 // PLANO DE AÇÃO
@@ -1178,17 +1189,21 @@ router.post('/empresas/:id/acoes', (req, res) => {
   const b = req.body;
   const r = db.prepare('INSERT INTO acoes (empresa_id, origem, titulo, descricao, responsavel, prazo, prioridade, status) VALUES (?,?,?,?,?,?,?,?)')
     .run(req.params.id, b.origem || 'manual', b.titulo, b.descricao || '', b.responsavel || '', b.prazo || '', b.prioridade || 'media', b.status || 'aberta');
+  auditar(req, { empresaId: req.params.id, acao: 'Criou ação no plano de adequação', entidade: 'acao', entidadeId: r.lastInsertRowid, depois: { titulo: b.titulo, prazo: b.prazo || null } });
   ok(res, { id: r.lastInsertRowid });
 });
 
-router.put('/acoes/:id', (req, res) => {
-  const b = req.body;
-  db.prepare('UPDATE acoes SET titulo=?, descricao=?, responsavel=?, prazo=?, prioridade=?, status=? WHERE id=?')
-    .run(b.titulo, b.descricao || '', b.responsavel || '', b.prazo || '', b.prioridade, b.status, req.params.id);
-  ok(res, {});
+router.put('/acoes/:id', async (req, res) => {
+  try {
+    const b = req.body, antes = await acaoPermitida(req, req.params.id);
+    db.prepare('UPDATE acoes SET titulo=?, descricao=?, responsavel=?, prazo=?, prioridade=?, status=? WHERE id=?')
+      .run(b.titulo, b.descricao || '', b.responsavel || '', b.prazo || '', b.prioridade, b.status, req.params.id);
+    auditar(req, { empresaId: antes.empresa_id, acao: 'Atualizou ação no plano de adequação', entidade: 'acao', entidadeId: req.params.id, antes: { status: antes.status, prazo: antes.prazo }, depois: { status: b.status, prazo: b.prazo || null } });
+    ok(res, {});
+  } catch (e) { erro(res, e); }
 });
 
-router.delete('/acoes/:id', (req, res) => { db.prepare('DELETE FROM acoes WHERE id=?').run(req.params.id); ok(res, {}); });
+router.delete('/acoes/:id', async (req, res) => { try { const acao = await acaoPermitida(req, req.params.id); db.prepare('DELETE FROM acoes WHERE id=?').run(req.params.id); auditar(req, { empresaId: acao.empresa_id, acao: 'Excluiu ação do plano de adequação', entidade: 'acao', entidadeId: req.params.id, antes: { titulo: acao.titulo } }); ok(res, {}); } catch (e) { erro(res, e); } });
 
 // ===========================================================================
 // INTEGRAÇÃO QUESTOR (nWeb)
