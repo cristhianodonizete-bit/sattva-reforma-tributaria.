@@ -645,9 +645,19 @@ router.get('/empresas/:id/cadeia/:tipo', (req, res) => {
     if (!empresa) throw new Error('Empresa não encontrada');
     const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';
     const movs = carregarMovimentos(req.params.id, tipo);
-    const anos = req.query.anos ? String(req.query.anos).split(',').map(Number) : P.ANOS;
+    const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
+    const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
+    // Na fase CBS há uma única referência: a mesma linha editada em
+    // Configurações. Com IBS habilitado, cada ano usa a sua própria regra.
+    const referencia = aliquotas.find((a) => Number(a.ano) === 2033) || aliquotas[aliquotas.length - 1];
+    const anos = req.query.anos ? String(req.query.anos).split(',').map(Number)
+      : (ibsAtivo ? aliquotas.map((a) => Number(a.ano)) : [Number(referencia?.ano || 2033)]);
+    const parametrosIVA = ibsAtivo
+      ? Object.fromEntries(aliquotas.map((a) => [Number(a.ano), a]))
+      : referencia;
     const resultado = analisarCadeia(movs, {
       regimeEmpresa: empresa.regime, lado: tipo, anos,
+      parametrosIVA,
       grauRepasse: req.query.repasse !== undefined ? Number(req.query.repasse) : 1,
     });
     ok(res, { empresa, analise: resultado });

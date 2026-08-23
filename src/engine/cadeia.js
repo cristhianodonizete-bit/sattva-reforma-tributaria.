@@ -45,7 +45,7 @@ function analisarCadeia(movimentos, cfg = {}) {
       icms: m.icms, pis: m.pis, cofins: m.cofins, ipi: m.ipi, iss: m.iss,
       icmsSt: m.icms_st || m.icmsSt, pisCofins: m.pis_cofins || m.pisCofins,
       reducao: m.reducao || 'integral', aliqEspecifica: m.aliq_especifica,
-      grauRepasse: cfg.grauRepasse, anos,
+      grauRepasse: cfg.grauRepasse, anos, parametrosIVA: cfg.parametrosIVA,
     });
 
     const chave = m.cnpj || m.inscr_federal || m.nome || 'SEM IDENTIFICAÇÃO';

@@ -207,10 +207,10 @@ function salvarReducao(chave, d, usuario) {
 
 function salvarAliquota(ano, d, usuario) {
   const antes = db.prepare('SELECT ibs, cbs FROM param_aliquotas WHERE ano = ?').get(ano);
-  db.prepare(`UPDATE param_aliquotas SET ibs = ?, cbs = ?, fator_icms_iss = ?, fator_pis_cofins = ?,
+  db.prepare(`UPDATE param_aliquotas SET ibs = ?, cbs = ?, calcular_ibs = ?, fator_icms_iss = ?, fator_pis_cofins = ?,
     fator_ipi = ?, compensavel = ?, simulacao = ?, fonte = ?, nota = ?,
     atualizado_em = datetime('now','localtime') WHERE ano = ?`)
-    .run(Number(d.ibs) || 0, Number(d.cbs) || 0, Number(d.fator_icms_iss) || 0,
+    .run(Number(d.ibs) || 0, Number(d.cbs) || 0, d.calcular_ibs ? 1 : 0, Number(d.fator_icms_iss) || 0,
       Number(d.fator_pis_cofins) || 0, Number(d.fator_ipi) || 0,
       d.compensavel ? 1 : 0, d.simulacao ? 1 : 0, d.fonte || '', d.nota || '', ano);
   registrarLog('aliquotas', String(ano), antes ? `IBS ${antes.ibs} / CBS ${antes.cbs}` : '',

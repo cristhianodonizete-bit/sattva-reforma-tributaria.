@@ -145,7 +145,20 @@ function creditoAtual(atual, regimeAdquirente) {
  */
 function aplicarIVA(cfg) {
   const ano = Number(cfg.ano) || 2033;
-  const cron = P.CRONOGRAMA[ano] || P.CRONOGRAMA[2033];
+  const cronPadrao = P.CRONOGRAMA[ano] || P.CRONOGRAMA[2033];
+  // As telas de cadeia também precisam obedecer às regras salvas no projeto.
+  // O cronograma do arquivo é somente a semente/fallback da calculadora avulsa.
+  const parametrizado = cfg.parametrosIVA;
+  const cron = parametrizado ? {
+    ...cronPadrao,
+    ...parametrizado,
+    cbs: num(parametrizado.cbs),
+    ibs: Number(parametrizado.calcular_ibs) === 1 ? num(parametrizado.ibs) : 0,
+    fatorIcmsIss: num(parametrizado.fator_icms_iss),
+    fatorPisCofins: num(parametrizado.fator_pis_cofins),
+    fatorIpi: num(parametrizado.fator_ipi),
+    compensavel: Number(parametrizado.compensavel) === 1,
+  } : cronPadrao;
   const red = P.REDUCOES[cfg.reducao] || P.REDUCOES.integral;
   const regimeKey = cfg.regime || 'lucro_real';
   const regime = P.REGIMES[regimeKey] || P.REGIMES.lucro_real;
@@ -259,10 +272,11 @@ function calcularOperacao(op) {
 
   const anos = (op.anos && op.anos.length ? op.anos : P.ANOS).map(Number);
   const projecao = anos.map((ano) => {
+    const parametrosIVA = op.parametrosIVA && (op.parametrosIVA[ano] || op.parametrosIVA);
     const novo = aplicarIVA({
       valorSemImposto: atual.valorSemImposto, ano, reducao: op.reducao,
       aliqEspecifica: op.aliqEspecifica, regime: atual.regime,
-      grauRepasse: op.grauRepasse, atual,
+      grauRepasse: op.grauRepasse, parametrosIVA, atual,
     });
     const cred = creditoNovo(novo, atual.regime, regimeAdquirente, atual);
     const custoEfetivo = r2(novo.precoFinal - cred.total);
