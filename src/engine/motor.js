@@ -155,7 +155,7 @@ function naturezaItem(item) {
  */
 function projetarItem(item, ctx) {
   const sentido = ctx.sentido === 'saida' ? 'saida' : 'entrada';
-  const ano = Number(ctx.ano) || 2033;
+  const ano = Number(ctx.ano) || 2027;
   const tipo = naturezaItem(item);
 
   // Quem EMITE a nota e quem RECEBE

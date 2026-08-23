@@ -33,7 +33,7 @@ function carregar(empresaId, sentido) {
 function executar(empresaId, opcoes = {}) {
   const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada.');
-  const ano = Number(opcoes.ano) || 2033;
+  const ano = Number(opcoes.ano) || 2027;
   const tabelas = motor.anexosSimples();
 
   const entradas = [], saidas = [], conformidade = [];

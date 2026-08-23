@@ -35,7 +35,7 @@ function prepararMotor() {
     if (temEmpresa && !temExecucao) {
       const motorExec = require('./src/services/motorExec');
       const e = db.prepare('SELECT id FROM empresas ORDER BY id LIMIT 1').get();
-      const r = motorExec.executar(e.id, { ano: 2033 });
+      const r = motorExec.executar(e.id, { ano: 2027 });
       console.log(`  motor executado: ${r.resumo.itens} itens projetados para 2033`);
     }
     // Cadastro novo ou pendente é enriquecido em segundo plano: não bloqueia
@@ -69,7 +69,7 @@ async function iniciar() {
         // manual depois de uma nova publicação.
         const refinamento = await baseRegime.refinarParceiros(empresa.id);
         bases.classificarMovimentos(empresa.id);
-        motorExec.executar(empresa.id, { ano: 2033 });
+        motorExec.executar(empresa.id, { ano: 2027 });
         console.log(`  RFB compartilhada: empresa ${empresa.id}, ${refinamento.refinados} parceiro(s) refinado(s)`);
       }
       console.log('  classificações IBS/CBS recalculadas a partir das bases compartilhadas');
