@@ -137,48 +137,59 @@ const App = (() => {
 
   // ---------- NAVEGAÇÃO ----------
   const MENU = [
-    { grupo: 'Visão geral' },
-    { id: 'painel', t: 'Painel do projeto' },
-    { id: 'empresas', t: 'Empresas' },
-    { id: 'dashboardOperacao', t: 'Acompanhamento geral' },
-    { grupo: 'Módulo 1 · Diagnóstico' },
-    { id: 'dados', t: 'Cadastros e importação' },
-    { id: 'bases', t: 'Bases de classificação' },
-    { id: 'perfil', t: 'Perfil tributário' },
-    { id: 'fornecedores', t: 'Cadeia de fornecedores' },
-    { id: 'clientes', t: 'Cadeia de clientes' },
-    { id: 'cenarios', t: 'Projeção de cenários' },
-    { id: 'calculadora', t: 'Calculadora da reforma' },
-    { grupo: 'Módulos 2 a 4' },
-    { id: 'precificacao', t: 'Precificação e margem' },
-    { id: 'contratos', t: 'Revisão de contratos' },
-    { id: 'analise', t: 'Análise de contrato (IA)' },
-    { id: 'capacitacao', t: 'Capacitação do time' },
-    { grupo: 'Gestão do produto' },
-    { id: 'plano', t: 'Plano de adequação' },
-    { id: 'servicos', t: 'Escopos e combos' },
-    { id: 'gestaoProjetos', t: 'Escopo e entregas' },
-    { id: 'configComercial', t: 'Configurar combos' },
-    { id: 'conhecimento', t: 'Base de conhecimento' },
-    { id: 'configuracoes', t: 'Configurações e controle' },
-    { id: 'questor', t: 'Integração Questor' },
+    { id: 'visao-geral', titulo: 'Visão geral', itens: [
+      { id: 'painel', t: 'Painel do projeto', i: '◈' }, { id: 'empresas', t: 'Empresas', i: '▦' },
+      { id: 'dashboardOperacao', t: 'Acompanhamento geral', i: '◷' },
+    ] },
+    { id: 'diagnostico', titulo: 'Módulo 1 · Diagnóstico', itens: [
+      { id: 'dados', t: 'Cadastros e importação', i: '⇧' }, { id: 'bases', t: 'Bases de classificação', i: '⌘' },
+      { id: 'perfil', t: 'Perfil tributário', i: '◉' }, { id: 'fornecedores', t: 'Cadeia de fornecedores', i: '↙' },
+      { id: 'clientes', t: 'Cadeia de clientes', i: '↗' }, { id: 'cenarios', t: 'Projeção de cenários', i: '⌁' },
+      { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' },
+    ] },
+    { id: 'entregas', titulo: 'Módulos 2 a 4', itens: [
+      { id: 'precificacao', t: 'Precificação e margem', i: '◫' }, { id: 'contratos', t: 'Revisão de contratos', i: '▤' },
+      { id: 'analise', t: 'Análise de contrato (IA)', i: '✦' }, { id: 'capacitacao', t: 'Capacitação do time', i: '◌' },
+    ] },
+    { id: 'gestao', titulo: 'Gestão do produto', itens: [
+      { id: 'plano', t: 'Plano de adequação', i: '✓' }, { id: 'servicos', t: 'Escopos e combos', i: '⊞' },
+      { id: 'gestaoProjetos', t: 'Escopo e entregas', i: '▣' }, { id: 'configComercial', t: 'Configurar combos', i: '⚙' },
+      { id: 'conhecimento', t: 'Base de conhecimento', i: '◰' }, { id: 'configuracoes', t: 'Configurações e controle', i: '⚙' },
+      { id: 'questor', t: 'Integração Questor', i: '↔' },
+    ] },
   ];
+  const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens);
 
   function desenharMenu() {
-    document.getElementById('menu').innerHTML = MENU.map((m) => m.grupo
-      ? `<div class="grupo">${m.grupo}</div>`
-      : `<a data-tela="${m.id}" class="${S.tela === m.id ? 'ativo' : ''}">${m.t}</a>`).join('') +
-      (S.usuario ? `<div class="grupo" style="margin-top:14px">${esc(S.usuario.nome || S.usuario.email)}</div><a data-sair>Sair</a>` : '');
-    document.querySelectorAll('#menu a').forEach((a) => { a.onclick = () => ir(a.dataset.tela); });
-    const sair = document.querySelector('#menu [data-sair]');
+    const menu = document.getElementById('menu');
+    menu.innerHTML = MENU.map((grupo) => {
+      const contemAtiva = grupo.itens.some((item) => item.id === S.tela);
+      const chave = `sattva_menu_grupo_${grupo.id}`;
+      const aberto = contemAtiva || localStorage.getItem(chave) !== 'fechado';
+      return `<section class="nav-grupo ${aberto ? 'aberto' : ''}" data-grupo="${grupo.id}">
+        <button class="grupo-titulo" type="button" aria-expanded="${aberto}">${grupo.titulo}<span>${aberto ? '⌃' : '⌄'}</span></button>
+        <div class="grupo-itens">${grupo.itens.map((item) => `<a data-tela="${item.id}" title="${item.t}" class="${S.tela === item.id ? 'ativo' : ''}"><i aria-hidden="true">${item.i}</i><span>${item.t}</span></a>`).join('')}</div>
+      </section>`;
+    }).join('') + (S.usuario ? `<section class="nav-grupo sessao aberto"><div class="grupo-titulo">${esc(S.usuario.nome || S.usuario.email)}</div><div class="grupo-itens"><a data-sair title="Sair"><i aria-hidden="true">↪</i><span>Sair</span></a></div></section>` : '');
+    menu.querySelectorAll('[data-tela]').forEach((a) => { a.onclick = () => ir(a.dataset.tela); });
+    const sair = menu.querySelector('[data-sair]');
     if (sair) sair.onclick = () => { localStorage.removeItem('sattva_token'); location.reload(); };
-    document.querySelectorAll('#menu .grupo').forEach((g, i) => { const chave = `sattva_grupo_${i}`; let n = g.nextElementSibling; const itens=[]; while (n && !n.classList.contains('grupo')) { itens.push(n); n=n.nextElementSibling; } const ativo=itens.some((x)=>x.classList.contains('ativo')); const aberto=ativo || localStorage.getItem(chave)!=='fechado'; itens.forEach((x)=>x.classList.toggle('menu-item-oculto',!aberto)); g.onclick=()=>{const fechado=itens[0] && !itens[0].classList.contains('menu-item-oculto');itens.forEach((x)=>x.classList.toggle('menu-item-oculto',fechado));localStorage.setItem(chave,fechado?'fechado':'aberto');}; });
+    menu.querySelectorAll('.grupo-titulo[type="button"]').forEach((botao) => {
+      botao.onclick = () => {
+        const bloco = botao.closest('.nav-grupo'); const aberto = bloco.classList.toggle('aberto');
+        botao.setAttribute('aria-expanded', String(aberto)); botao.querySelector('span').textContent = aberto ? '⌃' : '⌄';
+        localStorage.setItem(`sattva_menu_grupo_${bloco.dataset.grupo}`, aberto ? 'aberto' : 'fechado');
+      };
+    });
   }
 
   async function ir(tela) {
     S.tela = tela;
     location.hash = tela;
     desenharMenu();
+    const itemMenu = TELAS_MENU.find((item) => item.id === tela);
+    const tituloContexto = document.getElementById('tituloContexto');
+    if (tituloContexto) tituloContexto.textContent = itemMenu?.t || 'Visão geral';
     const alvo = document.getElementById('tela');
     alvo.innerHTML = '<div class="carregando">Carregando…</div>';
     try {
@@ -260,7 +271,7 @@ const App = (() => {
     if (toggleMenu) toggleMenu.onclick = () => { const ativo = document.body.classList.toggle('menu-colapsado'); localStorage.setItem('sattva_menu_colapsado', ativo ? 'sim' : 'nao'); };
     await carregarEmpresas();
     const inicial = (location.hash || '').replace('#', '') || 'painel';
-    ir(MENU.some((m) => m.id === inicial) ? inicial : 'painel');
+    ir(TELAS_MENU.some((m) => m.id === inicial) ? inicial : 'painel');
   }
 
   function telaLogin() {
