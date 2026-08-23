@@ -963,4 +963,9 @@ if (fs.existsSync(SEED) && db.prepare('SELECT COUNT(*) c FROM empresas').get().c
   }
 }
 
+// Em banco recém-criado as tabelas só passam a existir depois da primeira
+// chamada no início deste arquivo. Executar de novo aqui garante que as
+// colunas evolutivas também sejam incluídas na primeira inicialização.
+migrarEsquema();
+
 module.exports = db;
