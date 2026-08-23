@@ -70,12 +70,19 @@ async function controle(box) {
         { t: 'Classificações pendentes', num: true, r: (x) => x.classificacoesPendentes },
         { t: 'Enriquecimento', r: (x) => x.enriquecimento ? `<span class="tag b">${A.esc(x.enriquecimento.status)}</span>` : '<span class="tag n">sem fila</span>' },
         { t: 'Último motor', r: (x) => x.ultimaExecucao ? `${A.esc(x.ultimaExecucao.data || '—')}${ibsAtivo ? ` · ${x.ultimaExecucao.ano}` : ' · CBS'}` : 'não executado' },
+        { t: '', r: (x) => (x.clientesPendentes || x.classificacoesPendentes) ? `<button class="btn pq vazio" data-corrigir="${x.id}" data-destino="${x.clientesPendentes ? 'dados' : 'bases'}">Corrigir</button>` : '<span class="tag c">sem pendências</span>' },
       ], d.empresas)}</div>`;
   document.getElementById('ctrlEnriquecer').onclick = async () => {
     const r = await A.api('/config/controle/enriquecer', { metodo: 'POST' });
     document.getElementById('ctrlStatus').innerHTML = `<div class="aviso bom"><b>${r.filas.length} fila(s) iniciada(s)</b> O processamento ocorre em segundo plano; esta tela mostra o status ao atualizar.</div>`;
   };
   document.getElementById('ctrlRecalcular').onclick = () => document.getElementById('recalcularProjeto').click();
+  box.querySelectorAll('[data-corrigir]').forEach((botao) => { botao.onclick = async () => {
+    localStorage.setItem('sattva_empresa', botao.dataset.corrigir); await A.carregarEmpresas();
+    if (botao.dataset.destino === 'dados') S.aba.dados = 'cliente';
+    if (botao.dataset.destino === 'bases') S.aba.bases = 'classificacoes';
+    A.ir(botao.dataset.destino);
+  }; });
 }
 
 const salvar = async (caminho, corpo, msg) => {
