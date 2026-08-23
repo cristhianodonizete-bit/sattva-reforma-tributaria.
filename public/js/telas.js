@@ -1,0 +1,574 @@
+/* =========================================================================
+   TELAS — Visão geral e Módulo 1 (Diagnóstico)
+   ========================================================================= */
+const Telas = {};
+(() => {
+const A = App, S = App.S;
+const cab = (olho, titulo, texto, acoes = '') =>
+  `<div class="topo"><div><div class="olho">${olho}</div><h1>${titulo}</h1>${texto ? `<p>${texto}</p>` : ''}</div>
+   <div class="acoes-topo">${acoes}</div></div>`;
+
+// ===========================================================================
+// PAINEL
+// ===========================================================================
+Telas.painel = async (el) => {
+  const { empresa, contadores: c, contratacoes } = await A.api(`/empresas/${S.empresaId}/painel`);
+  const passos = [
+    { t: 'Cadastro de fornecedores e clientes', ok: c.fornecedores + c.clientes > 0, n: `${c.fornecedores + c.clientes} parceiros`, tela: 'dados' },
+    { t: 'Movimentação importada', ok: c.movEntradas.c + c.movSaidas.c > 0, n: `${c.movEntradas.c + c.movSaidas.c} lançamentos`, tela: 'dados' },
+    { t: 'Perfil tributário levantado', ok: c.perfil > 0, n: `${c.perfil} competências`, tela: 'perfil' },
+    { t: 'Cenários projetados', ok: c.movEntradas.c > 0 || c.movSaidas.c > 0, n: '2026 a 2033', tela: 'cenarios' },
+    { t: 'Precificação simulada', ok: c.itensPreco > 0, n: `${c.itensPreco} itens`, tela: 'precificacao' },
+    { t: 'Contratos revisados', ok: c.contratos > 0, n: `${c.contratos} contratos`, tela: 'contratos' },
+    { t: 'Capacitação programada', ok: c.turmas > 0, n: `${c.turmas} turmas`, tela: 'capacitacao' },
+  ];
+  const concluidos = passos.filter((p) => p.ok).length;
+
+  el.innerHTML = cab('Painel do projeto', A.esc(empresa.razao_social),
+    `${A.cnpjFmt(empresa.cnpj)} · ${A.regimeLabel(empresa.regime)} · ${A.esc(empresa.municipio || '')} ${A.esc(empresa.uf || '')}`,
+    `<button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/tecnico')">Relatório técnico</button>
+     <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/riscos')">Mapa de riscos</button>
+     <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/diagnostico')">Relatório completo</button>`) +
+    A.regua(2027, null) +
+    `<div class="grade g4">
+      ${A.kpi('Fornecedores mapeados', c.fornecedores, `${c.movEntradas.c} lançamentos de entrada`)}
+      ${A.kpi('Clientes mapeados', c.clientes, `${c.movSaidas.c} lançamentos de saída`)}
+      ${A.kpi('Compras analisadas', A.moeda(c.movEntradas.v), 'Base de crédito')}
+      ${A.kpi('Faturamento analisado', A.moeda(c.movSaidas.v), 'Base de débito', 'destaque')}
+    </div>
+    ${c.semRegime ? `<div class="aviso atencao" style="margin-top:16px"><b>${c.semRegime} lançamentos sem regime tributário identificado</b>
+      Esses registros entram no cálculo como Lucro Real. Importe o cadastro de parceiros com a coluna de regime para corrigir.
+      <div class="acao">Cadastros e importação → Importar clientes e fornecedores</div></div>` : ''}
+    <div class="grade g2" style="margin-top:16px">
+      <div class="cartao">
+        <h2>Andamento do projeto</h2><p class="desc">${concluidos} de ${passos.length} etapas com dados</p>
+        <div class="barra-prog" style="margin-bottom:16px"><i style="width:${(concluidos / passos.length) * 100}%"></i></div>
+        ${passos.map((p) => `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid #eef1f3;cursor:pointer"
+            onclick="App.ir('${p.tela}')">
+            <span class="tag ${p.ok ? 'c' : 'n'}">${p.ok ? 'OK' : '—'}</span>
+            <span style="flex:1">${p.t}</span><span class="mini mono">${p.n}</span></div>`).join('')}
+      </div>
+      <div class="cartao">
+        <h2>Atenções abertas</h2><p class="desc">Itens que exigem decisão</p>
+        ${c.contratosRisco ? `<div class="aviso alto"><b>${c.contratosRisco} contrato(s) com risco alto</b>Cláusulas críticas ausentes.<div class="acao">Revisão de contratos</div></div>` : ''}
+        ${c.acoesAbertas ? `<div class="aviso atencao"><b>${c.acoesAbertas} ação(ões) em aberto</b>Plano de adequação em execução.<div class="acao">Plano de adequação</div></div>` : ''}
+        ${!c.contratosRisco && !c.acoesAbertas ? '<div class="aviso">Nenhuma pendência crítica registrada.</div>' : ''}
+        <hr class="sep">
+        <h2 style="font-size:13px">Serviços contratados</h2>
+        ${contratacoes.length ? contratacoes.map((t) => `<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid #eef1f3">
+            <span class="tag ${t.status === 'contratado' ? 'c' : 'n'}">${t.status}</span>
+            <span class="mini">escopo registrado</span></div>`).join('')
+          : '<p class="mini">Nenhum escopo registrado. Monte um combo em “Escopos e combos”.</p>'}
+      </div>
+    </div>`;
+};
+
+// ===========================================================================
+// EMPRESAS
+// ===========================================================================
+Telas.empresas = async (el) => {
+  const { empresas } = await A.api('/empresas');
+  el.innerHTML = cab('Cadastro', 'Empresas atendidas', 'Cada empresa é um projeto de implementação independente.',
+    '<button class="btn" id="novaEmpresa">Cadastrar empresa</button>') +
+    `<div class="cartao">${A.tabela([
+      { t: 'Razão social', r: (e) => `<b>${A.esc(e.razao_social)}</b><div class="mini">${A.cnpjFmt(e.cnpj)}</div>` },
+      { t: 'Regime', r: (e) => `<span class="tag">${A.regimeLabel(e.regime)}</span>` },
+      { t: 'UF', r: (e) => A.esc(e.uf || '—') },
+      { t: 'Fornecedores', num: true, r: (e) => e.fornecedores },
+      { t: 'Clientes', num: true, r: (e) => e.clientes },
+      { t: 'Lançamentos', num: true, r: (e) => e.movimentos },
+      { t: 'Código Questor', r: (e) => `<span class="mono mini">${A.esc(e.codigo_questor || '—')}</span>` },
+      { t: '', r: (e) => `<button class="btn pq vazio" data-ed="${e.id}">Editar</button>
+        <button class="btn pq perigo" data-rm="${e.id}">Excluir</button>` },
+    ], empresas, { vazio: 'Nenhuma empresa cadastrada. Comece cadastrando a primeira.' })}</div>`;
+
+  const form = (e = {}) => A.campo('razao_social', 'Razão social', e.razao_social) +
+    `<div class="grade g2">${A.campo('cnpj', 'CNPJ', e.cnpj)}${A.campo('nome_fantasia', 'Nome fantasia', e.nome_fantasia)}</div>
+     <div class="grade g2">${A.selecao('regime', 'Regime tributário', A.opcoesRegime(), e.regime || 'lucro_real')}
+     ${A.selecao('reducao_padrao', 'Enquadramento predominante no IVA', A.opcoesReducao(), e.reducao_padrao || 'integral')}</div>
+     <div class="grade g3">${A.campo('uf', 'UF', e.uf)}${A.campo('municipio', 'Município', e.municipio)}${A.campo('cnae', 'CNAE principal', e.cnae)}</div>
+     <div class="grade g2">${A.campo('faturamento_anual', 'Faturamento anual (R$)', e.faturamento_anual, 'number')}
+     ${A.campo('codigo_questor', 'Código da empresa no Questor', e.codigo_questor)}</div>
+     ${A.area('atividade', 'Atividade', e.atividade, 2)}`;
+
+  document.getElementById('novaEmpresa').onclick = () => A.modal({
+    titulo: 'Cadastrar empresa', descricao: 'Os dados alimentam todos os módulos do produto.',
+    corpo: form(), aoConfirmar: async (d) => { await A.api('/empresas', { metodo: 'POST', corpo: d }); A.toast('Empresa cadastrada', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); },
+  });
+  el.querySelectorAll('[data-ed]').forEach((b) => { b.onclick = () => {
+    const e = empresas.find((x) => x.id === Number(b.dataset.ed));
+    A.modal({ titulo: 'Editar empresa', corpo: form(e), aoConfirmar: async (d) => {
+      await A.api(`/empresas/${e.id}`, { metodo: 'PUT', corpo: d }); A.toast('Alterações salvas', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); } });
+  }; });
+  el.querySelectorAll('[data-rm]').forEach((b) => { b.onclick = () => A.confirmar('Excluir a empresa apaga também parceiros, movimentação, contratos e turmas. Confirma?', async () => {
+    await A.api(`/empresas/${b.dataset.rm}`, { metodo: 'DELETE' }); A.toast('Empresa excluída', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); }); });
+};
+
+// ===========================================================================
+// CADASTROS E IMPORTAÇÃO
+// ===========================================================================
+Telas.dados = async (el) => {
+  const aba = S.aba.dados || 'fornecedor';
+  const [{ parceiros }, { lotes }] = await Promise.all([
+    A.api(`/empresas/${S.empresaId}/parceiros?tipo=${aba}`),
+    A.api(`/empresas/${S.empresaId}/lotes`),
+  ]);
+  const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=200`);
+  const rotulo = aba === 'cliente' ? 'clientes' : 'fornecedores';
+
+  el.innerHTML = cab('Módulo 1 · Diagnóstico', 'Cadastros e importação',
+    'A qualidade do diagnóstico depende de duas coisas: o regime tributário de cada parceiro e a movimentação com os impostos destacados.') +
+    `<div class="abas">
+      <button data-aba="fornecedor" class="${aba === 'fornecedor' ? 'ativo' : ''}">Fornecedores</button>
+      <button data-aba="cliente" class="${aba === 'cliente' ? 'ativo' : ''}">Clientes</button>
+    </div>
+    <div class="grade g2">
+      <div class="cartao">
+        <h2>1. Cadastro de ${rotulo}</h2>
+        <p class="desc">Planilha com CNPJ, descrição e regime tributário. A ordem das colunas não importa.</p>
+        ${A.dropzone('zonaParceiros', `<b>Solte a planilha de ${rotulo} aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>`, (f) => enviar(f, 'parceiros'))}
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn vazio pq" onclick="window.open('/api/modelos/parceiros')">Baixar modelo</button>
+          <button class="btn vazio pq" id="addParceiro">Incluir manualmente</button>
+          <button class="btn ouro pq" id="consultarReceita">Consultar regime na Receita</button>
+          <span class="mini" style="margin-left:auto;align-self:center">${parceiros.length} cadastrados</span>
+        </div>
+      </div>
+      <div class="cartao">
+        <h2>2. Movimentação de ${rotulo}</h2>
+        <p class="desc">Nome, inscrição federal, descrição do produto, NCM, valor, base de cálculo e impostos.</p>
+        ${A.dropzone('zonaMov', `<b>Solte a movimentação aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>`, (f) => enviar(f, 'movimentos'))}
+        <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
+          <button class="btn vazio pq" onclick="window.open('/api/modelos/movimento_${aba}')">Baixar modelo</button>
+          <button class="btn vazio pq" id="revincular">Revincular regimes</button>
+          <span class="mini" style="margin-left:auto;align-self:center">${total.c} lançamentos · ${A.moeda(total.v)}</span>
+        </div>
+      </div>
+    </div>
+    <div class="cartao">
+      <h2>${rotulo[0].toUpperCase() + rotulo.slice(1)} cadastrados</h2>
+      ${A.tabela([
+        { t: 'CNPJ/CPF', r: (p) => `<span class="mono">${A.cnpjFmt(p.cnpj)}</span>` },
+        { t: 'Descrição', r: (p) => A.esc(p.descricao) },
+        { t: 'Regime', r: (p) => `<span class="tag ${['simples_nacional', 'mei'].includes(p.regime) ? 'b' : ''}">${A.regimeLabel(p.regime)}</span>` },
+        { t: 'Origem', r: (p) => `<span class="mini">${A.esc(p.origem)}</span>` },
+        { t: '', r: (p) => `<button class="btn pq vazio" data-ep="${p.id}">Editar</button>` },
+      ], parceiros, { vazio: `Nenhum ${aba} cadastrado ainda.` })}
+    </div>
+    <div class="cartao">
+      <h2>Movimentação importada</h2><p class="desc">200 maiores lançamentos</p>
+      ${A.tabela([
+        { t: 'Parceiro', r: (m) => `${A.esc(m.nome)}<div class="mini mono">${A.cnpjFmt(m.inscr_federal)}</div>` },
+        { t: 'Produto/serviço', r: (m) => A.esc(m.descricao || '—') },
+        { t: 'NCM', r: (m) => `<span class="mono mini">${A.esc(m.ncm || '—')}</span>` },
+        { t: 'Regime', r: (m) => m.regime ? `<span class="tag">${A.regimeLabel(m.regime)}</span>` : '<span class="tag b">não vinculado</span>' },
+        { t: 'Valor', num: true, r: (m) => A.moeda(m.valor) },
+        { t: 'Base', num: true, r: (m) => A.moeda(m.base_calculo) },
+        { t: 'ICMS', num: true, r: (m) => A.moeda(m.icms) },
+        { t: 'PIS/COFINS', num: true, r: (m) => A.moeda(m.pis + m.cofins) },
+        { t: 'ISS', num: true, r: (m) => A.moeda(m.iss) },
+      ], movimentos, { vazio: 'Importe a movimentação para liberar o diagnóstico.' })}
+    </div>
+    <div class="cartao">
+      <h2>Lotes importados</h2>
+      ${A.tabela([
+        { t: 'Arquivo', r: (l) => A.esc(l.arquivo) },
+        { t: 'Tipo', r: (l) => l.tipo },
+        { t: 'Origem', r: (l) => l.origem },
+        { t: 'Registros', num: true, r: (l) => l.registros },
+        { t: 'Valor', num: true, r: (l) => A.moeda(l.valor_total) },
+        { t: 'Data', r: (l) => `<span class="mini">${A.esc(l.criado_em)}</span>` },
+        { t: '', r: (l) => `<button class="btn pq perigo" data-rl="${l.id}">Remover</button>` },
+      ], lotes, { vazio: 'Nenhum lote importado.' })}
+    </div>`;
+
+  el.querySelectorAll('[data-aba]').forEach((b) => { b.onclick = () => { S.aba.dados = b.dataset.aba; A.ir('dados'); }; });
+
+  async function enviar(arquivo, destino) {
+    const fd = new FormData();
+    fd.append('arquivo', arquivo); fd.append('tipo', aba);
+    try {
+      const r = await A.api(`/empresas/${S.empresaId}/importar/${destino}`, { metodo: 'POST', corpo: fd });
+      const cols = Object.entries(r.colunasDetectadas || {}).map(([k, v]) => `<tr><td>${k}</td><td class="mono">${A.esc(v)}</td></tr>`).join('');
+      A.modal({ titulo: 'Importação concluída', largura: 620,
+        corpo: `<div class="grade g3">${A.kpi('Importados', r.importados)}${A.kpi('Ignorados', r.ignorados || 0)}
+          ${r.valorTotal !== undefined ? A.kpi('Valor total', A.moeda(r.valorTotal)) : ''}</div>
+          ${r.semRegime ? `<div class="aviso atencao" style="margin-top:14px"><b>${r.semRegime} lançamentos sem regime</b>
+            Importe o cadastro de ${rotulo} com a coluna de regime tributário para que o cálculo de crédito fique correto.</div>` : ''}
+          ${(r.mensagens || []).map((m) => `<div class="aviso atencao">${A.esc(m)}</div>`).join('')}
+          <hr class="sep"><h3 style="font-size:13px">Colunas reconhecidas</h3>
+          <table><thead><tr><th>Campo do sistema</th><th>Coluna da planilha</th></tr></thead><tbody>${cols}</tbody></table>` });
+      A.ir('dados');
+    } catch (e) { A.toast(e.message, 'erro'); }
+  }
+
+  document.getElementById('addParceiro').onclick = () => A.modal({
+    titulo: `Incluir ${aba}`,
+    corpo: A.campo('cnpj', 'CNPJ/CPF') + A.campo('descricao', 'Descrição') + A.selecao('regime', 'Regime tributário', A.opcoesRegime(), 'lucro_real') +
+      `<div class="grade g2">${A.campo('uf', 'UF')}${A.campo('municipio', 'Município')}</div>`,
+    aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/parceiros`, { metodo: 'POST', corpo: { ...d, tipo: aba } }); A.ir('dados'); },
+  });
+
+  el.querySelectorAll('[data-ep]').forEach((b) => { b.onclick = () => {
+    const p = parceiros.find((x) => x.id === Number(b.dataset.ep));
+    A.modal({ titulo: 'Editar parceiro', corpo: A.campo('descricao', 'Descrição', p.descricao) +
+      A.selecao('regime', 'Regime tributário', A.opcoesRegime(), p.regime) +
+      `<div class="grade g2">${A.campo('uf', 'UF', p.uf)}${A.campo('municipio', 'Município', p.municipio)}</div>`,
+      aoConfirmar: async (d) => { await A.api(`/parceiros/${p.id}`, { metodo: 'PUT', corpo: d }); await A.api(`/empresas/${S.empresaId}/vincular-regimes`, { metodo: 'POST' }); A.ir('dados'); } });
+  }; });
+
+  el.querySelectorAll('[data-rl]').forEach((b) => { b.onclick = () => A.confirmar('Remover o lote apaga os lançamentos importados nele. Confirma?', async () => {
+    await A.api(`/lotes/${b.dataset.rl}`, { metodo: 'DELETE' }); A.ir('dados'); }); });
+
+  document.getElementById('consultarReceita').onclick = async () => {
+    const p = await A.api(`/empresas/${S.empresaId}/parceiros/pendencias-regime`);
+    const cfg = await A.api('/cnpj/config');
+    const min = Math.ceil(p.tempoEstimadoSegundos / 60);
+    A.modal({
+      titulo: 'Consultar regime na base da Receita', largura: 700, confirmar: 'Consultar agora',
+      descricao: 'Descobre se cada parceiro é MEI, optante do Simples ou está no regime regular.',
+      corpo: `<div class="grade g3">
+          ${A.kpi('Sem regime', p.total, 'parceiros a resolver')}
+          ${A.kpi('Já em cache', p.emCache, 'consulta instantânea')}
+          ${A.kpi('Tempo estimado', p.tempoEstimadoSegundos < 60 ? `${p.tempoEstimadoSegundos}s` : `${min} min`,
+            `${p.provedor}, ${(p.intervalo / 1000).toFixed(1)}s entre consultas`, 'destaque')}
+        </div>
+        <div class="aviso" style="margin-top:14px"><b>O que a consulta resolve</b>
+          A base pública informa a opção pelo Simples e pelo SIMEI. Não distingue Lucro Real de
+          Presumido — e não precisa: para IBS/CBS o que importa é estar dentro ou fora do Simples.
+          Quem não é optante apura pelo regime regular e credita normalmente.</div>
+        ${A.selecao('tipo', 'Escopo', [{ v: '', t: 'Fornecedores e clientes' },
+          { v: 'fornecedor', t: 'Somente fornecedores' }, { v: 'cliente', t: 'Somente clientes' }], '')}
+        <label class="campo"><span>Sobrescrever regimes já definidos</span>
+          <input type="checkbox" name="sobrescrever" style="width:auto"></label>
+        <div class="mini">Por padrão a consulta só toca em quem está sem regime — o que o consultor
+          definiu à mão é preservado.</div>
+        <div id="statusReceita" style="margin-top:12px"></div>`,
+      aoConfirmar: async (d, fundo) => {
+        const box = fundo.querySelector('#statusReceita');
+        box.innerHTML = '<div class="aviso">Consultando… não feche esta janela.</div><div class="barra-prog"><i style="width:40%"></i></div>';
+        try {
+          const r = await A.api(`/empresas/${S.empresaId}/parceiros/enriquecer`, { metodo: 'POST',
+            corpo: { tipo: d.tipo || undefined, sobrescrever: d.sobrescrever } });
+          box.innerHTML = `<div class="aviso bom"><b>${r.atualizados} parceiros atualizados</b>
+              ${r.consultados} consultas novas · ${r.cache} do cache${r.naoEncontrados ? ` · ${r.naoEncontrados} não localizados` : ''}</div>
+            ${Object.keys(r.porRegime).length ? `<table class="compacta"><thead><tr><th>Regime identificado</th><th class="num">Parceiros</th></tr></thead>
+              <tbody>${Object.entries(r.porRegime).map(([k, v]) =>
+                `<tr><td>${A.regimeLabel(k)}</td><td class="num mono">${v}</td></tr>`).join('')}</tbody></table>` : ''}
+            ${r.inativos && r.inativos.length ? `<div class="aviso atencao"><b>${r.inativos.length} com situação cadastral irregular</b>
+              ${A.esc(r.inativos.slice(0, 4).map((x) => `${x.nome} (${x.situacao})`).join('; '))}
+              <div class="acao">Vale confirmar antes de projetar crédito sobre essas operações.</div></div>` : ''}
+            ${r.erros.length ? `<details class="clausula"><summary class="mini">${r.erros.length} erros</summary>
+              ${r.erros.slice(0, 10).map((e) => `<div class="mini">• ${A.esc(e)}</div>`).join('')}</details>` : ''}`;
+          setTimeout(() => A.ir('dados'), 2500);
+        } catch (e) { box.innerHTML = `<div class="aviso alto">${A.esc(e.message)}</div>`; }
+        return false;
+      },
+    });
+  };
+
+  document.getElementById('revincular').onclick = async () => {
+    const r = await A.api(`/empresas/${S.empresaId}/vincular-regimes`, { metodo: 'POST' });
+    A.toast(r.semRegime ? `${r.semRegime} lançamentos ainda sem regime` : 'Todos os lançamentos vinculados', r.semRegime ? '' : 'ok');
+    A.ir('dados');
+  };
+};
+
+// ===========================================================================
+// 1.a PERFIL TRIBUTÁRIO
+// ===========================================================================
+Telas.perfil = async (el) => {
+  const [{ empresa, perfil }, { analise }] = await Promise.all([
+    A.api(`/empresas/${S.empresaId}`), A.api(`/empresas/${S.empresaId}/perfil/analise`),
+  ]);
+  el.innerHTML = cab('Módulo 1.a', 'Perfil tributário da empresa',
+    'Como a empresa é tributada hoje e o que muda na transição. Informe as competências dos últimos 12 meses.',
+    '<button class="btn" id="addComp">Lançar competência</button>') +
+    (perfil.length ? `<div class="grade g4">
+      ${A.kpi('Receita analisada', A.moeda(analise.receita), `${analise.competencias} competências`)}
+      ${A.kpi('Tributos sobre consumo', A.moeda(analise.tributos))}
+      ${A.kpi('Carga bruta', A.pct(analise.cargaBruta), 'sobre a receita', 'destaque')}
+      ${A.kpi('Carga líquida de créditos', A.pct(analise.cargaLiquida))}
+    </div>
+    <div class="grade g2" style="margin-top:16px">
+      <div class="cartao"><h2>Composição da receita</h2><p class="desc">Define a exposição da empresa ao novo modelo</p>
+        ${barras([['Mercadorias', analise.composicao.mercadorias], ['Serviços', analise.composicao.servicos], ['Exportação', analise.composicao.exportacao]])}
+        <hr class="sep"><h2 style="font-size:13px">Tributos apurados</h2>
+        ${A.tabela([{ t: 'Tributo', r: (t) => t[0] }, { t: 'Valor', num: true, r: (t) => A.moeda(t[1]) },
+          { t: '% da receita', num: true, r: (t) => A.pct(analise.receita ? t[1] / analise.receita : 0) }],
+          [['ICMS', analise.detalheTributos.icms], ['ISS', analise.detalheTributos.iss], ['IPI', analise.detalheTributos.ipi],
+           ['PIS', analise.detalheTributos.pis], ['COFINS', analise.detalheTributos.cofins], ['DAS (Simples)', analise.detalheTributos.das]].filter((t) => t[1]))}
+      </div>
+      <div class="cartao"><h2>Leitura técnica</h2><p class="desc">O que este perfil significa na reforma</p>${A.avisos(analise.observacoes)}</div>
+    </div>
+    <div class="cartao"><h2>Projeção da carga por ano</h2>
+      <p class="desc">Aplica o cronograma de transição sobre a base limpa da empresa</p>
+      ${A.tabela([
+        { t: 'Ano', r: (p) => `<b class="mono">${p.ano}</b>` },
+        { t: 'Alíquota IVA', num: true, r: (p) => A.pct(p.aliquotaIva) },
+        { t: 'Tributos projetados', num: true, r: (p) => A.moeda(p.tributos) },
+        { t: 'Carga efetiva', num: true, r: (p) => A.pct(p.carga) },
+        { t: 'Variação vs. hoje', num: true, r: (p) => A.setaR$(p.variacao) },
+        { t: 'Marco do ano', r: (p) => `<span class="mini">${A.esc(p.nota)}</span>` },
+      ], analise.projecao)}
+    </div>` : A.vazio('Sem competências lançadas', 'Informe pelo menos uma competência com receita e tributos apurados para gerar a análise do perfil.', '')) +
+    `<div class="cartao"><h2>Competências lançadas</h2>
+      ${A.tabela([
+        { t: 'Competência', r: (p) => `<span class="mono">${A.esc(p.competencia)}</span>` },
+        { t: 'Receita bruta', num: true, r: (p) => A.moeda(p.receita_bruta) },
+        { t: 'Mercadorias', num: true, r: (p) => A.moeda(p.receita_mercadorias) },
+        { t: 'Serviços', num: true, r: (p) => A.moeda(p.receita_servicos) },
+        { t: 'Exportação', num: true, r: (p) => A.moeda(p.receita_exportacao) },
+        { t: 'ICMS', num: true, r: (p) => A.moeda(p.icms) },
+        { t: 'ISS', num: true, r: (p) => A.moeda(p.iss) },
+        { t: 'PIS/COFINS', num: true, r: (p) => A.moeda(p.pis + p.cofins) },
+        { t: 'DAS', num: true, r: (p) => A.moeda(p.das) },
+        { t: 'Créditos', num: true, r: (p) => A.moeda(p.creditos_tomados) },
+        { t: '', r: (p) => `<button class="btn pq perigo" data-rp="${p.id}">Remover</button>` },
+      ], perfil, { vazio: 'Nenhuma competência lançada.' })}
+    </div>`;
+
+  document.getElementById('addComp').onclick = () => A.modal({
+    titulo: 'Lançar competência', descricao: 'Valores apurados no período.',
+    corpo: `<div class="grade g2">${A.campo('competencia', 'Competência (AAAA-MM)', '', 'month')}
+      ${A.campo('receita_bruta', 'Receita bruta', '', 'number', 'step=0.01')}</div>
+      <div class="grade g3">${A.campo('receita_mercadorias', 'Receita — mercadorias', '', 'number', 'step=0.01')}
+      ${A.campo('receita_servicos', 'Receita — serviços', '', 'number', 'step=0.01')}
+      ${A.campo('receita_exportacao', 'Receita — exportação', '', 'number', 'step=0.01')}</div>
+      <div class="grade g3">${A.campo('icms', 'ICMS', '', 'number', 'step=0.01')}${A.campo('iss', 'ISS', '', 'number', 'step=0.01')}${A.campo('ipi', 'IPI', '', 'number', 'step=0.01')}</div>
+      <div class="grade g3">${A.campo('pis', 'PIS', '', 'number', 'step=0.01')}${A.campo('cofins', 'COFINS', '', 'number', 'step=0.01')}${A.campo('das', 'DAS (Simples)', '', 'number', 'step=0.01')}</div>
+      ${A.campo('creditos_tomados', 'Créditos aproveitados no período', '', 'number', 'step=0.01')}`,
+    aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/perfil`, { metodo: 'POST', corpo: d }); A.ir('perfil'); },
+  });
+  el.querySelectorAll('[data-rp]').forEach((b) => { b.onclick = async () => { await A.api(`/perfil/${b.dataset.rp}`, { metodo: 'DELETE' }); A.ir('perfil'); }; });
+};
+
+const barras = (itens) => itens.map(([rot, v]) => `<div style="margin-bottom:11px">
+  <div style="display:flex;justify-content:space-between;font-size:12.5px;margin-bottom:4px"><span>${rot}</span><span class="mono">${A.pct(v)}</span></div>
+  <div class="barra-prog"><i style="width:${Math.min(100, (v || 0) * 100)}%"></i></div></div>`).join('');
+
+// ===========================================================================
+// 1.b / 1.c CADEIAS
+// ===========================================================================
+async function telaCadeia(el, tipo) {
+  const rep = S.cache[`rep_${tipo}`] === undefined ? 1 : S.cache[`rep_${tipo}`];
+  const { analise } = await A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}`);
+  const eForn = tipo === 'fornecedor';
+  const t = analise.totais;
+  const ultimo = analise.cenarios[analise.cenarios.length - 1] || {};
+
+  el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
+    eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
+    eForn ? 'Onde estão os créditos que a empresa vai deixar de tomar — e quanto isso custa no custo efetivo de aquisição.'
+          : 'Quem na carteira absorve o IVA sem dor (porque credita) e quem sente o preço cheio.',
+    `<button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/${eForn ? 'fornecedores' : 'clientes'}?repasse=${rep}')">Exportar Excel</button>`) +
+    (t.registros ? `
+    <div class="grade g4">
+      ${A.kpi(eForn ? 'Volume de compras' : 'Faturamento', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
+      ${A.kpi('Carga efetiva hoje', A.pct(t.cargaEfetivaHoje))}
+      ${A.kpi('Créditos aproveitados hoje', A.moeda(t.creditoHoje))}
+      ${A.kpi(eForn ? 'Custo efetivo 2033' : 'Custo para o cliente 2033', A.moeda(ultimo.custoEfetivo || 0),
+        A.setaPct(ultimo.variacaoCustoPerc || 0) + ' vs. hoje', 'destaque')}
+    </div>
+    <div class="cartao" style="margin-top:16px">
+      <h2>Grau de repasse simulado</h2>
+      <p class="desc">100% = ${eForn ? 'o fornecedor repassa integralmente a desoneração/oneração ao preço' : 'a empresa repassa integralmente o IVA ao cliente'}. 0% = preço congelado.</p>
+      <input type="range" min="0" max="1" step="0.1" value="${rep}" id="repasse">
+      <div style="display:flex;justify-content:space-between" class="mini"><span>0% (preço congelado)</span><b class="mono">${A.pct(rep, 0)}</b><span>100% (repasse total)</span></div>
+    </div>
+    <div class="grade g2">
+      <div class="cartao"><h2>Riscos e oportunidades</h2><p class="desc">Leitura desta cadeia</p>${A.avisos(analise.riscos)}</div>
+      <div class="cartao"><h2>${eForn ? 'Compras por regime do fornecedor' : 'Carteira por perfil de cliente'}</h2>
+        <p class="desc">${eForn ? 'O regime do fornecedor determina o crédito que a empresa toma' : 'O perfil do cliente determina se ele absorve o IVA'}</p>
+        ${A.tabela([
+          { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}</div>` },
+          { t: 'Valor', num: true, r: (r) => A.moeda(r.valor) },
+          { t: 'Part.', num: true, r: (r) => A.pct(r.representatividade, 1) },
+          { t: 'Crédito hoje', num: true, r: (r) => A.moeda(r.creditoHoje) },
+          { t: 'Crédito 2033', num: true, r: (r) => A.moeda(r.creditoFinal) },
+          { t: 'Δ custo', num: true, r: (r) => A.setaR$(r.variacaoCusto) },
+        ], analise.regimes)}
+      </div>
+    </div>
+    <div class="cartao"><h2>Projeção ano a ano</h2>
+      ${A.tabela([
+        { t: 'Ano', r: (c) => `<b class="mono">${c.ano}</b>` },
+        { t: 'Tributos', num: true, r: (c) => A.moeda(c.tributos) },
+        { t: 'Créditos', num: true, r: (c) => A.moeda(c.credito) },
+        { t: 'Carga efetiva', num: true, r: (c) => A.pct(c.cargaEfetiva) },
+        { t: eForn ? 'Custo efetivo' : 'Custo p/ cliente', num: true, r: (c) => A.moeda(c.custoEfetivo) },
+        { t: 'Variação', num: true, r: (c) => A.setaPct(c.variacaoCustoPerc) },
+        { t: 'Marco', r: (c) => `<span class="mini">${A.esc(c.nota)}</span>` },
+      ], analise.cenarios)}
+    </div>
+    <div class="cartao"><h2>Curva ABC — ${eForn ? 'fornecedores' : 'clientes'}</h2>
+      <p class="desc">Classe A concentra 80% do volume. É por onde a renegociação começa.</p>
+      ${A.tabela([
+        { t: 'ABC', r: (p) => `<span class="tag ${p.classeAbc === 'A' ? 'b' : 'n'}">${p.classeAbc}</span>` },
+        { t: eForn ? 'Fornecedor' : 'Cliente', r: (p) => `${A.esc(p.nome)}<div class="mini mono">${A.cnpjFmt(p.cnpj)}</div>` },
+        { t: 'Regime', r: (p) => `<span class="tag ${['simples_nacional', 'mei'].includes(p.regime) ? 'a' : ''}">${A.esc(p.regimeLabel)}</span>` },
+        { t: 'Valor', num: true, r: (p) => A.moeda(p.valor) },
+        { t: 'Part.', num: true, r: (p) => A.pct(p.representatividade, 1) },
+        { t: 'Crédito hoje', num: true, r: (p) => A.moeda(p.creditoHoje) },
+        { t: 'Crédito 2033', num: true, r: (p) => A.moeda(p.creditoFinal) },
+        { t: 'Custo hoje', num: true, r: (p) => A.moeda(p.custoHoje) },
+        { t: 'Custo 2033', num: true, r: (p) => A.moeda(p.custoFinal) },
+        { t: 'Δ %', num: true, r: (p) => A.setaPct(p.variacaoCustoPerc) },
+      ], analise.parceiros.slice(0, 200))}
+    </div>` : A.vazio('Sem movimentação importada',
+      `Importe a movimentação de ${eForn ? 'fornecedores' : 'clientes'} para gerar esta análise.`,
+      '<button class="btn" onclick="App.ir(\'dados\')">Ir para importação</button>'));
+
+  const r = document.getElementById('repasse');
+  if (r) r.onchange = () => { S.cache[`rep_${tipo}`] = Number(r.value); A.ir(tipo === 'fornecedor' ? 'fornecedores' : 'clientes'); };
+}
+Telas.fornecedores = (el) => telaCadeia(el, 'fornecedor');
+Telas.clientes = (el) => telaCadeia(el, 'cliente');
+
+// ===========================================================================
+// 1.d PROJEÇÃO DE CENÁRIOS
+// ===========================================================================
+Telas.cenarios = async (el) => {
+  const rep = S.cache.repCen === undefined ? 1 : S.cache.repCen;
+  const d = await A.api(`/empresas/${S.empresaId}/cenarios?repasse=${rep}`);
+  const base = d.consolidado[0] || {}, fim = d.consolidado[d.consolidado.length - 1] || {};
+  el.innerHTML = cab('Módulo 1.d', 'Projeção de cenários',
+    'Receita, custo e resultado bruto ano a ano, aplicando o cronograma constitucional sobre a movimentação real da empresa.',
+    `<button class="btn vazio" id="salvarCen">Salvar cenário</button>
+     <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/diagnostico?repasse=${rep}')">Exportar Excel</button>`) +
+    A.regua(2033, null) +
+    `<div class="grade g4">
+      ${A.kpi('Resultado bruto hoje', A.moeda(base.resultadoBruto || 0), `margem ${A.pct(base.margemPerc || 0)}`)}
+      ${A.kpi('Resultado bruto 2033', A.moeda(fim.resultadoBruto || 0), `margem ${A.pct(fim.margemPerc || 0)}`, 'destaque')}
+      ${A.kpi('Variação de resultado', A.setaR$(d.resumo.variacaoResultado), 'no cenário final')}
+      ${A.kpi('Variação da carga', A.setaPct(d.resumo.variacaoCarga), 'sobre as saídas')}
+    </div>
+    <div class="cartao" style="margin-top:16px">
+      <h2>Grau de repasse</h2><p class="desc">Quanto da variação tributária vai para o preço</p>
+      <input type="range" min="0" max="1" step="0.1" value="${rep}" id="repCen">
+      <div style="display:flex;justify-content:space-between" class="mini"><span>0%</span><b class="mono">${A.pct(rep, 0)}</b><span>100%</span></div>
+    </div>
+    <div class="cartao"><h2>Demonstrativo projetado</h2>
+      <p class="desc">Receita (-) impostos (-) custos = margem bruta, na estrutura da cartilha</p>
+      ${A.tabela([
+        { t: 'Ano', r: (c) => `<b class="mono">${c.ano}</b>` },
+        { t: 'Receita bruta', num: true, r: (c) => A.moeda(c.receitaBruta) },
+        { t: '(-) Tributos', num: true, r: (c) => A.moeda(c.tributosSaida) },
+        { t: '= Receita líquida', num: true, r: (c) => A.moeda(c.receitaLiquida) },
+        { t: '(-) Custo efetivo', num: true, r: (c) => A.moeda(c.custoEfetivo) },
+        { t: '= Resultado bruto', num: true, r: (c) => `<b>${A.moeda(c.resultadoBruto)}</b>` },
+        { t: 'Margem', num: true, r: (c) => A.pct(c.margemPerc) },
+        { t: 'Carga', num: true, r: (c) => A.pct(c.cargaEfetiva) },
+        { t: 'Marco do ano', r: (c) => `<span class="mini">${A.esc(c.nota)}</span>` },
+      ], d.consolidado)}
+    </div>
+    <div class="cartao"><h2>Riscos consolidados</h2>${A.avisos(d.riscos)}</div>`;
+
+  const r = document.getElementById('repCen');
+  r.onchange = () => { S.cache.repCen = Number(r.value); A.ir('cenarios'); };
+  document.getElementById('salvarCen').onclick = () => A.modal({
+    titulo: 'Salvar cenário', corpo: A.campo('nome', 'Nome do cenário', `Repasse ${A.pct(rep, 0)}`) + A.area('descricao', 'Premissas', ''),
+    aoConfirmar: async (dd) => { await A.api(`/empresas/${S.empresaId}/cenarios/salvar`, { metodo: 'POST',
+      corpo: { ...dd, parametros: { repasse: rep }, resultado: d } }); A.toast('Cenário salvo', 'ok'); },
+  });
+};
+
+// ===========================================================================
+// CALCULADORA
+// ===========================================================================
+Telas.calculadora = async (el) => {
+  const v = S.cache.calc || { valor: 10000, regime: 'lucro_real', regimeAdquirente: S.empresa?.regime || 'lucro_real',
+    tipo: 'mercadoria', reducao: 'integral', aliqIcms: 0.18, aliqIss: 0.03, grauRepasse: 1 };
+
+  el.innerHTML = cab('Ferramenta', 'Calculadora da reforma tributária',
+    'Volta a base do preço até o valor sem imposto — respeitando o regime de quem emite — e reaplica o IVA por fora, ano a ano.') +
+    `<div class="grade g2">
+      <div class="cartao">
+        <h2>Dados da operação</h2><p class="desc">Informe os valores da nota. Deixe os impostos em branco para o sistema estimar pelo regime.</p>
+        <div class="grade g2">
+          ${A.campo('valor', 'Valor total da operação (R$)', v.valor, 'number', 'step=0.01')}
+          ${A.selecao('tipo', 'Natureza', [{ v: 'mercadoria', t: 'Mercadoria' }, { v: 'servico', t: 'Serviço' }], v.tipo)}
+        </div>
+        <div class="grade g2">
+          ${A.selecao('regime', 'Regime de quem EMITE', A.opcoesRegime(), v.regime)}
+          ${A.selecao('regimeAdquirente', 'Regime de quem RECEBE', A.opcoesRegime(), v.regimeAdquirente)}
+        </div>
+        ${A.selecao('reducao', 'Enquadramento no IBS/CBS', A.opcoesReducao(), v.reducao)}
+        <hr class="sep">
+        <h2 style="font-size:13px">Impostos destacados na nota</h2>
+        <p class="desc">Opcional — preencha se tiver os valores reais</p>
+        <div class="grade g3">
+          ${A.campo('icms', 'ICMS (R$)', '', 'number', 'step=0.01')}
+          ${A.campo('pis', 'PIS (R$)', '', 'number', 'step=0.01')}
+          ${A.campo('cofins', 'COFINS (R$)', '', 'number', 'step=0.01')}
+        </div>
+        <div class="grade g3">
+          ${A.campo('ipi', 'IPI (R$)', '', 'number', 'step=0.01')}
+          ${A.campo('iss', 'ISS (R$)', '', 'number', 'step=0.01')}
+          ${A.campo('icmsSt', 'ICMS-ST (R$)', '', 'number', 'step=0.01')}
+        </div>
+        <div class="grade g2">
+          ${A.campo('aliqIcms', 'Alíquota ICMS (ex.: 0,18)', v.aliqIcms, 'number', 'step=0.0001')}
+          ${A.campo('aliqIss', 'Alíquota ISS (ex.: 0,03)', v.aliqIss, 'number', 'step=0.0001')}
+        </div>
+        ${A.campo('aliqEspecifica', 'Alíquota efetiva do regime específico (ex.: 0,10)', '', 'number', 'step=0.0001')}
+        <button class="btn ouro" id="calcular" style="width:100%;margin-top:8px">Calcular</button>
+      </div>
+      <div id="resultadoCalc"></div>
+    </div>`;
+
+  const ler = () => {
+    const o = {};
+    el.querySelectorAll('[name]').forEach((i) => { o[i.name] = i.value === '' ? undefined : (i.type === 'number' ? Number(i.value) : i.value); });
+    return o;
+  };
+  const calcular = async () => {
+    const dados = ler();
+    S.cache.calc = dados;
+    const { resultado } = await A.api('/calculadora', { metodo: 'POST', corpo: dados });
+    mostrar(resultado);
+  };
+  document.getElementById('calcular').onclick = () => calcular().catch((e) => A.toast(e.message, 'erro'));
+
+  function mostrar(r) {
+    const a = r.atual, fim = r.projecao[r.projecao.length - 1];
+    document.getElementById('resultadoCalc').innerHTML = `
+      <div class="cartao">
+        <h2>Volta da base — situação atual</h2>
+        <p class="desc">${A.esc(a.regimeLabel)} · ${a.tipo === 'servico' ? 'Serviço' : 'Mercadoria'}</p>
+        <table>
+          <tr><td>Valor total da operação</td><td class="num mono"><b>${A.moeda(a.valorOperacao)}</b></td></tr>
+          ${a.tributos.icms ? `<tr><td>(-) ICMS</td><td class="num mono">${A.moeda(a.tributos.icms)}</td></tr>` : ''}
+          ${a.tributos.iss ? `<tr><td>(-) ISS</td><td class="num mono">${A.moeda(a.tributos.iss)}</td></tr>` : ''}
+          ${a.tributos.pis || a.tributos.cofins ? `<tr><td>(-) PIS/COFINS</td><td class="num mono">${A.moeda(a.tributos.pis + a.tributos.cofins)}</td></tr>` : ''}
+          ${a.tributos.ipi ? `<tr><td>(-) IPI</td><td class="num mono">${A.moeda(a.tributos.ipi)}</td></tr>` : ''}
+          ${a.tributos.icmsSt ? `<tr><td>(-) ICMS-ST</td><td class="num mono">${A.moeda(a.tributos.icmsSt)}</td></tr>` : ''}
+          <tr style="background:var(--ouro-100)"><td><b>= Valor sem imposto (base limpa)</b></td><td class="num mono"><b>${A.moeda(a.valorSemImposto)}</b></td></tr>
+          <tr><td>Carga efetiva atual</td><td class="num mono">${A.pct(a.cargaEfetiva)}</td></tr>
+          <tr><td>Crédito aproveitado pelo adquirente</td><td class="num mono">${A.moeda(a.credito.total)}</td></tr>
+          <tr><td><b>Custo efetivo de aquisição</b></td><td class="num mono"><b>${A.moeda(a.custoEfetivo)}</b></td></tr>
+        </table>
+      </div>
+      <div class="cartao">
+        <h2>Projeção com o IVA por fora</h2>
+        <p class="desc">O IBS e a CBS não integram a própria base — por isso a base limpa é a única comparação honesta</p>
+        ${A.tabela([
+          { t: 'Ano', r: (p) => `<b class="mono">${p.ano}</b>` },
+          { t: 'Alíq. IVA', num: true, r: (p) => A.pct(p.aliquotas.total) },
+          { t: 'IBS+CBS', num: true, r: (p) => A.moeda(p.ivaEfetivo) },
+          { t: 'Residual', num: true, r: (p) => A.moeda(p.residual.total) },
+          { t: 'Preço final', num: true, r: (p) => A.moeda(p.precoFinal) },
+          { t: 'Crédito', num: true, r: (p) => A.moeda(p.credito.total) },
+          { t: 'Custo efetivo', num: true, r: (p) => `<b>${A.moeda(p.custoEfetivo)}</b>` },
+          { t: 'Δ vs. hoje', num: true, r: (p) => A.setaPct(p.variacaoCustoPerc) },
+        ], r.projecao)}
+      </div>
+      <div class="cartao"><h2>Leitura</h2>
+        ${A.avisos(r.resumo.alertas)}
+        ${fim.credito.observacoes.map((o) => `<div class="aviso">${A.esc(o)}</div>`).join('')}
+        <div class="aviso"><b>${A.esc(String(fim.ano))}</b>${A.esc(fim.nota)}</div>
+      </div>`;
+  }
+  calcular().catch(() => {});
+};
+})();

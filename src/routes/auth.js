@@ -1,0 +1,37 @@
+const express = require('express');
+const { createClient } = require('@supabase/supabase-js');
+const supabase = require('../services/supabase');
+const autenticacao = require('../services/autenticacao');
+const router = express.Router();
+
+function publico() {
+  if (!process.env.SUPABASE_URL || !process.env.SUPABASE_ANON_KEY) throw new Error('Autenticação Supabase não configurada.');
+  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+}
+
+router.get('/status', (_req, res) => res.json({ ok: true, configurado: supabase.configurado(), exigido: autenticacao.exigida() }));
+
+router.post('/login', async (req, res) => {
+  try {
+    const { data, error } = await publico().auth.signInWithPassword({ email: String(req.body.email || '').trim(), password: String(req.body.senha || '') });
+    if (error) throw error;
+    const admin = supabase.admin();
+    const { data: perfil } = await admin.from('perfis').select('nome,papel,ativo').eq('id', data.user.id).maybeSingle();
+    if (perfil && !perfil.ativo) throw new Error('Este usuário está desativado.');
+    res.json({ ok: true, sessao: { access_token: data.session.access_token, refresh_token: data.session.refresh_token, expira_em: data.session.expires_at }, usuario: { id: data.user.id, email: data.user.email, ...(perfil || { papel: 'consultor' }) } });
+  } catch (e) { res.status(401).json({ ok: false, erro: e.message || 'Não foi possível entrar.' }); }
+});
+
+router.get('/me', async (req, res) => {
+  try {
+    const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
+    if (!token) throw new Error('Sessão não informada.');
+    const { data, error } = await publico().auth.getUser(token);
+    if (error) throw error;
+    const { data: perfil } = await supabase.admin().from('perfis').select('nome,papel,ativo').eq('id', data.user.id).maybeSingle();
+    if (perfil && !perfil.ativo) throw new Error('Usuário desativado.');
+    res.json({ ok: true, usuario: { id: data.user.id, email: data.user.email, ...(perfil || { papel: 'consultor' }) } });
+  } catch (e) { res.status(401).json({ ok: false, erro: e.message || 'Sessão inválida.' }); }
+});
+
+module.exports = router;

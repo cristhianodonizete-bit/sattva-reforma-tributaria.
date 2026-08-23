@@ -1,0 +1,7 @@
+BASES DE CLASSIFICACAO TRIBUTARIA
+---------------------------------
+correlacao.xlsx  -> Servicos. Aba "tabela geral". Chave: Item LC 116 + NBS.
+ncms.xlsx        -> Mercadorias. Aba "Detalhamento candidatos". Chave: NCM.
+
+Suba as duas na tela "Bases de classificacao" do sistema.
+Ao substituir por versoes novas, a importacao troca a base inteira.

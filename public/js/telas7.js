@@ -1,0 +1,604 @@
+/* =========================================================================
+   SIMULAÇÃO DA CADEIA — composição 100% e migração entre grupos
+   -------------------------------------------------------------------------
+   A experiência principal não é "escolha o fornecedor que deseja modificar",
+   e sim "escolha qual parte da composição das compras deseja simular".
+   O detalhe continua acessível por drill-down, mas não é o ponto de partida.
+   ========================================================================= */
+(() => {
+const A = App, S = App.S;
+const M = window.MotorUI;
+
+const CORES = ['#F2AC00', '#114866', '#5b8ba6', '#c98d00', '#7e8d97', '#b3261e', '#1c7a4d', '#16597e'];
+const natTag = (n) => ({ CALCULADO: ['c', 'Calculado'], SIMULADO: ['b', 'Simulado'],
+  INDETERMINADO: ['a', 'Não determinado'], REAL: ['c', 'Real'] }[n] || ['n', n || '—']);
+const pp = (n) => `${n >= 0 ? '+' : ''}${(n * 100).toFixed(2).replace('.', ',')} p.p.`;
+
+const est = () => (S.cache.sim = S.cache.sim || { lado: 'compras', dimensao: 'regime_fornecedor', cenarioId: null });
+
+// =========================================================================
+// BARRA DE COMPOSIÇÃO 100%
+// =========================================================================
+function barraComposicao(grupos, titulo) {
+  const visiveis = grupos.filter((g) => g.participacao > 0.0001);
+  const soma = visiveis.reduce((s, g) => s + g.participacao, 0);
+  return `<div style="margin-bottom:6px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <b style="font-size:12.5px;color:var(--tinta-2)">${A.esc(titulo)}</b>
+        <span class="mono mini">${A.pct(soma)}</span>
+      </div>
+      <div style="display:flex;height:26px;border-radius:6px;overflow:hidden;background:#eef1f3">
+        ${visiveis.map((g, i) => `<div title="${A.esc(g.nome)} — ${A.pct(g.participacao)}"
+          style="width:${g.participacao * 100}%;background:${CORES[i % CORES.length]};
+                 display:flex;align-items:center;justify-content:center;overflow:hidden">
+          ${g.participacao > 0.07 ? `<span style="font-size:10.5px;font-weight:700;color:#fff">${(g.participacao * 100).toFixed(0)}%</span>` : ''}
+        </div>`).join('')}
+      </div>
+    </div>`;
+}
+
+function legenda(grupos, comparacao) {
+  const visiveis = grupos.filter((g) => g.participacao > 0.0001 || (comparacao && comparacao[g.grupo]));
+  return `<table class="compacta" style="margin-top:10px">
+    <thead><tr><th></th><th>Grupo</th><th class="num">Valor</th>
+      <th class="num">Participação</th>${comparacao ? '<th class="num">No cenário</th><th class="num">Variação</th>' : ''}
+      <th class="num">Parceiros</th><th class="num">Crédito</th><th>Natureza</th></tr></thead>
+    <tbody>${visiveis.map((g, i) => {
+      const c = comparacao ? comparacao[g.grupo] : null;
+      const delta = c ? c.participacao - g.participacao : 0;
+      return `<tr>
+        <td><span style="display:inline-block;width:11px;height:11px;border-radius:3px;background:${CORES[i % CORES.length]}"></span></td>
+        <td>${A.esc(g.nome)}</td>
+        <td class="num mono">${A.moeda(g.valor)}</td>
+        <td class="num mono">${A.pct(g.participacao)}</td>
+        ${c ? `<td class="num mono"><b>${A.pct(c.participacao)}</b></td>
+               <td class="num mono ${delta > 0.0001 ? 'desce' : delta < -0.0001 ? 'sobe' : 'neutro'}">${Math.abs(delta) < 0.0001 ? '—' : pp(delta)}</td>` : ''}
+        <td class="num mono">${g.entidades}</td>
+        <td class="num mono">${A.moeda(g.creditoIbs + g.creditoCbs)}</td>
+        <td><span class="tag ${natTag(g.natureza)[0]}">${natTag(g.natureza)[1]}</span></td>
+      </tr>`;
+    }).join('')}</tbody></table>`;
+}
+
+// =========================================================================
+// TELA
+// =========================================================================
+async function simulacaoCadeia(el) {
+  const e = est();
+  const [{ cenarios }, dims] = await Promise.all([
+    A.api(`/empresas/${S.empresaId}/cenarios/lista`),
+    A.api('/cenarios/dimensoes'),
+  ]);
+  const dimsLado = dims[e.lado] || [];
+  if (!dimsLado.find((d) => d.chave === e.dimensao)) e.dimensao = dimsLado[0].chave;
+
+  const hipoteses = cenarios.filter((c) => c.tipo === 'hipotese');
+  if (e.cenarioId && !cenarios.find((c) => c.id === e.cenarioId)) e.cenarioId = null;
+
+  el.innerHTML = M.seletorAno(() => A.ir('cenarios')) +
+    `<div class="cartao" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
+      <label class="campo" style="margin:0;min-width:200px"><span>Cenário</span>
+        <select id="selCenario">
+          <option value="">Cenário base (fotografia atual)</option>
+          ${hipoteses.map((c) => `<option value="${c.id}" ${e.cenarioId === c.id ? 'selected' : ''}>
+            ${A.esc(c.nome)} · v${c.versao} · ${c.alocacoes} migração(ões)</option>`).join('')}
+        </select></label>
+      <label class="campo" style="margin:0"><span>Lado</span>
+        <select id="selLado">
+          <option value="compras" ${e.lado === 'compras' ? 'selected' : ''}>Compras</option>
+          <option value="vendas" ${e.lado === 'vendas' ? 'selected' : ''}>Vendas</option>
+        </select></label>
+      <label class="campo" style="margin:0;min-width:240px"><span>Dimensão</span>
+        <select id="selDim">${dimsLado.map((d) =>
+          `<option value="${d.chave}" ${e.dimensao === d.chave ? 'selected' : ''}>${A.esc(d.nome)}</option>`).join('')}</select></label>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn" id="novoCenario">Criar simulação</button>
+        ${e.cenarioId ? '<button class="btn vazio" id="duplicar">Duplicar</button>' : ''}
+        ${hipoteses.length >= 2 ? '<button class="btn vazio" id="comparar">Comparar</button>' : ''}
+      </div>
+    </div>
+    <div id="corpoSim"><div class="carregando">Calculando composição…</div></div>`;
+
+  document.getElementById('selCenario').onchange = (ev) => { e.cenarioId = Number(ev.target.value) || null; A.ir('cenarios'); };
+  document.getElementById('selLado').onchange = (ev) => { e.lado = ev.target.value; e.dimensao = null; A.ir('cenarios'); };
+  document.getElementById('selDim').onchange = (ev) => { e.dimensao = ev.target.value; A.ir('cenarios'); };
+  document.getElementById('novoCenario').onclick = () => criarCenario(cenarios);
+  const dup = document.getElementById('duplicar');
+  if (dup) dup.onclick = () => criarCenario(cenarios, e.cenarioId);
+  const cmp = document.getElementById('comparar');
+  if (cmp) cmp.onclick = () => compararCenarios(cenarios);
+
+  await desenhar(document.getElementById('corpoSim'), e, dimsLado);
+}
+
+// -------------------------------------------------------------------------
+async function desenhar(box, e, dimsLado) {
+  const dim = dimsLado.find((d) => d.chave === e.dimensao);
+  try {
+    if (!e.cenarioId) {
+      const d = await A.api(`/empresas/${S.empresaId}/cenarios/base?ano=${M.anoAtual()}`);
+      const comp = d.composicao[e.lado][e.dimensao];
+      box.innerHTML = kpisBase(d.indicadores, e.lado) +
+        `<div class="cartao">
+          <h2>Composição ${e.lado === 'compras' ? 'das compras' : 'das vendas'} — ${A.esc(comp.nome)}</h2>
+          <p class="desc">${A.esc(comp.descricao || '')} Total analisado: ${A.moeda(comp.total)}.</p>
+          ${barraComposicao(comp.grupos, 'Cenário base')}
+          ${legenda(comp.grupos)}
+        </div>
+        ${cobertura(d.indicadores, e.lado)}
+        <div class="aviso"><b>Este é o cenário base</b>
+          A fotografia econômica atual, construída apenas com os dados importados. É imutável — toda
+          hipótese é criada por cima dele.
+          <div class="acao">Use "Criar simulação" para alterar a composição por grupos.</div></div>`;
+      return;
+    }
+
+    const r = await A.api(`/cenarios/${e.cenarioId}/executar`, { metodo: 'POST' });
+    const compBase = r.base.composicao[e.lado][e.dimensao];
+    const compCen = r.composicao[e.lado][e.dimensao];
+    const mapaCen = {}; compCen.grupos.forEach((g) => { mapaCen[g.grupo] = g; });
+
+    box.innerHTML = kpisCenario(r, e.lado) +
+      `<div class="cartao">
+        <h2>Composição — ${A.esc(compCen.nome)}</h2>
+        <p class="desc">${A.esc(compCen.descricao || '')}</p>
+        ${barraComposicao(compBase.grupos, 'Cenário base')}
+        <div style="height:10px"></div>
+        ${barraComposicao(compCen.grupos, 'Cenário simulado')}
+        ${legenda(compBase.grupos, mapaCen)}
+      </div>
+      ${await painelMigracao(e, compBase, dim)}
+      ${efeitos(r, e)}
+      ${cobertura(r.indicadores, e.lado)}
+      <div class="cartao"><h2>Memória por grupo</h2>
+        <p class="desc">Como o agregado foi construído. Clique para abrir o detalhe até o documento.</p>
+        <div class="chips">${compCen.grupos.filter((g) => g.valor > 0 || (mapaCen[g.grupo] || {}).valor > 0)
+          .map((g) => `<span class="chip" data-mem="${A.esc(g.grupo)}">${A.esc(g.nome)}</span>`).join('')}</div>
+      </div>`;
+
+    ligarMigracao(e);
+    box.querySelectorAll('[data-mem]').forEach((c) => { c.onclick = () => memoria(e, c.dataset.mem); });
+  } catch (err) {
+    box.innerHTML = `<div class="aviso alto"><b>Não foi possível calcular</b>${A.esc(err.message)}</div>`;
+  }
+}
+
+// -------------------------------------------------------------------------
+function kpisBase(ind, lado) {
+  const c = lado === 'compras';
+  return `<div class="grade g4">
+    ${A.kpi(c ? 'Compras analisadas' : 'Receita analisada', A.moeda(c ? ind.compras : ind.receita))}
+    ${A.kpi(c ? 'Crédito recebido' : 'Crédito entregue', A.moeda(c ? ind.creditoRecebido : ind.creditoEntregue),
+      c ? `taxa de recuperação ${A.pct(ind.taxaRecuperacao)}` : `${A.pct(ind.creditoEntregueSobreReceita)} da receita`)}
+    ${A.kpi(c ? 'Exposição sem crédito' : 'Exposição comercial ao crédito',
+      A.pct(c ? ind.exposicaoSemCredito : ind.exposicaoComercialCredito))}
+    ${A.kpi('Cobertura cadastral', A.pct(c ? ind.coberturaCadastralFornecedores : ind.coberturaCadastralClientes),
+      'do valor com perfil conhecido', 'destaque')}
+  </div><div style="height:16px"></div>`;
+}
+
+function kpisCenario(r, lado) {
+  const i = r.indicadores, b = r.base.indicadores;
+  const c = lado === 'compras';
+  const credI = c ? i.creditoRecebido : i.creditoEntregue;
+  const credB = c ? b.creditoRecebido : b.creditoEntregue;
+  const idx = r.indiceMudanca ? r.indiceMudanca[lado] : 0;
+  return `<div class="grade g4">
+    ${A.kpi(c ? 'Compras analisadas' : 'Receita analisada', A.moeda(c ? i.compras : i.receita))}
+    ${A.kpi(c ? 'Crédito recebido' : 'Crédito entregue', A.moeda(credI), A.setaR$(credI - credB) + ' vs. base')}
+    ${A.kpi('Custo efetivo das compras', A.moeda(i.custoEfetivoCompras),
+      A.setaR$(i.custoEfetivoCompras - b.custoEfetivoCompras) + ' vs. base', 'destaque')}
+    ${A.kpi('Carteira alterada por hipótese', A.pct(idx), 'grau de agressividade do cenário')}
+  </div><div style="height:16px"></div>`;
+}
+
+function cobertura(ind, lado) {
+  const d = lado === 'compras' ? ind.creditoRecebidoDetalhe : ind.creditoEntregueDetalhe;
+  if (!d) return '';
+  const linha = (k, rot) => {
+    const x = d[k];
+    if (!x || (!x.valor && !x.itens)) return '';
+    const cred = x.credito === null ? '<b class="tag a">NÃO DETERMINADO</b>' : A.moeda(x.credito);
+    return `<tr><td>${rot}</td><td class="num mono">${A.moeda(x.valor)}</td>
+      <td class="num mono">${A.pct(x.participacao)}</td><td class="num">${cred}</td>
+      <td class="mini">${A.esc(x.observacao || '')}</td></tr>`;
+  };
+  return `<div class="cartao"><h2>Crédito por natureza do dado</h2>
+    <p class="desc">Ausência de informação nunca é convertida em zero. Zero apurado e não determinado
+      são coisas diferentes, e a tela distingue as duas.</p>
+    <table class="compacta"><thead><tr><th>Natureza</th><th class="num">Valor</th>
+      <th class="num">Participação</th><th class="num">Crédito</th><th>Observação</th></tr></thead>
+      <tbody>
+        ${linha('confirmado', 'Confirmado')}
+        ${linha('simulado', 'Simulado')}
+        ${linha('semDireito', 'Sem direito (zero apurado)')}
+        ${linha('indeterminado', 'Indeterminado')}
+      </tbody></table>
+    <div class="aviso ${d.cobertura < 0.5 ? 'atencao' : 'bom'}" style="margin-top:12px">
+      <b>Cobertura da análise: ${A.pct(d.cobertura)}</b>
+      ${d.cobertura < 0.5
+        ? 'Boa parte do valor depende de informação que ainda não está no cadastro. O resultado é uma leitura parcial — e o sistema prefere dizer isso a exibir um número otimista.'
+        : 'A maior parte do valor tem tratamento de crédito determinado.'}</div>
+  </div>`;
+}
+
+function efeitos(r, e) {
+  if (e.lado !== 'compras' || !r.efeitos) return '';
+  const f = r.efeitos.compras;
+  const linha = (rot, val, cls, nota) => `<tr><td>${rot}${nota ? `<div class="mini">${nota}</div>` : ''}</td>
+    <td class="num mono ${cls || ''}">${A.moeda(val)}</td></tr>`;
+  return `<div class="cartao"><h2>Decomposição do efeito</h2>
+    <p class="desc">Premissa: <b>${f.premissaPadrao === 'BASE_ECONOMICA_CONSTANTE'
+      ? 'base econômica constante — nenhuma alteração comercial negociada'
+      : 'variação comercial informada pelo consultor'}</b></p>
+    <table class="compacta">
+      ${linha('Efeito comercial', f.efeitoComercial, '', 'variação da base econômica negociada')}
+      ${linha('Efeito tributário', f.efeitoTributario, '', 'IBS/CBS que passa a incidir por fora')}
+      ${linha('Efeito crédito', -f.efeitoCredito, '', 'variação do crédito recuperável (entra com sinal invertido)')}
+      <tr style="background:var(--ouro-100)"><td><b>Efeito líquido no custo efetivo</b></td>
+        <td class="num mono"><b class="${f.efeitoLiquido > 0 ? 'sobe' : 'desce'}">${A.moeda(f.efeitoLiquido)}</b></td></tr>
+    </table>
+    <div class="aviso ${f.efeitoLiquido > 0 ? 'atencao' : 'bom'}" style="margin-top:12px">${A.esc(f.leitura)}</div>
+    ${f.efeitoLiquido > 0 && f.efeitoCredito > 0 ? `<div class="aviso"><b>Mais crédito não é automaticamente melhor</b>
+      O crédito subiu, mas o tributo destacado subiu mais. O sistema mostra os dois efeitos separados
+      justamente para que a decisão não seja tomada só pelo crédito.</div>` : ''}
+  </div>`;
+}
+
+// =========================================================================
+// PAINEL DE MIGRAÇÃO
+// =========================================================================
+async function painelMigracao(e, compBase, dim) {
+  const { cenarios } = await A.api(`/empresas/${S.empresaId}/cenarios/lista`);
+  const cen = cenarios.find((c) => c.id === e.cenarioId) || {};
+  const grupos = compBase.grupos;
+  const opt = (sel) => grupos.map((g) =>
+    `<option value="${A.esc(g.grupo)}" ${sel === g.grupo ? 'selected' : ''}>${A.esc(g.nome)} — ${A.pct(g.participacao)}</option>`).join('');
+
+  return `<div class="cartao"><h2>Alteração do cenário</h2>
+    <p class="desc">Escolha qual parte da composição deseja simular. O percentual é do <b>grupo</b>,
+      não do total — o sistema mostra a equivalência.</p>
+    <div class="grade g4" style="align-items:end">
+      <label class="campo" style="margin:0"><span>Grupo de origem</span>
+        <select id="migOrigem">${opt(grupos[0] && grupos[0].grupo)}</select></label>
+      <label class="campo" style="margin:0"><span>Migrar (% do grupo)</span>
+        <input type="number" id="migPerc" min="0" max="100" step="1" value="40"></label>
+      <label class="campo" style="margin:0"><span>Grupo de destino</span>
+        <select id="migDestino">${opt(grupos[1] && grupos[1].grupo)}</select></label>
+      <label class="campo" style="margin:0"><span>Alteração comercial (%)</span>
+        <input type="number" id="migVar" step="0.5" value="0" placeholder="0 = base constante"></label>
+    </div>
+    <div class="aviso" id="migPrevia"></div>
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+      <input type="text" id="migJust" placeholder="Justificativa da hipótese (opcional)" style="flex:1;min-width:240px">
+      <button class="btn ouro" id="migAplicar">Aplicar migração</button>
+    </div>
+    ${cen.alocacoes ? `<hr class="sep"><h2 style="font-size:13px">Migrações deste cenário</h2>
+      <div id="listaAloc"><div class="carregando">carregando…</div></div>` : ''}
+  </div>`;
+}
+
+function ligarMigracao(e) {
+  const org = document.getElementById('migOrigem');
+  if (!org) return;
+  const perc = document.getElementById('migPerc');
+  const dst = document.getElementById('migDestino');
+  const varr = document.getElementById('migVar');
+  const previa = document.getElementById('migPrevia');
+
+  const atualizar = () => {
+    const txtO = org.options[org.selectedIndex].text;
+    const partO = parseFloat((txtO.split('—')[1] || '0').replace('%', '').replace(',', '.')) / 100 || 0;
+    const p = (Number(perc.value) || 0) / 100;
+    const total = partO * p;
+    const v = Number(varr.value) || 0;
+    previa.innerHTML = `<b>Equivalência</b>
+      O grupo de origem representa ${A.pct(partO)} do total. Migrar ${A.pct(p, 0)} dele equivale a
+      <b>${A.pct(total)} do total analisado</b>.
+      ${v ? `<div class="acao">Com alteração comercial de ${v > 0 ? '+' : ''}${v}%, a base econômica dos itens migrados é ajustada — o efeito comercial aparece separado do tributário.</div>`
+          : '<div class="acao">Sem alteração comercial: base econômica constante, todo o efeito é tributário.</div>'}`;
+  };
+  [org, perc, dst, varr].forEach((x) => { x.oninput = atualizar; x.onchange = atualizar; });
+  atualizar();
+
+  document.getElementById('migAplicar').onclick = async () => {
+    if (org.value === dst.value) return A.toast('Origem e destino não podem ser o mesmo grupo.', 'erro');
+    const p = (Number(perc.value) || 0) / 100;
+    if (!(p > 0 && p <= 1)) return A.toast('O percentual deve estar entre 1 e 100.', 'erro');
+    try {
+      const r = await A.api(`/cenarios/${e.cenarioId}/alocacoes`, { metodo: 'POST', corpo: {
+        lado: e.lado, dimensao: e.dimensao, grupo_origem: org.value, grupo_destino: dst.value,
+        percentual_grupo: p, variacao_preco: (Number(varr.value) || 0) / 100,
+        justificativa: document.getElementById('migJust').value } });
+      A.toast(`Migração aplicada — ${A.pct(r.percentualTotal || 0)} do total`, 'ok');
+      A.ir('cenarios');
+    } catch (err) { A.toast(err.message, 'erro'); }
+  };
+
+  const lista = document.getElementById('listaAloc');
+  if (lista) carregarAlocacoes(e, lista);
+}
+
+async function carregarAlocacoes(e, box) {
+  const r = await A.api(`/cenarios/${e.cenarioId}/executar`, { metodo: 'POST' });
+  const alocs = await A.api(`/cenarios/${e.cenarioId}/alocacoes`).catch(() => ({ alocacoes: [] }));
+  const lista = alocs.alocacoes || [];
+  box.innerHTML = lista.length ? A.tabela([
+    { t: 'Lado', r: (a) => `<span class="tag">${a.lado}</span>` },
+    { t: 'Origem', r: (a) => A.esc(a.grupo_origem) },
+    { t: '% do grupo', num: true, r: (a) => A.pct(a.percentual_grupo, 0) },
+    { t: '% do total', num: true, r: (a) => A.pct(a.percentual_total || 0) },
+    { t: 'Valor afetado', num: true, r: (a) => A.moeda(a.valor_afetado) },
+    { t: 'Destino', r: (a) => A.esc(a.grupo_destino) },
+    { t: 'Alteração comercial', num: true, r: (a) => a.variacao_preco ? A.pct(a.variacao_preco, 1) : '—' },
+    { t: '', r: (a) => `<button class="btn pq perigo" data-del="${a.id}">Remover</button>` },
+  ], lista) : '<p class="mini">Nenhuma migração aplicada.</p>';
+  box.querySelectorAll('[data-del]').forEach((b) => { b.onclick = async () => {
+    await A.api(`/cenarios/alocacoes/${b.dataset.del}`, { metodo: 'DELETE' }); A.ir('cenarios'); }; });
+}
+
+// =========================================================================
+// MEMÓRIA E DRILL-DOWN
+// =========================================================================
+async function memoria(e, grupo) {
+  const { memoria: m } = await A.api(`/cenarios/${e.cenarioId}/memoria/${e.lado}/${e.dimensao}/${grupo}`);
+  A.modal({
+    titulo: `Memória do grupo — ${m.nome}`, largura: 900, confirmar: null,
+    descricao: 'Nível 1: como o agregado foi construído. Abra o detalhe para chegar ao documento.',
+    corpo: `${m.base && m.cenario ? `<div class="grade g3">
+        ${A.kpi('Valor no base', A.moeda(m.base.valor), A.pct(m.base.participacao))}
+        ${A.kpi('Valor no cenário', A.moeda(m.cenario.valor), A.pct(m.cenario.participacao), 'destaque')}
+        ${A.kpi('Variação', A.setaR$(m.variacao.valor), pp(m.variacao.participacao))}
+      </div>` : ''}
+      <h3 style="font-size:13px;margin-top:16px">Passos</h3>
+      ${m.passos.map((p) => `<div class="aviso ${p.natureza === 'SIMULADO' ? 'atencao' : ''}">
+        <b>${A.esc(p.etapa)} <span class="tag ${natTag(p.natureza)[0]}">${natTag(p.natureza)[1]}</span></b>
+        ${A.esc(p.texto)}</div>`).join('')}
+      ${m.cenario ? `<table class="compacta" style="margin-top:14px">
+        <tr><td>Base econômica</td><td class="num mono">${A.moeda(m.cenario.baseEconomica)}</td></tr>
+        <tr><td>IBS</td><td class="num mono">${A.moeda(m.cenario.ibs)}</td></tr>
+        <tr><td>CBS</td><td class="num mono">${A.moeda(m.cenario.cbs)}</td></tr>
+        <tr><td>Crédito total</td><td class="num mono">${A.moeda(m.cenario.creditoTotal)}</td></tr>
+        <tr><td>Taxa de recuperação</td><td class="num mono">${A.pct(m.cenario.taxaRecuperacao)}</td></tr>
+        <tr style="background:var(--ouro-100)"><td><b>Custo efetivo</b></td><td class="num mono"><b>${A.moeda(m.cenario.custoEfetivo)}</b></td></tr>
+      </table>` : ''}
+      <button class="btn vazio" id="btnDrill" style="margin-top:14px;width:100%">Abrir detalhe até o documento (${m.itens} linhas)</button>
+      <div id="boxDrill"></div>`,
+  });
+  setTimeout(() => {
+    const b = document.getElementById('btnDrill');
+    if (b) b.onclick = () => drill(e, grupo);
+  }, 0);
+}
+
+async function drill(e, grupo) {
+  const box = document.getElementById('boxDrill');
+  box.innerHTML = '<div class="carregando">Carregando detalhe…</div>';
+  const { itens } = await A.api(`/cenarios/${e.cenarioId}/drilldown/${e.lado}/${e.dimensao}/${grupo}?limite=120`);
+  box.innerHTML = `<hr class="sep"><h3 style="font-size:13px">Nível 2 — detalhe</h3>
+    ${A.tabela([
+      { t: 'Documento', r: (x) => `<span class="mini mono">${A.esc(x.documento || '—')}</span>` },
+      { t: 'Contraparte', r: (x) => `${A.esc((x.contraparte || '').slice(0, 26))}<div class="mini">${A.esc((x.descricao || '').slice(0, 34))}</div>` },
+      { t: 'Fração', num: true, r: (x) => x.fracao < 1 ? `<b class="tag b">${(x.fracao * 100).toFixed(0)}%</b>` : '100%' },
+      { t: 'NCM/NBS', r: (x) => `<span class="mono mini">${A.esc(x.ncm || x.nbs || '—')}</span>` },
+      { t: 'CST', r: (x) => `<span class="mono mini">${A.esc(x.cst || '—')}</span>` },
+      { t: 'cClassTrib', r: (x) => `<span class="mono mini">${A.esc(x.cclasstrib || '—')}</span>` },
+      { t: 'Preço', num: true, r: (x) => A.moeda(x.precoAtual) },
+      { t: 'Base econ.', num: true, r: (x) => A.moeda(x.baseEconomica) },
+      { t: 'IBS', num: true, r: (x) => A.moeda(x.ibs) },
+      { t: 'CBS', num: true, r: (x) => A.moeda(x.cbs) },
+      { t: 'Crédito', num: true, r: (x) => A.moeda(x.creditoIbs + x.creditoCbs) },
+      { t: 'Natureza', r: (x) => `<span class="tag ${natTag(x.natureza)[0]}">${natTag(x.natureza)[1]}</span>` },
+      { t: '', r: (x) => `<button class="btn pq vazio" data-prec='${A.esc(JSON.stringify(x.precedencia || []))}'
+          ${(x.precedencia || []).length ? '' : 'disabled'}>Premissas</button>` },
+    ], itens)}
+    <div class="mini" style="margin-top:8px">Mostrando ${itens.length} linhas. A fração indica a parte
+      do lançamento que pertence a este grupo — a expansão proporcional preserva o mix tributário.</div>`;
+  box.querySelectorAll('[data-prec]').forEach((b) => { b.onclick = () => {
+    const lista = JSON.parse(b.dataset.prec);
+    A.modal({ titulo: 'Precedência das premissas', largura: 640, confirmar: null,
+      descricao: 'individual > grupo > global > dado original',
+      corpo: lista.map((p) => `<div class="aviso ${p.campo === 'migracao_ignorada' ? 'atencao' : ''}">
+        <b>${A.esc(p.campo)}</b>${A.esc(p.texto)}</div>`).join('') });
+  }; });
+}
+
+// =========================================================================
+// CRIAR E COMPARAR
+// =========================================================================
+function criarCenario(cenarios, duplicarDe) {
+  A.modal({
+    titulo: duplicarDe ? 'Duplicar cenário' : 'Criar simulação',
+    descricao: 'O cenário base permanece intacto. Toda hipótese é criada por cima dele.',
+    corpo: A.campo('nome', 'Nome do cenário', duplicarDe
+      ? `${(cenarios.find((c) => c.id === duplicarDe) || {}).nome} (cópia)` : '')
+      + A.area('descricao', 'Premissas e contexto', '', 2),
+    aoConfirmar: async (d) => {
+      const r = await A.api(`/empresas/${S.empresaId}/cenarios`, { metodo: 'POST',
+        corpo: { ...d, ano: M.anoAtual(), duplicar_de: duplicarDe || undefined } });
+      est().cenarioId = r.id;
+      A.toast('Cenário criado', 'ok'); A.ir('cenarios');
+    },
+  });
+}
+
+function compararCenarios(cenarios) {
+  const e = est();
+  A.modal({
+    titulo: 'Comparar cenários', largura: 960, confirmar: 'Comparar',
+    descricao: 'Selecione de 2 a 5 cenários.',
+    corpo: `<div class="lista-sel">${cenarios.map((c) => `<label class="it">
+        <input type="checkbox" data-cmp="${c.id}" ${c.tipo === 'base' || c.id === e.cenarioId ? 'checked' : ''}>
+        <span><span class="nome">${A.esc(c.nome)}</span>
+          <span class="txt mini">${c.tipo === 'base' ? 'cenário base' : `v${c.versao} · ${c.alocacoes} migração(ões)`}</span></span>
+      </label>`).join('')}</div><div id="boxCmp" style="margin-top:14px"></div>`,
+    aoConfirmar: async (_d, fundo) => {
+      const ids = [...fundo.querySelectorAll('[data-cmp]:checked')].map((i) => Number(i.dataset.cmp));
+      if (ids.length < 2) throw new Error('Selecione ao menos dois cenários.');
+      const box = fundo.querySelector('#boxCmp');
+      box.innerHTML = '<div class="carregando">Calculando…</div>';
+      const { cenarios: linhas } = await A.api('/cenarios/comparar', { metodo: 'POST', corpo: { ids } });
+      const linha = (rot, fn, fmt = A.moeda) => `<tr><td>${rot}</td>${linhas.map((c) =>
+        `<td class="num mono">${fmt(fn(c))}</td>`).join('')}</tr>`;
+      box.innerHTML = `<table class="compacta"><thead><tr><th>Indicador</th>
+          ${linhas.map((c) => `<th class="num">${A.esc(c.nome.slice(0, 24))}</th>`).join('')}</tr></thead><tbody>
+          ${linha('Compras', (c) => c.indicadores.compras)}
+          ${linha('Receita', (c) => c.indicadores.receita)}
+          ${linha('Crédito recebido', (c) => c.indicadores.creditoRecebido)}
+          ${linha('Crédito entregue', (c) => c.indicadores.creditoEntregue)}
+          ${linha('Custo efetivo das compras', (c) => c.indicadores.custoEfetivoCompras)}
+          ${linha('Débito IBS', (c) => c.apuracao.ibs.debitos)}
+          ${linha('Crédito IBS', (c) => c.apuracao.ibs.creditos)}
+          ${linha('Débito CBS', (c) => c.apuracao.cbs.debitos)}
+          ${linha('Crédito CBS', (c) => c.apuracao.cbs.creditos)}
+          ${linha('Carga líquida', (c) => c.apuracao.cargaLiquida)}
+          ${linha('Taxa de recuperação', (c) => c.indicadores.taxaRecuperacao, A.pct)}
+          ${linha('Cobertura de fornecedores', (c) => c.indicadores.coberturaCadastralFornecedores, A.pct)}
+          ${linha('Carteira alterada (compras)', (c) => (c.indiceMudanca || {}).compras || 0, A.pct)}
+        </tbody></table>`;
+      return false;   // mantém o modal aberto com o resultado
+    },
+  });
+}
+
+// registra a aba na tela de Cenários, ao lado das que já existem
+M.comAbas('cenarios', M.abasCenarios.concat([
+  { id: 'simulacao', t: 'Simulação da cadeia', render: simulacaoCadeia },
+]), 'atual');
+})();
+
+/* =========================================================================
+   BASES ANUAIS DA RECEITA — Lucro Real / Presumido
+   ========================================================================= */
+(() => {
+const A = App, S = App.S;
+const M = window.MotorUI;
+
+async function basesReceita(el) {
+  const [e, pend] = await Promise.all([
+    A.api('/base-regime'),
+    S.empresaId ? A.api(`/empresas/${S.empresaId}/parceiros/pendencias-regime`) : Promise.resolve(null),
+  ]);
+
+  el.innerHTML = `<div class="aviso"><b>O que estas bases resolvem</b>
+      Elas distinguem Lucro Real de Lucro Presumido. Isso <b>não</b> altera o crédito de IBS/CBS —
+      os dois apuram pelo regime regular e creditam igual. O que melhora é a reconstrução da carga
+      atual: sem o destaque de PIS/COFINS no documento, o motor estima por 9,25% (Real) ou 3,65%
+      (Presumido), e errar aí distorce a base econômica.
+      <div class="acao">Consulte o Simples primeiro — é ele que decide o crédito. Estas bases refinam o resto.</div></div>
+    <div class="grade g4">
+      ${A.kpi('Registros na base', (e.total || 0).toLocaleString('pt-BR'))}
+      ${e.porRegime.slice(0, 2).map((r) => A.kpi(A.regimeLabel(r.regime),
+        r.c.toLocaleString('pt-BR'), `ano ${r.ano}`)).join('')}
+      ${A.kpi('Parceiros sem regime', pend ? pend.total : '—', pend ? 'nesta empresa' : 'selecione uma empresa')}
+    </div>
+    <div class="cartao" style="margin-top:16px">
+      <h2>Importar relação anual</h2>
+      <p class="desc">O arquivo é lido direto do disco do servidor, não por upload — CSV de dezenas de
+        megabytes por HTTP é frágil e desnecessário quando o sistema roda na mesma máquina.
+        A leitura é em streaming: 1,4 milhão de linhas leva cerca de 40 segundos.</p>
+      <div class="grade g4" style="align-items:end">
+        <label class="campo" style="margin:0;grid-column:span 2"><span>Caminho do arquivo no servidor</span>
+          <input type="text" id="brCaminho" placeholder="C:\\Sattva\\bases\\Lucro Presumido 2024.csv"></label>
+        <label class="campo" style="margin:0"><span>Regime</span>
+          <select id="brRegime">${(e.regimesAceitos || []).map((r) =>
+            `<option value="${r.chave}">${A.esc(r.nome)}</option>`).join('')}</select></label>
+        <label class="campo" style="margin:0"><span>Ano-calendário</span>
+          <input type="number" id="brAno" value="2024"></label>
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <label style="display:flex;gap:6px;align-items:center;font-size:12.5px">
+          <input type="checkbox" id="brSubst" checked> substituir o que já existe deste regime e ano</label>
+        <button class="btn vazio" id="brInspecionar" style="margin-left:auto">Inspecionar leiaute</button>
+        <button class="btn ouro" id="brImportar">Importar</button>
+      </div>
+      <div id="brStatus" style="margin-top:12px"></div>
+    </div>
+    ${S.empresaId ? `<div class="cartao">
+      <h2>Refinar os parceiros desta empresa</h2>
+      <p class="desc">Aplica as bases a quem já se sabe estar no regime regular. Não toca em quem é
+        Simples ou MEI — essa informação tem precedência porque é ela que determina o crédito —
+        nem no que foi definido à mão.</p>
+      <button class="btn" id="brRefinar" ${e.total ? '' : 'disabled'}>
+        ${e.total ? 'Refinar Real x Presumido' : 'Importe uma base primeiro'}</button>
+      <div id="brRefStatus" style="margin-top:12px"></div>
+    </div>` : ''}
+    <div class="cartao"><h2>Importações realizadas</h2>
+      ${A.tabela([
+        { t: 'Arquivo', r: (i) => A.esc(i.arquivo) },
+        { t: 'Regime', r: (i) => A.regimeLabel(i.regime) },
+        { t: 'Ano', r: (i) => i.ano },
+        { t: 'Linhas', num: true, r: (i) => (i.linhas || 0).toLocaleString('pt-BR') },
+        { t: 'Importados', num: true, r: (i) => (i.importados || 0).toLocaleString('pt-BR') },
+        { t: 'Inválidos', num: true, r: (i) => i.invalidos },
+        { t: 'Duplicados', num: true, r: (i) => i.duplicados },
+        { t: 'Tempo', num: true, r: (i) => `${i.segundos}s` },
+        { t: 'Quando', r: (i) => `<span class="mini mono">${A.esc(i.criado_em)}</span>` },
+      ], e.importacoes, { vazio: 'Nenhuma base importada.' })}
+    </div>`;
+
+  const cam = () => document.getElementById('brCaminho').value.trim();
+  const box = document.getElementById('brStatus');
+
+  document.getElementById('brInspecionar').onclick = async () => {
+    if (!cam()) return A.toast('Informe o caminho do arquivo.', 'erro');
+    box.innerHTML = '<div class="carregando">Lendo as primeiras linhas…</div>';
+    try {
+      const { leiaute: l } = await A.api('/base-regime/inspecionar', { metodo: 'POST', corpo: { caminho: cam() } });
+      const selRegime = document.getElementById('brRegime');
+      const selAno = document.getElementById('brAno');
+      box.innerHTML = `<div class="aviso bom"><b>Leiaute reconhecido</b>
+        Codificação ${l.encoding} · separador "${A.esc(l.separador)}" · ${l.temCabecalho ? 'com' : 'sem'} cabeçalho ·
+        CNPJ na coluna ${l.colCnpj + 1} (${l.formatoCnpj === 'raiz' ? 'raiz de 8 dígitos' : 'CNPJ completo'})
+        <div class="acao">Exemplo lido: ${A.esc(l.exemplo)} · colunas: ${A.esc((l.colunas || []).join(', ').slice(0, 120))}</div></div>
+        ${l.regimePorLinha ? `<div class="aviso bom"><b>O arquivo já traz o regime por linha</b>
+          (coluna "${A.esc(l.colunas[l.colForma])}"). O regime selecionado ao lado é ignorado — cada CNPJ
+          recebe o que estiver escrito na própria linha, e um mesmo arquivo pode conter mais de um regime.</div>` : ''}
+        ${l.anoPorLinha ? `<div class="aviso"><b>Ano lido da própria linha</b>
+          (coluna "${A.esc(l.colunas[l.colAno])}"). O ano informado ao lado só vale para linhas sem esse dado.</div>` : ''}`;
+      if (l.regimePorLinha) { selRegime.disabled = true; selRegime.title = 'ignorado — o arquivo define o regime por linha'; }
+      if (l.anoPorLinha) { selAno.placeholder = 'lido da própria linha'; }
+    } catch (err) { box.innerHTML = `<div class="aviso alto">${A.esc(err.message)}</div>`; }
+  };
+
+  document.getElementById('brImportar').onclick = async () => {
+    if (!cam()) return A.toast('Informe o caminho do arquivo.', 'erro');
+    box.innerHTML = `<div class="aviso"><b>Importando…</b>Arquivos grandes levam de 30 a 60 segundos.
+      Não feche esta janela.</div><div class="barra-prog"><i style="width:45%"></i></div>`;
+    try {
+      const r = await A.api('/base-regime/importar', { metodo: 'POST', corpo: {
+        caminho: cam(), regime: document.getElementById('brRegime').value,
+        ano: Number(document.getElementById('brAno').value) || undefined,
+        substituir: document.getElementById('brSubst').checked } });
+      box.innerHTML = `<div class="aviso bom"><b>${r.importados.toLocaleString('pt-BR')} CNPJs importados em ${r.segundos}s</b>
+        ${r.linhas.toLocaleString('pt-BR')} linhas lidas${r.invalidos ? ` · ${r.invalidos} sem CNPJ válido` : ''}${r.duplicados ? ` · ${r.duplicados} repetidos` : ''}${r.semRegime ? ` · ${r.semRegime} com forma de tributação não reconhecida (ignoradas)` : ''}</div>
+        ${Object.keys(r.porRegime || {}).length > 1 || (r.porAno && Object.keys(r.porAno).length > 1) ? `<table class="compacta"><thead><tr><th>Regime</th><th class="num">CNPJs</th></tr></thead>
+          <tbody>${Object.entries(r.porRegime).map(([k, v]) => `<tr><td>${A.regimeLabel(k)}</td><td class="num mono">${v.toLocaleString('pt-BR')}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${r.comScp ? `<div class="mini" style="margin-top:8px">${r.comScp} registros de Sociedade em Conta de Participação (SCP) — o CNPJ importado é o do sócio ostensivo.</div>` : ''}`;
+      setTimeout(() => A.ir('bases'), 2000);
+    } catch (err) { box.innerHTML = `<div class="aviso alto">${A.esc(err.message)}</div>`; }
+  };
+
+  const ref = document.getElementById('brRefinar');
+  if (ref) ref.onclick = async () => {
+    const b2 = document.getElementById('brRefStatus');
+    b2.innerHTML = '<div class="carregando">Refinando…</div>';
+    try {
+      const r = await A.api(`/empresas/${S.empresaId}/parceiros/refinar-regime`, { metodo: 'POST',
+        corpo: { ano: Number(document.getElementById('brAno').value) } });
+      b2.innerHTML = `<div class="aviso ${r.refinados ? 'bom' : 'atencao'}">
+          <b>${r.refinados} parceiros refinados</b> de ${r.alvos} candidatos ·
+          ${r.semCorrespondencia} sem correspondência na base</div>
+        ${Object.keys(r.porRegime).length ? `<table class="compacta"><thead><tr><th>Regime</th><th class="num">Parceiros</th></tr></thead>
+          <tbody>${Object.entries(r.porRegime).map(([k, v]) =>
+            `<tr><td>${A.regimeLabel(k)}</td><td class="num mono">${v}</td></tr>`).join('')}</tbody></table>` : ''}
+        ${r.porNivel && r.porNivel.raiz ? `<div class="mini" style="margin-top:8px">${r.porNivel.raiz} casaram pela raiz do CNPJ
+          — a relação traz a matriz e o regime é da pessoa jurídica, não do estabelecimento.</div>` : ''}`;
+    } catch (err) { b2.innerHTML = `<div class="aviso alto">${A.esc(err.message)}</div>`; }
+  };
+}
+
+M.comAbas('bases', M.abasBases.concat([
+  { id: 'regime_receita', t: 'Bases da Receita (Real/Presumido)', render: basesReceita },
+]), 'atual');
+})();
