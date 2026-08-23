@@ -485,18 +485,24 @@ Telas.gestaoProjetos = async (el) => {
 
 Telas.dashboardOperacao = async (el) => {
   const d = await A.api('/operacao/dashboard');
+  const concluidos = d.projetos.filter((p) => p.status === 'concluido').length;
+  const emAndamento = d.projetos.filter((p) => p.status === 'em_execucao').length;
   el.innerHTML = cab('Operação compartilhada', 'Acompanhamento geral',
     'Visão única da carteira: escopo aprovado, avanço das entregas e próximos acompanhamentos.') +
-    `<div class="grade g3">${A.kpi('Clientes na base', d.empresas, 'base compartilhada')}
-      ${A.kpi('Projetos em execução', d.resumo.emExecucao, 'escopo aprovado')}
-      ${A.kpi('Entregas pendentes', d.resumo.entregasPendentes, 'prioridade da operação', d.resumo.entregasPendentes ? 'destaque' : '')}</div>
-     <div class="cartao" style="margin-top:16px"><h2>Carteira de projetos</h2>${A.tabela([
-       { t: 'Cliente', r: (p) => `<b>${A.esc(p.empresa)}</b>` },
-       { t: 'Escopo', r: (p) => A.esc(p.nome_plano) },
-       { t: 'Status', r: (p) => `<span class="tag ${p.status === 'em_execucao' ? 'b' : 'n'}">${A.esc(p.status)}</span>` },
-       { t: 'Entregas', r: (p) => `${p.entregasConcluidas}/${p.entregas}` },
-       { t: 'Evolução', r: (p) => `<div class="barra-prog"><i style="width:${p.progresso}%"></i></div><span class="mini">${p.progresso}%</span>` },
-       { t: 'Próximo acompanhamento', r: (p) => A.esc(p.proximoAcompanhamento || '—') },
-     ], d.projetos, { vazio: 'Nenhum escopo sincronizado ainda. Registre e aprove o primeiro escopo do cliente.' })}</div>`;
+    `<div class="grade g4">${A.kpi('Clientes na base', d.empresas, 'base compartilhada')}
+      ${A.kpi('Projetos em execução', emAndamento, 'escopo aprovado')}
+      ${A.kpi('Entregas pendentes', d.resumo.entregasPendentes, 'prioridade da operação', d.resumo.entregasPendentes ? 'destaque' : '')}
+      ${A.kpi('Projetos concluídos', concluidos, 'entregas finalizadas')}</div>
+     <div class="cartao carteira-operacao"><div class="cabecalho-lista"><div><h2>Carteira de projetos</h2><p class="desc">Acompanhe o que está em execução e a próxima interação prevista para cada cliente.</p></div><span class="tag">${d.projetos.length} projetos</span></div>
+       ${d.projetos.length ? `<div class="projetos-operacao">${d.projetos.map((p) => `<article class="projeto-operacao-card">
+          <div class="projeto-operacao-cabecalho"><div><h3>${A.esc(p.empresa)}</h3><p>${A.esc(p.nome_plano || 'Escopo personalizado')}</p></div><span class="tag ${p.status === 'em_execucao' ? 'b' : p.status === 'concluido' ? 'c' : 'n'}">${A.esc(p.status)}</span></div>
+          <div class="projeto-operacao-progresso"><div><span>Evolução das entregas</span><b>${p.entregasConcluidas}/${p.entregas} · ${p.progresso}%</b></div><div class="barra-prog"><i style="width:${p.progresso}%"></i></div></div>
+          <div class="projeto-operacao-rodape"><span><b>Próximo acompanhamento</b>${A.esc(p.proximoAcompanhamento || 'A definir')}</span><button class="btn pq vazio" data-ir-projeto="${p.empresa_id || ''}">Abrir projeto</button></div>
+        </article>`).join('')}</div>` : A.vazio('Nenhum escopo sincronizado ainda.', 'Registre e aprove o primeiro escopo do cliente.')}
+     </div>`;
+  el.querySelectorAll('[data-ir-projeto]').forEach((botao) => { botao.onclick = async () => {
+    if (botao.dataset.irProjeto) { localStorage.setItem('sattva_empresa', botao.dataset.irProjeto); await A.carregarEmpresas(); }
+    A.ir('painel');
+  }; });
 };
 })();
