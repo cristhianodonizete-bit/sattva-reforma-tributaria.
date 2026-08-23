@@ -17,7 +17,7 @@ Telas.painel = async (el) => {
     { t: 'Cadastro de fornecedores e clientes', ok: c.fornecedores + c.clientes > 0, n: `${c.fornecedores + c.clientes} parceiros`, tela: 'dados' },
     { t: 'Movimentação importada', ok: c.movEntradas.c + c.movSaidas.c > 0, n: `${c.movEntradas.c + c.movSaidas.c} lançamentos`, tela: 'dados' },
     { t: 'Perfil tributário levantado', ok: c.perfil > 0, n: `${c.perfil} competências`, tela: 'perfil' },
-    { t: 'Cenários projetados', ok: c.movEntradas.c > 0 || c.movSaidas.c > 0, n: '2026 a 2033', tela: 'cenarios' },
+    { t: 'Projeção CBS', ok: c.movEntradas.c > 0 || c.movSaidas.c > 0, n: 'análise única', tela: 'cenarios' },
     { t: 'Precificação simulada', ok: c.itensPreco > 0, n: `${c.itensPreco} itens`, tela: 'precificacao' },
     { t: 'Contratos revisados', ok: c.contratos > 0, n: `${c.contratos} contratos`, tela: 'contratos' },
     { t: 'Capacitação programada', ok: c.turmas > 0, n: `${c.turmas} turmas`, tela: 'capacitacao' },
@@ -29,7 +29,7 @@ Telas.painel = async (el) => {
     `<button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/tecnico')">Relatório técnico</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/riscos')">Mapa de riscos</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/diagnostico')">Relatório completo</button>`) +
-    A.regua(2027, null) +
+    (S.params.modoAnalise?.ibsAtivo ? A.regua(2027, null) : '<div class="aviso bom"><b>Projeção CBS</b> A análise atual trabalha com uma referência única; a transição anual será exibida quando o IBS for habilitado.</div>') +
     `<div class="grade g4">
       ${A.kpi('Fornecedores mapeados', c.fornecedores, `${c.movEntradas.c} lançamentos de entrada`)}
       ${A.kpi('Clientes mapeados', c.clientes, `${c.movSaidas.c} lançamentos de saída`)}
