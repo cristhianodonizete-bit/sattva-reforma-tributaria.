@@ -236,6 +236,9 @@ const App = (() => {
   }
 
   async function iniciar() {
+    const parametrosHash = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
+    const tokenRecuperacao = parametrosHash.get('access_token');
+    if (tokenRecuperacao) { telaRedefinirSenha(tokenRecuperacao); return; }
     const status = await fetch('/auth/status').then((r) => r.json()).catch(() => ({ exigido: false }));
     if (status.exigido) {
       const token = localStorage.getItem('sattva_token');
@@ -259,6 +262,18 @@ const App = (() => {
       e.preventDefault(); const f = new FormData(e.currentTarget); const erro = document.getElementById('erroLogin'); erro.textContent = 'Entrando…';
       try { const r = await fetch('/auth/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email: f.get('email'), senha: f.get('senha') }) }); const j = await r.json(); if (!j.ok) throw new Error(j.erro); localStorage.setItem('sattva_token', j.sessao.access_token); location.reload(); }
       catch (x) { erro.textContent = x.message || 'Não foi possível entrar.'; }
+    };
+  }
+
+  function telaRedefinirSenha(token) {
+    document.getElementById('tela').innerHTML = `<div style="max-width:440px;margin:80px auto" class="cartao"><div class="olho">Recuperação de acesso</div><h1>Definir nova senha</h1><p class="desc">Escolha uma senha com pelo menos 8 caracteres.</p>
+      <form id="formRedefinir"><label class="campo"><span>Nova senha</span><input name="senha" type="password" minlength="8" required autofocus></label><label class="campo"><span>Confirmar senha</span><input name="confirmacao" type="password" minlength="8" required></label><button class="btn ouro" style="width:100%;margin-top:12px">Salvar nova senha</button><div id="erroRedefinir" class="mini" style="margin-top:12px"></div></form></div>`;
+    document.getElementById('formRedefinir').onsubmit = async (e) => {
+      e.preventDefault(); const f = new FormData(e.currentTarget); const erro = document.getElementById('erroRedefinir');
+      if (f.get('senha') !== f.get('confirmacao')) { erro.textContent = 'As senhas não coincidem.'; return; }
+      erro.textContent = 'Salvando…';
+      try { const r = await fetch('/auth/redefinir-senha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, senha: f.get('senha') }) }); const j = await r.json(); if (!j.ok) throw new Error(j.erro); location.hash = ''; location.reload(); }
+      catch (x) { erro.textContent = x.message || 'Não foi possível redefinir a senha.'; }
     };
   }
 

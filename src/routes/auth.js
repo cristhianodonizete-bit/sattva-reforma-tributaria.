@@ -34,4 +34,17 @@ router.get('/me', async (req, res) => {
   } catch (e) { res.status(401).json({ ok: false, erro: e.message || 'Sessão inválida.' }); }
 });
 
+router.post('/redefinir-senha', async (req, res) => {
+  try {
+    const token = String(req.body.token || '');
+    const senha = String(req.body.senha || '');
+    if (senha.length < 8) throw new Error('A senha deve ter ao menos 8 caracteres.');
+    const { data, error } = await publico().auth.getUser(token);
+    if (error || !data.user) throw new Error('O link de recuperação expirou. Solicite um novo.');
+    const { error: atualizacao } = await supabase.admin().auth.admin.updateUserById(data.user.id, { password: senha });
+    if (atualizacao) throw atualizacao;
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ ok: false, erro: e.message || 'Não foi possível redefinir a senha.' }); }
+});
+
 module.exports = router;
