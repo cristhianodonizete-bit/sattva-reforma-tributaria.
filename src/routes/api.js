@@ -157,6 +157,19 @@ router.get('/acessos', async (_req, res) => {
     ok(res, { areas: AREAS_ACESSO, perfis: perfis || [], usuarios, empresas: empresas || [], vinculos: vinculos || [] });
   } catch (e) { erro(res, e); }
 });
+router.get('/acessos/auditoria', async (_req, res) => {
+  try {
+    const remoto = supabase.admin();
+    const [{ data: registros, error: erroRegistros }, { data: perfis, error: erroPerfis }] = await Promise.all([
+      remoto.from('auditoria').select('id,usuario_id,acao,entidade,entidade_id,criado_em').order('criado_em', { ascending: false }).limit(150),
+      remoto.from('perfis').select('id,nome'),
+    ]);
+    if (erroRegistros) throw erroRegistros;
+    if (erroPerfis) throw erroPerfis;
+    const nomes = new Map((perfis || []).map((p) => [p.id, p.nome]));
+    ok(res, { registros: (registros || []).map((r) => ({ ...r, usuario: nomes.get(r.usuario_id) || 'Usuário não identificado' })) });
+  } catch (e) { erro(res, e); }
+});
 router.post('/acessos/perfis', async (req, res) => {
   try {
     const b = req.body, remoto = supabase.admin();

@@ -550,7 +550,7 @@ Telas.dashboardOperacao = async (el) => {
 // USUÁRIOS E ACESSOS
 // ===========================================================================
 Telas.acessos = async (el) => {
-  const d = await A.api('/acessos');
+  const [d, auditoria] = await Promise.all([A.api('/acessos'), A.api('/acessos/auditoria')]);
   const rotulos = { visao_geral: 'Visão geral', diagnostico: 'Diagnóstico', precificacao: 'Precificação', contratos: 'Contratos', capacitacao: 'Capacitação', gestao_projetos: 'Gestão de projetos', configuracoes: 'Configurações', acessos: 'Usuários e acessos' };
   const opcoesPerfil = () => [{ v: '', t: 'Sem perfil definido' }, ...d.perfis.filter((p) => p.ativo).map((p) => ({ v: p.id, t: p.nome }))];
   const abrirPerfil = (perfil = null) => {
@@ -577,7 +577,13 @@ Telas.acessos = async (el) => {
        { t: 'Empresas', r: (u) => { const ids = empresasDoUsuario(u.id); const nomes = d.empresas.filter((e) => ids.has(String(e.id))).map((e) => e.razao_social); return `<span class="mini">${A.esc(nomes.join(' · ') || 'Nenhuma vinculada')}</span>`; } },
        { t: 'Situação', r: (u) => `<span class="tag ${u.ativo ? 'c' : 'a'}">${u.ativo ? 'Ativo' : 'Inativo'}</span>` },
        { t: '', r: (u) => `<button class="btn pq vazio" data-usuario="${u.id}">Editar</button>` },
-     ], d.usuarios, { vazio: 'Nenhum usuário encontrado.' })}</div>`;
+     ], d.usuarios, { vazio: 'Nenhum usuário encontrado.' })}</div>
+     <div class="cartao lista-auditoria"><div class="cabecalho-lista"><div><h2>Histórico de ações</h2><p class="desc">Registro automático das ações realizadas por usuários logados.</p></div><span class="tag">${auditoria.registros.length} registros</span></div>${A.tabela([
+       { t: 'Quando', r: (r) => `<span class="mono mini">${A.esc(r.criado_em ? new Date(r.criado_em).toLocaleString('pt-BR') : '—')}</span>` },
+       { t: 'Usuário', r: (r) => A.esc(r.usuario) },
+       { t: 'Ação', r: (r) => `<b>${A.esc(r.acao)}</b>` },
+       { t: 'Item', r: (r) => A.esc(r.entidade || '—') },
+     ], auditoria.registros, { vazio: 'Nenhuma ação registrada ainda.' })}</div>`;
   el.querySelector('#novoPerfil').onclick = () => abrirPerfil();
   el.querySelector('#novoUsuario').onclick = () => abrirUsuario();
   el.querySelectorAll('[data-perfil]').forEach((b) => { b.onclick = () => abrirPerfil(d.perfis.find((p) => p.id === b.dataset.perfil)); });
