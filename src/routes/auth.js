@@ -33,6 +33,16 @@ router.post('/login', async (req, res) => {
   } catch (e) { res.status(401).json({ ok: false, erro: e.message || 'Não foi possível entrar.' }); }
 });
 
+router.post('/esqueci-senha', async (req, res) => {
+  try {
+    const email = String(req.body.email || '').trim();
+    if (!email) throw new Error('Informe seu e-mail.');
+    const { error } = await publico().auth.resetPasswordForEmail(email, { redirectTo: process.env.APP_URL || 'https://sattva-reforma-tributaria.onrender.com' });
+    if (error) throw error;
+    res.json({ ok: true });
+  } catch (e) { res.status(400).json({ ok: false, erro: e.message || 'Não foi possível enviar o e-mail.' }); }
+});
+
 router.get('/me', async (req, res) => {
   try {
     const token = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');

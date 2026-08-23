@@ -165,3 +165,4 @@ hr.sep{border:none;border-top:1px solid var(--linha);margin:18px 0}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 /* Login permanece dentro do shell, mas sem qualquer elemento interno visível. */
 .auth-mode #appShell{display:block}.auth-mode .lateral,.auth-mode .app-header{display:none}.auth-mode .app{display:block}.auth-mode .conteudo{max-width:none;padding:0}
+.link-recuperar{display:block;margin:14px auto 0;border:0;background:transparent;color:var(--navy-700);font-size:13px;cursor:pointer;text-decoration:underline}
