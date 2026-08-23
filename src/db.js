@@ -946,6 +946,8 @@ if (db.prepare('SELECT COUNT(*) c FROM param_regras').get().c === 0) {
   ];
   db.transaction(() => R.forEach((r) => ins.run(...r)))();
 }
+db.prepare(`INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem)
+  VALUES ('capacitacao','limite_padrao_turma','30','numero','Limite padrão de participantes','Sugestão aplicada ao programar uma nova turma; cada turma pode ter seu próprio limite.','pessoas',1)`).run();
 
 if (!db.prepare('SELECT COUNT(*) c FROM cnpj_config').get().c) {
   db.prepare(`INSERT INTO cnpj_config (id, provedor, token, validade_dias, ativo, atualizado_em)

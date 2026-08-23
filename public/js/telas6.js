@@ -321,7 +321,8 @@ function limiares(box, d) {
       ${tabela(d.limiares, 'limiares')}</div>
     <div class="cartao"><h2>Padrões de estimativa</h2>
       <p class="desc">Usados apenas quando o documento não traz o valor. Todo resultado derivado de estimativa é marcado como tal nos relatórios.</p>
-      ${tabela(d.padroes, 'padroes')}</div>`;
+      ${tabela(d.padroes, 'padroes')}</div>
+    <div class="cartao"><h2>Capacitação</h2><p class="desc">Valor sugerido ao programar novas turmas. O limite de uma turma já criada continua podendo ser ajustado individualmente.</p>${tabela(d.capacitacao || [], 'capacitacao')}</div>`;
 
   box.querySelectorAll('[data-sl]').forEach((b) => { b.onclick = () => {
     const [grupo, chave] = b.dataset.sl.split('|');

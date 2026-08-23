@@ -266,7 +266,7 @@ Telas.contratos = async (el) => {
 // MÓDULO 4 — CAPACITAÇÃO
 // ===========================================================================
 Telas.capacitacao = async (el) => {
-  const [{ turmas, trilhas }, acesso, baseEmpresas] = await Promise.all([
+  const [{ turmas, trilhas, limitePadrao }, acesso, baseEmpresas] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/turmas`), A.api(`/empresas/${S.empresaId}/acesso`), A.api('/empresas'),
   ]);
   const chaveTrilha = { workshop_boas_praticas: 'treinamento_boas_praticas', workshop_pratico: 'capacitacao_operacional' };
@@ -303,7 +303,7 @@ Telas.capacitacao = async (el) => {
       ${A.selecao('trilha', 'Tipo contratado', trilhasLiberadas.map((x) => ({ v: x.id, t: x.titulo })), t.trilha)}</div>
     <div class="grade g3">${A.campo('data', 'Data', t.data, 'date')}
       ${A.campo('carga_horaria', 'Carga horária', t.carga_horaria || 4, 'number', 'step=0.5')}
-      ${A.campo('limite_participantes', 'Limite de participantes', t.limite_participantes || 30, 'number', 'min=1')}
+      ${A.campo('limite_participantes', 'Limite de participantes', t.limite_participantes || limitePadrao || 30, 'number', 'min=1')}
       ${A.selecao('formato', 'Formato', [{ v: 'presencial', t: 'Presencial' }, { v: 'online', t: 'Online' }, { v: 'hibrido', t: 'Híbrido' }], t.formato || 'presencial')}</div>
     <div class="grade g2">${A.campo('instrutor', 'Instrutor', t.instrutor)}
       ${A.selecao('status', 'Status', [{ v: 'planejada', t: 'Planejada' }, { v: 'realizada', t: 'Realizada' }, { v: 'cancelada', t: 'Cancelada' }], t.status || 'planejada')}</div>

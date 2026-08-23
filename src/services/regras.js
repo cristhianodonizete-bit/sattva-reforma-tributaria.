@@ -253,6 +253,7 @@ function tudo() {
     cfop: c.cfop,
     limiares: db.prepare("SELECT * FROM param_regras WHERE grupo = 'limiares' ORDER BY ordem, chave").all(),
     padroes: db.prepare("SELECT * FROM param_regras WHERE grupo = 'padroes' ORDER BY ordem, chave").all(),
+    capacitacao: db.prepare("SELECT * FROM param_regras WHERE grupo = 'capacitacao' ORDER BY ordem, chave").all(),
     historico: historico(40),
   };
 }

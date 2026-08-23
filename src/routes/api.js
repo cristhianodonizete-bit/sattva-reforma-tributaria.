@@ -841,7 +841,8 @@ router.get('/empresas/:id/turmas', (req, res) => {
   const turmas = db.prepare(`SELECT * FROM turmas WHERE (trilha='workshop_pratico' AND empresa_id=?)
     OR (trilha='workshop_boas_praticas' AND (empresa_id=? OR id IN (SELECT turma_id FROM participantes WHERE empresa_id=?))) ORDER BY data DESC, id DESC`).all(req.params.id, req.params.id, req.params.id);
   const part = db.prepare(`SELECT p.*, e.razao_social AS empresa_nome FROM participantes p LEFT JOIN empresas e ON e.id=p.empresa_id WHERE p.turma_id = ? ORDER BY e.razao_social, p.nome`);
-  ok(res, { turmas: turmas.map((t) => ({ ...t, participantes: part.all(t.id) })), trilhas: TRILHAS });
+  ok(res, { turmas: turmas.map((t) => ({ ...t, participantes: part.all(t.id) })), trilhas: TRILHAS,
+    limitePadrao: Number(db.prepare("SELECT valor FROM param_regras WHERE grupo='capacitacao' AND chave='limite_padrao_turma'").get()?.valor) || 30 });
 });
 
 router.post('/empresas/:id/turmas', (req, res) => {
@@ -849,7 +850,7 @@ router.post('/empresas/:id/turmas', (req, res) => {
     const b = req.body;
     const r = db.prepare(`INSERT INTO turmas (empresa_id, trilha, titulo, formato, data, carga_horaria, instrutor, limite_participantes, status, observacoes)
       VALUES (?,?,?,?,?,?,?,?,?,?)`).run(req.params.id, b.trilha || '', b.titulo || '', b.formato || 'presencial',
-      b.data || '', +b.carga_horaria || 4, b.instrutor || '', Math.max(1, +b.limite_participantes || 30), b.status || 'planejada', b.observacoes || '');
+      b.data || '', +b.carga_horaria || 4, b.instrutor || '', Math.max(1, +b.limite_participantes || Number(db.prepare("SELECT valor FROM param_regras WHERE grupo='capacitacao' AND chave='limite_padrao_turma'").get()?.valor) || 30), b.status || 'planejada', b.observacoes || '');
     ok(res, { id: r.lastInsertRowid });
   } catch (e) { erro(res, e); }
 });
