@@ -499,7 +499,8 @@ Telas.dashboardOperacao = async (el) => {
   const d = await A.api('/operacao/dashboard');
   const concluidos = d.projetos.filter((p) => p.status === 'concluido').length;
   const emAndamento = d.projetos.filter((p) => p.status === 'em_execucao').length;
-  const agenda = (d.agenda || []).slice(0, 6);
+  const agenda = d.agenda || [];
+  let agendaCompleta = false;
   const responsaveis = [...new Set(d.projetos.map((p) => p.responsavelSattva).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const cartaoProjeto = (p) => `<article class="projeto-operacao-card">
     <div class="projeto-operacao-cabecalho"><div><h3>${A.esc(p.empresa)}</h3><p>${A.esc(p.nome_plano || 'Escopo personalizado')}</p></div><span class="tag ${p.status === 'em_execucao' ? 'b' : p.status === 'concluido' ? 'c' : 'n'}">${A.esc(p.status)}</span></div>
@@ -513,13 +514,21 @@ Telas.dashboardOperacao = async (el) => {
       ${A.kpi('Projetos em execução', emAndamento, 'escopo aprovado')}
       ${A.kpi('Entregas pendentes', d.resumo.entregasPendentes, 'prioridade da operação', d.resumo.entregasPendentes ? 'destaque' : '')}
       ${A.kpi('Projetos concluídos', concluidos, 'entregas finalizadas')}</div>
-     <div class="cartao agenda-operacao"><div class="cabecalho-lista"><div><h2>Próximos marcos</h2><p class="desc">Agenda da operação ordenada por prazo, para organizar a execução da carteira.</p></div><span class="tag">${agenda.length} previstos</span></div>
-       ${agenda.length ? `<div class="agenda-marcos">${agenda.map((m) => `<div class="agenda-marco${m.atrasado ? ' atrasado' : ''}"><div class="agenda-data"><b>${A.esc(m.data)}</b>${m.atrasado ? '<small>Atrasado</small>' : ''}</div><div class="agenda-conteudo"><b>${A.esc(m.titulo)}${m.envolveCliente ? ' · envolve cliente' : ''}</b><span>${A.esc(m.empresa)}${m.etapa ? ` · ${A.esc(m.etapa)}` : ''}${m.responsavelSattva ? ` · ${A.esc(m.responsavelSattva)}` : ''}</span></div><button class="btn pq vazio" data-ir-projeto="${m.empresaId || ''}">Abrir</button></div>`).join('')}</div>` : A.vazio('Nenhum marco com data foi registrado.', 'Inclua prazos nas tarefas ou competências de acompanhamento.')}
+     <div class="cartao agenda-operacao"><div class="cabecalho-lista"><div><h2>Próximos marcos</h2><p class="desc">Agenda da operação ordenada por prazo, para organizar a execução da carteira.</p></div><span class="tag" id="totalAgenda">${agenda.length} previstos</span></div>
+       <div id="listaAgenda"></div><div class="agenda-acoes" id="acoesAgenda"></div>
      </div>
      <div class="cartao carteira-operacao"><div class="cabecalho-lista"><div><h2>Carteira de projetos</h2><p class="desc">Acompanhe o que está em execução e a próxima interação prevista para cada cliente.</p></div><span class="tag" id="totalCarteira">${d.projetos.length} projetos</span></div>
        <div class="filtros-carteira"><label>Situação<select id="filtroStatus"><option value="">Todos</option><option value="em_execucao">Em execução</option><option value="aguardando_aprovacao">Aguardando aprovação</option><option value="concluido">Concluídos</option></select></label><label>Responsável<select id="filtroResponsavel"><option value="">Todos</option><option value="sem_responsavel">Não definido</option>${responsaveis.map((nome) => `<option value="${A.esc(nome)}">${A.esc(nome)}</option>`).join('')}</select></label><label>Pendências do cliente<select id="filtroPendencia"><option value="">Todos</option><option value="com">Com pendência</option><option value="sem">Sem pendência</option></select></label></div>
        <div id="listaCarteira"></div>
      </div>`;
+  const renderAgenda = () => {
+    const visiveis = agendaCompleta ? agenda : agenda.slice(0, 6);
+    el.querySelector('#totalAgenda').textContent = `${agenda.length} previsto${agenda.length === 1 ? '' : 's'}`;
+    el.querySelector('#listaAgenda').innerHTML = visiveis.length ? `<div class="agenda-marcos">${visiveis.map((m) => `<div class="agenda-marco${m.atrasado ? ' atrasado' : ''}"><div class="agenda-data"><b>${A.esc(m.data)}</b>${m.atrasado ? '<small>Atrasado</small>' : ''}</div><div class="agenda-conteudo"><b>${A.esc(m.titulo)}${m.envolveCliente ? ' · envolve cliente' : ''}</b><span>${A.esc(m.empresa)}${m.etapa ? ` · ${A.esc(m.etapa)}` : ''}${m.responsavelSattva ? ` · ${A.esc(m.responsavelSattva)}` : ''}</span></div><button class="btn pq vazio" data-ir-projeto="${m.empresaId || ''}">Abrir</button></div>`).join('')}</div>` : A.vazio('Nenhum marco com data foi registrado.', 'Inclua prazos nas tarefas ou competências de acompanhamento.');
+    el.querySelector('#acoesAgenda').innerHTML = agenda.length > 6 ? `<button class="btn pq vazio" id="alternarAgenda">${agendaCompleta ? 'Mostrar próximos 6' : `Ver agenda completa (${agenda.length})`}</button>` : '';
+    const botao = el.querySelector('#alternarAgenda');
+    if (botao) botao.onclick = () => { agendaCompleta = !agendaCompleta; renderAgenda(); renderCarteira(); };
+  };
   const renderCarteira = () => {
     const status = el.querySelector('#filtroStatus').value, responsavel = el.querySelector('#filtroResponsavel').value, pendencia = el.querySelector('#filtroPendencia').value;
     const projetos = d.projetos.filter((p) => (!status || p.status === status) && (!responsavel || (responsavel === 'sem_responsavel' ? !p.responsavelSattva : p.responsavelSattva === responsavel)) && (!pendencia || (pendencia === 'com' ? p.pendenciasCliente : !p.pendenciasCliente)));
@@ -531,6 +540,7 @@ Telas.dashboardOperacao = async (el) => {
     }; });
   };
   el.querySelectorAll('#filtroStatus,#filtroResponsavel,#filtroPendencia').forEach((campo) => { campo.onchange = renderCarteira; });
+  renderAgenda();
   renderCarteira();
 };
 })();
