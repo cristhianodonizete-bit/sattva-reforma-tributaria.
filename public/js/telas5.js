@@ -26,7 +26,7 @@ function comAbas(nome, abas, padrao) {
   Telas[nome] = async (el) => {
     const ativa = S.aba[nome] || padrao;
     const barra = `<div class="abas" id="abasMotor">${abas.map((a) =>
-      `<button data-t="${a.id}" class="${ativa === a.id ? 'ativo' : ''}">${a.t}</button>`).join('')}</div>`;
+      `<button data-t="${a.id}" class="${ativa === a.id ? 'ativo' : ''}">${typeof a.t === 'function' ? a.t() : a.t}</button>`).join('')}</div>`;
     if (ativa === 'atual') {
       await orig(el);
       el.insertAdjacentHTML('afterbegin', barra);
@@ -568,12 +568,12 @@ async function projImportacaoXml(el) {
 // =========================================================================
 comAbas('fornecedores', [
   { id: 'atual', t: 'Análise atual' },
-  { id: 'motor', t: 'Projeção IBS/CBS', render: projFornecedores },
+  { id: 'motor', t: () => S.params?.modoAnalise?.ibsAtivo ? 'Projeção IBS/CBS' : 'Projeção CBS', render: projFornecedores },
 ], 'atual');
 
 comAbas('clientes', [
   { id: 'atual', t: 'Análise atual' },
-  { id: 'motor', t: 'Projeção IBS/CBS', render: projClientes },
+  { id: 'motor', t: () => S.params?.modoAnalise?.ibsAtivo ? 'Projeção IBS/CBS' : 'Projeção CBS', render: projClientes },
 ], 'atual');
 
 // Exposto para telas6/telas7 registrarem abas nas mesmas telas, sem duplicar
