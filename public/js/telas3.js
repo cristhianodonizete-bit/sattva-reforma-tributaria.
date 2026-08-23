@@ -501,7 +501,6 @@ Telas.dashboardOperacao = async (el) => {
   const emAndamento = d.projetos.filter((p) => p.status === 'em_execucao').length;
   const agenda = d.agenda || [];
   let agendaCompleta = false;
-  const podeExecutarTarefas = !S.usuario?.permissoes || Boolean(S.usuario.permissoes.gestao_projetos?.executar);
   const responsaveis = [...new Set(d.projetos.map((p) => p.responsavelSattva).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const cartaoProjeto = (p) => `<article class="projeto-operacao-card">
     <div class="projeto-operacao-cabecalho"><div><h3>${A.esc(p.empresa)}</h3><p>${A.esc(p.nome_plano || 'Escopo personalizado')}</p></div><span class="tag ${p.status === 'em_execucao' ? 'b' : p.status === 'concluido' ? 'c' : 'n'}">${A.esc(p.status)}</span></div>
@@ -522,15 +521,17 @@ Telas.dashboardOperacao = async (el) => {
        <div class="filtros-carteira"><label>Situação<select id="filtroStatus"><option value="">Todos</option><option value="em_execucao">Em execução</option><option value="aguardando_aprovacao">Aguardando aprovação</option><option value="concluido">Concluídos</option></select></label><label>Responsável<select id="filtroResponsavel"><option value="">Todos</option><option value="sem_responsavel">Não definido</option>${responsaveis.map((nome) => `<option value="${A.esc(nome)}">${A.esc(nome)}</option>`).join('')}</select></label><label>Pendências do cliente<select id="filtroPendencia"><option value="">Todos</option><option value="com">Com pendência</option><option value="sem">Sem pendência</option></select></label></div>
        <div id="listaCarteira"></div>
      </div>`;
-  const editarTarefa = (tarefa) => A.modal({ titulo: `Tarefa — ${tarefa.titulo}`, largura: 720,
-    corpo: `${A.selecao('status', 'Situação', [{ v: 'aberta', t: 'Aberta' }, { v: 'em_andamento', t: 'Em andamento' }, { v: 'concluida', t: 'Concluída' }], tarefa.status)}${A.campo('titulo', 'Título', tarefa.titulo)}<div class="grade g2">${A.campo('data_conclusao', 'Previsão/conclusão', tarefa.data, 'date')}</div><label class="check"><input type="checkbox" name="envolve_cliente" ${tarefa.envolveCliente ? 'checked' : ''}> Envolve pendência ou interação do cliente</label>${A.area('pendencia_cliente', 'Pendência do cliente', tarefa.pendenciaCliente || '', 2)}${A.area('interacoes_cliente', 'Interações / histórico', tarefa.interacoesCliente || '', 2)}${A.area('descricao', 'Detalhamento da tarefa', tarefa.descricao || '', 2)}`,
-    aoConfirmar: async (form) => { await A.api(`/projeto/tarefas/${tarefa.id}`, { metodo: 'PUT', corpo: { ...form, data_abertura: tarefa.dataAbertura || null } }); A.ir('dashboardOperacao'); } });
+  const telaDoModulo = { diagnostico: 'painel', precificacao: 'precificacao', contratos: 'contratos', capacitacao: 'capacitacao' };
+  const abrirModulo = async (empresaId, modulo) => {
+    if (empresaId) { localStorage.setItem('sattva_empresa', empresaId); await A.carregarEmpresas(); }
+    A.ir(telaDoModulo[modulo] || 'painel');
+  };
   const renderAgenda = () => {
     const status = el.querySelector('#filtroStatus').value, responsavel = el.querySelector('#filtroResponsavel').value, pendencia = el.querySelector('#filtroPendencia').value;
     const filtrada = agenda.filter((m) => (!status || m.projetoStatus === status) && (!responsavel || (responsavel === 'sem_responsavel' ? !m.responsavelSattva : m.responsavelSattva === responsavel)) && (!pendencia || (pendencia === 'com' ? m.pendenciasCliente : !m.pendenciasCliente)));
     const visiveis = agendaCompleta ? filtrada : filtrada.slice(0, 6);
     el.querySelector('#totalAgenda').textContent = `${filtrada.length} previsto${filtrada.length === 1 ? '' : 's'}`;
-    el.querySelector('#listaAgenda').innerHTML = visiveis.length ? `<div class="agenda-marcos">${visiveis.map((m) => `<div class="agenda-marco${m.atrasado ? ' atrasado' : ''}"><div class="agenda-data"><b>${A.esc(m.data)}</b>${m.atrasado ? '<small>Atrasado</small>' : ''}</div><div class="agenda-conteudo"><b>${A.esc(m.titulo)}${m.envolveCliente ? ' · envolve cliente' : ''}</b><span>${A.esc(m.empresa)}${m.etapa ? ` · ${A.esc(m.etapa)}` : ''}${m.responsavelSattva ? ` · Sattva: ${A.esc(m.responsavelSattva)}` : ''}${m.responsavelCliente ? ` · Cliente: ${A.esc(m.responsavelCliente)}` : ''}</span>${m.pendenciaCliente ? `<small class="agenda-pendencia">Pendência: ${A.esc(m.pendenciaCliente)}</small>` : ''}</div>${m.tipo === 'tarefa' && m.id && podeExecutarTarefas ? `<button class="btn pq vazio" data-tarefa-acomp="${m.id}">Atualizar</button>` : `<button class="btn pq vazio" data-ir-projeto="${m.empresaId || ''}">Abrir</button>`}</div>`).join('')}</div>` : A.vazio('Nenhum marco com data foi registrado.', 'Inclua prazos nas tarefas ou competências de acompanhamento.');
+    el.querySelector('#listaAgenda').innerHTML = visiveis.length ? `<div class="agenda-marcos">${visiveis.map((m) => `<div class="agenda-marco${m.atrasado ? ' atrasado' : ''}"><div class="agenda-data"><b>${A.esc(m.data)}</b>${m.atrasado ? '<small>Atrasado</small>' : ''}</div><div class="agenda-conteudo"><b>${A.esc(m.titulo)}${m.envolveCliente ? ' · envolve cliente' : ''}</b><span>${A.esc(m.empresa)}${m.etapa ? ` · ${A.esc(m.etapa)}` : ''}${m.responsavelSattva ? ` · Sattva: ${A.esc(m.responsavelSattva)}` : ''}${m.responsavelCliente ? ` · Cliente: ${A.esc(m.responsavelCliente)}` : ''}</span>${m.pendenciaCliente ? `<small class="agenda-pendencia">Pendência: ${A.esc(m.pendenciaCliente)}</small>` : ''}</div>${m.tipo === 'tarefa' && m.modulo ? `<button class="btn pq vazio" data-ir-modulo="${A.esc(m.modulo)}" data-empresa-modulo="${m.empresaId || ''}">Abrir módulo</button>` : `<button class="btn pq vazio" data-ir-projeto="${m.empresaId || ''}">Abrir</button>`}</div>`).join('')}</div>` : A.vazio('Nenhum marco com data foi registrado.', 'Inclua prazos nas tarefas ou competências de acompanhamento.');
     el.querySelector('#acoesAgenda').innerHTML = filtrada.length > 6 ? `<button class="btn pq vazio" id="alternarAgenda">${agendaCompleta ? 'Mostrar próximos 6' : `Ver agenda completa (${filtrada.length})`}</button>` : '';
     const botao = el.querySelector('#alternarAgenda');
     if (botao) botao.onclick = () => { agendaCompleta = !agendaCompleta; renderAgenda(); renderCarteira(); };
@@ -544,10 +545,7 @@ Telas.dashboardOperacao = async (el) => {
     if (botao.dataset.irProjeto) { localStorage.setItem('sattva_empresa', botao.dataset.irProjeto); await A.carregarEmpresas(); }
     A.ir('painel');
     }; });
-    el.querySelectorAll('[data-tarefa-acomp]').forEach((botao) => { botao.onclick = () => {
-      const tarefa = agenda.find((m) => String(m.id) === botao.dataset.tarefaAcomp);
-      if (tarefa) editarTarefa(tarefa);
-    }; });
+    el.querySelectorAll('[data-ir-modulo]').forEach((botao) => { botao.onclick = () => abrirModulo(botao.dataset.empresaModulo, botao.dataset.irModulo); });
   };
   el.querySelectorAll('#filtroStatus,#filtroResponsavel,#filtroPendencia').forEach((campo) => { campo.onchange = () => { agendaCompleta = false; renderAgenda(); renderCarteira(); }; });
   renderAgenda();
