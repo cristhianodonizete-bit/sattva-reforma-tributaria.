@@ -68,9 +68,20 @@ Telas.painel = async (el) => {
 // ===========================================================================
 Telas.empresas = async (el) => {
   const { empresas } = await A.api('/empresas');
+  const totais = empresas.reduce((acc, empresa) => ({
+    fornecedores: acc.fornecedores + Number(empresa.fornecedores || 0),
+    clientes: acc.clientes + Number(empresa.clientes || 0),
+    movimentos: acc.movimentos + Number(empresa.movimentos || 0),
+  }), { fornecedores: 0, clientes: 0, movimentos: 0 });
   el.innerHTML = cab('Cadastro', 'Empresas atendidas', 'Cada empresa é um projeto de implementação independente.',
     '<button class="btn" id="novaEmpresa">Cadastrar empresa</button>') +
-    `<div class="cartao">${A.tabela([
+    `<div class="grade g4 resumo-carteira">
+      ${A.kpi('Projetos cadastrados', empresas.length, 'empresas atendidas')}
+      ${A.kpi('Fornecedores', totais.fornecedores, 'na carteira total')}
+      ${A.kpi('Clientes', totais.clientes, 'na carteira total')}
+      ${A.kpi('Lançamentos', totais.movimentos, 'movimentações importadas')}
+    </div>
+    <div class="cartao empresas-lista"><div class="cabecalho-lista"><div><h2>Carteira de projetos</h2><p class="desc">Abra um projeto para continuar a entrega, importar dados ou acompanhar o diagnóstico.</p></div><span class="tag">${empresas.length} empresas</span></div>${A.tabela([
       { t: 'Razão social', r: (e) => `<b>${A.esc(e.razao_social)}</b><div class="mini">${A.cnpjFmt(e.cnpj)}</div>` },
       { t: 'Regime', r: (e) => `<span class="tag">${A.regimeLabel(e.regime)}</span>` },
       { t: 'UF', r: (e) => A.esc(e.uf || '—') },
@@ -78,7 +89,7 @@ Telas.empresas = async (el) => {
       { t: 'Clientes', num: true, r: (e) => e.clientes },
       { t: 'Lançamentos', num: true, r: (e) => e.movimentos },
       { t: 'Código Questor', r: (e) => `<span class="mono mini">${A.esc(e.codigo_questor || '—')}</span>` },
-      { t: '', r: (e) => `<button class="btn pq vazio" data-ed="${e.id}">Editar</button>
+      { t: '', r: (e) => `<button class="btn pq" data-abrir="${e.id}">Abrir projeto</button><button class="btn pq vazio" data-ed="${e.id}">Editar</button>
         <button class="btn pq perigo" data-rm="${e.id}">Excluir</button>` },
     ], empresas, { vazio: 'Nenhuma empresa cadastrada. Comece cadastrando a primeira.' })}</div>`;
 
@@ -95,6 +106,9 @@ Telas.empresas = async (el) => {
     titulo: 'Cadastrar empresa', descricao: 'Os dados alimentam todos os módulos do produto.',
     corpo: form(), aoConfirmar: async (d) => { await A.api('/empresas', { metodo: 'POST', corpo: d }); A.toast('Empresa cadastrada', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); },
   });
+  el.querySelectorAll('[data-abrir]').forEach((b) => { b.onclick = async () => {
+    localStorage.setItem('sattva_empresa', b.dataset.abrir); await A.carregarEmpresas(); A.ir('painel');
+  }; });
   el.querySelectorAll('[data-ed]').forEach((b) => { b.onclick = () => {
     const e = empresas.find((x) => x.id === Number(b.dataset.ed));
     A.modal({ titulo: 'Editar empresa', corpo: form(e), aoConfirmar: async (d) => {
