@@ -113,7 +113,7 @@ async function projFornecedores(el) {
           O crédito varia de ${A.moeda(c.amplitude.creditoMin)} a ${A.moeda(c.amplitude.creditoMax)} conforme a faixa —
           diferença de ${A.moeda(c.amplitude.creditoMax - c.amplitude.creditoMin)}. Conhecer o faturamento real do fornecedor elimina essa incerteza.</div>` : ''}
         ${c.hibrido ? `<div class="aviso"><b>${A.esc(c.hibrido.rotulo)}</b>
-          Se este fornecedor apurasse IBS/CBS pelo regime regular: crédito de ${A.moeda(c.hibrido.creditoTotal)} e custo líquido de ${A.moeda(c.hibrido.custoLiquido)}.
+          Se este fornecedor apurasse ${ibsAtivo ? 'IBS/CBS' : 'CBS'} pelo regime regular: crédito de ${A.moeda(c.hibrido.creditoTotal)} e custo líquido de ${A.moeda(c.hibrido.custoLiquido)}.
           <div class="acao">${A.esc(c.hibrido.observacao)}</div></div>` : ''}
       </div>`).join('')}
     </div>` : ''}`;
@@ -164,6 +164,7 @@ async function projClientes(el) {
     });
     setTimeout(() => {
       const sel = document.querySelector('.modal [name="mov"]');
+      const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
       const rodar = async () => {
         const box = document.getElementById('boxComp');
         box.innerHTML = '<div class="carregando">Calculando…</div>';
@@ -171,7 +172,7 @@ async function projClientes(el) {
           corpo: { movimento_id: Number(sel.value), ano: anoAtual() } });
         box.innerHTML = A.tabela([
           { t: 'Perfil do cliente', r: (x) => `<b>${A.esc(x.rotulo)}</b><div class="mini">${A.esc(x.detalhe)}</div>` },
-          { t: 'IBS', num: true, r: (x) => A.moeda(x.ibs) },
+          ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (x) => A.moeda(x.ibs) }] : []),
           { t: 'CBS', num: true, r: (x) => A.moeda(x.cbs) },
           { t: 'Preço projetado', num: true, r: (x) => A.moeda(x.precoProjetado) },
           { t: 'Crédito', num: true, r: (x) => A.moeda(x.creditoTotal) },
@@ -191,22 +192,23 @@ async function projClientes(el) {
 async function projSimulacoes(el) {
   const d = await A.api(`/empresas/${S.empresaId}/motor/simulacoes?ano=${anoAtual()}`);
   const r = d.resumo, a = d.apuracao, c = r.comparacao;
+  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   el.innerHTML = seletorAno(() => A.ir('cenarios')) +
     `<div class="grade g4">
       ${A.kpi('Faturamento analisado', A.moeda(r.faturamentoAnalisado))}
       ${A.kpi('Compras analisadas', A.moeda(r.comprasAnalisadas))}
-      ${A.kpi('Carga IBS/CBS projetada', A.moeda(c.cargaProjetada), `${A.pct(c.percentualSobreBase)} da base econômica`, 'destaque')}
+      ${A.kpi(`Carga ${ibsAtivo ? 'IBS/CBS' : 'CBS'} projetada`, A.moeda(c.cargaProjetada), `${A.pct(c.percentualSobreBase)} da base econômica`, 'destaque')}
       ${A.kpi('Carga atual identificada', A.moeda(c.cargaAtual), c.diferencaPerc !== null ? `${A.setaPct(c.diferencaPerc)} de variação` : 'sem base de comparação')}
     </div>
-    <div class="grade g2" style="margin-top:16px">
-      <div class="cartao"><h2>Apuração simulada — IBS</h2>
+    <div class="grade ${ibsAtivo ? 'g2' : 'g1'}" style="margin-top:16px">
+      ${ibsAtivo ? `<div class="cartao"><h2>Apuração simulada — IBS</h2>
         <p class="desc">Saldo credor de IBS não compensa débito de CBS. São apurações separadas.</p>
         <table>
           <tr><td>Débitos das saídas</td><td class="num mono">${A.moeda(a.ibs.debitos)}</td></tr>
           <tr><td>(−) Créditos das entradas</td><td class="num mono">${A.moeda(a.ibs.creditos)}</td></tr>
           <tr style="background:var(--ouro-100)"><td><b>= Saldo IBS projetado</b></td><td class="num mono"><b>${A.moeda(a.ibs.saldo)}</b></td></tr>
         </table>
-      </div>
+      </div>` : ''}
       <div class="cartao"><h2>Apuração simulada — CBS</h2>
         <p class="desc">&nbsp;</p>
         <table>
@@ -455,12 +457,12 @@ async function projImportacaoXml(el) {
       </div>
       <div class="cartao">
         <h2>Executar o motor</h2>
-        <p class="desc">Classifica cada item, reconstrói a base econômica e projeta IBS/CBS, débitos e créditos.</p>
+        <p class="desc">Classifica cada item, reconstrói a base econômica e projeta ${S.params?.modoAnalise?.ibsAtivo ? 'IBS/CBS' : 'CBS'}, débitos e créditos.</p>
         ${ex.execucao ? `<div class="aviso bom"><b>Última execução: ${A.esc(ex.execucao.criado_em)}</b>
-          Ano ${ex.execucao.ano} · ${ex.execucao.itens} itens · ${ex.execucao.classificados} classificados ·
+          ${S.params?.modoAnalise?.ibsAtivo ? `Ano ${ex.execucao.ano} · ` : ''}${ex.execucao.itens} itens · ${ex.execucao.classificados} classificados ·
           ${ex.execucao.requer_validacao} a validar · ${ex.execucao.sem_correspondencia} sem correspondência</div>`
           : '<div class="aviso atencao"><b>Motor ainda não executado</b>Importe a movimentação e rode o motor.</div>'}
-        ${A.selecao('anoMotor', 'Ano da projeção', A.opcoesAno(), anoAtual())}
+        ${S.params?.modoAnalise?.ibsAtivo ? A.selecao('anoMotor', 'Ano da projeção', A.opcoesAno(), anoAtual()) : '<input type="hidden" name="anoMotor" value="2033"><div class="aviso bom"><b>Projeção CBS</b> Referência única, sem seleção anual.</div>'}
         <button class="btn ouro" id="rodarMotor" style="width:100%">Executar motor</button>
         <div id="statusMotor" style="margin-top:12px"></div>
       </div>
@@ -553,8 +555,8 @@ async function projImportacaoXml(el) {
           ${A.kpi('Itens processados', s.itens, `${s.entradas} entradas · ${s.saidas} saídas`)}
           ${A.kpi('Classificados', s.classificados, `${s.requerValidacao} a validar · ${s.semCorrespondencia} sem correspondência`)}
         </div>
-        <div class="aviso bom"><b>Projeção concluída para ${s.ano}</b>
-          Saldo IBS ${A.moeda(s.apuracao.ibs.saldo)} · saldo CBS ${A.moeda(s.apuracao.cbs.saldo)}</div>
+        <div class="aviso bom"><b>Projeção ${S.params?.modoAnalise?.ibsAtivo ? `concluída para ${s.ano}` : 'CBS concluída'}</b>
+          ${S.params?.modoAnalise?.ibsAtivo ? `Saldo IBS ${A.moeda(s.apuracao.ibs.saldo)} · ` : ''}saldo CBS ${A.moeda(s.apuracao.cbs.saldo)}</div>
         ${s.simulados ? `<div class="aviso atencao"><b>${s.simulados} itens com resultado simulado</b>
           Dependem de hipótese e não devem ser apresentados como valor apurado.</div>` : ''}`;
     } catch (e) { box.innerHTML = `<div class="aviso alto">${A.esc(e.message)}</div>`; }
