@@ -261,10 +261,9 @@ router.put('/acessos/perfis/:id', async (req, res) => {
 });
 router.post('/acessos/usuarios', async (req, res) => {
   try {
-    const b = req.body, remoto = supabase.admin(), email = String(b.email || '').trim().toLowerCase(), senha = String(b.senha || '');
+    const b = req.body, remoto = supabase.admin(), email = String(b.email || '').trim().toLowerCase();
     if (!email || !email.includes('@')) throw new Error('Informe um e-mail válido.');
-    if (senha.length < 8) throw new Error('Defina uma senha inicial com ao menos 8 caracteres.');
-    const { data: criado, error: erroCriar } = await remoto.auth.admin.createUser({ email, password: senha, email_confirm: true });
+    const { data: criado, error: erroCriar } = await remoto.auth.admin.inviteUserByEmail(email, { redirectTo: process.env.APP_URL || 'https://sattva-reforma-tributaria.onrender.com' });
     if (erroCriar) throw erroCriar;
     const { error } = await remoto.from('perfis').upsert({ id: criado.user.id, nome: String(b.nome || '').trim(), papel: 'consultor', ativo: true, perfil_acesso_id: b.perfil_acesso_id || null });
     if (error) throw error;
@@ -1078,8 +1077,9 @@ router.put('/projeto/tarefas/:id', async (req, res) => {
     const permissoes = req.usuario?.permissoes;
     const area = areaDaTarefaModulo(tarefa.entrega_chave);
     if (permissoes && !permissoes[area]?.executar) return res.status(403).json({ ok: false, erro: 'Seu perfil não pode atualizar tarefas deste módulo.' });
+    const envolveCliente = b.tipo_pendencia ? b.tipo_pendencia === 'cliente' : Boolean(b.envolve_cliente);
     db.prepare(`UPDATE projeto_tarefas SET titulo=?,descricao=?,status=?,data_abertura=?,data_conclusao=?,envolve_cliente=?,pendencia_cliente=?,interacoes_cliente=?,atualizado_em=datetime('now','localtime') WHERE id=?`)
-      .run(b.titulo || '', b.descricao || '', b.status || 'aberta', b.data_abertura || null, b.data_conclusao || null, b.envolve_cliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '', req.params.id);
+      .run(b.titulo || '', b.descricao || '', b.status || 'aberta', b.data_abertura || null, b.data_conclusao || null, envolveCliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '', req.params.id);
     auditar(req, { empresaId: tarefa.empresa_id, acao: 'Atualizou tarefa do projeto', entidade: 'tarefa', entidadeId: req.params.id,
       antes: { status: tarefa.status, data_conclusao: tarefa.data_conclusao }, depois: { status: b.status || 'aberta', data_conclusao: b.data_conclusao || null } });
     ok(res, {}); sincronizarGestao();
@@ -1120,8 +1120,9 @@ router.post('/empresas/:id/projeto/tarefas/:chave', async (req, res) => {
     const entrega = entregas.length === 1 ? entregas[0] : entregas.find((e) => String(e.id) === String(b.entrega_id));
     if (!entrega) throw new Error(entregas.length > 1 ? 'Selecione a entrega de capacitação.' : 'Este módulo não está liberado no escopo aprovado.');
     if (!String(b.titulo || '').trim()) throw new Error('Informe o título da tarefa.');
+    const envolveCliente = b.tipo_pendencia ? b.tipo_pendencia === 'cliente' : Boolean(b.envolve_cliente);
     const r = db.prepare(`INSERT INTO projeto_tarefas (contratacao_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente,interacoes_cliente,atualizado_em)
-      VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))`).run(projeto.id, entrega.id, b.titulo.trim(), b.descricao || '', b.status || 'aberta', b.data_abertura || null, b.data_conclusao || null, b.envolve_cliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '');
+      VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))`).run(projeto.id, entrega.id, b.titulo.trim(), b.descricao || '', b.status || 'aberta', b.data_abertura || null, b.data_conclusao || null, envolveCliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '');
     auditar(req, { empresaId: projeto.empresa_id, acao: 'Criou tarefa do módulo', entidade: 'tarefa', entidadeId: r.lastInsertRowid, depois: { modulo: req.params.chave, titulo: b.titulo.trim() } });
     ok(res, { id: r.lastInsertRowid }); sincronizarGestao();
   } catch (e) { erro(res, e); }

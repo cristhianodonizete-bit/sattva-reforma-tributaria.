@@ -60,6 +60,8 @@ router.post('/redefinir-senha', async (req, res) => {
     if (error || !data.user) throw new Error('O link de recuperação expirou. Solicite um novo.');
     const { error: atualizacao } = await supabase.admin().auth.admin.updateUserById(data.user.id, { password: senha });
     if (atualizacao) throw atualizacao;
+    const nome = String(req.body.nome || '').trim();
+    if (nome) { const { error: perfil } = await supabase.admin().from('perfis').upsert({ id: data.user.id, nome, atualizado_em: new Date().toISOString() }); if (perfil) throw perfil; }
     res.json({ ok: true });
   } catch (e) { res.status(400).json({ ok: false, erro: e.message || 'Não foi possível redefinir a senha.' }); }
 });
