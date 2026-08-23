@@ -255,6 +255,9 @@ const App = (() => {
       const p = await api('/parametros');
       S.params = p;
     } catch (e) { document.getElementById('tela').innerHTML = `<div class="aviso alto">Servidor indisponível: ${esc(e.message)}</div>`; return; }
+    const toggle = document.getElementById('menuToggle');
+    if (localStorage.getItem('sattva_menu_colapsado') === 'sim') document.body.classList.add('menu-colapsado');
+    if (toggle) toggle.onclick = () => { const ativo = document.body.classList.toggle('menu-colapsado'); localStorage.setItem('sattva_menu_colapsado', ativo ? 'sim' : 'nao'); };
     await carregarEmpresas();
     const inicial = (location.hash || '').replace('#', '') || 'painel';
     ir(MENU.some((m) => m.id === inicial) ? inicial : 'painel');
