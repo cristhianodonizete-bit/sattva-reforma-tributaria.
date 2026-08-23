@@ -836,6 +836,20 @@ router.delete('/contratos/:id', async (req, res) => { try { const contrato = awa
 // ===========================================================================
 // MÓDULO 4 — CAPACITAÇÃO
 // ===========================================================================
+router.get('/turmas/compartilhadas', async (req, res) => {
+  try {
+    const permitidas = await empresasPermitidasUsuario(req.usuario);
+    const turmas = db.prepare("SELECT * FROM turmas WHERE trilha='workshop_boas_praticas' ORDER BY data DESC, id DESC").all();
+    const empresas = db.prepare('SELECT id,razao_social FROM empresas').all();
+    const nomeEmpresa = new Map(empresas.map((e) => [e.id, e.razao_social]));
+    const participantes = db.prepare('SELECT turma_id,empresa_id FROM participantes WHERE empresa_id IS NOT NULL').all();
+    const saida = turmas.map((t) => {
+      const ids = [...new Set(participantes.filter((p) => p.turma_id === t.id).map((p) => p.empresa_id))];
+      return { ...t, participantes: participantes.filter((p) => p.turma_id === t.id).length, empresas: ids.map((id) => nomeEmpresa.get(id) || 'Empresa não identificada') };
+    }).filter((t) => permitidas === null || permitidas.has(String(t.empresa_id)) || t.empresas.some((nome) => empresas.some((e) => e.razao_social === nome && permitidas.has(String(e.id)))));
+    ok(res, { turmas: saida });
+  } catch (e) { erro(res, e); }
+});
 router.get('/empresas/:id/turmas', (req, res) => {
   const turmas = db.prepare(`SELECT * FROM turmas WHERE (trilha='workshop_pratico' AND empresa_id=?)
     OR (trilha='workshop_boas_praticas' AND (empresa_id=? OR id IN (SELECT turma_id FROM participantes WHERE empresa_id=?))) ORDER BY data DESC, id DESC`).all(req.params.id, req.params.id, req.params.id);

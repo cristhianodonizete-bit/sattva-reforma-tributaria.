@@ -266,8 +266,8 @@ Telas.contratos = async (el) => {
 // MÓDULO 4 — CAPACITAÇÃO
 // ===========================================================================
 Telas.capacitacao = async (el) => {
-  const [{ turmas, trilhas, limitePadrao }, acesso, baseEmpresas] = await Promise.all([
-    A.api(`/empresas/${S.empresaId}/turmas`), A.api(`/empresas/${S.empresaId}/acesso`), A.api('/empresas'),
+  const [{ turmas, trilhas, limitePadrao }, acesso, baseEmpresas, compartilhadas] = await Promise.all([
+    A.api(`/empresas/${S.empresaId}/turmas`), A.api(`/empresas/${S.empresaId}/acesso`), A.api('/empresas'), A.api('/turmas/compartilhadas'),
   ]);
   const chaveTrilha = { workshop_boas_praticas: 'treinamento_boas_praticas', workshop_pratico: 'capacitacao_operacional' };
   const trilhasLiberadas = trilhas.filter((t) => acesso.trilhas.includes(chaveTrilha[t.id]));
@@ -284,6 +284,11 @@ Telas.capacitacao = async (el) => {
       ${A.kpi('Presenças confirmadas', presencas, participantes ? `${A.pct(presencas / participantes, 0)} da lista` : 'sem lista de presença')}
       ${A.kpi('Trilhas liberadas', trilhasLiberadas.length, 'conforme plano aprovado', 'destaque')}
     </div>
+    <div class="cartao turmas-lista"><div class="cabecalho-lista"><div><h2>Turmas compartilhadas</h2><p class="desc">Treinamentos de Boas Práticas com participantes de mais de uma empresa.</p></div><span class="tag">${compartilhadas.turmas.length} turmas</span></div>${compartilhadas.turmas.length ? A.tabela([
+      { t: 'Turma', r: (t) => `<b>${A.esc(t.titulo)}</b><small class="mini">${A.esc(t.data || 'data a definir')}</small>` },
+      { t: 'Participantes', r: (t) => `${t.participantes}/${t.limite_participantes || 30}` },
+      { t: 'Empresas participantes', r: (t) => `<span class="mini">${A.esc(t.empresas.join(' · ') || 'Nenhuma empresa vinculada')}</span>` },
+    ], compartilhadas.turmas) : A.vazio('Nenhuma turma compartilhada', 'Programe um Treinamento de Boas Práticas para iniciar uma turma entre empresas.')}</div>
     <div class="cartao turmas-lista"><div class="cabecalho-lista"><div><h2>Agenda de entrega</h2><p class="desc">Controle as turmas, os participantes e a presença. O conteúdo não é executado dentro da ferramenta.</p></div><span class="tag">${turmas.length} turmas</span></div>
       ${turmas.length ? turmas.map((t) => `<article class="turma-card">
           <div class="turma-data"><b>${A.esc(t.data || '—')}</b><span>${t.carga_horaria}h</span></div><div class="turma-conteudo">
