@@ -63,6 +63,7 @@ const COLUNAS_NOVAS = {
   },
   turmas: { limite_participantes: 'INTEGER DEFAULT 30' },
   participantes: { empresa_id: 'INTEGER' },
+  cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT' },
 };
 
 function migrarEsquema() {
@@ -459,6 +460,7 @@ CREATE TABLE IF NOT EXISTS cnpj_cache (
   optante_simples INTEGER DEFAULT 0, data_opcao_simples TEXT, data_exclusao_simples TEXT,
   optante_mei INTEGER DEFAULT 0, data_opcao_mei TEXT, data_exclusao_mei TEXT,
   regime_derivado TEXT, justificativa TEXT,
+  natureza_juridica TEXT, codigo_natureza_juridica TEXT, efr TEXT,
   fonte TEXT, consultado_em TEXT
 );
 

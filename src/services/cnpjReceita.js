@@ -27,6 +27,7 @@
  * registrada em cada parceiro.
  */
 const db = require('./db_ref');
+const supabase = require('./supabase');
 const filasAutomaticas = new Map();
 
 const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
@@ -188,8 +189,8 @@ function gravarCache(cnpj, d, fonte) {
   db().prepare(`INSERT INTO cnpj_cache (cnpj, razao_social, situacao, porte, cnae, cnae_descricao,
     uf, municipio, optante_simples, data_opcao_simples, data_exclusao_simples,
     optante_mei, data_opcao_mei, data_exclusao_mei, regime_derivado, justificativa,
-    fonte, consultado_em)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now','localtime'))
+    natureza_juridica, codigo_natureza_juridica, efr, fonte, consultado_em)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now','localtime'))
     ON CONFLICT(cnpj) DO UPDATE SET razao_social=excluded.razao_social, situacao=excluded.situacao,
       porte=excluded.porte, cnae=excluded.cnae, cnae_descricao=excluded.cnae_descricao,
       uf=excluded.uf, municipio=excluded.municipio,
@@ -197,12 +198,26 @@ function gravarCache(cnpj, d, fonte) {
       data_exclusao_simples=excluded.data_exclusao_simples, optante_mei=excluded.optante_mei,
       data_opcao_mei=excluded.data_opcao_mei, data_exclusao_mei=excluded.data_exclusao_mei,
       regime_derivado=excluded.regime_derivado, justificativa=excluded.justificativa,
+      natureza_juridica=excluded.natureza_juridica, codigo_natureza_juridica=excluded.codigo_natureza_juridica, efr=excluded.efr,
       fonte=excluded.fonte, consultado_em=datetime('now','localtime')`)
     .run(cnpj, d.razao_social, d.situacao, d.porte, d.cnae, d.cnae_descricao, d.uf, d.municipio,
       d.optante_simples ? 1 : 0, d.data_opcao_simples, d.data_exclusao_simples,
       d.optante_mei ? 1 : 0, d.data_opcao_mei, d.data_exclusao_mei,
-      reg.regime, reg.justificativa, fonte);
-  return db().prepare('SELECT * FROM cnpj_cache WHERE cnpj = ?').get(cnpj);
+      reg.regime, reg.justificativa, d.natureza_juridica || '', d.codigo_natureza_juridica || '', d.efr || '', fonte);
+  const salvo = db().prepare('SELECT * FROM cnpj_cache WHERE cnpj = ?').get(cnpj);
+  const compartilhado = { ...salvo, optante_simples: Boolean(salvo.optante_simples), optante_mei: Boolean(salvo.optante_mei) };
+  if (supabase.configurado()) supabase.admin().from('cadastros_cnpj').upsert(compartilhado, { onConflict: 'cnpj' })
+    .then(({ error }) => { if (error) console.error('[supabase] cadastro CNPJ:', error.message); })
+    .catch((e) => console.error('[supabase] cadastro CNPJ:', e.message));
+  return salvo;
+}
+
+async function cadastroCentral(cnpj, validadeDias) {
+  if (!supabase.configurado()) return null;
+  const { data, error } = await supabase.admin().from('cadastros_cnpj').select('*').eq('cnpj', cnpj).maybeSingle();
+  if (error || !data) return null; // migração ainda não aplicada: segue pelo cache/API
+  const dias = (Date.now() - new Date(String(data.consultado_em).replace(' ', 'T')).getTime()) / 86400000;
+  return dias <= validadeDias ? { ...data, origem: 'cadastro_compartilhado' } : null;
 }
 
 /**
@@ -221,6 +236,8 @@ async function consultar(cnpj, opcoes = {}) {
 
   const cfg = config();
   if (!opcoes.forcar) {
+    const central = await cadastroCentral(c, cfg.validade_dias);
+    if (central) return central;
     const cache = doCache(c, cfg.validade_dias);
     if (cache && !cache.vencido) return { ...cache, origem: 'cache' };
   }
