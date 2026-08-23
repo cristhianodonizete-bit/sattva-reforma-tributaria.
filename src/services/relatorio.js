@@ -133,7 +133,7 @@ function gerar(empresaId, tipo, query = {}) {
 
   // ==================== RELATÓRIO TÉCNICO E MAPA DE RISCOS ====================
   // Alimentados pelo motor de projeção, não pela análise agregada anterior.
-  if (['tecnico', 'riscos', 'diagnostico'].includes(tipo)) {
+  if (['tecnico', 'riscos', 'diagnostico', 'recomendacoes'].includes(tipo)) {
     let m = null;
     try { m = motorExec.executar(empresaId, { ano: query.ano, gravar: false }); }
     catch (e) { aba(wb, 'Motor', [{ 'Situação': `Motor não pôde ser executado: ${e.message}` }], [{ wch: 100 }]); }
@@ -243,6 +243,24 @@ function gerar(empresaId, tipo, query = {}) {
             'NCM/NBS': e.ncm || '', 'Valor': e.valor, 'Detalhe': e.detalhe || '',
           }))), [{ wch: 48 }, { wch: 9 }, { wch: 32 }, { wch: 18 }, { wch: 14 },
             { wch: 36 }, { wch: 14 }, { wch: 14 }, { wch: 60 }]);
+      }
+
+      if (tipo === 'recomendacoes') {
+        aba(wb, 'Recomendações iniciais', mapa.riscos.map((x, indice) => ({
+          'Prioridade': indice + 1,
+          'Nível': x.nivel,
+          'Dimensão': x.dimensao,
+          'Achado': x.titulo,
+          'Descrição': x.descricao,
+          'Impacto': x.impacto,
+          'Recomendação': x.acao,
+          'Valor exposto': x.exposicao,
+          'Depende de validação': (x.evidencias || []).some((e) => /pend|indetermin|valid/i.test(String(e.detalhe || ''))) ? 'Sim' : 'Não',
+        })), [{ wch: 10 }, { wch: 12 }, { wch: 20 }, { wch: 48 }, { wch: 75 }, { wch: 75 }, { wch: 75 }, { wch: 18 }, { wch: 22 }]);
+        aba(wb, 'Nota metodológica', [{
+          'Leitura': 'As recomendações são derivadas dos documentos importados e do mapa de riscos do motor.',
+          'Uso': 'Itens sem cadastro, classificação ou regime confirmado devem ser validados antes de decisão fiscal definitiva.',
+        }], [{ wch: 110 }, { wch: 110 }]);
       }
     }
   }

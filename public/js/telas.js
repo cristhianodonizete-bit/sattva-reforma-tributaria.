@@ -71,11 +71,12 @@ Telas.painel = async (el) => {
     try {
       const d = await A.api(`/empresas/${S.empresaId}/motor/riscos`);
       const prioridade = { alta: 'Prioridade alta', media: 'Prioridade média', baixa: 'Monitoramento' };
-      A.modal({ titulo: 'Recomendações iniciais', largura: 860, confirmar: null,
+      A.modal({ titulo: 'Recomendações iniciais', largura: 860, confirmar: 'Exportar Excel',
         descricao: 'Leitura executiva derivada dos documentos importados, organizada por materialidade e prioridade de ação.',
         corpo: `<div class="grade g3">${A.kpi('Recomendações', d.sintese.total, `${d.sintese.alta} prioritárias`)}${A.kpi('Exposição mapeada', A.moeda(d.sintese.exposicaoTotal), 'valor associado aos riscos')}${A.kpi('Dimensões', d.sintese.dimensoes.length, d.sintese.dimensoes.join(' · '), 'destaque')}</div>
           <div class="aviso classificacao-orientacao"><b>O que exige validação</b> Itens sem cadastro, classificação ou regime confirmado devem ser revisados antes de uma decisão fiscal definitiva.</div>
-          <div class="recomendacoes-executivas">${d.riscos.map((r, i) => `<article class="recomendacao-executiva ${r.nivel}"><div><span class="tag ${r.nivel === 'alta' ? 'a' : r.nivel === 'media' ? 'b' : 'c'}">${prioridade[r.nivel] || r.nivel}</span><b>${i + 1}. ${A.esc(r.titulo)}</b><p>${A.esc(r.descricao)}</p></div><div class="recomendacao-acao"><strong>Recomendação</strong><span>${A.esc(r.acao)}</span>${r.impacto ? `<small>Impacto: ${A.esc(r.impacto)}</small>` : ''}</div></article>`).join('')}</div>` });
+          <div class="recomendacoes-executivas">${d.riscos.map((r, i) => `<article class="recomendacao-executiva ${r.nivel}"><div><span class="tag ${r.nivel === 'alta' ? 'a' : r.nivel === 'media' ? 'b' : 'c'}">${prioridade[r.nivel] || r.nivel}</span><b>${i + 1}. ${A.esc(r.titulo)}</b><p>${A.esc(r.descricao)}</p></div><div class="recomendacao-acao"><strong>Recomendação</strong><span>${A.esc(r.acao)}</span>${r.impacto ? `<small>Impacto: ${A.esc(r.impacto)}</small>` : ''}</div></article>`).join('')}</div>`,
+        aoConfirmar: async () => { window.open(`/api/empresas/${S.empresaId}/relatorio/recomendacoes`); } });
     } catch (e) { A.toast(e.message || 'Não foi possível gerar as recomendações.', 'erro'); }
   };
 };
