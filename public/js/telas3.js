@@ -545,4 +545,36 @@ Telas.dashboardOperacao = async (el) => {
   renderAgenda();
   renderCarteira();
 };
+
+// ===========================================================================
+// USUÁRIOS E ACESSOS
+// ===========================================================================
+Telas.acessos = async (el) => {
+  const d = await A.api('/acessos');
+  const rotulos = { visao_geral: 'Visão geral', diagnostico: 'Diagnóstico', precificacao: 'Precificação', contratos: 'Contratos', capacitacao: 'Capacitação', gestao_projetos: 'Gestão de projetos', configuracoes: 'Configurações', acessos: 'Usuários e acessos' };
+  const opcoesPerfil = () => [{ v: '', t: 'Sem perfil definido' }, ...d.perfis.filter((p) => p.ativo).map((p) => ({ v: p.id, t: p.nome }))];
+  const abrirPerfil = (perfil = null) => {
+    const perms = perfil?.permissoes || {};
+    const corpoPermissoes = d.areas.map((area) => A.selecao(`perm_${area}`, rotulos[area] || area, [{ v: 'nenhum', t: 'Sem acesso' }, { v: 'ver', t: 'Visualizar' }, { v: 'executar', t: 'Visualizar e executar' }], perms[area]?.executar ? 'executar' : perms[area]?.ver ? 'ver' : 'nenhum')).join('');
+    A.modal({ titulo: perfil ? 'Editar perfil de acesso' : 'Novo perfil de acesso', largura: 760,
+      corpo: `${A.campo('nome', 'Nome do perfil', perfil?.nome || '')}${A.area('descricao', 'Descrição', perfil?.descricao || '', 2)}<label class="check"><input type="checkbox" name="ativo" ${perfil?.ativo !== false ? 'checked' : ''}> Perfil ativo</label><h3 class="subtitulo-modal">Permissões</h3><div class="grade g2">${corpoPermissoes}</div>`,
+      aoConfirmar: async (form) => { const permissoes = Object.fromEntries(d.areas.map((area) => { const valor = form[`perm_${area}`]; return [area, { ver: valor !== 'nenhum', executar: valor === 'executar' }]; })); await A.api(perfil ? `/acessos/perfis/${perfil.id}` : '/acessos/perfis', { metodo: perfil ? 'PUT' : 'POST', corpo: { nome: form.nome, descricao: form.descricao, ativo: form.ativo, permissoes } }); A.ir('acessos'); } });
+  };
+  const abrirUsuario = (usuario = null) => A.modal({ titulo: usuario ? 'Editar usuário' : 'Novo usuário', largura: 620,
+    corpo: `${A.campo('nome', 'Nome', usuario?.nome || '')}${usuario ? `<label class="campo"><span>E-mail</span><input value="${A.esc(usuario.email)}" disabled></label>` : A.campo('email', 'E-mail', '', 'email')}${usuario ? '' : A.campo('senha', 'Senha inicial', '', 'password')} ${A.selecao('perfil_acesso_id', 'Perfil de acesso', opcoesPerfil(), usuario?.perfil_acesso_id || '')}<label class="check"><input type="checkbox" name="ativo" ${usuario?.ativo !== false ? 'checked' : ''}> Usuário ativo</label>`,
+    aoConfirmar: async (form) => { await A.api(usuario ? `/acessos/usuarios/${usuario.id}` : '/acessos/usuarios', { metodo: usuario ? 'PUT' : 'POST', corpo: form }); A.ir('acessos'); } });
+  const perfilPorId = new Map(d.perfis.map((p) => [p.id, p]));
+  el.innerHTML = cab('Administração', 'Usuários e acessos', 'Defina o que cada perfil pode visualizar ou executar e vincule-o aos usuários.', '<button class="btn vazio" id="novoPerfil">Novo perfil</button><button class="btn" id="novoUsuario">Novo usuário</button>') +
+    `<div class="grade g3">${d.perfis.map((p) => `<article class="cartao perfil-acesso-card"><div><h3>${A.esc(p.nome)}</h3><p class="desc">${A.esc(p.descricao || 'Sem descrição')}</p></div><div class="perfil-acesso-permissoes">${d.areas.filter((a) => p.permissoes?.[a]?.ver).map((a) => `<span>${A.esc(rotulos[a] || a)}${p.permissoes?.[a]?.executar ? ' · executar' : ''}</span>`).join('') || '<span>Nenhum acesso</span>'}</div><button class="btn pq vazio" data-perfil="${p.id}">Editar perfil</button></article>`).join('')}</div>
+     <div class="cartao lista-usuarios"><div class="cabecalho-lista"><div><h2>Usuários</h2><p class="desc">O perfil aplicado determina as telas disponíveis e as ações permitidas.</p></div><span class="tag">${d.usuarios.length} usuários</span></div>${A.tabela([
+       { t: 'Nome', r: (u) => `<b>${A.esc(u.nome || 'Não informado')}</b><small class="mini">${A.esc(u.email || '')}</small>` },
+       { t: 'Perfil', r: (u) => A.esc(perfilPorId.get(u.perfil_acesso_id)?.nome || 'Sem perfil') },
+       { t: 'Situação', r: (u) => `<span class="tag ${u.ativo ? 'c' : 'a'}">${u.ativo ? 'Ativo' : 'Inativo'}</span>` },
+       { t: '', r: (u) => `<button class="btn pq vazio" data-usuario="${u.id}">Editar</button>` },
+     ], d.usuarios, { vazio: 'Nenhum usuário encontrado.' })}</div>`;
+  el.querySelector('#novoPerfil').onclick = () => abrirPerfil();
+  el.querySelector('#novoUsuario').onclick = () => abrirUsuario();
+  el.querySelectorAll('[data-perfil]').forEach((b) => { b.onclick = () => abrirPerfil(d.perfis.find((p) => p.id === b.dataset.perfil)); });
+  el.querySelectorAll('[data-usuario]').forEach((b) => { b.onclick = () => abrirUsuario(d.usuarios.find((u) => u.id === b.dataset.usuario)); });
+};
 })();

@@ -160,7 +160,7 @@ const App = (() => {
       { id: 'plano', t: 'Plano de adequação', i: '✓' }, { id: 'servicos', t: 'Escopos e combos', i: '⊞' },
       { id: 'gestaoProjetos', t: 'Escopo e entregas', i: '▣' }, { id: 'configComercial', t: 'Configurar combos', i: '⚙' },
       { id: 'conhecimento', t: 'Base de conhecimento', i: '◰' }, { id: 'configuracoes', t: 'Configurações e controle', i: '⚙' },
-      { id: 'questor', t: 'Integração Questor', i: '↔' },
+      { id: 'questor', t: 'Integração Questor', i: '↔' }, { id: 'acessos', t: 'Usuários e acessos', i: '♙' },
     ] },
   ];
   const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens);
@@ -168,7 +168,7 @@ const App = (() => {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
     dados: 'diagnostico', bases: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico',
     precificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', capacitacao: 'capacitacao',
-    servicos: 'gestao_projetos', gestaoProjetos: 'gestao_projetos', configComercial: 'configuracoes', conhecimento: 'configuracoes', configuracoes: 'configuracoes', questor: 'configuracoes',
+    servicos: 'gestao_projetos', gestaoProjetos: 'gestao_projetos', configComercial: 'configuracoes', conhecimento: 'configuracoes', configuracoes: 'configuracoes', questor: 'configuracoes', acessos: 'acessos',
   };
   const pode = (tela, acao = 'ver') => {
     const permissoes = S.usuario?.permissoes;
@@ -214,7 +214,7 @@ const App = (() => {
     try {
       const fn = Telas[tela];
       if (!fn) { alvo.innerHTML = vazio('Tela não encontrada', 'Escolha uma opção no menu.'); return; }
-      const semEmpresa = ['empresas', 'dashboardOperacao', 'servicos', 'gestaoProjetos', 'configComercial', 'conhecimento', 'questor', 'bases', 'configuracoes'];
+      const semEmpresa = ['empresas', 'dashboardOperacao', 'servicos', 'gestaoProjetos', 'configComercial', 'conhecimento', 'questor', 'bases', 'configuracoes', 'acessos'];
       if (!semEmpresa.includes(tela) && !S.empresaId) {
         alvo.innerHTML = vazio('Selecione uma empresa', 'Este módulo trabalha sobre os dados de uma empresa. Cadastre ou selecione uma no topo do menu.',
           '<button class="btn" onclick="App.ir(\'empresas\')">Ir para empresas</button>');

@@ -56,6 +56,7 @@ const auditar = (req, { empresaId, acao, entidade, entidadeId, antes = null, dep
 };
 const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/operacao/.test(caminho)) return 'visao_geral';
+  if (/^\/acessos/.test(caminho)) return 'acessos';
   if (/^\/empresas/.test(caminho)) return metodo === 'GET' ? 'visao_geral' : 'diagnostico';
   if (/^\/(contratacoes|projeto|servicos|combos|gestao)/.test(caminho)) return 'gestao_projetos';
   if (/^\/(config|regras|questor|conhecimento|rag|ia)/.test(caminho)) return 'configuracoes';
@@ -129,6 +130,74 @@ router.get('/operacao/dashboard', async (_req, res) => {
     ok(res, { empresas: empresas.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
       aguardando: carteira.filter((p) => p.status === 'aguardando_aprovacao').length,
       entregasPendentes: carteira.reduce((n, p) => n + p.entregas - p.entregasConcluidas, 0) } });
+  } catch (e) { erro(res, e); }
+});
+
+// ===========================================================================
+// ACESSOS — perfis configuráveis e vínculo de usuários
+// ===========================================================================
+const AREAS_ACESSO = ['visao_geral', 'diagnostico', 'precificacao', 'contratos', 'capacitacao', 'gestao_projetos', 'configuracoes', 'acessos'];
+function normalizarPermissoes(permissoes) {
+  const origem = permissoes && typeof permissoes === 'object' ? permissoes : {};
+  return Object.fromEntries(AREAS_ACESSO.map((chave) => [chave, { ver: Boolean(origem[chave]?.ver), executar: Boolean(origem[chave]?.executar) }]));
+}
+router.get('/acessos', async (_req, res) => {
+  try {
+    const remoto = supabase.admin();
+    const [{ data: perfis, error: erroPerfis }, { data: usuariosPerfil, error: erroUsuariosPerfil }, usuariosAuth] = await Promise.all([
+      remoto.from('perfis_acesso').select('*').order('nome'), remoto.from('perfis').select('id,nome,papel,ativo,perfil_acesso_id'), remoto.auth.admin.listUsers({ page: 1, perPage: 1000 }),
+    ]);
+    if (erroPerfis) throw erroPerfis;
+    if (erroUsuariosPerfil) throw erroUsuariosPerfil;
+    if (usuariosAuth.error) throw usuariosAuth.error;
+    const perfilPorUsuario = new Map((usuariosPerfil || []).map((x) => [x.id, x]));
+    const usuarios = (usuariosAuth.data.users || []).map((u) => ({ id: u.id, email: u.email, criado_em: u.created_at, ultimo_acesso: u.last_sign_in_at, ...(perfilPorUsuario.get(u.id) || { nome: '', papel: 'consultor', ativo: true, perfil_acesso_id: null }) }));
+    ok(res, { areas: AREAS_ACESSO, perfis: perfis || [], usuarios });
+  } catch (e) { erro(res, e); }
+});
+router.post('/acessos/perfis', async (req, res) => {
+  try {
+    const b = req.body, remoto = supabase.admin();
+    if (!String(b.nome || '').trim()) throw new Error('Informe o nome do perfil.');
+    const { data, error } = await remoto.from('perfis_acesso').insert({ nome: b.nome.trim(), descricao: b.descricao || '', ativo: b.ativo !== false, permissoes: normalizarPermissoes(b.permissoes) }).select().single();
+    if (error) throw error;
+    auditar(req, { acao: 'Criou perfil de acesso', entidade: 'perfil_acesso', entidadeId: data.id, depois: { nome: data.nome } });
+    ok(res, { perfil: data });
+  } catch (e) { erro(res, e); }
+});
+router.put('/acessos/perfis/:id', async (req, res) => {
+  try {
+    const b = req.body, remoto = supabase.admin();
+    const { data: antes, error: erroAntes } = await remoto.from('perfis_acesso').select('*').eq('id', req.params.id).single();
+    if (erroAntes) throw erroAntes;
+    const { data, error } = await remoto.from('perfis_acesso').update({ nome: String(b.nome || antes.nome).trim(), descricao: b.descricao ?? antes.descricao, ativo: b.ativo !== false, permissoes: normalizarPermissoes(b.permissoes ?? antes.permissoes), atualizado_em: new Date().toISOString() }).eq('id', req.params.id).select().single();
+    if (error) throw error;
+    auditar(req, { acao: 'Atualizou perfil de acesso', entidade: 'perfil_acesso', entidadeId: data.id, antes: { nome: antes.nome }, depois: { nome: data.nome } });
+    ok(res, { perfil: data });
+  } catch (e) { erro(res, e); }
+});
+router.post('/acessos/usuarios', async (req, res) => {
+  try {
+    const b = req.body, remoto = supabase.admin(), email = String(b.email || '').trim().toLowerCase(), senha = String(b.senha || '');
+    if (!email || !email.includes('@')) throw new Error('Informe um e-mail válido.');
+    if (senha.length < 8) throw new Error('Defina uma senha inicial com ao menos 8 caracteres.');
+    const { data: criado, error: erroCriar } = await remoto.auth.admin.createUser({ email, password: senha, email_confirm: true });
+    if (erroCriar) throw erroCriar;
+    const { error } = await remoto.from('perfis').upsert({ id: criado.user.id, nome: String(b.nome || '').trim(), papel: 'consultor', ativo: true, perfil_acesso_id: b.perfil_acesso_id || null });
+    if (error) throw error;
+    auditar(req, { acao: 'Criou usuário', entidade: 'usuario', entidadeId: criado.user.id, depois: { email, perfil_acesso_id: b.perfil_acesso_id || null } });
+    ok(res, { usuario: { id: criado.user.id, email } });
+  } catch (e) { erro(res, e); }
+});
+router.put('/acessos/usuarios/:id', async (req, res) => {
+  try {
+    const b = req.body, remoto = supabase.admin();
+    const { data: antes, error: erroAntes } = await remoto.from('perfis').select('*').eq('id', req.params.id).maybeSingle();
+    if (erroAntes) throw erroAntes;
+    const { error } = await remoto.from('perfis').upsert({ id: req.params.id, nome: String(b.nome ?? antes?.nome ?? '').trim(), papel: antes?.papel || 'consultor', ativo: b.ativo !== false, perfil_acesso_id: b.perfil_acesso_id || null, atualizado_em: new Date().toISOString() });
+    if (error) throw error;
+    auditar(req, { acao: 'Atualizou usuário', entidade: 'usuario', entidadeId: req.params.id, antes: { perfil_acesso_id: antes?.perfil_acesso_id || null, ativo: antes?.ativo ?? true }, depois: { perfil_acesso_id: b.perfil_acesso_id || null, ativo: b.ativo !== false } });
+    ok(res, {});
   } catch (e) { erro(res, e); }
 });
 
