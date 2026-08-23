@@ -245,23 +245,32 @@ Telas.capacitacao = async (el) => {
   ]);
   const chaveTrilha = { workshop_boas_praticas: 'treinamento_boas_praticas', workshop_pratico: 'capacitacao_operacional' };
   const trilhasLiberadas = trilhas.filter((t) => acesso.trilhas.includes(chaveTrilha[t.id]));
+  const participantes = turmas.reduce((total, turma) => total + turma.participantes.length, 0);
+  const presencas = turmas.reduce((total, turma) => total + turma.participantes.filter((p) => p.presenca).length, 0);
+  const realizadas = turmas.filter((turma) => turma.status === 'realizada').length;
   el.innerHTML = cab('Módulo 4', 'Capacitação do time',
     'Controle de entrega: agenda, participantes e presença. O conteúdo das capacitações não é operado dentro da ferramenta.',
     `<button class="btn" id="novaTurma" ${trilhasLiberadas.length ? '' : 'disabled'}>Programar turma</button>`) +
     `${trilhasLiberadas.length ? `<div class="aviso bom"><b>Capacitações liberadas no plano:</b> ${trilhasLiberadas.map((t) => A.esc(t.titulo)).join(' · ')}</div>` : '<div class="aviso atencao"><b>Nenhuma capacitação liberada no plano aprovado.</b> Aprove o plano com Treinamento Boas Práticas ou Capacitação Operacional para liberar agenda e participantes.</div>'}
-    <div class="cartao" style="margin-top:16px"><h2>Turmas</h2>
-      ${turmas.length ? turmas.map((t) => `<div style="border:1px solid var(--linha);border-radius:10px;padding:14px;margin-bottom:10px">
-          <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap">
-            <div><b>${A.esc(t.titulo)}</b><div class="mini">${A.esc(t.data || 'sem data')} · ${t.carga_horaria}h · ${A.esc(t.formato)} · ${A.esc(t.instrutor || 'instrutor a definir')}</div></div>
-            <div style="display:flex;gap:6px;align-items:flex-start">
+    <div class="grade g4 resumo-capacitacao">
+      ${A.kpi('Turmas programadas', turmas.length, `${realizadas} realizadas`)}
+      ${A.kpi('Participantes', participantes, 'pessoas inscritas')}
+      ${A.kpi('Presenças confirmadas', presencas, participantes ? `${A.pct(presencas / participantes, 0)} da lista` : 'sem lista de presença')}
+      ${A.kpi('Trilhas liberadas', trilhasLiberadas.length, 'conforme plano aprovado', 'destaque')}
+    </div>
+    <div class="cartao turmas-lista"><div class="cabecalho-lista"><div><h2>Agenda de entrega</h2><p class="desc">Controle as turmas, os participantes e a presença. O conteúdo não é executado dentro da ferramenta.</p></div><span class="tag">${turmas.length} turmas</span></div>
+      ${turmas.length ? turmas.map((t) => `<article class="turma-card">
+          <div class="turma-data"><b>${A.esc(t.data || '—')}</b><span>${t.carga_horaria}h</span></div><div class="turma-conteudo">
+            <div><b>${A.esc(t.titulo)}</b><div class="mini">${A.esc(t.formato)} · ${A.esc(t.instrutor || 'instrutor a definir')}</div></div>
+            <div class="turma-acoes">
               <span class="tag ${t.status === 'realizada' ? 'c' : 'n'}">${A.esc(t.status)}</span>
               <button class="btn pq vazio" data-part="${t.id}">Participantes (${t.participantes.length})</button>
               <button class="btn pq vazio" data-et="${t.id}">Editar</button>
               <button class="btn pq perigo" data-rt="${t.id}">Excluir</button>
             </div>
+            ${t.participantes.length ? `<div class="mini turma-presenca">Presença: ${t.participantes.filter((p) => p.presenca).length}/${t.participantes.length}</div>` : ''}
           </div>
-          ${t.participantes.length ? `<div class="mini" style="margin-top:8px">Presença: ${t.participantes.filter((p) => p.presenca).length}/${t.participantes.length}</div>` : ''}
-        </div>`).join('') : A.vazio('Nenhuma turma programada', 'Escolha uma trilha acima e programe a primeira turma.')}
+        </article>`).join('') : A.vazio('Nenhuma turma programada', 'Escolha uma trilha acima e programe a primeira turma.')}
     </div>`;
 
   const form = (t = {}) => `<div class="grade g2">${A.campo('titulo', 'Título', t.titulo)}
