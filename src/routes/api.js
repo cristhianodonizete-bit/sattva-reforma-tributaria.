@@ -55,26 +55,31 @@ const sincronizarGestao = () => sincronizarGestaoSupabase().catch((e) => console
 router.get('/operacao/dashboard', async (_req, res) => {
   try {
     const remoto = supabase.admin();
-    const [{ data: empresas, error: erroEmpresas }, { data: projetos, error: erroProjetos }, { data: entregas, error: erroEntregas }, { data: acompanhamentos, error: erroAcomp }, { data: tarefas, error: erroTarefas }] = await Promise.all([
+    const [{ data: empresas, error: erroEmpresas }, { data: projetos, error: erroProjetos }, { data: entregas, error: erroEntregas }, { data: acompanhamentos, error: erroAcomp }, { data: responsaveis, error: erroResponsaveis }, { data: tarefas, error: erroTarefas }] = await Promise.all([
       remoto.from('empresas').select('id,razao_social,ativo'), remoto.from('projetos').select('*'),
       remoto.from('projeto_entregas').select('*'), remoto.from('projeto_acompanhamentos').select('*'),
+      remoto.from('projeto_responsaveis').select('*'),
       remoto.from('projeto_tarefas').select('*'),
     ]);
-    for (const e of [erroEmpresas, erroProjetos, erroEntregas, erroAcomp, erroTarefas]) if (e) throw e;
+    for (const e of [erroEmpresas, erroProjetos, erroEntregas, erroAcomp, erroResponsaveis, erroTarefas]) if (e) throw e;
     const empresaPorId = new Map(empresas.map((e) => [e.id, e]));
     const porProjeto = new Map((entregas || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const acompPorProjeto = new Map((acompanhamentos || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
+    const responsaveisPorProjeto = new Map((responsaveis || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const tarefasPorProjeto = new Map((tarefas || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const hoje = new Date().toISOString().slice(0, 10);
     const carteira = (projetos || []).map((p) => {
-      const es = porProjeto.get(p.id) || [], as = acompPorProjeto.get(p.id) || [], ts = tarefasPorProjeto.get(p.id) || [];
+      const es = porProjeto.get(p.id) || [], as = acompPorProjeto.get(p.id) || [], ts = tarefasPorProjeto.get(p.id) || [], rs = responsaveisPorProjeto.get(p.id) || [];
       const feitas = es.filter((x) => ['concluida', 'nao_aplicavel'].includes(x.status)).length;
       const proximaTarefa = ts.filter((x) => x.status !== 'concluida' && x.data_conclusao).sort((a, b) => String(a.data_conclusao).localeCompare(String(b.data_conclusao)))[0];
       const proximoAcompanhamento = as.filter((x) => x.status !== 'concluido').sort((a, b) => String(a.competencia).localeCompare(String(b.competencia)))[0]?.competencia || null;
+      const responsavelSattva = rs.find((x) => x.lado === 'sattva')?.nome || null;
+      const pendenciasCliente = ts.filter((x) => x.status !== 'concluida' && x.envolve_cliente && String(x.pendencia_cliente || '').trim()).length;
       return { ...p, empresa: empresaPorId.get(p.empresa_id)?.razao_social || 'Cliente não identificado', entregas: es.length,
         entregasConcluidas: feitas, progresso: es.length ? Math.round((feitas / es.length) * 100) : 0,
         acompanhamentos: as.length, acompanhamentosConcluidos: as.filter((x) => x.status === 'concluido').length,
-        proximoAcompanhamento, proximoMarco: proximaTarefa ? { titulo: proximaTarefa.titulo, data: proximaTarefa.data_conclusao, atrasado: proximaTarefa.data_conclusao < hoje } : null };
+        responsavelSattva, pendenciasCliente,
+        proximoAcompanhamento, proximoMarco: proximaTarefa ? { titulo: proximaTarefa.titulo, data: proximaTarefa.data_conclusao, atrasado: proximaTarefa.data_conclusao < hoje, envolveCliente: Boolean(proximaTarefa.envolve_cliente), pendenciaCliente: proximaTarefa.pendencia_cliente || '' } : null };
     }).sort((a, b) => {
       const dataA = a.proximoMarco?.data || a.proximoAcompanhamento || '9999-99';
       const dataB = b.proximoMarco?.data || b.proximoAcompanhamento || '9999-99';
