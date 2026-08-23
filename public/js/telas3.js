@@ -417,6 +417,34 @@ Telas.configComercial = async (el) => {
 };
 
 // ===========================================================================
+// CADASTRO CENTRAL COMPARTILHADO DE CNPJ
+// ===========================================================================
+Telas.cadastrosCnpj = async (el) => {
+  let pagina = 1; let busca = '';
+  const render = async () => {
+    const r = await A.api(`/cadastros-cnpj?pagina=${pagina}&busca=${encodeURIComponent(busca)}`);
+    const totalPaginas = Math.max(1, Math.ceil(r.total / r.tamanho));
+    el.innerHTML = cab('Cadastro central', 'Cadastros compartilhados',
+      'Cada CNPJ é consultado e mantido uma única vez. Nas empresas ficam apenas os vínculos de cliente, fornecedor ou ambos.') +
+      `<div class="cartao"><div class="grade g3" style="align-items:end"><label class="campo" style="margin:0;grid-column:span 2"><span>Buscar CNPJ ou razão social</span><input id="ccBusca" value="${A.esc(busca)}" placeholder="Ex.: 12.345.678/0001-90 ou Sattva"></label><button class="btn" id="ccBuscar">Buscar</button></div>
+        <div class="mini" style="margin-top:14px"><b>${r.total.toLocaleString('pt-BR')}</b> cadastro(s) central(is) · página ${pagina} de ${totalPaginas}</div>
+        ${A.tabela([
+          { t: 'CNPJ / razão social', r: (x) => `<span class="mono">${A.esc(x.cnpj)}</span><div><b>${A.esc(x.razao_social || 'Sem razão social')}</b></div><div class="mini">${A.esc([x.municipio, x.uf].filter(Boolean).join(' / ') || 'localidade não informada')}</div>` },
+          { t: 'Regime cadastral', r: (x) => `<span class="tag">${A.esc(A.regimeLabel(x.regime_derivado) || x.regime_derivado || 'A validar')}</span><div class="mini">${A.esc(x.situacao || '')}</div>` },
+          { t: 'Natureza / EFR', r: (x) => `<span class="mini">${A.esc(x.natureza_juridica || 'não informado')}</span>${x.efr ? `<div class="mini">EFR: ${A.esc(x.efr)}</div>` : ''}` },
+          { t: 'Fonte', r: (x) => `<span class="mini">${A.esc(x.fonte || '—')}</span><div class="mini">${A.esc(x.consultado_em || '')}</div>` },
+        ], r.cadastros, { vazio: 'Nenhum CNPJ centralizado ainda. Os cadastros são incluídos automaticamente na primeira consulta oficial.' })}
+        <div class="acoes-topo" style="margin-top:14px"><button class="btn vazio" id="ccAnterior" ${pagina <= 1 ? 'disabled' : ''}>Anterior</button><button class="btn vazio" id="ccProximo" ${pagina >= totalPaginas ? 'disabled' : ''}>Próxima</button></div></div>`;
+    document.getElementById('ccBuscar').onkeydown = (e) => { if (e.key === 'Enter') { busca = e.target.value.trim(); pagina = 1; render(); } };
+    document.getElementById('ccBuscar').oninput = () => {};
+    document.getElementById('ccBuscar').closest('.cartao').querySelector('#ccBuscar').onclick = () => { busca = document.getElementById('ccBusca').value.trim(); pagina = 1; render(); };
+    document.getElementById('ccAnterior').onclick = () => { pagina--; render(); };
+    document.getElementById('ccProximo').onclick = () => { pagina++; render(); };
+  };
+  await render();
+};
+
+// ===========================================================================
 // GESTÃO DA CARTEIRA — escopo aprovado, entrega e acompanhamento
 // ===========================================================================
 Telas.gestaoProjetos = async (el) => {

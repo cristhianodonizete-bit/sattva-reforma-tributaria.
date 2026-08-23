@@ -28,6 +28,23 @@ const { executar: sincronizarGestaoSupabase } = require('../../scripts/sincroniz
 
 const router = express.Router();
 router.get('/cnpj/:cnpj/governo', async (req, res) => { try { const d = await cnpjReceita.consultar(req.params.cnpj); ok(res, { resultado: cnpjReceita.classificarEnteGovernamental(d, String(req.params.cnpj).replace(/\D/g, '')) }); } catch (e) { erro(res, e); } });
+// Cadastro central: não pertence a uma empresa específica. Os vínculos de
+// cliente/fornecedor continuam em `parceiros`, isolados por empresa.
+router.get('/cadastros-cnpj', async (req, res) => {
+  try {
+    if (!supabase.configurado()) throw new Error('Base compartilhada não configurada.');
+    const pagina = Math.max(1, Number(req.query.pagina) || 1);
+    const tamanho = Math.min(100, Math.max(10, Number(req.query.tamanho) || 25));
+    const busca = String(req.query.busca || '').replace(/[^\w\s.\-\/]/g, '').trim();
+    let consulta = supabase.admin().from('cadastros_cnpj')
+      .select('cnpj,razao_social,situacao,porte,uf,municipio,regime_derivado,natureza_juridica,codigo_natureza_juridica,efr,fonte,consultado_em', { count: 'exact' })
+      .order('consultado_em', { ascending: false });
+    if (busca) consulta = consulta.or(`cnpj.ilike.%${busca}%,razao_social.ilike.%${busca}%`);
+    const { data, error, count } = await consulta.range((pagina - 1) * tamanho, pagina * tamanho - 1);
+    if (error) throw error;
+    ok(res, { cadastros: data || [], total: count || 0, pagina, tamanho });
+  } catch (e) { erro(res, e); }
+});
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });
 
 // As alterações feitas nas telas passam a ser publicadas na fonte compartilhada.
