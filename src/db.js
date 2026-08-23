@@ -449,6 +449,16 @@ CREATE TABLE IF NOT EXISTS base_regime_importacoes (
   segundos REAL, criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- Regras específicas para vendas a entes governamentais (LC 214).
+CREATE TABLE IF NOT EXISTS regras_governo (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo TEXT NOT NULL, chave TEXT NOT NULL, lc116 TEXT, nbs TEXT, ncm TEXT,
+  descricao TEXT, tratamento TEXT, cst TEXT, cclasstrib TEXT, indop TEXT,
+  reducao REAL, aliquota_zero INTEGER DEFAULT 0, ente_elegivel TEXT,
+  condicoes TEXT, fundamento TEXT, vigencia TEXT, fonte TEXT,
+  UNIQUE(tipo, chave, cclasstrib)
+);
+
 -- ============ CONSULTA DE REGIME NA BASE DA RECEITA ============
 -- Cache das consultas ao cadastro público de CNPJ. Guarda a situação na data
 -- da consulta e a fonte — o regime de um fornecedor pode mudar, e o
