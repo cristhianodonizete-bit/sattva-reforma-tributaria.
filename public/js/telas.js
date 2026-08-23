@@ -435,7 +435,7 @@ async function telaCadeia(el, tipo) {
         { t: 'Impacto R$', num: true, r: () => A.setaR$(ultimo.impactoOperacao || 0) },
         { t: 'Impacto %', num: true, r: () => A.setaPct(ultimo.impactoOperacaoPerc || 0) },
       ], [{}])}
-      <p class="mini" style="margin-top:12px"><b>Crédito potencial juridicamente associado à operação:</b> ${A.moeda((ultimo.ibs || 0) + (ultimo.cbs || 0))}. <b>Aproveitamento efetivo estimado:</b> ${A.moeda(ultimo.credito || 0)}. Nenhum dos dois valores é subtraído do impacto de preço.</p>
+      <p class="mini" style="margin-top:12px"><b>Crédito potencial juridicamente associado à operação:</b> ${A.moeda((ultimo.ibs || 0) + (ultimo.cbs || 0))}. A relevância para o comprador é exibida por perfil; não há apuração de crédito do vendedor nesta análise de venda.</p>
     </div>
     <div class="cartao" style="margin-top:16px">
       <h2>Grau de repasse simulado</h2>
@@ -460,7 +460,7 @@ async function telaCadeia(el, tipo) {
           { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (r) => A.moeda(r.precoProjetado) },
           { t: eForn ? 'Impacto da compra' : 'Impacto da venda', num: true, r: (r) => A.setaR$(r.impactoOperacao) },
           { t: 'Crédito potencial da operação', num: true, r: (r) => A.moeda(r.creditoPotencial) },
-          { t: eForn ? 'Aproveitamento da empresa' : 'Aproveitamento do cliente', r: (r) => `<span class="tag ${r.aproveitamentoCliente === 'Apropriação possível' ? 'c' : 'n'}">${A.esc(r.aproveitamentoCliente)}</span>` },
+          { t: eForn ? 'Relevância para a empresa' : 'Relevância para o cliente', r: (r) => `<span class="tag ${String(r.relevanciaCreditoCliente || '').startsWith('Potencialmente') ? 'c' : 'n'}">${A.esc(r.relevanciaCreditoCliente)}</span>` },
         ], analise.regimes)}
       </div>
     <div class="cartao" style="margin-top:16px"><h2>${ibsAtivo ? 'Projeção ano a ano' : 'Referência CBS'}</h2>
@@ -492,7 +492,7 @@ async function telaCadeia(el, tipo) {
         { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (p) => A.moeda(p.precoFinal) },
         { t: 'Impacto', num: true, r: (p) => A.setaR$(p.impactoOperacao) },
         { t: 'Crédito potencial', num: true, r: (p) => A.moeda(p.creditoPotencial) },
-        { t: 'Aproveitamento', r: (p) => `<span class="tag ${p.aproveitamentoCliente === 'Apropriação possível' ? 'c' : 'n'}">${A.esc(p.aproveitamentoCliente)}</span>` },
+        { t: 'Relevância do crédito', r: (p) => `<span class="tag ${String(p.relevanciaCreditoCliente || '').startsWith('Potencialmente') ? 'c' : 'n'}">${A.esc(p.relevanciaCreditoCliente)}</span>` },
       ], analise.parceiros.slice(0, 200))}
     </div>` : ''}` : A.vazio('Sem movimentação importada',
       `Importe a movimentação de ${eForn ? 'fornecedores' : 'clientes'} para gerar esta análise.`,

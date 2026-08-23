@@ -14,6 +14,17 @@ const { calcularOperacao, r2, r4 } = require('./calculadora');
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
 const soma = (arr, f) => arr.reduce((s, x) => s + num(f(x)), 0);
 
+// Na saída não se apura crédito do vendedor. Esta leitura é exclusivamente
+// comercial: indica se o IBS/CBS destacado tende a ser economicamente
+// relevante para o comprador, sem afirmar direito ou apropriação efetiva.
+function relevanciaCreditoCliente(regime) {
+  if (regime === 'pessoa_fisica') return 'Não aplicável — consumidor final';
+  if (['simples_nacional', 'mei'].includes(regime)) return 'Sem apropriação no perfil informado';
+  if (['orgao_publico', 'imune_isento'].includes(regime)) return 'A validar para o perfil informado';
+  if ((P.REGIMES[regime] || {}).creditaNovo) return 'Potencialmente relevante — B2B regular';
+  return 'A validar';
+}
+
 /**
  * @param {Array} movimentos  linhas da movimentação (fornecedores ou clientes)
  * @param {object} cfg  { regimeEmpresa, anos, grauRepasse, lado: 'fornecedor'|'cliente' }
@@ -58,8 +69,7 @@ function analisarCadeia(movimentos, cfg = {}) {
         regime: regimeParceiro, regimeLabel: (P.REGIMES[regimeParceiro] || {}).label || regimeParceiro,
         itens: 0, valor: 0, baseEconomica: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, custoHoje: 0,
         custoFinal: 0, precoFinal: 0, creditoFinal: 0, creditoPotencial: 0,
-        aproveitamentoCliente: (P.REGIMES[regimeParceiro] || {}).creditaNovo
-          ? 'Apropriação possível' : 'Sem apropriação',
+        relevanciaCreditoCliente: relevanciaCreditoCliente(regimeParceiro),
       });
     }
     const p = porParceiro.get(chave);
@@ -82,7 +92,7 @@ function analisarCadeia(movimentos, cfg = {}) {
     if (!porRegime.has(regimeParceiro)) {
       porRegime.set(regimeParceiro, { regime: regimeParceiro, label: (P.REGIMES[regimeParceiro] || {}).label || regimeParceiro,
         parceiros: new Set(), valor: 0, baseEconomica: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, creditoFinal: 0, creditoPotencial: 0, custoHoje: 0, custoFinal: 0, precoFinal: 0,
-        aproveitamentoCliente: (P.REGIMES[regimeParceiro] || {}).creditaNovo ? 'Apropriação possível' : 'Sem apropriação' });
+        relevanciaCreditoCliente: relevanciaCreditoCliente(regimeParceiro) });
     }
     const rg = porRegime.get(regimeParceiro);
     rg.parceiros.add(chave);
@@ -148,7 +158,7 @@ function analisarCadeia(movimentos, cfg = {}) {
 
   const regimes = [...porRegime.values()].map((r) => ({
     regime: r.regime, label: r.label, parceiros: r.parceiros.size,
-    aproveitamentoCliente: r.aproveitamentoCliente,
+    relevanciaCreditoCliente: r.relevanciaCreditoCliente,
     valor: r2(r.valor), representatividade: totalValor ? r4(r.valor / totalValor) : 0,
     baseEconomica: r2(r.baseEconomica), ibs: r2(r.ibs), cbs: r2(r.cbs), tributos: r2(r.tributos), creditoHoje: r2(r.creditoHoje), creditoFinal: r2(r.creditoFinal), creditoPotencial: r2(r.creditoPotencial),
     variacaoCredito: r2(r.creditoFinal - r.creditoHoje),
