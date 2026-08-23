@@ -303,8 +303,8 @@ async function projClassificacoes(el) {
         { t: 'NCM/NBS', r: (i) => `<span class="mono mini">${A.esc(i.detalhe.ncm || i.detalhe.nbs || '—')}</span>` },
         { t: 'CFOP', r: (i) => `<span class="mono mini">${A.esc(i.detalhe.cfop || '—')}</span>` },
         { t: 'CST atual', r: (i) => `<span class="mono mini">${A.esc(i.detalhe.cstAtual || i.detalhe.csosn || '—')}</span>` },
-        { t: 'CST IBS/CBS', r: (i) => `<span class="mono">${A.esc(i.cst || '—')}</span>` },
-        { t: 'cClassTrib', r: (i) => `<span class="mono">${A.esc(i.cclasstrib || '—')}</span>` },
+        { t: 'Declarado no XML', r: (i) => `<span class="mono mini">CST ${A.esc(i.detalhe.classificacao?.declarado?.cst || '—')}<br>cCT ${A.esc(i.detalhe.classificacao?.declarado?.cclasstrib || '—')}</span>` },
+        { t: 'Recomendado pela base', r: (i) => `<span class="mono mini">CST ${A.esc(i.cst || '—')}<br>cCT ${A.esc(i.cclasstrib || '—')}</span>` },
         { t: 'Tratamento', r: (i) => `<span class="mini">${A.esc((i.tratamento || '').slice(0, 42))}</span>` },
         { t: 'Base econômica', num: true, r: (i) => A.moeda(i.base_economica) },
         { t: 'IBS', num: true, r: (i) => A.moeda(i.ibs) },
@@ -345,8 +345,8 @@ function rastreabilidade(x) {
       <table>
         <tr><td>Status</td><td><span class="tag ${stCls(cls.status)[0]}">${stCls(cls.status)[1]}</span></td></tr>
         <tr><td>Origem da regra</td><td>${A.esc(cls.origemRegra || '—')}</td></tr>
-        <tr><td>CST IBS/CBS</td><td class="mono">${A.esc(cls.cst || '—')}</td></tr>
-        <tr><td>cClassTrib</td><td class="mono">${A.esc(cls.cclasstrib || '—')}</td></tr>
+        <tr><td>Declarado no XML</td><td class="mono">CST ${A.esc(cls.declarado?.cst || '—')} · cClassTrib ${A.esc(cls.declarado?.cclasstrib || '—')}</td></tr>
+        <tr><td>Recomendado pela base (motor)</td><td class="mono">CST ${A.esc(cls.cst || '—')} · cClassTrib ${A.esc(cls.cclasstrib || '—')}</td></tr>
         <tr><td>Tratamento</td><td>${A.esc(cls.tratamento || '—')}</td></tr>
         <tr><td>Fundamento legal</td><td>${A.esc(cls.fundamentoLegal || '—')}${cls.anexo ? ` · Anexo ${A.esc(cls.anexo)}` : ''}</td></tr>
         ${cls.localIncidencia ? `<tr><td>Local de incidência</td><td>${A.esc(cls.localIncidencia)}</td></tr>` : ''}

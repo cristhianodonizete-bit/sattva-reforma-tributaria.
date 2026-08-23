@@ -21,6 +21,13 @@ const bases = require('../services/basesReforma');
 const regras = require('../services/regras');
 
 const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
+// A base de serviços traz cClassTrib. Para o motor, o grupo do código define
+// o CST recomendado quando a planilha não o informa explicitamente.
+function cstDaBase(c) {
+  if (c.cst) return c.cst;
+  const grupo = String(c.cclasstrib || '').slice(0, 3);
+  return ['000', '200', '400', '410'].includes(grupo) ? grupo : '';
+}
 
 /**
  * CFOPs que, por si sós, indicam operação sem incidência ou com tratamento
@@ -139,20 +146,21 @@ function classificar(item, ctx = {}) {
   }
 
   fundamentos.push(`Tratamento: ${c.classificacao || c.nome_cclasstrib || 'tributação integral'}.`);
-  // A base de serviços traz cClassTrib mas não CST. Quando o próprio documento
-  // declara o CST, ele é aproveitado — e qualquer divergência de cClassTrib
-  // entre o declarado e o que a base indica é registrada, não silenciada.
-  if (item.declarado && item.declarado.cst) {
-    if (!c.cst) { c = { ...c, cst: item.declarado.cst }; fundamentos.push(`CST ${item.declarado.cst} declarado pelo emissor no documento.`); }
-    if (item.declarado.cclasstrib && c.cclasstrib && item.declarado.cclasstrib !== c.cclasstrib) {
+  // A BASE é a recomendação do motor. O documento é preservado apenas para
+  // comparação; nunca substitui a regra recomendada silenciosamente.
+  c = { ...c, cst: cstDaBase(c) };
+  if (item.declarado && (item.declarado.cst || item.declarado.cclasstrib)) {
+    const divergente = (item.declarado.cst && c.cst && item.declarado.cst !== c.cst)
+      || (item.declarado.cclasstrib && c.cclasstrib && item.declarado.cclasstrib !== c.cclasstrib);
+    if (divergente) {
       return montar('REQUER_VALIDACAO', c, origem,
-        fundamentos.concat([`Divergência: o emissor declarou cClassTrib ${item.declarado.cclasstrib} e a base indica ${c.cclasstrib} para este serviço. Confirmar qual prevalece antes de projetar.`]),
-        { natureza, sentido, candidatos, divergencia: true });
+        fundamentos.concat([`Documento: CST ${item.declarado.cst || '—'} / cClassTrib ${item.declarado.cclasstrib || '—'}. Base recomendada: CST ${c.cst || '—'} / cClassTrib ${c.cclasstrib || '—'}. Confirmar a divergência antes da entrega fiscal.`]),
+        { natureza, sentido, candidatos, divergencia: true, declarado: item.declarado });
     }
   }
   if (c.fundamento) fundamentos.push(`Fundamento legal: ${c.fundamento}.`);
   if (c.anexo) fundamentos.push(`Anexo ${c.anexo} da LC 214.`);
-  return montar('CLASSIFICADO', c, origem, fundamentos, { natureza, sentido, candidatos });
+  return montar('CLASSIFICADO', c, origem, fundamentos, { natureza, sentido, candidatos, declarado: item.declarado || null });
 }
 
 function montar(status, c, origem, fundamentos, extra = {}) {
@@ -178,6 +186,7 @@ function montar(status, c, origem, fundamentos, extra = {}) {
     })),
     vedacaoPossivel: !!extra.vedacaoPossivel,
     divergencia: !!extra.divergencia,
+    declarado: extra.declarado || null,
   };
 }
 
