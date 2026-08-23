@@ -57,6 +57,7 @@ const auditar = (req, { empresaId, acao, entidade, entidadeId, antes = null, dep
 const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/operacao/.test(caminho)) return 'visao_geral';
   if (/^\/acessos/.test(caminho)) return 'acessos';
+  if (/^\/empresas\/\d+\/turmas/.test(caminho) || /^\/(turmas|participantes)/.test(caminho)) return 'capacitacao';
   if (/^\/empresas/.test(caminho)) return metodo === 'GET' ? 'visao_geral' : 'diagnostico';
   if (/^\/(contratacoes|projeto|servicos|combos|gestao)/.test(caminho)) return 'gestao_projetos';
   if (/^\/(config|regras|questor|conhecimento|rag|ia)/.test(caminho)) return 'configuracoes';
@@ -89,6 +90,18 @@ async function contratacaoPermitida(req, contratacaoId) {
   if (!contratacao) throw new Error('Projeto não encontrado.');
   await garantirEmpresaPermitida(req, contratacao.empresa_id);
   return contratacao;
+}
+async function turmaPermitida(req, turmaId) {
+  const turma = db.prepare('SELECT * FROM turmas WHERE id=?').get(turmaId);
+  if (!turma) throw new Error('Turma não encontrada.');
+  await garantirEmpresaPermitida(req, turma.empresa_id);
+  return turma;
+}
+async function participantePermitido(req, participanteId) {
+  const participante = db.prepare(`SELECT p.*, t.empresa_id FROM participantes p JOIN turmas t ON t.id=p.turma_id WHERE p.id=?`).get(participanteId);
+  if (!participante) throw new Error('Participante não encontrado.');
+  await garantirEmpresaPermitida(req, participante.empresa_id);
+  return participante;
 }
 router.use(async (req, res, next) => {
   const alvo = req.path.match(/^\/empresas\/(\d+)(?:\/|$)/)?.[1];
@@ -808,33 +821,43 @@ router.post('/empresas/:id/turmas', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.put('/turmas/:id', (req, res) => {
-  const b = req.body;
-  db.prepare('UPDATE turmas SET trilha=?, titulo=?, formato=?, data=?, carga_horaria=?, instrutor=?, status=?, observacoes=? WHERE id=?')
-    .run(b.trilha, b.titulo, b.formato, b.data, +b.carga_horaria || 4, b.instrutor, b.status, b.observacoes || '', req.params.id);
-  ok(res, {});
-});
-
-router.delete('/turmas/:id', (req, res) => { db.prepare('DELETE FROM turmas WHERE id=?').run(req.params.id); ok(res, {}); });
-
-router.post('/turmas/:id/participantes', (req, res) => {
-  const b = req.body;
-  const r = db.prepare('INSERT INTO participantes (turma_id, nome, area, email, presenca) VALUES (?,?,?,?,?)')
-    .run(req.params.id, b.nome, b.area || '', b.email || '', b.presenca ? 1 : 0);
-  ok(res, { id: r.lastInsertRowid });
-});
-
-router.put('/participantes/:id', (req, res) => {
-  const b = req.body;
-  db.prepare('UPDATE participantes SET nome=?, area=?, email=?, presenca=?, nota_avaliacao=? WHERE id=?')
-    .run(b.nome, b.area || '', b.email || '', b.presenca ? 1 : 0, b.nota_avaliacao || null, req.params.id);
-  ok(res, {});
-});
-
-router.delete('/participantes/:id', (req, res) => { db.prepare('DELETE FROM participantes WHERE id=?').run(req.params.id); ok(res, {}); });
-
-router.post('/turmas/:id/importar', upload.single('arquivo'), (req, res) => {
+router.put('/turmas/:id', async (req, res) => {
   try {
+    await turmaPermitida(req, req.params.id);
+    const b = req.body;
+    db.prepare('UPDATE turmas SET trilha=?, titulo=?, formato=?, data=?, carga_horaria=?, instrutor=?, status=?, observacoes=? WHERE id=?')
+      .run(b.trilha, b.titulo, b.formato, b.data, +b.carga_horaria || 4, b.instrutor, b.status, b.observacoes || '', req.params.id);
+    ok(res, {});
+  } catch (e) { erro(res, e); }
+});
+
+router.delete('/turmas/:id', async (req, res) => { try { await turmaPermitida(req, req.params.id); db.prepare('DELETE FROM turmas WHERE id=?').run(req.params.id); ok(res, {}); } catch (e) { erro(res, e); } });
+
+router.post('/turmas/:id/participantes', async (req, res) => {
+  try {
+    await turmaPermitida(req, req.params.id);
+    const b = req.body;
+    const r = db.prepare('INSERT INTO participantes (turma_id, nome, area, email, presenca) VALUES (?,?,?,?,?)')
+      .run(req.params.id, b.nome, b.area || '', b.email || '', b.presenca ? 1 : 0);
+    ok(res, { id: r.lastInsertRowid });
+  } catch (e) { erro(res, e); }
+});
+
+router.put('/participantes/:id', async (req, res) => {
+  try {
+    await participantePermitido(req, req.params.id);
+    const b = req.body;
+    db.prepare('UPDATE participantes SET nome=?, area=?, email=?, presenca=?, nota_avaliacao=? WHERE id=?')
+      .run(b.nome, b.area || '', b.email || '', b.presenca ? 1 : 0, b.nota_avaliacao || null, req.params.id);
+    ok(res, {});
+  } catch (e) { erro(res, e); }
+});
+
+router.delete('/participantes/:id', async (req, res) => { try { await participantePermitido(req, req.params.id); db.prepare('DELETE FROM participantes WHERE id=?').run(req.params.id); ok(res, {}); } catch (e) { erro(res, e); } });
+
+router.post('/turmas/:id/importar', upload.single('arquivo'), async (req, res) => {
+  try {
+    await turmaPermitida(req, req.params.id);
     const { linhas } = imp.lerPlanilha(req.file.buffer);
     const norm = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const acha = (l, nomes) => { for (const k of Object.keys(l)) { if (nomes.includes(norm(k))) return l[k]; } return ''; };
