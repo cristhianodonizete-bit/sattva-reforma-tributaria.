@@ -73,6 +73,7 @@ nav a .n{margin-left:auto;font-size:11px;font-family:var(--mono);color:var(--our
 .sobe{color:var(--sobe)} .desce{color:var(--desce)} .neutro{color:var(--tinta-2)}
 
 .btn{background:var(--navy);color:#fff;border:1px solid var(--navy);padding:8px 15px;border-radius:8px;cursor:pointer;font-weight:600;font-size:13px;transition:.15s}
+.btn{border-radius:9px;padding:9px 16px;box-shadow:0 1px 1px rgba(11,49,73,.08)}.btn.vazio{box-shadow:none}.acoes-topo .btn{white-space:nowrap}
 .btn:hover{background:var(--navy-700);border-color:var(--navy-700)}
 .btn.ouro{background:var(--ouro);border-color:var(--ouro);color:#3a2a00}
 .btn.ouro:hover{background:var(--ouro-600);border-color:var(--ouro-600)}
