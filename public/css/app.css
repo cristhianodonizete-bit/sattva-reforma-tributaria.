@@ -148,6 +148,7 @@ td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabu
 .aviso-toast.erro{background:var(--sobe)}
 .aviso-toast.ok{background:var(--desce)}
 .barra-prog{height:6px;background:#eef1f3;border-radius:99px;overflow:hidden}
+.barra-prog{height:8px;background:#e7eef2}.barra-prog i{background:linear-gradient(90deg,var(--ouro),#f7bf43)}.tag{letter-spacing:.01em}
 .barra-prog i{display:block;height:100%;background:var(--ouro)}
 .dropzone{border:2px dashed var(--linha);border-radius:var(--r);padding:26px;text-align:center;color:var(--tinta-3);cursor:pointer;background:#fbfcfd}
 .dropzone:hover,.dropzone.sobre{border-color:var(--ouro);background:var(--ouro-100);color:var(--tinta-2)}
