@@ -118,7 +118,11 @@ async function acaoPermitida(req, acaoId) {
 async function turmaPermitida(req, turmaId) {
   const turma = db.prepare('SELECT * FROM turmas WHERE id=?').get(turmaId);
   if (!turma) throw new Error('Turma não encontrada.');
-  await garantirEmpresaPermitida(req, turma.empresa_id);
+  if (turma.trilha !== 'workshop_boas_praticas') { await garantirEmpresaPermitida(req, turma.empresa_id); return turma; }
+  const permitidas = await empresasPermitidasUsuario(req.usuario);
+  if (permitidas === null || permitidas.has(String(turma.empresa_id))) return turma;
+  const vinculadas = db.prepare('SELECT DISTINCT empresa_id FROM participantes WHERE turma_id=? AND empresa_id IS NOT NULL').all(turmaId).map((x) => String(x.empresa_id));
+  if (!vinculadas.some((id) => permitidas.has(id))) throw new Error('Seu usuário não está vinculado a uma empresa participante desta turma.');
   return turma;
 }
 async function participantePermitido(req, participanteId) {
@@ -834,17 +838,18 @@ router.delete('/contratos/:id', async (req, res) => { try { const contrato = awa
 // MÓDULO 4 — CAPACITAÇÃO
 // ===========================================================================
 router.get('/empresas/:id/turmas', (req, res) => {
-  const turmas = db.prepare('SELECT * FROM turmas WHERE empresa_id = ? ORDER BY data DESC, id DESC').all(req.params.id);
-  const part = db.prepare('SELECT * FROM participantes WHERE turma_id = ? ORDER BY nome');
+  const turmas = db.prepare(`SELECT * FROM turmas WHERE (trilha='workshop_pratico' AND empresa_id=?)
+    OR (trilha='workshop_boas_praticas' AND (empresa_id=? OR id IN (SELECT turma_id FROM participantes WHERE empresa_id=?))) ORDER BY data DESC, id DESC`).all(req.params.id, req.params.id, req.params.id);
+  const part = db.prepare(`SELECT p.*, e.razao_social AS empresa_nome FROM participantes p LEFT JOIN empresas e ON e.id=p.empresa_id WHERE p.turma_id = ? ORDER BY e.razao_social, p.nome`);
   ok(res, { turmas: turmas.map((t) => ({ ...t, participantes: part.all(t.id) })), trilhas: TRILHAS });
 });
 
 router.post('/empresas/:id/turmas', (req, res) => {
   try {
     const b = req.body;
-    const r = db.prepare(`INSERT INTO turmas (empresa_id, trilha, titulo, formato, data, carga_horaria, instrutor, status, observacoes)
-      VALUES (?,?,?,?,?,?,?,?,?)`).run(req.params.id, b.trilha || '', b.titulo || '', b.formato || 'presencial',
-      b.data || '', +b.carga_horaria || 4, b.instrutor || '', b.status || 'planejada', b.observacoes || '');
+    const r = db.prepare(`INSERT INTO turmas (empresa_id, trilha, titulo, formato, data, carga_horaria, instrutor, limite_participantes, status, observacoes)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`).run(req.params.id, b.trilha || '', b.titulo || '', b.formato || 'presencial',
+      b.data || '', +b.carga_horaria || 4, b.instrutor || '', Math.max(1, +b.limite_participantes || 30), b.status || 'planejada', b.observacoes || '');
     ok(res, { id: r.lastInsertRowid });
   } catch (e) { erro(res, e); }
 });
@@ -853,8 +858,8 @@ router.put('/turmas/:id', async (req, res) => {
   try {
     await turmaPermitida(req, req.params.id);
     const b = req.body;
-    db.prepare('UPDATE turmas SET trilha=?, titulo=?, formato=?, data=?, carga_horaria=?, instrutor=?, status=?, observacoes=? WHERE id=?')
-      .run(b.trilha, b.titulo, b.formato, b.data, +b.carga_horaria || 4, b.instrutor, b.status, b.observacoes || '', req.params.id);
+    db.prepare('UPDATE turmas SET trilha=?, titulo=?, formato=?, data=?, carga_horaria=?, instrutor=?, limite_participantes=?, status=?, observacoes=? WHERE id=?')
+      .run(b.trilha, b.titulo, b.formato, b.data, +b.carga_horaria || 4, b.instrutor, Math.max(1, +b.limite_participantes || 30), b.status, b.observacoes || '', req.params.id);
     ok(res, {});
   } catch (e) { erro(res, e); }
 });
@@ -863,10 +868,15 @@ router.delete('/turmas/:id', async (req, res) => { try { await turmaPermitida(re
 
 router.post('/turmas/:id/participantes', async (req, res) => {
   try {
-    await turmaPermitida(req, req.params.id);
+    const turma = await turmaPermitida(req, req.params.id);
     const b = req.body;
-    const r = db.prepare('INSERT INTO participantes (turma_id, nome, area, email, presenca) VALUES (?,?,?,?,?)')
-      .run(req.params.id, b.nome, b.area || '', b.email || '', b.presenca ? 1 : 0);
+    const total = db.prepare('SELECT COUNT(*) AS total FROM participantes WHERE turma_id=?').get(req.params.id).total;
+    if (total >= Number(turma.limite_participantes || 30)) throw new Error(`Esta turma atingiu o limite de ${turma.limite_participantes || 30} participantes.`);
+    const empresaId = turma.trilha === 'workshop_boas_praticas' ? Number(b.empresa_id) : Number(turma.empresa_id);
+    if (!empresaId) throw new Error('Selecione a empresa do participante.');
+    await garantirEmpresaPermitida(req, empresaId);
+    const r = db.prepare('INSERT INTO participantes (turma_id, empresa_id, nome, area, email, presenca) VALUES (?,?,?,?,?,?)')
+      .run(req.params.id, empresaId, b.nome, b.area || '', b.email || '', b.presenca ? 1 : 0);
     ok(res, { id: r.lastInsertRowid });
   } catch (e) { erro(res, e); }
 });
@@ -889,12 +899,15 @@ router.post('/turmas/:id/importar', upload.single('arquivo'), async (req, res) =
     const { linhas } = imp.lerPlanilha(req.file.buffer);
     const norm = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
     const acha = (l, nomes) => { for (const k of Object.keys(l)) { if (nomes.includes(norm(k))) return l[k]; } return ''; };
-    const ins = db.prepare('INSERT INTO participantes (turma_id, nome, area, email) VALUES (?,?,?,?)');
+    const turma = db.prepare('SELECT * FROM turmas WHERE id=?').get(req.params.id);
+    const total = db.prepare('SELECT COUNT(*) AS total FROM participantes WHERE turma_id=?').get(req.params.id).total;
+    const vagas = Math.max(0, Number(turma?.limite_participantes || 30) - total);
+    const ins = db.prepare('INSERT INTO participantes (turma_id, empresa_id, nome, area, email) VALUES (?,?,?,?,?)');
     let n = 0;
     db.transaction(() => { for (const l of linhas) {
       const nome = String(acha(l, ['nome', 'participante', 'colaborador']) || '').trim();
-      if (!nome) continue;
-      ins.run(req.params.id, nome, String(acha(l, ['area', 'setor', 'departamento']) || ''), String(acha(l, ['email', 'mail']) || ''));
+      if (!nome || n >= vagas) continue;
+      ins.run(req.params.id, turma.empresa_id, nome, String(acha(l, ['area', 'setor', 'departamento']) || ''), String(acha(l, ['email', 'mail']) || ''));
       n++;
     } })();
     ok(res, { importados: n });

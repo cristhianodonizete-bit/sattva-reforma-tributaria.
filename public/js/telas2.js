@@ -266,8 +266,8 @@ Telas.contratos = async (el) => {
 // MÓDULO 4 — CAPACITAÇÃO
 // ===========================================================================
 Telas.capacitacao = async (el) => {
-  const [{ turmas, trilhas }, acesso] = await Promise.all([
-    A.api(`/empresas/${S.empresaId}/turmas`), A.api(`/empresas/${S.empresaId}/acesso`),
+  const [{ turmas, trilhas }, acesso, baseEmpresas] = await Promise.all([
+    A.api(`/empresas/${S.empresaId}/turmas`), A.api(`/empresas/${S.empresaId}/acesso`), A.api('/empresas'),
   ]);
   const chaveTrilha = { workshop_boas_praticas: 'treinamento_boas_praticas', workshop_pratico: 'capacitacao_operacional' };
   const trilhasLiberadas = trilhas.filter((t) => acesso.trilhas.includes(chaveTrilha[t.id]));
@@ -275,7 +275,7 @@ Telas.capacitacao = async (el) => {
   const presencas = turmas.reduce((total, turma) => total + turma.participantes.filter((p) => p.presenca).length, 0);
   const realizadas = turmas.filter((turma) => turma.status === 'realizada').length;
   el.innerHTML = cab('Módulo 4', 'Capacitação do time',
-    'Controle de entrega: agenda, participantes e presença. O conteúdo das capacitações não é operado dentro da ferramenta.',
+    'Treinamento de Boas Práticas pode reunir participantes de várias empresas; Capacitação Operacional é exclusiva da empresa contratante.',
     `<button class="btn" id="novaTurma" ${trilhasLiberadas.length ? '' : 'disabled'}>Programar turma</button>`) +
     `${trilhasLiberadas.length ? `<div class="aviso bom"><b>Capacitações liberadas no plano:</b> ${trilhasLiberadas.map((t) => A.esc(t.titulo)).join(' · ')}</div>` : '<div class="aviso atencao"><b>Nenhuma capacitação liberada no plano aprovado.</b> Aprove o plano com Treinamento Boas Práticas ou Capacitação Operacional para liberar agenda e participantes.</div>'}
     <div class="grade g4 resumo-capacitacao">
@@ -287,14 +287,14 @@ Telas.capacitacao = async (el) => {
     <div class="cartao turmas-lista"><div class="cabecalho-lista"><div><h2>Agenda de entrega</h2><p class="desc">Controle as turmas, os participantes e a presença. O conteúdo não é executado dentro da ferramenta.</p></div><span class="tag">${turmas.length} turmas</span></div>
       ${turmas.length ? turmas.map((t) => `<article class="turma-card">
           <div class="turma-data"><b>${A.esc(t.data || '—')}</b><span>${t.carga_horaria}h</span></div><div class="turma-conteudo">
-            <div><b>${A.esc(t.titulo)}</b><div class="mini">${A.esc(t.formato)} · ${A.esc(t.instrutor || 'instrutor a definir')}</div></div>
+            <div><b>${A.esc(t.titulo)}</b><div class="mini">${A.esc(t.trilha === 'workshop_boas_praticas' ? 'Treinamento de Boas Práticas · turma compartilhada' : 'Capacitação Operacional · exclusiva da empresa')} · ${A.esc(t.formato)} · ${A.esc(t.instrutor || 'instrutor a definir')}</div></div>
             <div class="turma-acoes">
               <span class="tag ${t.status === 'realizada' ? 'c' : 'n'}">${A.esc(t.status)}</span>
-              <button class="btn pq vazio" data-part="${t.id}">Participantes (${t.participantes.length})</button>
+              <button class="btn pq vazio" data-part="${t.id}">Participantes (${t.participantes.length}/${t.limite_participantes || 30})</button>
               <button class="btn pq vazio" data-et="${t.id}">Editar</button>
               <button class="btn pq perigo" data-rt="${t.id}">Excluir</button>
             </div>
-            ${t.participantes.length ? `<div class="mini turma-presenca">Presença: ${t.participantes.filter((p) => p.presenca).length}/${t.participantes.length}</div>` : ''}
+            <div class="mini turma-presenca">${t.participantes.length}/${t.limite_participantes || 30} vagas ocupadas${t.participantes.length ? ` · presença: ${t.participantes.filter((p) => p.presenca).length}/${t.participantes.length}` : ''}</div>
           </div>
         </article>`).join('') : A.vazio('Nenhuma turma programada', 'Escolha uma trilha acima e programe a primeira turma.')}
     </div>`;
@@ -303,6 +303,7 @@ Telas.capacitacao = async (el) => {
       ${A.selecao('trilha', 'Tipo contratado', trilhasLiberadas.map((x) => ({ v: x.id, t: x.titulo })), t.trilha)}</div>
     <div class="grade g3">${A.campo('data', 'Data', t.data, 'date')}
       ${A.campo('carga_horaria', 'Carga horária', t.carga_horaria || 4, 'number', 'step=0.5')}
+      ${A.campo('limite_participantes', 'Limite de participantes', t.limite_participantes || 30, 'number', 'min=1')}
       ${A.selecao('formato', 'Formato', [{ v: 'presencial', t: 'Presencial' }, { v: 'online', t: 'Online' }, { v: 'hibrido', t: 'Híbrido' }], t.formato || 'presencial')}</div>
     <div class="grade g2">${A.campo('instrutor', 'Instrutor', t.instrutor)}
       ${A.selecao('status', 'Status', [{ v: 'planejada', t: 'Planejada' }, { v: 'realizada', t: 'Realizada' }, { v: 'cancelada', t: 'Cancelada' }], t.status || 'planejada')}</div>
@@ -320,8 +321,8 @@ Telas.capacitacao = async (el) => {
   el.querySelectorAll('[data-part]').forEach((b) => { b.onclick = () => {
     const t = turmas.find((x) => x.id === Number(b.dataset.part));
     A.modal({ titulo: `Participantes — ${t.titulo}`, largura: 720, confirmar: null,
-      corpo: `<div style="display:flex;gap:8px;margin-bottom:14px">
-          <input type="text" id="pNome" placeholder="Nome"><input type="text" id="pArea" placeholder="Área">
+      corpo: `<div class="aviso ${t.trilha === 'workshop_boas_praticas' ? 'bom' : ''}"><b>${t.trilha === 'workshop_boas_praticas' ? 'Turma compartilhada.' : 'Turma exclusiva.'}</b> ${t.trilha === 'workshop_boas_praticas' ? 'Cada participante deve ser vinculado à respectiva empresa.' : 'Os participantes são vinculados automaticamente a esta empresa.'}</div><div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+          <input type="text" id="pNome" placeholder="Nome"><input type="text" id="pArea" placeholder="Área"><input type="email" id="pEmail" placeholder="E-mail">${t.trilha === 'workshop_boas_praticas' ? `<select id="pEmpresa">${baseEmpresas.empresas.map((e) => `<option value="${e.id}">${A.esc(e.razao_social)}</option>`).join('')}</select>` : ''}
           <button class="btn pq" id="pAdd">Incluir</button></div>
         ${A.dropzone('zonaPart', '<b>Importar lista de participantes</b><div class="mini">colunas: Nome, Área, E-mail</div>', async (f) => {
           const fd = new FormData(); fd.append('arquivo', f);
@@ -329,6 +330,7 @@ Telas.capacitacao = async (el) => {
           catch (e) { A.toast(e.message, 'erro'); } })}
         <div style="margin-top:14px">${A.tabela([
           { t: 'Nome', r: (p) => A.esc(p.nome) },
+          ...(t.trilha === 'workshop_boas_praticas' ? [{ t: 'Empresa', r: (p) => A.esc(p.empresa_nome || '—') }] : []),
           { t: 'Área', r: (p) => A.esc(p.area || '—') },
           { t: 'Presença', r: (p) => `<input type="checkbox" data-pres="${p.id}" ${p.presenca ? 'checked' : ''}>` },
           { t: '', r: (p) => `<button class="btn pq perigo" data-rpa="${p.id}">Remover</button>` },
@@ -338,7 +340,7 @@ Telas.capacitacao = async (el) => {
       const add = document.getElementById('pAdd');
       if (add) add.onclick = async () => {
         const nome = document.getElementById('pNome').value.trim(); if (!nome) return;
-        await A.api(`/turmas/${t.id}/participantes`, { metodo: 'POST', corpo: { nome, area: document.getElementById('pArea').value } });
+        await A.api(`/turmas/${t.id}/participantes`, { metodo: 'POST', corpo: { nome, area: document.getElementById('pArea').value, email: document.getElementById('pEmail').value, empresa_id: t.trilha === 'workshop_boas_praticas' ? document.getElementById('pEmpresa').value : S.empresaId } });
         A.ir('capacitacao');
       };
       document.querySelectorAll('[data-pres]').forEach((c) => { c.onchange = async () => {

@@ -61,6 +61,8 @@ const COLUNAS_NOVAS = {
     aprovado_em: 'TEXT', competencia_referencia: 'TEXT',
     acompanhamento_meses: 'INTEGER DEFAULT 0', modulos_json: 'TEXT',
   },
+  turmas: { limite_participantes: 'INTEGER DEFAULT 30' },
+  participantes: { empresa_id: 'INTEGER' },
 };
 
 function migrarEsquema() {
@@ -326,6 +328,7 @@ CREATE TABLE IF NOT EXISTS turmas (
   empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
   trilha TEXT, titulo TEXT, formato TEXT DEFAULT 'presencial',
   data TEXT, carga_horaria REAL DEFAULT 4, instrutor TEXT,
+  limite_participantes INTEGER DEFAULT 30,
   status TEXT DEFAULT 'planejada',      -- planejada | realizada | cancelada
   observacoes TEXT
 );
@@ -333,6 +336,7 @@ CREATE TABLE IF NOT EXISTS turmas (
 CREATE TABLE IF NOT EXISTS participantes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   turma_id INTEGER NOT NULL REFERENCES turmas(id) ON DELETE CASCADE,
+  empresa_id INTEGER REFERENCES empresas(id),
   nome TEXT, area TEXT, email TEXT,
   presenca INTEGER DEFAULT 0, nota_avaliacao REAL
 );
