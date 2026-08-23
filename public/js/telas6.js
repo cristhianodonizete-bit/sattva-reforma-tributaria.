@@ -51,6 +51,7 @@ Telas.configuracoes = async (el) => {
 async function controle(box) {
   box.innerHTML = '<div class="carregando">Verificando o projeto…</div>';
   const d = await A.api('/config/controle');
+  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   box.innerHTML = `<div class="grade g3">
       ${A.kpi('Clientes a identificar', d.total.clientesPendentes, 'cadastro e perfil pendentes', d.total.clientesPendentes ? 'destaque' : '')}
       ${A.kpi('Receita sem perfil confirmado', A.moeda(d.total.receitaPendente), 'prioridade do enriquecimento', d.total.receitaPendente ? 'destaque' : '')}
@@ -68,7 +69,7 @@ async function controle(box) {
         { t: 'Receita exposta', num: true, r: (x) => A.moeda(x.receitaPendente) },
         { t: 'Classificações pendentes', num: true, r: (x) => x.classificacoesPendentes },
         { t: 'Enriquecimento', r: (x) => x.enriquecimento ? `<span class="tag b">${A.esc(x.enriquecimento.status)}</span>` : '<span class="tag n">sem fila</span>' },
-        { t: 'Último motor', r: (x) => x.ultimaExecucao ? `${A.esc(x.ultimaExecucao.data || '—')} · ${x.ultimaExecucao.ano}` : 'não executado' },
+        { t: 'Último motor', r: (x) => x.ultimaExecucao ? `${A.esc(x.ultimaExecucao.data || '—')}${ibsAtivo ? ` · ${x.ultimaExecucao.ano}` : ' · CBS'}` : 'não executado' },
       ], d.empresas)}</div>`;
   document.getElementById('ctrlEnriquecer').onclick = async () => {
     const r = await A.api('/config/controle/enriquecer', { metodo: 'POST' });
