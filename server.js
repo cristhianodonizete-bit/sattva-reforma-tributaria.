@@ -59,6 +59,14 @@ async function iniciar() {
     if (operacao.ativo()) {
       const dados = await operacao.baixar();
       console.log(`  operação compartilhada carregada: ${JSON.stringify(dados)}`);
+      const db = require('./src/db');
+      const bases = require('./src/services/basesReforma');
+      const motorExec = require('./src/services/motorExec');
+      for (const empresa of db.prepare('SELECT id FROM empresas').all()) {
+        bases.classificarMovimentos(empresa.id);
+        motorExec.executar(empresa.id, { ano: 2033 });
+      }
+      console.log('  classificações IBS/CBS recalculadas a partir das bases compartilhadas');
     }
   } catch (e) {
     console.error('  não foi possível carregar a operação compartilhada:', e.message);
