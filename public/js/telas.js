@@ -23,6 +23,7 @@ Telas.painel = async (el) => {
     { t: 'Capacitação programada', ok: c.turmas > 0, n: `${c.turmas} turmas`, tela: 'capacitacao' },
   ];
   const concluidos = passos.filter((p) => p.ok).length;
+  const proximoPasso = passos.find((p) => !p.ok);
 
   el.innerHTML = cab('Painel do projeto', A.esc(empresa.razao_social),
     `${A.cnpjFmt(empresa.cnpj)} · ${A.regimeLabel(empresa.regime)} · ${A.esc(empresa.municipio || '')} ${A.esc(empresa.uf || '')}`,
@@ -39,14 +40,16 @@ Telas.painel = async (el) => {
     ${c.semRegime ? `<div class="aviso atencao" style="margin-top:16px"><b>${c.semRegime} lançamentos sem regime tributário identificado</b>
       Esses registros entram no cálculo como Lucro Real. Importe o cadastro de parceiros com a coluna de regime para corrigir.
       <div class="acao">Cadastros e importação → Importar clientes e fornecedores</div></div>` : ''}
-    <div class="grade g2" style="margin-top:16px">
-      <div class="cartao">
-        <h2>Andamento do projeto</h2><p class="desc">${concluidos} de ${passos.length} etapas com dados</p>
-        <div class="barra-prog" style="margin-bottom:16px"><i style="width:${(concluidos / passos.length) * 100}%"></i></div>
-        ${passos.map((p) => `<div style="display:flex;gap:10px;align-items:center;padding:7px 0;border-bottom:1px solid #eef1f3;cursor:pointer"
-            onclick="App.ir('${p.tela}')">
-            <span class="tag ${p.ok ? 'c' : 'n'}">${p.ok ? 'OK' : '—'}</span>
-            <span style="flex:1">${p.t}</span><span class="mini mono">${p.n}</span></div>`).join('')}
+    <section class="proximo-passo ${proximoPasso ? '' : 'concluido'}">
+      <div><span class="olho">PRÓXIMA AÇÃO</span><strong>${proximoPasso ? proximoPasso.t : 'Dados essenciais concluídos'}</strong><p>${proximoPasso ? `Para avançar, complete esta etapa. ${proximoPasso.n}.` : 'O diagnóstico possui informações em todas as etapas principais.'}</p></div>
+      ${proximoPasso ? `<button class="btn ouro" data-proximo="${proximoPasso.tela}">Continuar</button>` : '<span class="tag c">Base preparada</span>'}
+    </section>
+    <div class="grade g2 projeto-painel">
+      <div class="cartao andamento-projeto">
+        <div class="titulo-cartao"><div><h2>Andamento do projeto</h2><p class="desc">${concluidos} de ${passos.length} etapas com dados</p></div><strong>${Math.round((concluidos / passos.length) * 100)}%</strong></div>
+        <div class="barra-prog"><i style="width:${(concluidos / passos.length) * 100}%"></i></div>
+        <div class="lista-etapas">${passos.map((p, indice) => `<button type="button" class="etapa ${p.ok ? 'feito' : ''}" data-etapa="${p.tela}">
+            <b>${p.ok ? '✓' : indice + 1}</b><span><strong>${p.t}</strong><small>${p.n}</small></span><i>›</i></button>`).join('')}</div>
       </div>
       <div class="cartao">
         <h2>Atenções abertas</h2><p class="desc">Itens que exigem decisão</p>
@@ -61,6 +64,8 @@ Telas.painel = async (el) => {
           : '<p class="mini">Nenhum escopo registrado. Monte um combo em “Escopos e combos”.</p>'}
       </div>
     </div>`;
+  el.querySelector('[data-proximo]')?.addEventListener('click', () => A.ir(proximoPasso.tela));
+  el.querySelectorAll('[data-etapa]').forEach((botao) => { botao.onclick = () => A.ir(botao.dataset.etapa); });
 };
 
 // ===========================================================================
