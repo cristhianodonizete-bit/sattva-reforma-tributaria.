@@ -44,7 +44,16 @@ router.get('/cadastros-cnpj', async (req, res) => {
     if (busca) consulta = consulta.or(`cnpj.ilike.%${busca}%,razao_social.ilike.%${busca}%`);
     const { data, error, count } = await consulta.range((pagina - 1) * tamanho, pagina * tamanho - 1);
     if (error) throw error;
-    ok(res, { cadastros: data || [], total: count || 0, pagina, tamanho });
+    // A tela não usa o regime copiado do cadastro operacional. Ela consulta a
+    // mesma RFB compartilhada usada pelo motor, para não haver duas verdades.
+    const rfb = await baseRegime.consultarCompartilhada((data || []).map((x) => x.cnpj), 2024);
+    const cadastros = (data || []).map((x) => {
+      const cnpj = String(x.cnpj || '').replace(/\D/g, '');
+      const r = rfb.get(cnpj) || rfb.get(cnpj.slice(0, 8));
+      return { ...x, regime_derivado: r?.regime || null,
+        fonte_regime: r ? `RFB ${r.ano}` : 'Sem correspondência na RFB 2024' };
+    });
+    ok(res, { cadastros, total: count || 0, pagina, tamanho });
   } catch (e) { erro(res, e); }
 });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });

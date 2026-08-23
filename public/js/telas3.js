@@ -430,7 +430,7 @@ Telas.cadastrosCnpj = async (el) => {
         <div class="mini" style="margin-top:14px"><b>${r.total.toLocaleString('pt-BR')}</b> cadastro(s) central(is) · página ${pagina} de ${totalPaginas}</div>
         ${A.tabela([
           { t: 'CNPJ / razão social', r: (x) => `<span class="mono">${A.esc(x.cnpj)}</span><div><b>${A.esc(x.razao_social || 'Sem razão social')}</b></div><div class="mini">${A.esc([x.municipio, x.uf].filter(Boolean).join(' / ') || 'localidade não informada')}</div>` },
-          { t: 'Regime cadastral', r: (x) => `<span class="tag">${A.esc(A.regimeLabel(x.regime_derivado) || x.regime_derivado || 'A validar')}</span><div class="mini">${A.esc(x.situacao || '')}</div>` },
+          { t: 'Regime na RFB', r: (x) => `<span class="tag">${A.esc(A.regimeLabel(x.regime_derivado) || x.regime_derivado || 'A validar')}</span><div class="mini">${A.esc(x.fonte_regime || '')}</div>` },
           { t: 'Natureza / EFR', r: (x) => `<span class="mini">${A.esc(x.natureza_juridica || 'não informado')}</span>${x.efr ? `<div class="mini">EFR: ${A.esc(x.efr)}</div>` : ''}` },
           { t: 'Fonte', r: (x) => `<span class="mini">${A.esc(x.fonte || '—')}</span><div class="mini">${A.esc(x.consultado_em || '')}</div>` },
         ], r.cadastros, { vazio: 'Nenhum CNPJ centralizado ainda. Os cadastros são incluídos automaticamente na primeira consulta oficial.' })}
