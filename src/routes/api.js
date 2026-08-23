@@ -65,6 +65,7 @@ router.get('/operacao/dashboard', async (_req, res) => {
     const porProjeto = new Map((entregas || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const acompPorProjeto = new Map((acompanhamentos || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const tarefasPorProjeto = new Map((tarefas || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
+    const hoje = new Date().toISOString().slice(0, 10);
     const carteira = (projetos || []).map((p) => {
       const es = porProjeto.get(p.id) || [], as = acompPorProjeto.get(p.id) || [], ts = tarefasPorProjeto.get(p.id) || [];
       const feitas = es.filter((x) => ['concluida', 'nao_aplicavel'].includes(x.status)).length;
@@ -73,7 +74,11 @@ router.get('/operacao/dashboard', async (_req, res) => {
       return { ...p, empresa: empresaPorId.get(p.empresa_id)?.razao_social || 'Cliente não identificado', entregas: es.length,
         entregasConcluidas: feitas, progresso: es.length ? Math.round((feitas / es.length) * 100) : 0,
         acompanhamentos: as.length, acompanhamentosConcluidos: as.filter((x) => x.status === 'concluido').length,
-        proximoAcompanhamento, proximoMarco: proximaTarefa ? { titulo: proximaTarefa.titulo, data: proximaTarefa.data_conclusao } : null };
+        proximoAcompanhamento, proximoMarco: proximaTarefa ? { titulo: proximaTarefa.titulo, data: proximaTarefa.data_conclusao, atrasado: proximaTarefa.data_conclusao < hoje } : null };
+    }).sort((a, b) => {
+      const dataA = a.proximoMarco?.data || a.proximoAcompanhamento || '9999-99';
+      const dataB = b.proximoMarco?.data || b.proximoAcompanhamento || '9999-99';
+      return String(dataA).localeCompare(String(dataB));
     });
     ok(res, { empresas: empresas.length, projetos: carteira, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
       aguardando: carteira.filter((p) => p.status === 'aguardando_aprovacao').length,
