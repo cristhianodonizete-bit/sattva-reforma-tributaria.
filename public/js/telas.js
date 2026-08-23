@@ -407,6 +407,10 @@ async function telaCadeia(el, tipo) {
   const t = analise.totais;
   const ultimo = analise.cenarios[analise.cenarios.length - 1] || {};
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
+  const abaCliente = S.aba.clientesCadeia || 'carteira';
+  const mostrarCarteira = eForn || abaCliente === 'carteira';
+  const mostrarRiscos = eForn || abaCliente === 'riscos';
+  const mostrarAbc = eForn || abaCliente === 'abc';
 
   el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
     eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
@@ -439,9 +443,13 @@ async function telaCadeia(el, tipo) {
       <input type="range" min="0" max="1" step="0.1" value="${rep}" id="repasse">
       <div style="display:flex;justify-content:space-between" class="mini"><span>0% (preço congelado)</span><b class="mono">${A.pct(rep, 0)}</b><span>100% (repasse total)</span></div>
     </div>
-    <div class="grade g2">
-      <div class="cartao"><h2>Riscos e oportunidades</h2><p class="desc">Leitura desta cadeia</p>${A.avisos(analise.riscos)}</div>
-      <div class="cartao"><h2>${eForn ? 'Compras por regime do fornecedor' : 'Carteira por perfil de cliente'}</h2>
+    ${!eForn ? `<div class="abas" style="margin-top:16px">
+      <button class="${abaCliente === 'carteira' ? 'ativo' : ''}" data-aba-cliente="carteira">Carteira por perfil</button>
+      <button class="${abaCliente === 'riscos' ? 'ativo' : ''}" data-aba-cliente="riscos">Riscos e oportunidades</button>
+      <button class="${abaCliente === 'abc' ? 'ativo' : ''}" data-aba-cliente="abc">Curva ABC</button>
+    </div>` : ''}
+    ${mostrarRiscos ? `<div class="cartao" style="margin-top:16px"><h2>Riscos e oportunidades</h2><p class="desc">Leitura da carteira sob a ótica da empresa vendedora.</p>${A.avisos(analise.riscos)}</div>` : ''}
+    ${mostrarCarteira ? `<div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Compras por regime do fornecedor' : 'Carteira por perfil de cliente'}</h2>
         <p class="desc">${eForn ? 'O regime do fornecedor determina o crédito que a empresa toma' : 'O perfil do cliente determina se ele absorve o IVA'}</p>
         ${A.tabela([
           { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}</div>` },
@@ -453,8 +461,7 @@ async function telaCadeia(el, tipo) {
           { t: eForn ? 'Crédito potencial da empresa' : 'Crédito potencial do cliente', num: true, r: (r) => A.moeda(r.creditoFinal) },
         ], analise.regimes)}
       </div>
-    </div>
-    <div class="cartao"><h2>${ibsAtivo ? 'Projeção ano a ano' : 'Referência CBS'}</h2>
+    <div class="cartao" style="margin-top:16px"><h2>${ibsAtivo ? 'Projeção ano a ano' : 'Referência CBS'}</h2>
       ${ibsAtivo ? A.tabela([
         { t: 'Ano', r: (c) => `<b class="mono">${c.ano}</b>` },
         { t: 'Base econômica', num: true, r: (c) => A.moeda(c.baseEconomica) },
@@ -468,8 +475,8 @@ async function telaCadeia(el, tipo) {
         ${A.kpi(eForn ? 'Compra projetada' : 'Venda projetada', A.moeda(ultimo.precoFinal || 0), 'antes de qualquer crédito')}
         ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' vs. hoje', 'destaque')}
       </div>`}
-    </div>
-    <div class="cartao"><h2>Curva ABC — ${eForn ? 'fornecedores' : 'clientes'}</h2>
+    </div>` : ''}
+    ${mostrarAbc ? `<div class="cartao" style="margin-top:16px"><h2>Curva ABC — ${eForn ? 'fornecedores' : 'clientes'}</h2>
       <p class="desc">Classe A concentra 80% do volume. É por onde a renegociação começa.</p>
       ${A.tabela([
         { t: 'ABC', r: (p) => `<span class="tag ${p.classeAbc === 'A' ? 'b' : 'n'}">${p.classeAbc}</span>` },
@@ -483,12 +490,15 @@ async function telaCadeia(el, tipo) {
         { t: 'Impacto', num: true, r: (p) => A.setaR$(p.impactoOperacao) },
         { t: 'Crédito potencial', num: true, r: (p) => A.moeda(p.creditoFinal) },
       ], analise.parceiros.slice(0, 200))}
-    </div>` : A.vazio('Sem movimentação importada',
+    </div>` : ''}` : A.vazio('Sem movimentação importada',
       `Importe a movimentação de ${eForn ? 'fornecedores' : 'clientes'} para gerar esta análise.`,
       '<button class="btn" onclick="App.ir(\'dados\')">Ir para importação</button>'));
 
   const r = document.getElementById('repasse');
   if (r) r.onchange = () => { S.cache[`rep_${tipo}`] = Number(r.value); A.ir(tipo === 'fornecedor' ? 'fornecedores' : 'clientes'); };
+  el.querySelectorAll('[data-aba-cliente]').forEach((botao) => {
+    botao.onclick = () => { S.aba.clientesCadeia = botao.dataset.abaCliente; A.ir('clientes'); };
+  });
 }
 Telas.fornecedores = (el) => telaCadeia(el, 'fornecedor');
 Telas.clientes = (el) => telaCadeia(el, 'cliente');
