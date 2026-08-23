@@ -450,6 +450,9 @@ Telas.gestaoProjetos = async (el) => {
           ${p.acompanhamentos.length ? p.acompanhamentos.map((a) => `<div class="linha-entrega"><span class="tag ${tag(a.status)}">${A.esc(rotulo(a.status))}</span><span class="linha-entrega-texto">${A.esc(a.nome || a.competencia)}</span><button class="btn pq vazio" data-acomp="${a.id}">Atualizar</button></div>`).join('') : (p.acompanhamento_meses ? `<p class="mini">Aguardando conclusão do Diagnóstico.</p><button class="btn pq" data-liberar="${p.id}">Liberar acompanhamento</button>` : '<p class="mini">Sem acompanhamento contratado.</p>')}
         </div>
       </div>
+      ${p.tarefas.filter((t) => t.status !== 'concluida').length ? `<section class="tarefas-projeto"><h3 class="subtitulo-entrega">Tarefas em andamento</h3>
+        ${p.tarefas.filter((t) => t.status !== 'concluida').map((t) => { const entrega = p.entregas.find((x) => x.id === t.entrega_id); return `<div class="tarefa-projeto-linha"><span class="tag ${tag(t.status)}">${A.esc(rotulo(t.status))}</span><span class="linha-entrega-texto"><b>${A.esc(t.titulo)}</b><small class="mini">${A.esc(entrega?.titulo || 'Etapa não identificada')}${t.data_conclusao ? ` · previsão ${A.esc(t.data_conclusao)}` : ''}${t.envolve_cliente ? ' · envolve cliente' : ''}</small>${t.pendencia_cliente ? `<small class="mini pendencia-cliente">Pendência: ${A.esc(t.pendencia_cliente)}</small>` : ''}</span><button class="btn pq vazio" data-tarefa="${t.id}">Atualizar</button></div>`; }).join('')}
+      </section>` : ''}
     </section>`).join('') || A.vazio('Nenhum projeto aprovado', 'Aprove uma proposta para iniciar o controle de execução.')}</div>`;
 
   el.querySelectorAll('[data-aprovar]').forEach((b) => { b.onclick = () => {
@@ -480,6 +483,12 @@ Telas.gestaoProjetos = async (el) => {
     const x = d.projetos.flatMap((p) => p.acompanhamentos).find((v) => v.id === Number(b.dataset.acomp));
     A.modal({ titulo: `Acompanhamento — ${x.competencia}`, corpo: A.campo('nome', 'Nome do mês / encontro', x.nome) + A.selecao('status', 'Situação', statusAcomp, x.status) + A.area('observacoes', 'Observações', x.observacoes || '', 3),
       aoConfirmar: async (form) => { await A.api(`/projeto/acompanhamentos/${x.id}`, { metodo: 'PUT', corpo: form }); A.ir('gestaoProjetos'); } });
+  }; });
+  el.querySelectorAll('[data-tarefa]').forEach((b) => { b.onclick = () => {
+    const t = d.projetos.flatMap((p) => p.tarefas).find((v) => v.id === Number(b.dataset.tarefa));
+    A.modal({ titulo: `Tarefa — ${t.titulo}`, largura: 720,
+      corpo: `${A.selecao('status', 'Situação', [{ v: 'aberta', t: 'Aberta' }, { v: 'em_andamento', t: 'Em andamento' }, { v: 'concluida', t: 'Concluída' }], t.status)}${A.campo('titulo', 'Título', t.titulo)}<div class="grade g2">${A.campo('data_abertura', 'Data de abertura', t.data_abertura, 'date')}${A.campo('data_conclusao', 'Previsão/conclusão', t.data_conclusao, 'date')}</div><label class="check"><input type="checkbox" name="envolve_cliente" ${t.envolve_cliente ? 'checked' : ''}> Envolve pendência ou interação do cliente</label>${A.area('pendencia_cliente', 'Pendência do cliente', t.pendencia_cliente || '', 2)}${A.area('interacoes_cliente', 'Interações / histórico', t.interacoes_cliente || '', 2)}${A.area('descricao', 'Detalhamento da tarefa', t.descricao || '', 2)}`,
+      aoConfirmar: async (form) => { await A.api(`/projeto/tarefas/${t.id}`, { metodo: 'PUT', corpo: form }); A.ir('gestaoProjetos'); } });
   }; });
 };
 
