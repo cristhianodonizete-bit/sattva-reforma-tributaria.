@@ -60,6 +60,7 @@ nav a .n{margin-left:auto;font-size:11px;font-family:var(--mono);color:var(--our
 .g4{grid-template-columns:repeat(4,minmax(0,1fr))}
 @media(max-width:1150px){.g4{grid-template-columns:repeat(2,1fr)}.g3{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:820px){.app{grid-template-columns:1fr}.lateral{position:static;height:auto}.g2,.g3,.g4{grid-template-columns:1fr}.conteudo{padding:18px}}
+@media(max-width:820px){.lateral{max-height:none}.marca{padding:14px 18px}.empresa-ativa{padding:10px 18px}nav{padding:6px 10px 14px}.kpi{min-height:104px}.app-header{position:static}.header-acoes{width:100%}.header-acoes select{flex:1}.usuario-header{display:none}}
 
 .kpi{background:var(--branco);border:1px solid var(--linha);border-radius:var(--r);padding:15px 17px;box-shadow:var(--sombra)}
 .kpi{min-height:122px;display:flex;flex-direction:column;justify-content:center;transition:transform .16s ease,box-shadow .16s ease}.kpi:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(11,49,73,.09)}.kpi .val{font-family:var(--sans);font-weight:700}
