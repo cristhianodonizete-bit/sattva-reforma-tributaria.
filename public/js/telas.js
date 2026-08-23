@@ -435,7 +435,7 @@ async function telaCadeia(el, tipo) {
         { t: 'Impacto R$', num: true, r: () => A.setaR$(ultimo.impactoOperacao || 0) },
         { t: 'Impacto %', num: true, r: () => A.setaPct(ultimo.impactoOperacaoPerc || 0) },
       ], [{}])}
-      <p class="mini" style="margin-top:12px"><b>${eForn ? 'Crédito potencial da empresa na entrada' : 'Crédito potencial do cliente na saída'}:</b> ${A.moeda(ultimo.credito || 0)}. Esta informação não é subtraída do impacto de preço.</p>
+      <p class="mini" style="margin-top:12px"><b>Crédito potencial juridicamente associado à operação:</b> ${A.moeda((ultimo.ibs || 0) + (ultimo.cbs || 0))}. <b>Aproveitamento efetivo estimado:</b> ${A.moeda(ultimo.credito || 0)}. Nenhum dos dois valores é subtraído do impacto de preço.</p>
     </div>
     <div class="cartao" style="margin-top:16px">
       <h2>Grau de repasse simulado</h2>
@@ -455,10 +455,12 @@ async function telaCadeia(el, tipo) {
           { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}</div>` },
           { t: 'Valor', num: true, r: (r) => A.moeda(r.valor) },
           { t: 'Part.', num: true, r: (r) => A.pct(r.representatividade, 1) },
-          { t: 'CBS projetada', num: true, r: (r) => A.moeda(r.cbs) },
+          ...(ibsAtivo ? [{ t: 'IBS da venda', num: true, r: (r) => A.moeda(r.ibs) }] : []),
+          { t: 'CBS da venda', num: true, r: (r) => A.moeda(r.cbs) },
           { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (r) => A.moeda(r.precoProjetado) },
-          { t: 'Impacto', num: true, r: (r) => A.setaR$(r.impactoOperacao) },
-          { t: eForn ? 'Crédito potencial da empresa' : 'Crédito potencial do cliente', num: true, r: (r) => A.moeda(r.creditoFinal) },
+          { t: eForn ? 'Impacto da compra' : 'Impacto da venda', num: true, r: (r) => A.setaR$(r.impactoOperacao) },
+          { t: 'Crédito potencial da operação', num: true, r: (r) => A.moeda(r.creditoPotencial) },
+          { t: eForn ? 'Aproveitamento da empresa' : 'Aproveitamento do cliente', r: (r) => `<span class="tag ${r.aproveitamentoCliente === 'Apropriação possível' ? 'c' : 'n'}">${A.esc(r.aproveitamentoCliente)}</span>` },
         ], analise.regimes)}
       </div>
     <div class="cartao" style="margin-top:16px"><h2>${ibsAtivo ? 'Projeção ano a ano' : 'Referência CBS'}</h2>
@@ -471,7 +473,7 @@ async function telaCadeia(el, tipo) {
         { t: 'Impacto', num: true, r: (c) => A.setaR$(c.impactoOperacao) },
         { t: 'Marco', r: (c) => `<span class="mini">${A.esc(c.nota)}</span>` },
       ], analise.cenarios) : `<div class="grade g3 projecao-cbs-resumo">
-        ${A.kpi('CBS projetada', A.moeda(ultimo.cbs || 0), 'incidência sobre a base econômica')}
+        ${A.kpi('CBS da venda', A.moeda(ultimo.cbs || 0), 'incidência sobre a base econômica')}
         ${A.kpi(eForn ? 'Compra projetada' : 'Venda projetada', A.moeda(ultimo.precoFinal || 0), 'antes de qualquer crédito')}
         ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' vs. hoje', 'destaque')}
       </div>`}
@@ -485,10 +487,12 @@ async function telaCadeia(el, tipo) {
         { t: 'Valor', num: true, r: (p) => A.moeda(p.valor) },
         { t: 'Part.', num: true, r: (p) => A.pct(p.representatividade, 1) },
         { t: 'Base econômica', num: true, r: (p) => A.moeda(p.baseEconomica) },
+        ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (p) => A.moeda(p.ibs) }] : []),
         { t: 'CBS', num: true, r: (p) => A.moeda(p.cbs) },
         { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (p) => A.moeda(p.precoFinal) },
         { t: 'Impacto', num: true, r: (p) => A.setaR$(p.impactoOperacao) },
-        { t: 'Crédito potencial', num: true, r: (p) => A.moeda(p.creditoFinal) },
+        { t: 'Crédito potencial', num: true, r: (p) => A.moeda(p.creditoPotencial) },
+        { t: 'Aproveitamento', r: (p) => `<span class="tag ${p.aproveitamentoCliente === 'Apropriação possível' ? 'c' : 'n'}">${A.esc(p.aproveitamentoCliente)}</span>` },
       ], analise.parceiros.slice(0, 200))}
     </div>` : ''}` : A.vazio('Sem movimentação importada',
       `Importe a movimentação de ${eForn ? 'fornecedores' : 'clientes'} para gerar esta análise.`,

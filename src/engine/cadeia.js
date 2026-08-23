@@ -57,7 +57,9 @@ function analisarCadeia(movimentos, cfg = {}) {
         chave, nome: m.nome || m.descricao || chave, cnpj: m.cnpj || m.inscr_federal || '',
         regime: regimeParceiro, regimeLabel: (P.REGIMES[regimeParceiro] || {}).label || regimeParceiro,
         itens: 0, valor: 0, baseEconomica: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, custoHoje: 0,
-        custoFinal: 0, precoFinal: 0, creditoFinal: 0,
+        custoFinal: 0, precoFinal: 0, creditoFinal: 0, creditoPotencial: 0,
+        aproveitamentoCliente: (P.REGIMES[regimeParceiro] || {}).creditaNovo
+          ? 'Apropriação possível' : 'Sem apropriação',
       });
     }
     const p = porParceiro.get(chave);
@@ -72,11 +74,15 @@ function analisarCadeia(movimentos, cfg = {}) {
     p.custoHoje += res.atual.custoEfetivo;
     p.custoFinal += ultimo.custoEfetivo;
     p.precoFinal += ultimo.precoFinal;
+    // A operação sempre gera IBS/CBS quando tributada. O crédito efetivamente
+    // aproveitado depende do adquirente, mas não apaga o imposto destacado.
+    p.creditoPotencial += ultimo.ibs + ultimo.cbs;
     p.creditoFinal += ultimo.credito.total;
 
     if (!porRegime.has(regimeParceiro)) {
       porRegime.set(regimeParceiro, { regime: regimeParceiro, label: (P.REGIMES[regimeParceiro] || {}).label || regimeParceiro,
-        parceiros: new Set(), valor: 0, baseEconomica: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, creditoFinal: 0, custoHoje: 0, custoFinal: 0, precoFinal: 0 });
+        parceiros: new Set(), valor: 0, baseEconomica: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, creditoFinal: 0, creditoPotencial: 0, custoHoje: 0, custoFinal: 0, precoFinal: 0,
+        aproveitamentoCliente: (P.REGIMES[regimeParceiro] || {}).creditaNovo ? 'Apropriação possível' : 'Sem apropriação' });
     }
     const rg = porRegime.get(regimeParceiro);
     rg.parceiros.add(chave);
@@ -90,6 +96,7 @@ function analisarCadeia(movimentos, cfg = {}) {
     rg.custoHoje += res.atual.custoEfetivo;
     rg.custoFinal += ultimo.custoEfetivo;
     rg.precoFinal += ultimo.precoFinal;
+    rg.creditoPotencial += ultimo.ibs + ultimo.cbs;
 
     for (const proj of res.projecao) {
       const a = porAno.get(proj.ano);
@@ -127,7 +134,7 @@ function analisarCadeia(movimentos, cfg = {}) {
     impactoOperacao: r2(p.precoFinal - p.valor),
     impactoOperacaoPerc: p.valor ? r4((p.precoFinal - p.valor) / p.valor) : 0,
     valor: r2(p.valor), baseEconomica: r2(p.baseEconomica), ibs: r2(p.ibs), cbs: r2(p.cbs), tributos: r2(p.tributos), creditoHoje: r2(p.creditoHoje),
-    custoHoje: r2(p.custoHoje), custoFinal: r2(p.custoFinal), creditoFinal: r2(p.creditoFinal),
+    custoHoje: r2(p.custoHoje), custoFinal: r2(p.custoFinal), creditoFinal: r2(p.creditoFinal), creditoPotencial: r2(p.creditoPotencial),
     precoFinal: r2(p.precoFinal),
   })).sort((a, b) => b.valor - a.valor);
 
@@ -141,8 +148,9 @@ function analisarCadeia(movimentos, cfg = {}) {
 
   const regimes = [...porRegime.values()].map((r) => ({
     regime: r.regime, label: r.label, parceiros: r.parceiros.size,
+    aproveitamentoCliente: r.aproveitamentoCliente,
     valor: r2(r.valor), representatividade: totalValor ? r4(r.valor / totalValor) : 0,
-    baseEconomica: r2(r.baseEconomica), ibs: r2(r.ibs), cbs: r2(r.cbs), tributos: r2(r.tributos), creditoHoje: r2(r.creditoHoje), creditoFinal: r2(r.creditoFinal),
+    baseEconomica: r2(r.baseEconomica), ibs: r2(r.ibs), cbs: r2(r.cbs), tributos: r2(r.tributos), creditoHoje: r2(r.creditoHoje), creditoFinal: r2(r.creditoFinal), creditoPotencial: r2(r.creditoPotencial),
     variacaoCredito: r2(r.creditoFinal - r.creditoHoje),
     custoHoje: r2(r.custoHoje), custoFinal: r2(r.custoFinal),
     variacaoCusto: r2(r.custoFinal - r.custoHoje),
