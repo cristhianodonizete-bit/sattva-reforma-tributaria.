@@ -54,12 +54,19 @@ const auditar = (req, { empresaId, acao, entidade, entidadeId, antes = null, dep
     .then(({ error }) => { if (error) console.error('[supabase] auditoria:', error.message); })
     .catch((e) => console.error('[supabase] auditoria:', e.message));
 };
+const areaDaTarefaModulo = (chave) => ({
+  diagnostico: 'diagnostico', precificacao: 'precificacao', contratos: 'contratos', capacitacao: 'capacitacao',
+  treinamento_boas_praticas: 'capacitacao', capacitacao_operacional: 'capacitacao',
+}[chave] || 'gestao_projetos');
 const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/operacao/.test(caminho)) return 'visao_geral';
   if (/^\/acessos/.test(caminho)) return 'acessos';
   if (/^\/empresas\/\d+\/turmas/.test(caminho) || /^\/(turmas|participantes)/.test(caminho)) return 'capacitacao';
   if (/^\/empresas\/\d+\/contratos/.test(caminho) || /^\/contratos/.test(caminho)) return 'contratos';
-  if (/^\/empresas\/\d+\/projeto\/tarefas/.test(caminho)) return 'gestao_projetos';
+  const tarefaDoModulo = caminho.match(/^\/empresas\/\d+\/projeto\/tarefas\/([^/]+)$/);
+  if (tarefaDoModulo) return areaDaTarefaModulo(tarefaDoModulo[1]);
+  // A edição identifica o módulo pela entrega vinculada, dentro da própria rota.
+  if (/^\/projeto\/tarefas\/\d+$/.test(caminho)) return null;
   if (/^\/empresas\/\d+\/acoes/.test(caminho) || /^\/acoes/.test(caminho)) return 'gestao_projetos';
   if (/^\/empresas/.test(caminho)) return metodo === 'GET' ? 'visao_geral' : 'diagnostico';
   if (/^\/(contratacoes|projeto|servicos|combos|gestao)/.test(caminho)) return 'gestao_projetos';
@@ -1039,9 +1046,12 @@ router.put('/projeto/entregas/:id', async (req, res) => {
 router.put('/projeto/tarefas/:id', async (req, res) => {
   try {
     const b = req.body;
-    const tarefa = db.prepare(`SELECT t.*, c.empresa_id FROM projeto_tarefas t JOIN contratacoes c ON c.id=t.contratacao_id WHERE t.id=?`).get(req.params.id);
+    const tarefa = db.prepare(`SELECT t.*, c.empresa_id, e.chave AS entrega_chave FROM projeto_tarefas t JOIN contratacoes c ON c.id=t.contratacao_id JOIN projeto_entregas e ON e.id=t.entrega_id WHERE t.id=?`).get(req.params.id);
     if (!tarefa) throw new Error('Tarefa não encontrada.');
     await garantirEmpresaPermitida(req, tarefa.empresa_id);
+    const permissoes = req.usuario?.permissoes;
+    const area = areaDaTarefaModulo(tarefa.entrega_chave);
+    if (permissoes && !permissoes[area]?.executar) return res.status(403).json({ ok: false, erro: 'Seu perfil não pode atualizar tarefas deste módulo.' });
     db.prepare(`UPDATE projeto_tarefas SET titulo=?,descricao=?,status=?,data_abertura=?,data_conclusao=?,envolve_cliente=?,pendencia_cliente=?,interacoes_cliente=?,atualizado_em=datetime('now','localtime') WHERE id=?`)
       .run(b.titulo || '', b.descricao || '', b.status || 'aberta', b.data_abertura || null, b.data_conclusao || null, b.envolve_cliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '', req.params.id);
     auditar(req, { empresaId: tarefa.empresa_id, acao: 'Atualizou tarefa do projeto', entidade: 'tarefa', entidadeId: req.params.id,

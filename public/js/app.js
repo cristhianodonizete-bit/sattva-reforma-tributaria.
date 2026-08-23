@@ -340,7 +340,8 @@ const App = (() => {
 
   async function tarefasModulo(host, chave, tituloModulo) {
     if (!host || !S.empresaId) return;
-    const podeExecutar = !S.usuario?.permissoes || Boolean(S.usuario.permissoes.gestao_projetos?.executar);
+    const area = ({ diagnostico: 'diagnostico', precificacao: 'precificacao', contratos: 'contratos', capacitacao: 'capacitacao' })[chave] || 'gestao_projetos';
+    const podeExecutar = !S.usuario?.permissoes || Boolean(S.usuario.permissoes[area]?.executar);
     const carregar = async () => {
       let d;
       try { d = await api(`/empresas/${S.empresaId}/projeto/tarefas/${chave}`); }
