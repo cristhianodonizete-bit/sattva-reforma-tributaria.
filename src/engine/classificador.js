@@ -88,6 +88,23 @@ function classificar(item, ctx = {}) {
       { natureza, sentido });
   }
 
+  // Benefício específico governamental tem precedência sobre a regra geral.
+  // Só entra quando o cadastro oficial já confirmou o ente como elegível.
+  if (sentido === 'saida' && ctx.perfilDestinatario === 'governo') {
+    const chave = item.ncm ? bases.normNcm(item.ncm) : String(item.nbs || '').replace(/\D/g, '');
+    const campo = item.ncm ? 'ncm' : 'nbs';
+    const regrasGov = db.prepare(`SELECT * FROM regras_governo WHERE ${campo}=?`).all(chave);
+    if (regrasGov.length === 1) {
+      const g = regrasGov[0];
+      return montar('CLASSIFICADO', { cst: g.cst, cclasstrib: g.cclasstrib, classificacao: g.tratamento,
+        reducao: g.aliquota_zero ? 'zero' : 'reduzida', reducao_ibs: Number(g.reducao || 0), reducao_cbs: Number(g.reducao || 0),
+        fundamento: g.fundamento, indop: g.indop }, 'regra governamental específica',
+        [`Benefício específico para ente elegível: ${g.tratamento}.`, `Fundamento: ${g.fundamento}.`, g.condicoes || ''], { natureza, sentido });
+    }
+    if (regrasGov.length > 1) return montar('REQUER_VALIDACAO', null, 'regra governamental específica',
+      ['Há mais de uma regra governamental para este código. Confirmar LC 116/NBS ou condição legal aplicável.'], { natureza, sentido, candidatos: regrasGov });
+  }
+
   // --- 3. base de produto/serviço
   if (item.ncm) {
     const r = bases.consultarNcm(item.ncm);
