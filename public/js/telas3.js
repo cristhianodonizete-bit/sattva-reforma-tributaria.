@@ -429,27 +429,27 @@ Telas.gestaoProjetos = async (el) => {
       ${A.kpi('Escopos para aprovar', d.propostas.length, 'defina entregas e acompanhamento', d.propostas.length ? 'destaque' : '')}
       ${A.kpi('Acompanhamentos em aberto', d.projetos.reduce((n, p) => n + p.acompanhamentos.filter((a) => a.status !== 'concluido').length, 0), 'meses liberados')}
     </div>
-    <div class="cartao" style="margin-top:16px"><h2>Escopos aguardando aprovação</h2>
+    <div class="cartao lista-aprovacoes"><div class="cabecalho-lista"><div><h2>Escopos aguardando aprovação</h2><p class="desc">A aprovação registra a fotografia do plano e libera as etapas contratadas.</p></div><span class="tag">${d.propostas.length} pendentes</span></div>
       ${A.tabela([
         { t: 'Cliente', r: (p) => `<b>${A.esc(p.razao_social)}</b>` },
         { t: 'Escopo contratado', r: (p) => A.esc(p.combo_nome || 'Escopo personalizado') },
         { t: 'Criada em', r: (p) => A.esc(p.criado_em || '—') },
         { t: '', r: (p) => `<button class="btn pq" data-aprovar="${p.id}">Fechar e aprovar</button>` },
       ], d.propostas, { vazio: 'Nenhuma proposta aguardando aprovação.' })}</div>
-    <div style="margin-top:16px">${d.projetos.map((p) => `<div class="cartao" style="margin-bottom:16px">
-      <div style="display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap"><div>
+    <div class="projetos-entrega">${d.projetos.map((p) => `<section class="cartao projeto-entrega-card">
+      <div class="projeto-entrega-cabecalho"><div>
         <h2>${A.esc(p.razao_social)}</h2><p class="desc">${A.esc(p.combo_nome || 'Plano personalizado')} · aprovado em ${A.esc(p.aprovado_em || '—')}</p>
-      </div><div style="text-align:right"><b class="mono">${p.progresso}%</b><div class="mini">${p.concluidas}/${p.entregas.length} entregas concluídas</div></div></div>
-      <div class="barra-prog" style="margin:12px 0 16px"><i style="width:${p.progresso}%"></i></div>
+      </div><div class="projeto-progresso"><b class="mono">${p.progresso}%</b><div class="mini">${p.concluidas}/${p.entregas.length} entregas concluídas</div></div></div>
+      <div class="barra-prog projeto-barra"><i style="width:${p.progresso}%"></i></div>
       <div class="grade g2">
-        <div><h3 style="font-size:13px">Escopo aprovado</h3>
-          ${p.entregas.map((x) => { const ts=p.tarefas.filter((t)=>t.entrega_id===x.id), rs=p.responsaveis.filter((r)=>r.entrega_id===x.id); return `<div style="display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #eef1f3"><span class="tag ${tag(x.status)}">${A.esc(rotulo(x.status))}</span><span style="flex:1">${A.esc(x.titulo)}<small class="mini" style="display:block">${rs.length ? A.esc(rs.map(r=>r.nome).join(' · ')) : 'Sem responsáveis'} · ${ts.length} tarefa(s)</small></span><button class="btn pq vazio" data-entrega="${x.id}">Planejar</button></div>`; }).join('')}
+        <div><h3 class="subtitulo-entrega">Escopo aprovado</h3>
+          ${p.entregas.map((x) => { const ts=p.tarefas.filter((t)=>t.entrega_id===x.id), rs=p.responsaveis.filter((r)=>r.entrega_id===x.id); return `<div class="linha-entrega"><span class="tag ${tag(x.status)}">${A.esc(rotulo(x.status))}</span><span class="linha-entrega-texto">${A.esc(x.titulo)}<small class="mini">${rs.length ? A.esc(rs.map(r=>r.nome).join(' · ')) : 'Sem responsáveis'} · ${ts.length} tarefa(s)</small></span><button class="btn pq vazio" data-entrega="${x.id}">Planejar</button></div>`; }).join('')}
         </div>
-        <div><h3 style="font-size:13px">Acompanhamento · ${p.acompanhamento_meses} mês(es) contratados</h3>
-          ${p.acompanhamentos.length ? p.acompanhamentos.map((a) => `<div style="display:flex;gap:8px;align-items:center;padding:7px 0;border-bottom:1px solid #eef1f3"><span class="tag ${tag(a.status)}">${A.esc(rotulo(a.status))}</span><span style="flex:1">${A.esc(a.nome || a.competencia)}</span><button class="btn pq vazio" data-acomp="${a.id}">Atualizar</button></div>`).join('') : (p.acompanhamento_meses ? `<p class="mini">Aguardando conclusão do Diagnóstico.</p><button class="btn pq" data-liberar="${p.id}">Liberar acompanhamento</button>` : '<p class="mini">Sem acompanhamento contratado.</p>')}
+        <div><h3 class="subtitulo-entrega">Acompanhamento · ${p.acompanhamento_meses} mês(es) contratados</h3>
+          ${p.acompanhamentos.length ? p.acompanhamentos.map((a) => `<div class="linha-entrega"><span class="tag ${tag(a.status)}">${A.esc(rotulo(a.status))}</span><span class="linha-entrega-texto">${A.esc(a.nome || a.competencia)}</span><button class="btn pq vazio" data-acomp="${a.id}">Atualizar</button></div>`).join('') : (p.acompanhamento_meses ? `<p class="mini">Aguardando conclusão do Diagnóstico.</p><button class="btn pq" data-liberar="${p.id}">Liberar acompanhamento</button>` : '<p class="mini">Sem acompanhamento contratado.</p>')}
         </div>
       </div>
-    </div>`).join('') || A.vazio('Nenhum projeto aprovado', 'Aprove uma proposta para iniciar o controle de execução.')}</div>`;
+    </section>`).join('') || A.vazio('Nenhum projeto aprovado', 'Aprove uma proposta para iniciar o controle de execução.')}</div>`;
 
   el.querySelectorAll('[data-aprovar]').forEach((b) => { b.onclick = () => {
     const p = d.propostas.find((x) => x.id === Number(b.dataset.aprovar));
