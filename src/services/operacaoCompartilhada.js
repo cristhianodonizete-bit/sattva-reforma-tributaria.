@@ -13,6 +13,7 @@ const CAMPOS = {
   turmas: ['id','empresa_id','trilha','titulo','formato','data','carga_horaria','instrutor','limite_participantes','status','observacoes'],
   participantes: ['id','turma_id','empresa_id','nome','area','email','presenca','nota_avaliacao'],
 };
+const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','servicos','combos','combo_itens'];
 
 function ativo() { return supabase.configurado() && process.env.SUPABASE_OPERACAO_COMPARTILHADA !== 'false'; }
 async function buscarTudo(remoto, tabela) {
@@ -32,6 +33,15 @@ function gravar(tabela, linhas) {
   const inserir = db.prepare(sql);
   db.transaction(() => linhas.forEach((x) => inserir.run(...campos.map((c) => x[c] ?? null))))();
   return linhas.length;
+}
+function gravarConfiguracao(tabela, linhas) {
+  const colunas = db.prepare(`PRAGMA table_info(${tabela})`).all().map((x) => x.name);
+  if (!colunas.length) return;
+  db.transaction(() => {
+    if (!linhas.length) return;
+    const inserir = db.prepare(`INSERT OR REPLACE INTO ${tabela} (${colunas.join(',')}) VALUES (${colunas.map(() => '?').join(',')})`);
+    linhas.forEach((linha) => inserir.run(...colunas.map((c) => linha[c] ?? null)));
+  })();
 }
 function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], tarefas = []) {
   const comboPorNome = new Map(db.prepare('SELECT id,nome FROM combos').all().map((x) => [x.nome, x.id]));
@@ -73,6 +83,10 @@ async function baixar() {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {};
   for (const tabela of Object.keys(CAMPOS)) resultado[tabela] = gravar(tabela, await buscarTudo(remoto, tabela));
+  const { data: configuracoes, error: erroConfiguracoes } = await remoto.from('parametros_operacionais').select('chave,dados').eq('tabela', 'configuracao');
+  if (erroConfiguracoes && !String(erroConfiguracoes.message).includes('does not exist')) throw erroConfiguracoes;
+  const porChave = new Map((configuracoes || []).map((x) => [x.chave, x.dados]));
+  for (const tabela of CONFIG_TABELAS) if (Array.isArray(porChave.get(tabela))) gravarConfiguracao(tabela, porChave.get(tabela));
   resultado.gestao = gravarGestao(await buscarTudo(remoto, 'projetos'), await buscarTudo(remoto, 'projeto_entregas'), await buscarTudo(remoto, 'projeto_acompanhamentos'), await buscarTudo(remoto, 'projeto_responsaveis'), await buscarTudo(remoto, 'projeto_tarefas'));
   return resultado;
 }
@@ -86,6 +100,12 @@ async function publicar() {
       if (error) throw new Error(`${tabela}: ${error.message}`);
     }
     resultado[tabela] = linhas.length;
+  }
+  for (const tabela of CONFIG_TABELAS) {
+    const linhas = db.prepare(`SELECT * FROM ${tabela}`).all();
+    const { error } = await remoto.from('parametros_operacionais').upsert({ tabela: 'configuracao', chave: tabela, dados: linhas }, { onConflict: 'tabela,chave' });
+    if (error) throw new Error(`${tabela}: ${error.message}`);
+    resultado[`config_${tabela}`] = linhas.length;
   }
   return resultado;
 }
