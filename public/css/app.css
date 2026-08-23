@@ -155,6 +155,7 @@ td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabu
 .chip{border:1px solid var(--linha);border-radius:999px;padding:5px 12px;cursor:pointer;background:var(--branco);font-size:12.5px}
 .chip.on{background:var(--navy);color:#fff;border-color:var(--navy)}
 .lista-sel{border:1px solid var(--linha);border-radius:var(--r);overflow:hidden}
+.lista-sel{box-shadow:0 1px 2px rgba(11,49,73,.03)}.lista-sel .it{padding:14px 16px}.lista-sel .it:hover{background:#f4f8fa}.dropzone{transition:border-color .16s ease,background .16s ease}.dropzone:before{content:'↑';display:block;font-size:24px;color:var(--ouro);margin-bottom:6px}
 .lista-sel .it{display:flex;gap:12px;padding:11px 14px;border-bottom:1px solid #eef1f3;align-items:flex-start;cursor:pointer}
 .lista-sel .it:last-child{border-bottom:none}
 .lista-sel .it:hover{background:#f7fafb}
