@@ -312,6 +312,8 @@ Telas.perfil = async (el) => {
   const [{ empresa, perfil }, { analise }] = await Promise.all([
     A.api(`/empresas/${S.empresaId}`), A.api(`/empresas/${S.empresaId}/perfil/analise`),
   ]);
+  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
+  const referenciaCbs = analise.projecao?.[analise.projecao.length - 1];
   el.innerHTML = cab('Módulo 1.a', 'Perfil tributário da empresa',
     'Como a empresa é tributada hoje e o que muda na transição. Informe as competências dos últimos 12 meses.',
     '<button class="btn" id="addComp">Lançar competência</button>') +
@@ -332,16 +334,20 @@ Telas.perfil = async (el) => {
       </div>
       <div class="cartao"><h2>Leitura técnica</h2><p class="desc">O que este perfil significa na reforma</p>${A.avisos(analise.observacoes)}</div>
     </div>
-    <div class="cartao"><h2>Projeção da carga por ano</h2>
-      <p class="desc">Aplica o cronograma de transição sobre a base limpa da empresa</p>
-      ${A.tabela([
+    <div class="cartao"><h2>${ibsAtivo ? 'Projeção da carga por ano' : 'Projeção CBS de referência'}</h2>
+      <p class="desc">${ibsAtivo ? 'Aplica o cronograma de transição sobre a base limpa da empresa' : 'A análise atual considera somente a CBS. A evolução anual será exibida quando o IBS for habilitado.'}</p>
+      ${ibsAtivo ? A.tabela([
         { t: 'Ano', r: (p) => `<b class="mono">${p.ano}</b>` },
         { t: 'Alíquota IVA', num: true, r: (p) => A.pct(p.aliquotaIva) },
         { t: 'Tributos projetados', num: true, r: (p) => A.moeda(p.tributos) },
         { t: 'Carga efetiva', num: true, r: (p) => A.pct(p.carga) },
         { t: 'Variação vs. hoje', num: true, r: (p) => A.setaR$(p.variacao) },
         { t: 'Marco do ano', r: (p) => `<span class="mini">${A.esc(p.nota)}</span>` },
-      ], analise.projecao)}
+      ], analise.projecao) : `<div class="grade g3 projecao-cbs-resumo">
+        ${A.kpi('Carga CBS simulada', A.pct(referenciaCbs?.carga || 0), 'sobre a receita analisada', 'destaque')}
+        ${A.kpi('Tributos CBS projetados', A.moeda(referenciaCbs?.tributos || 0), 'referência única')}
+        ${A.kpi('Variação sobre hoje', A.setaR$(referenciaCbs?.variacao || 0), 'comparação com a carga atual')}
+      </div>`}
     </div>` : A.vazio('Sem competências lançadas', 'Informe pelo menos uma competência com receita e tributos apurados para gerar a análise do perfil.', '')) +
     `<div class="cartao"><h2>Competências lançadas</h2>
       ${A.tabela([
