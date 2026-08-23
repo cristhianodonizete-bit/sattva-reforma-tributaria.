@@ -12,8 +12,9 @@ const cab = (olho, titulo, texto, acoes = '') =>
 // ===========================================================================
 Telas.precificacao = async (el) => {
   const { itens } = await A.api(`/empresas/${S.empresaId}/precificacao`);
+  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   el.innerHTML = cab('Módulo 2', 'Precificação e margem',
-    'Receita (-) impostos (-) custos = margem bruta. A pergunta é simples: se o preço não mudar, quanto de margem some?',
+    `Receita (-) impostos (-) custos = margem bruta. ${ibsAtivo ? 'Se o preço não mudar, quanto de margem some?' : 'A simulação atual considera a CBS em uma referência única.'}`,
     `<button class="btn" id="simular">Simular item</button>
      <button class="btn vazio" id="importarItens">Importar planilha</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/precificacao')">Exportar Excel</button>`) +
@@ -21,7 +22,7 @@ Telas.precificacao = async (el) => {
     `<div class="cartao"><h2>Itens simulados</h2>
       ${A.tabela([
         { t: 'Item', r: (i) => `${A.esc(i.descricao || '—')}<div class="mini mono">${A.esc(i.ncm || '')}</div>` },
-        { t: 'Ano', r: (i) => `<span class="mono">${i.ano}</span>` },
+        ...(ibsAtivo ? [{ t: 'Ano', r: (i) => `<span class="mono">${i.ano}</span>` }] : []),
         { t: 'Preço hoje', num: true, r: (i) => A.moeda(i.r.hoje.preco) },
         { t: 'Sem imposto', num: true, r: (i) => A.moeda(i.r.hoje.precoSemImposto) },
         { t: 'Margem hoje', num: true, r: (i) => `${A.moeda(i.r.hoje.margem)}<div class="mini">${A.pct(i.r.hoje.margemPerc)}</div>` },
@@ -38,7 +39,7 @@ Telas.precificacao = async (el) => {
   document.getElementById('simular').onclick = () => abrirSimulacao();
   document.getElementById('importarItens').onclick = () => A.modal({
     titulo: 'Importar itens para precificação', confirmar: null,
-    descricao: 'Colunas aceitas: Descrição, NCM, Tipo, Preço Venda, Custo Compra, Despesas Variáveis, Regime Fornecedor, Perfil Cliente, Redução, Ano.',
+    descricao: `Colunas aceitas: Descrição, NCM, Tipo, Preço Venda, Custo Compra, Despesas Variáveis, Regime Fornecedor, Perfil Cliente, Redução${ibsAtivo ? ', Ano' : ''}.`,
     corpo: A.dropzone('zonaPreco', '<b>Solte a planilha aqui</b><div class="mini">ou clique para escolher</div>', async (f) => {
       const fd = new FormData(); fd.append('arquivo', f);
       try { const r = await A.api(`/empresas/${S.empresaId}/precificacao/importar`, { metodo: 'POST', corpo: fd });
@@ -55,7 +56,7 @@ Telas.precificacao = async (el) => {
   function abrirSimulacao() {
     A.modal({
       titulo: 'Simular precificação', confirmar: 'Salvar item', largura: 820,
-      descricao: 'O sistema volta a base do preço e do custo, aplica o IVA por fora e devolve o preço que preserva a margem.',
+      descricao: ibsAtivo ? 'O sistema volta a base do preço e do custo, aplica o IVA por fora e devolve o preço que preserva a margem.' : 'O sistema volta a base do preço e do custo, aplica a CBS por fora e devolve o preço que preserva a margem.',
       corpo: `<div class="grade g2">${A.campo('descricao', 'Produto ou serviço')}${A.campo('ncm', 'NCM (se houver)')}</div>
         <div class="grade g3">
           ${A.campo('precoVenda', 'Preço de venda hoje (R$)', 1000, 'number', 'step=0.01')}
@@ -68,8 +69,8 @@ Telas.precificacao = async (el) => {
           ${A.selecao('perfilCliente', 'Perfil do cliente', A.opcoesRegime(), 'lucro_real')}
         </div>
         <div class="grade g3">
-          ${A.selecao('reducao', 'Enquadramento no IVA (venda)', A.opcoesReducao(), 'integral')}
-          ${A.selecao('ano', 'Ano do cenário', A.opcoesAno(), 2033)}
+          ${A.selecao('reducao', `Enquadramento no ${ibsAtivo ? 'IVA' : 'CBS'} (venda)`, A.opcoesReducao(), 'integral')}
+          ${ibsAtivo ? A.selecao('ano', 'Ano do cenário', A.opcoesAno(), 2033) : '<input type="hidden" name="ano" value="2033">'}
           ${A.campo('aliqEspecifica', 'Alíquota específica (opcional)', '', 'number', 'step=0.0001')}
         </div>
         <button class="btn vazio" id="previa" style="width:100%">Ver prévia sem salvar</button>
@@ -93,9 +94,10 @@ Telas.precificacao = async (el) => {
 };
 
 function blocoResultado(r) {
+  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   return `<div class="grade g3">
       ${A.kpi('Margem hoje', A.moeda(r.hoje.margem), A.pct(r.hoje.margemPerc))}
-      ${A.kpi(`Margem em ${r.item.ano} sem reajuste`, A.moeda(r.precoCongelado.margem), A.setaR$(r.precoCongelado.variacaoMargem))}
+      ${A.kpi(`Margem ${ibsAtivo ? `em ${r.item.ano}` : 'CBS'} sem reajuste`, A.moeda(r.precoCongelado.margem), A.setaR$(r.precoCongelado.variacaoMargem))}
       ${A.kpi('Preço neutro', A.moeda(r.precoNeutro.preco), A.setaPct(r.precoNeutro.reajusteNecessario) + ' de reajuste', 'destaque')}
     </div>
     <table style="margin-top:14px">
