@@ -530,9 +530,10 @@ Telas.cenarios = async (el) => {
 Telas.calculadora = async (el) => {
   const v = S.cache.calc || { valor: 10000, regime: 'lucro_real', regimeAdquirente: S.empresa?.regime || 'lucro_real',
     tipo: 'mercadoria', reducao: 'integral', aliqIcms: 0.18, aliqIss: 0.03, grauRepasse: 1 };
+  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
 
   el.innerHTML = cab('Ferramenta', 'Calculadora da reforma tributária',
-    'Volta a base do preço até o valor sem imposto — respeitando o regime de quem emite — e reaplica o IVA por fora, ano a ano.') +
+    ibsAtivo ? 'Volta a base do preço até o valor sem imposto — respeitando o regime de quem emite — e reaplica o IVA por fora, ano a ano.' : 'Volta a base do preço até o valor sem imposto e aplica a CBS por fora, em uma referência única.') +
     `<div class="grade g2">
       <div class="cartao">
         <h2>Dados da operação</h2><p class="desc">Informe os valores da nota. Deixe os impostos em branco para o sistema estimar pelo regime.</p>
@@ -544,7 +545,7 @@ Telas.calculadora = async (el) => {
           ${A.selecao('regime', 'Regime de quem EMITE', A.opcoesRegime(), v.regime)}
           ${A.selecao('regimeAdquirente', 'Regime de quem RECEBE', A.opcoesRegime(), v.regimeAdquirente)}
         </div>
-        ${A.selecao('reducao', 'Enquadramento no IBS/CBS', A.opcoesReducao(), v.reducao)}
+        ${A.selecao('reducao', `Enquadramento no ${ibsAtivo ? 'IBS/CBS' : 'CBS'}`, A.opcoesReducao(), v.reducao)}
         <hr class="sep">
         <h2 style="font-size:13px">Impostos destacados na nota</h2>
         <p class="desc">Opcional — preencha se tiver os valores reais</p>
@@ -601,9 +602,9 @@ Telas.calculadora = async (el) => {
         </table>
       </div>
       <div class="cartao">
-        <h2>Projeção com o IVA por fora</h2>
-        <p class="desc">O IBS e a CBS não integram a própria base — por isso a base limpa é a única comparação honesta</p>
-        ${A.tabela([
+        <h2>${ibsAtivo ? 'Projeção com o IVA por fora' : 'Projeção CBS por fora'}</h2>
+        <p class="desc">${ibsAtivo ? 'O IBS e a CBS não integram a própria base — por isso a base limpa é a única comparação honesta' : 'A CBS não integra a própria base — por isso a base limpa é a única comparação honesta'}</p>
+        ${ibsAtivo ? A.tabela([
           { t: 'Ano', r: (p) => `<b class="mono">${p.ano}</b>` },
           { t: 'Alíq. IVA', num: true, r: (p) => A.pct(p.aliquotas.total) },
           { t: 'IBS+CBS', num: true, r: (p) => A.moeda(p.ivaEfetivo) },
@@ -612,12 +613,20 @@ Telas.calculadora = async (el) => {
           { t: 'Crédito', num: true, r: (p) => A.moeda(p.credito.total) },
           { t: 'Custo efetivo', num: true, r: (p) => `<b>${A.moeda(p.custoEfetivo)}</b>` },
           { t: 'Δ vs. hoje', num: true, r: (p) => A.setaPct(p.variacaoCustoPerc) },
-        ], r.projecao)}
+        ], r.projecao) : A.tabela([
+          { t: 'Alíquota CBS', num: true, r: () => A.pct(fim.aliquotas?.cbs ?? fim.aliquotas?.total ?? 0) },
+          { t: 'CBS projetada', num: true, r: () => A.moeda(fim.ivaEfetivo) },
+          { t: 'Tributos residuais', num: true, r: () => A.moeda(fim.residual.total) },
+          { t: 'Preço final', num: true, r: () => A.moeda(fim.precoFinal) },
+          { t: 'Crédito CBS', num: true, r: () => A.moeda(fim.credito.total) },
+          { t: 'Custo efetivo', num: true, r: () => `<b>${A.moeda(fim.custoEfetivo)}</b>` },
+          { t: 'Δ vs. hoje', num: true, r: () => A.setaPct(fim.variacaoCustoPerc) },
+        ], [{}])}
       </div>
       <div class="cartao"><h2>Leitura</h2>
         ${A.avisos(r.resumo.alertas)}
         ${fim.credito.observacoes.map((o) => `<div class="aviso">${A.esc(o)}</div>`).join('')}
-        <div class="aviso"><b>${A.esc(String(fim.ano))}</b>${A.esc(fim.nota)}</div>
+        ${ibsAtivo ? `<div class="aviso"><b>${A.esc(String(fim.ano))}</b>${A.esc(fim.nota)}</div>` : ''}
       </div>`;
   }
   calcular().catch(() => {});
