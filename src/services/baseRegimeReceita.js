@@ -334,12 +334,18 @@ async function estatisticas() {
   const total = D.prepare('SELECT COUNT(*) c FROM base_regime').get().c;
   const importacoes = D.prepare('SELECT * FROM base_regime_importacoes ORDER BY id DESC LIMIT 10').all();
   let totalCompartilhado = null;
+  let importacoesCompartilhadas = null;
   if (supabase.configurado()) {
     const { count, error } = await supabase.admin().from('base_regime')
       .select('*', { count: 'exact', head: true });
     if (!error) totalCompartilhado = count || 0;
+    const { data, error: erroImportacoes } = await supabase.admin().from('base_regime_importacoes')
+      .select('arquivo,regime,ano,linhas,importados,invalidos,duplicados,segundos,criado_em')
+      .order('criado_em', { ascending: false }).limit(10);
+    if (!erroImportacoes) importacoesCompartilhadas = data || [];
   }
-  return { total: totalCompartilhado ?? total, totalLocal: total, totalCompartilhado, porRegime, importacoes,
+  return { total: totalCompartilhado ?? total, totalLocal: total, totalCompartilhado, porRegime,
+    importacoes: importacoesCompartilhadas ?? importacoes,
     regimesAceitos: Object.entries(REGIMES_VALIDOS).map(([k, v]) => ({ chave: k, nome: v })) };
 }
 
