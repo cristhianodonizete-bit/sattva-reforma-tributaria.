@@ -2320,8 +2320,7 @@ router.post('/base-regime/upload', uploadBaseRegime.single('arquivo'), async (re
     const r = await baseRegime.importar(req.file.path, b.regime, { ano: b.ano, substituir: !!b.substituir });
     // O nome apresentado e gravado no histórico é o do arquivo do usuário,
     // não o nome aleatório criado na pasta temporária do Render.
-    const D = db();
-    D.prepare('UPDATE base_regime SET fonte=? WHERE fonte=?').run(nome, r.arquivo);
+    db.prepare('UPDATE base_regime SET fonte=? WHERE fonte=?').run(nome, r.arquivo);
     r.arquivo = nome;
     const compartilhada = await baseRegime.publicarImportacaoCompartilhada(nome, r, !!b.substituir);
     ok(res, { ...r, compartilhada });
