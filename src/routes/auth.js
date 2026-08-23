@@ -9,7 +9,18 @@ function publico() {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
 }
 
-router.get('/status', (_req, res) => res.json({ ok: true, configurado: supabase.configurado(), exigido: autenticacao.exigida() }));
+router.get('/status', (_req, res) => {
+  let cache = null;
+  try {
+    const db = require('../db');
+    cache = {
+      empresas: db.prepare('SELECT COUNT(*) c FROM empresas').get().c,
+      parceiros: db.prepare('SELECT COUNT(*) c FROM parceiros').get().c,
+      movimentos: db.prepare('SELECT COUNT(*) c FROM movimentos').get().c,
+    };
+  } catch (_) { /* diagnóstico não impede a autenticação */ }
+  res.json({ ok: true, configurado: supabase.configurado(), exigido: autenticacao.exigida(), cache });
+});
 
 router.post('/login', async (req, res) => {
   try {
