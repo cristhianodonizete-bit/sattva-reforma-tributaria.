@@ -135,6 +135,7 @@ td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabu
 
 /* ---------- MISC ---------- */
 .vazio-estado{text-align:center;padding:44px 20px;color:var(--tinta-3)}
+.vazio-estado{background:linear-gradient(135deg,#fff,#f7fafb);border:1px dashed #cddae1;border-radius:12px;margin:8px 0}.vazio-estado h3:before{content:'◌';display:block;color:var(--ouro);font-size:28px;margin-bottom:6px}.aviso{box-shadow:none}.aviso b{font-size:13px}.btn{min-height:36px}.btn.pq{min-height:28px}.topo{margin-top:4px}.topo h1{font-size:clamp(25px,3vw,32px)}@media(max-width:620px){.acoes-topo{width:100%;overflow:auto}.topo{align-items:flex-start;flex-direction:column}.cartao{padding:16px}.modal{padding:20px}.tabela-rolagem{margin:0 -16px;padding:0 16px}}
 .vazio-estado h3{color:var(--navy-900);margin:0 0 6px;font-size:16px}
 .vazio-estado p{max-width:52ch;margin:0 auto 16px}
 .carregando{padding:30px;text-align:center;color:var(--tinta-3)}
