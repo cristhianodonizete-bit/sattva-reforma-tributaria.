@@ -1383,10 +1383,10 @@ router.get('/motor/parametros', (_req, res) => ok(res, {
 router.put('/motor/parametros/:ano', (req, res) => {
   try {
     const b = req.body;
-    db.prepare(`UPDATE param_aliquotas SET ibs = ?, cbs = ?, fator_icms_iss = ?, fator_pis_cofins = ?,
+    db.prepare(`UPDATE param_aliquotas SET ibs = ?, cbs = ?, calcular_ibs = ?, fator_icms_iss = ?, fator_pis_cofins = ?,
       fator_ipi = ?, compensavel = ?, simulacao = ?, fonte = ?, nota = ?,
       atualizado_em = datetime('now','localtime') WHERE ano = ?`)
-      .run(Number(b.ibs) || 0, Number(b.cbs) || 0, Number(b.fator_icms_iss) || 0,
+      .run(Number(b.ibs) || 0, Number(b.cbs) || 0, b.calcular_ibs ? 1 : 0, Number(b.fator_icms_iss) || 0,
         Number(b.fator_pis_cofins) || 0, Number(b.fator_ipi) || 0,
         b.compensavel ? 1 : 0, b.simulacao ? 1 : 0, b.fonte || '', b.nota || '', req.params.ano);
     ok(res, {});

@@ -46,6 +46,7 @@ const COLUNAS_NOVAS = {
     cenario_id: 'INTEGER', grupo_origem: 'TEXT', fracao: 'REAL DEFAULT 1',
   },
   param_cfop: { prioridade: 'INTEGER DEFAULT 2' },
+  param_aliquotas: { calcular_ibs: 'INTEGER DEFAULT 0' },
   parceiros: {
     faturamento_anual: 'REAL',
     regime_resolvido: "TEXT DEFAULT 'indeterminado'",
@@ -526,6 +527,7 @@ CREATE TABLE IF NOT EXISTS param_aliquotas (
   ibs REAL NOT NULL, cbs REAL NOT NULL,
   fator_icms_iss REAL DEFAULT 1, fator_pis_cofins REAL DEFAULT 1, fator_ipi REAL DEFAULT 1,
   compensavel INTEGER DEFAULT 0,
+  calcular_ibs INTEGER DEFAULT 0,       -- fase CBS: IBS só entra quando habilitado
   simulacao INTEGER DEFAULT 1,          -- 1 = parametrizada para simulação
   fonte TEXT, nota TEXT,
   atualizado_em TEXT DEFAULT (datetime('now','localtime'))

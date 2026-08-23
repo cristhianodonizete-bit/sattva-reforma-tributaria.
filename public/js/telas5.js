@@ -293,10 +293,11 @@ async function projRiscos(el) {
 // =========================================================================
 async function projClassificacoes(el) {
   const d = await A.api(`/empresas/${S.empresaId}/motor/classificacoes?limite=400`);
+  const ibsAtivo = d.itens.some((i) => Number(i.detalhe?.aliquotas?.parametros?.calcular_ibs) === 1);
   el.innerHTML = seletorAno(() => A.ir('bases')) +
     `<div class="cartao">
       <h2>Classificação item a item</h2>
-      <p class="desc">Resultado do motor por item. Clique numa linha para ver a rastreabilidade completa: de onde veio cada número.</p>
+      <p class="desc">${ibsAtivo ? 'Resultado do motor IBS/CBS.' : 'Análise CBS: IBS não está habilitado nesta configuração.'} Clique numa linha para ver a rastreabilidade completa: de onde veio cada número.</p>
       ${A.tabela([
         { t: 'Sentido', r: (i) => `<span class="tag">${i.sentido === 'entrada' ? 'Entrada' : 'Saída'}</span>` },
         { t: 'Contraparte', r: (i) => `${A.esc(i.detalhe.contraparte || '')}<div class="mini">${A.esc((i.detalhe.descricao || '').slice(0, 40))}</div>` },
@@ -307,7 +308,7 @@ async function projClassificacoes(el) {
         { t: 'Recomendado pela base', r: (i) => `<span class="mono mini">CST ${A.esc(i.cst || '—')}<br>cCT ${A.esc(i.cclasstrib || '—')}</span>` },
         { t: 'Tratamento', r: (i) => `<span class="mini">${A.esc((i.tratamento || '').slice(0, 42))}</span>` },
         { t: 'Base econômica', num: true, r: (i) => A.moeda(i.base_economica) },
-        { t: 'IBS', num: true, r: (i) => A.moeda(i.ibs) },
+        ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (i) => A.moeda(i.ibs) }] : []),
         { t: 'CBS', num: true, r: (i) => A.moeda(i.cbs) },
         { t: 'Crédito', num: true, r: (i) => A.moeda(i.credito_ibs + i.credito_cbs) },
         { t: 'Status', r: (i) => `<span class="tag ${stCls(i.status_classificacao)[0]}">${stCls(i.status_classificacao)[1]}</span>` },

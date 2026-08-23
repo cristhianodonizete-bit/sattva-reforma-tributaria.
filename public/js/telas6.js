@@ -87,11 +87,12 @@ function aliquotas(box, d) {
   box.innerHTML = `<div class="aviso atencao"><b>Estas alíquotas ainda dependem de definição legal</b>
       Enquanto a coluna “simulação” estiver marcada, o sistema rotula todo resultado derivado como
       ALÍQUOTA PARAMETRIZADA PARA SIMULAÇÃO e nunca como alíquota definitiva.</div>
-    <div class="cartao"><h2>IBS, CBS e fatores da transição</h2>
+    <div class="cartao"><h2>CBS e parâmetros da transição</h2>
       <p class="desc">Os fatores indicam quanto de cada tributo antigo ainda é devido no ano. 1 = integral, 0 = extinto.</p>
       ${A.tabela([
         { t: 'Ano', r: (a) => `<b class="mono">${a.ano}</b>` },
         { t: 'IBS', num: true, r: (a) => `<input type="number" step="0.0001" value="${a.ibs}" data-f="ibs" data-ano="${a.ano}" style="width:92px;text-align:right">` },
+        { t: 'Calcular IBS', r: (a) => `<input type="checkbox" data-f="calcular_ibs" data-ano="${a.ano}" ${a.calcular_ibs ? 'checked' : ''}>` },
         { t: 'CBS', num: true, r: (a) => `<input type="number" step="0.0001" value="${a.cbs}" data-f="cbs" data-ano="${a.ano}" style="width:92px;text-align:right">` },
         { t: 'ICMS/ISS', num: true, r: (a) => `<input type="number" step="0.1" value="${a.fator_icms_iss}" data-f="fator_icms_iss" data-ano="${a.ano}" style="width:74px;text-align:right">` },
         { t: 'PIS/COFINS', num: true, r: (a) => `<input type="number" step="0.1" value="${a.fator_pis_cofins}" data-f="fator_pis_cofins" data-ano="${a.ano}" style="width:74px;text-align:right">` },
@@ -107,7 +108,7 @@ function aliquotas(box, d) {
     const v = (f) => { const el = box.querySelector(`[data-f="${f}"][data-ano="${ano}"]`);
       return el.type === 'checkbox' ? el.checked : el.value; };
     const orig = d.aliquotas.find((x) => String(x.ano) === ano);
-    salvar(`/config/aliquotas/${ano}`, { ibs: v('ibs'), cbs: v('cbs'), fator_icms_iss: v('fator_icms_iss'),
+    salvar(`/config/aliquotas/${ano}`, { ibs: v('ibs'), cbs: v('cbs'), calcular_ibs: v('calcular_ibs'), fator_icms_iss: v('fator_icms_iss'),
       fator_pis_cofins: v('fator_pis_cofins'), fator_ipi: v('fator_ipi'),
       compensavel: v('compensavel'), simulacao: v('simulacao'), fonte: orig.fonte, nota: orig.nota },
       `Alíquotas de ${ano} atualizadas`);

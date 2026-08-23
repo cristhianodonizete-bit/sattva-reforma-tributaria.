@@ -50,7 +50,8 @@ function anexosSimples() {
 /** Alíquota efetiva de IBS e CBS depois do tratamento tributário */
 function aliquotasEfetivas(ano, cls) {
   const p = aliquotasDoAno(ano);
-  let ibs = num(p.ibs), cbs = num(p.cbs);
+  const ibsAtivo = Number(p.calcular_ibs) === 1;
+  let ibs = ibsAtivo ? num(p.ibs) : 0, cbs = num(p.cbs);
   const trilha = [{ etapa: 'alíquota de referência', ibs: r6(ibs), cbs: r6(cbs), origem: `param_aliquotas ${ano}` }];
 
   // Redução vinda da base (item 27): percentual próprio por tributo quando existir
@@ -69,7 +70,7 @@ function aliquotasEfetivas(ano, cls) {
   return {
     ibs: r6(ibs), cbs: r6(cbs), total: r6(ibs + cbs),
     reducaoIbs: rIbs, reducaoCbs: rCbs,
-    aliquotaReferencia: { ibs: num(p.ibs), cbs: num(p.cbs) },
+    aliquotaReferencia: { ibs: ibsAtivo ? num(p.ibs) : 0, cbs: num(p.cbs) },
     simulacao: !!p.simulacao,
     rotulo: p.simulacao ? 'ALÍQUOTA PARAMETRIZADA PARA SIMULAÇÃO' : 'alíquota parametrizada',
     trilha, parametros: p,
@@ -194,6 +195,9 @@ function projetarItem(item, ctx) {
     cbs = rec.baseEconomica * aliq.cbs;
     if (aliq.simulacao || rec.status === 'estimada') natureza = 'SIMULADO';
   }
+  // Fase CBS: mesmo no Simples, a parcela de IBS não integra a simulação até
+  // ser habilitada expressamente na parametrização do ano.
+  if (Number(aliq.parametros.calcular_ibs) !== 1) ibs = 0;
 
   // ---------- 5. CRÉDITO ----------
   const cred = avaliarCredito({ regimeAdquirente, regimeFornecedor: regimeEmitente, cls, sentido });
