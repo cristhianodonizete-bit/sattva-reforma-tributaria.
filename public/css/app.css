@@ -48,6 +48,7 @@ nav a .n{margin-left:auto;font-size:11px;font-family:var(--mono);color:var(--our
 .topo h1{margin:0;font-size:25px;font-weight:650;letter-spacing:-.015em;color:var(--navy-900)}
 .topo .olho{font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--ouro-600);font-weight:700;margin-bottom:5px}
 .topo p{margin:6px 0 0;color:var(--tinta-2);max-width:70ch}
+.topo p{font-size:15px;line-height:1.55}.topo .olho{color:var(--ouro-600)}
 .acoes-topo{display:flex;gap:8px;flex-shrink:0}
 
 /* ---------- COMPONENTES ---------- */
