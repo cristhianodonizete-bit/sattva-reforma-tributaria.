@@ -19,7 +19,7 @@ const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
 /** Carrega os movimentos já com o regime resolvido pelo cadastro de parceiros */
 function carregar(empresaId, sentido) {
   const tipo = sentido === 'saida' ? 'cliente' : 'fornecedor';
-  return db.prepare(`SELECT m.*, p.regime AS regime_cadastro, p.descricao AS nome_cadastro,
+  return db.prepare(`SELECT m.*, p.regime AS regime_cadastro, p.perfil_economico AS perfil_cadastro, p.descricao AS nome_cadastro,
       p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro
     FROM movimentos m
     LEFT JOIN parceiros p ON p.empresa_id = m.empresa_id AND p.tipo = m.tipo AND p.cnpj = m.inscr_federal
@@ -85,7 +85,9 @@ function executar(empresaId, opcoes = {}) {
   for (const m of carregar(empresaId, 'saida')) {
     const regime = m.regime_cadastro || m.regime || null;
     const item = normalizar(m);
-    const dest = motor.classificarDestinatario({ regime, cnpj: m.inscr_federal });
+    const dest = m.perfil_cadastro === 'governo'
+      ? { perfil: 'governo', detalhe: 'Ente governamental confirmado por cadastro oficial', credita: false }
+      : motor.classificarDestinatario({ regime, cnpj: m.inscr_federal });
 
     const proj = motor.projetarItem(item, {
       empresa, sentido: 'saida', ano, regimeContraparte: regime,

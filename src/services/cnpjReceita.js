@@ -298,6 +298,7 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
   if (!alvos.length) return rel;
 
   const up = db().prepare(`UPDATE parceiros SET regime = ?, regime_resolvido = ?, origem = 'receita' WHERE id = ?`);
+  const upGoverno = db().prepare(`UPDATE parceiros SET perfil_economico=?, perfil_origem='cadastro_oficial', regime=CASE WHEN ?='governo' THEN 'orgao_publico' ELSE regime END WHERE id=?`);
   const evidencia = db().prepare(`INSERT INTO contraparte_regime_evidencias
     (parceiro_id, regime, fonte, ano_referencia, natureza, confianca, status, detalhe)
     VALUES (?,?,?,0,'atual','alta','confirmada',?)
@@ -319,6 +320,10 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
         evidencia.run(p.id, r.regime_derivado, r.fonte || cfg.nome, r.justificativa || 'Consulta automática de cadastro público.');
         rel.atualizados++;
         rel.porRegime[r.regime_derivado] = (rel.porRegime[r.regime_derivado] || 0) + 1;
+      }
+      if (p.tipo === 'cliente') {
+        const gov = classificarEnteGovernamental(r, p.cnpj);
+        upGoverno.run(gov.aplicar_regra_compra_governamental === 'SIM' ? 'governo' : gov.aplicar_regra_compra_governamental === 'A VALIDAR' ? 'requer_validacao' : 'indeterminado', gov.aplicar_regra_compra_governamental === 'SIM' ? 'governo' : '', p.id);
       }
       // Situação cadastral irregular é informação relevante para o diagnóstico
       if (r.situacao && !/ativa/i.test(r.situacao)) {
