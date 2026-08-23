@@ -174,6 +174,7 @@ details.clausula{border:1px solid var(--linha);border-radius:8px;padding:10px 14
 details.clausula summary{cursor:pointer;font-weight:600;color:var(--navy-900)}
 details.clausula .texto{margin-top:10px;padding:12px 14px;background:#f4f7f9;border-left:3px solid var(--ouro);border-radius:0 6px 6px 0;font-size:13px;white-space:pre-wrap}
 .mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.mono{font-size:.94em}.kpi .val,.num{font-variant-numeric:tabular-nums}.mini.mono{font-size:11px;color:var(--tinta-2)}
 .mini{font-size:11.5px;color:var(--tinta-3)}
 hr.sep{border:none;border-top:1px solid var(--linha);margin:18px 0}
 @media(prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
