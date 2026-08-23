@@ -70,11 +70,13 @@ function seletorAno(aoTrocar) {
 async function projFornecedores(el) {
   const d = await A.api(`/empresas/${S.empresaId}/motor/fornecedores?ano=${anoAtual()}`);
   const r = d.resumo;
+  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
+  const creditoProjetado = r.apuracao.cbs.creditos + (ibsAtivo ? r.apuracao.ibs.creditos : 0);
   el.innerHTML = seletorAno(() => A.ir('fornecedores')) +
     `<div class="grade g4">
       ${A.kpi('Compras analisadas', A.moeda(r.comprasAnalisadas), `${r.entradas} itens`)}
       ${A.kpi('Base econômica reconstruída', A.moeda(r.baseEconomicaEntradas), 'sem os tributos substituídos')}
-      ${A.kpi('Crédito IBS/CBS projetado', A.moeda(r.apuracao.ibs.creditos + r.apuracao.cbs.creditos), `IBS ${A.moeda(r.apuracao.ibs.creditos)} · CBS ${A.moeda(r.apuracao.cbs.creditos)}`, 'destaque')}
+      ${A.kpi(`Crédito ${ibsAtivo ? 'IBS/CBS' : 'CBS'} projetado`, A.moeda(creditoProjetado), ibsAtivo ? `IBS ${A.moeda(r.apuracao.ibs.creditos)} · CBS ${A.moeda(r.apuracao.cbs.creditos)}` : 'referência CBS', 'destaque')}
       ${A.kpi('Itens a validar', r.requerValidacao + r.semCorrespondencia, `${r.classificados} classificados`)}
     </div>
     <div class="cartao" style="margin-top:16px">
@@ -85,7 +87,7 @@ async function projFornecedores(el) {
         { t: 'Regime', r: (l) => l.regime ? `<span class="tag">${A.regimeLabel(l.regime)}</span>` : '<span class="tag a">desconhecido</span>' },
         { t: 'Compras', num: true, r: (l) => A.moeda(l.comprasAtuais) },
         { t: 'Base econômica', num: true, r: (l) => A.moeda(l.baseEconomica) },
-        { t: 'IBS', num: true, r: (l) => A.moeda(l.ibs) },
+        ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (l) => A.moeda(l.ibs) }] : []),
         { t: 'CBS', num: true, r: (l) => A.moeda(l.cbs) },
         { t: 'Crédito', num: true, r: (l) => `<b>${A.moeda(l.creditoTotal)}</b>` },
         { t: 'Custo líquido', num: true, r: (l) => `<b>${A.moeda(l.custoLiquido)}</b>` },
@@ -102,7 +104,7 @@ async function projFornecedores(el) {
         ${A.tabela([
           { t: 'Cenário', r: (x) => `${x.rotulo}<div class="mini">RBT12 ${A.moeda(x.rbt12)}</div>` },
           { t: 'Alíq. efetiva', num: true, r: (x) => A.pct(x.aliquotaEfetiva) },
-          { t: 'IBS', num: true, r: (x) => A.moeda(x.ibs) },
+          ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (x) => A.moeda(x.ibs) }] : []),
           { t: 'CBS', num: true, r: (x) => A.moeda(x.cbs) },
           { t: 'Crédito transmitido', num: true, r: (x) => `<b>${A.moeda(x.creditoTotal)}</b>` },
           { t: 'Custo líquido', num: true, r: (x) => A.moeda(x.custoLiquido) },
@@ -123,11 +125,13 @@ async function projFornecedores(el) {
 async function projClientes(el) {
   const d = await A.api(`/empresas/${S.empresaId}/motor/clientes?ano=${anoAtual()}`);
   const r = d.resumo;
+  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
+  const debitoProjetado = r.apuracao.cbs.debitos + (ibsAtivo ? r.apuracao.ibs.debitos : 0);
   el.innerHTML = seletorAno(() => A.ir('clientes')) +
     `<div class="grade g4">
       ${A.kpi('Faturamento analisado', A.moeda(r.faturamentoAnalisado), `${r.saidas} itens`)}
       ${A.kpi('Base econômica', A.moeda(r.baseEconomicaSaidas))}
-      ${A.kpi('Débito IBS/CBS projetado', A.moeda(r.apuracao.ibs.debitos + r.apuracao.cbs.debitos), `IBS ${A.moeda(r.apuracao.ibs.debitos)} · CBS ${A.moeda(r.apuracao.cbs.debitos)}`, 'destaque')}
+      ${A.kpi(`Débito ${ibsAtivo ? 'IBS/CBS' : 'CBS'} projetado`, A.moeda(debitoProjetado), ibsAtivo ? `IBS ${A.moeda(r.apuracao.ibs.debitos)} · CBS ${A.moeda(r.apuracao.cbs.debitos)}` : 'referência CBS', 'destaque')}
       ${A.kpi('Crédito entregue aos clientes', A.moeda(d.linhas.reduce((s, l) => s + l.creditoEntregue, 0)))}
     </div>
     <div class="cartao" style="margin-top:16px">
@@ -139,7 +143,7 @@ async function projClientes(el) {
         { t: 'Regime', r: (l) => l.regime ? A.regimeLabel(l.regime) : '<span class="tag a">desconhecido</span>' },
         { t: 'Faturamento', num: true, r: (l) => A.moeda(l.faturamento) },
         { t: 'Base econômica', num: true, r: (l) => A.moeda(l.baseEconomica) },
-        { t: 'IBS', num: true, r: (l) => A.moeda(l.ibs) },
+        ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (l) => A.moeda(l.ibs) }] : []),
         { t: 'CBS', num: true, r: (l) => A.moeda(l.cbs) },
         { t: 'Crédito entregue', num: true, r: (l) => A.moeda(l.creditoEntregue) },
         { t: 'Custo líq. p/ cliente', num: true, r: (l) => `<b>${A.moeda(l.custoLiquidoCliente)}</b>` },
