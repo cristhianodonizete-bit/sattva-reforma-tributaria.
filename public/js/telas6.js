@@ -84,6 +84,17 @@ const salvar = async (caminho, corpo, msg) => {
 
 // -------------------------------------------------------------- ALÍQUOTAS
 function aliquotas(box, d) {
+  const ibsAtivo = d.aliquotas.some((a) => Number(a.calcular_ibs) === 1);
+  if (!ibsAtivo) {
+    const a = d.aliquotas.find((x) => Number(x.ano) === 2033) || d.aliquotas[d.aliquotas.length - 1];
+    box.innerHTML = `<div class="aviso bom"><b>Análise CBS</b> A projeção não é anual nesta etapa. A CBS abaixo é a única referência do motor.</div>
+      <div class="cartao"><h2>Configuração da projeção CBS</h2><div class="grade g2">
+        ${A.campo('cbs_unica','Alíquota CBS de referência',a.cbs,'number','step="0.0001"')}
+        <div><label class="rotulo">Análise IBS</label><label class="check"><input type="checkbox" id="habilitarIbs"> Habilitar visão IBS e transição anual</label><p class="mini">Só habilite quando esta etapa for iniciada.</p></div>
+      </div><button class="btn" id="salvarCbsUnica">Salvar configuração CBS</button></div>`;
+    box.querySelector('#salvarCbsUnica').onclick = () => salvar(`/config/aliquotas/${a.ano}`, { ibs:a.ibs, cbs:box.querySelector('[name="cbs_unica"]').value, calcular_ibs:box.querySelector('#habilitarIbs').checked, fator_icms_iss:a.fator_icms_iss, fator_pis_cofins:a.fator_pis_cofins, fator_ipi:a.fator_ipi, compensavel:a.compensavel, simulacao:a.simulacao, fonte:a.fonte, nota:a.nota }, 'Configuração CBS atualizada');
+    return;
+  }
   box.innerHTML = `<div class="aviso atencao"><b>Estas alíquotas ainda dependem de definição legal</b>
       Enquanto a coluna “simulação” estiver marcada, o sistema rotula todo resultado derivado como
       ALÍQUOTA PARAMETRIZADA PARA SIMULAÇÃO e nunca como alíquota definitiva.</div>
