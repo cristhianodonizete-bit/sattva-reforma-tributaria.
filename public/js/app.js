@@ -326,7 +326,7 @@ const App = (() => {
       e.preventDefault(); const f = new FormData(e.currentTarget); const erro = document.getElementById('erroRedefinir');
       if (f.get('senha') !== f.get('confirmacao')) { erro.textContent = 'As senhas não coincidem.'; return; }
       erro.textContent = 'Salvando…';
-      try { const r = await fetch('/auth/redefinir-senha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, senha: f.get('senha') }) }); const j = await r.json(); if (!j.ok) throw new Error(j.erro); location.hash = ''; location.reload(); }
+      try { const r = await fetch('/auth/redefinir-senha', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, nome: f.get('nome'), senha: f.get('senha') }) }); const j = await r.json(); if (!j.ok) throw new Error(j.erro); erro.textContent = 'Senha definida com sucesso. Redirecionando para o acesso…'; erro.style.color = 'var(--desce)'; setTimeout(() => { location.hash = ''; location.reload(); }, 900); }
       catch (x) { erro.textContent = x.message || 'Não foi possível redefinir a senha.'; }
     };
   }
