@@ -25,13 +25,19 @@ function chaveReferenciaServico(m) {
   return nbs ? `nbs:${nbs}` : `descricao:${String(m.descricao || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160)}`;
 }
 
+function ehServicoDeVenda(m) {
+  return Boolean(String(m.nbs || '').replace(/\D/g, ''))
+    || Number(m.iss || 0) !== 0
+    || (!String(m.ncm || '').replace(/\D/g, '') && Boolean(String(m.descricao || '').trim()));
+}
+
 function prepararCadeia(empresaId, tipo) {
   let movimentos = carregarMovimentos(empresaId, tipo);
   if (tipo === 'cliente') {
     const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId);
     const mapa = new Map(refs.map((r) => [r.chave, r]));
     movimentos = movimentos.map((m) => ({ ...m, referenciaFiscal: mapa.get(chaveReferenciaServico(m)) || null }));
-    const pendentes = movimentos.filter((m) => String(m.nbs || '').replace(/\D/g, '') && !m.referenciaFiscal);
+    const pendentes = movimentos.filter((m) => ehServicoDeVenda(m) && !m.referenciaFiscal);
     if (pendentes.length) throw new Error(`${pendentes.length} serviço(s) de venda exigem referência fiscal antes da emissão do relatório.`);
   }
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();

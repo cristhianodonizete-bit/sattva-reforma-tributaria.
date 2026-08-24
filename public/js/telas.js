@@ -198,7 +198,7 @@ Telas.dados = async (el) => {
         { t: 'Vendas', num: true, r: (s) => A.moeda(s.valor) },
         { t: 'Referência', r: (s) => s.configurado ? '<span class="tag c">configurada</span>' : '<span class="tag b">obrigatória</span>' },
         { t: '', r: (s) => `<button class="btn pq ${s.configurado ? 'vazio' : ''}" data-ref-servico="${A.esc(s.chave)}">${s.configurado ? 'Editar' : 'Definir referência'}</button>` },
-      ], referenciasVendas.servicos, { vazio: 'Nenhum serviço com NBS foi identificado nas vendas importadas.' })}
+      ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}
     <div class="cartao" id="historico">
       <h2>${rotulo[0].toUpperCase() + rotulo.slice(1)} cadastrados</h2>

@@ -660,13 +660,21 @@ function chaveReferenciaServico(m) {
   return `descricao:${String(m.descricao || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160)}`;
 }
 
+// Documentos antigos nem sempre trazem NBS. ISS destacado ou ausência de NCM
+// são os sinais disponíveis para tratá-los como serviço e exigir a referência.
+function ehServicoDeVenda(m) {
+  return Boolean(String(m.nbs || '').replace(/\D/g, ''))
+    || Number(m.iss || 0) !== 0
+    || (!String(m.ncm || '').replace(/\D/g, '') && Boolean(String(m.descricao || '').trim()));
+}
+
 function prepararCadeia(empresa, tipo, query = {}) {
   let movimentos = carregarMovimentos(empresa.id, tipo);
   if (tipo === 'cliente') {
     const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresa.id);
     const mapaRefs = new Map(refs.map((r) => [r.chave, r]));
     movimentos = movimentos.map((m) => ({ ...m, referenciaFiscal: mapaRefs.get(chaveReferenciaServico(m)) || null }));
-    const pendentes = movimentos.filter((m) => String(m.nbs || '').replace(/\D/g, '') && !m.referenciaFiscal);
+    const pendentes = movimentos.filter((m) => ehServicoDeVenda(m) && !m.referenciaFiscal);
     if (pendentes.length) throw new Error(`${pendentes.length} serviço(s) de venda exigem referência fiscal no cadastro da empresa. Acesse Cadastros e importação → Clientes → Referências fiscais das vendas por serviço.`);
   }
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
@@ -688,10 +696,17 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
   try {
     const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
     const mapa = new Set(referencias.filter((r) => r.ativo).map((r) => r.chave));
-    const servicos = db.prepare(`SELECT nbs, descricao, COUNT(*) registros, COALESCE(SUM(valor),0) valor
-      FROM movimentos WHERE empresa_id=? AND tipo='cliente' AND COALESCE(nbs,'')<>''
-      GROUP BY nbs, descricao ORDER BY valor DESC`).all(req.params.id)
-      .map((s) => ({ ...s, chave: chaveReferenciaServico(s), configurado: mapa.has(chaveReferenciaServico(s)) }));
+    const porChave = new Map();
+    db.prepare(`SELECT nbs, ncm, iss, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente'`).all(req.params.id)
+      .filter(ehServicoDeVenda).forEach((m) => {
+        const chave = chaveReferenciaServico(m);
+        const atual = porChave.get(chave) || { chave, nbs: m.nbs || '', descricao: m.descricao || 'Serviço sem descrição', registros: 0, valor: 0 };
+        atual.registros += 1;
+        atual.valor += Number(m.valor) || 0;
+        porChave.set(chave, atual);
+      });
+    const servicos = [...porChave.values()].sort((a, b) => b.valor - a.valor)
+      .map((s) => ({ ...s, configurado: mapa.has(s.chave) }));
     ok(res, { referencias, servicos, pendentes: servicos.filter((s) => !s.configurado) });
   } catch (e) { erro(res, e); }
 });
