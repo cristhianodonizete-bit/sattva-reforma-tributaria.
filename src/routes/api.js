@@ -350,7 +350,11 @@ router.post('/acessos/usuarios/:id/reenviar-convite', async (req, res) => {
 // ===========================================================================
 // PARÂMETROS
 // ===========================================================================
-router.get('/parametros', (_req, res) => {
+router.get('/parametros', async (_req, res) => {
+  try {
+    // A fonte compartilhada prevalece sempre para alíquotas e parâmetros do
+    // motor; SQLite é somente cache de execução do Render.
+    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas']);
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
   const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
   const referencia = aliquotas.find((a) => Number(a.ano) === 2033) || aliquotas[aliquotas.length - 1] || {};
@@ -369,6 +373,7 @@ router.get('/parametros', (_req, res) => {
     clausulas: CLAUSULAS, trilhas: TRILHAS,
     modoAnalise: { ibsAtivo },
   });
+  } catch (e) { erro(res, e); }
 });
 
 // ===========================================================================

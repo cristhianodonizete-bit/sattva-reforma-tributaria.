@@ -60,6 +60,7 @@ async function iniciar() {
       let dados = {};
       try { dados = await operacao.baixar(); }
       catch (e) { console.error('  carga operacional parcial falhou:', e.message); }
+      dados.parametros = await operacao.baixarConfiguracao(['param_aliquotas']);
       // Gestão de escopo/entregas é carregada independentemente das bases do
       // motor: um erro em qualquer base não pode apagar contratos aprovados.
       dados.gestao = await operacao.baixarGestao();

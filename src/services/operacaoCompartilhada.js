@@ -85,11 +85,24 @@ async function baixar() {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {};
   for (const tabela of Object.keys(CAMPOS)) resultado[tabela] = gravar(tabela, await buscarTudo(remoto, tabela));
-  const { data: configuracoes, error: erroConfiguracoes } = await remoto.from('parametros_operacionais').select('chave,dados').eq('tabela', 'configuracao');
-  if (erroConfiguracoes && !String(erroConfiguracoes.message).includes('does not exist')) throw erroConfiguracoes;
-  const porChave = new Map((configuracoes || []).map((x) => [x.chave, x.dados]));
-  for (const tabela of CONFIG_TABELAS) if (Array.isArray(porChave.get(tabela))) gravarConfiguracao(tabela, porChave.get(tabela));
+  Object.assign(resultado, await baixarConfiguracao(CONFIG_TABELAS, remoto));
   resultado.gestao = await baixarGestao(remoto);
+  return resultado;
+}
+// Parâmetros fiscais e de cálculo podem ser restaurados isoladamente do resto
+// do cache. É usado antes de a aplicação entregar qualquer alíquota à tela ou
+// ao motor, evitando que uma instância recém-iniciada use valor antigo.
+async function baixarConfiguracao(tabelas = CONFIG_TABELAS, remotoInformado = null) {
+  if (!ativo()) return { ativo: false };
+  const remoto = remotoInformado || supabase.admin();
+  const { data: configuracoes, error } = await remoto.from('parametros_operacionais').select('chave,dados').eq('tabela', 'configuracao');
+  if (error && !String(error.message).includes('does not exist')) throw error;
+  const porChave = new Map((configuracoes || []).map((x) => [x.chave, x.dados]));
+  const resultado = {};
+  for (const tabela of tabelas) {
+    const dados = porChave.get(tabela);
+    if (Array.isArray(dados)) { gravarConfiguracao(tabela, dados); resultado[`config_${tabela}`] = dados.length; }
+  }
   return resultado;
 }
 // A gestão tem prioridade operacional: ela não pode deixar de ser restaurada
@@ -118,4 +131,4 @@ async function publicar() {
   }
   return resultado;
 }
-module.exports = { ativo, baixar, baixarGestao, publicar };
+module.exports = { ativo, baixar, baixarConfiguracao, baixarGestao, publicar };
