@@ -406,15 +406,23 @@ Telas.plano = async (el) => {
 // SERVIÇOS E COMBOS
 // ===========================================================================
 Telas.servicos = async (el) => {
-  const dados = await A.api('/servicos');
+  const [dados, contratacoesDados] = await Promise.all([
+    A.api('/servicos'),
+    S.empresaId ? A.api(`/empresas/${S.empresaId}/contratacoes`) : Promise.resolve({ contratacoes: [] }),
+  ]);
   const nomesLegados = new Set(['diagnóstico completo', 'implementação integral', 'essencial', 'margem protegida', 'blindagem contratual', 'time preparado']);
   const servicos = dados.servicos.filter((s) => !nomesLegados.has(String(s.nome || '').trim().toLowerCase()));
   const combos = dados.combos.filter((c) => !nomesLegados.has(String(c.nome || '').trim().toLowerCase()));
-  const sel = S.cache.selServ || [];
+  const contratacaoAtual = (contratacoesDados.contratacoes || []).find((c) => c.aprovado_em) || (contratacoesDados.contratacoes || [])[0] || null;
+  const servicosDoContrato = (contratacaoAtual?.servicos || []).map(Number);
+  // O contrato salvo sempre prevalece sobre qualquer seleção transitória da tela.
+  const sel = contratacaoAtual ? [...servicosDoContrato] : (S.cache.selServ?.length ? S.cache.selServ : []);
+  if (contratacaoAtual) S.cache.selServ = [...servicosDoContrato];
   const modulos = [...new Set(servicos.map((s) => s.modulo))];
 
   el.innerHTML = cab('Escopo do projeto', 'Serviços e combos',
     'Defina exclusivamente o que será entregue ao cliente. A aprovação posterior congela esse escopo e libera os módulos correspondentes.') +
+    (contratacaoAtual ? `<div class="aviso bom" style="margin-bottom:16px"><b>Escopo já registrado: ${A.esc(combos.find((c) => Number(c.id) === Number(contratacaoAtual.combo_id))?.nome || 'Escopo personalizado')}.</b> ${contratacaoAtual.aprovado_em ? 'O projeto está aprovado; as entregas e o acompanhamento permanecem preservados.' : 'Aguardando aprovação.'}<div class="acao"><button class="btn pq vazio" id="gerenciarEscopoExistente">Gerenciar escopo e entregas</button></div></div>` : '') +
     `<div class="grade g3">${combos.map((c) => `<div class="cartao ${c.destaque ? '' : ''}" style="${c.destaque ? 'border-left:3px solid var(--ouro)' : ''}">
         <h2>${A.esc(c.nome)}</h2><p class="desc">${A.esc(c.descricao)}</p>
         <div class="mini">${c.servicos.length} serviços · ${c.acompanhamento_meses || 0} mês(es) de acompanhamento</div>
@@ -451,11 +459,13 @@ Telas.servicos = async (el) => {
     box.innerHTML = `${itens.map((i) => `<div style="padding:6px 0;border-bottom:1px solid #eef1f3;font-size:13px">${A.esc(i.nome)}</div>`).join('')}
       <div class="aviso" style="margin-top:12px"><b>${combo ? A.esc(combo.nome) : 'Escopo personalizado'}</b>${combo ? ` · ${combo.acompanhamento_meses || 0} mês(es) de acompanhamento` : ''}</div>
       <button class="btn ouro" style="width:100%;margin-top:12px" id="gravarProposta" ${S.empresaId ? '' : 'disabled'}>
-        ${S.empresaId ? 'Registrar escopo para aprovação' : 'Selecione uma empresa'}</button>`;
+        ${S.empresaId ? (contratacaoAtual ? 'Gerenciar escopo e entregas' : 'Registrar escopo para aprovação') : 'Selecione uma empresa'}</button>`;
     const g = document.getElementById('gravarProposta');
     if (g) g.onclick = async () => {
+      if (contratacaoAtual) { A.ir('gestaoProjetos'); return; }
       await A.api(`/empresas/${S.empresaId}/contratacoes`, { metodo: 'POST', corpo: { combo_id: combo ? combo.id : null,
         servicos: sel, valor_bruto: 0, desconto: 0, valor_final: 0 } });
+      S.cache.selServ = []; S.cache.comboSelecionado = null;
       A.toast('Escopo registrado', 'ok');
     };
   };
@@ -471,6 +481,7 @@ Telas.servicos = async (el) => {
   el.querySelectorAll('[data-combo]').forEach((b) => { b.onclick = () => {
     const c = combos.find((x) => x.id === Number(b.dataset.combo));
     S.cache.selServ = [...c.servicos]; S.cache.comboSelecionado = c.id; A.ir('servicos'); }; });
+  document.getElementById('gerenciarEscopoExistente')?.addEventListener('click', () => A.ir('gestaoProjetos'));
   recalcular();
 };
 
