@@ -545,6 +545,12 @@ Telas.dashboardOperacao = async (el) => {
       ${A.kpi('Pendências do cliente', d.resumo.pendenciasCliente || 0, 'interações a acompanhar', d.resumo.pendenciasCliente ? 'destaque' : '')}
       ${A.kpi('Sem responsável', d.resumo.projetosSemResponsavel || 0, 'projetos ativos sem dono', d.resumo.projetosSemResponsavel ? 'destaque' : '')}
       ${A.kpi('Projetos concluídos', concluidos, 'entregas finalizadas')}</div>
+     <div class="cartao"><div class="cabecalho-lista"><div><h2>Distribuição da operação</h2><p class="desc">Carga atual por responsável, considerando projetos ativos e pendências operacionais.</p></div><span class="tag">${(d.cargaResponsaveis || []).length} responsável${(d.cargaResponsaveis || []).length === 1 ? '' : 'is'}</span></div>${A.tabela([
+       { t: 'Responsável', r: (r) => `<b>${A.esc(r.nome)}</b>` },
+       { t: 'Projetos em execução', num: true, r: (r) => r.projetos },
+       { t: 'Pendências do cliente', num: true, r: (r) => r.pendenciasCliente || '—' },
+       { t: 'Tarefas atrasadas', num: true, r: (r) => r.tarefasAtrasadas ? `<span class="tag a">${r.tarefasAtrasadas}</span>` : '—' },
+     ], d.cargaResponsaveis || [], { vazio: 'Nenhum responsável foi definido nos projetos ativos.' })}</div>
      <div class="cartao agenda-operacao"><div class="cabecalho-lista"><div><h2>Próximos marcos</h2><p class="desc">Agenda da operação ordenada por prazo, para organizar a execução da carteira.</p></div><span class="tag" id="totalAgenda">${agenda.length} previstos</span></div>
        <div id="listaAgenda"></div><div class="agenda-acoes" id="acoesAgenda"></div>
      </div>

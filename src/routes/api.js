@@ -228,12 +228,19 @@ router.get('/operacao/dashboard', async (req, res) => {
         return { tipo: 'acompanhamento', projetoId: a.projeto_id, empresaId: p?.empresa_id, empresa: p?.empresa || 'Cliente não identificado', projetoStatus: p?.status || '', responsavelSattva: p?.responsavelSattva || null, responsavelCliente: responsavelDaEntrega(a.projeto_id, null, 'cliente'), pendenciasCliente: p?.pendenciasCliente || 0, titulo: 'Acompanhamento previsto', etapa: null, data: a.competencia, atrasado: a.competencia < hoje.slice(0, 7), envolveCliente: false };
       }),
     ].sort((a, b) => String(a.data).localeCompare(String(b.data)));
+    const nomesResponsaveis = [...new Set([...carteira.map((p) => p.responsavelSattva), ...agenda.map((m) => m.responsavelSattva)].filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+    const cargaResponsaveis = nomesResponsaveis.map((nome) => ({
+      nome,
+      projetos: carteira.filter((p) => p.status !== 'concluido' && p.responsavelSattva === nome).length,
+      pendenciasCliente: carteira.filter((p) => p.responsavelSattva === nome).reduce((n, p) => n + p.pendenciasCliente, 0),
+      tarefasAtrasadas: agenda.filter((m) => m.tipo === 'tarefa' && m.atrasado && m.responsavelSattva === nome).length,
+    }));
     ok(res, { empresas: empresasVisiveis.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
       aguardando: carteira.filter((p) => p.status === 'aguardando_aprovacao').length,
       entregasPendentes: carteira.reduce((n, p) => n + p.entregas - p.entregasConcluidas, 0),
       tarefasAtrasadas: agenda.filter((m) => m.tipo === 'tarefa' && m.atrasado).length,
       pendenciasCliente: carteira.reduce((n, p) => n + p.pendenciasCliente, 0),
-      projetosSemResponsavel: carteira.filter((p) => p.status !== 'concluido' && !p.responsavelSattva).length } });
+      projetosSemResponsavel: carteira.filter((p) => p.status !== 'concluido' && !p.responsavelSattva).length }, cargaResponsaveis });
   } catch (e) { erro(res, e); }
 });
 
