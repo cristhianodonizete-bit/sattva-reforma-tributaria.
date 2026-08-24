@@ -88,7 +88,7 @@ async function controle(box) {
 }
 
 const salvar = async (caminho, corpo, msg) => {
-  try { await A.api(caminho, { metodo: 'PUT', corpo }); A.toast(msg || 'Regra atualizada', 'ok'); A.ir('configuracoes'); }
+  try { await A.api(caminho, { metodo: 'PUT', corpo }); await A.carregarParametros(); A.toast(msg || 'Regra atualizada', 'ok'); A.ir('configuracoes'); }
   catch (e) { A.toast(e.message, 'erro'); }
 };
 

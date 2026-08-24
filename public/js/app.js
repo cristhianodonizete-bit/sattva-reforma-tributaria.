@@ -279,6 +279,11 @@ const App = (() => {
     };
   }
 
+  async function carregarParametros() {
+    S.params = await api('/parametros');
+    return S.params;
+  }
+
   async function iniciar() {
     const parametrosHash = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
     const tokenRecuperacao = parametrosHash.get('access_token');
@@ -293,8 +298,7 @@ const App = (() => {
     const usuarioHeader = document.getElementById('usuarioHeader'); if (usuarioHeader) usuarioHeader.textContent = S.usuario?.nome || S.usuario?.email || '';
     const toggle = document.getElementById('menuToggle'); if (toggle) toggle.onclick = () => document.body.classList.toggle('menu-colapsado');
     try {
-      const p = await api('/parametros');
-      S.params = p;
+      await carregarParametros();
     } catch (e) { document.getElementById('tela').innerHTML = `<div class="aviso alto">Servidor indisponível: ${esc(e.message)}</div>`; return; }
     const toggleMenu = document.getElementById('menuToggle');
     if (localStorage.getItem('sattva_menu_colapsado') === 'sim') document.body.classList.add('menu-colapsado');
@@ -383,7 +387,7 @@ const App = (() => {
     await carregar();
   }
 
-  return { S, api, ir, iniciar, carregarEmpresas, moeda, num, pct, esc, cnpjFmt, sinal, setaPct, setaR$,
+  return { S, api, ir, iniciar, carregarEmpresas, carregarParametros, moeda, num, pct, esc, cnpjFmt, sinal, setaPct, setaR$,
     toast, modal, confirmar, campo, area, selecao, opcoesRegime, opcoesReducao, opcoesAno, regimeLabel,
     kpi, avisos, vazio, regua, tabela, dropzone, tarefasModulo };
 })();
