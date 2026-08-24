@@ -603,6 +603,15 @@ Telas.acessos = async (el) => {
       aoConfirmar: async (form) => { form.empresa_ids = d.empresas.filter((empresa) => form[`empresa_${empresa.id}`]).map((empresa) => empresa.id); await A.api(usuario ? `/acessos/usuarios/${usuario.id}` : '/acessos/usuarios', { metodo: usuario ? 'PUT' : 'POST', corpo: form }); A.ir('acessos'); } });
   };
   const perfilPorId = new Map(d.perfis.map((p) => [p.id, p]));
+  const usuariosAuditoria = [...new Set(auditoria.registros.map((r) => r.usuario).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const acoesAuditoria = [...new Set(auditoria.registros.map((r) => r.acao).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const tabelaAuditoria = (registros) => A.tabela([
+    { t: 'Quando', r: (r) => `<span class="mono mini">${A.esc(r.criado_em ? new Date(r.criado_em).toLocaleString('pt-BR') : '—')}</span>` },
+    { t: 'Usuário', r: (r) => A.esc(r.usuario) },
+    { t: 'Ação', r: (r) => `<b>${A.esc(r.acao)}</b>` },
+    { t: 'Item', r: (r) => A.esc(r.entidade || '—') },
+    { t: '', r: (r) => (r.antes || r.depois) ? `<button class="btn pq vazio" data-auditoria="${A.esc(r.id)}">Detalhes</button>` : '—' },
+  ], registros, { vazio: 'Nenhuma ação corresponde aos filtros.' });
   el.innerHTML = cab('Administração', 'Usuários e acessos', 'Defina o que cada perfil pode visualizar ou executar e vincule-o aos usuários.', '<button class="btn vazio" id="novoPerfil">Novo perfil</button><button class="btn" id="novoUsuario">Novo usuário</button>') +
     `<div class="grade g3">${d.perfis.map((p) => `<article class="cartao perfil-acesso-card"><div><h3>${A.esc(p.nome)}</h3><p class="desc">${A.esc(p.descricao || 'Sem descrição')}</p></div><div class="perfil-acesso-permissoes">${d.areas.filter((a) => p.permissoes?.[a]?.ver).map((a) => `<span>${A.esc(rotulos[a] || a)}${p.permissoes?.[a]?.executar ? ' · executar' : ''}</span>`).join('') || '<span>Nenhum acesso</span>'}</div><button class="btn pq vazio" data-perfil="${p.id}">Editar perfil</button></article>`).join('')}</div>
      <div class="cartao lista-usuarios"><div class="cabecalho-lista"><div><h2>Usuários</h2><p class="desc">O perfil aplicado determina as telas disponíveis e as ações permitidas.</p></div><span class="tag">${d.usuarios.length} usuários</span></div>${A.tabela([
@@ -612,23 +621,34 @@ Telas.acessos = async (el) => {
        { t: 'Situação', r: (u) => `<span class="tag ${u.ativo ? 'c' : 'a'}">${u.ativo ? 'Ativo' : 'Inativo'}</span>` },
        { t: '', r: (u) => `<button class="btn pq vazio" data-usuario="${u.id}">Editar</button>` },
      ], d.usuarios, { vazio: 'Nenhum usuário encontrado.' })}</div>
-     <div class="cartao lista-auditoria"><div class="cabecalho-lista"><div><h2>Histórico de ações</h2><p class="desc">Registro automático das ações realizadas por usuários logados.</p></div><span class="tag">${auditoria.registros.length} registros</span></div>${A.tabela([
-       { t: 'Quando', r: (r) => `<span class="mono mini">${A.esc(r.criado_em ? new Date(r.criado_em).toLocaleString('pt-BR') : '—')}</span>` },
-       { t: 'Usuário', r: (r) => A.esc(r.usuario) },
-       { t: 'Ação', r: (r) => `<b>${A.esc(r.acao)}</b>` },
-       { t: 'Item', r: (r) => A.esc(r.entidade || '—') },
-       { t: '', r: (r) => (r.antes || r.depois) ? `<button class="btn pq vazio" data-auditoria="${A.esc(r.id)}">Detalhes</button>` : '—' },
-     ], auditoria.registros, { vazio: 'Nenhuma ação registrada ainda.' })}</div>`;
+     <div class="cartao lista-auditoria"><div class="cabecalho-lista"><div><h2>Histórico de ações</h2><p class="desc">Registro automático das ações realizadas por usuários logados.</p></div><span class="tag" id="totalAuditoria">${auditoria.registros.length} registros</span></div>
+       <div class="filtros-carteira filtros-auditoria"><label>Usuário<select id="filtroAuditoriaUsuario"><option value="">Todos</option>${usuariosAuditoria.map((nome) => `<option value="${A.esc(nome)}">${A.esc(nome)}</option>`).join('')}</select></label><label>Ação<select id="filtroAuditoriaAcao"><option value="">Todas</option>${acoesAuditoria.map((acao) => `<option value="${A.esc(acao)}">${A.esc(acao)}</option>`).join('')}</select></label><label>De<input type="date" id="filtroAuditoriaDe"></label><label>Até<input type="date" id="filtroAuditoriaAte"></label></div>
+       <div id="listaAuditoria">${tabelaAuditoria(auditoria.registros)}</div></div>`;
   el.querySelector('#novoPerfil').onclick = () => abrirPerfil();
   el.querySelector('#novoUsuario').onclick = () => abrirUsuario();
   el.querySelectorAll('[data-perfil]').forEach((b) => { b.onclick = () => abrirPerfil(d.perfis.find((p) => p.id === b.dataset.perfil)); });
   el.querySelectorAll('[data-usuario]').forEach((b) => { b.onclick = () => abrirUsuario(d.usuarios.find((u) => u.id === b.dataset.usuario)); });
-  el.querySelectorAll('[data-auditoria]').forEach((b) => { b.onclick = () => {
+  const ligarDetalhesAuditoria = () => el.querySelectorAll('[data-auditoria]').forEach((b) => { b.onclick = () => {
     const r = auditoria.registros.find((x) => String(x.id) === String(b.dataset.auditoria));
     const json = (valor) => valor ? `<pre style="white-space:pre-wrap;word-break:break-word;margin:0">${A.esc(JSON.stringify(valor, null, 2))}</pre>` : '<span class="mini">Não aplicável.</span>';
     A.modal({ titulo: `Auditoria — ${r.acao}`, confirmar: null, largura: 820,
       corpo: `<div class="grade g2"><div><h3 class="subtitulo-modal">Antes</h3>${json(r.antes)}</div><div><h3 class="subtitulo-modal">Depois</h3>${json(r.depois)}</div></div>`,
     });
   }; });
+  const filtrarAuditoria = () => {
+    const usuario = el.querySelector('#filtroAuditoriaUsuario').value;
+    const acao = el.querySelector('#filtroAuditoriaAcao').value;
+    const de = el.querySelector('#filtroAuditoriaDe').value;
+    const ate = el.querySelector('#filtroAuditoriaAte').value;
+    const registros = auditoria.registros.filter((r) => {
+      const data = r.criado_em ? String(r.criado_em).slice(0, 10) : '';
+      return (!usuario || r.usuario === usuario) && (!acao || r.acao === acao) && (!de || data >= de) && (!ate || data <= ate);
+    });
+    el.querySelector('#totalAuditoria').textContent = `${registros.length} registro${registros.length === 1 ? '' : 's'}`;
+    el.querySelector('#listaAuditoria').innerHTML = tabelaAuditoria(registros);
+    ligarDetalhesAuditoria();
+  };
+  el.querySelectorAll('#filtroAuditoriaUsuario,#filtroAuditoriaAcao,#filtroAuditoriaDe,#filtroAuditoriaAte').forEach((campo) => { campo.onchange = filtrarAuditoria; });
+  ligarDetalhesAuditoria();
 };
 })();
