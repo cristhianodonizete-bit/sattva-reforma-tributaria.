@@ -205,16 +205,27 @@ function salvarReducao(chave, d, usuario) {
   invalidar();
 }
 
+function normalizarPercentual(valor) {
+  if (valor === null || valor === undefined || valor === '') return 0;
+  if (typeof valor === 'number') return valor > 1 ? valor / 100 : valor;
+  let texto = String(valor).trim().replace(/%/g, '').replace(/[R$\s]/g, '');
+  if (texto.includes(',') && texto.includes('.')) texto = texto.replace(/\./g, '').replace(',', '.');
+  else if (texto.includes(',')) texto = texto.replace(',', '.');
+  const numero = Number(texto);
+  if (!Number.isFinite(numero)) return 0;
+  return numero > 1 ? numero / 100 : numero;
+}
+
 function salvarAliquota(ano, d, usuario) {
   const antes = db.prepare('SELECT ibs, cbs FROM param_aliquotas WHERE ano = ?').get(ano);
   db.prepare(`UPDATE param_aliquotas SET ibs = ?, cbs = ?, calcular_ibs = ?, fator_icms_iss = ?, fator_pis_cofins = ?,
     fator_ipi = ?, compensavel = ?, simulacao = ?, fonte = ?, nota = ?,
     atualizado_em = datetime('now','localtime') WHERE ano = ?`)
-    .run(Number(d.ibs) || 0, Number(d.cbs) || 0, d.calcular_ibs ? 1 : 0, Number(d.fator_icms_iss) || 0,
+    .run(normalizarPercentual(d.ibs), normalizarPercentual(d.cbs), d.calcular_ibs ? 1 : 0, Number(d.fator_icms_iss) || 0,
       Number(d.fator_pis_cofins) || 0, Number(d.fator_ipi) || 0,
       d.compensavel ? 1 : 0, d.simulacao ? 1 : 0, d.fonte || '', d.nota || '', ano);
   registrarLog('aliquotas', String(ano), antes ? `IBS ${antes.ibs} / CBS ${antes.cbs}` : '',
-    `IBS ${d.ibs} / CBS ${d.cbs}`, usuario);
+    `IBS ${normalizarPercentual(d.ibs)} / CBS ${normalizarPercentual(d.cbs)}`, usuario);
   invalidar();
 }
 
