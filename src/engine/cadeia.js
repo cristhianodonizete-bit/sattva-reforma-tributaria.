@@ -26,9 +26,15 @@ function parametrosDoCenario(cfg, ano) {
 function calcularVendaCbs(m, regimeEmpresa, regimeCliente, cfg) {
   const valor = num(m.valor);
   const referencia = m.referenciaFiscal || {};
-  const pisCofinsAliq = referencia.pis_cofins !== null && referencia.pis_cofins !== undefined
-    ? num(referencia.pis_cofins) : num((P.REGIMES[regimeEmpresa] || {}).pisCofins);
-  const pisCofins = valor * pisCofinsAliq;
+  const pisDocumento = num(m.pis) + num(m.cofins);
+  // O valor efetivamente destacado no documento sempre tem precedência. A
+  // referência é a premissa para documentos antigos/sem detalhe tributário.
+  const aliquotaReferencia = referencia.pis_cofins !== null && referencia.pis_cofins !== undefined
+    ? num(referencia.pis_cofins)
+    : (referencia.das_efetivo !== null && referencia.das_efetivo !== undefined
+      ? num(referencia.das_efetivo) : num((P.REGIMES[regimeEmpresa] || {}).pisCofins));
+  const usaDocumento = pisDocumento > 0;
+  const pisCofins = usaDocumento ? pisDocumento : valor * aliquotaReferencia;
   const baseEconomica = Math.max(valor - pisCofins, 0);
   const anos = (cfg.anos && cfg.anos.length ? cfg.anos : [2033]).map(Number);
   const projecao = anos.map((ano) => {
@@ -50,7 +56,8 @@ function calcularVendaCbs(m, regimeEmpresa, regimeCliente, cfg) {
   });
   return {
     atual: { valorOperacao: r2(valor), valorSemImposto: r2(baseEconomica), totalTributos: r2(pisCofins),
-      credito: { total: 0 }, custoEfetivo: r2(valor), pisCofins: r2(pisCofins) },
+      credito: { total: 0 }, custoEfetivo: r2(valor), pisCofins: r2(pisCofins),
+      origemPisCofins: usaDocumento ? 'documento' : (referencia.pis_cofins !== null && referencia.pis_cofins !== undefined ? 'referência fiscal do serviço' : (referencia.das_efetivo !== null && referencia.das_efetivo !== undefined ? 'DAS efetivo do serviço' : 'regime da empresa')) },
     projecao,
   };
 }
