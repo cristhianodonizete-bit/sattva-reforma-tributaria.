@@ -11,6 +11,22 @@ const cab = (olho, titulo, texto, acoes = '') =>
   `<div class="topo"><div><div class="olho">${olho}</div><h1>${titulo}</h1>${texto ? `<p>${texto}</p>` : ''}</div>
    <div class="acoes-topo">${acoes}</div></div>`;
 
+async function recalcularProjeto() {
+  const r = await A.api('/config/recalcular', { metodo: 'POST' });
+  const falhas = r.erros?.length ? ` · ${r.erros.length} empresa(s) com erro` : '';
+  A.toast(`${r.motores} empresa(s) recalculada(s) · ${r.itensPrecificacao} item(ns) de precificação atualizado(s)${falhas}`, r.erros?.length ? 'atencao' : 'ok');
+  if (r.erros?.length) {
+    A.modal({ titulo: 'Empresas que exigem correção antes do recálculo', confirmar: null,
+      descricao: 'O recálculo das demais empresas foi concluído. Corrija as pendências abaixo e execute novamente.',
+      corpo: A.tabela([
+        { t: 'Empresa', r: (e) => `<b>${A.esc(e.empresa || `Empresa ${e.empresa_id}`)}</b>` },
+        { t: 'Motivo', r: (e) => A.esc(e.erro) },
+      ], r.erros),
+    });
+  }
+  return r;
+}
+
 const ABAS = [
   { id: 'controle', t: 'Controle do projeto' },
   { id: 'aliquotas', t: 'Alíquotas e transição' },
@@ -39,9 +55,7 @@ Telas.configuracoes = async (el) => {
   document.getElementById('recalcularProjeto').onclick = () => A.confirmar(
     'Recalcular todas as empresas? Isso atualiza Classificações e itens salvos de Precificação com as regras atuais.',
     async () => {
-      const r = await A.api('/config/recalcular', { metodo: 'POST' });
-      const falhas = r.erros?.length ? ` · ${r.erros.length} empresa(s) com erro` : '';
-      A.toast(`${r.motores} empresa(s) recalculada(s) · ${r.itensPrecificacao} item(ns) de precificação atualizado(s)${falhas}`, r.erros?.length ? 'atencao' : 'ok');
+      await recalcularProjeto();
       A.ir('configuracoes');
     });
   const box = document.getElementById('corpoConfig');
