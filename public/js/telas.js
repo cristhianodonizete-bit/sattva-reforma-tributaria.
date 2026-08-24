@@ -198,6 +198,7 @@ Telas.dados = async (el) => {
         { t: 'NBS / serviço', r: (s) => `<b class="mono">${A.esc(s.nbs || 'sem NBS')}</b><div class="mini">${A.esc(s.descricao || '')}</div>` },
         { t: 'Vendas', num: true, r: (s) => A.moeda(s.valor) },
         { t: 'Referência', r: (s) => s.configurado ? '<span class="tag c">configurada</span>' : '<span class="tag b">obrigatória</span>' },
+        { t: 'Vínculo', r: (s) => s.configurado ? `<span class="mini">${A.esc(s.correspondencia)}</span>` : '—' },
         { t: 'Alíquota atual', r: (s) => {
           if (!s.referencia) return '—';
           const r = s.referencia;

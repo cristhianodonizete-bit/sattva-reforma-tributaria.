@@ -726,7 +726,12 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
       if (!porChave.has(r.chave)) porChave.set(r.chave, { chave: r.chave, nbs: r.nbs || '', descricao: r.descricao || 'Serviço', registros: 0, valor: 0 });
     });
     const servicos = [...porChave.values()].sort((a, b) => b.valor - a.valor)
-      .map((s) => { const referencia = encontrarReferenciaServico(s, mapa); return { ...s, configurado: Boolean(referencia), referencia }; });
+      .map((s) => {
+        const direta = mapa.get(s.chave) || null;
+        const referencia = direta || encontrarReferenciaServico(s, mapa);
+        return { ...s, configurado: Boolean(referencia), referencia,
+          correspondencia: !referencia ? '' : (direta ? (s.nbs ? 'NBS' : 'descrição') : 'descrição reaproveitada') };
+      });
     ok(res, { referencias, servicos, pendentes: servicos.filter((s) => !s.configurado) });
   } catch (e) { erro(res, e); }
 });
