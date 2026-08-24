@@ -660,6 +660,12 @@ function chaveReferenciaServico(m) {
   return `descricao:${String(m.descricao || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160)}`;
 }
 
+function encontrarReferenciaServico(m, mapa) {
+  return mapa.get(chaveReferenciaServico(m))
+    || mapa.get(chaveReferenciaServico({ descricao: m.descricao }))
+    || null;
+}
+
 // Documentos antigos nem sempre trazem NBS. ISS destacado ou ausência de NCM
 // são os sinais disponíveis para tratá-los como serviço e exigir a referência.
 function ehServicoDeVenda(m) {
@@ -673,7 +679,7 @@ function prepararCadeia(empresa, tipo, query = {}) {
   if (tipo === 'cliente') {
     const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresa.id);
     const mapaRefs = new Map(refs.map((r) => [r.chave, r]));
-    movimentos = movimentos.map((m) => ({ ...m, referenciaFiscal: mapaRefs.get(chaveReferenciaServico(m)) || null }));
+    movimentos = movimentos.map((m) => ({ ...m, referenciaFiscal: encontrarReferenciaServico(m, mapaRefs) }));
     const pendentes = movimentos.filter((m) => ehServicoDeVenda(m) && !m.referenciaFiscal);
     if (pendentes.length) throw new Error(`${pendentes.length} serviço(s) de venda exigem referência fiscal no cadastro da empresa. Acesse Cadastros e importação → Clientes → Referências fiscais das vendas por serviço.`);
   }
@@ -720,7 +726,7 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
       if (!porChave.has(r.chave)) porChave.set(r.chave, { chave: r.chave, nbs: r.nbs || '', descricao: r.descricao || 'Serviço', registros: 0, valor: 0 });
     });
     const servicos = [...porChave.values()].sort((a, b) => b.valor - a.valor)
-      .map((s) => ({ ...s, configurado: mapa.has(s.chave), referencia: mapa.get(s.chave) || null }));
+      .map((s) => { const referencia = encontrarReferenciaServico(s, mapa); return { ...s, configurado: Boolean(referencia), referencia }; });
     ok(res, { referencias, servicos, pendentes: servicos.filter((s) => !s.configurado) });
   } catch (e) { erro(res, e); }
 });

@@ -19,6 +19,9 @@ const chaveReferenciaServico = (m) => {
   const nbs = String(m.nbs || '').replace(/\D/g, '');
   return nbs ? `nbs:${nbs}` : `descricao:${String(m.descricao || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160)}`;
 };
+const encontrarReferenciaServico = (m, mapa) => mapa.get(chaveReferenciaServico(m))
+  || mapa.get(chaveReferenciaServico({ descricao: m.descricao }))
+  || null;
 const ehServicoDeVenda = (m) => Boolean(String(m.nbs || '').replace(/\D/g, ''))
   || Number(m.iss || 0) !== 0
   || (!String(m.ncm || '').replace(/\D/g, '') && Boolean(String(m.descricao || '').trim()));
@@ -45,7 +48,7 @@ function executar(empresaId, opcoes = {}) {
   const referenciasVenda = new Map(db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId)
     .map((r) => [r.chave, r]));
   const saidasOriginais = carregar(empresaId, 'saida');
-  const pendentesReferencia = saidasOriginais.filter((m) => ehServicoDeVenda(m) && !referenciasVenda.has(chaveReferenciaServico(m)));
+  const pendentesReferencia = saidasOriginais.filter((m) => ehServicoDeVenda(m) && !encontrarReferenciaServico(m, referenciasVenda));
   if (pendentesReferencia.length) throw new Error(`${pendentesReferencia.length} serviço(s) de venda exigem referência fiscal antes do recálculo. Acesse Cadastros e importação → Clientes.`);
 
   const entradas = [], saidas = [], conformidade = [];
@@ -96,7 +99,7 @@ function executar(empresaId, opcoes = {}) {
 
   for (const m of saidasOriginais) {
     const regime = m.regime_cadastro || m.regime || null;
-    const item = normalizar({ ...m, referenciaFiscal: referenciasVenda.get(chaveReferenciaServico(m)) || null });
+    const item = normalizar({ ...m, referenciaFiscal: encontrarReferenciaServico(m, referenciasVenda) });
     const dest = m.perfil_cadastro === 'governo'
       ? { perfil: 'governo', detalhe: 'Ente governamental confirmado por cadastro oficial', credita: false }
       : motor.classificarDestinatario({ regime, cnpj: m.inscr_federal });
