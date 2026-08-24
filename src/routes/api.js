@@ -230,7 +230,10 @@ router.get('/operacao/dashboard', async (req, res) => {
     ].sort((a, b) => String(a.data).localeCompare(String(b.data)));
     ok(res, { empresas: empresasVisiveis.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
       aguardando: carteira.filter((p) => p.status === 'aguardando_aprovacao').length,
-      entregasPendentes: carteira.reduce((n, p) => n + p.entregas - p.entregasConcluidas, 0) } });
+      entregasPendentes: carteira.reduce((n, p) => n + p.entregas - p.entregasConcluidas, 0),
+      tarefasAtrasadas: agenda.filter((m) => m.tipo === 'tarefa' && m.atrasado).length,
+      pendenciasCliente: carteira.reduce((n, p) => n + p.pendenciasCliente, 0),
+      projetosSemResponsavel: carteira.filter((p) => p.status !== 'concluido' && !p.responsavelSattva).length } });
   } catch (e) { erro(res, e); }
 });
 

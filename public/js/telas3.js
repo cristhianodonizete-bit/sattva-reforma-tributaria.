@@ -541,6 +541,9 @@ Telas.dashboardOperacao = async (el) => {
     `<div class="grade g4">${A.kpi('Clientes na base', d.empresas, 'base compartilhada')}
       ${A.kpi('Projetos em execução', emAndamento, 'escopo aprovado')}
       ${A.kpi('Entregas pendentes', d.resumo.entregasPendentes, 'prioridade da operação', d.resumo.entregasPendentes ? 'destaque' : '')}
+      ${A.kpi('Tarefas atrasadas', d.resumo.tarefasAtrasadas || 0, 'com prazo vencido', d.resumo.tarefasAtrasadas ? 'destaque' : '')}
+      ${A.kpi('Pendências do cliente', d.resumo.pendenciasCliente || 0, 'interações a acompanhar', d.resumo.pendenciasCliente ? 'destaque' : '')}
+      ${A.kpi('Sem responsável', d.resumo.projetosSemResponsavel || 0, 'projetos ativos sem dono', d.resumo.projetosSemResponsavel ? 'destaque' : '')}
       ${A.kpi('Projetos concluídos', concluidos, 'entregas finalizadas')}</div>
      <div class="cartao agenda-operacao"><div class="cabecalho-lista"><div><h2>Próximos marcos</h2><p class="desc">Agenda da operação ordenada por prazo, para organizar a execução da carteira.</p></div><span class="tag" id="totalAgenda">${agenda.length} previstos</span></div>
        <div id="listaAgenda"></div><div class="agenda-acoes" id="acoesAgenda"></div>
