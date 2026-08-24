@@ -458,7 +458,7 @@ const barras = (itens) => itens.map(([rot, v]) => `<div style="margin-bottom:11p
 // ===========================================================================
 async function telaCadeia(el, tipo) {
   const rep = S.cache[`rep_${tipo}`] === undefined ? 1 : S.cache[`rep_${tipo}`];
-  const { analise } = await A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}`);
+  const { analise, pendenciasReferencias = [] } = await A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}`);
   const eForn = tipo === 'fornecedor';
   const t = analise.totais;
   const ultimo = analise.cenarios[analise.cenarios.length - 1] || {};
@@ -476,6 +476,7 @@ async function telaCadeia(el, tipo) {
     eForn ? 'Impacto da reforma no preço das compras da empresa. O crédito potencial é exibido separadamente e não reduz o impacto do preço.'
           : 'Impacto da reforma no preço das vendas da empresa. O perfil do cliente não altera o IBS/CBS devido na saída; ele apenas orienta a relevância comercial do crédito potencial.',
     `<button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/${eForn ? 'fornecedores' : 'clientes'}?repasse=${rep}')">Exportar Excel</button>`) +
+    (!eForn && pendenciasReferencias.length ? `<div class="aviso atencao" style="margin-top:16px"><b>${pendenciasReferencias.length} lançamento(s) de serviço estão sem referência fiscal específica.</b> A análise foi carregada com a melhor evidência disponível (documento, catálogo ou regime da empresa). Revise em Cadastros e importação → Clientes → Referências fiscais das vendas por serviço; esses itens permanecem <b>a validar</b>.</div>` : '') +
     (t.registros ? `
     <div class="grade g4">
       ${A.kpi(eForn ? 'Compra atual' : 'Venda atual', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}

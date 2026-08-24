@@ -753,14 +753,18 @@ function prepararCadeia(empresa, tipo, query = {}) {
     const mapaRefs = new Map(refs.map((r) => [r.chave, r]));
     movimentos = movimentos.map((m) => ({ ...m, referenciaFiscal: encontrarReferenciaServico(m, mapaRefs) }));
     const pendentes = movimentos.filter((m) => requerReferenciaFiscalServico(m) && !m.referenciaFiscal);
-    if (pendentes.length) throw new Error(`${pendentes.length} serviço(s) de venda exigem referência fiscal no cadastro da empresa. Acesse Cadastros e importação → Clientes → Referências fiscais das vendas por serviço.`);
+    // Referências da empresa melhoram a reconstrução, mas ausência não pode
+    // impedir a análise. O motor mantém documento, catálogo e regime como
+    // precedências e devolve a pendência para revisão humana.
+    query.pendenciasReferencias = pendentes;
   }
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
   const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
   const referencia = aliquotas.find((a) => Number(a.ano) === 2033) || aliquotas[aliquotas.length - 1];
   const anos = query.anos ? String(query.anos).split(',').map(Number)
     : (ibsAtivo ? aliquotas.map((a) => Number(a.ano)) : [Number(referencia?.ano || 2033)]);
-  return { movimentos, anos, parametrosIVA: ibsAtivo ? Object.fromEntries(aliquotas.map((a) => [Number(a.ano), a])) : referencia };
+  return { movimentos, anos, parametrosIVA: ibsAtivo ? Object.fromEntries(aliquotas.map((a) => [Number(a.ano), a])) : referencia,
+    pendenciasReferencias: query.pendenciasReferencias || [] };
 }
 
 function referenciaIvaDoProjeto() {
@@ -896,7 +900,7 @@ router.get('/empresas/:id/cadeia/:tipo', (req, res) => {
       parametrosIVA: cfg.parametrosIVA,
       grauRepasse: req.query.repasse !== undefined ? Number(req.query.repasse) : 1,
     });
-    ok(res, { empresa, analise: resultado });
+    ok(res, { empresa, analise: resultado, pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', valor: Number(m.valor) || 0 })) });
   } catch (e) { erro(res, e); }
 });
 
