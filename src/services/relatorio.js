@@ -126,7 +126,7 @@ function gerar(empresaId, tipo, query = {}) {
       'Venda atual': d.valor, 'PIS/COFINS atual': d.pisCofinsAtual,
       'Origem PIS/COFINS': d.origemPisCofins, 'Base econômica': d.valorSemImposto,
       'IBS da venda': d.ibs, 'CBS da venda': d.cbs, 'Venda projetada': d.precoFinal,
-      'Impacto da venda': d.impactoOperacao,
+      'Impacto da venda': d.impactoOperacao, 'Impacto da venda %': perc(d.impactoOperacaoPerc),
     })));
     aba(wb, 'Riscos carteira', a.riscos.map((r) => ({ 'Nível': r.nivel, 'Risco': r.titulo, 'Descrição': r.texto, 'Ação recomendada': r.acao })),
       [{ wch: 10 }, { wch: 45 }, { wch: 80 }, { wch: 80 }]);

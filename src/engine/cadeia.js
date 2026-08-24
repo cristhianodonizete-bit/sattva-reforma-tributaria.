@@ -197,6 +197,7 @@ function analisarCadeia(movimentos, cfg = {}) {
       custoHoje: res.atual.custoEfetivo, custoFinal: ultimo.custoEfetivo,
       ibs: ultimo.ibs, cbs: ultimo.cbs, precoFinal: ultimo.precoFinal,
       impactoOperacao: r2(ultimo.precoFinal - res.atual.valorOperacao),
+      impactoOperacaoPerc: res.atual.valorOperacao ? r4((ultimo.precoFinal - res.atual.valorOperacao) / res.atual.valorOperacao) : 0,
       variacao: ultimo.variacaoCusto, variacaoPerc: ultimo.variacaoCustoPerc,
     });
   }

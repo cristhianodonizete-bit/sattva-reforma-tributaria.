@@ -555,6 +555,7 @@ async function telaCadeia(el, tipo) {
         { t: 'CBS', num: true, r: (d) => A.moeda(d.cbs) },
         { t: 'Venda projetada', num: true, r: (d) => A.moeda(d.precoFinal) },
         { t: 'Impacto', num: true, r: (d) => A.setaR$(d.impactoOperacao) },
+        { t: 'Impacto %', num: true, r: (d) => A.setaPct(d.impactoOperacaoPerc) },
       ], analise.detalhes.slice(0, 500), { vazio: 'Não há vendas para rastrear.' })}
     </div>` : ''}` : A.vazio('Sem movimentação importada',
       `Importe a movimentação de ${eForn ? 'fornecedores' : 'clientes'} para gerar esta análise.`,
