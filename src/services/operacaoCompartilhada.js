@@ -137,12 +137,11 @@ async function publicar() {
     }
     resultado[tabela] = linhas.length;
   }
-  for (const tabela of CONFIG_TABELAS) {
-    const linhas = db.prepare(`SELECT * FROM ${tabela}`).all();
-    const { error } = await remoto.from('parametros_operacionais').upsert({ tabela: 'configuracao', chave: tabela, dados: linhas }, { onConflict: 'tabela,chave' });
-    if (error) throw new Error(`${tabela}: ${error.message}`);
-    resultado[`config_${tabela}`] = linhas.length;
-  }
+  // Parâmetros fiscais não acompanham esta publicação genérica. O banco local
+  // do Render pode iniciar com valores padrão e jamais pode sobrescrever a
+  // configuração compartilhada por causa de uma alteração operacional (por
+  // exemplo, importação, tarefa ou cadastro). Eles são publicados apenas por
+  // suas rotas específicas, depois de uma alteração explícita do consultor.
   return resultado;
 }
 module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarGestao, publicar };
