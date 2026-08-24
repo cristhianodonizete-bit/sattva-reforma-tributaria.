@@ -144,9 +144,10 @@ function analisarCadeia(movimentos, cfg = {}) {
 
     if (lado === 'cliente') {
       const origem = res.atual.origemPisCofins || 'não identificado';
-      if (!origensPisCofins[origem]) origensPisCofins[origem] = { registros: 0, valor: 0 };
+      if (!origensPisCofins[origem]) origensPisCofins[origem] = { registros: 0, valor: 0, vendas: 0 };
       origensPisCofins[origem].registros += 1;
       origensPisCofins[origem].valor += res.atual.pisCofins || 0;
+      origensPisCofins[origem].vendas += res.atual.valorOperacao || 0;
     }
 
     if (!porRegime.has(regimeParceiro)) {
@@ -251,14 +252,14 @@ function analisarCadeia(movimentos, cfg = {}) {
       valor: r2(totalValor), baseEconomica: r2(totalBaseEconomica), tributosHoje: r2(totalTributosHoje),
       creditoHoje: r2(totalCreditoHoje), custoHoje: r2(totalCustoHoje),
       cargaEfetivaHoje: totalValor ? r4(totalTributosHoje / totalValor) : 0,
-      origensPisCofins: Object.fromEntries(Object.entries(origensPisCofins).map(([origem, x]) => [origem, { registros: x.registros, valor: r2(x.valor) }])),
+      origensPisCofins: Object.fromEntries(Object.entries(origensPisCofins).map(([origem, x]) => [origem, { registros: x.registros, valor: r2(x.valor), vendas: r2(x.vendas) }])),
     },
     parceiros, regimes, cenarios, detalhes,
-    riscos: mapearRiscos({ lado, parceiros, regimes, totalValor }),
+    riscos: mapearRiscos({ lado, parceiros, regimes, totalValor, origensPisCofins }),
   };
 }
 
-function mapearRiscos({ lado, parceiros, regimes, totalValor }) {
+function mapearRiscos({ lado, parceiros, regimes, totalValor, origensPisCofins = {} }) {
   const riscos = [];
   const semCredito = regimes.filter((r) => ['simples_nacional', 'mei', 'produtor_rural_pf', 'imune_isento'].includes(r.regime));
   const partSemCredito = semCredito.reduce((s, r) => s + r.representatividade, 0);
@@ -282,6 +283,13 @@ function mapearRiscos({ lado, parceiros, regimes, totalValor }) {
         acao: 'Incluir na pauta de renegociação e no plano de adequação de compras.' });
     }
   } else {
+    const estimadoRegime = origensPisCofins['regime da empresa'];
+    const partEstimada = estimadoRegime && totalValor ? estimadoRegime.vendas / totalValor : 0;
+    if (partEstimada > 0.2) {
+      riscos.push({ nivel: 'atencao', titulo: 'Base econômica com dependência relevante de estimativa de regime',
+        texto: `${(partEstimada * 100).toFixed(1).replace('.', ',')}% das vendas analisadas não traz PIS/COFINS no documento nem referência fiscal específica de serviço; a base econômica usou a alíquota padrão do regime da empresa.`,
+        acao: 'Cadastrar as referências fiscais dos serviços relevantes e conferir os documentos de maior materialidade antes de transformar a projeção em recomendação comercial.' });
+    }
     const naoCredita = regimes.filter((r) => !((P.REGIMES[r.regime] || {}).creditaNovo));
     const partNaoCredita = naoCredita.reduce((s, r) => s + r.representatividade, 0);
     if (partNaoCredita > 0.2) {
