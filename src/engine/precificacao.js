@@ -35,10 +35,16 @@ function analisarItem(item) {
   const perfilCliente = item.perfilCliente || 'lucro_real';
   const despVar = num(item.despesasVariaveis);
   const parametrosIVA = item.parametrosIVA;
+  const referenciaFiscal = item.referenciaFiscal || null;
+  const aliqPisCofinsVenda = referenciaFiscal && referenciaFiscal.pis_cofins !== null && referenciaFiscal.pis_cofins !== undefined
+    ? num(referenciaFiscal.pis_cofins) : item.aliqPisCofins;
+  const aliqSimplesVenda = referenciaFiscal && referenciaFiscal.das_efetivo !== null && referenciaFiscal.das_efetivo !== undefined
+    ? num(referenciaFiscal.das_efetivo) : item.aliqSimples;
 
   // ---------- HOJE ----------
   const venda = grossDown({ valor: num(item.precoVenda), regime, tipo,
-    aliqIcms: item.aliqIcms, aliqIss: item.aliqIss, aliqIpi: item.aliqIpi, aliqSimples: item.aliqSimples });
+    aliqIcms: item.aliqIcms, aliqIss: referenciaFiscal?.iss_aliquota ?? item.aliqIss,
+    aliqIpi: item.aliqIpi, aliqPisCofins: aliqPisCofinsVenda, aliqSimples: aliqSimplesVenda });
   const compra = grossDown({ valor: num(item.custoCompra), regime: regimeFornecedor, tipo,
     aliqIcms: item.aliqIcmsCompra, aliqIss: item.aliqIssCompra, aliqSimples: item.aliqSimplesCompra });
 
@@ -89,7 +95,8 @@ function analisarItem(item) {
   const custoParaClienteNovo = r2(precoNeutro - credCliente);
 
   return {
-    item: { descricao: item.descricao || '', ncm: item.ncm || '', tipo, regime, ano },
+    item: { descricao: item.descricao || '', ncm: item.ncm || '', tipo, regime, ano,
+      referenciaFiscal: referenciaFiscal ? { chave: referenciaFiscal.chave, pisCofins: referenciaFiscal.pis_cofins, dasEfetivo: referenciaFiscal.das_efetivo } : null },
     hoje: {
       preco: venda.valorOperacao, tributos: venda.totalTributos, cargaEfetiva: venda.cargaEfetiva,
       receitaLiquida: receitaLiquidaHoje, custoLiquido: custoLiquidoHoje, despesasVariaveis: despesaHoje,

@@ -692,6 +692,14 @@ function referenciaIvaDoProjeto() {
   return linhas.find((a) => Number(a.ano) === 2033) || linhas[linhas.length - 1];
 }
 
+function referenciaFiscalPrecificacao(empresaId, item, exigir = true) {
+  if (item.tipo !== 'servico') return null;
+  const chave = chaveReferenciaServico(item);
+  const referencia = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND chave=? AND ativo=1').get(empresaId, chave);
+  if (!referencia && exigir) throw new Error(`O serviço “${item.descricao || 'sem descrição'}” exige referência fiscal antes da precificação. Cadastre PIS/COFINS ou DAS efetivo em Cadastros e importação → Clientes.`);
+  return referencia || null;
+}
+
 router.get('/empresas/:id/referencias-vendas', (req, res) => {
   try {
     const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
@@ -809,7 +817,8 @@ router.get('/cenarios/:id', (req, res, next) => {
 router.post('/precificacao/simular', (req, res) => {
   try {
     const empresa = req.body.empresa_id ? db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.body.empresa_id) : null;
-    ok(res, { resultado: prec.analisarItem({ ...req.body, parametrosIVA: referenciaIvaDoProjeto(), regime: req.body.regime || (empresa && empresa.regime) || 'lucro_real' }) });
+    const referenciaFiscal = empresa ? referenciaFiscalPrecificacao(empresa.id, req.body) : null;
+    ok(res, { resultado: prec.analisarItem({ ...req.body, referenciaFiscal, parametrosIVA: referenciaIvaDoProjeto(), regime: req.body.regime || (empresa && empresa.regime) || 'lucro_real' }) });
   } catch (e) { erro(res, e); }
 });
 
@@ -822,7 +831,7 @@ router.post('/empresas/:id/precificacao', (req, res) => {
   try {
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     const b = req.body;
-    const resultado = prec.analisarItem({ ...b, parametrosIVA: referenciaIvaDoProjeto(), regime: empresa.regime });
+    const resultado = prec.analisarItem({ ...b, referenciaFiscal: referenciaFiscalPrecificacao(empresa.id, b), parametrosIVA: referenciaIvaDoProjeto(), regime: empresa.regime });
     const r = db.prepare(`INSERT INTO itens_precificacao (empresa_id, descricao, ncm, tipo, preco_venda,
       custo_compra, despesas_variaveis, regime_fornecedor, perfil_cliente, reducao, aliq_especifica, ano, resultado)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(req.params.id, b.descricao || '', b.ncm || '', b.tipo || 'mercadoria',
@@ -862,7 +871,7 @@ router.post('/empresas/:id/precificacao/importar', upload.single('arquivo'), (re
           regime: empresa.regime,
         };
         if (!item.precoVenda) continue;
-        const resultado = prec.analisarItem(item);
+        const resultado = prec.analisarItem({ ...item, referenciaFiscal: referenciaFiscalPrecificacao(empresa.id, item), parametrosIVA: referenciaIvaDoProjeto() });
         ins.run(req.params.id, item.descricao, item.ncm, item.tipo, item.precoVenda, item.custoCompra,
           item.despesasVariaveis, item.regimeFornecedor, item.perfilCliente, item.reducao, item.ano, JSON.stringify(resultado));
         n++;
@@ -2073,8 +2082,8 @@ router.post('/config/recalcular', (_req, res) => {
             precoVenda: item.preco_venda, custoCompra: item.custo_compra,
             despesasVariaveis: item.despesas_variaveis, regime: empresa.regime,
             regimeFornecedor: item.regime_fornecedor, perfilCliente: item.perfil_cliente,
-            reducao: item.reducao, aliqEspecifica: item.aliq_especifica, ano: item.ano,
-            parametrosIVA: referenciaIvaDoProjeto(),
+          reducao: item.reducao, aliqEspecifica: item.aliq_especifica, ano: item.ano,
+            referenciaFiscal: referenciaFiscalPrecificacao(empresa.id, { descricao: item.descricao, ncm: item.ncm, tipo: item.tipo }), parametrosIVA: referenciaIvaDoProjeto(),
           });
           atualizarPreco.run(JSON.stringify(resultado), item.id);
           saida.itensPrecificacao++;

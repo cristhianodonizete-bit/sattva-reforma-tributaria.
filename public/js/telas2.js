@@ -14,7 +14,7 @@ Telas.precificacao = async (el) => {
   const { itens } = await A.api(`/empresas/${S.empresaId}/precificacao`);
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   el.innerHTML = cab('Módulo 2', 'Precificação e margem',
-    `Receita (-) impostos (-) custos = margem bruta. ${ibsAtivo ? 'Se o preço não mudar, quanto de margem some?' : 'A simulação atual considera a CBS em uma referência única.'}`,
+    `Receita (-) impostos (-) custos = margem bruta. ${ibsAtivo ? 'Se o preço não mudar, quanto de margem some?' : 'A simulação atual considera a CBS em uma referência única.'} Para serviços, a alíquota atual vem da referência fiscal cadastrada para a empresa.`,
     `<button class="btn" id="simular">Simular item</button>
      <button class="btn vazio" id="importarItens">Importar planilha</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/precificacao')">Exportar Excel</button>`) +
@@ -56,7 +56,7 @@ Telas.precificacao = async (el) => {
   function abrirSimulacao() {
     A.modal({
       titulo: 'Simular precificação', confirmar: 'Salvar item', largura: 820,
-      descricao: ibsAtivo ? 'O sistema volta a base do preço e do custo, aplica o IVA por fora e devolve o preço que preserva a margem.' : 'O sistema volta a base do preço e do custo, aplica a CBS por fora e devolve o preço que preserva a margem.',
+      descricao: ibsAtivo ? 'O sistema volta a base do preço e do custo, aplica o IVA por fora e devolve o preço que preserva a margem.' : 'O sistema volta a base do preço e do custo, aplica a CBS por fora e devolve o preço que preserva a margem. Para serviço, cadastre primeiro a referência fiscal em Cadastros e importação → Clientes.',
       corpo: `<div class="grade g2">${A.campo('descricao', 'Produto ou serviço')}${A.campo('ncm', 'NCM (se houver)')}</div>
         <div class="grade g3">
           ${A.campo('precoVenda', 'Preço de venda hoje (R$)', 1000, 'number', 'step=0.01')}
