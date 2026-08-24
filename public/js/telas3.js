@@ -617,10 +617,18 @@ Telas.acessos = async (el) => {
        { t: 'Usuário', r: (r) => A.esc(r.usuario) },
        { t: 'Ação', r: (r) => `<b>${A.esc(r.acao)}</b>` },
        { t: 'Item', r: (r) => A.esc(r.entidade || '—') },
+       { t: '', r: (r) => (r.antes || r.depois) ? `<button class="btn pq vazio" data-auditoria="${A.esc(r.id)}">Detalhes</button>` : '—' },
      ], auditoria.registros, { vazio: 'Nenhuma ação registrada ainda.' })}</div>`;
   el.querySelector('#novoPerfil').onclick = () => abrirPerfil();
   el.querySelector('#novoUsuario').onclick = () => abrirUsuario();
   el.querySelectorAll('[data-perfil]').forEach((b) => { b.onclick = () => abrirPerfil(d.perfis.find((p) => p.id === b.dataset.perfil)); });
   el.querySelectorAll('[data-usuario]').forEach((b) => { b.onclick = () => abrirUsuario(d.usuarios.find((u) => u.id === b.dataset.usuario)); });
+  el.querySelectorAll('[data-auditoria]').forEach((b) => { b.onclick = () => {
+    const r = auditoria.registros.find((x) => String(x.id) === String(b.dataset.auditoria));
+    const json = (valor) => valor ? `<pre style="white-space:pre-wrap;word-break:break-word;margin:0">${A.esc(JSON.stringify(valor, null, 2))}</pre>` : '<span class="mini">Não aplicável.</span>';
+    A.modal({ titulo: `Auditoria — ${r.acao}`, confirmar: null, largura: 820,
+      corpo: `<div class="grade g2"><div><h3 class="subtitulo-modal">Antes</h3>${json(r.antes)}</div><div><h3 class="subtitulo-modal">Depois</h3>${json(r.depois)}</div></div>`,
+    });
+  }; });
 };
 })();
