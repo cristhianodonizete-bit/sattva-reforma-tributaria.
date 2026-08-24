@@ -8,6 +8,7 @@
  */
 const assert = require('node:assert/strict');
 const { analisarCadeia } = require('../src/engine/cadeia');
+const { calcularOperacao } = require('../src/engine/calculadora');
 
 const r2 = (n) => Math.round(Number(n) * 100) / 100;
 const cfg = { lado: 'cliente', regimeEmpresa: 'lucro_real', anos: [2033], parametrosIVA: {
@@ -55,6 +56,29 @@ function verificar(nome, encontrado, esperado) {
   verificar('CBS gerada na venda ao Simples', linha.cbs, r2(481.75 * 0.0925));
   verificar('crédito potencial da operação ao Simples', linha.creditoPotencial, r2(481.75 * 0.0925));
   verificar('relevância comercial do Simples', linha.relevanciaCreditoCliente, 'Sem apropriação no perfil informado');
+}
+
+// Entradas: fornecedor regular destaca CBS; a empresa adquirente regular toma
+// o crédito correspondente. IBS permanece fora enquanto estiver desabilitado.
+{
+  const r = calcularOperacao({ valor: 1000, tipo: 'servico', regime: 'lucro_real', regimeAdquirente: 'lucro_real',
+    pis: 0, cofins: 0, iss: 0, anos: [2033], parametrosIVA: { 2033: { cbs: 0.0925, ibs: 0.5, calcular_ibs: 0, fator_icms_iss: 0, fator_pis_cofins: 0, fator_ipi: 0 } } });
+  const final = r.projecao[0];
+  verificar('entrada regular — CBS destacada', final.cbs, 92.5);
+  verificar('entrada regular — IBS desabilitado', final.ibs, 0);
+  verificar('entrada regular — crédito CBS', final.credito.detalhe.cbs, 92.5);
+  verificar('entrada regular — custo efetivo após crédito', final.custoEfetivo, 1000);
+}
+
+// Fornecedor do Simples não destaca CBS cheia; o crédito do adquirente é
+// limitado à parcela embutida do DAS e nunca se confunde com CBS da operação.
+{
+  const r = calcularOperacao({ valor: 1000, tipo: 'servico', regime: 'simples_nacional', regimeAdquirente: 'lucro_real',
+    aliqSimples: 0.06, anos: [2033], parametrosIVA: { 2033: { cbs: 0.0925, ibs: 0.5, calcular_ibs: 0, fator_icms_iss: 0, fator_pis_cofins: 0, fator_ipi: 0 } } });
+  const final = r.projecao[0];
+  verificar('entrada Simples — CBS cheia não destacada', final.cbs, 0);
+  verificar('entrada Simples — crédito limitado é positivo', final.credito.total > 0, true);
+  verificar('entrada Simples — crédito não excede tributos atuais', final.credito.total <= r.atual.totalTributos, true);
 }
 
 console.log('\nValidação CBS concluída com sucesso.');
