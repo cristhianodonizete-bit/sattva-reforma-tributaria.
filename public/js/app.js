@@ -15,6 +15,14 @@ const App = (() => {
       body: opcoes.corpo instanceof FormData ? opcoes.corpo : (opcoes.corpo ? JSON.stringify(opcoes.corpo) : undefined),
     });
     const j = await r.json().catch(() => ({ ok: false, erro: 'Resposta inválida do servidor.' }));
+    if (r.status === 401) {
+      localStorage.removeItem('sattva_token');
+      if (!String(location.hash || '').includes('access_token=')) {
+        location.hash = '';
+        setTimeout(() => location.reload(), 20);
+      }
+      throw new Error('Sua sessão expirou. Entre novamente para continuar.');
+    }
     if (!j.ok) throw new Error(j.erro || 'Falha na requisição.');
     return j;
   }
