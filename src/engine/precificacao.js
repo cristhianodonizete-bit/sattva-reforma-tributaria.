@@ -34,6 +34,7 @@ function analisarItem(item) {
   const regimeFornecedor = item.regimeFornecedor || regime;
   const perfilCliente = item.perfilCliente || 'lucro_real';
   const despVar = num(item.despesasVariaveis);
+  const parametrosIVA = item.parametrosIVA;
 
   // ---------- HOJE ----------
   const venda = grossDown({ valor: num(item.precoVenda), regime, tipo,
@@ -54,9 +55,9 @@ function analisarItem(item) {
 
   // ---------- CENÁRIO: PREÇO CONGELADO ----------
   const novoVenda = aplicarIVA({ valorSemImposto: venda.valorSemImposto, ano, reducao: item.reducao,
-    aliqEspecifica: item.aliqEspecifica, regime, grauRepasse: 0, atual: venda });
+    aliqEspecifica: item.aliqEspecifica, regime, grauRepasse: 0, parametrosIVA, atual: venda });
   const novoCompra = aplicarIVA({ valorSemImposto: compra.valorSemImposto, ano, reducao: item.reducaoCompra,
-    regime: regimeFornecedor, grauRepasse: 1, atual: compra });
+    regime: regimeFornecedor, grauRepasse: 1, parametrosIVA, atual: compra });
   const { creditoNovo } = require('./calculadora');
   const credNovo = creditoNovo(novoCompra, regimeFornecedor, regime, compra);
   const custoLiquidoNovo = r2(novoCompra.precoFinal - credNovo.total);
@@ -76,14 +77,14 @@ function analisarItem(item) {
     residual: residualUnit, despVar, compensavel: novoVenda.compensavel });
 
   const novoNeutro = aplicarIVA({ valorSemImposto: r2(precoNeutro / (1 + (novoVenda.compensavel ? 0 : aliq))), ano,
-    reducao: item.reducao, aliqEspecifica: item.aliqEspecifica, regime, grauRepasse: 1, atual: venda });
+    reducao: item.reducao, aliqEspecifica: item.aliqEspecifica, regime, grauRepasse: 1, parametrosIVA, atual: venda });
 
   // ---------- SENSIBILIDADE DO CLIENTE ----------
   const cliente = P.REGIMES[perfilCliente] || P.REGIMES.lucro_real;
   const clienteCredita = cliente.creditaNovo;
   const custoParaClienteHoje = r2(venda.valorOperacao - (clienteCredita ? creditoAtual(venda, perfilCliente).total : 0));
   const novoParaCliente = aplicarIVA({ valorSemImposto: venda.valorSemImposto, ano, reducao: item.reducao,
-    aliqEspecifica: item.aliqEspecifica, regime, grauRepasse: 1, atual: venda });
+    aliqEspecifica: item.aliqEspecifica, regime, grauRepasse: 1, parametrosIVA, atual: venda });
   const credCliente = clienteCredita ? creditoNovo(novoParaCliente, regime, perfilCliente, venda).total : 0;
   const custoParaClienteNovo = r2(precoNeutro - credCliente);
 

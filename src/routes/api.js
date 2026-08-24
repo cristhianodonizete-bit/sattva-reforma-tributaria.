@@ -662,6 +662,13 @@ function prepararCadeia(empresa, tipo, query = {}) {
   return { movimentos, anos, parametrosIVA: ibsAtivo ? Object.fromEntries(aliquotas.map((a) => [Number(a.ano), a])) : referencia };
 }
 
+function referenciaIvaDoProjeto() {
+  const linhas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
+  const ibsAtivo = linhas.some((a) => Number(a.calcular_ibs) === 1);
+  if (ibsAtivo) return Object.fromEntries(linhas.map((a) => [Number(a.ano), a]));
+  return linhas.find((a) => Number(a.ano) === 2033) || linhas[linhas.length - 1];
+}
+
 router.get('/empresas/:id/referencias-vendas', (req, res) => {
   try {
     const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
@@ -772,7 +779,7 @@ router.get('/cenarios/:id', (req, res, next) => {
 router.post('/precificacao/simular', (req, res) => {
   try {
     const empresa = req.body.empresa_id ? db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.body.empresa_id) : null;
-    ok(res, { resultado: prec.analisarItem({ ...req.body, regime: req.body.regime || (empresa && empresa.regime) || 'lucro_real' }) });
+    ok(res, { resultado: prec.analisarItem({ ...req.body, parametrosIVA: referenciaIvaDoProjeto(), regime: req.body.regime || (empresa && empresa.regime) || 'lucro_real' }) });
   } catch (e) { erro(res, e); }
 });
 
@@ -785,7 +792,7 @@ router.post('/empresas/:id/precificacao', (req, res) => {
   try {
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     const b = req.body;
-    const resultado = prec.analisarItem({ ...b, regime: empresa.regime });
+    const resultado = prec.analisarItem({ ...b, parametrosIVA: referenciaIvaDoProjeto(), regime: empresa.regime });
     const r = db.prepare(`INSERT INTO itens_precificacao (empresa_id, descricao, ncm, tipo, preco_venda,
       custo_compra, despesas_variaveis, regime_fornecedor, perfil_cliente, reducao, aliq_especifica, ano, resultado)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(req.params.id, b.descricao || '', b.ncm || '', b.tipo || 'mercadoria',
@@ -2037,6 +2044,7 @@ router.post('/config/recalcular', (_req, res) => {
             despesasVariaveis: item.despesas_variaveis, regime: empresa.regime,
             regimeFornecedor: item.regime_fornecedor, perfilCliente: item.perfil_cliente,
             reducao: item.reducao, aliqEspecifica: item.aliq_especifica, ano: item.ano,
+            parametrosIVA: referenciaIvaDoProjeto(),
           });
           atualizarPreco.run(JSON.stringify(resultado), item.id);
           saida.itensPrecificacao++;
