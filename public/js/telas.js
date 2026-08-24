@@ -85,14 +85,15 @@ Telas.painel = async (el) => {
 // EMPRESAS
 // ===========================================================================
 Telas.empresas = async (el) => {
-  const { empresas } = await A.api('/empresas');
+  const [{ empresas }, gruposDados] = await Promise.all([A.api('/empresas'), A.api('/grupos-empresas').catch(() => ({ grupos: [] }))]);
+  const grupos = gruposDados.grupos || [];
   const totais = empresas.reduce((acc, empresa) => ({
     fornecedores: acc.fornecedores + Number(empresa.fornecedores || 0),
     clientes: acc.clientes + Number(empresa.clientes || 0),
     movimentos: acc.movimentos + Number(empresa.movimentos || 0),
   }), { fornecedores: 0, clientes: 0, movimentos: 0 });
   el.innerHTML = cab('Cadastro', 'Empresas atendidas', 'Cada empresa é um projeto de implementação independente.',
-    '<button class="btn" id="novaEmpresa">Cadastrar empresa</button>') +
+    '<button class="btn vazio" id="novoGrupo">Criar grupo de análise</button><button class="btn" id="novaEmpresa">Cadastrar empresa</button>') +
     `<div class="grade g4 resumo-carteira">
       ${A.kpi('Projetos cadastrados', empresas.length, 'empresas atendidas')}
       ${A.kpi('Fornecedores', totais.fornecedores, 'na carteira total')}
@@ -109,7 +110,10 @@ Telas.empresas = async (el) => {
       { t: 'Código Questor', r: (e) => `<span class="mono mini">${A.esc(e.codigo_questor || '—')}</span>` },
       { t: '', r: (e) => `<button class="btn pq" data-abrir="${e.id}">Abrir projeto</button><button class="btn pq vazio" data-ed="${e.id}">Editar</button>
         <button class="btn pq perigo" data-rm="${e.id}">Excluir</button>` },
-    ], empresas, { vazio: 'Nenhuma empresa cadastrada. Comece cadastrando a primeira.' })}</div>`;
+    ], empresas, { vazio: 'Nenhuma empresa cadastrada. Comece cadastrando a primeira.' })}</div>
+    <div class="cartao grupos-empresas"><div class="cabecalho-lista"><div><h2>Grupos de empresas para análise</h2><p class="desc">Organize empresas por carteira, segmento ou projeto para conduzir análises conjuntas.</p></div><span class="tag">${grupos.length} grupo${grupos.length === 1 ? '' : 's'}</span></div>
+      ${grupos.length ? `<div class="lista-grupos">${grupos.map((g) => { const nomes = empresas.filter((e) => (g.empresa_ids || []).map(Number).includes(Number(e.id))).map((e) => e.razao_social); return `<article class="grupo-empresas-item"><div><b>${A.esc(g.nome)}</b><p class="mini">${A.esc(g.descricao || 'Sem descrição')} · ${nomes.length} empresa(s)</p><p class="mini">${A.esc(nomes.join(' · ') || 'Nenhuma empresa vinculada')}</p></div><div><button class="btn pq vazio" data-grupo-ed="${g.id}">Editar</button><button class="btn pq perigo" data-grupo-rm="${g.id}">Excluir</button></div></article>`; }).join('')}</div>` : A.vazio('Nenhum grupo criado.', 'Crie um grupo para organizar empresas que serão analisadas em conjunto.')}
+    </div>`;
 
   const form = (e = {}) => A.campo('razao_social', 'Razão social', e.razao_social) +
     `<div class="grade g2">${A.campo('cnpj', 'CNPJ', e.cnpj)}${A.campo('nome_fantasia', 'Nome fantasia', e.nome_fantasia)}</div>
@@ -119,11 +123,13 @@ Telas.empresas = async (el) => {
      <div class="grade g2">${A.campo('faturamento_anual', 'Faturamento anual (R$)', e.faturamento_anual, 'number')}
      ${A.campo('codigo_questor', 'Código da empresa no Questor', e.codigo_questor)}</div>
      ${A.area('atividade', 'Atividade', e.atividade, 2)}`;
+  const formGrupo = (g = {}) => `${A.campo('nome', 'Nome do grupo', g.nome || '')}${A.area('descricao', 'Descrição / objetivo da análise', g.descricao || '', 2)}<h3 class="subtitulo-modal">Empresas incluídas</h3><div class="empresas-acesso">${empresas.map((empresa) => `<label class="check"><input type="checkbox" name="empresa_${empresa.id}" ${(g.empresa_ids || []).map(Number).includes(Number(empresa.id)) ? 'checked' : ''}> ${A.esc(empresa.razao_social)}</label>`).join('') || '<p class="mini">Cadastre empresas antes de criar um grupo.</p>'}</div>`;
 
   document.getElementById('novaEmpresa').onclick = () => A.modal({
     titulo: 'Cadastrar empresa', descricao: 'Os dados alimentam todos os módulos do produto.',
     corpo: form(), aoConfirmar: async (d) => { await A.api('/empresas', { metodo: 'POST', corpo: d }); A.toast('Empresa cadastrada', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); },
   });
+  document.getElementById('novoGrupo').onclick = () => A.modal({ titulo: 'Criar grupo de empresas para análise', largura: 720, corpo: formGrupo(), aoConfirmar: async (d) => { d.empresa_ids = empresas.filter((empresa) => d[`empresa_${empresa.id}`]).map((empresa) => empresa.id); await A.api('/grupos-empresas', { metodo: 'POST', corpo: d }); A.toast('Grupo criado', 'ok'); A.ir('empresas'); } });
   el.querySelectorAll('[data-abrir]').forEach((b) => { b.onclick = async () => {
     localStorage.setItem('sattva_empresa', b.dataset.abrir); await A.carregarEmpresas(); A.ir('painel');
   }; });
@@ -134,6 +140,8 @@ Telas.empresas = async (el) => {
   }; });
   el.querySelectorAll('[data-rm]').forEach((b) => { b.onclick = () => A.confirmar('Excluir a empresa apaga também parceiros, movimentação, contratos e turmas. Confirma?', async () => {
     await A.api(`/empresas/${b.dataset.rm}`, { metodo: 'DELETE' }); A.toast('Empresa excluída', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); }); });
+  el.querySelectorAll('[data-grupo-ed]').forEach((b) => { b.onclick = () => { const g = grupos.find((x) => x.id === b.dataset.grupoEd); A.modal({ titulo: 'Editar grupo de empresas', largura: 720, corpo: formGrupo(g), aoConfirmar: async (d) => { d.empresa_ids = empresas.filter((empresa) => d[`empresa_${empresa.id}`]).map((empresa) => empresa.id); await A.api(`/grupos-empresas/${g.id}`, { metodo: 'PUT', corpo: d }); A.toast('Grupo atualizado', 'ok'); A.ir('empresas'); } }); }; });
+  el.querySelectorAll('[data-grupo-rm]').forEach((b) => { b.onclick = () => A.confirmar('Excluir este grupo não exclui as empresas. Confirma?', async () => { await A.api(`/grupos-empresas/${b.dataset.grupoRm}`, { metodo: 'DELETE' }); A.toast('Grupo excluído', 'ok'); A.ir('empresas'); }); });
 };
 
 // ===========================================================================

@@ -95,6 +95,7 @@ const areaDaTarefaModulo = (chave) => ({
 const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/operacao/.test(caminho)) return 'visao_geral';
   if (/^\/acessos/.test(caminho)) return 'acessos';
+  if (/^\/grupos-empresas/.test(caminho)) return 'gestao_projetos';
   if (/^\/empresas\/\d+\/turmas/.test(caminho) || /^\/(turmas|participantes)/.test(caminho)) return 'capacitacao';
   if (/^\/empresas\/\d+\/contratos/.test(caminho) || /^\/contratos/.test(caminho)) return 'contratos';
   const tarefaDoModulo = caminho.match(/^\/empresas\/\d+\/projeto\/tarefas\/([^/]+)$/);
@@ -334,6 +335,17 @@ router.put('/acessos/usuarios/:id', async (req, res) => {
     ok(res, {});
   } catch (e) { erro(res, e); }
 });
+router.post('/acessos/usuarios/:id/reenviar-convite', async (req, res) => {
+  try {
+    const remoto = supabase.admin();
+    const { data: usuario, error } = await remoto.auth.admin.getUserById(req.params.id);
+    if (error || !usuario?.user?.email) throw new Error('Usuário não encontrado para reenvio do convite.');
+    const { error: erroConvite } = await remoto.auth.admin.inviteUserByEmail(usuario.user.email, { redirectTo: process.env.APP_URL || 'https://sattva-reforma-tributaria.onrender.com' });
+    if (erroConvite) throw erroConvite;
+    auditar(req, { acao: 'Reenviou convite de usuário', entidade: 'usuario', entidadeId: req.params.id, depois: { email: usuario.user.email } });
+    ok(res, { email: usuario.user.email });
+  } catch (e) { erro(res, e); }
+});
 
 // ===========================================================================
 // PARÂMETROS
@@ -376,6 +388,48 @@ router.get('/empresas', async (req, res) => {
     (SELECT COUNT(*) FROM movimentos m WHERE m.empresa_id = e.id) movimentos
     FROM empresas e ${ids === null ? '' : ids.length ? `WHERE e.id IN (${ids.map(() => '?').join(',')})` : 'WHERE 1=0'} ORDER BY e.razao_social`;
     ok(res, { empresas: db.prepare(sql).all(...(ids || [])) });
+  } catch (e) { erro(res, e); }
+});
+
+router.get('/grupos-empresas', async (_req, res) => {
+  try {
+    const remoto = supabase.admin();
+    const [{ data: grupos, error: eg }, { data: itens, error: ei }] = await Promise.all([
+      remoto.from('grupos_empresas').select('*').order('nome'), remoto.from('grupos_empresas_itens').select('*'),
+    ]);
+    if (eg || ei) throw (eg || ei);
+    ok(res, { grupos: (grupos || []).map((g) => ({ ...g, empresa_ids: (itens || []).filter((i) => i.grupo_id === g.id).map((i) => i.empresa_id) })) });
+  } catch (e) { erro(res, e); }
+});
+router.post('/grupos-empresas', async (req, res) => {
+  try {
+    const b = req.body, remoto = supabase.admin(), nome = String(b.nome || '').trim();
+    if (!nome) throw new Error('Informe o nome do grupo.');
+    const { data: grupo, error } = await remoto.from('grupos_empresas').insert({ nome, descricao: b.descricao || '', criado_por: req.usuario?.id || null }).select().single();
+    if (error) throw error;
+    const itens = (b.empresa_ids || []).map((empresa_id) => ({ grupo_id: grupo.id, empresa_id }));
+    if (itens.length) { const { error: ei } = await remoto.from('grupos_empresas_itens').insert(itens); if (ei) throw ei; }
+    auditar(req, { acao: 'Criou grupo de empresas', entidade: 'grupo_empresas', entidadeId: grupo.id, depois: { nome: grupo.nome, empresas: itens.length } }); ok(res, { grupo });
+  } catch (e) { erro(res, e); }
+});
+router.put('/grupos-empresas/:id', async (req, res) => {
+  try {
+    const b = req.body, remoto = supabase.admin(), nome = String(b.nome || '').trim();
+    if (!nome) throw new Error('Informe o nome do grupo.');
+    const { error } = await remoto.from('grupos_empresas').update({ nome, descricao: b.descricao || '' }).eq('id', req.params.id);
+    if (error) throw error;
+    const { error: er } = await remoto.from('grupos_empresas_itens').delete().eq('grupo_id', req.params.id);
+    if (er) throw er;
+    const itens = [...new Set((b.empresa_ids || []).map(Number).filter(Boolean))].map((empresa_id) => ({ grupo_id: req.params.id, empresa_id }));
+    if (itens.length) { const { error: ei } = await remoto.from('grupos_empresas_itens').insert(itens); if (ei) throw ei; }
+    auditar(req, { acao: 'Atualizou grupo de empresas', entidade: 'grupo_empresas', entidadeId: req.params.id, depois: { nome, empresas: itens.length } }); ok(res, {});
+  } catch (e) { erro(res, e); }
+});
+router.delete('/grupos-empresas/:id', async (req, res) => {
+  try {
+    const { error } = await supabase.admin().from('grupos_empresas').delete().eq('id', req.params.id);
+    if (error) throw error;
+    auditar(req, { acao: 'Excluiu grupo de empresas', entidade: 'grupo_empresas', entidadeId: req.params.id }); ok(res, {});
   } catch (e) { erro(res, e); }
 });
 
@@ -1226,7 +1280,7 @@ router.get('/gestao/projetos', async (req, res) => {
       const tarefas = db.prepare('SELECT * FROM projeto_tarefas WHERE contratacao_id=? ORDER BY data_conclusao, id').all(c.id);
       const concluidas = entregas.filter((x) => x.status === 'concluida' || x.status === 'nao_aplicavel').length;
       const acompConcluidos = acompanhamentos.filter((x) => x.status === 'concluido').length;
-      return { ...c, modulos: modulosDaContratacao(c), entregas, acompanhamentos, responsaveis, tarefas, concluidas,
+      return { ...c, servicos: JSON.parse(c.servicos_json || '[]'), modulos: modulosDaContratacao(c), entregas, acompanhamentos, responsaveis, tarefas, concluidas,
         progresso: entregas.length ? Math.round((concluidas / entregas.length) * 100) : 0,
         acompanhamentoConcluido: acompConcluidos, proximaCompetencia: (acompanhamentos.find((x) => x.status !== 'concluido') || {}).competencia || null };
     });
@@ -1235,7 +1289,8 @@ router.get('/gestao/projetos', async (req, res) => {
       WHERE c.aprovado_em IS NULL ORDER BY c.criado_em DESC, c.id DESC`).all()
       .filter((c) => permitidas === null || permitidas.has(String(c.empresa_id)))
       .map((c) => ({ ...c, servicos: JSON.parse(c.servicos_json || '[]') }));
-    ok(res, { projetos, propostas });
+    const servicos = db.prepare("SELECT id,nome,modulo,chave_entrega FROM servicos WHERE ativo=1 AND chave_entrega <> 'acompanhamento' ORDER BY ordem,nome").all();
+    ok(res, { projetos, propostas, servicos });
   } catch (e) { erro(res, e); }
 });
 
@@ -1513,8 +1568,19 @@ router.get('/empresas/:id/contratacoes', (req, res) => ok(res, {
 router.put('/contratacoes/:id', async (req, res) => {
   try {
     const antes = await contratacaoPermitida(req, req.params.id);
-    db.prepare('UPDATE contratacoes SET status=?, observacoes=? WHERE id=?').run(req.body.status, req.body.observacoes || '', req.params.id);
-    auditar(req, { empresaId: antes.empresa_id, acao: 'Atualizou escopo do projeto', entidade: 'contratacao', entidadeId: req.params.id, antes: { status: antes.status }, depois: { status: req.body.status } });
+    const ids = Array.isArray(req.body.servicos) ? req.body.servicos.map(Number).filter(Boolean) : JSON.parse(antes.servicos_json || '[]');
+    const linhas = ids.length ? db.prepare(`SELECT chave_entrega FROM servicos WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids) : [];
+    const modulos = [...new Set(linhas.map((s) => s.chave_entrega).filter((x) => ENTREGAS_PROJETO[x]))];
+    if (!modulos.length) throw new Error('Selecione ao menos um serviço com módulo de entrega.');
+    db.transaction(() => {
+      db.prepare('UPDATE contratacoes SET servicos_json=?, modulos_json=?, status=?, observacoes=? WHERE id=?')
+        .run(JSON.stringify(ids), JSON.stringify(modulos), req.body.status || antes.status, req.body.observacoes || '', req.params.id);
+      if (antes.aprovado_em) {
+        const ins = db.prepare('INSERT OR IGNORE INTO projeto_entregas (contratacao_id,chave,titulo) VALUES (?,?,?)');
+        modulos.forEach((chave) => ins.run(antes.id, chave, ENTREGAS_PROJETO[chave]));
+      }
+    })();
+    auditar(req, { empresaId: antes.empresa_id, acao: antes.aprovado_em ? 'Registrou aditivo de escopo do projeto' : 'Atualizou escopo do projeto', entidade: 'contratacao', entidadeId: req.params.id, antes: { servicos: JSON.parse(antes.servicos_json || '[]'), modulos: modulosDaContratacao(antes) }, depois: { servicos: ids, modulos } });
     ok(res, {});
   } catch (e) { erro(res, e); }
 });

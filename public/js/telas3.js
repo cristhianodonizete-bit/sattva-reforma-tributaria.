@@ -471,7 +471,7 @@ Telas.gestaoProjetos = async (el) => {
     <div class="projetos-entrega">${d.projetos.map((p) => `<section class="cartao projeto-entrega-card">
       <div class="projeto-entrega-cabecalho"><div>
         <h2>${A.esc(p.razao_social)}</h2><p class="desc">${A.esc(p.combo_nome || 'Plano personalizado')} · aprovado em ${A.esc(p.aprovado_em || '—')}</p>
-      </div><div class="projeto-progresso"><b class="mono">${p.progresso}%</b><div class="mini">${p.concluidas}/${p.entregas.length} entregas concluídas</div></div></div>
+      </div><div class="projeto-progresso"><b class="mono">${p.progresso}%</b><div class="mini">${p.concluidas}/${p.entregas.length} entregas concluídas</div><button class="btn pq vazio" data-escopo="${p.id}">Alterar escopo</button></div></div>
       <div class="barra-prog projeto-barra"><i style="width:${p.progresso}%"></i></div>
       <div class="grade g2">
         <div><h3 class="subtitulo-entrega">Escopo aprovado</h3>
@@ -493,6 +493,13 @@ Telas.gestaoProjetos = async (el) => {
         ${A.campo('acompanhamento_meses', 'Meses de acompanhamento liberados', p.acompanhamento_meses || 3, 'number', 'min=0 max=36')}
         ${A.area('observacoes', 'Observações do fechamento', p.observacoes || '', 3)}`,
       aoConfirmar: async (form) => { await A.api(`/contratacoes/${p.id}/aprovar`, { metodo: 'POST', corpo: form }); A.toast('Escopo aprovado e módulos liberados', 'ok'); A.ir('gestaoProjetos'); } });
+  }; });
+  el.querySelectorAll('[data-escopo]').forEach((b) => { b.onclick = () => {
+    const p = d.projetos.find((x) => x.id === Number(b.dataset.escopo));
+    const selecionados = new Set((p.servicos || []).map(Number));
+    const servicos = (d.servicos || []).map((s) => `<label class="check"><input type="checkbox" name="servico_${s.id}" ${selecionados.has(Number(s.id)) ? 'checked' : ''}> <b>${A.esc(s.nome)}</b><span class="mini"> · ${A.esc(s.modulo || s.chave_entrega || '')}</span></label>`).join('');
+    A.modal({ titulo: `Alterar escopo — ${p.razao_social}`, largura: 760, corpo: `<div class="aviso"><b>Aditivo de escopo</b>Os serviços selecionados atualizam o contrato. Para projeto já aprovado, novos módulos são liberados sem apagar as entregas já registradas.</div><div class="empresas-acesso">${servicos}</div>${A.area('observacoes', 'Observações do aditivo', p.observacoes || '', 3)}`,
+      aoConfirmar: async (form) => { form.servicos = (d.servicos || []).filter((s) => form[`servico_${s.id}`]).map((s) => s.id); await A.api(`/contratacoes/${p.id}`, { metodo: 'PUT', corpo: { servicos: form.servicos, status: p.status, observacoes: form.observacoes } }); A.toast('Escopo do contrato atualizado', 'ok'); A.ir('gestaoProjetos'); } });
   }; });
   el.querySelectorAll('[data-liberar]').forEach((b) => { b.onclick = () => {
     const p = d.projetos.find((x) => x.id === Number(b.dataset.liberar));
@@ -634,12 +641,13 @@ Telas.acessos = async (el) => {
   ], registros, { vazio: 'Nenhuma ação corresponde aos filtros.' });
   el.innerHTML = cab('Administração', 'Usuários e acessos', 'Defina o que cada perfil pode visualizar ou executar e vincule-o aos usuários.', '<button class="btn vazio" id="novoPerfil">Novo perfil</button><button class="btn" id="novoUsuario">Novo usuário</button>') +
     `<div class="grade g3">${d.perfis.map((p) => `<article class="cartao perfil-acesso-card"><div><h3>${A.esc(p.nome)}</h3><p class="desc">${A.esc(p.descricao || 'Sem descrição')}</p></div><div class="perfil-acesso-permissoes">${d.areas.filter((a) => p.permissoes?.[a]?.ver).map((a) => `<span>${A.esc(rotulos[a] || a)}${p.permissoes?.[a]?.executar ? ' · executar' : ''}</span>`).join('') || '<span>Nenhum acesso</span>'}</div><button class="btn pq vazio" data-perfil="${p.id}">Editar perfil</button></article>`).join('')}</div>
-     <div class="cartao lista-usuarios"><div class="cabecalho-lista"><div><h2>Usuários</h2><p class="desc">O perfil aplicado determina as telas disponíveis e as ações permitidas.</p></div><span class="tag">${d.usuarios.length} usuários</span></div>${A.tabela([
+     <div class="cartao lista-usuarios"><div class="cabecalho-lista"><div><h2>Usuários e convites</h2><p class="desc">Convites pendentes podem ser reenviados. O perfil aplicado determina as telas disponíveis e as ações permitidas.</p></div><span class="tag">${d.usuarios.length} usuários</span></div>${A.tabela([
        { t: 'Nome', r: (u) => `<b>${A.esc(u.nome || 'Não informado')}</b><small class="mini">${A.esc(u.email || '')}</small>` },
        { t: 'Perfil', r: (u) => A.esc(perfilPorId.get(u.perfil_acesso_id)?.nome || 'Sem perfil') },
        { t: 'Empresas', r: (u) => { const ids = empresasDoUsuario(u.id); const nomes = d.empresas.filter((e) => ids.has(String(e.id))).map((e) => e.razao_social); return `<span class="mini">${A.esc(nomes.join(' · ') || 'Nenhuma vinculada')}</span>`; } },
-       { t: 'Situação', r: (u) => `<span class="tag ${u.ativo ? 'c' : 'a'}">${u.ativo ? 'Ativo' : 'Inativo'}</span>` },
-       { t: '', r: (u) => `<button class="btn pq vazio" data-usuario="${u.id}">Editar</button>` },
+       { t: 'Situação', r: (u) => `<span class="tag ${u.ativo ? (u.ultimo_acesso ? 'c' : 'b') : 'a'}">${u.ativo ? (u.ultimo_acesso ? 'Ativo' : 'Convite pendente') : 'Inativo'}</span>` },
+       { t: 'Último acesso', r: (u) => `<span class="mini">${u.ultimo_acesso ? A.esc(new Date(u.ultimo_acesso).toLocaleString('pt-BR')) : 'Ainda não acessou'}</span>` },
+       { t: '', r: (u) => `<button class="btn pq vazio" data-usuario="${u.id}">Editar</button>${u.ativo && !u.ultimo_acesso ? `<button class="btn pq vazio" data-reenviar="${u.id}">Reenviar convite</button>` : ''}` },
      ], d.usuarios, { vazio: 'Nenhum usuário encontrado.' })}</div>
      <div class="cartao lista-auditoria"><div class="cabecalho-lista"><div><h2>Histórico de ações</h2><p class="desc">Registro automático das ações realizadas por usuários logados.</p></div><span class="tag" id="totalAuditoria">${auditoria.registros.length} registros</span></div>
        <div class="filtros-carteira filtros-auditoria"><label>Usuário<select id="filtroAuditoriaUsuario"><option value="">Todos</option>${usuariosAuditoria.map((nome) => `<option value="${A.esc(nome)}">${A.esc(nome)}</option>`).join('')}</select></label><label>Ação<select id="filtroAuditoriaAcao"><option value="">Todas</option>${acoesAuditoria.map((acao) => `<option value="${A.esc(acao)}">${A.esc(acao)}</option>`).join('')}</select></label><label>De<input type="date" id="filtroAuditoriaDe"></label><label>Até<input type="date" id="filtroAuditoriaAte"></label></div>
@@ -648,6 +656,7 @@ Telas.acessos = async (el) => {
   el.querySelector('#novoUsuario').onclick = () => abrirUsuario();
   el.querySelectorAll('[data-perfil]').forEach((b) => { b.onclick = () => abrirPerfil(d.perfis.find((p) => p.id === b.dataset.perfil)); });
   el.querySelectorAll('[data-usuario]').forEach((b) => { b.onclick = () => abrirUsuario(d.usuarios.find((u) => u.id === b.dataset.usuario)); });
+  el.querySelectorAll('[data-reenviar]').forEach((b) => { b.onclick = () => A.confirmar('Reenviar o convite para este usuário?', async () => { const r = await A.api(`/acessos/usuarios/${b.dataset.reenviar}/reenviar-convite`, { metodo: 'POST' }); A.toast(`Convite reenviado para ${r.email}`, 'ok'); A.ir('acessos'); }); });
   const ligarDetalhesAuditoria = () => el.querySelectorAll('[data-auditoria]').forEach((b) => { b.onclick = () => {
     const r = auditoria.registros.find((x) => String(x.id) === String(b.dataset.auditoria));
     const json = (valor) => valor ? `<pre style="white-space:pre-wrap;word-break:break-word;margin:0">${A.esc(JSON.stringify(valor, null, 2))}</pre>` : '<span class="mini">Não aplicável.</span>';
