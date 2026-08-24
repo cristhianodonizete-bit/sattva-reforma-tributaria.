@@ -444,6 +444,8 @@ async function telaCadeia(el, tipo) {
   const t = analise.totais;
   const ultimo = analise.cenarios[analise.cenarios.length - 1] || {};
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
+  const cbsReferencia = Number(S.params?.aliquotaReferencia?.cbs) || 0;
+  const ibsReferencia = ibsAtivo ? (Number(S.params?.aliquotaReferencia?.ibs) || 0) : 0;
   const abaCliente = S.aba.clientesCadeia || 'carteira';
   const mostrarCarteira = eForn || abaCliente === 'carteira';
   const mostrarRiscos = eForn || abaCliente === 'riscos';
@@ -463,12 +465,13 @@ async function telaCadeia(el, tipo) {
       ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' sobre o preço atual', 'destaque')}
     </div>
     <div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Impacto para a empresa — entradas' : 'Impacto para a empresa — saídas'}</h2>
-      <p class="desc">${eForn ? 'Compra atual − tributos atuais embutidos = base econômica + IBS + CBS = compra projetada − compra atual = impacto da compra.' : 'Venda atual − PIS/COFINS atual = base econômica + IBS + CBS = venda projetada − venda atual = impacto da venda.'}</p>
+      <p class="desc">${eForn ? 'Compra atual − tributos atuais embutidos = base econômica + IBS + CBS = compra projetada − compra atual = impacto da compra.' : 'Venda atual − PIS/COFINS atual = base econômica + IBS + CBS = venda projetada − venda atual = impacto da venda.'} CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
       ${A.tabela([
         { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: () => A.moeda(t.valor) },
         ...(!eForn ? [{ t: '(-) PIS/COFINS atual', num: true, r: () => A.moeda(analise.regimes.reduce((s, r) => s + (Number(r.pisCofinsAtual) || 0), 0)) }] : []),
         { t: 'Base econômica', num: true, r: () => A.moeda(ultimo.baseEconomica || 0) },
         ...(ibsAtivo ? [{ t: 'IBS projetado', num: true, r: () => A.moeda(ultimo.ibs || 0) }] : []),
+        { t: 'Alíquota CBS', num: true, r: () => A.pct(cbsReferencia) },
         { t: 'CBS projetada', num: true, r: () => A.moeda(ultimo.cbs || 0) },
         { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: () => A.moeda(ultimo.precoFinal || 0) },
         { t: 'Impacto R$', num: true, r: () => A.setaR$(ultimo.impactoOperacao || 0) },
