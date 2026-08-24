@@ -2387,38 +2387,45 @@ router.post('/config/recalcular', (_req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.put('/config/regras/:grupo/:chave', (req, res) => {
-  try { regras.salvarRegra(req.params.grupo, req.params.chave, req.body.valor, req.body.usuario); ok(res, {}); }
+// Parâmetros fiscais são críticos: a confirmação só é devolvida depois de a
+// mesma versão estar gravada na fonte compartilhada. Isso impede que um
+// reinício do Render recupere um valor antigo e altere o cálculo silenciosamente.
+async function confirmarParametrosCompartilhados() {
+  const operacao = require('../services/operacaoCompartilhada');
+  if (operacao.ativo()) await operacao.publicar();
+}
+router.put('/config/regras/:grupo/:chave', async (req, res) => {
+  try { regras.salvarRegra(req.params.grupo, req.params.chave, req.body.valor, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
   catch (e) { erro(res, e); }
 });
 
-router.put('/config/tributos/:chave', (req, res) => {
-  try { regras.salvarTributo(req.params.chave, req.body, req.body.usuario); ok(res, {}); }
+router.put('/config/tributos/:chave', async (req, res) => {
+  try { regras.salvarTributo(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
   catch (e) { erro(res, e); }
 });
 
-router.put('/config/regimes/:chave', (req, res) => {
-  try { regras.salvarRegime(req.params.chave, req.body, req.body.usuario); ok(res, {}); }
+router.put('/config/regimes/:chave', async (req, res) => {
+  try { regras.salvarRegime(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
   catch (e) { erro(res, e); }
 });
 
-router.put('/config/reducoes/:chave', (req, res) => {
-  try { regras.salvarReducao(req.params.chave, req.body, req.body.usuario); ok(res, {}); }
+router.put('/config/reducoes/:chave', async (req, res) => {
+  try { regras.salvarReducao(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
   catch (e) { erro(res, e); }
 });
 
-router.put('/config/aliquotas/:ano', (req, res) => {
-  try { regras.salvarAliquota(Number(req.params.ano), req.body, req.body.usuario); ok(res, {}); }
+router.put('/config/aliquotas/:ano', async (req, res) => {
+  try { regras.salvarAliquota(Number(req.params.ano), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
   catch (e) { erro(res, e); }
 });
 
-router.put('/config/simples/:anexo/:faixa', (req, res) => {
-  try { regras.salvarSimples(req.params.anexo, Number(req.params.faixa), req.body, req.body.usuario); ok(res, {}); }
+router.put('/config/simples/:anexo/:faixa', async (req, res) => {
+  try { regras.salvarSimples(req.params.anexo, Number(req.params.faixa), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
   catch (e) { erro(res, e); }
 });
 
-router.put('/config/cfop/:id', (req, res) => {
-  try { regras.salvarCfop(Number(req.params.id), req.body, req.body.usuario); ok(res, {}); }
+router.put('/config/cfop/:id', async (req, res) => {
+  try { regras.salvarCfop(Number(req.params.id), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
   catch (e) { erro(res, e); }
 });
 
