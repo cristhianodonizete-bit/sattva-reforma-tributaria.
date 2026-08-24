@@ -774,7 +774,12 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
       for (const chave of Object.keys(linha)) if (nomes.includes(normalizarColuna(chave))) return linha[chave];
       return '';
     };
-    const aliquota = (valor) => { const n = imp.numeroBR(valor); return n > 1 ? n / 100 : n; };
+    const aliquota = (valor) => {
+      const texto = String(valor == null ? '' : valor).trim();
+      const percentual = texto.includes('%');
+      const n = imp.numeroBR(texto.replace(/%/g, ''));
+      return percentual || n > 1 ? n / 100 : n;
+    };
     const gravar = db.prepare(`INSERT INTO empresa_servicos_fiscais (empresa_id,chave,nbs,descricao,pis_cofins,das_efetivo,iss_aliquota,ativo,origem,atualizado_em)
       VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
       ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
