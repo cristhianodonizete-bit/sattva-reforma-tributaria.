@@ -498,8 +498,8 @@ async function telaCadeia(el, tipo) {
             { t: 'Venda sem PIS/COFINS', num: true, r: (r) => A.moeda(r.baseEconomica) },
             { t: 'PIS/COFINS atual', num: true, r: (r) => A.moeda(r.pisCofinsAtual) },
           ] : []),
-          ...(ibsAtivo ? [{ t: 'IBS da venda', num: true, r: (r) => A.moeda(r.ibs) }] : []),
-          { t: 'CBS da venda', num: true, r: (r) => A.moeda(r.cbs) },
+          ...(ibsAtivo ? [{ t: eForn ? 'IBS da compra' : 'IBS da venda', num: true, r: (r) => A.moeda(r.ibs) }] : []),
+          { t: eForn ? 'CBS da compra' : 'CBS da venda', num: true, r: (r) => A.moeda(r.cbs) },
           { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (r) => A.moeda(r.precoProjetado) },
           { t: eForn ? 'Impacto da compra' : 'Impacto da venda', num: true, r: (r) => A.setaR$(r.impactoOperacao) },
           { t: 'Crédito potencial da operação', num: true, r: (r) => A.moeda(r.creditoPotencial) },
@@ -516,7 +516,7 @@ async function telaCadeia(el, tipo) {
         { t: 'Impacto', num: true, r: (c) => A.setaR$(c.impactoOperacao) },
         { t: 'Marco', r: (c) => `<span class="mini">${A.esc(c.nota)}</span>` },
       ], analise.cenarios) : `<div class="grade g3 projecao-cbs-resumo">
-        ${A.kpi('CBS da venda', A.moeda(ultimo.cbs || 0), 'incidência sobre a base econômica')}
+        ${A.kpi(eForn ? 'CBS da compra' : 'CBS da venda', A.moeda(ultimo.cbs || 0), 'incidência sobre a base econômica')}
         ${A.kpi(eForn ? 'Compra projetada' : 'Venda projetada', A.moeda(ultimo.precoFinal || 0), 'antes de qualquer crédito')}
         ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' vs. hoje', 'destaque')}
       </div>`}
