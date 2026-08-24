@@ -1256,10 +1256,19 @@ router.get('/empresas/:id/projeto', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.get('/empresas/:id/acesso', (req, res) => {
+router.get('/empresas/:id/acesso', async (req, res) => {
   try {
-    const projeto = db.prepare(`SELECT * FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL
+    let projeto = db.prepare(`SELECT * FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL
       ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(req.params.id);
+    // O Render usa SQLite como cache. Se ele acabou de reiniciar, restaura a
+    // gestão da fonte compartilhada antes de decidir se um módulo será bloqueado.
+    if (!projeto && supabase.configurado()) {
+      try {
+        await require('../services/operacaoCompartilhada').baixarGestao();
+        projeto = db.prepare(`SELECT * FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL
+          ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(req.params.id);
+      } catch (e) { console.error('[supabase] não foi possível restaurar gestão para acesso:', e.message); }
+    }
     const modulos = projeto ? modulosDaContratacao(projeto) : [];
     ok(res, { aprovado: !!projeto, contratacao_id: projeto && projeto.id, modulos,
       telas: {

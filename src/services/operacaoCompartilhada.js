@@ -89,8 +89,15 @@ async function baixar() {
   if (erroConfiguracoes && !String(erroConfiguracoes.message).includes('does not exist')) throw erroConfiguracoes;
   const porChave = new Map((configuracoes || []).map((x) => [x.chave, x.dados]));
   for (const tabela of CONFIG_TABELAS) if (Array.isArray(porChave.get(tabela))) gravarConfiguracao(tabela, porChave.get(tabela));
-  resultado.gestao = gravarGestao(await buscarTudo(remoto, 'projetos'), await buscarTudo(remoto, 'projeto_entregas'), await buscarTudo(remoto, 'projeto_acompanhamentos'), await buscarTudo(remoto, 'projeto_responsaveis'), await buscarTudo(remoto, 'projeto_tarefas'));
+  resultado.gestao = await baixarGestao(remoto);
   return resultado;
+}
+// A gestão tem prioridade operacional: ela não pode deixar de ser restaurada
+// só porque uma base auxiliar de diagnóstico apresentou alguma falha na carga.
+async function baixarGestao(remotoInformado = null) {
+  if (!ativo()) return { ativo: false };
+  const remoto = remotoInformado || supabase.admin();
+  return gravarGestao(await buscarTudo(remoto, 'projetos'), await buscarTudo(remoto, 'projeto_entregas'), await buscarTudo(remoto, 'projeto_acompanhamentos'), await buscarTudo(remoto, 'projeto_responsaveis'), await buscarTudo(remoto, 'projeto_tarefas'));
 }
 async function publicar() {
   if (!ativo()) return { ativo: false };
@@ -111,4 +118,4 @@ async function publicar() {
   }
   return resultado;
 }
-module.exports = { ativo, baixar, publicar };
+module.exports = { ativo, baixar, baixarGestao, publicar };

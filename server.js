@@ -57,7 +57,12 @@ async function iniciar() {
   try {
     const operacao = require('./src/services/operacaoCompartilhada');
     if (operacao.ativo()) {
-      const dados = await operacao.baixar();
+      let dados = {};
+      try { dados = await operacao.baixar(); }
+      catch (e) { console.error('  carga operacional parcial falhou:', e.message); }
+      // Gestão de escopo/entregas é carregada independentemente das bases do
+      // motor: um erro em qualquer base não pode apagar contratos aprovados.
+      dados.gestao = await operacao.baixarGestao();
       console.log(`  operação compartilhada carregada: ${JSON.stringify(dados)}`);
       const db = require('./src/db');
       const bases = require('./src/services/basesReforma');
