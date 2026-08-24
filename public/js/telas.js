@@ -146,6 +146,7 @@ Telas.dados = async (el) => {
     A.api(`/empresas/${S.empresaId}/lotes`),
   ]);
   const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=200`);
+  const referenciasVendas = aba === 'cliente' ? await A.api(`/empresas/${S.empresaId}/referencias-vendas`) : null;
   const rotulo = aba === 'cliente' ? 'clientes' : 'fornecedores';
 
   el.innerHTML = cab('Módulo 1 · Diagnóstico', 'Cadastros e importação',
@@ -188,6 +189,17 @@ Telas.dados = async (el) => {
         </div>
       </div>
     </div>
+    ${aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
+      <h2>Referências fiscais das vendas por serviço</h2>
+      <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
+      ${referenciasVendas.pendentes.length ? `<div class="aviso atencao"><b>${referenciasVendas.pendentes.length} serviço(s) exigem referência fiscal.</b> Defina PIS/COFINS ou DAS efetivo antes de usar uma estimativa para a venda.</div>` : '<div class="aviso bom"><b>Serviços identificados com referência cadastrada.</b></div>'}
+      ${A.tabela([
+        { t: 'NBS / serviço', r: (s) => `<b class="mono">${A.esc(s.nbs || 'sem NBS')}</b><div class="mini">${A.esc(s.descricao || '')}</div>` },
+        { t: 'Vendas', num: true, r: (s) => A.moeda(s.valor) },
+        { t: 'Referência', r: (s) => s.configurado ? '<span class="tag c">configurada</span>' : '<span class="tag b">obrigatória</span>' },
+        { t: '', r: (s) => `<button class="btn pq ${s.configurado ? 'vazio' : ''}" data-ref-servico="${A.esc(s.chave)}">${s.configurado ? 'Editar' : 'Definir referência'}</button>` },
+      ], referenciasVendas.servicos, { vazio: 'Nenhum serviço com NBS foi identificado nas vendas importadas.' })}
+    </div>` : ''}
     <div class="cartao" id="historico">
       <h2>${rotulo[0].toUpperCase() + rotulo.slice(1)} cadastrados</h2>
       ${A.tabela([
@@ -226,6 +238,15 @@ Telas.dados = async (el) => {
     </div>`;
 
     el.querySelectorAll('[data-aba]').forEach((b) => { b.onclick = () => { S.aba.dados = b.dataset.aba; A.ir('dados'); }; });
+    el.querySelectorAll('[data-ref-servico]').forEach((botao) => { botao.onclick = () => {
+      const s = referenciasVendas.servicos.find((x) => x.chave === botao.dataset.refServico);
+      const existente = referenciasVendas.referencias.find((x) => x.chave === s.chave) || {};
+      A.modal({ titulo: 'Referência fiscal da venda de serviço', descricao: 'Premissa da empresa analisada. Os valores do documento prevalecem quando estiverem informados.',
+        corpo: `<p><b>${A.esc(s.descricao || 'Serviço')}</b><br><span class="mini mono">${A.esc(s.nbs || 'NBS não informado')}</span></p>` +
+          `<div class="grade g3">${A.campo('pis_cofins','PIS/COFINS da venda',existente.pis_cofins ?? '', 'number','step="0.0001"')}${A.campo('das_efetivo','DAS efetivo (Simples)',existente.das_efetivo ?? '', 'number','step="0.0001"')}${A.campo('iss_aliquota','ISS',existente.iss_aliquota ?? '', 'number','step="0.0001"')}</div>`,
+        aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/referencias-vendas/${encodeURIComponent(s.chave)}`, { metodo: 'PUT', corpo: { ...d, nbs: s.nbs, descricao: s.descricao } }); A.toast('Referência fiscal salva', 'ok'); A.ir('dados'); },
+      });
+    }; });
     el.querySelectorAll('[data-ir-importacao]').forEach((b) => { b.onclick = () => document.getElementById(b.dataset.irImportacao)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 
   async function enviar(arquivo, destino) {
@@ -437,12 +458,12 @@ async function telaCadeia(el, tipo) {
       ], [{}])}
       <p class="mini" style="margin-top:12px"><b>Crédito potencial juridicamente associado à operação:</b> ${A.moeda((ultimo.ibs || 0) + (ultimo.cbs || 0))}. A relevância para o comprador é exibida por perfil; não há apuração de crédito do vendedor nesta análise de venda.</p>
     </div>
-    <div class="cartao" style="margin-top:16px">
+    ${eForn ? `<div class="cartao" style="margin-top:16px">
       <h2>Grau de repasse simulado</h2>
-      <p class="desc">100% = ${eForn ? 'o fornecedor repassa integralmente a desoneração/oneração ao preço' : 'a empresa repassa integralmente o IVA ao cliente'}. 0% = preço congelado.</p>
+      <p class="desc">100% = o fornecedor repassa integralmente a desoneração/oneração ao preço. 0% = preço congelado.</p>
       <input type="range" min="0" max="1" step="0.1" value="${rep}" id="repasse">
       <div style="display:flex;justify-content:space-between" class="mini"><span>0% (preço congelado)</span><b class="mono">${A.pct(rep, 0)}</b><span>100% (repasse total)</span></div>
-    </div>
+    </div>` : ''}
     ${!eForn ? `<div class="abas" style="margin-top:16px">
       <button class="${abaCliente === 'carteira' ? 'ativo' : ''}" data-aba-cliente="carteira">Carteira por perfil</button>
       <button class="${abaCliente === 'riscos' ? 'ativo' : ''}" data-aba-cliente="riscos">Riscos e oportunidades</button>
@@ -455,6 +476,10 @@ async function telaCadeia(el, tipo) {
           { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}</div>` },
           { t: 'Valor', num: true, r: (r) => A.moeda(r.valor) },
           { t: 'Part.', num: true, r: (r) => A.pct(r.representatividade, 1) },
+          ...(!eForn ? [
+            { t: 'Venda sem PIS/COFINS', num: true, r: (r) => A.moeda(r.baseEconomica) },
+            { t: 'PIS/COFINS atual', num: true, r: (r) => A.moeda(r.pisCofinsAtual) },
+          ] : []),
           ...(ibsAtivo ? [{ t: 'IBS da venda', num: true, r: (r) => A.moeda(r.ibs) }] : []),
           { t: 'CBS da venda', num: true, r: (r) => A.moeda(r.cbs) },
           { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (r) => A.moeda(r.precoProjetado) },

@@ -639,12 +639,50 @@ function carregarMovimentos(empresaId, tipo) {
     .map((m) => ({ ...m, nome: m.nome_parceiro || m.nome }));
 }
 
+function chaveReferenciaServico(m) {
+  const nbs = String(m.nbs || '').replace(/\D/g, '');
+  if (nbs) return `nbs:${nbs}`;
+  return `descricao:${String(m.descricao || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160)}`;
+}
+
+router.get('/empresas/:id/referencias-vendas', (req, res) => {
+  try {
+    const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
+    const mapa = new Set(referencias.filter((r) => r.ativo).map((r) => r.chave));
+    const servicos = db.prepare(`SELECT nbs, descricao, COUNT(*) registros, COALESCE(SUM(valor),0) valor
+      FROM movimentos WHERE empresa_id=? AND tipo='cliente' AND COALESCE(nbs,'')<>''
+      GROUP BY nbs, descricao ORDER BY valor DESC`).all(req.params.id)
+      .map((s) => ({ ...s, chave: chaveReferenciaServico(s), configurado: mapa.has(chaveReferenciaServico(s)) }));
+    ok(res, { referencias, servicos, pendentes: servicos.filter((s) => !s.configurado) });
+  } catch (e) { erro(res, e); }
+});
+
+router.put('/empresas/:id/referencias-vendas/:chave', (req, res) => {
+  try {
+    const b = req.body;
+    if (b.pis_cofins === '' && b.das_efetivo === '') throw new Error('Informe PIS/COFINS ou a alíquota efetiva do DAS para esta venda de serviço.');
+    db.prepare(`INSERT INTO empresa_servicos_fiscais (empresa_id,chave,nbs,descricao,pis_cofins,das_efetivo,iss_aliquota,ativo,origem,atualizado_em)
+      VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
+      ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
+      pis_cofins=excluded.pis_cofins,das_efetivo=excluded.das_efetivo,iss_aliquota=excluded.iss_aliquota,ativo=excluded.ativo,origem=excluded.origem,atualizado_em=excluded.atualizado_em`)
+      .run(req.params.id, req.params.chave, b.nbs || '', b.descricao || 'Serviço', b.pis_cofins === '' ? null : Number(b.pis_cofins), b.das_efetivo === '' ? null : Number(b.das_efetivo), b.iss_aliquota === '' ? null : Number(b.iss_aliquota), 1, 'manual');
+    ok(res, {});
+  } catch (e) { erro(res, e); }
+});
+
 router.get('/empresas/:id/cadeia/:tipo', (req, res) => {
   try {
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
     const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';
-    const movs = carregarMovimentos(req.params.id, tipo);
+    let movs = carregarMovimentos(req.params.id, tipo);
+    if (tipo === 'cliente') {
+      const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(req.params.id);
+      const mapaRefs = new Map(refs.map((r) => [r.chave, r]));
+      movs = movs.map((m) => ({ ...m, referenciaFiscal: mapaRefs.get(chaveReferenciaServico(m)) || null }));
+      const pendentes = movs.filter((m) => String(m.nbs || '').replace(/\D/g, '') && !m.referenciaFiscal);
+      if (pendentes.length) throw new Error(`${pendentes.length} serviço(s) de venda exigem referência fiscal no cadastro da empresa. Acesse Cadastros e importação → Clientes → Referências fiscais das vendas por serviço.`);
+    }
     const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
     const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
     // Na fase CBS há uma única referência: a mesma linha editada em

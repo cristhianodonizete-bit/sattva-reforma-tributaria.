@@ -14,6 +14,47 @@ const { calcularOperacao, r2, r4 } = require('./calculadora');
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
 const soma = (arr, f) => arr.reduce((s, x) => s + num(f(x)), 0);
 
+function parametrosDoCenario(cfg, ano) {
+  return cfg.parametrosIVA && (cfg.parametrosIVA[ano] || cfg.parametrosIVA) || {};
+}
+
+/**
+ * Saídas: leitura comercial do impacto para o VENDEDOR.
+ * Não retira ICMS/ISS nem crédito do cliente: somente o PIS/COFINS atual
+ * da empresa, conforme a referência do serviço (quando houver) ou seu regime.
+ */
+function calcularVendaCbs(m, regimeEmpresa, regimeCliente, cfg) {
+  const valor = num(m.valor);
+  const referencia = m.referenciaFiscal || {};
+  const pisCofinsAliq = referencia.pis_cofins !== null && referencia.pis_cofins !== undefined
+    ? num(referencia.pis_cofins) : num((P.REGIMES[regimeEmpresa] || {}).pisCofins);
+  const pisCofins = valor * pisCofinsAliq;
+  const baseEconomica = Math.max(valor - pisCofins, 0);
+  const anos = (cfg.anos && cfg.anos.length ? cfg.anos : [2033]).map(Number);
+  const projecao = anos.map((ano) => {
+    const p = parametrosDoCenario(cfg, ano);
+    const cbsAliq = num(p.cbs);
+    const ibsAliq = Number(p.calcular_ibs) === 1 ? num(p.ibs) : 0;
+    const cbs = baseEconomica * cbsAliq;
+    const ibs = baseEconomica * ibsAliq;
+    const precoFinal = baseEconomica + cbs + ibs;
+    const creditoPotencial = cbs + ibs;
+    const clienteCredita = !!(P.REGIMES[regimeCliente] || {}).creditaNovo;
+    return {
+      ano, valorSemImposto: r2(baseEconomica), cbs: r2(cbs), ibs: r2(ibs), iva: r2(creditoPotencial),
+      totalTributos: r2(creditoPotencial), precoFinal: r2(precoFinal),
+      credito: { total: r2(clienteCredita ? creditoPotencial : 0) },
+      custoEfetivo: r2(precoFinal - (clienteCredita ? creditoPotencial : 0)),
+      variacaoCusto: r2(precoFinal - valor), variacaoCustoPerc: valor ? r4((precoFinal - valor) / valor) : 0,
+    };
+  });
+  return {
+    atual: { valorOperacao: r2(valor), valorSemImposto: r2(baseEconomica), totalTributos: r2(pisCofins),
+      credito: { total: 0 }, custoEfetivo: r2(valor), pisCofins: r2(pisCofins) },
+    projecao,
+  };
+}
+
 // Na saída não se apura crédito do vendedor. Esta leitura é exclusivamente
 // comercial: indica se o IBS/CBS destacado tende a ser economicamente
 // relevante para o comprador, sem afirmar direito ou apropriação efetiva.
@@ -52,13 +93,16 @@ function analisarCadeia(movimentos, cfg = {}) {
     const regimeEmitente = lado === 'fornecedor' ? regimeParceiro : regimeEmpresa;
     const regimeAdquirente = lado === 'fornecedor' ? regimeEmpresa : regimeParceiro;
 
-    const res = calcularOperacao({
+    const res = lado === 'cliente' ? calcularVendaCbs(m, regimeEmpresa, regimeParceiro, cfg) : calcularOperacao({
       valor: num(m.valor), baseCalculo: num(m.base_calculo) || num(m.baseCalculo),
       regime: regimeEmitente, regimeAdquirente,
-      tipo: m.tipo || (m.ncm ? 'mercadoria' : 'servico'),
+      tipo: m.nbs ? 'servico' : (m.ncm ? 'mercadoria' : 'servico'),
       icms: m.icms, pis: m.pis, cofins: m.cofins, ipi: m.ipi, iss: m.iss,
       icmsSt: m.icms_st || m.icmsSt, pisCofins: m.pis_cofins || m.pisCofins,
       reducao: m.reducao || 'integral', aliqEspecifica: m.aliq_especifica,
+      aliqPisCofins: m.referenciaFiscal?.pis_cofins,
+      aliqSimples: m.referenciaFiscal?.das_efetivo,
+      aliqIss: m.referenciaFiscal?.iss_aliquota,
       grauRepasse: cfg.grauRepasse, anos, parametrosIVA: cfg.parametrosIVA,
     });
 
@@ -67,7 +111,7 @@ function analisarCadeia(movimentos, cfg = {}) {
       porParceiro.set(chave, {
         chave, nome: m.nome || m.descricao || chave, cnpj: m.cnpj || m.inscr_federal || '',
         regime: regimeParceiro, regimeLabel: (P.REGIMES[regimeParceiro] || {}).label || regimeParceiro,
-        itens: 0, valor: 0, baseEconomica: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, custoHoje: 0,
+        itens: 0, valor: 0, baseEconomica: 0, pisCofinsAtual: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, custoHoje: 0,
         custoFinal: 0, precoFinal: 0, creditoFinal: 0, creditoPotencial: 0,
         relevanciaCreditoCliente: relevanciaCreditoCliente(regimeParceiro),
       });
@@ -77,6 +121,7 @@ function analisarCadeia(movimentos, cfg = {}) {
     p.itens += 1;
     p.valor += res.atual.valorOperacao;
     p.baseEconomica += ultimo.valorSemImposto;
+    p.pisCofinsAtual += res.atual.pisCofins || 0;
     p.ibs += ultimo.ibs;
     p.cbs += ultimo.cbs;
     p.tributos += res.atual.totalTributos;
@@ -91,13 +136,14 @@ function analisarCadeia(movimentos, cfg = {}) {
 
     if (!porRegime.has(regimeParceiro)) {
       porRegime.set(regimeParceiro, { regime: regimeParceiro, label: (P.REGIMES[regimeParceiro] || {}).label || regimeParceiro,
-        parceiros: new Set(), valor: 0, baseEconomica: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, creditoFinal: 0, creditoPotencial: 0, custoHoje: 0, custoFinal: 0, precoFinal: 0,
+        parceiros: new Set(), valor: 0, baseEconomica: 0, pisCofinsAtual: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, creditoFinal: 0, creditoPotencial: 0, custoHoje: 0, custoFinal: 0, precoFinal: 0,
         relevanciaCreditoCliente: relevanciaCreditoCliente(regimeParceiro) });
     }
     const rg = porRegime.get(regimeParceiro);
     rg.parceiros.add(chave);
     rg.valor += res.atual.valorOperacao;
     rg.baseEconomica += ultimo.valorSemImposto;
+    rg.pisCofinsAtual += res.atual.pisCofins || 0;
     rg.ibs += ultimo.ibs;
     rg.cbs += ultimo.cbs;
     rg.tributos += res.atual.totalTributos;
@@ -143,7 +189,7 @@ function analisarCadeia(movimentos, cfg = {}) {
     variacaoCustoPerc: p.custoHoje ? r4((p.custoFinal - p.custoHoje) / p.custoHoje) : 0,
     impactoOperacao: r2(p.precoFinal - p.valor),
     impactoOperacaoPerc: p.valor ? r4((p.precoFinal - p.valor) / p.valor) : 0,
-    valor: r2(p.valor), baseEconomica: r2(p.baseEconomica), ibs: r2(p.ibs), cbs: r2(p.cbs), tributos: r2(p.tributos), creditoHoje: r2(p.creditoHoje),
+    valor: r2(p.valor), baseEconomica: r2(p.baseEconomica), pisCofinsAtual: r2(p.pisCofinsAtual), ibs: r2(p.ibs), cbs: r2(p.cbs), tributos: r2(p.tributos), creditoHoje: r2(p.creditoHoje),
     custoHoje: r2(p.custoHoje), custoFinal: r2(p.custoFinal), creditoFinal: r2(p.creditoFinal), creditoPotencial: r2(p.creditoPotencial),
     precoFinal: r2(p.precoFinal),
   })).sort((a, b) => b.valor - a.valor);
@@ -160,7 +206,7 @@ function analisarCadeia(movimentos, cfg = {}) {
     regime: r.regime, label: r.label, parceiros: r.parceiros.size,
     relevanciaCreditoCliente: r.relevanciaCreditoCliente,
     valor: r2(r.valor), representatividade: totalValor ? r4(r.valor / totalValor) : 0,
-    baseEconomica: r2(r.baseEconomica), ibs: r2(r.ibs), cbs: r2(r.cbs), tributos: r2(r.tributos), creditoHoje: r2(r.creditoHoje), creditoFinal: r2(r.creditoFinal), creditoPotencial: r2(r.creditoPotencial),
+    baseEconomica: r2(r.baseEconomica), pisCofinsAtual: r2(r.pisCofinsAtual), ibs: r2(r.ibs), cbs: r2(r.cbs), tributos: r2(r.tributos), creditoHoje: r2(r.creditoHoje), creditoFinal: r2(r.creditoFinal), creditoPotencial: r2(r.creditoPotencial),
     variacaoCredito: r2(r.creditoFinal - r.creditoHoje),
     custoHoje: r2(r.custoHoje), custoFinal: r2(r.custoFinal),
     variacaoCusto: r2(r.custoFinal - r.custoHoje),

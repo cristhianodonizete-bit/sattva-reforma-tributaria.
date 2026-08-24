@@ -65,7 +65,8 @@ function grossDown(op) {
     } else if (regimeKey === 'imune_isento' || regimeKey === 'pessoa_fisica' || regimeKey === 'produtor_rural_pf' || regimeKey === 'orgao_publico' || regimeKey === 'exterior') {
       // sem tributos destacados
     } else {
-      const pc = regime.pisCofins || 0;
+      const pc = op.aliqPisCofins !== undefined && op.aliqPisCofins !== ''
+        ? num(op.aliqPisCofins) : (regime.pisCofins || 0);
       pis = base * (pc * 0.1757);       // proporção PIS dentro do bloco PIS/COFINS
       cofins = base * (pc * 0.8243);
       if (tipo === 'servico') {

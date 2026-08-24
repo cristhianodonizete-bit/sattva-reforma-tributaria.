@@ -63,6 +63,9 @@ const COLUNAS_NOVAS = {
   },
   turmas: { limite_participantes: 'INTEGER DEFAULT 30' },
   participantes: { empresa_id: 'INTEGER' },
+  empresa_servicos_fiscais: {
+    pis_cofins: 'REAL', das_efetivo: 'REAL', iss_aliquota: 'REAL', ativo: 'INTEGER DEFAULT 1', origem: "TEXT DEFAULT 'manual'",
+  },
   cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT' },
 };
 
@@ -108,6 +111,19 @@ CREATE TABLE IF NOT EXISTS empresas (
   codigo_questor TEXT,
   observacoes TEXT,
   criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+
+-- Referência da tributação atual por serviço vendido. Nunca substituir uma
+-- informação efetivamente destacada no documento; serve quando ela não veio.
+CREATE TABLE IF NOT EXISTS empresa_servicos_fiscais (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  chave TEXT NOT NULL, nbs TEXT, descricao TEXT NOT NULL,
+  pis_cofins REAL, das_efetivo REAL, iss_aliquota REAL,
+  ativo INTEGER DEFAULT 1, origem TEXT DEFAULT 'manual',
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, chave)
 );
 
 -- ============ 1.a PERFIL TRIBUTÁRIO ============
