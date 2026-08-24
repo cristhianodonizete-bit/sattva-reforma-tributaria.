@@ -209,6 +209,12 @@ function gerarModelo(tipo) {
       { 'CNPJ': '98.765.432/0001-10', 'Descrição': 'PRESTADOR EXEMPLO ME', 'Regime Tributário': 'Simples Nacional', 'UF': 'SP', 'Município': 'São Paulo' },
       { 'CNPJ': '11.222.333/0001-44', 'Descrição': 'CLIENTE INDUSTRIA SA', 'Regime Tributário': 'Lucro Presumido', 'UF': 'MG', 'Município': 'Uberaba' },
     ];
+  } else if (tipo === 'referencias_servicos') {
+    nomeAba = 'Referências fiscais';
+    dados = [
+      { 'Descrição do serviço': 'CONSULTORIA TRIBUTÁRIA', 'NBS': '111032200', 'PIS/COFINS': '9,25%', 'DAS efetivo': '', 'ISS': '2,00%' },
+      { 'Descrição do serviço': 'SUPORTE OPERACIONAL', 'NBS': '', 'PIS/COFINS': '', 'DAS efetivo': '6,50%', 'ISS': '2,00%' },
+    ];
   } else {
     nomeAba = tipo === 'movimento_cliente' ? 'Saidas' : 'Entradas';
     const rotulo = tipo === 'movimento_cliente' ? 'Cliente' : 'Fornecedor';
@@ -235,6 +241,7 @@ function gerarModelo(tipo) {
     { Campo: 'Valores', 'Valores aceitos': 'Aceita 1.234,56 ou 1234.56' },
     { Campo: 'Colunas', 'Valores aceitos': 'A ordem não importa. O sistema identifica pelo nome do cabeçalho e ignora acentos e maiúsculas.' },
     { Campo: 'Impostos', 'Valores aceitos': 'Se não houver colunas de imposto, o sistema estima pelo regime. Uma coluna única "Impostos" também é aceita.' },
+    ...(tipo === 'referencias_servicos' ? [{ Campo: 'Referências fiscais', 'Valores aceitos': 'Informe Descrição do serviço e ao menos PIS/COFINS ou DAS efetivo. As alíquotas aceitam 9,25% ou 0,0925. NBS é opcional.' }] : []),
   ];
   const wsI = XLSX.utils.json_to_sheet(instr);
   wsI['!cols'] = [{ wch: 24 }, { wch: 110 }];

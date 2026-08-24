@@ -192,7 +192,7 @@ Telas.dados = async (el) => {
     ${aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
       <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn vazio pq" id="addReferenciaServico">Adicionar serviço ao cadastro</button><button class="btn vazio pq" id="importarReferenciasServico">Importar referências</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn vazio pq" id="addReferenciaServico">Adicionar serviço ao cadastro</button><button class="btn vazio pq" id="importarReferenciasServico">Importar referências</button><button class="btn vazio pq" onclick="window.open('/api/modelos/referencias_servicos')">Baixar modelo</button></div>
       ${referenciasVendas.pendentes.length ? `<div class="aviso atencao"><b>${referenciasVendas.pendentes.length} serviço(s) exigem referência fiscal.</b> Defina PIS/COFINS ou DAS efetivo antes de usar uma estimativa para a venda.</div>` : '<div class="aviso bom"><b>Serviços identificados com referência cadastrada.</b></div>'}
       ${A.tabela([
         { t: 'NBS / serviço', r: (s) => `<b class="mono">${A.esc(s.nbs || 'sem NBS')}</b><div class="mini">${A.esc(s.descricao || '')}</div>` },

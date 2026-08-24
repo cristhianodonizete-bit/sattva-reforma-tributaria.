@@ -528,7 +528,7 @@ router.delete('/parceiros/:id', (req, res) => {
 // IMPORTAÇÕES
 // ===========================================================================
 router.get('/modelos/:tipo', (req, res) => {
-  const tipos = { parceiros: 'Modelo_Cadastro_Clientes_Fornecedores', movimento_fornecedor: 'Modelo_Movimentacao_Fornecedores', movimento_cliente: 'Modelo_Movimentacao_Clientes' };
+  const tipos = { parceiros: 'Modelo_Cadastro_Clientes_Fornecedores', movimento_fornecedor: 'Modelo_Movimentacao_Fornecedores', movimento_cliente: 'Modelo_Movimentacao_Clientes', referencias_servicos: 'Modelo_Referencias_Fiscais_Servicos' };
   if (!tipos[req.params.tipo]) return erro(res, new Error('Modelo inexistente'), 404);
   const buf = imp.gerarModelo(req.params.tipo);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
