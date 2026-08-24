@@ -707,6 +707,12 @@ function referenciaFiscalPrecificacao(empresaId, item, exigir = true) {
 }
 
 const temAliquotaInformada = (valor) => valor !== '' && valor !== null && valor !== undefined;
+const normalizarAliquota = (valor) => {
+  const texto = String(valor == null ? '' : valor).trim();
+  const percentual = texto.includes('%');
+  const n = imp.numeroBR(texto.replace(/%/g, ''));
+  return percentual || n > 1 ? n / 100 : n;
+};
 
 router.get('/empresas/:id/referencias-vendas', (req, res) => {
   try {
@@ -744,7 +750,7 @@ router.put('/empresas/:id/referencias-vendas/:chave', (req, res) => {
       VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
       ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
       pis_cofins=excluded.pis_cofins,das_efetivo=excluded.das_efetivo,iss_aliquota=excluded.iss_aliquota,ativo=excluded.ativo,origem=excluded.origem,atualizado_em=excluded.atualizado_em`)
-      .run(req.params.id, req.params.chave, b.nbs || '', b.descricao || 'Serviço', b.pis_cofins === '' ? null : Number(b.pis_cofins), b.das_efetivo === '' ? null : Number(b.das_efetivo), b.iss_aliquota === '' ? null : Number(b.iss_aliquota), 1, 'manual');
+      .run(req.params.id, req.params.chave, b.nbs || '', b.descricao || 'Serviço', temAliquotaInformada(b.pis_cofins) ? normalizarAliquota(b.pis_cofins) : null, temAliquotaInformada(b.das_efetivo) ? normalizarAliquota(b.das_efetivo) : null, temAliquotaInformada(b.iss_aliquota) ? normalizarAliquota(b.iss_aliquota) : null, 1, 'manual');
     ok(res, {});
   } catch (e) { erro(res, e); }
 });
@@ -760,7 +766,7 @@ router.post('/empresas/:id/referencias-vendas', (req, res) => {
       VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
       ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
       pis_cofins=excluded.pis_cofins,das_efetivo=excluded.das_efetivo,iss_aliquota=excluded.iss_aliquota,ativo=excluded.ativo,origem=excluded.origem,atualizado_em=excluded.atualizado_em`)
-      .run(req.params.id, chave, b.nbs || '', descricao, b.pis_cofins === '' ? null : Number(b.pis_cofins), b.das_efetivo === '' ? null : Number(b.das_efetivo), b.iss_aliquota === '' ? null : Number(b.iss_aliquota), 1, 'manual');
+      .run(req.params.id, chave, b.nbs || '', descricao, temAliquotaInformada(b.pis_cofins) ? normalizarAliquota(b.pis_cofins) : null, temAliquotaInformada(b.das_efetivo) ? normalizarAliquota(b.das_efetivo) : null, temAliquotaInformada(b.iss_aliquota) ? normalizarAliquota(b.iss_aliquota) : null, 1, 'manual');
     ok(res, { chave });
   } catch (e) { erro(res, e); }
 });
@@ -773,12 +779,6 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
     const campo = (linha, nomes) => {
       for (const chave of Object.keys(linha)) if (nomes.includes(normalizarColuna(chave))) return linha[chave];
       return '';
-    };
-    const aliquota = (valor) => {
-      const texto = String(valor == null ? '' : valor).trim();
-      const percentual = texto.includes('%');
-      const n = imp.numeroBR(texto.replace(/%/g, ''));
-      return percentual || n > 1 ? n / 100 : n;
     };
     const gravar = db.prepare(`INSERT INTO empresa_servicos_fiscais (empresa_id,chave,nbs,descricao,pis_cofins,das_efetivo,iss_aliquota,ativo,origem,atualizado_em)
       VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
@@ -798,8 +798,8 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
         if (!temPis && !temDas) throw new Error(`O serviço “${descricao}” não informa PIS/COFINS nem DAS efetivo.`);
         const chave = chaveReferenciaServico({ nbs, descricao });
         gravar.run(req.params.id, chave, nbs, descricao,
-          temPis ? aliquota(brutoPis) : null, temDas ? aliquota(brutoDas) : null,
-          brutoIss === '' || brutoIss === null || brutoIss === undefined ? null : aliquota(brutoIss), 1, 'importacao');
+          temPis ? normalizarAliquota(brutoPis) : null, temDas ? normalizarAliquota(brutoDas) : null,
+          brutoIss === '' || brutoIss === null || brutoIss === undefined ? null : normalizarAliquota(brutoIss), 1, 'importacao');
         importados++;
       }
     })();
