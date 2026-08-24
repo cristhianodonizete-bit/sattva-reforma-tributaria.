@@ -448,6 +448,7 @@ async function telaCadeia(el, tipo) {
   const mostrarCarteira = eForn || abaCliente === 'carteira';
   const mostrarRiscos = eForn || abaCliente === 'riscos';
   const mostrarAbc = eForn || abaCliente === 'abc';
+  const mostrarRastreabilidade = !eForn && abaCliente === 'rastreabilidade';
 
   el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
     eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
@@ -486,6 +487,7 @@ async function telaCadeia(el, tipo) {
       <button class="${abaCliente === 'carteira' ? 'ativo' : ''}" data-aba-cliente="carteira">Carteira por perfil</button>
       <button class="${abaCliente === 'riscos' ? 'ativo' : ''}" data-aba-cliente="riscos">Riscos e oportunidades</button>
       <button class="${abaCliente === 'abc' ? 'ativo' : ''}" data-aba-cliente="abc">Curva ABC</button>
+      <button class="${abaCliente === 'rastreabilidade' ? 'ativo' : ''}" data-aba-cliente="rastreabilidade">Rastreabilidade</button>
     </div>` : ''}
     ${mostrarRiscos ? `<div class="cartao" style="margin-top:16px"><h2>Riscos e oportunidades</h2><p class="desc">Leitura da carteira sob a ótica da empresa vendedora.</p>${A.avisos(analise.riscos)}</div>` : ''}
     ${mostrarCarteira ? `<div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Compras por regime do fornecedor' : 'Carteira por perfil de cliente'}</h2>
@@ -537,6 +539,21 @@ async function telaCadeia(el, tipo) {
         { t: 'Crédito potencial', num: true, r: (p) => A.moeda(p.creditoPotencial) },
         { t: 'Relevância do crédito', r: (p) => `<span class="tag ${String(p.relevanciaCreditoCliente || '').startsWith('Potencialmente') ? 'c' : 'n'}">${A.esc(p.relevanciaCreditoCliente)}</span>` },
       ], analise.parceiros.slice(0, 200))}
+    </div>` : ''}
+    ${mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade da base econômica</h2>
+      <p class="desc">Mostra como cada venda chegou à base usada para CBS. O valor do documento prevalece; a referência fiscal entra apenas quando não há PIS/COFINS informado.</p>
+      ${A.tabela([
+        { t: 'Cliente', r: (d) => `${A.esc(d.parceiro)}<div class="mini mono">${A.cnpjFmt(d.cnpj)}</div>` },
+        { t: 'Serviço', r: (d) => `${A.esc(d.produto)}<div class="mini mono">${A.esc(d.nbs || d.ncm || 'sem NBS/NCM')}</div>` },
+        { t: 'Venda atual', num: true, r: (d) => A.moeda(d.valor) },
+        { t: 'PIS/COFINS', num: true, r: (d) => A.moeda(d.pisCofinsAtual) },
+        { t: 'Origem', r: (d) => `<span class="tag ${d.origemPisCofins === 'documento' ? 'c' : 'a'}">${A.esc(d.origemPisCofins || 'a validar')}</span>` },
+        { t: 'Base econômica', num: true, r: (d) => A.moeda(d.valorSemImposto) },
+        ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (d) => A.moeda(d.ibs) }] : []),
+        { t: 'CBS', num: true, r: (d) => A.moeda(d.cbs) },
+        { t: 'Venda projetada', num: true, r: (d) => A.moeda(d.precoFinal) },
+        { t: 'Impacto', num: true, r: (d) => A.setaR$(d.impactoOperacao) },
+      ], analise.detalhes.slice(0, 500), { vazio: 'Não há vendas para rastrear.' })}
     </div>` : ''}` : A.vazio('Sem movimentação importada',
       `Importe a movimentação de ${eForn ? 'fornecedores' : 'clientes'} para gerar esta análise.`,
       '<button class="btn" onclick="App.ir(\'dados\')">Ir para importação</button>'));
