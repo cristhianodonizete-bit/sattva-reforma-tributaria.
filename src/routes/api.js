@@ -261,13 +261,13 @@ router.get('/acessos', async (_req, res) => {
 router.get('/acessos/auditoria', async (_req, res) => {
   try {
     const remoto = supabase.admin();
-    const [{ data: registros, error: erroRegistros }, { data: perfis, error: erroPerfis }] = await Promise.all([
+    const [{ data: registros, error: erroRegistros }, { data: usuarios, error: erroUsuarios }] = await Promise.all([
       remoto.from('auditoria').select('id,usuario_id,acao,entidade,entidade_id,antes,depois,criado_em').order('criado_em', { ascending: false }).limit(150),
       remoto.from('perfis').select('id,nome'),
     ]);
     if (erroRegistros) throw erroRegistros;
-    if (erroPerfis) throw erroPerfis;
-    const nomes = new Map((perfis || []).map((p) => [p.id, p.nome]));
+    if (erroUsuarios) throw erroUsuarios;
+    const nomes = new Map((usuarios || []).map((usuario) => [usuario.id, usuario.nome]));
     ok(res, { registros: (registros || []).map((r) => ({ ...r, usuario: nomes.get(r.usuario_id) || 'Usuário não identificado' })) });
   } catch (e) { erro(res, e); }
 });
