@@ -591,7 +591,7 @@ function agendarEnriquecimentoAutomatico(empresaId) {
       if (fila.status === 'agendado' || fila.status === 'executando') return;
       clearInterval(aguardar);
       if (fila.status === 'concluido' && fila.resultado && fila.resultado.atualizados) {
-        try { motorExec.executar(empresaId, { ano: 2033 }); } catch (_) { /* próxima abertura recalcula */ }
+        try { motorExec.executar(empresaId, { ano: 2027 }); } catch (_) { /* próxima abertura recalcula */ }
       }
     }, 1000);
   }
@@ -645,6 +645,23 @@ function chaveReferenciaServico(m) {
   return `descricao:${String(m.descricao || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160)}`;
 }
 
+function prepararCadeia(empresa, tipo, query = {}) {
+  let movimentos = carregarMovimentos(empresa.id, tipo);
+  if (tipo === 'cliente') {
+    const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresa.id);
+    const mapaRefs = new Map(refs.map((r) => [r.chave, r]));
+    movimentos = movimentos.map((m) => ({ ...m, referenciaFiscal: mapaRefs.get(chaveReferenciaServico(m)) || null }));
+    const pendentes = movimentos.filter((m) => String(m.nbs || '').replace(/\D/g, '') && !m.referenciaFiscal);
+    if (pendentes.length) throw new Error(`${pendentes.length} serviço(s) de venda exigem referência fiscal no cadastro da empresa. Acesse Cadastros e importação → Clientes → Referências fiscais das vendas por serviço.`);
+  }
+  const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
+  const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
+  const referencia = aliquotas.find((a) => Number(a.ano) === 2033) || aliquotas[aliquotas.length - 1];
+  const anos = query.anos ? String(query.anos).split(',').map(Number)
+    : (ibsAtivo ? aliquotas.map((a) => Number(a.ano)) : [Number(referencia?.ano || 2033)]);
+  return { movimentos, anos, parametrosIVA: ibsAtivo ? Object.fromEntries(aliquotas.map((a) => [Number(a.ano), a])) : referencia };
+}
+
 router.get('/empresas/:id/referencias-vendas', (req, res) => {
   try {
     const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
@@ -675,27 +692,10 @@ router.get('/empresas/:id/cadeia/:tipo', (req, res) => {
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
     const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';
-    let movs = carregarMovimentos(req.params.id, tipo);
-    if (tipo === 'cliente') {
-      const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(req.params.id);
-      const mapaRefs = new Map(refs.map((r) => [r.chave, r]));
-      movs = movs.map((m) => ({ ...m, referenciaFiscal: mapaRefs.get(chaveReferenciaServico(m)) || null }));
-      const pendentes = movs.filter((m) => String(m.nbs || '').replace(/\D/g, '') && !m.referenciaFiscal);
-      if (pendentes.length) throw new Error(`${pendentes.length} serviço(s) de venda exigem referência fiscal no cadastro da empresa. Acesse Cadastros e importação → Clientes → Referências fiscais das vendas por serviço.`);
-    }
-    const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
-    const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
-    // Na fase CBS há uma única referência: a mesma linha editada em
-    // Configurações. Com IBS habilitado, cada ano usa a sua própria regra.
-    const referencia = aliquotas.find((a) => Number(a.ano) === 2033) || aliquotas[aliquotas.length - 1];
-    const anos = req.query.anos ? String(req.query.anos).split(',').map(Number)
-      : (ibsAtivo ? aliquotas.map((a) => Number(a.ano)) : [Number(referencia?.ano || 2033)]);
-    const parametrosIVA = ibsAtivo
-      ? Object.fromEntries(aliquotas.map((a) => [Number(a.ano), a]))
-      : referencia;
-    const resultado = analisarCadeia(movs, {
-      regimeEmpresa: empresa.regime, lado: tipo, anos,
-      parametrosIVA,
+    const cfg = prepararCadeia(empresa, tipo, req.query);
+    const resultado = analisarCadeia(cfg.movimentos, {
+      regimeEmpresa: empresa.regime, lado: tipo, anos: cfg.anos,
+      parametrosIVA: cfg.parametrosIVA,
       grauRepasse: req.query.repasse !== undefined ? Number(req.query.repasse) : 1,
     });
     ok(res, { empresa, analise: resultado });
@@ -707,10 +707,13 @@ router.get('/empresas/:id/cenarios', (req, res) => {
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
     const repasse = req.query.repasse !== undefined ? Number(req.query.repasse) : 1;
-    const compras = analisarCadeia(carregarMovimentos(req.params.id, 'fornecedor'), { regimeEmpresa: empresa.regime, lado: 'fornecedor', grauRepasse: repasse });
-    const vendas = analisarCadeia(carregarMovimentos(req.params.id, 'cliente'), { regimeEmpresa: empresa.regime, lado: 'cliente', grauRepasse: repasse });
+    const cfgCompras = prepararCadeia(empresa, 'fornecedor', req.query);
+    const cfgVendas = prepararCadeia(empresa, 'cliente', req.query);
+    const compras = analisarCadeia(cfgCompras.movimentos, { regimeEmpresa: empresa.regime, lado: 'fornecedor', anos: cfgCompras.anos, parametrosIVA: cfgCompras.parametrosIVA, grauRepasse: repasse });
+    const vendas = analisarCadeia(cfgVendas.movimentos, { regimeEmpresa: empresa.regime, lado: 'cliente', anos: cfgVendas.anos, parametrosIVA: cfgVendas.parametrosIVA, grauRepasse: repasse });
 
-    const consolidado = P.ANOS.map((ano) => {
+    const anos = [...new Set([...cfgCompras.anos, ...cfgVendas.anos])];
+    const consolidado = anos.map((ano) => {
       const c = compras.cenarios.find((x) => x.ano === ano) || {};
       const v = vendas.cenarios.find((x) => x.ano === ano) || {};
       const receitaLiquida = (v.precoFinal || 0) - (v.tributos || 0);
@@ -2024,7 +2027,7 @@ router.post('/config/recalcular', (_req, res) => {
         saida.movimentos += classificacao.total || 0;
 
         const ultima = db.prepare('SELECT ano FROM motor_execucoes WHERE empresa_id = ? ORDER BY id DESC LIMIT 1').get(empresa.id);
-        motorExec.executar(empresa.id, { ano: ultima ? ultima.ano : 2033 });
+        motorExec.executar(empresa.id, { ano: ultima ? ultima.ano : 2027 });
         saida.motores++;
 
         for (const item of itensPreco(empresa.id)) {

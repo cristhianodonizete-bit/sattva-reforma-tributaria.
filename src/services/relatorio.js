@@ -20,6 +20,27 @@ function carregarMovimentos(empresaId, tipo) {
     WHERE m.empresa_id = ? AND m.tipo = ?`).all(empresaId, tipo);
 }
 
+function chaveReferenciaServico(m) {
+  const nbs = String(m.nbs || '').replace(/\D/g, '');
+  return nbs ? `nbs:${nbs}` : `descricao:${String(m.descricao || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160)}`;
+}
+
+function prepararCadeia(empresaId, tipo) {
+  let movimentos = carregarMovimentos(empresaId, tipo);
+  if (tipo === 'cliente') {
+    const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId);
+    const mapa = new Map(refs.map((r) => [r.chave, r]));
+    movimentos = movimentos.map((m) => ({ ...m, referenciaFiscal: mapa.get(chaveReferenciaServico(m)) || null }));
+    const pendentes = movimentos.filter((m) => String(m.nbs || '').replace(/\D/g, '') && !m.referenciaFiscal);
+    if (pendentes.length) throw new Error(`${pendentes.length} serviço(s) de venda exigem referência fiscal antes da emissão do relatório.`);
+  }
+  const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
+  const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
+  const referencia = aliquotas.find((a) => Number(a.ano) === 2033) || aliquotas[aliquotas.length - 1];
+  return { movimentos, anos: ibsAtivo ? aliquotas.map((a) => Number(a.ano)) : [Number(referencia?.ano || 2033)],
+    parametrosIVA: ibsAtivo ? Object.fromEntries(aliquotas.map((a) => [Number(a.ano), a])) : referencia };
+}
+
 function aba(wb, nome, dados, larguras) {
   const ws = XLSX.utils.json_to_sheet(dados.length ? dados : [{ 'Sem dados': '' }]);
   ws['!cols'] = larguras || Object.keys(dados[0] || { a: 1 }).map((k) => ({ wch: Math.max(14, String(k).length + 3) }));
@@ -31,6 +52,7 @@ function gerar(empresaId, tipo, query = {}) {
   if (!empresa) throw new Error('Empresa não encontrada');
   const wb = XLSX.utils.book_new();
   const repasse = query.repasse !== undefined ? Number(query.repasse) : 1;
+  const referenciaCbs = db.prepare('SELECT * FROM param_aliquotas WHERE ano=2033').get() || {};
 
   const capa = [
     { Campo: 'Empresa', Valor: empresa.razao_social },
@@ -40,14 +62,15 @@ function gerar(empresaId, tipo, query = {}) {
     { Campo: 'Relatório', Valor: tipo },
     { Campo: 'Emissão', Valor: new Date().toLocaleString('pt-BR') },
     { Campo: 'Responsável', Valor: 'Sattva Controladoria — Implementação da Reforma Tributária' },
-    { Campo: 'Alíquota de referência CBS', Valor: `${(P.ALIQUOTA_REFERENCIA.cbs * 100).toFixed(2)}%` },
-    { Campo: 'Alíquota de referência IBS', Valor: `${(P.ALIQUOTA_REFERENCIA.ibs * 100).toFixed(2)}%` },
+    { Campo: 'Alíquota de referência CBS', Valor: `${((Number(referenciaCbs.cbs) || 0) * 100).toFixed(2)}%` },
+    { Campo: 'Alíquota de referência IBS', Valor: `${Number(referenciaCbs.calcular_ibs) === 1 ? ((Number(referenciaCbs.ibs) || 0) * 100).toFixed(2) : '0,00'}%` },
     { Campo: 'Grau de repasse simulado', Valor: `${(repasse * 100).toFixed(0)}%` },
   ];
   aba(wb, 'Capa', capa, [{ wch: 28 }, { wch: 70 }]);
 
   if (tipo === 'diagnostico' || tipo === 'fornecedores') {
-    const a = analisarCadeia(carregarMovimentos(empresaId, 'fornecedor'), { regimeEmpresa: empresa.regime, lado: 'fornecedor', grauRepasse: repasse });
+    const cfg = prepararCadeia(empresaId, 'fornecedor');
+    const a = analisarCadeia(cfg.movimentos, { regimeEmpresa: empresa.regime, lado: 'fornecedor', anos: cfg.anos, parametrosIVA: cfg.parametrosIVA, grauRepasse: repasse });
     aba(wb, 'Fornecedores', a.parceiros.map((p) => ({
       'Fornecedor': p.nome, 'CNPJ': p.cnpj, 'Regime': p.regimeLabel, 'Itens': p.itens,
       'Valor': p.valor, 'Representatividade': perc(p.representatividade), 'Classe ABC': p.classeAbc,
@@ -69,7 +92,8 @@ function gerar(empresaId, tipo, query = {}) {
   }
 
   if (tipo === 'diagnostico' || tipo === 'clientes') {
-    const a = analisarCadeia(carregarMovimentos(empresaId, 'cliente'), { regimeEmpresa: empresa.regime, lado: 'cliente', grauRepasse: repasse });
+    const cfg = prepararCadeia(empresaId, 'cliente');
+    const a = analisarCadeia(cfg.movimentos, { regimeEmpresa: empresa.regime, lado: 'cliente', anos: cfg.anos, parametrosIVA: cfg.parametrosIVA, grauRepasse: repasse });
     aba(wb, 'Clientes', a.parceiros.map((p) => ({
       'Cliente': p.nome, 'CNPJ/CPF': p.cnpj, 'Perfil': p.regimeLabel, 'Itens': p.itens,
       'Faturamento': p.valor, 'Representatividade': perc(p.representatividade), 'Classe ABC': p.classeAbc,
