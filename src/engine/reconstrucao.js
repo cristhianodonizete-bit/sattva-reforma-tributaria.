@@ -119,6 +119,12 @@ function reconstruir(item) {
   if (temPisCofins) {
     pis = num(item.pis); cofins = num(item.cofins);
     passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: 'documento', valor: r2(pis + cofins) });
+  } else if (tem(item.pis_cofins_referencia)) {
+    const bloco = valor * num(item.pis_cofins_referencia);
+    pis = bloco * proporcaoPis(); cofins = bloco - pis;
+    estimado = true;
+    passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: 'referência fiscal do serviço',
+      formula: `valor × ${(num(item.pis_cofins_referencia) * 100).toFixed(2)}%`, valor: r2(bloco) });
   } else if (['simples_nacional', 'mei'].includes(regime)) {
     // No Simples não há destaque: a parcela vem da repartição do DAS.
     const s = item.simples;

@@ -15,6 +15,10 @@ const regras = require('./regras');
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
+const chaveReferenciaServico = (m) => {
+  const nbs = String(m.nbs || '').replace(/\D/g, '');
+  return nbs ? `nbs:${nbs}` : `descricao:${String(m.descricao || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160)}`;
+};
 
 /** Carrega os movimentos já com o regime resolvido pelo cadastro de parceiros */
 function carregar(empresaId, sentido) {
@@ -35,6 +39,8 @@ function executar(empresaId, opcoes = {}) {
   if (!empresa) throw new Error('Empresa não encontrada.');
   const ano = Number(opcoes.ano) || 2027;
   const tabelas = motor.anexosSimples();
+  const referenciasVenda = new Map(db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId)
+    .map((r) => [r.chave, r]));
 
   const entradas = [], saidas = [], conformidade = [];
   const cenariosPorFornecedor = new Map();
@@ -84,7 +90,7 @@ function executar(empresaId, opcoes = {}) {
 
   for (const m of carregar(empresaId, 'saida')) {
     const regime = m.regime_cadastro || m.regime || null;
-    const item = normalizar(m);
+    const item = normalizar({ ...m, referenciaFiscal: referenciasVenda.get(chaveReferenciaServico(m)) || null });
     const dest = m.perfil_cadastro === 'governo'
       ? { perfil: 'governo', detalhe: 'Ente governamental confirmado por cadastro oficial', credita: false }
       : motor.classificarDestinatario({ regime, cnpj: m.inscr_federal });
@@ -167,6 +173,7 @@ function normalizar(m) {
     valor: m.valor, base_calculo: m.base_calculo,
     icms: m.icms, icms_st: m.icms_st, ipi: m.ipi,
     pis: m.pis, cofins: m.cofins, iss: m.iss,
+    pis_cofins_referencia: m.referenciaFiscal?.pis_cofins,
     frete: m.frete, seguro: m.seguro, outras: m.outras, desconto: m.desconto,
     data_emissao: m.data_emissao,
     declarado: (m.cst_declarado || m.cclasstrib_declarado || m.ibs_declarado || m.cbs_declarado) ? {
