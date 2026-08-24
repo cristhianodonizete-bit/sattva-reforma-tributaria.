@@ -197,6 +197,14 @@ Telas.dados = async (el) => {
         { t: 'NBS / serviço', r: (s) => `<b class="mono">${A.esc(s.nbs || 'sem NBS')}</b><div class="mini">${A.esc(s.descricao || '')}</div>` },
         { t: 'Vendas', num: true, r: (s) => A.moeda(s.valor) },
         { t: 'Referência', r: (s) => s.configurado ? '<span class="tag c">configurada</span>' : '<span class="tag b">obrigatória</span>' },
+        { t: 'Alíquota atual', r: (s) => {
+          if (!s.referencia) return '—';
+          const r = s.referencia;
+          const p = r.pis_cofins !== null && r.pis_cofins !== undefined ? `PIS/COFINS ${A.pct(r.pis_cofins)}` : '';
+          const d = r.das_efetivo !== null && r.das_efetivo !== undefined ? `DAS ${A.pct(r.das_efetivo)}` : '';
+          const i = r.iss_aliquota !== null && r.iss_aliquota !== undefined ? `ISS ${A.pct(r.iss_aliquota)}` : '';
+          return [p, d, i].filter(Boolean).join('<br>') || '—';
+        } },
         { t: '', r: (s) => `<button class="btn pq ${s.configurado ? 'vazio' : ''}" data-ref-servico="${A.esc(s.chave)}">${s.configurado ? 'Editar' : 'Definir referência'}</button>` },
       ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}

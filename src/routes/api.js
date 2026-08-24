@@ -703,7 +703,7 @@ function referenciaFiscalPrecificacao(empresaId, item, exigir = true) {
 router.get('/empresas/:id/referencias-vendas', (req, res) => {
   try {
     const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
-    const mapa = new Set(referencias.filter((r) => r.ativo).map((r) => r.chave));
+    const mapa = new Map(referencias.filter((r) => r.ativo).map((r) => [r.chave, r]));
     const porChave = new Map();
     db.prepare(`SELECT nbs, ncm, iss, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente'`).all(req.params.id)
       .filter(ehServicoDeVenda).forEach((m) => {
@@ -714,7 +714,7 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
         porChave.set(chave, atual);
       });
     const servicos = [...porChave.values()].sort((a, b) => b.valor - a.valor)
-      .map((s) => ({ ...s, configurado: mapa.has(s.chave) }));
+      .map((s) => ({ ...s, configurado: mapa.has(s.chave), referencia: mapa.get(s.chave) || null }));
     ok(res, { referencias, servicos, pendentes: servicos.filter((s) => !s.configurado) });
   } catch (e) { erro(res, e); }
 });
