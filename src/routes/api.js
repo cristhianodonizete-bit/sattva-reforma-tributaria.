@@ -765,6 +765,43 @@ router.post('/empresas/:id/referencias-vendas', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
+router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'), (req, res) => {
+  try {
+    if (!req.file) throw new Error('Envie a planilha de referências fiscais.');
+    const { linhas } = imp.lerPlanilha(req.file.buffer);
+    const normalizarColuna = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
+    const campo = (linha, nomes) => {
+      for (const chave of Object.keys(linha)) if (nomes.includes(normalizarColuna(chave))) return linha[chave];
+      return '';
+    };
+    const aliquota = (valor) => { const n = imp.numeroBR(valor); return n > 1 ? n / 100 : n; };
+    const gravar = db.prepare(`INSERT INTO empresa_servicos_fiscais (empresa_id,chave,nbs,descricao,pis_cofins,das_efetivo,iss_aliquota,ativo,origem,atualizado_em)
+      VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
+      ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
+      pis_cofins=excluded.pis_cofins,das_efetivo=excluded.das_efetivo,iss_aliquota=excluded.iss_aliquota,ativo=excluded.ativo,origem=excluded.origem,atualizado_em=excluded.atualizado_em`);
+    let importados = 0, ignorados = 0;
+    db.transaction(() => {
+      for (const linha of linhas) {
+        const descricao = String(campo(linha, ['descricao', 'servico', 'item', 'descricaodoservico']) || '').trim();
+        const nbs = String(campo(linha, ['nbs', 'codigonbs']) || '').trim();
+        const brutoPis = campo(linha, ['piscofins', 'aliquotapiscofins', 'piscofinsdavenda']);
+        const brutoDas = campo(linha, ['das', 'dasefetivo', 'aliquotadas']);
+        const brutoIss = campo(linha, ['iss', 'aliquotaiss']);
+        if (!descricao) { ignorados++; continue; }
+        const temPis = brutoPis !== '' && brutoPis !== null && brutoPis !== undefined;
+        const temDas = brutoDas !== '' && brutoDas !== null && brutoDas !== undefined;
+        if (!temPis && !temDas) throw new Error(`O serviço “${descricao}” não informa PIS/COFINS nem DAS efetivo.`);
+        const chave = chaveReferenciaServico({ nbs, descricao });
+        gravar.run(req.params.id, chave, nbs, descricao,
+          temPis ? aliquota(brutoPis) : null, temDas ? aliquota(brutoDas) : null,
+          brutoIss === '' || brutoIss === null || brutoIss === undefined ? null : aliquota(brutoIss), 1, 'importacao');
+        importados++;
+      }
+    })();
+    ok(res, { importados, ignorados });
+  } catch (e) { erro(res, e); }
+});
+
 router.get('/empresas/:id/cadeia/:tipo', (req, res) => {
   try {
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);

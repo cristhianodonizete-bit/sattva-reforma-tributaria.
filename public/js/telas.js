@@ -192,7 +192,7 @@ Telas.dados = async (el) => {
     ${aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
       <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
-      <button class="btn vazio pq" id="addReferenciaServico" style="margin-bottom:12px">Adicionar serviço ao cadastro</button>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn vazio pq" id="addReferenciaServico">Adicionar serviço ao cadastro</button><button class="btn vazio pq" id="importarReferenciasServico">Importar referências</button></div>
       ${referenciasVendas.pendentes.length ? `<div class="aviso atencao"><b>${referenciasVendas.pendentes.length} serviço(s) exigem referência fiscal.</b> Defina PIS/COFINS ou DAS efetivo antes de usar uma estimativa para a venda.</div>` : '<div class="aviso bom"><b>Serviços identificados com referência cadastrada.</b></div>'}
       ${A.tabela([
         { t: 'NBS / serviço', r: (s) => `<b class="mono">${A.esc(s.nbs || 'sem NBS')}</b><div class="mini">${A.esc(s.descricao || '')}</div>` },
@@ -262,6 +262,16 @@ Telas.dados = async (el) => {
         corpo: `<div class="grade g2">${A.campo('descricao', 'Descrição do serviço')}${A.campo('nbs', 'NBS (se houver)')}</div>` +
           `<div class="grade g3">${A.campo('pis_cofins','PIS/COFINS da venda','', 'number','step="0.0001"')}${A.campo('das_efetivo','DAS efetivo (Simples)','', 'number','step="0.0001"')}${A.campo('iss_aliquota','ISS','', 'number','step="0.0001"')}</div>`,
         aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/referencias-vendas`, { metodo: 'POST', corpo: d }); A.toast('Referência fiscal cadastrada', 'ok'); A.ir('dados'); },
+      });
+    });
+    document.getElementById('importarReferenciasServico')?.addEventListener('click', () => {
+      A.modal({ titulo: 'Importar referências fiscais de serviços', confirmar: null,
+        descricao: 'Colunas aceitas: Descrição do serviço, NBS, PIS/COFINS, DAS efetivo e ISS. Informe alíquotas como 9,25% ou 0,0925. A importação atualiza referências que já existirem com a mesma chave.',
+        corpo: A.dropzone('zonaImportarReferencias', '<b>Solte a planilha aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>', async (arquivo) => {
+          const fd = new FormData(); fd.append('arquivo', arquivo);
+          try { const r = await A.api(`/empresas/${S.empresaId}/referencias-vendas/importar`, { metodo: 'POST', corpo: fd }); A.toast(`${r.importados} referência(s) importada(s)${r.ignorados ? ` · ${r.ignorados} ignorada(s)` : ''}`, 'ok'); A.ir('dados'); }
+          catch (e) { A.toast(e.message, 'erro'); }
+        }),
       });
     });
     el.querySelectorAll('[data-ir-importacao]').forEach((b) => { b.onclick = () => document.getElementById(b.dataset.irImportacao)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
