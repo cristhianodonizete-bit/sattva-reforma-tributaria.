@@ -2051,15 +2051,21 @@ router.get('/config/controle', (_req, res) => {
         WHERE m.empresa_id=? AND m.tipo='cliente' AND (p.regime IS NULL OR p.regime='' OR p.regime='indeterminado')`).get(e.id).valor;
       const classificacao = db.prepare(`SELECT COUNT(*) c FROM movimentos WHERE empresa_id=?
         AND (cclasstrib IS NULL OR cclasstrib='' OR classificacao_origem='requer_decisao')`).get(e.id).c;
+      const referencias = new Set(db.prepare('SELECT chave FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(e.id).map((r) => r.chave));
+      const servicosSemReferencia = db.prepare(`SELECT nbs, ncm, iss, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente'`).all(e.id)
+        .filter(ehServicoDeVenda).filter((m) => !referencias.has(chaveReferenciaServico(m)));
       const execucao = motorExec.ultimaExecucao(e.id);
       return { ...e, parceiros: cadastro.parceiros || 0, clientesPendentes: cadastro.clientes_pendentes || 0,
         receitaPendente: receitaPendente || 0, classificacoesPendentes: classificacao || 0,
+        servicosSemReferencia: servicosSemReferencia.length,
+        vendasSemReferencia: servicosSemReferencia.reduce((s, m) => s + (Number(m.valor) || 0), 0),
         ultimaExecucao: execucao && { data: execucao.criado_em, ano: execucao.ano, itens: execucao.itens },
         enriquecimento: cnpjReceita.statusFila(e.id) };
     });
     const total = porEmpresa.reduce((a, x) => ({ clientesPendentes: a.clientesPendentes + x.clientesPendentes,
-      receitaPendente: a.receitaPendente + x.receitaPendente, classificacoesPendentes: a.classificacoesPendentes + x.classificacoesPendentes }),
-      { clientesPendentes: 0, receitaPendente: 0, classificacoesPendentes: 0 });
+      receitaPendente: a.receitaPendente + x.receitaPendente, classificacoesPendentes: a.classificacoesPendentes + x.classificacoesPendentes,
+      servicosSemReferencia: a.servicosSemReferencia + x.servicosSemReferencia, vendasSemReferencia: a.vendasSemReferencia + x.vendasSemReferencia }),
+      { clientesPendentes: 0, receitaPendente: 0, classificacoesPendentes: 0, servicosSemReferencia: 0, vendasSemReferencia: 0 });
     ok(res, { total, empresas: porEmpresa });
   } catch (e) { erro(res, e); }
 });

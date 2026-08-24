@@ -52,10 +52,11 @@ async function controle(box) {
   box.innerHTML = '<div class="carregando">Verificando o projeto…</div>';
   const d = await A.api('/config/controle');
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
-  box.innerHTML = `<div class="grade g3">
+  box.innerHTML = `<div class="grade g4">
       ${A.kpi('Clientes a identificar', d.total.clientesPendentes, 'cadastro e perfil pendentes', d.total.clientesPendentes ? 'destaque' : '')}
       ${A.kpi('Receita sem perfil confirmado', A.moeda(d.total.receitaPendente), 'prioridade do enriquecimento', d.total.receitaPendente ? 'destaque' : '')}
       ${A.kpi('Classificações a revisar', d.total.classificacoesPendentes, 'NCM/NBS ou cClassTrib pendente', d.total.classificacoesPendentes ? 'destaque' : '')}
+      ${A.kpi('Serviços sem referência fiscal', d.total.servicosSemReferencia, A.moeda(d.total.vendasSemReferencia) + ' em vendas', d.total.servicosSemReferencia ? 'destaque' : '')}
     </div>
     <div class="cartao" style="margin-top:16px"><h2>Ações do projeto</h2>
       <p class="desc">O enriquecimento consulta apenas CNPJs pendentes e respeita a ordem de custo: fontes abertas antes da Casa dos Dados.</p>
@@ -68,9 +69,10 @@ async function controle(box) {
         { t: 'Clientes pendentes', num: true, r: (x) => x.clientesPendentes },
         { t: 'Receita exposta', num: true, r: (x) => A.moeda(x.receitaPendente) },
         { t: 'Classificações pendentes', num: true, r: (x) => x.classificacoesPendentes },
+        { t: 'Serviços sem referência', num: true, r: (x) => `${x.servicosSemReferencia}<div class="mini">${A.moeda(x.vendasSemReferencia)}</div>` },
         { t: 'Enriquecimento', r: (x) => x.enriquecimento ? `<span class="tag b">${A.esc(x.enriquecimento.status)}</span>` : '<span class="tag n">sem fila</span>' },
         { t: 'Último motor', r: (x) => x.ultimaExecucao ? `${A.esc(x.ultimaExecucao.data || '—')}${ibsAtivo ? ` · ${x.ultimaExecucao.ano}` : ' · CBS'}` : 'não executado' },
-        { t: '', r: (x) => (x.clientesPendentes || x.classificacoesPendentes) ? `<button class="btn pq vazio" data-corrigir="${x.id}" data-destino="${x.clientesPendentes ? 'dados' : 'bases'}">Corrigir</button>` : '<span class="tag c">sem pendências</span>' },
+        { t: '', r: (x) => (x.clientesPendentes || x.classificacoesPendentes || x.servicosSemReferencia) ? `<button class="btn pq vazio" data-corrigir="${x.id}" data-destino="${x.servicosSemReferencia || x.clientesPendentes ? 'dados' : 'bases'}">Corrigir</button>` : '<span class="tag c">sem pendências</span>' },
       ], d.empresas)}</div>`;
   document.getElementById('ctrlEnriquecer').onclick = async () => {
     const r = await A.api('/config/controle/enriquecer', { metodo: 'POST' });
