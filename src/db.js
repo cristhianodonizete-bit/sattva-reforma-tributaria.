@@ -66,6 +66,7 @@ const COLUNAS_NOVAS = {
   empresa_servicos_fiscais: {
     pis_cofins: 'REAL', das_efetivo: 'REAL', iss_aliquota: 'REAL', ativo: 'INTEGER DEFAULT 1', origem: "TEXT DEFAULT 'manual'",
   },
+  regras_governo: { origem_linha: 'TEXT' },
   cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT' },
 };
 
@@ -471,7 +472,7 @@ CREATE TABLE IF NOT EXISTS regras_governo (
   tipo TEXT NOT NULL, chave TEXT NOT NULL, lc116 TEXT, nbs TEXT, ncm TEXT,
   descricao TEXT, tratamento TEXT, cst TEXT, cclasstrib TEXT, indop TEXT,
   reducao REAL, aliquota_zero INTEGER DEFAULT 0, ente_elegivel TEXT,
-  condicoes TEXT, fundamento TEXT, vigencia TEXT, fonte TEXT,
+  condicoes TEXT, fundamento TEXT, vigencia TEXT, fonte TEXT, origem_linha TEXT,
   UNIQUE(tipo, chave, cclasstrib)
 );
 

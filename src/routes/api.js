@@ -1878,45 +1878,36 @@ router.get('/bases/catalogo/exportar', (req, res) => {
       const candidatos = [r.chave, r.ncm, r.nbs, r.lc116].map(codigo).filter(Boolean);
       return chaves.map(codigo).filter(Boolean).some((chave) => candidatos.includes(chave));
     });
-    const textoBeneficio = (lista, campo) => lista.map((r) => r[campo]).filter((v) => v !== null && v !== undefined && v !== '').join('\n');
-    const ncm = db.prepare('SELECT * FROM base_ncm ORDER BY ncm, cclasstrib').all().map((item) => {
-      const b = beneficios(item, 'ncm');
-      return {
+    const comBeneficios = (itens, tipo, montar) => itens.flatMap((item) => {
+      const encontrados = beneficios(item, tipo);
+      return (encontrados.length ? encontrados : [null]).map((beneficio) => montar(item, beneficio));
+    });
+    const camposBeneficio = (b) => ({
+      'Tem benefício governo/autarquia?': b ? 'SIM' : 'NÃO',
+      'Origem da linha do benefício': b?.origem_linha || '',
+      'Tratamento governo/autarquia': b?.tratamento || '',
+      'Redução governo/autarquia': b?.reducao ?? '',
+      'Alíquota zero governo/autarquia': b ? (b.aliquota_zero ? 'SIM' : 'NÃO') : '',
+      'CST governo/autarquia': b?.cst || '',
+      'cClassTrib governo/autarquia': b?.cclasstrib || '',
+      'Ente elegível': b?.ente_elegivel || '', Condições: b?.condicoes || '',
+      'Fundamento governo/autarquia': b?.fundamento || '',
+      'Fonte governo/autarquia': b?.fonte || '',
+    });
+    const ncm = comBeneficios(db.prepare('SELECT * FROM base_ncm ORDER BY ncm, cclasstrib').all(), 'ncm', (item, b) => ({
         NCM: item.ncm, 'Descrição': item.descricao, 'CST IBS/CBS': item.cst,
         cClassTrib: item.cclasstrib, Classificação: item.classificacao, Anexo: item.anexo,
         Fundamento: item.fundamento, 'Redução IBS geral': item.reducao_ibs,
         'Redução CBS geral': item.reducao_cbs, 'Tratamento geral': item.reducao,
-        Regra: item.regra, Fonte: item.fonte,
-        'Tem benefício governo/autarquia?': b.length ? 'SIM' : 'NÃO',
-        'Tratamento governo/autarquia': textoBeneficio(b, 'tratamento'),
-        'Redução governo/autarquia': textoBeneficio(b, 'reducao'),
-        'Alíquota zero governo/autarquia': textoBeneficio(b, 'aliquota_zero'),
-        'CST governo/autarquia': textoBeneficio(b, 'cst'),
-        'cClassTrib governo/autarquia': textoBeneficio(b, 'cclasstrib'),
-        'Ente elegível': textoBeneficio(b, 'ente_elegivel'), Condições: textoBeneficio(b, 'condicoes'),
-        'Fundamento governo/autarquia': textoBeneficio(b, 'fundamento'),
-        'Fonte governo/autarquia': textoBeneficio(b, 'fonte'),
-      };
-    });
-    const servicos = db.prepare('SELECT * FROM base_servicos ORDER BY nbs, lc116, cclasstrib').all().map((item) => {
-      const b = beneficios(item, 'servicos');
-      return {
+        Regra: item.regra, Fonte: item.fonte, ...camposBeneficio(b),
+    }));
+    const servicos = comBeneficios(db.prepare('SELECT * FROM base_servicos ORDER BY nbs, lc116, cclasstrib').all(), 'servicos', (item, b) => ({
         NBS: item.nbs, 'LC 116': item.lc116, 'Descrição NBS': item.descricao_nbs,
         'Descrição do serviço': item.descricao_item, Onerosa: item.onerosa, Exterior: item.exterior,
         INDOP: item.indop, 'Local de incidência': item.local_incidencia,
         cClassTrib: item.cclasstrib, 'Nome cClassTrib': item.nome_cclasstrib,
-        'Tratamento geral': item.reducao,
-        'Tem benefício governo/autarquia?': b.length ? 'SIM' : 'NÃO',
-        'Tratamento governo/autarquia': textoBeneficio(b, 'tratamento'),
-        'Redução governo/autarquia': textoBeneficio(b, 'reducao'),
-        'Alíquota zero governo/autarquia': textoBeneficio(b, 'aliquota_zero'),
-        'CST governo/autarquia': textoBeneficio(b, 'cst'),
-        'cClassTrib governo/autarquia': textoBeneficio(b, 'cclasstrib'),
-        'Ente elegível': textoBeneficio(b, 'ente_elegivel'), Condições: textoBeneficio(b, 'condicoes'),
-        'Fundamento governo/autarquia': textoBeneficio(b, 'fundamento'),
-        'Fonte governo/autarquia': textoBeneficio(b, 'fonte'),
-      };
-    });
+        'Tratamento geral': item.reducao, ...camposBeneficio(b),
+    }));
     const wb = XLSX.utils.book_new();
     const adicionarAba = (nome, linhas) => {
       const ws = XLSX.utils.json_to_sheet(linhas.length ? linhas : [{ Informação: 'Nenhum cadastro disponível.' }]);
@@ -1931,7 +1922,7 @@ router.get('/bases/catalogo/exportar', (req, res) => {
       Tipo: r.tipo, Chave: r.chave, NCM: r.ncm, NBS: r.nbs, 'LC 116': r.lc116, Descrição: r.descricao,
       Tratamento: r.tratamento, Redução: r.reducao, 'Alíquota zero': r.aliquota_zero ? 'SIM' : 'NÃO',
       CST: r.cst, cClassTrib: r.cclasstrib, INDOP: r.indop, 'Ente elegível': r.ente_elegivel,
-      Condições: r.condicoes, Fundamento: r.fundamento, Fonte: r.fonte,
+      Condições: r.condicoes, Fundamento: r.fundamento, Fonte: r.fonte, 'Origem da linha': r.origem_linha,
     })));
     const arquivo = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true });
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
