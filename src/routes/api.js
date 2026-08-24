@@ -2354,7 +2354,19 @@ router.get('/config/regras', async (_req, res) => {
     // fonte compartilhada antes de montar o formulário, nunca um cache antigo.
     if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas']);
     regras.invalidar();
-    ok(res, regras.tudo());
+    const local = db.prepare('SELECT ano,cbs,ibs,calcular_ibs,atualizado_em FROM param_aliquotas WHERE ano=2033').get() || null;
+    const auditoria = { cache_render: local, supabase_configurado: supabase.configurado(),
+      modo_operacao_compartilhada: process.env.SUPABASE_OPERACAO_COMPARTILHADA !== 'false',
+      commit_render: process.env.RENDER_GIT_COMMIT || null, fonte_supabase: null, erro_supabase: null };
+    if (supabase.configurado()) {
+      try {
+        const { data, error } = await supabase.admin().from('parametros_operacionais').select('dados').eq('tabela', 'configuracao').eq('chave', 'param_aliquotas').maybeSingle();
+        if (error) throw error;
+        const referencia = (data?.dados || []).find((x) => Number(x.ano) === 2033) || null;
+        auditoria.fonte_supabase = referencia ? { ano: referencia.ano, cbs: referencia.cbs, ibs: referencia.ibs, calcular_ibs: referencia.calcular_ibs } : null;
+      } catch (e) { auditoria.erro_supabase = e.message; }
+    }
+    ok(res, { ...regras.tudo(), auditoria });
   } catch (e) { erro(res, e); }
 });
 

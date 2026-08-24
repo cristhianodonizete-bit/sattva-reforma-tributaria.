@@ -109,9 +109,16 @@ const salvar = async (caminho, corpo, msg) => {
 // -------------------------------------------------------------- ALÍQUOTAS
 function aliquotas(box, d) {
   const ibsAtivo = d.aliquotas.some((a) => Number(a.calcular_ibs) === 1);
+  const aud = d.auditoria || {};
+  const auditoria = `<details class="aviso neutro" style="margin-bottom:16px"><summary><b>Auditoria da fonte da alíquota</b> · verificação técnica</summary><div style="margin-top:10px" class="mini">
+    <div><b>Cache usado pelo Render:</b> ${aud.cache_render ? `CBS ${A.pct(aud.cache_render.cbs)} · IBS ${A.pct(aud.cache_render.ibs)} · ano ${A.esc(aud.cache_render.ano)}` : 'não encontrado'}</div>
+    <div><b>Fonte Supabase:</b> ${aud.fonte_supabase ? `CBS ${A.pct(aud.fonte_supabase.cbs)} · IBS ${A.pct(aud.fonte_supabase.ibs)} · ano ${A.esc(aud.fonte_supabase.ano)}` : (aud.supabase_configurado ? 'sem registro de alíquota' : 'indisponível: chave de serviço não configurada')}</div>
+    <div><b>Sincronização operacional:</b> ${aud.modo_operacao_compartilhada ? 'habilitada' : 'desabilitada'} · <b>Commit do Render:</b> ${A.esc(aud.commit_render || 'não informado')}</div>
+    ${aud.erro_supabase ? `<div class="erro"><b>Erro ao consultar Supabase:</b> ${A.esc(aud.erro_supabase)}</div>` : ''}
+  </div></details>`;
   if (!ibsAtivo) {
     const a = d.aliquotas.find((x) => Number(x.ano) === 2033) || d.aliquotas[d.aliquotas.length - 1];
-    box.innerHTML = `<div class="aviso bom"><b>Análise CBS</b> A projeção não é anual nesta etapa. A CBS abaixo é a única referência do motor.</div>
+    box.innerHTML = `${auditoria}<div class="aviso bom"><b>Análise CBS</b> A projeção não é anual nesta etapa. A CBS abaixo é a única referência do motor.</div>
       <div class="cartao"><h2>Configuração da projeção CBS</h2><div class="grade g2">
         ${A.campo('cbs_unica','Alíquota CBS de referência',a.cbs,'number','step="0.0001"')}
         <div><label class="rotulo">Análise IBS</label><label class="check"><input type="checkbox" id="habilitarIbs"> Habilitar visão IBS e transição anual</label><p class="mini">Só habilite quando esta etapa for iniciada.</p></div>
@@ -119,7 +126,7 @@ function aliquotas(box, d) {
     box.querySelector('#salvarCbsUnica').onclick = () => salvar(`/config/aliquotas/${a.ano}`, { ibs:a.ibs, cbs:box.querySelector('[name="cbs_unica"]').value, calcular_ibs:box.querySelector('#habilitarIbs').checked, fator_icms_iss:a.fator_icms_iss, fator_pis_cofins:a.fator_pis_cofins, fator_ipi:a.fator_ipi, compensavel:a.compensavel, simulacao:a.simulacao, fonte:a.fonte, nota:a.nota }, 'Configuração CBS atualizada');
     return;
   }
-  box.innerHTML = `<div class="aviso atencao"><b>Estas alíquotas ainda dependem de definição legal</b>
+  box.innerHTML = `${auditoria}<div class="aviso atencao"><b>Estas alíquotas ainda dependem de definição legal</b>
       Enquanto a coluna “simulação” estiver marcada, o sistema rotula todo resultado derivado como
       ALÍQUOTA PARAMETRIZADA PARA SIMULAÇÃO e nunca como alíquota definitiva.</div>
     <div class="cartao"><h2>CBS e parâmetros da transição</h2>
