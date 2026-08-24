@@ -20,6 +20,12 @@ Telas.bases = async (el) => {
       ${A.kpi('NBS na base', e.servicos.nbs || 0, `${e.servicos.lc116 || 0} itens da LC 116`)}
       ${A.kpi('Pendências nesta empresa', pend.length, S.empresaId ? 'NCMs a decidir na movimentação' : 'selecione uma empresa')}
     </div>
+    <div class="cartao" style="margin-top:16px;border-left:4px solid var(--ouro)">
+      <h2>Catálogo fiscal completo — PIS/COFINS</h2>
+      <p class="desc">Importe uma única vez a planilha com as abas <span class="mono">Produtos NCM</span> e <span class="mono">Serviços NBS</span>. Ela atualiza as duas bases e alimenta a reconstrução da carga atual sem depender do Excel depois da importação.</p>
+      <div class="dropzone" id="zonaCatalogo"><b>Solte o catálogo fiscal completo aqui</b><div class="mini">.xlsx · produtos, serviços, cumulatividade e regras de reconstrução</div></div>
+      <div id="statusCatalogo" style="margin-top:12px"></div>
+    </div>
     <div class="grade g2" style="margin-top:16px">
       <div class="cartao">
         <h2>Base de mercadorias — NCM</h2>
@@ -107,6 +113,7 @@ Telas.bases = async (el) => {
   };
   ligarZona('zonaNcm', 'ncm', 'statusNcm');
   ligarZona('zonaServ', 'servicos', 'statusServ');
+  ligarZona('zonaCatalogo', 'catalogo-fiscal', 'statusCatalogo');
 
   // ---- busca ----
   const btn = document.getElementById('btnBusca');

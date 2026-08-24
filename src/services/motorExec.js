@@ -49,8 +49,10 @@ function executar(empresaId, opcoes = {}) {
   const referenciasVenda = new Map(db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId)
     .map((r) => [r.chave, r]));
   const saidasOriginais = carregar(empresaId, 'saida');
-  const pendentesReferencia = saidasOriginais.filter((m) => requerReferenciaFiscalServico(m) && !encontrarReferenciaServico(m, referenciasVenda));
-  if (pendentesReferencia.length) throw new Error(`${pendentesReferencia.length} serviço(s) de venda exigem referência fiscal antes do recálculo. Acesse Cadastros e importação → Clientes.`);
+  // A referência da empresa continua disponível como terceira precedência,
+  // mas serviços sem valor no XML não são mais bloqueados: o catálogo fiscal
+  // pode trazer cumulatividade obrigatória, alíquota zero ou indeterminação
+  // auditável para a operação.
 
   const entradas = [], saidas = [], conformidade = [];
   const cenariosPorFornecedor = new Map();

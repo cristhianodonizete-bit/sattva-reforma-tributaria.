@@ -70,7 +70,7 @@ function lerAba(buffer, preferidas) {
 // SERVIÇOS — LC 116 + NBS
 // ==========================================================================
 function importarServicos(buffer, opcoes = {}) {
-  const { linhas, aba, abas } = lerAba(buffer, [opcoes.aba, 'tabela geral', 'correlacao']);
+  const { linhas, aba, abas } = lerAba(buffer, [opcoes.aba, 'Serviços NBS', 'tabela geral', 'correlacao']);
   if (!linhas.length) throw new Error('Planilha sem linhas de dados.');
 
   const registros = [];
@@ -91,19 +91,29 @@ function importarServicos(buffer, opcoes = {}) {
       local_incidencia: txt(acha(l, ['Local incidência IBS', 'local incidencia', 'local de incidencia'])),
       cclasstrib: txt(acha(l, ['cClassTrib', 'classtrib'])),
       nome_cclasstrib: txt(acha(l, ['nome cClassTrib', 'nome classtrib', 'classificacao'])),
+      operacao_pis_cofins: txt(acha(l, ['Operação atual PIS/COFINS'])),
+      cst_pis_atual: txt(acha(l, ['CST PIS atual'])), cst_cofins_atual: txt(acha(l, ['CST COFINS atual'])),
+      pis_percentual: perc(acha(l, ['PIS % atual'])), cofins_percentual: perc(acha(l, ['COFINS % atual'])),
+      cumulatividade_obrigatoria: txt(acha(l, ['Cumulatividade obrigatória?'])), grau_determinacao: txt(acha(l, ['Grau de determinação'])),
+      hipotese_legal_cumulativa: txt(acha(l, ['Hipótese legal cumulativa'])),
+      pis_cumulativo_percentual: perc(acha(l, ['PIS cumulativo %'])), cofins_cumulativo_percentual: perc(acha(l, ['COFINS cumulativa %'])), total_cumulativo_percentual: perc(acha(l, ['Total cumulativo %'])),
+      fundamento_cumulatividade: txt(acha(l, ['Fundamento legal cumulatividade'])), condicao_cumulatividade: txt(acha(l, ['Condição / observação'])),
+      regime_pis_cofins_receita: txt(acha(l, ['Regime PIS/COFINS da receita'])), tratamento_pis_cofins: txt(acha(l, ['Tratamento específico do serviço'])),
+      papel_na_cadeia_necessario: txt(acha(l, ['Papel na cadeia necessário?'])), tratamento_efetivo_saida: txt(acha(l, ['Tratamento efetivo da saída'])),
+      natureza_reconstrucao: txt(acha(l, ['Natureza para reconstrução'])), percentual_reconstrucao_sugerido: perc(acha(l, ['Percentual reconstrução sugerido'])), regra_precedencia: txt(acha(l, ['Regra de precedência / observação'])),
     });
   }
   if (!registros.length) throw new Error(`Nenhum registro reconhecido na aba "${aba}". Confira se ela tem as colunas Item LC 116 e NBS.`);
   if (!registros.some((r) => r.cclasstrib)) mensagens.push('Coluna cClassTrib não encontrada — a base ficará sem o código de classificação tributária.');
 
   db.prepare('DELETE FROM base_servicos').run();
-  const ins = db.prepare(`INSERT INTO base_servicos (lc116, nbs, descricao_item, descricao_nbs, onerosa,
-    exterior, indop, local_incidencia, cclasstrib, nome_cclasstrib, reducao)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
+  const ins = db.prepare(`INSERT INTO base_servicos (lc116,nbs,descricao_item,descricao_nbs,onerosa,exterior,indop,local_incidencia,cclasstrib,nome_cclasstrib,reducao,
+    operacao_pis_cofins,cst_pis_atual,cst_cofins_atual,pis_percentual,cofins_percentual,cumulatividade_obrigatoria,grau_determinacao,hipotese_legal_cumulativa,pis_cumulativo_percentual,cofins_cumulativo_percentual,total_cumulativo_percentual,fundamento_cumulatividade,condicao_cumulatividade,regime_pis_cofins_receita,tratamento_pis_cofins,papel_na_cadeia_necessario,tratamento_efetivo_saida,natureza_reconstrucao,percentual_reconstrucao_sugerido,regra_precedencia)
+    VALUES (${Array(31).fill('?').join(',')})`);
   db.transaction(() => {
     for (const r of registros) {
-      ins.run(r.lc116, r.nbs, r.descricao_item, r.descricao_nbs, r.onerosa, r.exterior,
-        r.indop, r.local_incidencia, r.cclasstrib, r.nome_cclasstrib, reducaoPorClassTrib(r.cclasstrib, r.nome_cclasstrib));
+      ins.run(r.lc116,r.nbs,r.descricao_item,r.descricao_nbs,r.onerosa,r.exterior,r.indop,r.local_incidencia,r.cclasstrib,r.nome_cclasstrib,reducaoPorClassTrib(r.cclasstrib,r.nome_cclasstrib),
+        r.operacao_pis_cofins,r.cst_pis_atual,r.cst_cofins_atual,r.pis_percentual,r.cofins_percentual,r.cumulatividade_obrigatoria,r.grau_determinacao,r.hipotese_legal_cumulativa,r.pis_cumulativo_percentual,r.cofins_cumulativo_percentual,r.total_cumulativo_percentual,r.fundamento_cumulatividade,r.condicao_cumulatividade,r.regime_pis_cofins_receita,r.tratamento_pis_cofins,r.papel_na_cadeia_necessario,r.tratamento_efetivo_saida,r.natureza_reconstrucao,r.percentual_reconstrucao_sugerido,r.regra_precedencia);
     }
   })();
   registrarBase('servicos', opcoes.arquivo || 'correlacao.xlsx', registros.length, aba);
@@ -114,7 +124,7 @@ function importarServicos(buffer, opcoes = {}) {
 // MERCADORIAS — NCM
 // ==========================================================================
 function importarNcm(buffer, opcoes = {}) {
-  const { linhas, aba, abas } = lerAba(buffer, [opcoes.aba, 'Detalhamento candidatos', 'ncms']);
+  const { linhas, aba, abas } = lerAba(buffer, [opcoes.aba, 'Produtos NCM', 'Detalhamento candidatos', 'ncms']);
   if (!linhas.length) throw new Error('Planilha sem linhas de dados.');
 
   const registros = [];
@@ -135,6 +145,13 @@ function importarNcm(buffer, opcoes = {}) {
       reducao_ibs: rIbs, reducao_cbs: rCbs,
       regra: txt(acha(l, ['Regra objetiva / como proceder', 'regra objetiva', 'como proceder'])),
       fonte: txt(acha(l, ['Fonte'])),
+      operacao_pis_cofins: txt(acha(l, ['Operação atual PIS/COFINS'])),
+      cst_pis_atual: txt(acha(l, ['CST PIS atual'])), cst_cofins_atual: txt(acha(l, ['CST COFINS atual'])),
+      pis_percentual: perc(acha(l, ['PIS % atual'])), cofins_percentual: perc(acha(l, ['COFINS % atual'])),
+      regime_pis_cofins_receita: txt(acha(l, ['Regime PIS/COFINS da receita'])), tratamento_pis_cofins: txt(acha(l, ['Tratamento específico do produto'])),
+      papel_na_cadeia_necessario: txt(acha(l, ['Papel na cadeia necessário?'])), papel_na_cadeia: txt(acha(l, ['Papel na cadeia'])),
+      tratamento_efetivo_saida: txt(acha(l, ['Tratamento efetivo da saída'])), natureza_reconstrucao: txt(acha(l, ['Natureza para reconstrução'])),
+      percentual_reconstrucao_sugerido: perc(acha(l, ['Percentual reconstrução sugerido'])), regra_precedencia: txt(acha(l, ['Regra de precedência / observação'])),
     });
   }
   if (!registros.length) throw new Error(`Nenhum NCM válido reconhecido na aba "${aba}".`);
@@ -144,19 +161,26 @@ function importarNcm(buffer, opcoes = {}) {
   registros.forEach((r) => contagem.set(r.ncm, (contagem.get(r.ncm) || 0) + 1));
 
   db.prepare('DELETE FROM base_ncm').run();
-  const ins = db.prepare(`INSERT INTO base_ncm (ncm, descricao, cst, cclasstrib, classificacao, anexo,
-    fundamento, reducao_ibs, reducao_cbs, regra, fonte, candidatos, reducao)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const ins = db.prepare(`INSERT INTO base_ncm (ncm,descricao,cst,cclasstrib,classificacao,anexo,fundamento,reducao_ibs,reducao_cbs,regra,fonte,candidatos,reducao,
+    operacao_pis_cofins,cst_pis_atual,cst_cofins_atual,pis_percentual,cofins_percentual,regime_pis_cofins_receita,tratamento_pis_cofins,papel_na_cadeia_necessario,papel_na_cadeia,tratamento_efetivo_saida,natureza_reconstrucao,percentual_reconstrucao_sugerido,regra_precedencia)
+    VALUES (${Array(26).fill('?').join(',')})`);
   db.transaction(() => {
     for (const r of registros) {
-      ins.run(r.ncm, r.descricao, r.cst, r.cclasstrib, r.classificacao, r.anexo, r.fundamento,
-        r.reducao_ibs, r.reducao_cbs, r.regra, r.fonte, contagem.get(r.ncm),
-        reducaoPorPercentual(r.reducao_ibs, r.reducao_cbs, r.cst));
+      ins.run(r.ncm,r.descricao,r.cst,r.cclasstrib,r.classificacao,r.anexo,r.fundamento,r.reducao_ibs,r.reducao_cbs,r.regra,r.fonte,contagem.get(r.ncm),reducaoPorPercentual(r.reducao_ibs,r.reducao_cbs,r.cst),
+        r.operacao_pis_cofins,r.cst_pis_atual,r.cst_cofins_atual,r.pis_percentual,r.cofins_percentual,r.regime_pis_cofins_receita,r.tratamento_pis_cofins,r.papel_na_cadeia_necessario,r.papel_na_cadeia,r.tratamento_efetivo_saida,r.natureza_reconstrucao,r.percentual_reconstrucao_sugerido,r.regra_precedencia);
     }
   })();
   const multiplos = [...contagem.values()].filter((c) => c > 1).length;
   registrarBase('ncm', opcoes.arquivo || 'ncms.xlsx', registros.length, aba);
   return { importados: registros.length, ignorados, unicos: contagem.size, comMultiplosCandidatos: multiplos, aba, abas };
+}
+
+function importarCatalogoFiscal(buffer, opcoes = {}) {
+  const ncm = importarNcm(buffer, { ...opcoes, aba: 'Produtos NCM' });
+  const servicos = importarServicos(buffer, { ...opcoes, aba: 'Serviços NBS' });
+  return { importados: ncm.importados + servicos.importados, produtos: ncm, servicos,
+    aba: 'Produtos NCM + Serviços NBS', abas: ncm.abas,
+    mensagens: ['Catálogo fiscal importado e indexado; o motor não consulta o Excel em runtime.'] };
 }
 
 // ==========================================================================
@@ -313,5 +337,5 @@ function estatisticas() {
   return { ncm: { ...ncm, comMultiplosCandidatos: mult }, servicos: serv, importacoes: imports };
 }
 
-module.exports = { importarServicos, importarNcm, consultarNcm, consultarServico, buscar,
+module.exports = { importarServicos, importarNcm, importarCatalogoFiscal, consultarNcm, consultarServico, buscar,
   classificarMovimentos, pendencias, decidir, estatisticas, normNcm, normLc116, normNbs };

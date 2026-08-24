@@ -41,6 +41,7 @@
  */
 
 const regras = require('../services/regras');
+const catalogoFiscal = require('../services/catalogoFiscal');
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const r6 = (n) => Math.round((Number(n) || 0) * 1e6) / 1e6;
@@ -115,16 +116,26 @@ function reconstruir(item) {
   }
 
   // PIS/COFINS
-  const temPisCofins = tem(item.pis) || tem(item.cofins);
+  const temPisCofins = num(item.pis) + num(item.cofins) > 0;
+  let memoriaPisCofins = null;
   if (temPisCofins) {
     pis = num(item.pis); cofins = num(item.cofins);
     passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: 'documento', valor: r2(pis + cofins) });
-  } else if (tem(item.pis_cofins_referencia)) {
-    const bloco = valor * num(item.pis_cofins_referencia);
-    pis = bloco * proporcaoPis(); cofins = bloco - pis;
-    estimado = true;
-    passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: 'referência fiscal do serviço',
-      formula: `valor × ${(num(item.pis_cofins_referencia) * 100).toFixed(2)}%`, valor: r2(bloco) });
+    memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(pis + cofins), carga_atual_pis_cofins_percentual: valor ? r6((pis + cofins) / valor) : 0, carga_atual_pis_cofins_origem: 'DOCUMENTO', carga_atual_pis_cofins_natureza: 'REAL', base_reconstrucao_metodo: 'DOCUMENTO', base_reconstrucao_percentual: valor ? r6((pis + cofins) / valor) : 0, base_reconstrucao_valor_excluido: r2(pis + cofins), base_reconstrucao_fonte: 'DOCUMENTO', base_reconstrucao_natureza: 'REAL' };
+  } else if (!['simples_nacional', 'mei'].includes(regime)) {
+    const resolucao = catalogoFiscal.resolver(item, regime);
+    if (resolucao.percentual !== null) {
+      const bloco = num(resolucao.valor);
+      pis = bloco * proporcaoPis(); cofins = bloco - pis;
+      estimado = resolucao.natureza !== 'REAL';
+      passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: resolucao.origem,
+        formula: `valor × ${(num(resolucao.percentual) * 100).toFixed(2)}% (${resolucao.metodo})`, valor: r2(bloco) });
+      memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(bloco), carga_atual_pis_cofins_percentual: r6(resolucao.percentual), carga_atual_pis_cofins_origem: resolucao.origem, carga_atual_pis_cofins_natureza: resolucao.natureza, base_reconstrucao_metodo: resolucao.metodo, base_reconstrucao_percentual: r6(resolucao.percentual), base_reconstrucao_valor_excluido: r2(bloco), base_reconstrucao_fonte: resolucao.catalogo ? 'CATÁLOGO FISCAL' : resolucao.origem, base_reconstrucao_natureza: resolucao.natureza };
+      if (resolucao.natureza !== 'REAL') pendencias.push(`PIS/COFINS reconstruído por ${resolucao.metodo}.`);
+    } else {
+      pendencias.push(`PIS/COFINS não determinado: ${resolucao.metodo}.`);
+      memoriaPisCofins = { carga_atual_pis_cofins_valor: null, carga_atual_pis_cofins_percentual: null, carga_atual_pis_cofins_origem: resolucao.origem, carga_atual_pis_cofins_natureza: resolucao.natureza, base_reconstrucao_metodo: resolucao.metodo, base_reconstrucao_percentual: null, base_reconstrucao_valor_excluido: 0, base_reconstrucao_fonte: resolucao.catalogo ? 'CATÁLOGO FISCAL' : '', base_reconstrucao_natureza: resolucao.natureza };
+    }
   } else if (['simples_nacional', 'mei'].includes(regime)) {
     // No Simples não há destaque: a parcela vem da repartição do DAS.
     const s = item.simples;
@@ -206,6 +217,7 @@ function reconstruir(item) {
     foraDaBase: r2(foraDaBase),
     cargaAtual: precoMercadoria ? r6((retiradosDaBase + foraDaBase) / precoMercadoria) : 0,
     estimado,
+    memoriaPisCofins: memoriaPisCofins || { carga_atual_pis_cofins_valor: null, carga_atual_pis_cofins_percentual: null, carga_atual_pis_cofins_origem: 'INDETERMINADO', carga_atual_pis_cofins_natureza: 'INDETERMINADO', base_reconstrucao_metodo: 'INDETERMINADO', base_reconstrucao_percentual: null, base_reconstrucao_valor_excluido: 0, base_reconstrucao_fonte: '', base_reconstrucao_natureza: 'INDETERMINADO' },
     formula: item.valor_com_acrescimos
       ? 'base = (valor − IPI − ICMS-ST) − (ICMS + ISS + PIS + COFINS)'
       : 'base = valor − (ICMS + ISS + PIS + COFINS)   [IPI e ICMS-ST são por fora e não integram a base]',

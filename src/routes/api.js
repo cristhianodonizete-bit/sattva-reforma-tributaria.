@@ -1792,9 +1792,11 @@ router.post('/bases/importar/:tipo', upload.single('arquivo'), (req, res) => {
   try {
     if (!req.file) throw new Error('Envie a planilha no campo "arquivo".');
     const opcoes = { arquivo: req.file.originalname, aba: req.body.aba || undefined };
-    const r = req.params.tipo === 'ncm'
-      ? bases.importarNcm(req.file.buffer, opcoes)
-      : bases.importarServicos(req.file.buffer, opcoes);
+    const r = req.params.tipo === 'catalogo-fiscal'
+      ? bases.importarCatalogoFiscal(req.file.buffer, opcoes)
+      : req.params.tipo === 'ncm'
+        ? bases.importarNcm(req.file.buffer, opcoes)
+        : bases.importarServicos(req.file.buffer, opcoes);
 
     // A base é global — afeta todos os clientes já cadastrados, não só o
     // ativo na tela. Sem isso, o usuário vê "X registros carregados" mas a

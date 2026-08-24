@@ -67,6 +67,16 @@ const COLUNAS_NOVAS = {
     pis_cofins: 'REAL', das_efetivo: 'REAL', iss_aliquota: 'REAL', ativo: 'INTEGER DEFAULT 1', origem: "TEXT DEFAULT 'manual'",
   },
   regras_governo: { origem_linha: 'TEXT' },
+  base_ncm: {
+    operacao_pis_cofins: 'TEXT', cst_pis_atual: 'TEXT', cst_cofins_atual: 'TEXT', pis_percentual: 'REAL', cofins_percentual: 'REAL',
+    regime_pis_cofins_receita: 'TEXT', tratamento_pis_cofins: 'TEXT', papel_na_cadeia_necessario: 'TEXT', papel_na_cadeia: 'TEXT',
+    tratamento_efetivo_saida: 'TEXT', natureza_reconstrucao: 'TEXT', percentual_reconstrucao_sugerido: 'REAL', regra_precedencia: 'TEXT',
+  },
+  base_servicos: {
+    operacao_pis_cofins: 'TEXT', cst_pis_atual: 'TEXT', cst_cofins_atual: 'TEXT', pis_percentual: 'REAL', cofins_percentual: 'REAL',
+    cumulatividade_obrigatoria: 'TEXT', grau_determinacao: 'TEXT', hipotese_legal_cumulativa: 'TEXT', pis_cumulativo_percentual: 'REAL', cofins_cumulativo_percentual: 'REAL', total_cumulativo_percentual: 'REAL', fundamento_cumulatividade: 'TEXT', condicao_cumulatividade: 'TEXT',
+    regime_pis_cofins_receita: 'TEXT', tratamento_pis_cofins: 'TEXT', papel_na_cadeia_necessario: 'TEXT', tratamento_efetivo_saida: 'TEXT', natureza_reconstrucao: 'TEXT', percentual_reconstrucao_sugerido: 'REAL', regra_precedencia: 'TEXT',
+  },
   cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT' },
 };
 
@@ -610,7 +620,10 @@ CREATE TABLE IF NOT EXISTS base_servicos (
   onerosa TEXT, exterior TEXT,
   indop TEXT, local_incidencia TEXT,
   cclasstrib TEXT, nome_cclasstrib TEXT,
-  reducao TEXT DEFAULT 'integral'
+  reducao TEXT DEFAULT 'integral',
+  operacao_pis_cofins TEXT, cst_pis_atual TEXT, cst_cofins_atual TEXT, pis_percentual REAL, cofins_percentual REAL,
+  cumulatividade_obrigatoria TEXT, grau_determinacao TEXT, hipotese_legal_cumulativa TEXT, pis_cumulativo_percentual REAL, cofins_cumulativo_percentual REAL, total_cumulativo_percentual REAL, fundamento_cumulatividade TEXT, condicao_cumulatividade TEXT,
+  regime_pis_cofins_receita TEXT, tratamento_pis_cofins TEXT, papel_na_cadeia_necessario TEXT, tratamento_efetivo_saida TEXT, natureza_reconstrucao TEXT, percentual_reconstrucao_sugerido REAL, regra_precedencia TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_bserv_nbs ON base_servicos(nbs);
 CREATE INDEX IF NOT EXISTS ix_bserv_lc ON base_servicos(lc116, nbs);
@@ -620,7 +633,10 @@ CREATE TABLE IF NOT EXISTS base_ncm (
   ncm TEXT NOT NULL, descricao TEXT,
   cst TEXT, cclasstrib TEXT, classificacao TEXT, anexo TEXT, fundamento TEXT,
   reducao_ibs REAL, reducao_cbs REAL, regra TEXT, fonte TEXT,
-  candidatos INTEGER DEFAULT 1, reducao TEXT DEFAULT 'integral'
+  candidatos INTEGER DEFAULT 1, reducao TEXT DEFAULT 'integral',
+  operacao_pis_cofins TEXT, cst_pis_atual TEXT, cst_cofins_atual TEXT, pis_percentual REAL, cofins_percentual REAL,
+  regime_pis_cofins_receita TEXT, tratamento_pis_cofins TEXT, papel_na_cadeia_necessario TEXT, papel_na_cadeia TEXT,
+  tratamento_efetivo_saida TEXT, natureza_reconstrucao TEXT, percentual_reconstrucao_sugerido REAL, regra_precedencia TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_bncm ON base_ncm(ncm);
 
