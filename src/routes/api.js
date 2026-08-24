@@ -746,11 +746,13 @@ router.put('/empresas/:id/referencias-vendas/:chave', (req, res) => {
   try {
     const b = req.body;
     if (!temAliquotaInformada(b.pis_cofins) && !temAliquotaInformada(b.das_efetivo)) throw new Error('Informe PIS/COFINS ou a alíquota efetiva do DAS para esta venda de serviço.');
+    const antes = db.prepare('SELECT nbs, descricao, pis_cofins, das_efetivo, iss_aliquota FROM empresa_servicos_fiscais WHERE empresa_id=? AND chave=?').get(req.params.id, req.params.chave);
     db.prepare(`INSERT INTO empresa_servicos_fiscais (empresa_id,chave,nbs,descricao,pis_cofins,das_efetivo,iss_aliquota,ativo,origem,atualizado_em)
       VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
       ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
       pis_cofins=excluded.pis_cofins,das_efetivo=excluded.das_efetivo,iss_aliquota=excluded.iss_aliquota,ativo=excluded.ativo,origem=excluded.origem,atualizado_em=excluded.atualizado_em`)
       .run(req.params.id, req.params.chave, b.nbs || '', b.descricao || 'Serviço', temAliquotaInformada(b.pis_cofins) ? normalizarAliquota(b.pis_cofins) : null, temAliquotaInformada(b.das_efetivo) ? normalizarAliquota(b.das_efetivo) : null, temAliquotaInformada(b.iss_aliquota) ? normalizarAliquota(b.iss_aliquota) : null, 1, 'manual');
+    auditar(req, { empresaId: req.params.id, acao: antes ? 'Atualizou referência fiscal de serviço' : 'Criou referência fiscal de serviço', entidade: 'referencia_fiscal_servico', entidadeId: req.params.chave, antes, depois: { nbs: b.nbs || '', descricao: b.descricao || 'Serviço', pis_cofins: temAliquotaInformada(b.pis_cofins) ? normalizarAliquota(b.pis_cofins) : null, das_efetivo: temAliquotaInformada(b.das_efetivo) ? normalizarAliquota(b.das_efetivo) : null, iss_aliquota: temAliquotaInformada(b.iss_aliquota) ? normalizarAliquota(b.iss_aliquota) : null } });
     ok(res, {});
   } catch (e) { erro(res, e); }
 });
@@ -767,6 +769,7 @@ router.post('/empresas/:id/referencias-vendas', (req, res) => {
       ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
       pis_cofins=excluded.pis_cofins,das_efetivo=excluded.das_efetivo,iss_aliquota=excluded.iss_aliquota,ativo=excluded.ativo,origem=excluded.origem,atualizado_em=excluded.atualizado_em`)
       .run(req.params.id, chave, b.nbs || '', descricao, temAliquotaInformada(b.pis_cofins) ? normalizarAliquota(b.pis_cofins) : null, temAliquotaInformada(b.das_efetivo) ? normalizarAliquota(b.das_efetivo) : null, temAliquotaInformada(b.iss_aliquota) ? normalizarAliquota(b.iss_aliquota) : null, 1, 'manual');
+    auditar(req, { empresaId: req.params.id, acao: 'Criou referência fiscal de serviço', entidade: 'referencia_fiscal_servico', entidadeId: chave, depois: { nbs: b.nbs || '', descricao, pis_cofins: temAliquotaInformada(b.pis_cofins) ? normalizarAliquota(b.pis_cofins) : null, das_efetivo: temAliquotaInformada(b.das_efetivo) ? normalizarAliquota(b.das_efetivo) : null, iss_aliquota: temAliquotaInformada(b.iss_aliquota) ? normalizarAliquota(b.iss_aliquota) : null } });
     ok(res, { chave });
   } catch (e) { erro(res, e); }
 });
@@ -803,6 +806,7 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
         importados++;
       }
     })();
+    auditar(req, { empresaId: req.params.id, acao: 'Importou referências fiscais de serviços', entidade: 'referencia_fiscal_servico', entidadeId: 'importacao', depois: { importados, ignorados } });
     ok(res, { importados, ignorados });
   } catch (e) { erro(res, e); }
 });
