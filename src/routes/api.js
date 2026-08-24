@@ -436,16 +436,21 @@ function analisarPerfil(empresa, linhas) {
   const merc = s('receita_mercadorias'), serv = s('receita_servicos'), exp = s('receita_exportacao');
   const totalComp = merc + serv + exp || receita || 1;
 
-  const anos = P.ANOS;
+  const aliquotasProjeto = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
+  const ibsAtivo = aliquotasProjeto.some((a) => Number(a.calcular_ibs) === 1);
+  const referenciaCbs = aliquotasProjeto.find((a) => Number(a.ano) === 2033) || aliquotasProjeto[aliquotasProjeto.length - 1];
+  const anos = ibsAtivo ? aliquotasProjeto.map((a) => Number(a.ano)) : [Number(referenciaCbs?.ano || 2027)];
   const projecao = anos.map((ano) => {
-    const cron = P.CRONOGRAMA[ano];
-    const red = P.REDUCOES[empresa.reducao_padrao] || P.REDUCOES.integral;
-    const aliq = (cron.cbs + cron.ibs) * (1 - red.reducao);
+    const cron = aliquotasProjeto.find((a) => Number(a.ano) === Number(ano)) || referenciaCbs || {};
+    const reducao = regras.percentualReducao(empresa.reducao_padrao || 'integral');
+    const cbs = Number(cron.cbs) || 0;
+    const ibs = Number(cron.calcular_ibs) === 1 ? (Number(cron.ibs) || 0) : 0;
+    const aliq = (cbs + ibs) * (1 - reducao);
     const baseLimpa = receita - tributos;
-    const residual = (s('icms') + s('iss')) * cron.fatorIcmsIss + (s('pis') + s('cofins')) * cron.fatorPisCofins + s('ipi') * cron.fatorIpi + s('das') * (cron.fatorIcmsIss);
-    const iva = cron.compensavel ? 0 : baseLimpa * aliq;
+    const residual = (s('icms') + s('iss')) * (Number(cron.fator_icms_iss) || 0) + (s('pis') + s('cofins')) * (Number(cron.fator_pis_cofins) || 0) + s('ipi') * (Number(cron.fator_ipi) || 0) + s('das') * (Number(cron.fator_icms_iss) || 0);
+    const iva = Number(cron.compensavel) === 1 ? 0 : baseLimpa * aliq;
     const total = residual + iva;
-    return { ano, nota: cron.nota, aliquotaIva: calc.r4(aliq), tributos: calc.r2(total),
+    return { ano, nota: cron.nota || '', aliquotaIva: calc.r4(aliq), tributos: calc.r2(total),
       carga: receita ? calc.r4(total / (baseLimpa + total)) : 0,
       variacao: calc.r2(total - tributos) };
   });
