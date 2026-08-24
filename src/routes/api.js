@@ -1831,6 +1831,41 @@ router.get('/bases/buscar', (req, res) => {
   catch (e) { erro(res, e); }
 });
 
+// Catálogo paginado das bases oficiais, enriquecido com as regras específicas
+// de venda para governo/autarquias. A regra fica visível; o motor continua
+// aplicando-a somente quando o destinatário estiver confirmado como ente público.
+router.get('/bases/catalogo', (req, res) => {
+  try {
+    const tipo = req.query.tipo === 'servicos' ? 'servicos' : 'ncm';
+    const pagina = Math.max(1, Number(req.query.pagina) || 1);
+    const tamanho = Math.min(100, Math.max(10, Number(req.query.tamanho) || 50));
+    const busca = String(req.query.busca || '').trim();
+    const digitos = busca.replace(/\D/g, '');
+    const termo = `%${busca}%`;
+    const condicao = tipo === 'ncm'
+      ? (busca ? 'WHERE ncm LIKE ? OR descricao LIKE ? OR classificacao LIKE ? OR cclasstrib LIKE ?' : '')
+      : (busca ? 'WHERE nbs LIKE ? OR lc116 LIKE ? OR descricao_item LIKE ? OR descricao_nbs LIKE ? OR cclasstrib LIKE ?' : '');
+    const parametros = tipo === 'ncm'
+      ? (busca ? [`${digitos}%`, termo, termo, termo] : [])
+      : (busca ? [`${digitos}%`, `${digitos}%`, termo, termo, termo] : []);
+    const tabela = tipo === 'ncm' ? 'base_ncm' : 'base_servicos';
+    const ordem = tipo === 'ncm' ? 'ncm, cclasstrib' : 'nbs, lc116, cclasstrib';
+    const total = db.prepare(`SELECT COUNT(*) c FROM ${tabela} ${condicao}`).get(...parametros).c;
+    const itens = db.prepare(`SELECT * FROM ${tabela} ${condicao} ORDER BY ${ordem} LIMIT ? OFFSET ?`)
+      .all(...parametros, tamanho, (pagina - 1) * tamanho);
+    const regras = db.prepare('SELECT * FROM regras_governo').all();
+    const codigo = (v) => String(v || '').replace(/\D/g, '');
+    const beneficios = (item) => regras.filter((r) => {
+      const chaves = tipo === 'ncm' ? [item.ncm] : [item.nbs, item.lc116];
+      const candidatos = [r.chave, r.ncm, r.nbs, r.lc116].map(codigo).filter(Boolean);
+      return chaves.map(codigo).filter(Boolean).some((chave) => candidatos.includes(chave));
+    }).map((r) => ({ tratamento: r.tratamento || '', reducao: r.reducao, aliquota_zero: Boolean(r.aliquota_zero),
+      cst: r.cst || '', cclasstrib: r.cclasstrib || '', ente_elegivel: r.ente_elegivel || '',
+      condicoes: r.condicoes || '', fundamento: r.fundamento || '', fonte: r.fonte || '' }));
+    ok(res, { tipo, pagina, tamanho, total, itens: itens.map((item) => ({ ...item, beneficios: beneficios(item) })) });
+  } catch (e) { erro(res, e); }
+});
+
 router.post('/empresas/:id/bases/classificar', (req, res) => {
   try { ok(res, { resultado: bases.classificarMovimentos(req.params.id) }); }
   catch (e) { erro(res, e); }

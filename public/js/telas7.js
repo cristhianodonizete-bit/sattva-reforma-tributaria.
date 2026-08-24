@@ -573,7 +573,39 @@ async function basesReceita(el) {
   };
 }
 
+async function catalogoFiscal(el) {
+  const estado = S.cache.catalogoFiscal || (S.cache.catalogoFiscal = { tipo: 'ncm', busca: '', pagina: 1 });
+  const carregar = async () => {
+    el.innerHTML = '<div class="carregando">Carregando catálogo fiscal…</div>';
+    const r = await A.api(`/bases/catalogo?tipo=${estado.tipo}&pagina=${estado.pagina}&tamanho=50&busca=${encodeURIComponent(estado.busca)}`);
+    const paginas = Math.max(1, Math.ceil(r.total / r.tamanho));
+    const beneficio = (lista) => !lista?.length ? '<span class="tag n">Sem benefício específico</span>' : lista.map((b) => `<div style="margin-bottom:6px"><span class="tag c">Benefício governamental</span><div class="mini">${A.esc(b.tratamento || (b.aliquota_zero ? 'Alíquota zero' : 'Tratamento específico'))}${b.reducao != null ? ` · redução ${A.pct(b.reducao, 0)}` : ''}</div>${b.cst || b.cclasstrib ? `<div class="mono mini">CST ${A.esc(b.cst || '—')} · cClassTrib ${A.esc(b.cclasstrib || '—')}</div>` : ''}${b.ente_elegivel ? `<div class="mini">Ente: ${A.esc(b.ente_elegivel)}</div>` : ''}${b.condicoes ? `<div class="mini">${A.esc(b.condicoes)}</div>` : ''}</div>`).join('');
+    const colunas = estado.tipo === 'ncm' ? [
+      { t: 'NCM', r: (x) => `<b class="mono">${A.esc(x.ncm)}</b>` },
+      { t: 'Descrição / classificação', r: (x) => `<b>${A.esc(x.descricao || '—')}</b><div class="mini">${A.esc(x.classificacao || '')}</div>` },
+      { t: 'CST / cClassTrib', r: (x) => `<span class="mono mini">${A.esc(x.cst || '—')} · ${A.esc(x.cclasstrib || '—')}</span>` },
+      { t: 'Redução geral', r: (x) => x.reducao_ibs != null || x.reducao_cbs != null ? `IBS ${x.reducao_ibs != null ? A.pct(x.reducao_ibs, 0) : '—'}<br>CBS ${x.reducao_cbs != null ? A.pct(x.reducao_cbs, 0) : '—'}` : '<span class="tag">integral</span>' },
+      { t: 'Benefício governo/autarquia', r: (x) => beneficio(x.beneficios) },
+    ] : [
+      { t: 'NBS / LC 116', r: (x) => `<b class="mono">${A.esc(x.nbs || '—')}</b><div class="mini mono">LC 116 ${A.esc(x.lc116 || '—')}</div>` },
+      { t: 'Serviço', r: (x) => `<b>${A.esc(x.descricao_nbs || x.descricao_item || '—')}</b><div class="mini">${A.esc(x.descricao_item || '')}</div>` },
+      { t: 'cClassTrib / INDOP', r: (x) => `<span class="mono mini">${A.esc(x.cclasstrib || '—')} · ${A.esc(x.indop || '—')}</span>` },
+      { t: 'Tratamento geral', r: (x) => `<span class="tag">${A.esc(x.reducao || 'integral')}</span><div class="mini">${A.esc(x.local_incidencia || '')}</div>` },
+      { t: 'Benefício governo/autarquia', r: (x) => beneficio(x.beneficios) },
+    ];
+    el.innerHTML = `<div class="topo"><div><div class="olho">Bases fiscais</div><h1>Catálogo fiscal</h1><p>Consulta completa de NCMs e NBSs cadastrados, incluindo benefícios específicos para governo e autarquias.</p></div></div><div class="cartao"><div class="filtros-carteira"><label>Base<select id="catalogoTipo"><option value="ncm" ${estado.tipo === 'ncm' ? 'selected' : ''}>Produtos — NCM</option><option value="servicos" ${estado.tipo === 'servicos' ? 'selected' : ''}>Serviços — NBS / LC 116</option></select></label><label style="flex:1">Buscar código ou descrição<input id="catalogoBusca" value="${A.esc(estado.busca)}" placeholder="Ex.: 30049099, 1.1502.10.00 ou medicamento"></label><button class="btn" id="catalogoBuscar">Buscar</button></div><div class="aviso"><b>${r.total.toLocaleString('pt-BR')} registro(s)</b> O benefício só é aplicado pelo motor após confirmar o destinatário como ente governamental.</div><div style="margin-top:14px">${A.tabela(colunas, r.itens, { vazio: 'Nenhum registro encontrado.' })}</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px"><span class="mini">Página ${r.pagina} de ${paginas}</span><div style="display:flex;gap:8px"><button class="btn pq vazio" id="catalogoAnterior" ${r.pagina <= 1 ? 'disabled' : ''}>Anterior</button><button class="btn pq vazio" id="catalogoProximo" ${r.pagina >= paginas ? 'disabled' : ''}>Próxima</button></div></div></div>`;
+    el.querySelector('#catalogoTipo').onchange = (e) => { estado.tipo = e.target.value; estado.pagina = 1; carregar(); };
+    const buscar = () => { estado.busca = el.querySelector('#catalogoBusca').value.trim(); estado.pagina = 1; carregar(); };
+    el.querySelector('#catalogoBuscar').onclick = buscar;
+    el.querySelector('#catalogoBusca').onkeydown = (e) => { if (e.key === 'Enter') buscar(); };
+    el.querySelector('#catalogoAnterior').onclick = () => { estado.pagina -= 1; carregar(); };
+    el.querySelector('#catalogoProximo').onclick = () => { estado.pagina += 1; carregar(); };
+  };
+  await carregar();
+}
+
 M.comAbas('bases', M.abasBases.concat([
+  { id: 'catalogo_fiscal', t: 'Catálogo NCM / NBS', render: catalogoFiscal },
   { id: 'regime_receita', t: 'Bases da Receita (Real/Presumido)', render: basesReceita },
 ]), 'atual');
 })();
