@@ -184,7 +184,7 @@ function normalizar(m) {
     cst: m.cst, csosn: m.csosn, quantidade: m.quantidade,
     valor: m.valor, base_calculo: m.base_calculo,
     icms: m.icms, icms_st: m.icms_st, ipi: m.ipi,
-    pis: m.pis, cofins: m.cofins, iss: m.iss,
+    pis: m.pis, cofins: m.cofins, pis_cofins_documentado: Number(m.pis_cofins_documentado) === 1, iss: m.iss,
     pis_cofins_referencia: m.referenciaFiscal?.pis_cofins,
     frete: m.frete, seguro: m.seguro, outras: m.outras, desconto: m.desconto,
     data_emissao: m.data_emissao,

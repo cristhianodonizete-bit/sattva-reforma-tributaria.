@@ -31,3 +31,4 @@ alter table public.base_servicos add column if not exists tratamento_efetivo_sai
 alter table public.base_servicos add column if not exists natureza_reconstrucao text;
 alter table public.base_servicos add column if not exists percentual_reconstrucao_sugerido numeric;
 alter table public.base_servicos add column if not exists regra_precedencia text;
+alter table public.movimentos add column if not exists pis_cofins_documentado boolean default false;

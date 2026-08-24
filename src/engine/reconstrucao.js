@@ -116,12 +116,12 @@ function reconstruir(item) {
   }
 
   // PIS/COFINS
-  const temPisCofins = num(item.pis) + num(item.cofins) > 0;
+  const temPisCofins = Boolean(item.pis_cofins_documentado) || num(item.pis) + num(item.cofins) > 0;
   let memoriaPisCofins = null;
   if (temPisCofins) {
     pis = num(item.pis); cofins = num(item.cofins);
     passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: 'documento', valor: r2(pis + cofins) });
-    memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(pis + cofins), carga_atual_pis_cofins_percentual: valor ? r6((pis + cofins) / valor) : 0, carga_atual_pis_cofins_origem: 'DOCUMENTO', carga_atual_pis_cofins_natureza: 'REAL', base_reconstrucao_metodo: 'DOCUMENTO', base_reconstrucao_percentual: valor ? r6((pis + cofins) / valor) : 0, base_reconstrucao_valor_excluido: r2(pis + cofins), base_reconstrucao_fonte: 'DOCUMENTO', base_reconstrucao_natureza: 'REAL' };
+    memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(pis + cofins), carga_atual_pis_cofins_percentual: valor ? r6((pis + cofins) / valor) : 0, carga_atual_pis_cofins_origem: 'DOCUMENTO', carga_atual_pis_cofins_natureza: 'REAL', modo_reconstrucao_monofasia: 'VALOR_REAL_DOCUMENTO', base_reconstrucao_metodo: 'DOCUMENTO', base_reconstrucao_percentual: valor ? r6((pis + cofins) / valor) : 0, base_reconstrucao_valor_excluido: r2(pis + cofins), base_reconstrucao_fonte: 'DOCUMENTO', base_reconstrucao_natureza: 'REAL' };
   } else if (!['simples_nacional', 'mei'].includes(regime)) {
     const resolucao = catalogoFiscal.resolver(item, regime);
     if (resolucao.percentual !== null) {
@@ -130,11 +130,11 @@ function reconstruir(item) {
       estimado = resolucao.natureza !== 'REAL';
       passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: resolucao.origem,
         formula: `valor × ${(num(resolucao.percentual) * 100).toFixed(2)}% (${resolucao.metodo})`, valor: r2(bloco) });
-      memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(bloco), carga_atual_pis_cofins_percentual: r6(resolucao.percentual), carga_atual_pis_cofins_origem: resolucao.origem, carga_atual_pis_cofins_natureza: resolucao.natureza, base_reconstrucao_metodo: resolucao.metodo, base_reconstrucao_percentual: r6(resolucao.percentual), base_reconstrucao_valor_excluido: r2(bloco), base_reconstrucao_fonte: resolucao.catalogo ? 'CATÁLOGO FISCAL' : resolucao.origem, base_reconstrucao_natureza: resolucao.natureza };
+      memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(bloco), carga_atual_pis_cofins_percentual: r6(resolucao.percentual), carga_atual_pis_cofins_origem: resolucao.origem, carga_atual_pis_cofins_natureza: resolucao.natureza, modo_reconstrucao_monofasia: resolucao.modoMonofasia || null, regime_receita: resolucao.catalogo?.regime_pis_cofins_receita || regime, tratamento_especifico: resolucao.catalogo?.tratamento_pis_cofins || 'NORMAL', papel_na_cadeia: resolucao.catalogo?.papel_na_cadeia || 'NÃO APLICÁVEL', fundamento: resolucao.catalogo?.regra_precedencia || '', base_reconstrucao_metodo: resolucao.metodo, base_reconstrucao_percentual: r6(resolucao.percentual), base_reconstrucao_valor_excluido: r2(bloco), base_reconstrucao_fonte: resolucao.catalogo ? 'CATÁLOGO FISCAL' : resolucao.origem, base_reconstrucao_natureza: resolucao.natureza };
       if (resolucao.natureza !== 'REAL') pendencias.push(`PIS/COFINS reconstruído por ${resolucao.metodo}.`);
     } else {
       pendencias.push(`PIS/COFINS não determinado: ${resolucao.metodo}.`);
-      memoriaPisCofins = { carga_atual_pis_cofins_valor: null, carga_atual_pis_cofins_percentual: null, carga_atual_pis_cofins_origem: resolucao.origem, carga_atual_pis_cofins_natureza: resolucao.natureza, base_reconstrucao_metodo: resolucao.metodo, base_reconstrucao_percentual: null, base_reconstrucao_valor_excluido: 0, base_reconstrucao_fonte: resolucao.catalogo ? 'CATÁLOGO FISCAL' : '', base_reconstrucao_natureza: resolucao.natureza };
+      memoriaPisCofins = { carga_atual_pis_cofins_valor: null, carga_atual_pis_cofins_percentual: null, carga_atual_pis_cofins_origem: resolucao.origem, carga_atual_pis_cofins_natureza: resolucao.natureza, modo_reconstrucao_monofasia: resolucao.modoMonofasia || 'INDETERMINADO', regime_receita: resolucao.catalogo?.regime_pis_cofins_receita || regime, tratamento_especifico: resolucao.catalogo?.tratamento_pis_cofins || 'INDETERMINADO', papel_na_cadeia: resolucao.catalogo?.papel_na_cadeia || 'INDETERMINADO', fundamento: resolucao.catalogo?.regra_precedencia || '', base_reconstrucao_metodo: resolucao.metodo, base_reconstrucao_percentual: null, base_reconstrucao_valor_excluido: 0, base_reconstrucao_fonte: resolucao.catalogo ? 'CATÁLOGO FISCAL' : '', base_reconstrucao_natureza: resolucao.natureza };
     }
   } else if (['simples_nacional', 'mei'].includes(regime)) {
     // No Simples não há destaque: a parcela vem da repartição do DAS.
@@ -217,7 +217,7 @@ function reconstruir(item) {
     foraDaBase: r2(foraDaBase),
     cargaAtual: precoMercadoria ? r6((retiradosDaBase + foraDaBase) / precoMercadoria) : 0,
     estimado,
-    memoriaPisCofins: memoriaPisCofins || { carga_atual_pis_cofins_valor: null, carga_atual_pis_cofins_percentual: null, carga_atual_pis_cofins_origem: 'INDETERMINADO', carga_atual_pis_cofins_natureza: 'INDETERMINADO', base_reconstrucao_metodo: 'INDETERMINADO', base_reconstrucao_percentual: null, base_reconstrucao_valor_excluido: 0, base_reconstrucao_fonte: '', base_reconstrucao_natureza: 'INDETERMINADO' },
+    memoriaPisCofins: { ...(memoriaPisCofins || { carga_atual_pis_cofins_valor: null, carga_atual_pis_cofins_percentual: null, carga_atual_pis_cofins_origem: 'INDETERMINADO', carga_atual_pis_cofins_natureza: 'INDETERMINADO', modo_reconstrucao_monofasia: 'INDETERMINADO', base_reconstrucao_metodo: 'INDETERMINADO', base_reconstrucao_percentual: null, base_reconstrucao_valor_excluido: 0, base_reconstrucao_fonte: '', base_reconstrucao_natureza: 'INDETERMINADO' }), tributos_retirados_da_base: { icms: r2(icms), iss: r2(iss), pis: r2(pis), cofins: r2(cofins) }, base_economica: r2(baseEconomica) },
     formula: item.valor_com_acrescimos
       ? 'base = (valor − IPI − ICMS-ST) − (ICMS + ISS + PIS + COFINS)'
       : 'base = valor − (ICMS + ISS + PIS + COFINS)   [IPI e ICMS-ST são por fora e não integram a base]',

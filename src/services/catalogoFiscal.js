@@ -23,17 +23,17 @@ function localizar(item) {
 
 function resolver(item, regime) {
   const documento = num(item.pis) + num(item.cofins);
-  if (documento > 0) return { percentual: item.valor ? documento / num(item.valor) : 0, valor: documento, origem: 'DOCUMENTO', natureza: 'REAL', metodo: 'DOCUMENTO', catalogo: null };
+  if (item.pis_cofins_documentado || documento > 0) return { percentual: item.valor ? documento / num(item.valor) : 0, valor: documento, origem: 'DOCUMENTO', natureza: 'REAL', metodo: 'DOCUMENTO', modoMonofasia: 'VALOR_REAL_DOCUMENTO', catalogo: null };
   const c = localizar(item);
   if (!c) return { percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO', metodo: 'SEM_CATALOGO', catalogo: null };
   const tratamento = texto(c.tratamento_pis_cofins).toUpperCase();
   const efetivo = texto(c.tratamento_efetivo_saida).toUpperCase();
   const condicional = texto(c.grau_determinacao).toUpperCase().includes('CONDICIONADO');
-  if (tratamento.includes('ALÍQUOTA ZERO') || efetivo.includes('ALÍQUOTA ZERO')) return { percentual: 0, valor: 0, origem: 'CATALOGO_REGRA_ESPECIFICA', natureza: 'CALCULADO', metodo: 'ALIQUOTA_ZERO', catalogo: c };
+  if (tratamento.includes('ALÍQUOTA ZERO') || efetivo.includes('ALÍQUOTA ZERO')) return { percentual: 0, valor: 0, origem: 'CATALOGO_REGRA_ESPECIFICA', natureza: 'CALCULADO', metodo: 'ALIQUOTA_ZERO', modoMonofasia: 'ALIQUOTA_ZERO_REVENDA', catalogo: c };
   if (tratamento.includes('MONOF')) {
-    if (efetivo.includes('ALÍQUOTA ZERO')) return { percentual: 0, valor: 0, origem: 'CATALOGO_REGRA_ESPECIFICA', natureza: 'CALCULADO', metodo: 'MONOFASICO_REVENDA_ZERO', catalogo: c };
+    if (efetivo.includes('ALÍQUOTA ZERO')) return { percentual: 0, valor: 0, origem: 'CATALOGO_REGRA_ESPECIFICA', natureza: 'CALCULADO', metodo: 'MONOFASICO_REVENDA_ZERO', modoMonofasia: 'ALIQUOTA_ZERO_REVENDA', catalogo: c };
     const p = num(c.percentual_reconstrucao_sugerido);
-    return p ? { percentual: p, valor: num(item.valor) * p, origem: 'PREMISSA_SIMULADA', natureza: 'SIMULADO', metodo: 'MONOFASICO_PREMISSA', catalogo: c } : { percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO', metodo: 'MONOFASICO_SEM_PAPEL', catalogo: c };
+    return p ? { percentual: p, valor: num(item.valor) * p, origem: 'PREMISSA_SIMULADA', natureza: 'SIMULADO', metodo: 'MONOFASICO_PREMISSA', modoMonofasia: 'PREMISSA_PERCENTUAL', catalogo: c } : { percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO', metodo: 'MONOFASICO_SEM_PAPEL', modoMonofasia: 'INDETERMINADO', catalogo: c };
   }
   if (texto(c.cumulatividade_obrigatoria).toUpperCase() === 'SIM') {
     const p = num(c.total_cumulativo_percentual) || (num(c.pis_cumulativo_percentual) + num(c.cofins_cumulativo_percentual));

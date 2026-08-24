@@ -117,6 +117,7 @@ function lerNfe(xml) {
       ipi: numero(valor(ipiBloco, 'vIPI')),
       pis: numero(valor(pisBloco, 'vPIS')),
       cofins: numero(valor(cofinsBloco, 'vCOFINS')),
+      pis_cofins_documentado: Boolean(pisBloco || cofinsBloco),
       iss: 0,
     };
   });
@@ -253,6 +254,7 @@ function lerNfseNacional(xml) {
     iss: numero(valor(valores, 'vISSQN')),
     pis: numero(valor(piscofins, 'vPis')),
     cofins: numero(valor(piscofins, 'vCofins')),
+    pis_cofins_documentado: Boolean(piscofins),
     icms: 0, icms_st: 0, ipi: 0,
     frete: 0, seguro: 0, outras: 0, desconto: 0,
     declarado,

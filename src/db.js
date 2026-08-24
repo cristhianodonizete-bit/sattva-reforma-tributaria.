@@ -41,6 +41,7 @@ const COLUNAS_NOVAS = {
     frete: 'REAL DEFAULT 0', seguro: 'REAL DEFAULT 0',
     outras: 'REAL DEFAULT 0', desconto: 'REAL DEFAULT 0',
     sentido: 'TEXT',
+    pis_cofins_documentado: 'INTEGER DEFAULT 0',
   },
   motor_resultados: {
     cenario_id: 'INTEGER', grupo_origem: 'TEXT', fracao: 'REAL DEFAULT 1',
@@ -197,7 +198,7 @@ CREATE TABLE IF NOT EXISTS movimentos (
   competencia TEXT,
   valor REAL DEFAULT 0, base_calculo REAL DEFAULT 0,
   icms REAL DEFAULT 0, icms_st REAL DEFAULT 0, ipi REAL DEFAULT 0,
-  pis REAL DEFAULT 0, cofins REAL DEFAULT 0, iss REAL DEFAULT 0,
+  pis REAL DEFAULT 0, cofins REAL DEFAULT 0, pis_cofins_documentado INTEGER DEFAULT 0, iss REAL DEFAULT 0,
   regime TEXT,                          -- resolvido a partir do cadastro de parceiros
   reducao TEXT DEFAULT 'integral',
   aliq_especifica REAL,

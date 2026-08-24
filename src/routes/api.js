@@ -1966,9 +1966,9 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
     const insMov = db.prepare(`INSERT INTO movimentos (empresa_id, lote_id, tipo, sentido, nome, inscr_federal,
       descricao, ncm, nbs, cfop, cst, csosn, competencia, documento, chave, item_numero, codigo_produto,
       quantidade, unidade, data_emissao, emitente_cnpj, destinatario_cnpj,
-      valor, base_calculo, icms, icms_st, ipi, pis, cofins, iss, frete, seguro, outras, desconto,
+      valor, base_calculo, icms, icms_st, ipi, pis, cofins, pis_cofins_documentado, iss, frete, seguro, outras, desconto,
       cst_declarado, cclasstrib_declarado, ibs_declarado, cbs_declarado, origem)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'xml')`);
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'xml')`);
     const insPar = db.prepare(`INSERT INTO parceiros (empresa_id, tipo, cnpj, descricao, regime, uf, origem)
       VALUES (?,?,?,?,?,?, 'xml')
       ON CONFLICT(empresa_id, tipo, cnpj) DO UPDATE SET descricao = excluded.descricao`);
@@ -1999,7 +1999,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
               i.documento, i.chave || '', i.item_numero, i.codigo_produto || '', i.quantidade || 0,
               i.unidade || '', i.data_emissao || '', i.emitente_cnpj, i.destinatario_cnpj,
               i.valor, i.base_calculo || i.valor, i.icms || 0, i.icms_st || 0, i.ipi || 0,
-              i.pis || 0, i.cofins || 0, i.iss || 0, i.frete || 0, i.seguro || 0, i.outras || 0, i.desconto || 0,
+              i.pis || 0, i.cofins || 0, i.pis_cofins_documentado ? 1 : 0, i.iss || 0, i.frete || 0, i.seguro || 0, i.outras || 0, i.desconto || 0,
               (i.declarado && i.declarado.cst) || '', (i.declarado && i.declarado.cclasstrib) || '',
               (i.declarado && i.declarado.ibs) || 0, (i.declarado && i.declarado.cbs) || 0);
             relatorio.itens++;
