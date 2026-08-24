@@ -192,6 +192,7 @@ Telas.dados = async (el) => {
     ${aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
       <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
+      <button class="btn vazio pq" id="addReferenciaServico" style="margin-bottom:12px">Adicionar serviço ao cadastro</button>
       ${referenciasVendas.pendentes.length ? `<div class="aviso atencao"><b>${referenciasVendas.pendentes.length} serviço(s) exigem referência fiscal.</b> Defina PIS/COFINS ou DAS efetivo antes de usar uma estimativa para a venda.</div>` : '<div class="aviso bom"><b>Serviços identificados com referência cadastrada.</b></div>'}
       ${A.tabela([
         { t: 'NBS / serviço', r: (s) => `<b class="mono">${A.esc(s.nbs || 'sem NBS')}</b><div class="mini">${A.esc(s.descricao || '')}</div>` },
@@ -255,6 +256,13 @@ Telas.dados = async (el) => {
         aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/referencias-vendas/${encodeURIComponent(s.chave)}`, { metodo: 'PUT', corpo: { ...d, nbs: s.nbs, descricao: s.descricao } }); A.toast('Referência fiscal salva', 'ok'); A.ir('dados'); },
       });
     }; });
+    document.getElementById('addReferenciaServico')?.addEventListener('click', () => {
+      A.modal({ titulo: 'Cadastrar referência fiscal de serviço', descricao: 'Use este cadastro para serviços novos, mesmo antes de haver uma venda importada.',
+        corpo: `<div class="grade g2">${A.campo('descricao', 'Descrição do serviço')}${A.campo('nbs', 'NBS (se houver)')}</div>` +
+          `<div class="grade g3">${A.campo('pis_cofins','PIS/COFINS da venda','', 'number','step="0.0001"')}${A.campo('das_efetivo','DAS efetivo (Simples)','', 'number','step="0.0001"')}${A.campo('iss_aliquota','ISS','', 'number','step="0.0001"')}</div>`,
+        aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/referencias-vendas`, { metodo: 'POST', corpo: d }); A.toast('Referência fiscal cadastrada', 'ok'); A.ir('dados'); },
+      });
+    });
     el.querySelectorAll('[data-ir-importacao]').forEach((b) => { b.onclick = () => document.getElementById(b.dataset.irImportacao)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
 
   async function enviar(arquivo, destino) {

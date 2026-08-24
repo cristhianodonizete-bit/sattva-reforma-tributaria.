@@ -700,6 +700,8 @@ function referenciaFiscalPrecificacao(empresaId, item, exigir = true) {
   return referencia || null;
 }
 
+const temAliquotaInformada = (valor) => valor !== '' && valor !== null && valor !== undefined;
+
 router.get('/empresas/:id/referencias-vendas', (req, res) => {
   try {
     const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
@@ -713,6 +715,10 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
         atual.valor += Number(m.valor) || 0;
         porChave.set(chave, atual);
       });
+    // Mantém no catálogo também serviços preparados antes da primeira venda.
+    referencias.filter((r) => r.ativo).forEach((r) => {
+      if (!porChave.has(r.chave)) porChave.set(r.chave, { chave: r.chave, nbs: r.nbs || '', descricao: r.descricao || 'Serviço', registros: 0, valor: 0 });
+    });
     const servicos = [...porChave.values()].sort((a, b) => b.valor - a.valor)
       .map((s) => ({ ...s, configurado: mapa.has(s.chave), referencia: mapa.get(s.chave) || null }));
     ok(res, { referencias, servicos, pendentes: servicos.filter((s) => !s.configurado) });
@@ -722,13 +728,29 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
 router.put('/empresas/:id/referencias-vendas/:chave', (req, res) => {
   try {
     const b = req.body;
-    if (b.pis_cofins === '' && b.das_efetivo === '') throw new Error('Informe PIS/COFINS ou a alíquota efetiva do DAS para esta venda de serviço.');
+    if (!temAliquotaInformada(b.pis_cofins) && !temAliquotaInformada(b.das_efetivo)) throw new Error('Informe PIS/COFINS ou a alíquota efetiva do DAS para esta venda de serviço.');
     db.prepare(`INSERT INTO empresa_servicos_fiscais (empresa_id,chave,nbs,descricao,pis_cofins,das_efetivo,iss_aliquota,ativo,origem,atualizado_em)
       VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
       ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
       pis_cofins=excluded.pis_cofins,das_efetivo=excluded.das_efetivo,iss_aliquota=excluded.iss_aliquota,ativo=excluded.ativo,origem=excluded.origem,atualizado_em=excluded.atualizado_em`)
       .run(req.params.id, req.params.chave, b.nbs || '', b.descricao || 'Serviço', b.pis_cofins === '' ? null : Number(b.pis_cofins), b.das_efetivo === '' ? null : Number(b.das_efetivo), b.iss_aliquota === '' ? null : Number(b.iss_aliquota), 1, 'manual');
     ok(res, {});
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/referencias-vendas', (req, res) => {
+  try {
+    const b = req.body || {};
+    const descricao = String(b.descricao || '').trim();
+    if (!descricao) throw new Error('Informe a descrição do serviço.');
+    if (!temAliquotaInformada(b.pis_cofins) && !temAliquotaInformada(b.das_efetivo)) throw new Error('Informe PIS/COFINS ou a alíquota efetiva do DAS para este serviço.');
+    const chave = chaveReferenciaServico({ nbs: b.nbs, descricao });
+    db.prepare(`INSERT INTO empresa_servicos_fiscais (empresa_id,chave,nbs,descricao,pis_cofins,das_efetivo,iss_aliquota,ativo,origem,atualizado_em)
+      VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
+      ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
+      pis_cofins=excluded.pis_cofins,das_efetivo=excluded.das_efetivo,iss_aliquota=excluded.iss_aliquota,ativo=excluded.ativo,origem=excluded.origem,atualizado_em=excluded.atualizado_em`)
+      .run(req.params.id, chave, b.nbs || '', descricao, b.pis_cofins === '' ? null : Number(b.pis_cofins), b.das_efetivo === '' ? null : Number(b.das_efetivo), b.iss_aliquota === '' ? null : Number(b.iss_aliquota), 1, 'manual');
+    ok(res, { chave });
   } catch (e) { erro(res, e); }
 });
 
