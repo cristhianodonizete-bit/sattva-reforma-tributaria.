@@ -327,16 +327,26 @@ router.put('/acessos/usuarios/:id', async (req, res) => {
 // ===========================================================================
 // PARÂMETROS
 // ===========================================================================
-router.get('/parametros', (_req, res) => ok(res, {
-  regimes: Object.entries(P.REGIMES).map(([k, v]) => ({ chave: k, ...v })),
-  reducoes: Object.entries(P.REDUCOES).map(([k, v]) => ({ chave: k, ...v })),
-  cronograma: P.CRONOGRAMA, anos: P.ANOS,
-  aliquotaReferencia: P.ALIQUOTA_REFERENCIA,
-  padroes: P.PADROES, seletivo: P.IMPOSTO_SELETIVO,
-  classificacao: P.CLASSIFICACAO_TRIBUTARIA,
-  clausulas: CLAUSULAS, trilhas: TRILHAS,
-  modoAnalise: { ibsAtivo: db.prepare('SELECT COUNT(*) c FROM param_aliquotas WHERE calcular_ibs = 1').get().c > 0 },
-}));
+router.get('/parametros', (_req, res) => {
+  const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
+  const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
+  const referencia = aliquotas.find((a) => Number(a.ano) === 2033) || aliquotas[aliquotas.length - 1] || {};
+  const cronograma = Object.fromEntries(aliquotas.map((a) => [a.ano, {
+    cbs: Number(a.cbs) || 0, ibs: Number(a.calcular_ibs) === 1 ? (Number(a.ibs) || 0) : 0,
+    fatorIcmsIss: Number(a.fator_icms_iss) || 0, fatorPisCofins: Number(a.fator_pis_cofins) || 0,
+    fatorIpi: Number(a.fator_ipi) || 0, compensavel: Number(a.compensavel) === 1, nota: a.nota || '',
+  }]));
+  ok(res, {
+    regimes: Object.entries(P.REGIMES).map(([k, v]) => ({ chave: k, ...v })),
+    reducoes: Object.entries(P.REDUCOES).map(([k, v]) => ({ chave: k, ...v })),
+    cronograma, anos: ibsAtivo ? aliquotas.map((a) => a.ano) : [referencia.ano],
+    aliquotaReferencia: { cbs: Number(referencia.cbs) || 0, ibs: ibsAtivo ? (Number(referencia.ibs) || 0) : 0 },
+    padroes: P.PADROES, seletivo: P.IMPOSTO_SELETIVO,
+    classificacao: P.CLASSIFICACAO_TRIBUTARIA,
+    clausulas: CLAUSULAS, trilhas: TRILHAS,
+    modoAnalise: { ibsAtivo },
+  });
+});
 
 // ===========================================================================
 // EMPRESAS
