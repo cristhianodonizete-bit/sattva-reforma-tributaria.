@@ -286,7 +286,7 @@ function mapearRiscos({ lado, parceiros, regimes, totalValor, origensPisCofins =
     const estimadoRegime = origensPisCofins['regime da empresa'];
     const partEstimada = estimadoRegime && totalValor ? estimadoRegime.vendas / totalValor : 0;
     if (partEstimada > 0.2) {
-      riscos.push({ nivel: 'atencao', titulo: 'Base econômica com dependência relevante de estimativa de regime',
+      riscos.push({ codigo: 'base_estimada_regime', nivel: 'atencao', titulo: 'Base econômica com dependência relevante de estimativa de regime',
         texto: `${(partEstimada * 100).toFixed(1).replace('.', ',')}% das vendas analisadas não traz PIS/COFINS no documento nem referência fiscal específica de serviço; a base econômica usou a alíquota padrão do regime da empresa.`,
         acao: 'Cadastrar as referências fiscais dos serviços relevantes e conferir os documentos de maior materialidade antes de transformar a projeção em recomendação comercial.' });
     }

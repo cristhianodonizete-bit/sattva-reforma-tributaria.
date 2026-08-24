@@ -489,7 +489,9 @@ async function telaCadeia(el, tipo) {
       <button class="${abaCliente === 'abc' ? 'ativo' : ''}" data-aba-cliente="abc">Curva ABC</button>
       <button class="${abaCliente === 'rastreabilidade' ? 'ativo' : ''}" data-aba-cliente="rastreabilidade">Rastreabilidade</button>
     </div>` : ''}
-    ${mostrarRiscos ? `<div class="cartao" style="margin-top:16px"><h2>Riscos e oportunidades</h2><p class="desc">Leitura da carteira sob a ótica da empresa vendedora.</p>${A.avisos(analise.riscos)}</div>` : ''}
+    ${mostrarRiscos ? `<div class="cartao" style="margin-top:16px"><h2>Riscos e oportunidades</h2><p class="desc">Leitura da carteira sob a ótica da empresa vendedora.</p>${A.avisos(analise.riscos)}
+      ${!eForn && analise.riscos.some((r) => r.codigo === 'base_estimada_regime') ? '<button class="btn vazio" id="corrigirReferencias" style="margin-top:12px">Corrigir referências fiscais dos serviços</button>' : ''}
+    </div>` : ''}
     ${mostrarCarteira ? `<div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Compras por regime do fornecedor' : 'Carteira por perfil de cliente'}</h2>
         <p class="desc">${eForn ? 'O regime do fornecedor determina o crédito que a empresa toma' : 'O perfil do cliente indica a relevância econômica do crédito potencial; não altera o IBS/CBS da venda'}</p>
         ${A.tabela([
@@ -563,6 +565,7 @@ async function telaCadeia(el, tipo) {
   el.querySelectorAll('[data-aba-cliente]').forEach((botao) => {
     botao.onclick = () => { S.aba.clientesCadeia = botao.dataset.abaCliente; A.ir('clientes'); };
   });
+  document.getElementById('corrigirReferencias')?.addEventListener('click', () => { S.aba.dados = 'cliente'; A.ir('dados'); });
 }
 Telas.fornecedores = (el) => telaCadeia(el, 'fornecedor');
 Telas.clientes = (el) => telaCadeia(el, 'cliente');
