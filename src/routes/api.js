@@ -2,6 +2,7 @@ const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
 const os = require('os');
+const XLSX = require('xlsx');
 const db = require('../db');
 const P = require('../config/parametros');
 const { CLAUSULAS, TRILHAS } = require('../config/conteudo');
@@ -1863,6 +1864,79 @@ router.get('/bases/catalogo', (req, res) => {
       cst: r.cst || '', cclasstrib: r.cclasstrib || '', ente_elegivel: r.ente_elegivel || '',
       condicoes: r.condicoes || '', fundamento: r.fundamento || '', fonte: r.fonte || '' }));
     ok(res, { tipo, pagina, tamanho, total, itens: itens.map((item) => ({ ...item, beneficios: beneficios(item) })) });
+  } catch (e) { erro(res, e); }
+});
+
+// Exportação integral do catálogo. Mantém NCM, NBS e as regras de governo em
+// abas separadas para que a equipe possa auditar a origem de cada tratamento.
+router.get('/bases/catalogo/exportar', (req, res) => {
+  try {
+    const codigo = (v) => String(v || '').replace(/\D/g, '');
+    const regrasGoverno = db.prepare('SELECT * FROM regras_governo ORDER BY tipo, chave, cclasstrib').all();
+    const beneficios = (item, tipo) => regrasGoverno.filter((r) => {
+      const chaves = tipo === 'ncm' ? [item.ncm] : [item.nbs, item.lc116];
+      const candidatos = [r.chave, r.ncm, r.nbs, r.lc116].map(codigo).filter(Boolean);
+      return chaves.map(codigo).filter(Boolean).some((chave) => candidatos.includes(chave));
+    });
+    const textoBeneficio = (lista, campo) => lista.map((r) => r[campo]).filter((v) => v !== null && v !== undefined && v !== '').join('\n');
+    const ncm = db.prepare('SELECT * FROM base_ncm ORDER BY ncm, cclasstrib').all().map((item) => {
+      const b = beneficios(item, 'ncm');
+      return {
+        NCM: item.ncm, 'Descrição': item.descricao, 'CST IBS/CBS': item.cst,
+        cClassTrib: item.cclasstrib, Classificação: item.classificacao, Anexo: item.anexo,
+        Fundamento: item.fundamento, 'Redução IBS geral': item.reducao_ibs,
+        'Redução CBS geral': item.reducao_cbs, 'Tratamento geral': item.reducao,
+        Regra: item.regra, Fonte: item.fonte,
+        'Tem benefício governo/autarquia?': b.length ? 'SIM' : 'NÃO',
+        'Tratamento governo/autarquia': textoBeneficio(b, 'tratamento'),
+        'Redução governo/autarquia': textoBeneficio(b, 'reducao'),
+        'Alíquota zero governo/autarquia': textoBeneficio(b, 'aliquota_zero'),
+        'CST governo/autarquia': textoBeneficio(b, 'cst'),
+        'cClassTrib governo/autarquia': textoBeneficio(b, 'cclasstrib'),
+        'Ente elegível': textoBeneficio(b, 'ente_elegivel'), Condições: textoBeneficio(b, 'condicoes'),
+        'Fundamento governo/autarquia': textoBeneficio(b, 'fundamento'),
+        'Fonte governo/autarquia': textoBeneficio(b, 'fonte'),
+      };
+    });
+    const servicos = db.prepare('SELECT * FROM base_servicos ORDER BY nbs, lc116, cclasstrib').all().map((item) => {
+      const b = beneficios(item, 'servicos');
+      return {
+        NBS: item.nbs, 'LC 116': item.lc116, 'Descrição NBS': item.descricao_nbs,
+        'Descrição do serviço': item.descricao_item, Onerosa: item.onerosa, Exterior: item.exterior,
+        INDOP: item.indop, 'Local de incidência': item.local_incidencia,
+        cClassTrib: item.cclasstrib, 'Nome cClassTrib': item.nome_cclasstrib,
+        'Tratamento geral': item.reducao,
+        'Tem benefício governo/autarquia?': b.length ? 'SIM' : 'NÃO',
+        'Tratamento governo/autarquia': textoBeneficio(b, 'tratamento'),
+        'Redução governo/autarquia': textoBeneficio(b, 'reducao'),
+        'Alíquota zero governo/autarquia': textoBeneficio(b, 'aliquota_zero'),
+        'CST governo/autarquia': textoBeneficio(b, 'cst'),
+        'cClassTrib governo/autarquia': textoBeneficio(b, 'cclasstrib'),
+        'Ente elegível': textoBeneficio(b, 'ente_elegivel'), Condições: textoBeneficio(b, 'condicoes'),
+        'Fundamento governo/autarquia': textoBeneficio(b, 'fundamento'),
+        'Fonte governo/autarquia': textoBeneficio(b, 'fonte'),
+      };
+    });
+    const wb = XLSX.utils.book_new();
+    const adicionarAba = (nome, linhas) => {
+      const ws = XLSX.utils.json_to_sheet(linhas.length ? linhas : [{ Informação: 'Nenhum cadastro disponível.' }]);
+      const chaves = Object.keys(linhas[0] || { Informação: '' });
+      ws['!cols'] = chaves.map((chave) => ({ wch: Math.min(52, Math.max(14, chave.length + 2)) }));
+      ws['!autofilter'] = { ref: XLSX.utils.encode_range({ s: { c: 0, r: 0 }, e: { c: Math.max(0, chaves.length - 1), r: Math.max(0, linhas.length) } }) };
+      XLSX.utils.book_append_sheet(wb, ws, nome);
+    };
+    adicionarAba('Produtos NCM', ncm);
+    adicionarAba('Serviços NBS', servicos);
+    adicionarAba('Benefícios governo', regrasGoverno.map((r) => ({
+      Tipo: r.tipo, Chave: r.chave, NCM: r.ncm, NBS: r.nbs, 'LC 116': r.lc116, Descrição: r.descricao,
+      Tratamento: r.tratamento, Redução: r.reducao, 'Alíquota zero': r.aliquota_zero ? 'SIM' : 'NÃO',
+      CST: r.cst, cClassTrib: r.cclasstrib, INDOP: r.indop, 'Ente elegível': r.ente_elegivel,
+      Condições: r.condicoes, Fundamento: r.fundamento, Fonte: r.fonte,
+    })));
+    const arquivo = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="catalogo-fiscal-ncm-nbs.xlsx"');
+    res.end(arquivo);
   } catch (e) { erro(res, e); }
 });
 

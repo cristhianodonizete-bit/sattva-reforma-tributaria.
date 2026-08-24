@@ -593,11 +593,34 @@ async function catalogoFiscal(el) {
       { t: 'Tratamento geral', r: (x) => `<span class="tag">${A.esc(x.reducao || 'integral')}</span><div class="mini">${A.esc(x.local_incidencia || '')}</div>` },
       { t: 'Benefício governo/autarquia', r: (x) => beneficio(x.beneficios) },
     ];
-    el.innerHTML = `<div class="topo"><div><div class="olho">Bases fiscais</div><h1>Catálogo fiscal</h1><p>Consulta completa de NCMs e NBSs cadastrados, incluindo benefícios específicos para governo e autarquias.</p></div></div><div class="cartao"><div class="filtros-carteira"><label>Base<select id="catalogoTipo"><option value="ncm" ${estado.tipo === 'ncm' ? 'selected' : ''}>Produtos — NCM</option><option value="servicos" ${estado.tipo === 'servicos' ? 'selected' : ''}>Serviços — NBS / LC 116</option></select></label><label style="flex:1">Buscar código ou descrição<input id="catalogoBusca" value="${A.esc(estado.busca)}" placeholder="Ex.: 30049099, 1.1502.10.00 ou medicamento"></label><button class="btn" id="catalogoBuscar">Buscar</button></div><div class="aviso"><b>${r.total.toLocaleString('pt-BR')} registro(s)</b> O benefício só é aplicado pelo motor após confirmar o destinatário como ente governamental.</div><div style="margin-top:14px">${A.tabela(colunas, r.itens, { vazio: 'Nenhum registro encontrado.' })}</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px"><span class="mini">Página ${r.pagina} de ${paginas}</span><div style="display:flex;gap:8px"><button class="btn pq vazio" id="catalogoAnterior" ${r.pagina <= 1 ? 'disabled' : ''}>Anterior</button><button class="btn pq vazio" id="catalogoProximo" ${r.pagina >= paginas ? 'disabled' : ''}>Próxima</button></div></div></div>`;
+    el.innerHTML = `<div class="topo"><div><div class="olho">Bases fiscais</div><h1>Catálogo fiscal</h1><p>Consulta completa de NCMs e NBSs cadastrados, incluindo benefícios específicos para governo e autarquias.</p></div><button class="btn vazio" id="catalogoExportar">Baixar Excel completo</button></div><div class="cartao"><div class="filtros-carteira"><label>Base<select id="catalogoTipo"><option value="ncm" ${estado.tipo === 'ncm' ? 'selected' : ''}>Produtos — NCM</option><option value="servicos" ${estado.tipo === 'servicos' ? 'selected' : ''}>Serviços — NBS / LC 116</option></select></label><label style="flex:1">Buscar código ou descrição<input id="catalogoBusca" value="${A.esc(estado.busca)}" placeholder="Ex.: 30049099, 1.1502.10.00 ou medicamento"></label><button class="btn" id="catalogoBuscar">Buscar</button></div><div class="aviso"><b>${r.total.toLocaleString('pt-BR')} registro(s)</b> O benefício só é aplicado pelo motor após confirmar o destinatário como ente governamental.</div><div style="margin-top:14px">${A.tabela(colunas, r.itens, { vazio: 'Nenhum registro encontrado.' })}</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px"><span class="mini">Página ${r.pagina} de ${paginas}</span><div style="display:flex;gap:8px"><button class="btn pq vazio" id="catalogoAnterior" ${r.pagina <= 1 ? 'disabled' : ''}>Anterior</button><button class="btn pq vazio" id="catalogoProximo" ${r.pagina >= paginas ? 'disabled' : ''}>Próxima</button></div></div></div>`;
     el.querySelector('#catalogoTipo').onchange = (e) => { estado.tipo = e.target.value; estado.pagina = 1; carregar(); };
     const buscar = () => { estado.busca = el.querySelector('#catalogoBusca').value.trim(); estado.pagina = 1; carregar(); };
     el.querySelector('#catalogoBuscar').onclick = buscar;
     el.querySelector('#catalogoBusca').onkeydown = (e) => { if (e.key === 'Enter') buscar(); };
+    el.querySelector('#catalogoExportar').onclick = async (e) => {
+      const botao = e.currentTarget;
+      botao.disabled = true;
+      botao.textContent = 'Gerando Excel…';
+      try {
+        const token = localStorage.getItem('sattva_token');
+        const resposta = await fetch('/api/bases/catalogo/exportar', { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+        if (!resposta.ok) {
+          const erro = await resposta.json().catch(() => ({}));
+          throw new Error(erro.erro || 'Não foi possível gerar o Excel.');
+        }
+        const arquivo = await resposta.blob();
+        const url = URL.createObjectURL(arquivo);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'catalogo-fiscal-ncm-nbs.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        URL.revokeObjectURL(url);
+      } catch (erro) { A.toast(erro.message, 'erro'); }
+      finally { botao.disabled = false; botao.textContent = 'Baixar Excel completo'; }
+    };
     el.querySelector('#catalogoAnterior').onclick = () => { estado.pagina -= 1; carregar(); };
     el.querySelector('#catalogoProximo').onclick = () => { estado.pagina += 1; carregar(); };
   };
