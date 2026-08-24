@@ -452,7 +452,7 @@ async function telaCadeia(el, tipo) {
   el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
     eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
     eForn ? 'Impacto da reforma no preço das compras da empresa. O crédito potencial é exibido separadamente e não reduz o impacto do preço.'
-          : 'Impacto da reforma no preço das vendas da empresa. O crédito potencial do cliente é apenas um indicador complementar de competitividade.',
+          : 'Impacto da reforma no preço das vendas da empresa. O perfil do cliente não altera o IBS/CBS devido na saída; ele apenas orienta a relevância comercial do crédito potencial.',
     `<button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/${eForn ? 'fornecedores' : 'clientes'}?repasse=${rep}')">Exportar Excel</button>`) +
     (t.registros ? `
     <div class="grade g4">
@@ -462,9 +462,10 @@ async function telaCadeia(el, tipo) {
       ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' sobre o preço atual', 'destaque')}
     </div>
     <div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Impacto para a empresa — entradas' : 'Impacto para a empresa — saídas'}</h2>
-      <p class="desc">${eForn ? 'Compra atual − tributos atuais embutidos = base econômica + IBS + CBS = compra projetada − compra atual = impacto da compra.' : 'Preço atual − tributos atuais embutidos = base econômica + IBS + CBS = preço projetado − preço atual = impacto da venda.'}</p>
+      <p class="desc">${eForn ? 'Compra atual − tributos atuais embutidos = base econômica + IBS + CBS = compra projetada − compra atual = impacto da compra.' : 'Venda atual − PIS/COFINS atual = base econômica + IBS + CBS = venda projetada − venda atual = impacto da venda.'}</p>
       ${A.tabela([
         { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: () => A.moeda(t.valor) },
+        ...(!eForn ? [{ t: '(-) PIS/COFINS atual', num: true, r: () => A.moeda(analise.regimes.reduce((s, r) => s + (Number(r.pisCofinsAtual) || 0), 0)) }] : []),
         { t: 'Base econômica', num: true, r: () => A.moeda(ultimo.baseEconomica || 0) },
         ...(ibsAtivo ? [{ t: 'IBS projetado', num: true, r: () => A.moeda(ultimo.ibs || 0) }] : []),
         { t: 'CBS projetada', num: true, r: () => A.moeda(ultimo.cbs || 0) },
@@ -487,7 +488,7 @@ async function telaCadeia(el, tipo) {
     </div>` : ''}
     ${mostrarRiscos ? `<div class="cartao" style="margin-top:16px"><h2>Riscos e oportunidades</h2><p class="desc">Leitura da carteira sob a ótica da empresa vendedora.</p>${A.avisos(analise.riscos)}</div>` : ''}
     ${mostrarCarteira ? `<div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Compras por regime do fornecedor' : 'Carteira por perfil de cliente'}</h2>
-        <p class="desc">${eForn ? 'O regime do fornecedor determina o crédito que a empresa toma' : 'O perfil do cliente determina se ele absorve o IVA'}</p>
+        <p class="desc">${eForn ? 'O regime do fornecedor determina o crédito que a empresa toma' : 'O perfil do cliente indica a relevância econômica do crédito potencial; não altera o IBS/CBS da venda'}</p>
         ${A.tabela([
           { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}</div>` },
           { t: 'Valor', num: true, r: (r) => A.moeda(r.valor) },
