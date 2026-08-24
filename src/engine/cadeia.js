@@ -190,10 +190,12 @@ function analisarCadeia(movimentos, cfg = {}) {
 
     detalhes.push({
       parceiro: p.nome, cnpj: p.cnpj, regime: regimeParceiro, produto: m.descricao || m.produto || '',
-      ncm: m.ncm || '', valor: res.atual.valorOperacao, valorSemImposto: res.atual.valorSemImposto,
-      tributosHoje: res.atual.totalTributos, creditoHoje: res.atual.credito.total,
+      ncm: m.ncm || '', nbs: m.nbs || '', valor: res.atual.valorOperacao, valorSemImposto: res.atual.valorSemImposto,
+      tributosHoje: res.atual.totalTributos, pisCofinsAtual: res.atual.pisCofins || 0, creditoHoje: res.atual.credito.total,
       origemPisCofins: res.atual.origemPisCofins || '',
       custoHoje: res.atual.custoEfetivo, custoFinal: ultimo.custoEfetivo,
+      ibs: ultimo.ibs, cbs: ultimo.cbs, precoFinal: ultimo.precoFinal,
+      impactoOperacao: r2(ultimo.precoFinal - res.atual.valorOperacao),
       variacao: ultimo.variacaoCusto, variacaoPerc: ultimo.variacaoCustoPerc,
     });
   }

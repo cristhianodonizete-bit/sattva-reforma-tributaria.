@@ -120,6 +120,14 @@ function gerar(empresaId, tipo, query = {}) {
       'IBS da venda': c.ibs, 'CBS da venda': c.cbs, 'Venda projetada': c.precoFinal,
       'Impacto da venda': c.impactoOperacao, 'Impacto %': perc(c.impactoOperacaoPerc),
     })));
+    aba(wb, 'Rastreabilidade vendas', a.detalhes.map((d) => ({
+      'Cliente': d.parceiro, 'CNPJ/CPF': d.cnpj, 'Perfil': d.regime,
+      'Produto/serviço': d.produto, 'NCM/NBS': d.ncm || d.nbs,
+      'Venda atual': d.valor, 'PIS/COFINS atual': d.pisCofinsAtual,
+      'Origem PIS/COFINS': d.origemPisCofins, 'Base econômica': d.valorSemImposto,
+      'IBS da venda': d.ibs, 'CBS da venda': d.cbs, 'Venda projetada': d.precoFinal,
+      'Impacto da venda': d.impactoOperacao,
+    })));
     aba(wb, 'Riscos carteira', a.riscos.map((r) => ({ 'Nível': r.nivel, 'Risco': r.titulo, 'Descrição': r.texto, 'Ação recomendada': r.acao })),
       [{ wch: 10 }, { wch: 45 }, { wch: 80 }, { wch: 80 }]);
   }
