@@ -25,6 +25,7 @@ const encontrarReferenciaServico = (m, mapa) => mapa.get(chaveReferenciaServico(
 const ehServicoDeVenda = (m) => Boolean(String(m.nbs || '').replace(/\D/g, ''))
   || Number(m.iss || 0) !== 0
   || (!String(m.ncm || '').replace(/\D/g, '') && Boolean(String(m.descricao || '').trim()));
+const requerReferenciaFiscalServico = (m) => ehServicoDeVenda(m) && (Number(m.pis || 0) + Number(m.cofins || 0) <= 0);
 
 /** Carrega os movimentos já com o regime resolvido pelo cadastro de parceiros */
 function carregar(empresaId, sentido) {
@@ -48,7 +49,7 @@ function executar(empresaId, opcoes = {}) {
   const referenciasVenda = new Map(db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId)
     .map((r) => [r.chave, r]));
   const saidasOriginais = carregar(empresaId, 'saida');
-  const pendentesReferencia = saidasOriginais.filter((m) => ehServicoDeVenda(m) && !encontrarReferenciaServico(m, referenciasVenda));
+  const pendentesReferencia = saidasOriginais.filter((m) => requerReferenciaFiscalServico(m) && !encontrarReferenciaServico(m, referenciasVenda));
   if (pendentesReferencia.length) throw new Error(`${pendentesReferencia.length} serviço(s) de venda exigem referência fiscal antes do recálculo. Acesse Cadastros e importação → Clientes.`);
 
   const entradas = [], saidas = [], conformidade = [];

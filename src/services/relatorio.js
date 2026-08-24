@@ -36,6 +36,9 @@ function ehServicoDeVenda(m) {
     || Number(m.iss || 0) !== 0
     || (!String(m.ncm || '').replace(/\D/g, '') && Boolean(String(m.descricao || '').trim()));
 }
+function requerReferenciaFiscalServico(m) {
+  return ehServicoDeVenda(m) && (Number(m.pis || 0) + Number(m.cofins || 0) <= 0);
+}
 
 function prepararCadeia(empresaId, tipo) {
   let movimentos = carregarMovimentos(empresaId, tipo);
@@ -43,7 +46,7 @@ function prepararCadeia(empresaId, tipo) {
     const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId);
     const mapa = new Map(refs.map((r) => [r.chave, r]));
     movimentos = movimentos.map((m) => ({ ...m, referenciaFiscal: encontrarReferenciaServico(m, mapa) }));
-    const pendentes = movimentos.filter((m) => ehServicoDeVenda(m) && !m.referenciaFiscal);
+    const pendentes = movimentos.filter((m) => requerReferenciaFiscalServico(m) && !m.referenciaFiscal);
     if (pendentes.length) throw new Error(`${pendentes.length} serviço(s) de venda exigem referência fiscal antes da emissão do relatório.`);
   }
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();

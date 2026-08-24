@@ -197,8 +197,8 @@ Telas.dados = async (el) => {
       ${A.tabela([
         { t: 'NBS / serviço', r: (s) => `<b class="mono">${A.esc(s.nbs || 'sem NBS')}</b><div class="mini">${A.esc(s.descricao || '')}</div>` },
         { t: 'Vendas', num: true, r: (s) => A.moeda(s.valor) },
-        { t: 'Referência', r: (s) => s.configurado ? '<span class="tag c">configurada</span>' : '<span class="tag b">obrigatória</span>' },
-        { t: 'Vínculo', r: (s) => s.configurado ? `<span class="mini">${A.esc(s.correspondencia)}</span>` : '—' },
+        { t: 'Referência', r: (s) => s.configurado ? '<span class="tag c">configurada</span>' : s.exigeReferencia ? '<span class="tag b">obrigatória</span>' : '<span class="tag n">documento</span>' },
+        { t: 'Vínculo', r: (s) => s.configurado ? `<span class="mini">${A.esc(s.correspondencia)}</span>` : s.exigeReferencia ? '—' : '<span class="mini">PIS/COFINS veio no documento</span>' },
         { t: 'Alíquota atual', r: (s) => {
           if (!s.referencia) return '—';
           const r = s.referencia;
@@ -207,7 +207,7 @@ Telas.dados = async (el) => {
           const i = r.iss_aliquota !== null && r.iss_aliquota !== undefined ? `ISS ${A.pct(r.iss_aliquota)}` : '';
           return [p, d, i].filter(Boolean).join('<br>') || '—';
         } },
-        { t: '', r: (s) => `<button class="btn pq ${s.configurado ? 'vazio' : ''}" data-ref-servico="${A.esc(s.chave)}">${s.configurado ? 'Editar' : 'Definir referência'}</button>` },
+        { t: '', r: (s) => `<button class="btn pq ${s.configurado ? 'vazio' : ''}" data-ref-servico="${A.esc(s.chave)}">${s.configurado ? 'Editar' : s.exigeReferencia ? 'Definir referência' : 'Cadastrar referência'}</button>` },
       ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}
     <div class="cartao" id="historico">

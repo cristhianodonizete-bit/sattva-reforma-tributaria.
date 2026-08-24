@@ -684,13 +684,20 @@ function ehServicoDeVenda(m) {
     || (!String(m.ncm || '').replace(/\D/g, '') && Boolean(String(m.descricao || '').trim()));
 }
 
+// A referência é uma premissa para documentos antigos ou sem detalhamento.
+// Quando o XML já traz PIS/COFINS efetivamente destacado, ele é a evidência
+// prioritária do motor e não deve bloquear a leitura da cadeia.
+function requerReferenciaFiscalServico(m) {
+  return ehServicoDeVenda(m) && (Number(m.pis || 0) + Number(m.cofins || 0) <= 0);
+}
+
 function prepararCadeia(empresa, tipo, query = {}) {
   let movimentos = carregarMovimentos(empresa.id, tipo);
   if (tipo === 'cliente') {
     const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresa.id);
     const mapaRefs = new Map(refs.map((r) => [r.chave, r]));
     movimentos = movimentos.map((m) => ({ ...m, referenciaFiscal: encontrarReferenciaServico(m, mapaRefs) }));
-    const pendentes = movimentos.filter((m) => ehServicoDeVenda(m) && !m.referenciaFiscal);
+    const pendentes = movimentos.filter((m) => requerReferenciaFiscalServico(m) && !m.referenciaFiscal);
     if (pendentes.length) throw new Error(`${pendentes.length} serviço(s) de venda exigem referência fiscal no cadastro da empresa. Acesse Cadastros e importação → Clientes → Referências fiscais das vendas por serviço.`);
   }
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
@@ -729,26 +736,28 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
     const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
     const mapa = new Map(referencias.filter((r) => r.ativo).map((r) => [r.chave, r]));
     const porChave = new Map();
-    db.prepare(`SELECT nbs, ncm, iss, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente'`).all(req.params.id)
+    db.prepare(`SELECT nbs, ncm, iss, pis, cofins, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente'`).all(req.params.id)
       .filter(ehServicoDeVenda).forEach((m) => {
         const chave = chaveReferenciaServico(m);
-        const atual = porChave.get(chave) || { chave, nbs: m.nbs || '', descricao: m.descricao || 'Serviço sem descrição', registros: 0, valor: 0 };
+        const atual = porChave.get(chave) || { chave, nbs: m.nbs || '', descricao: m.descricao || 'Serviço sem descrição', registros: 0, valor: 0, registrosSemDocumento: 0 };
         atual.registros += 1;
         atual.valor += Number(m.valor) || 0;
+        if (requerReferenciaFiscalServico(m)) atual.registrosSemDocumento += 1;
         porChave.set(chave, atual);
       });
     // Mantém no catálogo também serviços preparados antes da primeira venda.
     referencias.filter((r) => r.ativo).forEach((r) => {
-      if (!porChave.has(r.chave)) porChave.set(r.chave, { chave: r.chave, nbs: r.nbs || '', descricao: r.descricao || 'Serviço', registros: 0, valor: 0 });
+      if (!porChave.has(r.chave)) porChave.set(r.chave, { chave: r.chave, nbs: r.nbs || '', descricao: r.descricao || 'Serviço', registros: 0, valor: 0, registrosSemDocumento: 0 });
     });
     const servicos = [...porChave.values()].sort((a, b) => b.valor - a.valor)
       .map((s) => {
         const direta = mapa.get(s.chave) || null;
         const referencia = direta || encontrarReferenciaServico(s, mapa);
-        return { ...s, configurado: Boolean(referencia), referencia,
+        const exigeReferencia = s.registrosSemDocumento > 0;
+        return { ...s, configurado: Boolean(referencia), exigeReferencia, coberto: Boolean(referencia) || !exigeReferencia, referencia,
           correspondencia: !referencia ? '' : (direta ? (s.nbs ? 'NBS' : 'descrição') : 'descrição reaproveitada') };
       });
-    ok(res, { referencias, servicos, pendentes: servicos.filter((s) => !s.configurado) });
+    ok(res, { referencias, servicos, pendentes: servicos.filter((s) => s.exigeReferencia && !s.configurado) });
   } catch (e) { erro(res, e); }
 });
 
@@ -2119,8 +2128,8 @@ router.get('/config/controle', (_req, res) => {
       const classificacao = db.prepare(`SELECT COUNT(*) c FROM movimentos WHERE empresa_id=?
         AND (cclasstrib IS NULL OR cclasstrib='' OR classificacao_origem='requer_decisao')`).get(e.id).c;
       const referencias = new Set(db.prepare('SELECT chave FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(e.id).map((r) => r.chave));
-      const servicosSemReferencia = db.prepare(`SELECT nbs, ncm, iss, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente'`).all(e.id)
-        .filter(ehServicoDeVenda).filter((m) => !referencias.has(chaveReferenciaServico(m)));
+      const servicosSemReferencia = db.prepare(`SELECT nbs, ncm, iss, pis, cofins, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente'`).all(e.id)
+        .filter(requerReferenciaFiscalServico).filter((m) => !referencias.has(chaveReferenciaServico(m)));
       const execucao = motorExec.ultimaExecucao(e.id);
       return { ...e, parceiros: cadastro.parceiros || 0, clientesPendentes: cadastro.clientes_pendentes || 0,
         receitaPendente: receitaPendente || 0, classificacoesPendentes: classificacao || 0,
