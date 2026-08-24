@@ -21,10 +21,14 @@ const perfil = (p) => ({ b2b: 'B2B', b2c_pf: 'B2C — pessoa física', b2c_pj: '
 const anoAtual = () => S.cache.motorAno || 2033;
 
 /** Barra de abas que envolve uma tela existente sem alterá-la */
-function comAbas(nome, abas, padrao) {
+function comAbas(nome, abas, padrao, chaveEstado = nome) {
   const orig = Telas[nome];
   Telas[nome] = async (el) => {
-    const ativa = S.aba[nome] || padrao;
+    const solicitada = S.aba[chaveEstado] || padrao;
+    // Uma tela pode ter abas internas próprias. Se uma chave antiga ou uma
+    // aba interna chegar aqui, voltamos com segurança para a aba padrão em vez
+    // de tentar renderizar uma definição inexistente.
+    const ativa = abas.some((a) => a.id === solicitada) ? solicitada : padrao;
     const barra = `<div class="abas" id="abasMotor">${abas.map((a) =>
       `<button data-t="${a.id}" class="${ativa === a.id ? 'ativo' : ''}">${typeof a.t === 'function' ? a.t() : a.t}</button>`).join('')}</div>`;
     if (ativa === 'atual') {
@@ -40,7 +44,7 @@ function comAbas(nome, abas, padrao) {
       catch (e) { alvo.innerHTML = `<div class="aviso alto"><b>Não foi possível projetar</b>${A.esc(e.message)}</div>`; }
     }
     document.querySelectorAll('#abasMotor button').forEach((b) => {
-      b.onclick = () => { S.aba[nome] = b.dataset.t; A.ir(nome); };
+      b.onclick = () => { S.aba[chaveEstado] = b.dataset.t; A.ir(nome); };
     });
   };
 }
@@ -440,7 +444,11 @@ async function projConformidade(el) {
 // IMPORTAÇÃO DE XML — dentro da etapa de cadastros
 // =========================================================================
 async function projImportacaoXml(el) {
-  const ex = await A.api(`/empresas/${S.empresaId}/motor`);
+  const [ex, dadosLotes] = await Promise.all([
+    A.api(`/empresas/${S.empresaId}/motor`),
+    A.api(`/empresas/${S.empresaId}/lotes`),
+  ]);
+  const lotesXml = (dadosLotes.lotes || []).filter((l) => l.tipo === 'xml' || l.origem === 'xml');
   el.innerHTML = `<div class="grade g2">
       <div class="cartao">
         <h2>Importar XML fiscal</h2>
@@ -466,6 +474,13 @@ async function projImportacaoXml(el) {
         <button class="btn ouro" id="rodarMotor" style="width:100%">Executar motor</button>
         <div id="statusMotor" style="margin-top:12px"></div>
       </div>
+    </div>
+    <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>XMLs já importados</h2><p class="desc">Estes lotes permanecem na base da empresa e são usados pelo motor. Importar novos arquivos não apaga os anteriores.</p></div><span class="tag">${lotesXml.length} lote${lotesXml.length === 1 ? '' : 's'}</span></div>
+      ${A.tabela([
+        { t: 'Lote', r: (l) => `<b>${A.esc(l.arquivo || 'XML')}</b>` },
+        { t: 'Registros', num: true, r: (l) => l.registros || 0 },
+        { t: 'Importado em', r: (l) => `<span class="mini">${A.esc(l.criado_em || '—')}</span>` },
+      ], lotesXml, { vazio: 'Nenhum XML foi importado para esta empresa ainda.' })}
     </div>`;
 
   const z = document.getElementById('zonaXml');
@@ -594,5 +609,5 @@ window.MotorUI.abasBases = [
 comAbas('dados', [
   { id: 'atual', t: 'Planilhas' },
   { id: 'xml', t: 'XML, SPED e motor', render: projImportacaoXml },
-], 'atual');
+], 'atual', 'dadosMotor');
 })();
