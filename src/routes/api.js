@@ -1550,9 +1550,15 @@ router.post('/orcamento', (req, res) => {
 router.post('/empresas/:id/contratacoes', (req, res) => {
   try {
     const b = req.body;
-    const combo = b.combo_id ? db.prepare('SELECT acompanhamento_meses FROM combos WHERE id=?').get(b.combo_id) : null;
+    const servicosSelecionados = [...new Set((b.servicos || []).map(Number).filter(Boolean))];
+    if (!servicosSelecionados.length) throw new Error('Selecione ao menos um serviço para registrar o escopo.');
+    const combosAtivos = db.prepare('SELECT id, acompanhamento_meses FROM combos WHERE ativo=1').all().map((c) => ({
+      ...c, servicos: db.prepare('SELECT servico_id FROM combo_itens WHERE combo_id=?').all(c.id).map((x) => Number(x.servico_id)),
+    }));
+    // Não basta ser subconjunto: somente o plano cujo escopo é idêntico à seleção é adotado.
+    const combo = combosAtivos.find((c) => c.servicos.length === servicosSelecionados.length && c.servicos.every((id) => servicosSelecionados.includes(id))) || null;
     const r = db.prepare(`INSERT INTO contratacoes (empresa_id, combo_id, servicos_json, valor_bruto, desconto, valor_final, status, observacoes, acompanhamento_meses)
-      VALUES (?,?,?,?,?,?,?,?,?)`).run(req.params.id, b.combo_id || null, JSON.stringify(b.servicos || []),
+      VALUES (?,?,?,?,?,?,?,?,?)`).run(req.params.id, combo?.id || null, JSON.stringify(servicosSelecionados),
       +b.valor_bruto || 0, +b.desconto || 0, +b.valor_final || 0, b.status || 'proposta', b.observacoes || '',
       Number(b.acompanhamento_meses ?? combo?.acompanhamento_meses ?? 0));
     ok(res, { id: r.lastInsertRowid });

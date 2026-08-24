@@ -443,7 +443,11 @@ Telas.servicos = async (el) => {
     const box = document.getElementById('resumoEscopo');
     if (!sel.length) { box.innerHTML = '<p class="mini">Selecione os serviços ao lado.</p>'; return; }
     const itens = servicos.filter((s) => sel.includes(s.id));
-    const combo = combos.filter((c) => c.servicos.length && c.servicos.every((id) => sel.includes(id)))[0] || null;
+    // Um plano só é reconhecido quando a seleção é exatamente igual ao seu escopo.
+    // O Basic é subconjunto dos demais e, sem esta comparação, aparecia indevidamente.
+    const comboEscolhido = combos.find((c) => Number(c.id) === Number(S.cache.comboSelecionado));
+    const corresponde = (c) => c && c.servicos.length === sel.length && c.servicos.every((id) => sel.includes(id));
+    const combo = corresponde(comboEscolhido) ? comboEscolhido : (combos.find(corresponde) || null);
     box.innerHTML = `${itens.map((i) => `<div style="padding:6px 0;border-bottom:1px solid #eef1f3;font-size:13px">${A.esc(i.nome)}</div>`).join('')}
       <div class="aviso" style="margin-top:12px"><b>${combo ? A.esc(combo.nome) : 'Escopo personalizado'}</b>${combo ? ` · ${combo.acompanhamento_meses || 0} mês(es) de acompanhamento` : ''}</div>
       <button class="btn ouro" style="width:100%;margin-top:12px" id="gravarProposta" ${S.empresaId ? '' : 'disabled'}>
@@ -459,13 +463,14 @@ Telas.servicos = async (el) => {
   el.querySelectorAll('[data-serv]').forEach((c) => { c.onchange = () => {
     const id = Number(c.dataset.serv);
     if (c.checked) { if (!sel.includes(id)) sel.push(id); } else { const i = sel.indexOf(id); if (i >= 0) sel.splice(i, 1); }
+    S.cache.comboSelecionado = null;
     S.cache.selServ = sel;
     c.closest('.it').classList.toggle('on', c.checked);
     recalcular();
   }; });
   el.querySelectorAll('[data-combo]').forEach((b) => { b.onclick = () => {
     const c = combos.find((x) => x.id === Number(b.dataset.combo));
-    S.cache.selServ = [...c.servicos]; A.ir('servicos'); }; });
+    S.cache.selServ = [...c.servicos]; S.cache.comboSelecionado = c.id; A.ir('servicos'); }; });
   recalcular();
 };
 
