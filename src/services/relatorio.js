@@ -75,12 +75,12 @@ function gerar(empresaId, tipo, query = {}) {
       'Fornecedor': p.nome, 'CNPJ': p.cnpj, 'Regime': p.regimeLabel, 'Itens': p.itens,
       'Valor': p.valor, 'Representatividade': perc(p.representatividade), 'Classe ABC': p.classeAbc,
       'Tributos hoje': p.tributos, 'Crédito hoje': p.creditoHoje, 'Custo efetivo hoje': p.custoHoje,
-      'Custo efetivo 2033': p.custoFinal, 'Variação R$': p.variacaoCusto, 'Variação %': perc(p.variacaoCustoPerc),
+      'Custo efetivo projetado': p.custoFinal, 'Variação R$': p.variacaoCusto, 'Variação %': perc(p.variacaoCustoPerc),
     })));
     aba(wb, 'Compras por regime', a.regimes.map((r) => ({
       'Regime': r.label, 'Fornecedores': r.parceiros, 'Valor': r.valor, 'Participação': perc(r.representatividade),
-      'Crédito hoje': r.creditoHoje, 'Crédito 2033': r.creditoFinal, 'Variação de crédito': r.variacaoCredito,
-      'Custo hoje': r.custoHoje, 'Custo 2033': r.custoFinal, 'Variação de custo': r.variacaoCusto,
+      'Crédito hoje': r.creditoHoje, 'Crédito potencial': r.creditoPotencial, 'Variação de crédito': r.variacaoCredito,
+      'Custo hoje': r.custoHoje, 'Custo projetado': r.custoFinal, 'Variação de custo': r.variacaoCusto,
     })));
     aba(wb, 'Cenarios compras', a.cenarios.map((c) => ({
       'Ano': c.ano, 'Valor de compras': c.valor, 'Tributos': c.tributos, 'Créditos': c.credito,
@@ -96,19 +96,23 @@ function gerar(empresaId, tipo, query = {}) {
     const a = analisarCadeia(cfg.movimentos, { regimeEmpresa: empresa.regime, lado: 'cliente', anos: cfg.anos, parametrosIVA: cfg.parametrosIVA, grauRepasse: repasse });
     aba(wb, 'Clientes', a.parceiros.map((p) => ({
       'Cliente': p.nome, 'CNPJ/CPF': p.cnpj, 'Perfil': p.regimeLabel, 'Itens': p.itens,
-      'Faturamento': p.valor, 'Representatividade': perc(p.representatividade), 'Classe ABC': p.classeAbc,
-      'Tributos hoje': p.tributos, 'Preço final 2033': p.precoFinal,
-      'Custo p/ cliente hoje': p.custoHoje, 'Custo p/ cliente 2033': p.custoFinal,
-      'Variação R$': p.variacaoCusto, 'Variação %': perc(p.variacaoCustoPerc),
+      'Venda atual': p.valor, 'Representatividade': perc(p.representatividade), 'Classe ABC': p.classeAbc,
+      'Venda sem PIS/COFINS': p.baseEconomica, 'PIS/COFINS atual': p.pisCofinsAtual,
+      'IBS da venda': p.ibs, 'CBS da venda': p.cbs, 'Venda projetada': p.precoFinal,
+      'Impacto da venda R$': p.impactoOperacao, 'Impacto da venda %': perc(p.impactoOperacaoPerc),
+      'Crédito potencial da operação': p.creditoPotencial, 'Relevância para o cliente': p.relevanciaCreditoCliente,
     })));
     aba(wb, 'Carteira por perfil', a.regimes.map((r) => ({
-      'Perfil': r.label, 'Clientes': r.parceiros, 'Faturamento': r.valor, 'Participação': perc(r.representatividade),
-      'Credita IBS/CBS': (P.REGIMES[r.regime] || {}).creditaNovo ? 'Sim' : 'Não',
-      'Custo hoje': r.custoHoje, 'Custo 2033': r.custoFinal, 'Variação': r.variacaoCusto,
+      'Perfil': r.label, 'Clientes': r.parceiros, 'Venda atual': r.valor, 'Participação': perc(r.representatividade),
+      'Venda sem PIS/COFINS': r.baseEconomica, 'PIS/COFINS atual': r.pisCofinsAtual,
+      'IBS da venda': r.ibs, 'CBS da venda': r.cbs, 'Venda projetada': r.precoProjetado,
+      'Impacto da venda': r.impactoOperacao, 'Crédito potencial': r.creditoPotencial,
+      'Relevância para o cliente': r.relevanciaCreditoCliente,
     })));
     aba(wb, 'Cenarios vendas', a.cenarios.map((c) => ({
-      'Ano': c.ano, 'Faturamento': c.precoFinal, 'Tributos': c.tributos,
-      'Carga efetiva': perc(c.cargaEfetiva), 'Marco': c.nota,
+      'Referência': c.ano, 'Venda atual': c.valor, 'Base econômica': c.baseEconomica,
+      'IBS da venda': c.ibs, 'CBS da venda': c.cbs, 'Venda projetada': c.precoFinal,
+      'Impacto da venda': c.impactoOperacao, 'Impacto %': perc(c.impactoOperacaoPerc),
     })));
     aba(wb, 'Riscos carteira', a.riscos.map((r) => ({ 'Nível': r.nivel, 'Risco': r.titulo, 'Descrição': r.texto, 'Ação recomendada': r.acao })),
       [{ wch: 10 }, { wch: 45 }, { wch: 80 }, { wch: 80 }]);
