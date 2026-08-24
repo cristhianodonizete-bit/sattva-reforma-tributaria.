@@ -2406,7 +2406,7 @@ router.post('/config/recalcular', (_req, res) => {
 // reinício do Render recupere um valor antigo e altere o cálculo silenciosamente.
 async function confirmarParametrosCompartilhados() {
   const operacao = require('../services/operacaoCompartilhada');
-  if (operacao.ativo()) await operacao.publicar();
+  await operacao.publicarConfiguracao();
 }
 router.put('/config/regras/:grupo/:chave', async (req, res) => {
   try { regras.salvarRegra(req.params.grupo, req.params.chave, req.body.valor, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }

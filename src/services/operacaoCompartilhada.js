@@ -93,7 +93,10 @@ async function baixar() {
 // do cache. É usado antes de a aplicação entregar qualquer alíquota à tela ou
 // ao motor, evitando que uma instância recém-iniciada use valor antigo.
 async function baixarConfiguracao(tabelas = CONFIG_TABELAS, remotoInformado = null) {
-  if (!ativo()) return { ativo: false };
+  // Parâmetros fiscais nunca dependem da chave que habilita/desabilita a
+  // sincronização operacional completa. Com as credenciais presentes, a fonte
+  // compartilhada é obrigatória para impedir divergência de alíquotas.
+  if (!supabase.configurado()) return { ativo: false };
   const remoto = remotoInformado || supabase.admin();
   const { data: configuracoes, error } = await remoto.from('parametros_operacionais').select('chave,dados').eq('tabela', 'configuracao');
   if (error && !String(error.message).includes('does not exist')) throw error;
@@ -102,6 +105,17 @@ async function baixarConfiguracao(tabelas = CONFIG_TABELAS, remotoInformado = nu
   for (const tabela of tabelas) {
     const dados = porChave.get(tabela);
     if (Array.isArray(dados)) { gravarConfiguracao(tabela, dados); resultado[`config_${tabela}`] = dados.length; }
+  }
+  return resultado;
+}
+async function publicarConfiguracao(tabelas = CONFIG_TABELAS) {
+  if (!supabase.configurado()) return { ativo: false };
+  const remoto = supabase.admin(), resultado = {};
+  for (const tabela of tabelas) {
+    const linhas = db.prepare(`SELECT * FROM ${tabela}`).all();
+    const { error } = await remoto.from('parametros_operacionais').upsert({ tabela: 'configuracao', chave: tabela, dados: linhas }, { onConflict: 'tabela,chave' });
+    if (error) throw new Error(`${tabela}: ${error.message}`);
+    resultado[`config_${tabela}`] = linhas.length;
   }
   return resultado;
 }
@@ -131,4 +145,4 @@ async function publicar() {
   }
   return resultado;
 }
-module.exports = { ativo, baixar, baixarConfiguracao, baixarGestao, publicar };
+module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarGestao, publicar };
