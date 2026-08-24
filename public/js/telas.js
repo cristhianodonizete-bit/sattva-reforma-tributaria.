@@ -474,6 +474,7 @@ async function telaCadeia(el, tipo) {
         { t: 'Impacto %', num: true, r: () => A.setaPct(ultimo.impactoOperacaoPerc || 0) },
       ], [{}])}
       <p class="mini" style="margin-top:12px"><b>Crédito potencial juridicamente associado à operação:</b> ${A.moeda((ultimo.ibs || 0) + (ultimo.cbs || 0))}. A relevância para o comprador é exibida por perfil; não há apuração de crédito do vendedor nesta análise de venda.</p>
+      ${!eForn ? `<div class="aviso neutro" style="margin-top:12px"><b>Origem do PIS/COFINS usado na base econômica</b><br>${Object.entries(t.origensPisCofins || {}).map(([origem, x]) => `${A.esc(origem)}: <b>${A.moeda(x.valor)}</b> em ${x.registros} lançamento(s)`).join(' · ') || 'Sem informação disponível.'}</div>` : ''}
     </div>
     ${eForn ? `<div class="cartao" style="margin-top:16px">
       <h2>Grau de repasse simulado</h2>

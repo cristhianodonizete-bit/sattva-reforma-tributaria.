@@ -89,6 +89,7 @@ function analisarCadeia(movimentos, cfg = {}) {
     credito: 0, custoEfetivo: 0, precoFinal: 0,
   }]));
   let totalValor = 0, totalBaseEconomica = 0, totalTributosHoje = 0, totalCreditoHoje = 0, totalCustoHoje = 0;
+  const origensPisCofins = {};
 
   const detalhes = [];
 
@@ -141,6 +142,13 @@ function analisarCadeia(movimentos, cfg = {}) {
     p.creditoPotencial += ultimo.ibs + ultimo.cbs;
     p.creditoFinal += ultimo.credito.total;
 
+    if (lado === 'cliente') {
+      const origem = res.atual.origemPisCofins || 'não identificado';
+      if (!origensPisCofins[origem]) origensPisCofins[origem] = { registros: 0, valor: 0 };
+      origensPisCofins[origem].registros += 1;
+      origensPisCofins[origem].valor += res.atual.pisCofins || 0;
+    }
+
     if (!porRegime.has(regimeParceiro)) {
       porRegime.set(regimeParceiro, { regime: regimeParceiro, label: (P.REGIMES[regimeParceiro] || {}).label || regimeParceiro,
         parceiros: new Set(), valor: 0, baseEconomica: 0, pisCofinsAtual: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, creditoFinal: 0, creditoPotencial: 0, custoHoje: 0, custoFinal: 0, precoFinal: 0,
@@ -184,6 +192,7 @@ function analisarCadeia(movimentos, cfg = {}) {
       parceiro: p.nome, cnpj: p.cnpj, regime: regimeParceiro, produto: m.descricao || m.produto || '',
       ncm: m.ncm || '', valor: res.atual.valorOperacao, valorSemImposto: res.atual.valorSemImposto,
       tributosHoje: res.atual.totalTributos, creditoHoje: res.atual.credito.total,
+      origemPisCofins: res.atual.origemPisCofins || '',
       custoHoje: res.atual.custoEfetivo, custoFinal: ultimo.custoEfetivo,
       variacao: ultimo.variacaoCusto, variacaoPerc: ultimo.variacaoCustoPerc,
     });
@@ -240,6 +249,7 @@ function analisarCadeia(movimentos, cfg = {}) {
       valor: r2(totalValor), baseEconomica: r2(totalBaseEconomica), tributosHoje: r2(totalTributosHoje),
       creditoHoje: r2(totalCreditoHoje), custoHoje: r2(totalCustoHoje),
       cargaEfetivaHoje: totalValor ? r4(totalTributosHoje / totalValor) : 0,
+      origensPisCofins: Object.fromEntries(Object.entries(origensPisCofins).map(([origem, x]) => [origem, { registros: x.registros, valor: r2(x.valor) }])),
     },
     parceiros, regimes, cenarios, detalhes,
     riscos: mapearRiscos({ lado, parceiros, regimes, totalValor }),
