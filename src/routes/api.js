@@ -354,7 +354,10 @@ router.get('/parametros', async (_req, res) => {
   try {
     // A fonte compartilhada prevalece sempre para alíquotas e parâmetros do
     // motor; SQLite é somente cache de execução do Render.
-    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas']);
+    if (supabase.configurado()) {
+      await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas']);
+      regras.invalidar();
+    }
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
   const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
   const referencia = aliquotas.find((a) => Number(a.ano) === 2033) || aliquotas[aliquotas.length - 1] || {};
@@ -2345,8 +2348,14 @@ router.post('/config/controle/enriquecer', (_req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.get('/config/regras', (_req, res) => {
-  try { ok(res, regras.tudo()); } catch (e) { erro(res, e); }
+router.get('/config/regras', async (_req, res) => {
+  try {
+    // Esta é a rota que alimenta a tela de Configurações. Ela consulta a
+    // fonte compartilhada antes de montar o formulário, nunca um cache antigo.
+    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas']);
+    regras.invalidar();
+    ok(res, regras.tudo());
+  } catch (e) { erro(res, e); }
 });
 
 /**
