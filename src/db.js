@@ -666,6 +666,32 @@ CREATE TABLE IF NOT EXISTS motor_resultados (
 );
 CREATE INDEX IF NOT EXISTS ix_motor ON motor_resultados(empresa_id, execucao_id, sentido);
 
+-- Central persistida de exceções: o motor continua calculando tudo que tem
+-- evidência suficiente e envia somente os casos não resolvidos para análise.
+-- Não é uma nova decisão tributária; é a fila auditável dos fatos que exigem
+-- evidência adicional ou validação humana.
+CREATE TABLE IF NOT EXISTS excecoes_motor (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  movimento_id INTEGER,
+  execucao_id INTEGER,
+  codigo TEXT NOT NULL,
+  categoria TEXT NOT NULL,
+  gravidade TEXT DEFAULT 'media',
+  status TEXT DEFAULT 'ABERTA',
+  natureza TEXT DEFAULT 'INDETERMINADO',
+  origem TEXT DEFAULT 'MOTOR',
+  valor_envolvido REAL DEFAULT 0,
+  impacto_cbs_estimado REAL,
+  materialidade REAL DEFAULT 0,
+  detalhe TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  resolvido_em TEXT,
+  UNIQUE(empresa_id, movimento_id, codigo)
+);
+CREATE INDEX IF NOT EXISTS ix_excecoes_motor_empresa_status ON excecoes_motor(empresa_id, status, materialidade DESC);
+
 CREATE TABLE IF NOT EXISTS motor_execucoes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,

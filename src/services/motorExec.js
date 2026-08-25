@@ -12,6 +12,7 @@ const db = require('../db');
 const motor = require('../engine/motor');
 const { simplesEfetivo } = require('../engine/reconstrucao');
 const regras = require('./regras');
+const excecoesMotor = require('./excecoesMotor');
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
@@ -337,6 +338,17 @@ function gravar(empresaId, ano, resumo, entradas, saidas) {
         x.sensibilidade ? x.sensibilidade.nivel : null, JSON.stringify(x));
     }
   })();
+  // A classificação e a reconstrução já foram tentadas pelo motor. Só agora
+  // persistimos o que realmente ficou pendente, priorizado por materialidade.
+  // Isso permite operar por exceção, sem revisão manual de toda a carteira.
+  excecoesMotor.sincronizar(empresaId, id);
+  // A publicação é assíncrona para não prender a importação. Falhas não
+  // descartam a fotografia local; a próxima execução pode publicar de novo.
+  try {
+    const operacao = require('./operacaoCompartilhada');
+    if (operacao.ativo()) operacao.publicarResultadosMotor(empresaId)
+      .catch((e) => console.error('[supabase] resultados do motor:', e.message));
+  } catch (_) { /* ambiente sem operação compartilhada */ }
   return id;
 }
 

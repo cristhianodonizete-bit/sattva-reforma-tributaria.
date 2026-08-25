@@ -71,6 +71,7 @@ async function controle(box) {
       ${A.kpi('Receita sem perfil confirmado', A.moeda(d.total.receitaPendente), 'prioridade do enriquecimento', d.total.receitaPendente ? 'destaque' : '')}
       ${A.kpi('Classificações a revisar', d.total.classificacoesPendentes, 'NCM/NBS ou cClassTrib pendente', d.total.classificacoesPendentes ? 'destaque' : '')}
       ${A.kpi('Serviços sem referência fiscal', d.total.servicosSemReferencia, A.moeda(d.total.vendasSemReferencia) + ' em vendas', d.total.servicosSemReferencia ? 'destaque' : '')}
+      ${A.kpi('Exceções abertas', d.total.excecoesAbertas || 0, A.moeda(d.total.valorExcecoes || 0) + ' priorizados por materialidade', d.total.excecoesAbertas ? 'destaque' : '')}
     </div>
     <div class="cartao" style="margin-top:16px"><h2>Ações do projeto</h2>
       <p class="desc">O enriquecimento consulta apenas CNPJs pendentes e respeita a ordem de custo: fontes abertas antes da Casa dos Dados.</p>
@@ -84,9 +85,10 @@ async function controle(box) {
         { t: 'Receita exposta', num: true, r: (x) => A.moeda(x.receitaPendente) },
         { t: 'Classificações pendentes', num: true, r: (x) => x.classificacoesPendentes },
         { t: 'Serviços sem referência', num: true, r: (x) => `${x.servicosSemReferencia}<div class="mini">${A.moeda(x.vendasSemReferencia)}</div>` },
+        { t: 'Exceções', num: true, r: (x) => x.excecoes?.abertas ? `<b>${x.excecoes.abertas}</b><div class="mini">${A.moeda(x.excecoes.valor_envolvido)}</div>` : '<span class="tag c">nenhuma</span>' },
         { t: 'Enriquecimento', r: (x) => x.enriquecimento ? `<span class="tag b">${A.esc(x.enriquecimento.status)}</span>` : '<span class="tag n">sem fila</span>' },
         { t: 'Último motor', r: (x) => x.ultimaExecucao ? `${A.esc(x.ultimaExecucao.data || '—')}${ibsAtivo ? ` · ${x.ultimaExecucao.ano}` : ' · CBS'}` : 'não executado' },
-        { t: '', r: (x) => (x.clientesPendentes || x.classificacoesPendentes || x.servicosSemReferencia) ? `<button class="btn pq vazio" data-corrigir="${x.id}" data-destino="${x.servicosSemReferencia || x.clientesPendentes ? 'dados' : 'bases'}">Corrigir</button>` : '<span class="tag c">sem pendências</span>' },
+        { t: '', r: (x) => x.excecoes?.abertas ? `<button class="btn pq vazio" data-excecoes="${x.id}" data-empresa="${A.esc(x.razao_social)}">Ver exceções</button>` : (x.clientesPendentes || x.classificacoesPendentes || x.servicosSemReferencia) ? `<button class="btn pq vazio" data-corrigir="${x.id}" data-destino="${x.servicosSemReferencia || x.clientesPendentes ? 'dados' : 'bases'}">Corrigir</button>` : '<span class="tag c">sem pendências</span>' },
       ], d.empresas)}</div>`;
   document.getElementById('ctrlEnriquecer').onclick = async () => {
     const r = await A.api('/config/controle/enriquecer', { metodo: 'POST' });
@@ -98,6 +100,18 @@ async function controle(box) {
     if (botao.dataset.destino === 'dados') S.aba.dados = 'cliente';
     if (botao.dataset.destino === 'bases') S.aba.bases = 'classificacoes';
     A.ir(botao.dataset.destino);
+  }; });
+  box.querySelectorAll('[data-excecoes]').forEach((botao) => { botao.onclick = async () => {
+    const r = await A.api(`/empresas/${botao.dataset.excecoes}/excecoes?limite=100`);
+    A.modal({ titulo: `Exceções — ${botao.dataset.empresa}`, confirmar: null,
+      descricao: 'Somente casos não resolvidos automaticamente. A ordem é materialidade, não ordem de importação.',
+      corpo: A.tabela([
+        { t: 'Exceção', r: (x) => `<b>${A.esc(x.categoria)}</b><div class="mini">${A.esc(x.detalhe?.mensagem || x.codigo)}</div>` },
+        { t: 'Gravidade', r: (x) => `<span class="tag ${x.gravidade === 'alta' ? 'a' : 'n'}">${A.esc(x.gravidade)}</span>` },
+        { t: 'Valor envolvido', num: true, r: (x) => A.moeda(x.valor_envolvido) },
+        { t: 'Impacto CBS', num: true, r: (x) => A.moeda(x.impacto_cbs_estimado) },
+      ], r.excecoes || []),
+    });
   }; });
 }
 

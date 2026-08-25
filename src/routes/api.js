@@ -28,6 +28,7 @@ const cnpjReceita = require('../services/cnpjReceita');
 const baseRegime = require('../services/baseRegimeReceita');
 const relatorio = require('../services/relatorio');
 const perfilCbs = require('../services/perfilCbs');
+const excecoesMotor = require('../services/excecoesMotor');
 const supabase = require('../services/supabase');
 const { executar: sincronizarGestaoSupabase } = require('../../scripts/sincronizar_gestao_supabase');
 
@@ -2467,17 +2468,19 @@ router.get('/config/controle', (_req, res) => {
       const servicosSemReferencia = db.prepare(`SELECT nbs, ncm, iss, pis, cofins, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente'`).all(e.id)
         .filter(requerReferenciaFiscalServico).filter((m) => !referencias.has(chaveReferenciaServico(m)));
       const execucao = motorExec.ultimaExecucao(e.id);
+      const excecoes = excecoesMotor.resumo(e.id);
       return { ...e, parceiros: cadastro.parceiros || 0, clientesPendentes: cadastro.clientes_pendentes || 0,
         receitaPendente: receitaPendente || 0, classificacoesPendentes: classificacao || 0,
         servicosSemReferencia: servicosSemReferencia.length,
         vendasSemReferencia: servicosSemReferencia.reduce((s, m) => s + (Number(m.valor) || 0), 0),
         ultimaExecucao: execucao && { data: execucao.criado_em, ano: execucao.ano, itens: execucao.itens },
-        enriquecimento: cnpjReceita.statusFila(e.id) };
+        enriquecimento: cnpjReceita.statusFila(e.id), excecoes };
     });
     const total = porEmpresa.reduce((a, x) => ({ clientesPendentes: a.clientesPendentes + x.clientesPendentes,
       receitaPendente: a.receitaPendente + x.receitaPendente, classificacoesPendentes: a.classificacoesPendentes + x.classificacoesPendentes,
-      servicosSemReferencia: a.servicosSemReferencia + x.servicosSemReferencia, vendasSemReferencia: a.vendasSemReferencia + x.vendasSemReferencia }),
-      { clientesPendentes: 0, receitaPendente: 0, classificacoesPendentes: 0, servicosSemReferencia: 0, vendasSemReferencia: 0 });
+      servicosSemReferencia: a.servicosSemReferencia + x.servicosSemReferencia, vendasSemReferencia: a.vendasSemReferencia + x.vendasSemReferencia,
+      excecoesAbertas: a.excecoesAbertas + (x.excecoes?.abertas || 0), valorExcecoes: a.valorExcecoes + (x.excecoes?.valor_envolvido || 0) }),
+      { clientesPendentes: 0, receitaPendente: 0, classificacoesPendentes: 0, servicosSemReferencia: 0, vendasSemReferencia: 0, excecoesAbertas: 0, valorExcecoes: 0 });
     ok(res, { total, empresas: porEmpresa });
   } catch (e) { erro(res, e); }
 });
@@ -2486,6 +2489,15 @@ router.post('/config/controle/enriquecer', (_req, res) => {
   try {
     const filas = db.prepare('SELECT id FROM empresas').all().map((e) => cnpjReceita.agendarEnriquecimento(e.id));
     ok(res, { filas: filas.map((f) => ({ empresa_id: f.empresa_id, status: f.status })) });
+  } catch (e) { erro(res, e); }
+});
+
+// Central de exceções: não cria cálculo novo. Mostra somente o que o motor
+// não conseguiu resolver automaticamente, em ordem de materialidade.
+router.get('/empresas/:id/excecoes', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    ok(res, { excecoes: excecoesMotor.listar(req.params.id, req.query), resumo: excecoesMotor.resumo(req.params.id) });
   } catch (e) { erro(res, e); }
 });
 

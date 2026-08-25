@@ -11,6 +11,7 @@ const CAMPOS = {
   perfil_tributario: ['id','empresa_id','competencia','receita_bruta','receita_mercadorias','receita_servicos','receita_exportacao','icms','iss','ipi','pis','cofins','das','creditos_tomados','origem','criado_em'],
   formacao_custo_itens: ['id','empresa_id','codigo','descricao','tipo','sku','gtin','ncm','nbs','unidade','centro_custo','ativo','status_formacao_custo','origem','criado_em','atualizado_em'],
   formacao_custo_componentes: ['id','item_formacao_id','movimento_id','codigo_origem','descricao_origem','relacionamento','criterio_rateio','percentual_rateio','quantidade','unidade','status_alocacao_credito','observacoes','criado_em','atualizado_em'],
+  excecoes_motor: ['id','empresa_id','movimento_id','execucao_id','codigo','categoria','gravidade','status','natureza','origem','valor_envolvido','impacto_cbs_estimado','materialidade','detalhe','criado_em','atualizado_em','resolvido_em'],
   perfil_cbs_competencias: ['id','empresa_id','competencia','receita_bruta','compras_brutas','base_economica_saidas','base_economica_entradas','cbs_debito','cbs_credito','cbs_liquida','aliquota_efetiva_cbs_saida','taxa_recuperacao_cbs_entrada','receita_tributacao_integral','receita_reducao_cbs','receita_aliquota_zero_cbs','receita_imunidade_cbs','receita_regime_especifico_cbs','receita_beneficio_governo_cbs','receita_tratamento_indeterminado_cbs','compras_credito_normal','compras_credito_limitado','compras_credito_simples','compras_credito_presumido','compras_sem_credito','compras_credito_indeterminado','cobertura_classificacao_cbs','cobertura_base_economica','cobertura_credito_cbs','percentual_real','percentual_calculado','percentual_simulado','percentual_indeterminado','quantidade_documentos','quantidade_operacoes','motor_execucao_id','atualizado_em'],
   base_ncm: ['id','ncm','descricao','cst','cclasstrib','classificacao','anexo','fundamento','reducao_ibs','reducao_cbs','regra','fonte','candidatos','reducao','operacao_pis_cofins','cst_pis_atual','cst_cofins_atual','pis_percentual','cofins_percentual','regime_pis_cofins_receita','tratamento_pis_cofins','papel_na_cadeia_necessario','papel_na_cadeia','tratamento_efetivo_saida','natureza_reconstrucao','percentual_reconstrucao_sugerido','regra_precedencia'],
   base_servicos: ['id','lc116','nbs','descricao_item','descricao_nbs','onerosa','exterior','indop','local_incidencia','cclasstrib','nome_cclasstrib','reducao','operacao_pis_cofins','cst_pis_atual','cst_cofins_atual','pis_percentual','cofins_percentual','cumulatividade_obrigatoria','grau_determinacao','hipotese_legal_cumulativa','pis_cumulativo_percentual','cofins_cumulativo_percentual','total_cumulativo_percentual','fundamento_cumulatividade','condicao_cumulatividade','regime_pis_cofins_receita','tratamento_pis_cofins','papel_na_cadeia_necessario','tratamento_efetivo_saida','natureza_reconstrucao','percentual_reconstrucao_sugerido','regra_precedencia'],
@@ -88,9 +89,51 @@ async function baixar() {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {};
   for (const tabela of Object.keys(CAMPOS)) resultado[tabela] = gravar(tabela, await buscarTudo(remoto, tabela));
+  resultado.motor = await baixarResultadosMotor(remoto);
   Object.assign(resultado, await baixarConfiguracao(CONFIG_TABELAS, remoto));
   resultado.gestao = await baixarGestao(remoto);
   return resultado;
+}
+
+// Fotografia técnica compartilhada: reiniciar uma instância não pode significar
+// recalcular toda a carteira. O motor só roda novamente após importação,
+// alteração de regra ou pedido explícito de recálculo.
+function gravarLinhasComColunas(tabela, linhas) {
+  const colunas = db.prepare(`PRAGMA table_info(${tabela})`).all().map((x) => x.name);
+  if (!colunas.length || !linhas.length) return 0;
+  const inserir = db.prepare(`INSERT OR REPLACE INTO ${tabela} (${colunas.join(',')}) VALUES (${colunas.map(() => '?').join(',')})`);
+  db.transaction(() => linhas.forEach((x) => inserir.run(...colunas.map((c) => x[c] ?? null))))();
+  return linhas.length;
+}
+async function baixarResultadosMotor(remotoInformado = null) {
+  const remoto = remotoInformado || supabase.admin();
+  const execucoes = await buscarTudo(remoto, 'motor_execucoes_operacionais');
+  const resultados = await buscarTudo(remoto, 'motor_resultados_operacionais');
+  db.transaction(() => { db.prepare('DELETE FROM motor_resultados').run(); db.prepare('DELETE FROM motor_execucoes').run(); })();
+  return {
+    execucoes: gravarLinhasComColunas('motor_execucoes', execucoes.map((x) => x.dados || x)),
+    resultados: gravarLinhasComColunas('motor_resultados', resultados.map((x) => x.dados || x)),
+  };
+}
+async function publicarResultadosMotor(empresaId = null) {
+  if (!ativo()) return { ativo: false };
+  const remoto = supabase.admin();
+  const filtro = empresaId == null ? '' : ' WHERE empresa_id=?';
+  const parametros = empresaId == null ? [] : [empresaId];
+  const execucoes = db.prepare(`SELECT * FROM motor_execucoes${filtro}`).all(...parametros)
+    .map((x) => ({ id: x.id, empresa_id: x.empresa_id, dados: x }));
+  const resultados = db.prepare(`SELECT * FROM motor_resultados${filtro}`).all(...parametros)
+    .map((x) => ({ id: x.id, empresa_id: x.empresa_id, movimento_id: x.movimento_id, dados: x,
+      tipo_credito: x.tipo_credito, modalidade_credito: x.modalidade_credito,
+      status_credito_determinacao: x.status_credito_determinacao,
+      regime_cbs_emitente: x.regime_cbs_emitente, regime_cbs_adquirente: x.regime_cbs_adquirente }));
+  for (const [tabela, linhas] of [['motor_execucoes_operacionais', execucoes], ['motor_resultados_operacionais', resultados]]) {
+    for (let i = 0; i < linhas.length; i += 500) {
+      const { error } = await remoto.from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: 'id' });
+      if (error) throw new Error(`${tabela}: ${error.message}`);
+    }
+  }
+  return { execucoes: execucoes.length, resultados: resultados.length };
 }
 // Parâmetros fiscais e de cálculo podem ser restaurados isoladamente do resto
 // do cache. É usado antes de a aplicação entregar qualquer alíquota à tela ou
@@ -147,4 +190,5 @@ async function publicar() {
   // suas rotas específicas, depois de uma alteração explícita do consultor.
   return resultado;
 }
-module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarGestao, publicar };
+module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarGestao, publicar,
+  baixarResultadosMotor, publicarResultadosMotor };
