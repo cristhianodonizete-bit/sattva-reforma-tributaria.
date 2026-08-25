@@ -154,6 +154,33 @@ CREATE TABLE IF NOT EXISTS perfil_tributario (
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- ============ PERFIL CBS (consolidação materializada do motor) ============
+-- Esta tabela não calcula tributos: apenas consolida motor_resultados por
+-- empresa e competência, preservando a execução que originou cada leitura.
+CREATE TABLE IF NOT EXISTS perfil_cbs_competencias (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  competencia TEXT NOT NULL,
+  receita_bruta REAL DEFAULT 0, compras_brutas REAL DEFAULT 0,
+  base_economica_saidas REAL DEFAULT 0, base_economica_entradas REAL DEFAULT 0,
+  cbs_debito REAL DEFAULT 0, cbs_credito REAL DEFAULT 0, cbs_liquida REAL DEFAULT 0,
+  aliquota_efetiva_cbs_saida REAL, taxa_recuperacao_cbs_entrada REAL,
+  receita_tributacao_integral REAL DEFAULT 0, receita_reducao_cbs REAL DEFAULT 0,
+  receita_aliquota_zero_cbs REAL DEFAULT 0, receita_imunidade_cbs REAL DEFAULT 0,
+  receita_regime_especifico_cbs REAL DEFAULT 0, receita_beneficio_governo_cbs REAL DEFAULT 0,
+  receita_tratamento_indeterminado_cbs REAL DEFAULT 0,
+  compras_credito_normal REAL DEFAULT 0, compras_credito_limitado REAL DEFAULT 0,
+  compras_credito_simples REAL DEFAULT 0, compras_credito_presumido REAL DEFAULT 0,
+  compras_sem_credito REAL DEFAULT 0, compras_credito_indeterminado REAL DEFAULT 0,
+  cobertura_classificacao_cbs REAL, cobertura_base_economica REAL, cobertura_credito_cbs REAL,
+  percentual_real REAL DEFAULT 0, percentual_calculado REAL DEFAULT 0,
+  percentual_simulado REAL DEFAULT 0, percentual_indeterminado REAL DEFAULT 0,
+  quantidade_documentos INTEGER DEFAULT 0, quantidade_operacoes INTEGER DEFAULT 0,
+  motor_execucao_id INTEGER, atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, competencia)
+);
+CREATE INDEX IF NOT EXISTS ix_perfil_cbs_empresa_competencia ON perfil_cbs_competencias(empresa_id, competencia);
+
 -- ============ PARCEIROS (clientes e fornecedores) ============
 CREATE TABLE IF NOT EXISTS parceiros (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

@@ -378,75 +378,21 @@ Telas.dados = async (el) => {
 // 1.a PERFIL TRIBUTÁRIO
 // ===========================================================================
 Telas.perfil = async (el) => {
-  const [{ empresa, perfil }, { analise }] = await Promise.all([
-    A.api(`/empresas/${S.empresaId}`), A.api(`/empresas/${S.empresaId}/perfil/analise`),
-  ]);
-  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
-  const referenciaCbs = analise.projecao?.[analise.projecao.length - 1];
-  el.innerHTML = cab('Módulo 1.a', 'Perfil tributário da empresa',
-    'Como a empresa é tributada hoje e o que muda na transição. Informe as competências dos últimos 12 meses.',
-    '<button class="btn" id="addComp">Lançar competência</button>') +
-    (perfil.length ? `<div class="grade g4">
-      ${A.kpi('Receita analisada', A.moeda(analise.receita), `${analise.competencias} competências`)}
-      ${A.kpi('Tributos sobre consumo', A.moeda(analise.tributos))}
-      ${A.kpi('Carga bruta', A.pct(analise.cargaBruta), 'sobre a receita', 'destaque')}
-      ${A.kpi('Carga líquida de créditos', A.pct(analise.cargaLiquida))}
-    </div>
-    <div class="grade g2" style="margin-top:16px">
-      <div class="cartao"><h2>Composição da receita</h2><p class="desc">Define a exposição da empresa ao novo modelo</p>
-        ${barras([['Mercadorias', analise.composicao.mercadorias], ['Serviços', analise.composicao.servicos], ['Exportação', analise.composicao.exportacao]])}
-        <hr class="sep"><h2 style="font-size:13px">Tributos apurados</h2>
-        ${A.tabela([{ t: 'Tributo', r: (t) => t[0] }, { t: 'Valor', num: true, r: (t) => A.moeda(t[1]) },
-          { t: '% da receita', num: true, r: (t) => A.pct(analise.receita ? t[1] / analise.receita : 0) }],
-          [['ICMS', analise.detalheTributos.icms], ['ISS', analise.detalheTributos.iss], ['IPI', analise.detalheTributos.ipi],
-           ['PIS', analise.detalheTributos.pis], ['COFINS', analise.detalheTributos.cofins], ['DAS (Simples)', analise.detalheTributos.das]].filter((t) => t[1]))}
-      </div>
-      <div class="cartao"><h2>Leitura técnica</h2><p class="desc">O que este perfil significa na reforma</p>${A.avisos(analise.observacoes)}</div>
-    </div>
-    <div class="cartao"><h2>${ibsAtivo ? 'Projeção da carga por ano' : 'Projeção CBS de referência'}</h2>
-      <p class="desc">${ibsAtivo ? 'Aplica o cronograma de transição sobre a base limpa da empresa' : 'A análise atual considera somente a CBS. A evolução anual será exibida quando o IBS for habilitado.'}</p>
-      ${ibsAtivo ? A.tabela([
-        { t: 'Ano', r: (p) => `<b class="mono">${p.ano}</b>` },
-        { t: 'Alíquota IVA', num: true, r: (p) => A.pct(p.aliquotaIva) },
-        { t: 'Tributos projetados', num: true, r: (p) => A.moeda(p.tributos) },
-        { t: 'Carga efetiva', num: true, r: (p) => A.pct(p.carga) },
-        { t: 'Variação vs. hoje', num: true, r: (p) => A.setaR$(p.variacao) },
-        { t: 'Marco do ano', r: (p) => `<span class="mini">${A.esc(p.nota)}</span>` },
-      ], analise.projecao) : `<div class="grade g3 projecao-cbs-resumo">
-        ${A.kpi('Carga CBS simulada', A.pct(referenciaCbs?.carga || 0), 'sobre a receita analisada', 'destaque')}
-        ${A.kpi('Tributos CBS projetados', A.moeda(referenciaCbs?.tributos || 0), 'referência única')}
-        ${A.kpi('Variação sobre hoje', A.setaR$(referenciaCbs?.variacao || 0), 'comparação com a carga atual')}
-      </div>`}
-    </div>` : A.vazio('Sem competências lançadas', 'Informe pelo menos uma competência com receita e tributos apurados para gerar a análise do perfil.', '')) +
-    `<div class="cartao"><h2>Competências lançadas</h2>
-      ${A.tabela([
-        { t: 'Competência', r: (p) => `<span class="mono">${A.esc(p.competencia)}</span>` },
-        { t: 'Receita bruta', num: true, r: (p) => A.moeda(p.receita_bruta) },
-        { t: 'Mercadorias', num: true, r: (p) => A.moeda(p.receita_mercadorias) },
-        { t: 'Serviços', num: true, r: (p) => A.moeda(p.receita_servicos) },
-        { t: 'Exportação', num: true, r: (p) => A.moeda(p.receita_exportacao) },
-        { t: 'ICMS', num: true, r: (p) => A.moeda(p.icms) },
-        { t: 'ISS', num: true, r: (p) => A.moeda(p.iss) },
-        { t: 'PIS/COFINS', num: true, r: (p) => A.moeda(p.pis + p.cofins) },
-        { t: 'DAS', num: true, r: (p) => A.moeda(p.das) },
-        { t: 'Créditos', num: true, r: (p) => A.moeda(p.creditos_tomados) },
-        { t: '', r: (p) => `<button class="btn pq perigo" data-rp="${p.id}">Remover</button>` },
-      ], perfil, { vazio: 'Nenhuma competência lançada.' })}
-    </div>`;
-
-  document.getElementById('addComp').onclick = () => A.modal({
-    titulo: 'Lançar competência', descricao: 'Valores apurados no período.',
-    corpo: `<div class="grade g2">${A.campo('competencia', 'Competência (AAAA-MM)', '', 'month')}
-      ${A.campo('receita_bruta', 'Receita bruta', '', 'number', 'step=0.01')}</div>
-      <div class="grade g3">${A.campo('receita_mercadorias', 'Receita — mercadorias', '', 'number', 'step=0.01')}
-      ${A.campo('receita_servicos', 'Receita — serviços', '', 'number', 'step=0.01')}
-      ${A.campo('receita_exportacao', 'Receita — exportação', '', 'number', 'step=0.01')}</div>
-      <div class="grade g3">${A.campo('icms', 'ICMS', '', 'number', 'step=0.01')}${A.campo('iss', 'ISS', '', 'number', 'step=0.01')}${A.campo('ipi', 'IPI', '', 'number', 'step=0.01')}</div>
-      <div class="grade g3">${A.campo('pis', 'PIS', '', 'number', 'step=0.01')}${A.campo('cofins', 'COFINS', '', 'number', 'step=0.01')}${A.campo('das', 'DAS (Simples)', '', 'number', 'step=0.01')}</div>
-      ${A.campo('creditos_tomados', 'Créditos aproveitados no período', '', 'number', 'step=0.01')}`,
-    aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/perfil`, { metodo: 'POST', corpo: d }); A.ir('perfil'); },
-  });
-  el.querySelectorAll('[data-rp]').forEach((b) => { b.onclick = async () => { await A.api(`/perfil/${b.dataset.rp}`, { metodo: 'DELETE' }); A.ir('perfil'); }; });
+  const dados = await A.api(`/empresas/${S.empresaId}/perfil-cbs`);
+  const competencias = dados.competencias || []; const atual = competencias[0];
+  const na = (v) => v === null || v === undefined ? 'N/A' : A.pct(v);
+  const especiais = atual ? ['receita_reducao_cbs','receita_aliquota_zero_cbs','receita_imunidade_cbs','receita_regime_especifico_cbs','receita_beneficio_governo_cbs'].reduce((s, k) => s + (+atual[k] || 0), 0) : 0;
+  const indeterminadas = atual ? (+atual.receita_tratamento_indeterminado_cbs || 0) + (+atual.compras_credito_indeterminado || 0) : 0;
+  el.innerHTML = cab('Módulo 1.a', 'Perfil CBS', 'Consolidação por competência a partir dos documentos importados e do resultado oficial do motor.', '<button class="btn vazio" id="complementarCbs">Complementar dados</button><button class="btn" id="atualizarCbs">Atualizar Perfil CBS</button>') +
+    (atual ? `<div class="aviso bom"><b>Competência selecionada: ${A.esc(atual.competencia)}</b> · ${competencias.length}/${dados.competencias_detectadas || competencias.length} competências materializadas · Cobertura de classificação CBS: ${na(atual.cobertura_classificacao_cbs)} · Última atualização: ${A.esc(atual.atualizado_em || '—')}</div>
+      <div class="grade g4" style="margin-top:16px">${A.kpi('Base econômica das saídas', A.moeda(atual.base_economica_saidas), 'soma do motor')}${A.kpi('CBS débito', A.moeda(atual.cbs_debito), 'saídas projetadas', 'destaque')}${A.kpi('CBS crédito', A.moeda(atual.cbs_credito), 'crédito calculado nas entradas', 'destaque')}${A.kpi('CBS líquida', A.moeda(atual.cbs_liquida), 'débito − crédito', 'destaque')}</div>
+      <div class="grade g4" style="margin-top:16px">${A.kpi('Alíquota efetiva CBS', na(atual.aliquota_efetiva_cbs_saida), 'CBS débito / base das saídas')}${A.kpi('Recuperação das compras', na(atual.taxa_recuperacao_cbs_entrada), 'CBS crédito / base das entradas')}${A.kpi('Operações com tratamento especial', A.moeda(especiais), 'receita associada')}${A.kpi('Operações indeterminadas', A.moeda(indeterminadas), 'não distribuídas entre grupos conhecidos', indeterminadas ? 'destaque' : '')}</div>
+      <div class="cartao" style="margin-top:16px"><h2>Evolução mensal CBS</h2>${A.tabela([{t:'Competência',r:x=>A.esc(x.competencia)},{t:'CBS débito',num:true,r:x=>A.moeda(x.cbs_debito)},{t:'CBS crédito',num:true,r:x=>A.moeda(x.cbs_credito)},{t:'CBS líquida',num:true,r:x=>A.moeda(x.cbs_liquida)},{t:'Débito / base',num:true,r:x=>na(x.aliquota_efetiva_cbs_saida)},{t:'',r:x=>`<button class="btn pq vazio" data-cbs-detalhe="${A.esc(x.competencia)}">Abrir memória</button>`}],competencias)}</div>
+      <div class="grade g2" style="margin-top:16px"><div class="cartao"><h2>Receita por tratamento CBS</h2>${A.tabela([{t:'Tratamento',r:x=>x[0]},{t:'Receita',num:true,r:x=>A.moeda(x[1])}],[['Tributação integral',atual.receita_tributacao_integral],['Redução',atual.receita_reducao_cbs],['Alíquota zero',atual.receita_aliquota_zero_cbs],['Imunidade',atual.receita_imunidade_cbs],['Regime específico',atual.receita_regime_especifico_cbs],['Benefício governamental',atual.receita_beneficio_governo_cbs],['Indeterminado',atual.receita_tratamento_indeterminado_cbs]])}</div><div class="cartao"><h2>Compras por tratamento de crédito</h2>${A.tabela([{t:'Tratamento',r:x=>x[0]},{t:'Compras',num:true,r:x=>A.moeda(x[1])}],[['Normal',atual.compras_credito_normal],['Limitado',atual.compras_credito_limitado],['Simples',atual.compras_credito_simples],['Presumido',atual.compras_credito_presumido],['Sem crédito',atual.compras_sem_credito],['Indeterminado',atual.compras_credito_indeterminado]])}</div></div>
+      <div class="cartao" style="margin-top:16px"><h2>Cobertura e natureza dos dados</h2><div class="grade g4">${A.kpi('Classificação CBS',na(atual.cobertura_classificacao_cbs))}${A.kpi('Base econômica',na(atual.cobertura_base_economica))}${A.kpi('Crédito CBS',na(atual.cobertura_credito_cbs))}${A.kpi('Indeterminado',na(atual.percentual_indeterminado),'não é distribuído')}</div><p class="mini">Natureza: REAL ${na(atual.percentual_real)} · CALCULADO ${na(atual.percentual_calculado)} · SIMULADO ${na(atual.percentual_simulado)} · INDETERMINADO ${na(atual.percentual_indeterminado)}.</p></div>` : A.vazio('Nenhuma competência CBS materializada', 'Importe XML, SPED ou planilha. Depois clique em “Atualizar Perfil CBS”; a competência será detectada automaticamente.', ''));
+  el.querySelector('#atualizarCbs').onclick = async () => { await A.api(`/empresas/${S.empresaId}/perfil-cbs/atualizar`, { metodo: 'POST', corpo: {} }); A.ir('perfil'); };
+  el.querySelector('#complementarCbs').onclick = () => A.ir('dados');
+  el.querySelectorAll('[data-cbs-detalhe]').forEach((b) => { b.onclick = async () => { const d = await A.api(`/empresas/${S.empresaId}/perfil-cbs/${encodeURIComponent(b.dataset.cbsDetalhe)}/detalhes`); A.modal({ titulo: `Memória CBS — ${b.dataset.cbsDetalhe}`, largura: 1100, corpo: A.tabela([{t:'Documento',r:x=>A.esc(x.documento||x.chave||'—')},{t:'Item / parceiro',r:x=>`${A.esc(x.descricao||'—')}<br><span class="mini">${A.esc(x.nome||'—')}</span>`},{t:'NCM/NBS',r:x=>A.esc(x.ncm||x.nbs||'—')},{t:'CST / cClassTrib',r:x=>`${A.esc(x.cst||'—')} / ${A.esc(x.cclasstrib||'—')}`},{t:'Tratamento',r:x=>A.esc(x.tratamento||'—')},{t:'Base',num:true,r:x=>A.moeda(x.base_economica)},{t:'CBS',num:true,r:x=>A.moeda(x.cbs)},{t:'Crédito CBS',num:true,r:x=>A.moeda(x.credito_cbs)},{t:'Crédito',r:x=>A.esc(x.status_credito||'—')},{t:'Natureza',r:x=>A.esc(x.natureza||'—')}],d.operacoes||[]) }); }; });
 };
 
 const barras = (itens) => itens.map(([rot, v]) => `<div style="margin-bottom:11px">

@@ -26,6 +26,7 @@ const cenarioMemoria = require('../services/cenarioMemoria');
 const cnpjReceita = require('../services/cnpjReceita');
 const baseRegime = require('../services/baseRegimeReceita');
 const relatorio = require('../services/relatorio');
+const perfilCbs = require('../services/perfilCbs');
 const supabase = require('../services/supabase');
 const { executar: sincronizarGestaoSupabase } = require('../../scripts/sincronizar_gestao_supabase');
 
@@ -509,6 +510,24 @@ router.get('/empresas/:id/perfil/analise', (req, res) => {
     const linhas = db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id = ? ORDER BY competencia').all(req.params.id);
     ok(res, { analise: analisarPerfil(empresa, linhas) });
   } catch (e) { erro(res, e); }
+});
+
+// Perfil CBS: lê exclusivamente o resultado já produzido pelo motor e a
+// competência do movimento. Não cria cálculo tributário paralelo.
+router.get('/empresas/:id/perfil-cbs', (req, res) => {
+  try {
+    const detectadas = db.prepare("SELECT COUNT(DISTINCT competencia) c FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''").get(req.params.id).c;
+    ok(res, { competencias: perfilCbs.listar(req.params.id), competencias_detectadas: detectadas, ultima_execucao: motorExec.ultimaExecucao(req.params.id) });
+  }
+  catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/perfil-cbs/atualizar', (req, res) => {
+  try { ok(res, perfilCbs.materializar(req.params.id, { forcar: req.body?.forcar === true })); }
+  catch (e) { erro(res, e); }
+});
+router.get('/empresas/:id/perfil-cbs/:competencia/detalhes', (req, res) => {
+  try { ok(res, { operacoes: perfilCbs.detalhes(req.params.id, req.params.competencia, { sentido: req.query.sentido }) }); }
+  catch (e) { erro(res, e); }
 });
 
 function analisarPerfil(empresa, linhas) {

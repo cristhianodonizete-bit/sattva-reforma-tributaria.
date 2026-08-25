@@ -1,0 +1,24 @@
+const assert = require('assert');
+const fs = require('fs');
+const os = require('os');
+const path = require('path');
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-perfil-cbs-'));
+process.env.SATTVA_DADOS = dir;
+const db = require('../src/db');
+const perfil = require('../src/services/perfilCbs');
+
+db.prepare("INSERT INTO empresas (id,cnpj,razao_social,regime) VALUES (1,'00000000000100','Empresa teste','lucro_real')").run();
+db.prepare("INSERT INTO motor_execucoes (id,empresa_id,ano,itens,resumo,criado_em) VALUES (1,1,2027,3,'{}','2026-08-24 12:00:00')").run();
+db.prepare("INSERT INTO movimentos (id,empresa_id,tipo,competencia,valor,documento,descricao,criado_em) VALUES (1,1,'cliente','2026-08',1000,'N1','Venda','2026-08-24 10:00:00'),(2,1,'fornecedor','2026-08',500,'N2','Compra','2026-08-24 10:00:00'),(3,1,'fornecedor','2026-08',200,'N3','Compra pendente','2026-08-24 10:00:00')").run();
+const ins = db.prepare("INSERT INTO motor_resultados (empresa_id,movimento_id,execucao_id,sentido,ano,status_classificacao,status_credito,natureza,preco_atual,base_economica,cbs,credito_cbs,tratamento,detalhe) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
+ins.run(1,1,1,'saida',2027,'CLASSIFICADO','PROJETADO','CALCULADO',1000,900,82.89,0,'TRIBUTAÇÃO INTEGRAL','{}');
+ins.run(1,2,1,'entrada',2027,'CLASSIFICADO','PROJETADO','CALCULADO',500,450,41.45,41.45,'TRIBUTAÇÃO INTEGRAL','{}');
+ins.run(1,3,1,'entrada',2027,'SEM_CORRESPONDENCIA','DADOS_INSUFICIENTES','CALCULADO',200,180,16.58,0,'INDETERMINADO','{}');
+const r = perfil.materializar(1);
+const c = r.competencias[0];
+assert.equal(c.receita_bruta, 1000); assert.equal(c.compras_brutas, 700);
+assert.equal(c.base_economica_saidas, 900); assert.equal(c.base_economica_entradas, 630);
+assert.equal(c.cbs_debito, 82.89); assert.equal(c.cbs_credito, 41.45); assert.equal(c.cbs_liquida, 41.44);
+assert.equal(c.compras_credito_normal, 500); assert.equal(c.compras_credito_indeterminado, 200);
+assert.equal(c.receita_tributacao_integral, 1000); assert.equal(c.quantidade_documentos, 3);
+console.log('perfil-cbs.test: reconciliação operação → competência aprovada');
