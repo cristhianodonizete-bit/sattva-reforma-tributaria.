@@ -93,6 +93,56 @@ Telas.precificacao = async (el) => {
   function detalharItem(r) { A.modal({ titulo: r.item.descricao || 'Item', largura: 820, corpo: blocoResultado(r) }); }
 };
 
+// ===========================================================================
+// BASE DE FORMAÇÃO DE CUSTO
+// Vincula entradas a itens de saída, mas não muda nenhum resultado tributário.
+// ===========================================================================
+Telas.formacaoCusto = async (el) => {
+  const d = await A.api(`/empresas/${S.empresaId}/formacao-custo`);
+  el.innerHTML = cab('Módulo 2', 'Base de formação de custo',
+    'Defina como cada entrada participa de um produto ou serviço de saída. O motor continua sendo a única fonte de CBS e crédito; esta base apenas define o que pode compor o custo do item.',
+    '<button class="btn" id="novoItemFormacao">Novo produto ou serviço</button>') +
+    `<div class="aviso"><b>Regra de segurança:</b> crédito CBS total da empresa não é automaticamente crédito do produto. Apenas vínculos <b>diretos</b> ou <b>rateáveis com critério explícito</b> entram na formação do custo.</div>
+    <div class="cartao" style="margin-top:16px"><h2>Produtos e serviços de saída</h2>${A.tabela([
+      { t: 'Item de saída', r: (x) => `<b>${A.esc(x.descricao)}</b><div class="mini mono">${A.esc(x.codigo || x.sku || x.ncm || x.nbs || 'sem código')}</div>` },
+      { t: 'Status', r: (x) => `<span class="tag ${x.status_formacao_custo === 'COMPLETO' ? 'c' : 'a'}">${A.esc(x.status_formacao_custo)}</span>` },
+      { t: 'Crédito total das entradas', num: true, r: (x) => A.moeda(x.credito_cbs_total) },
+      { t: 'Crédito precificável', num: true, r: (x) => A.moeda(x.credito_cbs_precificavel) },
+      { t: 'Não alocado', num: true, r: (x) => A.moeda(x.credito_cbs_nao_alocado) },
+      { t: '', r: (x) => `<button class="btn pq vazio" data-formacao="${x.id}">Gerenciar componentes (${x.componentes.length})</button>` },
+    ], d.itens, { vazio: 'Nenhum produto ou serviço de saída cadastrado. Cadastre o portfólio antes de associar suas entradas.' })}</div>`;
+
+  document.getElementById('novoItemFormacao').onclick = () => A.modal({
+    titulo: 'Novo item de formação de custo', confirmar: 'Salvar item',
+    descricao: 'NCM/NBS são referências fiscais. Informe SKU, código interno ou centro de custo quando existirem; não haverá vinculação automática por NCM/NBS.',
+    corpo: `<div class="grade g2">${A.campo('descricao', 'Descrição do produto ou serviço')}${A.campo('codigo', 'Código interno / SKU')}</div>
+      <div class="grade g3">${A.selecao('tipo', 'Natureza', [{v:'mercadoria',t:'Mercadoria'}, {v:'servico',t:'Serviço'}], 'mercadoria')}${A.campo('ncm', 'NCM (opcional)')}${A.campo('nbs', 'NBS (opcional)')}</div>
+      <div class="grade g3">${A.campo('gtin', 'GTIN (opcional)')}${A.campo('unidade', 'Unidade')}${A.campo('centroCusto', 'Centro de custo')}</div>`,
+    aoConfirmar: async (b) => { await A.api(`/empresas/${S.empresaId}/formacao-custo`, { metodo: 'POST', corpo: b }); A.toast('Item criado. Agora vincule os componentes.', 'ok'); A.ir('formacaoCusto'); },
+  });
+  el.querySelectorAll('[data-formacao]').forEach((b) => { b.onclick = () => abrirComponentes(d.itens.find((x) => x.id === Number(b.dataset.formacao))); });
+
+  function abrirComponentes(item) {
+    const opcoesEntrada = [{ v: '', t: 'Selecione uma entrada do diagnóstico' }].concat(d.entradasDisponiveis.map((m) => ({
+      v: m.id, t: `${m.codigo_produto || '—'} · ${m.descricao || 'Sem descrição'} · ${A.moeda(m.valor)} · crédito ${A.moeda(m.credito_cbs)}`,
+    })));
+    const corpo = () => `<div class="aviso"><b>${A.esc(item.descricao)}</b><br>Crédito total: ${A.moeda(item.credito_cbs_total)} · precificável: ${A.moeda(item.credito_cbs_precificavel)} · não alocado: ${A.moeda(item.credito_cbs_nao_alocado)}.</div>
+      <div style="margin:14px 0">${A.tabela([
+        {t:'Componente',r:x=>`${A.esc(x.movimento_descricao || x.descricao_origem || '—')}<div class="mini mono">${A.esc(x.codigo_produto || x.codigo_origem || '')}</div>`},
+        {t:'Relação',r:x=>A.esc(x.relacionamento)}, {t:'Crédito CBS',num:true,r:x=>A.moeda(x.credito_cbs)},
+        {t:'Alocação',r:x=>`${A.esc(x.status_alocacao_credito)}${x.criterio_rateio ? `<div class="mini">${A.esc(x.criterio_rateio)} · ${A.pct(x.percentual_rateio)}</div>` : ''}`},
+        {t:'',r:x=>`<button class="btn pq perigo" data-remover-comp="${x.id}">Remover</button>`},
+      ], item.componentes, {vazio:'Nenhum componente vinculado.'})}</div>
+      <hr class="sep"><h3>Vincular entrada</h3><div class="grade g2">${A.selecao('movimentoId', 'Entrada do diagnóstico', opcoesEntrada, '')}${A.selecao('relacionamento', 'Tipo de relacionamento', [{v:'DIRETA',t:'Direta'}, {v:'COMPOSICAO',t:'Composição'}, {v:'RATEIO',t:'Rateio'}, {v:'NAO_RELACIONADA',t:'Não relacionada'}], 'DIRETA')}</div>
+      <div class="grade g2">${A.selecao('statusAlocacaoCredito', 'Crédito econômico', [{v:'DIRETO',t:'Direto'}, {v:'RATEAVEL',t:'Rateável'}, {v:'NAO_ALOCADO',t:'Não alocado'}], 'DIRETO')}${A.selecao('criterioRateio', 'Critério de rateio (se aplicável)', [{v:'',t:'Não se aplica'}, ...d.criterios_rateio.map(x=>({v:x,t:x.replaceAll('_',' ')}))], '')}</div>
+      <div class="grade g2">${A.campo('percentualRateio', 'Percentual de rateio (0 a 1)', '', 'number', 'step=0.0001')}${A.campo('observacoes', 'Observações')}</div>`;
+    A.modal({ titulo: `Componentes — ${item.descricao}`, confirmar: 'Vincular componente', largura: 1080, corpo: corpo(),
+      aoConfirmar: async (b) => { await A.api(`/formacao-custo/${item.id}/componentes`, {metodo:'POST', corpo:b}); A.toast('Componente vinculado.', 'ok'); A.ir('formacaoCusto'); },
+    });
+    setTimeout(() => document.querySelectorAll('[data-remover-comp]').forEach((b) => { b.onclick = async () => { await A.api(`/formacao-custo/componentes/${b.dataset.removerComp}`, {metodo:'DELETE'}); A.ir('formacaoCusto'); }; }), 0);
+  }
+};
+
 function blocoResultado(r) {
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   return `<div class="grade g3">

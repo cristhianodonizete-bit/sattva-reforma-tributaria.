@@ -1085,7 +1085,13 @@ function resumoFormacaoCusto(empresaId, item) {
 router.get('/empresas/:id/formacao-custo', (req, res) => {
   try {
     const itens = db.prepare('SELECT * FROM formacao_custo_itens WHERE empresa_id=? ORDER BY descricao,id').all(req.params.id);
+    const entradasDisponiveis = db.prepare(`SELECT m.id, m.codigo_produto, m.descricao, m.ncm, m.nbs, m.valor,
+      r.base_economica, r.credito_cbs, r.tipo_credito, r.modalidade_credito, r.status_credito_determinacao, r.natureza
+      FROM movimentos m LEFT JOIN motor_resultados r ON r.movimento_id=m.id AND r.empresa_id=m.empresa_id
+      WHERE m.empresa_id=? AND (m.tipo='fornecedor' OR m.sentido='entrada')
+      ORDER BY m.descricao,m.id LIMIT 500`).all(req.params.id);
     ok(res, { itens: itens.map((item) => resumoFormacaoCusto(req.params.id, item)),
+      entradasDisponiveis,
       criterios_rateio: ['faturamento', 'custo', 'quantidade', 'volume', 'horas', 'centro_custo', 'outro_parametrizado'],
       relacionamentos: ['DIRETA', 'COMPOSICAO', 'RATEIO', 'NAO_RELACIONADA'] });
   } catch (e) { erro(res, e); }

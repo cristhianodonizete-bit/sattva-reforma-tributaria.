@@ -156,7 +156,7 @@ const App = (() => {
       { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' }, { id: 'tarefasDiagnostico', t: 'Tarefas', i: '✓' },
     ] },
     { id: 'precificacao', titulo: 'Módulo 2 · Precificação', itens: [
-      { id: 'precificacao', t: 'Precificação e margem', i: '◫' }, { id: 'tarefasPrecificacao', t: 'Tarefas', i: '✓' },
+      { id: 'precificacao', t: 'Precificação e margem', i: '◫' }, { id: 'formacaoCusto', t: 'Base de formação de custo', i: '⊕' }, { id: 'tarefasPrecificacao', t: 'Tarefas', i: '✓' },
     ] },
     { id: 'contratos', titulo: 'Módulo 3 · Contratos', itens: [
       { id: 'contratos', t: 'Revisão de contratos', i: '▤' }, { id: 'analise', t: 'Análise de contrato (IA)', i: '✦' }, { id: 'tarefasContratos', t: 'Tarefas', i: '✓' },
@@ -175,7 +175,7 @@ const App = (() => {
   const PERMISSAO_TELA = {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
     dados: 'diagnostico', bases: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
-    precificacao: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao',
+    precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao',
     servicos: 'gestao_projetos', gestaoProjetos: 'gestao_projetos', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', conhecimento: 'configuracoes', configuracoes: 'configuracoes', questor: 'configuracoes', acessos: 'acessos',
   };
   const pode = (tela, acao = 'ver') => {
