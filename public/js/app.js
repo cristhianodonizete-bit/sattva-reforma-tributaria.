@@ -152,7 +152,7 @@ const App = (() => {
     { id: 'diagnostico', titulo: 'Módulo 1 · Diagnóstico', itens: [
       { id: 'dados', t: 'Cadastros e importação', i: '⇧' }, { id: 'bases', t: 'Bases de classificação', i: '⌘' },
       { id: 'perfil', t: 'Perfil CBS', i: '◉' }, { id: 'fornecedores', t: 'Cadeia de fornecedores', i: '↙' },
-      { id: 'clientes', t: 'Cadeia de clientes', i: '↗' }, { id: 'cenarios', t: 'Projeção de cenários', i: '⌁' },
+      { id: 'clientes', t: 'Cadeia de clientes', i: '↗' }, { id: 'impactoFinalCbs', t: 'Impacto Final CBS', i: '≋' }, { id: 'cenarios', t: 'Projeção de cenários', i: '⌁' },
       { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' }, { id: 'tarefasDiagnostico', t: 'Tarefas', i: '✓' },
     ] },
     { id: 'precificacao', titulo: 'Módulo 2 · Precificação', itens: [

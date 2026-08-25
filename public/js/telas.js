@@ -540,6 +540,53 @@ async function telaCadeia(el, tipo) {
 Telas.fornecedores = (el) => telaCadeia(el, 'fornecedor');
 Telas.clientes = (el) => telaCadeia(el, 'cliente');
 
+// Consolida Cadeia de Clientes + Fornecedores. Não executa cálculo próprio.
+Telas.impactoFinalCbs = async (el) => {
+  const d = await A.api(`/empresas/${S.empresaId}/impacto-final-cbs`);
+  const naoApurado = (v) => v === null || v === undefined;
+  const dinheiro = (v) => naoApurado(v) ? 'A validar' : A.moeda(v);
+  const percentual = (v) => naoApurado(v) ? 'A validar' : A.pct(v, 2);
+  const diferenca = (v) => naoApurado(v) ? 'A validar' : A.setaR$(v);
+  const rec = d.reconciliacao || {};
+  el.innerHTML = cab('Módulo 1 · Consolidação CBS', 'Impacto Final CBS da Cadeia',
+    'Leitura consolidada das Cadeias de Clientes e Fornecedores. Não há novo motor: os valores abaixo são as somas das análises já apuradas.') +
+    `<div class="grade g4">
+      ${A.kpi('PIS/COFINS líquido atual', dinheiro(d.pis_cofins_liquido_atual), naoApurado(d.pis_cofins_liquido_atual) ? 'há dado atual indeterminado' : 'débitos − créditos atuais')}
+      ${A.kpi('CBS líquida projetada', dinheiro(d.cbs_liquida), 'CBS das vendas − crédito CBS das compras', 'destaque')}
+      ${A.kpi('Diferença R$', diferenca(d.variacao_carga_federal), 'CBS líquida vs. PIS/COFINS líquido atual', naoApurado(d.variacao_carga_federal) ? '' : 'destaque')}
+      ${A.kpi('Diferença %', percentual(d.variacao_percentual), naoApurado(d.variacao_percentual) ? 'não é tratada como zero' : 'sobre PIS/COFINS líquido atual')}
+    </div>
+    ${d.pis_cofins_indeterminado ? `<div class="aviso atencao" style="margin-top:16px"><b>PIS/COFINS líquido atual a validar.</b> Existe operação sem base suficiente para apurar o valor atual; por isso a diferença percentual não foi convertida em zero.</div>` : ''}
+    <div class="cartao" style="margin-top:16px"><h2>Formação da CBS líquida</h2>
+      ${A.tabela([
+        { t: 'Componente', r: x => `<b>${A.esc(x.nome)}</b><div class="mini">${A.esc(x.memoria)}</div>` },
+        { t: 'Valor', num: true, r: x => dinheiro(x.valor) },
+      ], [
+        { nome:'CBS débito das vendas', memoria:'soma da CBS das saídas — Cadeia de Clientes', valor:d.cbs_debito_vendas },
+        { nome:'(-) Crédito CBS recebido dos fornecedores', memoria:'soma do crédito CBS aproveitável nas entradas — Cadeia de Fornecedores', valor:-d.cbs_credito_compras },
+        { nome:'CBS líquida projetada', memoria:'CBS débito − crédito CBS das compras', valor:d.cbs_liquida },
+      ])}
+      <div class="grade g2" style="margin-top:16px">
+        ${A.kpi('Carga efetiva sobre receita projetada', percentual(d.carga_efetiva_cbs_receita), 'CBS líquida / receita projetada')}
+        ${A.kpi('Carga efetiva sobre base econômica das saídas', percentual(d.carga_efetiva_cbs_base), 'CBS líquida / base econômica das saídas')}
+      </div>
+    </div>
+    <div class="grade g2" style="margin-top:16px">
+      <div class="cartao"><h2>Crédito CBS recebido dos fornecedores</h2><p class="valor-destaque">${A.moeda(d.credito_cbs_recebido_fornecedores)}</p><p class="mini">Reduz a CBS líquida da empresa quando aproveitável.</p><button class="btn vazio" data-ir-cadeia="fornecedores">Abrir Cadeia de Fornecedores</button></div>
+      <div class="cartao"><h2>Crédito CBS entregue aos clientes</h2><p class="valor-destaque">${A.moeda(d.credito_cbs_entregue_clientes)}</p><p class="mini">Indicador comercial/econômico. Não reduz a CBS líquida da empresa.</p><button class="btn vazio" data-ir-cadeia="clientes">Abrir Cadeia de Clientes</button></div>
+    </div>
+    <div class="cartao" style="margin-top:16px"><h2>Reconciliação com motor_resultados</h2>
+      ${rec.disponivel ? `<div class="aviso ${rec.confere ? 'bom' : 'atencao'}"><b>${rec.confere ? 'Valores conciliados.' : 'Há divergência a revisar.'}</b> Comparação com ${rec.itens} item(ns) materializados pelo motor.</div>
+      ${A.tabela([{t:'Componente',r:x=>x.nome},{t:'Cadeia',num:true,r:x=>A.moeda(x.cadeia)},{t:'motor_resultados',num:true,r:x=>A.moeda(x.motor)},{t:'Diferença',num:true,r:x=>A.setaR$(x.diferenca)}],[
+        {nome:'CBS débito das vendas',cadeia:d.cbs_debito_vendas,motor:rec.cbsDebitoVendas,diferenca:rec.diferencaDebito},
+        {nome:'Crédito CBS das compras',cadeia:d.cbs_credito_compras,motor:rec.cbsCreditoCompras,diferenca:rec.diferencaCredito},
+      ])}` : `<div class="aviso atencao"><b>Reconciliação pendente.</b> Execute “Recalcular projeto” para materializar o motor_resultados e conferir as somas.</div>`}
+    </div>
+    <div class="cartao" style="margin-top:16px"><h2>Memória do PIS/COFINS atual</h2><p class="desc">Débitos atuais: ${A.moeda(d.pis_cofins_debitos_atuais)} · Créditos atuais: ${A.moeda(d.pis_cofins_creditos_atuais)}.</p><button class="btn vazio" id="abrirMemoriaAtual">Abrir rastreabilidade das vendas</button></div>`;
+  el.querySelectorAll('[data-ir-cadeia]').forEach((b) => b.onclick = () => A.ir(b.dataset.irCadeia));
+  document.getElementById('abrirMemoriaAtual').onclick = () => { S.aba.clientesCadeia = 'rastreabilidade'; A.ir('clientes'); };
+};
+
 // ===========================================================================
 // 1.d PROJEÇÃO DE CENÁRIOS
 // ===========================================================================

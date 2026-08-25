@@ -31,10 +31,11 @@ function calcularVendaCbs(m, regimeEmpresa, regimeCliente, cfg) {
   const pisDocumento = num(m.pis) + num(m.cofins);
   // O valor efetivamente destacado no documento sempre tem precedência. A
   // referência é a premissa para documentos antigos/sem detalhe tributário.
+  const regimePisCofins = regimeConfigurado(regimeEmpresa).pisCofins;
   const aliquotaReferencia = referencia.pis_cofins !== null && referencia.pis_cofins !== undefined
     ? num(referencia.pis_cofins)
     : (referencia.das_efetivo !== null && referencia.das_efetivo !== undefined
-      ? num(referencia.das_efetivo) : num(regimeConfigurado(regimeEmpresa).pisCofins));
+      ? num(referencia.das_efetivo) : num(regimePisCofins));
   const usaDocumento = pisDocumento > 0;
   const pisCofins = usaDocumento ? pisDocumento : valor * aliquotaReferencia;
   const baseEconomica = Math.max(valor - pisCofins, 0);
@@ -59,7 +60,8 @@ function calcularVendaCbs(m, regimeEmpresa, regimeCliente, cfg) {
   return {
     atual: { valorOperacao: r2(valor), valorSemImposto: r2(baseEconomica), totalTributos: r2(pisCofins),
       credito: { total: 0 }, custoEfetivo: r2(valor), pisCofins: r2(pisCofins),
-      origemPisCofins: usaDocumento ? 'documento' : (referencia.pis_cofins !== null && referencia.pis_cofins !== undefined ? 'referência fiscal do serviço' : (referencia.das_efetivo !== null && referencia.das_efetivo !== undefined ? 'DAS efetivo do serviço' : 'regime da empresa')) },
+      origemPisCofins: usaDocumento ? 'documento' : (referencia.pis_cofins !== null && referencia.pis_cofins !== undefined ? 'referência fiscal do serviço' : (referencia.das_efetivo !== null && referencia.das_efetivo !== undefined ? 'DAS efetivo do serviço' : 'regime da empresa')),
+      pisCofinsIndeterminado: !usaDocumento && referencia.pis_cofins == null && referencia.das_efetivo == null && (regimePisCofins === null || regimePisCofins === undefined) },
     projecao,
   };
 }
@@ -197,7 +199,9 @@ function analisarCadeia(movimentos, cfg = {}) {
     detalhes.push({
       parceiro: p.nome, cnpj: p.cnpj, regime: regimeParceiro, produto: m.descricao || m.produto || '',
       ncm: m.ncm || '', nbs: m.nbs || '', valor: res.atual.valorOperacao, valorSemImposto: res.atual.valorSemImposto,
-      tributosHoje: res.atual.totalTributos, pisCofinsAtual: res.atual.pisCofins || 0, creditoHoje: res.atual.credito.total,
+      tributosHoje: res.atual.totalTributos, pisCofinsAtual: res.atual.pisCofins || 0,
+      creditoHoje: res.atual.credito.total, creditoPisCofinsHoje: res.atual.credito.detalhe?.pisCofins || 0,
+      creditoCbs: ultimo.credito?.detalhe?.cbs || 0, pisCofinsIndeterminado: !!res.atual.pisCofinsIndeterminado,
       origemPisCofins: res.atual.origemPisCofins || '',
       custoHoje: res.atual.custoEfetivo, custoFinal: ultimo.custoEfetivo,
       ibs: ultimo.ibs, cbs: ultimo.cbs, precoFinal: ultimo.precoFinal,
