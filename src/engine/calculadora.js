@@ -287,6 +287,12 @@ function calcularOperacao(op) {
       grauRepasse: op.grauRepasse, parametrosIVA, atual,
     });
     const cred = creditoNovo(novo, atual.regime, regimeAdquirente, atual, op);
+    // No Simples a CBS não é acrescida ao preço por fora. Para fins de leitura
+    // da compra, porém, exibimos a parcela transferível que compõe o crédito.
+    // O preço projetado permanece inalterado porque essa parcela já está no DAS.
+    if (atual.regime === 'simples_nacional' && num(op.creditoCbsSimplesReferencia) > 0 && novo.cbs === 0 && cred.detalhe.cbs > 0) {
+      novo.cbs = cred.detalhe.cbs;
+    }
     const custoEfetivo = r2(novo.precoFinal - cred.total);
     return {
       ...novo,
