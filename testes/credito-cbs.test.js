@@ -11,6 +11,8 @@ const simplesConhecido = avaliarCredito({ regimeAdquirente: 'lucro_real', regime
 assert.deepEqual([simplesConhecido.tipoCredito, simplesConhecido.modalidadeCredito, simplesConhecido.statusDeterminacao], ['SIMPLES', 'LIMITADO_CBS_SIMPLES', 'DETERMINADO']);
 const simplesIndeterminado = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeFornecedor: 'simples_nacional', cls, simplesFornecedorConhecido: false });
 assert.deepEqual([simplesIndeterminado.tipoCredito, simplesIndeterminado.statusDeterminacao], ['SIMPLES', 'INDETERMINADO']);
+const simplesPremissa = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeFornecedor: 'simples_nacional', cls, simplesFornecedorReferencia: 0.025 });
+assert.deepEqual([simplesPremissa.tipoCredito, simplesPremissa.modalidadeCredito, simplesPremissa.statusDeterminacao], ['SIMPLES', 'LIMITADO_CBS_SIMPLES', 'DETERMINADO_POR_PREMISSA']);
 const meiPresumido = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeFornecedor: 'mei', cls: { ...cls, creditoPresumido: true } });
 assert.deepEqual([meiPresumido.tipoCredito, meiPresumido.statusDeterminacao], ['PRESUMIDO', 'DETERMINADO']);
 const meiSemHipotese = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeFornecedor: 'mei', cls });

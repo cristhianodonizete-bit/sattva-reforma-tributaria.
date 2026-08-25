@@ -67,6 +67,7 @@ function carregar() {
       creditaNovo: !!r.credita_novo,
       geraCreditoNovo: !!r.gera_credito_novo,
       noDas: !!r.no_das,
+      creditoCbsSimplesReferencia: r.credito_cbs_simples_referencia === null ? null : Number(r.credito_cbs_simples_referencia),
       obs: r.obs,
     };
   }
@@ -183,11 +184,12 @@ function salvarTributo(chave, dados, usuario) {
 
 function salvarRegime(chave, d, usuario) {
   const antes = db.prepare('SELECT * FROM param_regimes WHERE chave = ?').get(chave);
-  db.prepare(`UPDATE param_regimes SET pis_cofins = ?, credita_novo = ?, gera_credito_novo = ?,
+  db.prepare(`UPDATE param_regimes SET pis_cofins = ?, credito_cbs_simples_referencia = ?, credita_novo = ?, gera_credito_novo = ?,
     credita_atual_piscofins = ?, credita_atual_icms = ?, credita_atual_ipi = ?,
     gera_atual_piscofins = ?, gera_atual_icms = ?, gera_atual_ipi = ?, no_das = ?, obs = ?
     WHERE chave = ?`).run(
     d.pisCofins === '' || d.pisCofins === null || d.pisCofins === undefined ? null : Number(d.pisCofins),
+    d.creditoCbsSimplesReferencia === '' || d.creditoCbsSimplesReferencia === null || d.creditoCbsSimplesReferencia === undefined ? null : Number(d.creditoCbsSimplesReferencia),
     d.creditaNovo ? 1 : 0, d.geraCreditoNovo ? 1 : 0,
     d.creditaAtualPisCofins ? 1 : 0, d.creditaAtualIcms ? 1 : 0, d.creditaAtualIpi ? 1 : 0,
     d.geraCreditoAtualPisCofins ? 1 : 0, d.geraCreditoAtualIcms ? 1 : 0, d.geraCreditoAtualIpi ? 1 : 0,

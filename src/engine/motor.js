@@ -100,7 +100,7 @@ function regimeCbs(regime) {
 function credito(legado, tipoCredito, modalidadeCredito, statusDeterminacao, motivo) {
   return { status: legado, tipoCredito, modalidadeCredito, statusDeterminacao, motivo };
 }
-function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simplesFornecedorConhecido = false }) {
+function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simplesFornecedorConhecido = false, simplesFornecedorReferencia = null }) {
   // Regime do adquirente desconhecido não pode ser tratado como se creditasse:
   // isso superestimaria o crédito entregue ao cliente. O desconhecido tem que
   // continuar desconhecido — e virar apontamento, não número otimista.
@@ -126,6 +126,7 @@ function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simp
   }
   const rForn = regras.regime(regimeFornecedor);
   if (regimeFornecedor === 'simples_nacional') {
+    if (Number(simplesFornecedorReferencia) > 0) return credito('PROJETADO_LIMITADO', 'SIMPLES', 'LIMITADO_CBS_SIMPLES', 'DETERMINADO_POR_PREMISSA', 'Crédito CBS estimado pela premissa cadastrada para fornecedor do Simples; resultado simulado.');
     if (!simplesFornecedorConhecido) return credito('DADOS_INSUFICIENTES', 'SIMPLES', 'LIMITADO_CBS_SIMPLES', 'INDETERMINADO', 'Fornecedor do Simples sem faixa ou alíquota efetiva determinada — crédito não é zero, mas permanece indeterminado.');
     return credito('PROJETADO_LIMITADO', 'SIMPLES', 'LIMITADO_CBS_SIMPLES', 'DETERMINADO', 'Crédito limitado ao CBS efetivamente gerado dentro do Simples.');
   }
@@ -188,6 +189,8 @@ function projetarItem(item, ctx) {
   const emitenteNoDas = !!(regEmit && regEmit.noDas) && !ctx.hibrido;
   let ibs = 0, cbs = 0, natureza = 'CALCULADO';
 
+  const referenciaCreditoSimples = sentido === 'entrada' && regimeEmitente === 'simples_nacional' && !simplesInfo
+    ? Number(regras.regime(regimeEmitente)?.creditoCbsSimplesReferencia) || 0 : 0;
   if (emitenteNoDas) {
     if (simplesInfo && simplesInfo.aliquotaEfetiva) {
       // parcela do DAS que corresponde a IBS (ICMS/ISS) e CBS (PIS/COFINS)
@@ -195,6 +198,9 @@ function projetarItem(item, ctx) {
       cbs = rec.precoMercadoria * simplesInfo.aliquotaEfetiva * (num(rep.pis) + num(rep.cofins));
       ibs = rec.precoMercadoria * simplesInfo.aliquotaEfetiva * num(rep.icms_iss);
       natureza = simplesInfo.origem === 'faturamento conhecido' ? 'CALCULADO' : 'SIMULADO';
+    } else if (referenciaCreditoSimples > 0) {
+      cbs = rec.baseEconomica * referenciaCreditoSimples;
+      natureza = 'SIMULADO';
     } else {
       natureza = 'SIMULADO';
     }
@@ -208,7 +214,7 @@ function projetarItem(item, ctx) {
   if (Number(aliq.parametros.calcular_ibs) !== 1) ibs = 0;
 
   // ---------- 5. CRÉDITO ----------
-  const cred = avaliarCredito({ regimeAdquirente, regimeFornecedor: regimeEmitente, cls, sentido, simplesFornecedorConhecido: !!simplesInfo });
+  const cred = avaliarCredito({ regimeAdquirente, regimeFornecedor: regimeEmitente, cls, sentido, simplesFornecedorConhecido: !!simplesInfo, simplesFornecedorReferencia: referenciaCreditoSimples });
   let creditoIbs = 0, creditoCbs = 0;
   if (['PROJETADO', 'PROJETADO_LIMITADO'].includes(cred.status)) { creditoIbs = ibs; creditoCbs = cbs; }
   // CREDITO_PRESUMIDO fica em zero até que a hipótese seja informada como

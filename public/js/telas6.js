@@ -197,6 +197,7 @@ function regimes(box, d) {
       ${A.tabela([
         { t: 'Regime', r: (r) => `<b>${A.esc(r.label)}</b>` },
         { t: 'PIS/COFINS atual – fallback', num: true, r: (r) => `<input title="Percentual de referência usado apenas quando não houver evidência fiscal superior. Pode representar média ou premissa configurada." type="number" step="0.0001" value="${r.pisCofins === null ? '' : r.pisCofins}" placeholder="não estimar" data-f="pc" data-c="${r.chave}" style="width:92px;text-align:right">` },
+        { t: 'Crédito CBS Simples – referência %', num: true, r: (r) => r.chave === 'simples_nacional' ? `<input title="Percentual usado somente quando a CBS efetiva do Simples não puder ser determinada. O resultado é simulado." type="number" step="0.0001" value="${r.creditoCbsSimplesReferencia === null ? '' : r.creditoCbsSimplesReferencia}" placeholder="opcional" data-f="ccs" data-c="${r.chave}" style="width:92px;text-align:right">` : '—' },
         { t: 'Credita IBS/CBS', r: (r) => `<input type="checkbox" data-f="cn" data-c="${r.chave}" ${r.creditaNovo ? 'checked' : ''}>` },
         { t: 'Gera crédito IBS/CBS', r: (r) => `<input type="checkbox" data-f="gn" data-c="${r.chave}" ${r.geraCreditoNovo ? 'checked' : ''}>` },
         { t: 'Recolhe no DAS', r: (r) => `<input type="checkbox" data-f="das" data-c="${r.chave}" ${r.noDas ? 'checked' : ''}>` },
@@ -214,6 +215,7 @@ function regimes(box, d) {
     const chk = (f) => box.querySelector(`[data-f="${f}"][data-c="${c}"]`).checked;
     salvar(`/config/regimes/${c}`, {
       pisCofins: box.querySelector(`[data-f="pc"][data-c="${c}"]`).value,
+      creditoCbsSimplesReferencia: box.querySelector(`[data-f="ccs"][data-c="${c}"]`)?.value,
       creditaNovo: chk('cn'), geraCreditoNovo: chk('gn'), noDas: chk('das'),
       creditaAtualIcms: chk('cai'), creditaAtualPisCofins: chk('cap'),
       creditaAtualIpi: r.creditaAtualIpi, geraCreditoAtualIcms: r.geraCreditoAtualIcms,

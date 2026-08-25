@@ -47,6 +47,7 @@ const COLUNAS_NOVAS = {
     cenario_id: 'INTEGER', grupo_origem: 'TEXT', fracao: 'REAL DEFAULT 1',
     tipo_credito: 'TEXT', modalidade_credito: 'TEXT', status_credito_determinacao: 'TEXT', regime_cbs_emitente: 'TEXT', regime_cbs_adquirente: 'TEXT',
   },
+  param_regimes: { credito_cbs_simples_referencia: 'REAL' },
   param_cfop: { prioridade: 'INTEGER DEFAULT 2' },
   param_aliquotas: { calcular_ibs: 'INTEGER DEFAULT 0' },
   parceiros: {
@@ -567,7 +568,7 @@ CREATE TABLE IF NOT EXISTS param_regimes (
   gera_atual_piscofins INTEGER DEFAULT 0, gera_atual_icms INTEGER DEFAULT 0,
   gera_atual_ipi INTEGER DEFAULT 0,
   credita_novo INTEGER DEFAULT 0, gera_credito_novo INTEGER DEFAULT 0,
-  no_das INTEGER DEFAULT 0,
+  no_das INTEGER DEFAULT 0, credito_cbs_simples_referencia REAL,
   obs TEXT, ordem INTEGER DEFAULT 0
 );
 
