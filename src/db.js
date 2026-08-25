@@ -692,6 +692,34 @@ CREATE TABLE IF NOT EXISTS excecoes_motor (
 );
 CREATE INDEX IF NOT EXISTS ix_excecoes_motor_empresa_status ON excecoes_motor(empresa_id, status, materialidade DESC);
 
+-- Processamento de carteira: persistimos o cabeçalho e cada empresa para que
+-- a operação seja acompanhável e retomável, sem abrir 600 projetos um a um.
+CREATE TABLE IF NOT EXISTS processamentos_carteira (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo TEXT DEFAULT 'RECALCULO',
+  status TEXT DEFAULT 'AGENDADO',
+  total_empresas INTEGER DEFAULT 0,
+  processadas INTEGER DEFAULT 0,
+  automaticas INTEGER DEFAULT 0,
+  com_premissas INTEGER DEFAULT 0,
+  com_excecoes INTEGER DEFAULT 0,
+  bloqueadas INTEGER DEFAULT 0,
+  iniciado_em TEXT, concluido_em TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS processamentos_carteira_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  processamento_id INTEGER NOT NULL REFERENCES processamentos_carteira(id) ON DELETE CASCADE,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  status TEXT DEFAULT 'AGENDADA',
+  motivo TEXT,
+  itens_processados INTEGER DEFAULT 0,
+  excecoes_abertas INTEGER DEFAULT 0,
+  iniciado_em TEXT, concluido_em TEXT,
+  UNIQUE(processamento_id, empresa_id)
+);
+CREATE INDEX IF NOT EXISTS ix_processamentos_carteira_itens_status ON processamentos_carteira_itens(processamento_id, status);
+
 CREATE TABLE IF NOT EXISTS motor_execucoes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,

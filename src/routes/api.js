@@ -29,6 +29,7 @@ const baseRegime = require('../services/baseRegimeReceita');
 const relatorio = require('../services/relatorio');
 const perfilCbs = require('../services/perfilCbs');
 const excecoesMotor = require('../services/excecoesMotor');
+const processamentoCarteira = require('../services/processamentoCarteira');
 const supabase = require('../services/supabase');
 const { executar: sincronizarGestaoSupabase } = require('../../scripts/sincronizar_gestao_supabase');
 
@@ -2489,6 +2490,17 @@ router.post('/config/controle/enriquecer', (_req, res) => {
   try {
     const filas = db.prepare('SELECT id FROM empresas').all().map((e) => cnpjReceita.agendarEnriquecimento(e.id));
     ok(res, { filas: filas.map((f) => ({ empresa_id: f.empresa_id, status: f.status })) });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/config/processamentos-carteira', (_req, res) => {
+  try { ok(res, { processamento: processamentoCarteira.iniciar({ tipo: 'RECALCULO' }) }); }
+  catch (e) { erro(res, e); }
+});
+router.get('/config/processamentos-carteira/:id?', (req, res) => {
+  try {
+    const processamento = req.params.id ? processamentoCarteira.consultar(req.params.id) : processamentoCarteira.ultimo();
+    ok(res, { processamento });
   } catch (e) { erro(res, e); }
 });
 

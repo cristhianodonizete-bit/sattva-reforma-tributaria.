@@ -12,18 +12,9 @@ const cab = (olho, titulo, texto, acoes = '') =>
    <div class="acoes-topo">${acoes}</div></div>`;
 
 async function recalcularProjeto() {
-  const r = await A.api('/config/recalcular', { metodo: 'POST' });
-  const falhas = r.erros?.length ? ` · ${r.erros.length} empresa(s) com erro` : '';
-  A.toast(`${r.motores} empresa(s) recalculada(s) · ${r.itensPrecificacao} item(ns) de precificação atualizado(s)${falhas}`, r.erros?.length ? 'atencao' : 'ok');
-  if (r.erros?.length) {
-    A.modal({ titulo: 'Empresas que exigem correção antes do recálculo', confirmar: null,
-      descricao: 'O recálculo das demais empresas foi concluído. Corrija as pendências abaixo e execute novamente.',
-      corpo: A.tabela([
-        { t: 'Empresa', r: (e) => `<b>${A.esc(e.empresa || `Empresa ${e.empresa_id}`)}</b>` },
-        { t: 'Motivo', r: (e) => A.esc(e.erro) },
-      ], r.erros),
-    });
-  }
+  const r = await A.api('/config/processamentos-carteira', { metodo: 'POST' });
+  const p = r.processamento;
+  A.toast(`Processamento da carteira iniciado: ${p.total_empresas} empresa(s). Acompanhe no Controle do projeto.`, 'ok');
   return r;
 }
 
@@ -65,6 +56,7 @@ Telas.configuracoes = async (el) => {
 async function controle(box) {
   box.innerHTML = '<div class="carregando">Verificando o projeto…</div>';
   const d = await A.api('/config/controle');
+  const carteira = (await A.api('/config/processamentos-carteira')).processamento;
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   box.innerHTML = `<div class="grade g4">
       ${A.kpi('Clientes a identificar', d.total.clientesPendentes, 'cadastro e perfil pendentes', d.total.clientesPendentes ? 'destaque' : '')}
@@ -78,6 +70,10 @@ async function controle(box) {
       <button class="btn" id="ctrlEnriquecer">Enriquecer pendências agora</button>
       <button class="btn vazio" id="ctrlRecalcular">Recalcular todo o projeto</button>
       <div id="ctrlStatus" style="margin-top:12px"></div></div>
+    ${carteira ? `<div class="cartao" style="margin-top:16px"><h2>Processamento da carteira</h2>
+      <p class="desc"><b>${A.esc(carteira.status)}</b> · ${carteira.processadas}/${carteira.total_empresas} empresa(s) · ${carteira.automaticas} automática(s) · ${carteira.com_premissas} com premissas · ${carteira.com_excecoes} com exceções · ${carteira.bloqueadas} bloqueada(s).</p>
+      ${carteira.status === 'EXECUTANDO' || carteira.status === 'AGENDADO' ? '<button class="btn vazio" id="atualizarCarteira">Atualizar acompanhamento</button>' : ''}
+    </div>` : ''}
     <div class="cartao" style="margin-top:16px"><h2>Inconsistências por empresa</h2>
       ${A.tabela([
         { t: 'Empresa', r: (x) => `<b>${A.esc(x.razao_social)}</b>` },
@@ -95,6 +91,7 @@ async function controle(box) {
     document.getElementById('ctrlStatus').innerHTML = `<div class="aviso bom"><b>${r.filas.length} fila(s) iniciada(s)</b> O processamento ocorre em segundo plano; esta tela mostra o status ao atualizar.</div>`;
   };
   document.getElementById('ctrlRecalcular').onclick = () => document.getElementById('recalcularProjeto').click();
+  document.getElementById('atualizarCarteira')?.addEventListener('click', () => A.ir('configuracoes'));
   box.querySelectorAll('[data-corrigir]').forEach((botao) => { botao.onclick = async () => {
     localStorage.setItem('sattva_empresa', botao.dataset.corrigir); await A.carregarEmpresas();
     if (botao.dataset.destino === 'dados') S.aba.dados = 'cliente';
