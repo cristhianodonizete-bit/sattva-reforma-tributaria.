@@ -33,8 +33,8 @@ function linhas(empresaId, opcoes = {}) {
     FROM motor_resultados r
     JOIN movimentos m ON m.id=r.movimento_id
     LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo AND p.cnpj=m.inscr_federal
-    WHERE r.empresa_id=? AND r.execucao_id=?
-    ORDER BY r.preco_atual DESC, r.id`).all(empresaId, execucao.id).map((x) => {
+    WHERE r.empresa_id=?
+  ORDER BY r.preco_atual DESC, r.id`).all(empresaId).map((x) => {
     let detalhe = {}; try { detalhe = JSON.parse(x.detalhe || '{}'); } catch (_) { /* detalhe inválido vira pendência */ }
     return { ...x, detalhe };
   });

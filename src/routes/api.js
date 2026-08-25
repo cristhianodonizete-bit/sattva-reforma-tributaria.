@@ -2469,8 +2469,8 @@ router.post('/config/controle/enriquecer', (_req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.post('/config/processamentos-carteira', (_req, res) => {
-  try { ok(res, { processamento: processamentoCarteira.iniciar({ tipo: 'RECALCULO' }) }); }
+router.post('/config/processamentos-carteira', async (_req, res) => {
+  try { ok(res, { processamento: await processamentoCarteira.iniciar({ tipo: 'RECALCULO_INCREMENTAL' }) }); }
   catch (e) { erro(res, e); }
 });
 router.get('/config/processamentos-carteira/:id?', (req, res) => {
@@ -2544,7 +2544,7 @@ router.post('/config/recalcular', async (_req, res) => {
         saida.movimentos += classificacao.total || 0;
 
         const ultima = db.prepare('SELECT ano FROM motor_execucoes WHERE empresa_id = ? ORDER BY id DESC LIMIT 1').get(empresa.id);
-        motorExec.executar(empresa.id, { ano: ultima ? ultima.ano : 2027 });
+        motorExec.executar(empresa.id, { ano: ultima ? ultima.ano : 2027, integral: true });
         saida.motores++;
 
         // Itens de precificação legados não são recalculados. A visão oficial

@@ -46,6 +46,7 @@ const COLUNAS_NOVAS = {
   motor_resultados: {
     cenario_id: 'INTEGER', grupo_origem: 'TEXT', fracao: 'REAL DEFAULT 1',
     tipo_credito: 'TEXT', modalidade_credito: 'TEXT', status_credito_determinacao: 'TEXT', regime_cbs_emitente: 'TEXT', regime_cbs_adquirente: 'TEXT',
+    movimento_hash: 'TEXT', regra_version: 'TEXT', catalogo_version: 'TEXT', parceiro_version: 'TEXT', parametro_version: 'TEXT', motor_version: 'TEXT',
   },
   param_regimes: { credito_cbs_simples_referencia: 'REAL' },
   param_cfop: { prioridade: 'INTEGER DEFAULT 2' },
@@ -659,6 +660,7 @@ CREATE TABLE IF NOT EXISTS motor_resultados (
   preco_atual REAL, base_economica REAL,
   ibs REAL, cbs REAL, credito_ibs REAL, credito_cbs REAL,
   tipo_credito TEXT, modalidade_credito TEXT, status_credito_determinacao TEXT,
+  movimento_hash TEXT, regra_version TEXT, catalogo_version TEXT, parceiro_version TEXT, parametro_version TEXT, motor_version TEXT,
   regime_cbs_emitente TEXT, regime_cbs_adquirente TEXT,
   preco_projetado REAL, custo_liquido REAL,
   cst TEXT, cclasstrib TEXT, tratamento TEXT,
@@ -693,6 +695,29 @@ CREATE TABLE IF NOT EXISTS excecoes_motor (
   UNIQUE(empresa_id, movimento_id, codigo)
 );
 CREATE INDEX IF NOT EXISTS ix_excecoes_motor_empresa_status ON excecoes_motor(empresa_id, status, materialidade DESC);
+
+-- Fila durável local espelhada no Supabase. O worker sempre usa claim e
+-- heartbeat; a memória da instância jamais é a fonte de verdade do job.
+CREATE TABLE IF NOT EXISTS jobs_carteira (
+  id TEXT PRIMARY KEY,
+  processamento_id INTEGER,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  competencia TEXT,
+  tipo_job TEXT NOT NULL DEFAULT 'RECALCULO_INCREMENTAL',
+  prioridade INTEGER DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'PENDENTE',
+  tentativas INTEGER NOT NULL DEFAULT 0,
+  max_tentativas INTEGER NOT NULL DEFAULT 3,
+  payload TEXT,
+  worker_id TEXT,
+  heartbeat TEXT,
+  erro TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  iniciado_em TEXT,
+  finalizado_em TEXT,
+  UNIQUE(processamento_id, empresa_id, competencia, tipo_job)
+);
+CREATE INDEX IF NOT EXISTS ix_jobs_carteira_status ON jobs_carteira(status, prioridade DESC, criado_em);
 
 -- Processamento de carteira: persistimos o cabeçalho e cada empresa para que
 -- a operação seja acompanhável e retomável, sem abrir 600 projetos um a um.

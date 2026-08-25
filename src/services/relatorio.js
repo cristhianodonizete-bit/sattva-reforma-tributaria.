@@ -40,6 +40,35 @@ function requerReferenciaFiscalServico(m) {
   return ehServicoDeVenda(m) && (Number(m.pis || 0) + Number(m.cofins || 0) <= 0);
 }
 
+// Adapter de apresentação: reconstitui a estrutura esperada pelo mapa de
+// riscos a partir do detalhe já persistido em motor_resultados. Não chama o
+// motor nem calcula base, CBS, crédito ou classificação novamente.
+function motorPersistido(empresaId) {
+  const base = consolidacaoOficial.linhas(empresaId, { executarSeAusente: true });
+  const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(empresaId);
+  const linhas = base.linhas.map((r) => ({ ...r.detalhe, movimento_id: r.movimento_id, sentido: r.sentido }));
+  const entradas = linhas.filter((x) => x.sentido === 'entrada');
+  const saidas = linhas.filter((x) => x.sentido === 'saida');
+  const soma = (xs, campo) => xs.reduce((s, x) => s + (Number(x[campo]) || 0), 0);
+  const apuracao = {
+    ibs: { debitos: soma(saidas, 'ibs'), creditos: soma(entradas, 'creditoIbs') },
+    cbs: { debitos: soma(saidas, 'cbs'), creditos: soma(entradas, 'creditoCbs') },
+  };
+  apuracao.ibs.saldo = apuracao.ibs.debitos - apuracao.ibs.creditos;
+  apuracao.cbs.saldo = apuracao.cbs.debitos - apuracao.cbs.creditos;
+  apuracao.cargaLiquida = apuracao.ibs.saldo + apuracao.cbs.saldo;
+  return { empresa, ano: base.execucao?.ano || 2027, entradas, saidas, apuracao, resumo: {
+    ano: base.execucao?.ano || 2027, itens: linhas.length, entradas: entradas.length, saidas: saidas.length,
+    classificados: linhas.filter((x) => x.classificacao?.status === 'CLASSIFICADO').length,
+    requerValidacao: linhas.filter((x) => x.classificacao?.status === 'REQUER_VALIDACAO').length,
+    semCorrespondencia: linhas.filter((x) => x.classificacao?.status === 'SEM_CORRESPONDENCIA').length,
+    simulados: linhas.filter((x) => x.natureza === 'SIMULADO').length,
+    comprasAnalisadas: soma(entradas, 'precoAtual'), faturamentoAnalisado: soma(saidas, 'precoAtual'),
+    baseEconomicaEntradas: soma(entradas, 'baseEconomica'), baseEconomicaSaidas: soma(saidas, 'baseEconomica'),
+    apuracao, cargaAtual: { total: 0 }, comparacao: { cargaAtual: null, diferenca: null }, conformidade: [],
+  }};
+}
+
 function prepararCadeia(empresaId, tipo) {
   let movimentos = carregarMovimentos(empresaId, tipo);
   if (tipo === 'cliente') {
@@ -72,8 +101,7 @@ function gerar(empresaId, tipo, query = {}) {
   // Relatórios finais leem a execução materializada do motor. Se as somas
   // oficiais não reconciliarem com o Perfil CBS, não emitimos um arquivo que
   // possa dar aparência de conclusão a um resultado divergente.
-  motorExec.executar(empresaId, { ano: 2027 });
-  const impactoOficial = consolidacaoOficial.impactoFinal(empresaId, { executarSeAusente: false });
+  const impactoOficial = consolidacaoOficial.impactoFinal(empresaId, { executarSeAusente: true });
   if (impactoOficial.reconciliacao.status === 'DIVERGENTE') {
     throw new Error('Relatório bloqueado: a execução possui divergência material com o Perfil CBS. Revise a reconciliação antes de emitir a entrega.');
   }
@@ -196,11 +224,11 @@ function gerar(empresaId, tipo, query = {}) {
   }
 
   // ==================== RELATÓRIO TÉCNICO E MAPA DE RISCOS ====================
-  // Alimentados pelo motor de projeção, não pela análise agregada anterior.
+  // Alimentados exclusivamente pela fotografia materializada do motor.
   if (['tecnico', 'riscos', 'diagnostico', 'recomendacoes'].includes(tipo)) {
     let m = null;
-    try { m = motorExec.executar(empresaId, { ano: query.ano, gravar: false }); }
-    catch (e) { aba(wb, 'Motor', [{ 'Situação': `Motor não pôde ser executado: ${e.message}` }], [{ wch: 100 }]); }
+    try { m = motorPersistido(empresaId); }
+    catch (e) { aba(wb, 'Motor', [{ 'Situação': `Fotografia oficial não pôde ser lida: ${e.message}` }], [{ wch: 100 }]); }
 
     if (m) {
       const forn = motorExec.porFornecedor(m);

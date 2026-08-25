@@ -13,6 +13,35 @@ const motor = require('../engine/motor');
 const { simplesEfetivo } = require('../engine/reconstrucao');
 const regras = require('./regras');
 const excecoesMotor = require('./excecoesMotor');
+const crypto = require('crypto');
+
+// A versão é gravada em cada resultado para permitir invalidar apenas as
+// operações afetadas. Não é usada como regra fiscal; apenas rastreabilidade.
+const MOTOR_VERSION = 'motor-cbs-2026-08-25';
+const hash = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 24);
+const versoesAtuais = () => {
+  const params = regras.tudo();
+  return { regra_version: hash(params), parametro_version: hash(params.regimes || params), catalogo_version: 'catalogo-local-v1', motor_version: MOTOR_VERSION };
+};
+const hashMovimento = (m) => hash({
+  id: m.id, valor: m.valor, base_calculo: m.base_calculo, icms: m.icms, icms_st: m.icms_st, ipi: m.ipi,
+  pis: m.pis, cofins: m.cofins, iss: m.iss, ncm: m.ncm, nbs: m.nbs, cfop: m.cfop, cst: m.cst,
+  csosn: m.csosn, regime: m.regime, inscr_federal: m.inscr_federal, data_emissao: m.data_emissao,
+  descricao: m.descricao, quantidade: m.quantidade, desconto: m.desconto, frete: m.frete,
+  // Estes campos são derivados do catálogo/base de classificação. Incluí-los
+  // no hash faz com que uma reclassificação efetivamente invalide apenas os
+  // movimentos afetados, sem depender de um recálculo integral.
+  reducao: m.reducao, cclasstrib: m.cclasstrib, classificacao_origem: m.classificacao_origem,
+});
+const hashParceiro = (p) => hash({
+  // Nos joins de movimento os aliases evitam colidir com descricao/regime
+  // da própria operação; no cadastro puro os nomes originais são usados.
+  regime: p?.regime_cadastro ?? p?.regime ?? null,
+  perfil_economico: p?.perfil_cadastro ?? p?.perfil_economico ?? null,
+  descricao: p?.nome_cadastro ?? p?.descricao ?? null,
+  cnpj: p?.cnpj_cadastro ?? p?.cnpj ?? null,
+  uf: p?.uf_parceiro ?? p?.uf ?? null,
+});
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
@@ -29,13 +58,20 @@ const ehServicoDeVenda = (m) => Boolean(String(m.nbs || '').replace(/\D/g, ''))
 const requerReferenciaFiscalServico = (m) => ehServicoDeVenda(m) && (Number(m.pis || 0) + Number(m.cofins || 0) <= 0);
 
 /** Carrega os movimentos já com o regime resolvido pelo cadastro de parceiros */
-function carregar(empresaId, sentido) {
+function carregar(empresaId, sentido, movimentoIds = null) {
   const tipo = sentido === 'saida' ? 'cliente' : 'fornecedor';
-  return db.prepare(`SELECT m.*, p.regime AS regime_cadastro, p.perfil_economico AS perfil_cadastro, p.descricao AS nome_cadastro,
+  let sql = `SELECT m.*, p.regime AS regime_cadastro, p.perfil_economico AS perfil_cadastro, p.descricao AS nome_cadastro,
       p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro
     FROM movimentos m
     LEFT JOIN parceiros p ON p.empresa_id = m.empresa_id AND p.tipo = m.tipo AND p.cnpj = m.inscr_federal
-    WHERE m.empresa_id = ? AND m.tipo = ?`).all(empresaId, tipo);
+    WHERE m.empresa_id = ? AND m.tipo = ?`;
+  const p = [empresaId, tipo];
+  if (Array.isArray(movimentoIds)) {
+    if (!movimentoIds.length) return [];
+    sql += ` AND m.id IN (${movimentoIds.map(() => '?').join(',')})`;
+    p.push(...movimentoIds);
+  }
+  return db.prepare(sql).all(...p);
 }
 
 /**
@@ -49,7 +85,8 @@ function executar(empresaId, opcoes = {}) {
   const tabelas = motor.anexosSimples();
   const referenciasVenda = new Map(db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId)
     .map((r) => [r.chave, r]));
-  const saidasOriginais = carregar(empresaId, 'saida');
+  let movimentoIds = Array.isArray(opcoes.movimentoIds) ? opcoes.movimentoIds.map(Number).filter(Boolean) : null;
+  const saidasOriginais = carregar(empresaId, 'saida', movimentoIds);
   // A referência da empresa continua disponível como terceira precedência,
   // mas serviços sem valor no XML não são mais bloqueados: o catálogo fiscal
   // pode trazer cumulatividade obrigatória, alíquota zero ou indeterminação
@@ -59,7 +96,7 @@ function executar(empresaId, opcoes = {}) {
   const cenariosPorFornecedor = new Map();
 
   // ------------------------------------------------------------------ ENTRADAS
-  for (const m of carregar(empresaId, 'entrada')) {
+  for (const m of carregar(empresaId, 'entrada', movimentoIds)) {
     const regime = m.regime_cadastro || m.regime || null;
     const item = normalizar(m);
 
@@ -171,7 +208,7 @@ function executar(empresaId, opcoes = {}) {
     })(),
   };
 
-  if (opcoes.gravar !== false) gravar(empresaId, ano, resumo, entradas, saidas);
+  if (opcoes.gravar !== false) gravar(empresaId, ano, resumo, entradas, saidas, { incremental: Boolean(movimentoIds) });
   return { empresa, ano, resumo, entradas, saidas, apuracao,
     cenariosSimples: [...cenariosPorFornecedor.entries()].map(([k, v]) => ({ fornecedor: k, ...v })) };
 }
@@ -316,23 +353,31 @@ const ROTULOS = {
   divergencia_classificacao_declarada: 'cClassTrib declarado diverge da base',
 };
 
-function gravar(empresaId, ano, resumo, entradas, saidas) {
+function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
   const ex = db.prepare(`INSERT INTO motor_execucoes (empresa_id, ano, itens, classificados,
     requer_validacao, sem_correspondencia, resumo) VALUES (?,?,?,?,?,?,?)`)
     .run(empresaId, ano, resumo.itens, resumo.classificados, resumo.requerValidacao,
       resumo.semCorrespondencia, JSON.stringify(resumo));
   const id = ex.lastInsertRowid;
-  db.prepare('DELETE FROM motor_resultados WHERE empresa_id = ?').run(empresaId);
+  const linhas = [...entradas, ...saidas];
+  if (opcoes.incremental) {
+    const ids = linhas.map((x) => x.movimento_id).filter(Boolean);
+    if (ids.length) db.prepare(`DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN (${ids.map(() => '?').join(',')})`).run(empresaId, ...ids);
+  } else db.prepare('DELETE FROM motor_resultados WHERE empresa_id = ?').run(empresaId);
+  const versoes = versoesAtuais();
   const ins = db.prepare(`INSERT INTO motor_resultados (empresa_id, movimento_id, execucao_id, sentido, ano,
     status_classificacao, status_credito, natureza, preco_atual, base_economica, ibs, cbs,
-    credito_ibs, credito_cbs, tipo_credito, modalidade_credito, status_credito_determinacao, regime_cbs_emitente, regime_cbs_adquirente, preco_projetado, custo_liquido, cst, cclasstrib, tratamento,
+    credito_ibs, credito_cbs, tipo_credito, modalidade_credito, status_credito_determinacao, movimento_hash, regra_version, catalogo_version, parceiro_version, parametro_version, motor_version, regime_cbs_emitente, regime_cbs_adquirente, preco_projetado, custo_liquido, cst, cclasstrib, tratamento,
     perfil_destinatario, sensibilidade, detalhe)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   db.transaction(() => {
-    for (const x of [...entradas, ...saidas]) {
+    for (const x of linhas) {
+      const movimento = db.prepare('SELECT * FROM movimentos WHERE id=?').get(x.movimento_id) || {};
+      const parceiro = db.prepare('SELECT * FROM parceiros WHERE empresa_id=? AND cnpj=? AND tipo=?').get(empresaId, movimento.inscr_federal || '', movimento.tipo || '');
       ins.run(empresaId, x.movimento_id, id, x.sentido, ano,
         x.classificacao.status, x.credito.status, x.natureza,
-        x.precoAtual, x.baseEconomica, x.ibs, x.cbs, x.creditoIbs, x.creditoCbs, x.credito.tipoCredito || null, x.credito.modalidadeCredito || null, x.credito.statusDeterminacao || null, x.regimeCbsEmitente || null, x.regimeCbsAdquirente || null,
+        x.precoAtual, x.baseEconomica, x.ibs, x.cbs, x.creditoIbs, x.creditoCbs, x.credito.tipoCredito || null, x.credito.modalidadeCredito || null, x.credito.statusDeterminacao || null,
+        hashMovimento(movimento), versoes.regra_version, versoes.catalogo_version, hashParceiro(parceiro), versoes.parametro_version, versoes.motor_version, x.regimeCbsEmitente || null, x.regimeCbsAdquirente || null,
         x.precoProjetado, x.custoLiquido, x.classificacao.cst, x.classificacao.cclasstrib,
         x.classificacao.tratamento, x.destinatario ? x.destinatario.perfil : null,
         x.sensibilidade ? x.sensibilidade.nivel : null, JSON.stringify(x));
@@ -427,4 +472,54 @@ function resultados(empresaId, filtros = {}) {
   return db.prepare(sql).all(...p).map((r) => ({ ...r, detalhe: JSON.parse(r.detalhe || '{}') }));
 }
 
-module.exports = { executar, porFornecedor, porCliente, ultimaExecucao, resultados, normalizar };
+function resultadoMaterializado(empresa, ano) {
+  const linhas = db.prepare('SELECT * FROM motor_resultados WHERE empresa_id=?').all(empresa.id)
+    .map((r) => { try { return JSON.parse(r.detalhe || '{}'); } catch (_) { return null; } }).filter(Boolean);
+  const entradas = linhas.filter((x) => x.sentido === 'entrada');
+  const saidas = linhas.filter((x) => x.sentido === 'saida');
+  const apuracao = motor.apurar(saidas, entradas);
+  return { empresa, ano, entradas, saidas, apuracao, resumo: {
+    ano, itens: linhas.length, entradas: entradas.length, saidas: saidas.length,
+    apuracao, materializado: true, observacao: 'Resultados vigentes reutilizados sem novo cálculo.' }, cenariosSimples: [] };
+}
+
+/** Identifica apenas operações cuja entrada ou dependência mudou. */
+function pendentesIncrementais(empresaId, opcoes = {}) {
+  const versoes = versoesAtuais();
+  const todos = db.prepare(`SELECT m.*, p.regime AS regime_cadastro, p.perfil_economico AS perfil_cadastro,
+    p.descricao AS nome_cadastro, p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro
+    FROM movimentos m LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo AND p.cnpj=m.inscr_federal
+    WHERE m.empresa_id=?`).all(empresaId);
+  const atuais = new Map(db.prepare(`SELECT movimento_id,movimento_hash,regra_version,catalogo_version,parceiro_version,parametro_version,motor_version
+    FROM motor_resultados WHERE empresa_id=?`).all(empresaId).map((x) => [x.movimento_id, x]));
+  return todos.filter((m) => {
+    const anterior = atuais.get(m.id);
+    if (!anterior) return true;
+    if (opcoes.forcar) return true;
+    return anterior.movimento_hash !== hashMovimento(m)
+      || anterior.regra_version !== versoes.regra_version
+      || anterior.catalogo_version !== versoes.catalogo_version
+      || anterior.parceiro_version !== hashParceiro(m)
+      || anterior.parametro_version !== versoes.parametro_version
+      || anterior.motor_version !== versoes.motor_version;
+  }).map((m) => m.id);
+}
+
+/**
+ * Reprocessa só o subconjunto invalidado. A apuração agregada continuará
+ * lendo todas as linhas vigentes de motor_resultados, inclusive as intactas.
+ */
+function reprocessarIncremental(empresaId, opcoes = {}) {
+  // Movimentos removidos não podem permanecer na fotografia materializada.
+  // Isso é uma invalidação incremental também: remove somente órfãos desta
+  // empresa e preserva todos os resultados ainda vigentes.
+  const removidos = db.prepare(`DELETE FROM motor_resultados
+    WHERE empresa_id=? AND movimento_id NOT IN (SELECT id FROM movimentos WHERE empresa_id=?)`)
+    .run(empresaId, empresaId).changes;
+  const movimentoIds = opcoes.movimentoIds || pendentesIncrementais(empresaId, opcoes);
+  if (!movimentoIds.length) return { empresa_id: empresaId, reprocessados: 0, removidos, status: removidos ? 'CONCLUIDO' : 'SEM_ALTERACOES' };
+  const resultado = executar(empresaId, { ...opcoes, movimentoIds, ano: Number(opcoes.ano) || 2027 });
+  return { empresa_id: empresaId, reprocessados: movimentoIds.length, removidos, status: 'CONCLUIDO', resultado };
+}
+
+module.exports = { executar, reprocessarIncremental, pendentesIncrementais, porFornecedor, porCliente, ultimaExecucao, resultados, normalizar, hashMovimento, versoesAtuais };

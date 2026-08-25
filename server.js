@@ -83,6 +83,11 @@ async function iniciar() {
         console.log(`  primeira execução da empresa ${empresa.id}: ${refinamento.refinados} parceiro(s) refinado(s)`);
       }
       console.log('  resultados CBS preservados; somente empresas sem execução foram processadas');
+      // Jobs sobrevivem a reinícios: recupera claims abandonados e retoma a fila
+      // durável sem depender da memória da instância anterior do Render.
+      const fila = require('./src/services/processamentoCarteira');
+      await fila.recuperarAbandonados();
+      fila.executar().catch((e) => console.error('  fila de carteira:', e.message));
     }
   } catch (e) {
     console.error('  não foi possível carregar a operação compartilhada:', e.message);

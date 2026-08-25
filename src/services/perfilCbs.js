@@ -42,12 +42,12 @@ function grupoCredito(linha, detalhe) {
   return 'compras_credito_indeterminado';
 }
 
-function dadosPorCompetencia(empresaId, execucaoId) {
+function dadosPorCompetencia(empresaId, _execucaoId) {
   return db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.origem,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento
     FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
-    WHERE r.empresa_id=? AND r.execucao_id=? AND COALESCE(m.competencia,'')<>''
-    ORDER BY m.competencia, r.id`).all(empresaId, execucaoId);
+    WHERE r.empresa_id=? AND COALESCE(m.competencia,'')<>''
+    ORDER BY m.competencia, r.id`).all(empresaId);
 }
 
 function materializar(empresaId, opcoes = {}) {
