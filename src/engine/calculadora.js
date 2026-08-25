@@ -17,6 +17,26 @@
  */
 
 const P = require('../config/parametros');
+const regras = require('../services/regras');
+
+// O arquivo parametros é somente a semente para instalações novas. Em execução,
+// os motores consultam a configuração persistida; a semente é fallback defensivo.
+function regimeConfigurado(chave) {
+  const salvo = regras.regime(chave);
+  if (salvo) return {
+    label: salvo.label, pisCofins: salvo.pisCofins,
+    creditaAtual: { pisCofins: salvo.creditaAtualPisCofins, icms: salvo.creditaAtualIcms, ipi: salvo.creditaAtualIpi },
+    geraCreditoAtual: { pisCofins: salvo.geraCreditoAtualPisCofins, icms: salvo.geraCreditoAtualIcms, ipi: salvo.geraCreditoAtualIpi },
+    creditaNovo: salvo.creditaNovo, geraCreditoNovo: salvo.geraCreditoNovo,
+  };
+  return P.REGIMES[chave] || P.REGIMES.lucro_real;
+}
+function padraoConfigurado(chave, fallback) { return num(regras.padrao(chave, fallback)); }
+function parametrosDoAno(ano, parametrosIVA) {
+  const base = P.CRONOGRAMA[ano] || P.CRONOGRAMA[2027];
+  const salvo = parametrosIVA && (parametrosIVA[ano] || parametrosIVA);
+  return salvo ? { ...base, ...salvo } : base;
+}
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const r4 = (n) => Math.round((Number(n) || 0) * 10000) / 10000;
@@ -39,7 +59,7 @@ function grossDown(op) {
   const valor = num(op.valor);
   const tipo = op.tipo === 'servico' ? 'servico' : 'mercadoria';
   const regimeKey = op.regime || 'lucro_real';
-  const regime = P.REGIMES[regimeKey] || P.REGIMES.lucro_real;
+  const regime = regimeConfigurado(regimeKey);
   const base = num(op.baseCalculo) || valor;
 
   const informado = ['icms', 'pis', 'cofins', 'ipi', 'iss'].some((k) => op[k] !== undefined && op[k] !== null && op[k] !== '');
@@ -55,11 +75,11 @@ function grossDown(op) {
   } else {
     // Estimativa a partir do regime + alíquotas padrão.
     if (regimeKey === 'simples_nacional' || regimeKey === 'simples_regime_regular' || regimeKey === 'mei') {
-      const aliqDas = op.aliqSimples !== undefined ? num(op.aliqSimples) : P.PADROES.simplesEfetivo;
+      const aliqDas = op.aliqSimples !== undefined ? num(op.aliqSimples) : padraoConfigurado('simples_efetivo', P.PADROES.simplesEfetivo);
       // No Simples os tributos estão embutidos no DAS: tratamos como um bloco.
       const das = base * aliqDas;
       // Separação apenas indicativa entre a parte "consumo" e a parte "renda/CPP"
-      const parteConsumo = das * P.PADROES.simplesParcelaCreditavel;
+      const parteConsumo = das * padraoConfigurado('simples_parcela_creditavel', P.PADROES.simplesParcelaCreditavel);
       if (tipo === 'servico') { iss = parteConsumo * 0.55; pis = parteConsumo * 0.08; cofins = parteConsumo * 0.37; }
       else { icms = parteConsumo * 0.55; pis = parteConsumo * 0.08; cofins = parteConsumo * 0.37; }
     } else if (regimeKey === 'imune_isento' || regimeKey === 'pessoa_fisica' || regimeKey === 'produtor_rural_pf' || regimeKey === 'orgao_publico' || regimeKey === 'exterior') {
@@ -70,10 +90,10 @@ function grossDown(op) {
       pis = base * (pc * 0.1757);       // proporção PIS dentro do bloco PIS/COFINS
       cofins = base * (pc * 0.8243);
       if (tipo === 'servico') {
-        iss = base * (op.aliqIss !== undefined ? num(op.aliqIss) : P.PADROES.iss);
+        iss = base * (op.aliqIss !== undefined ? num(op.aliqIss) : padraoConfigurado('iss', P.PADROES.iss));
       } else {
-        icms = base * (op.aliqIcms !== undefined ? num(op.aliqIcms) : P.PADROES.icmsInterno);
-        ipi = base * (op.aliqIpi !== undefined ? num(op.aliqIpi) : P.PADROES.ipi);
+        icms = base * (op.aliqIcms !== undefined ? num(op.aliqIcms) : padraoConfigurado('icms_interno', P.PADROES.icmsInterno));
+        ipi = base * (op.aliqIpi !== undefined ? num(op.aliqIpi) : padraoConfigurado('ipi', P.PADROES.ipi));
       }
     }
   }
@@ -109,8 +129,8 @@ function grossDown(op) {
 // 2. CRÉDITO ATUAL — quanto o adquirente aproveita hoje
 // ---------------------------------------------------------------------------
 function creditoAtual(atual, regimeAdquirente) {
-  const adq = P.REGIMES[regimeAdquirente] || P.REGIMES.lucro_real;
-  const forn = P.REGIMES[atual.regime] || P.REGIMES.lucro_real;
+  const adq = regimeConfigurado(regimeAdquirente);
+  const forn = regimeConfigurado(atual.regime);
   const t = atual.tributos;
   let c = 0;
   const det = { icms: 0, pisCofins: 0, ipi: 0 };
@@ -123,7 +143,7 @@ function creditoAtual(atual, regimeAdquirente) {
   }
   if (adq.creditaAtual.pisCofins && forn.geraCreditoAtual.pisCofins) {
     // no não cumulativo o crédito é calculado sobre o valor de aquisição
-    det.pisCofins = (atual.valorOperacao) * (P.REGIMES.lucro_real.pisCofins);
+    det.pisCofins = (atual.valorOperacao) * (regimeConfigurado('lucro_real').pisCofins);
   }
   if (adq.creditaAtual.ipi && forn.geraCreditoAtual.ipi) { det.ipi = t.ipi; }
 
@@ -146,7 +166,7 @@ function creditoAtual(atual, regimeAdquirente) {
  */
 function aplicarIVA(cfg) {
   const ano = Number(cfg.ano) || 2027;
-  const cronPadrao = P.CRONOGRAMA[ano] || P.CRONOGRAMA[2027];
+  const cronPadrao = parametrosDoAno(ano, cfg.parametrosIVA);
   // As telas de cadeia também precisam obedecer às regras salvas no projeto.
   // O cronograma do arquivo é somente a semente/fallback da calculadora avulsa.
   const parametrizado = cfg.parametrosIVA;
@@ -160,9 +180,9 @@ function aplicarIVA(cfg) {
     fatorIpi: num(parametrizado.fator_ipi),
     compensavel: Number(parametrizado.compensavel) === 1,
   } : cronPadrao;
-  const red = P.REDUCOES[cfg.reducao] || P.REDUCOES.integral;
+  const red = regras.reducao(cfg.reducao) || P.REDUCOES[cfg.reducao] || P.REDUCOES.integral;
   const regimeKey = cfg.regime || 'lucro_real';
-  const regime = P.REGIMES[regimeKey] || P.REGIMES.lucro_real;
+  const regime = regimeConfigurado(regimeKey);
 
   let aliqCbs = cron.cbs * (1 - red.reducao);
   let aliqIbs = cron.ibs * (1 - red.reducao);
@@ -232,9 +252,9 @@ function aplicarIVA(cfg) {
 // 4. CRÉDITO NOVO
 // ---------------------------------------------------------------------------
 function creditoNovo(novo, regimeFornecedor, regimeAdquirente, atual, op = {}) {
-  const adq = P.REGIMES[regimeAdquirente] || P.REGIMES.lucro_real;
-  const forn = P.REGIMES[regimeFornecedor] || P.REGIMES.lucro_real;
-  const cron = P.CRONOGRAMA[novo.ano] || P.CRONOGRAMA[2027];
+  const adq = regimeConfigurado(regimeAdquirente);
+  const forn = regimeConfigurado(regimeFornecedor);
+  const cron = parametrosDoAno(novo.ano, op.parametrosIVA);
 
   let cbs = 0, ibs = 0, residual = 0, obs = [];
 
@@ -249,7 +269,8 @@ function creditoNovo(novo, regimeFornecedor, regimeAdquirente, atual, op = {}) {
       cbs = novo.valorSemImposto * referenciaCbsSimples;
       obs.push('Crédito CBS estimado pela referência cadastrada do Simples (natureza: SIMULADO).');
     } else {
-      cbs = embutido * 0.35; ibs = embutido * 0.65;
+      const parcelaCbs = padraoConfigurado('cbs_no_das', 0.35);
+      cbs = embutido * parcelaCbs; ibs = embutido * (1 - parcelaCbs);
       obs.push('Fornecedor optante pelo Simples/MEI: crédito limitado ao valor de IBS/CBS embutido no DAS — bem inferior ao crédito de um fornecedor do regime regular.');
     }
   } else {

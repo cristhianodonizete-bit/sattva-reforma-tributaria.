@@ -13,6 +13,7 @@ const { calcularOperacao, r2, r4 } = require('./calculadora');
 const regras = require('../services/regras');
 
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
+const regimeConfigurado = (chave) => regras.regime(chave) || P.REGIMES[chave] || P.REGIMES.lucro_real;
 const soma = (arr, f) => arr.reduce((s, x) => s + num(f(x)), 0);
 
 function parametrosDoCenario(cfg, ano) {
@@ -33,7 +34,7 @@ function calcularVendaCbs(m, regimeEmpresa, regimeCliente, cfg) {
   const aliquotaReferencia = referencia.pis_cofins !== null && referencia.pis_cofins !== undefined
     ? num(referencia.pis_cofins)
     : (referencia.das_efetivo !== null && referencia.das_efetivo !== undefined
-      ? num(referencia.das_efetivo) : num((P.REGIMES[regimeEmpresa] || {}).pisCofins));
+      ? num(referencia.das_efetivo) : num(regimeConfigurado(regimeEmpresa).pisCofins));
   const usaDocumento = pisDocumento > 0;
   const pisCofins = usaDocumento ? pisDocumento : valor * aliquotaReferencia;
   const baseEconomica = Math.max(valor - pisCofins, 0);
@@ -46,7 +47,7 @@ function calcularVendaCbs(m, regimeEmpresa, regimeCliente, cfg) {
     const ibs = baseEconomica * ibsAliq;
     const precoFinal = baseEconomica + cbs + ibs;
     const creditoPotencial = cbs + ibs;
-    const clienteCredita = !!(P.REGIMES[regimeCliente] || {}).creditaNovo;
+    const clienteCredita = !!regimeConfigurado(regimeCliente).creditaNovo;
     return {
       ano, valorSemImposto: r2(baseEconomica), cbs: r2(cbs), ibs: r2(ibs), iva: r2(creditoPotencial),
       totalTributos: r2(creditoPotencial), precoFinal: r2(precoFinal),
@@ -70,7 +71,7 @@ function relevanciaCreditoCliente(regime) {
   if (regime === 'pessoa_fisica') return 'Não aplicável — consumidor final';
   if (['simples_nacional', 'mei'].includes(regime)) return 'Sem apropriação no perfil informado';
   if (['orgao_publico', 'imune_isento'].includes(regime)) return 'A validar para o perfil informado';
-  if ((P.REGIMES[regime] || {}).creditaNovo) return 'Potencialmente relevante — B2B regular';
+  if (regimeConfigurado(regime).creditaNovo) return 'Potencialmente relevante — B2B regular';
   return 'A validar';
 }
 
@@ -122,7 +123,7 @@ function analisarCadeia(movimentos, cfg = {}) {
     if (!porParceiro.has(chave)) {
       porParceiro.set(chave, {
         chave, nome: m.nome || m.descricao || chave, cnpj: m.cnpj || m.inscr_federal || '',
-        regime: regimeParceiro, regimeLabel: (P.REGIMES[regimeParceiro] || {}).label || regimeParceiro,
+        regime: regimeParceiro, regimeLabel: regimeConfigurado(regimeParceiro).label || regimeParceiro,
         itens: 0, valor: 0, baseEconomica: 0, pisCofinsAtual: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, custoHoje: 0,
         custoFinal: 0, precoFinal: 0, creditoFinal: 0, creditoPotencial: 0,
         relevanciaCreditoCliente: relevanciaCreditoCliente(regimeParceiro),
@@ -155,7 +156,7 @@ function analisarCadeia(movimentos, cfg = {}) {
     }
 
     if (!porRegime.has(regimeParceiro)) {
-      porRegime.set(regimeParceiro, { regime: regimeParceiro, label: (P.REGIMES[regimeParceiro] || {}).label || regimeParceiro,
+      porRegime.set(regimeParceiro, { regime: regimeParceiro, label: regimeConfigurado(regimeParceiro).label || regimeParceiro,
         parceiros: new Set(), valor: 0, baseEconomica: 0, pisCofinsAtual: 0, ibs: 0, cbs: 0, tributos: 0, creditoHoje: 0, creditoFinal: 0, creditoPotencial: 0, custoHoje: 0, custoFinal: 0, precoFinal: 0,
         relevanciaCreditoCliente: relevanciaCreditoCliente(regimeParceiro) });
     }

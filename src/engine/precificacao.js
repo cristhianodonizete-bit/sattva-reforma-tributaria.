@@ -9,7 +9,7 @@
  *  3. O meu cliente aguenta esse preço? (depende de ele se creditar ou não)
  */
 
-const P = require('../config/parametros');
+const regras = require('../services/regras');
 const { grossDown, aplicarIVA, r2, r4 } = require('./calculadora');
 
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
@@ -65,7 +65,7 @@ function analisarItem(item) {
   const novoCompra = aplicarIVA({ valorSemImposto: compra.valorSemImposto, ano, reducao: item.reducaoCompra,
     regime: regimeFornecedor, grauRepasse: 1, parametrosIVA, atual: compra });
   const { creditoNovo } = require('./calculadora');
-  const credNovo = creditoNovo(novoCompra, regimeFornecedor, regime, compra);
+  const credNovo = creditoNovo(novoCompra, regimeFornecedor, regime, compra, { parametrosIVA, creditoCbsSimplesReferencia: regras.regime('simples_nacional')?.creditoCbsSimplesReferencia });
   const custoLiquidoNovo = r2(novoCompra.precoFinal - credNovo.total);
 
   const receitaLiqCongelado = r2(venda.valorOperacao - novoVenda.totalTributos);
@@ -86,12 +86,12 @@ function analisarItem(item) {
     reducao: item.reducao, aliqEspecifica: item.aliqEspecifica, regime, grauRepasse: 1, parametrosIVA, atual: venda });
 
   // ---------- SENSIBILIDADE DO CLIENTE ----------
-  const cliente = P.REGIMES[perfilCliente] || P.REGIMES.lucro_real;
+  const cliente = regras.regime(perfilCliente) || regras.regime('lucro_real');
   const clienteCredita = cliente.creditaNovo;
   const custoParaClienteHoje = r2(venda.valorOperacao - (clienteCredita ? creditoAtual(venda, perfilCliente).total : 0));
   const novoParaCliente = aplicarIVA({ valorSemImposto: venda.valorSemImposto, ano, reducao: item.reducao,
     aliqEspecifica: item.aliqEspecifica, regime, grauRepasse: 1, parametrosIVA, atual: venda });
-  const credCliente = clienteCredita ? creditoNovo(novoParaCliente, regime, perfilCliente, venda).total : 0;
+  const credCliente = clienteCredita ? creditoNovo(novoParaCliente, regime, perfilCliente, venda, { parametrosIVA, creditoCbsSimplesReferencia: regras.regime('simples_nacional')?.creditoCbsSimplesReferencia }).total : 0;
   const custoParaClienteNovo = r2(precoNeutro - credCliente);
 
   return {

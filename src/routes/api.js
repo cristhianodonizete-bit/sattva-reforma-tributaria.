@@ -31,6 +31,16 @@ const supabase = require('../services/supabase');
 const { executar: sincronizarGestaoSupabase } = require('../../scripts/sincronizar_gestao_supabase');
 
 const router = express.Router();
+
+// Toda rota que calcula parte da fonte compartilhada. Assim, uma instância nova
+// do Render nunca decide com um SQLite vazio ou com cache anterior à alteração.
+async function atualizarConfiguracaoDeCalculo() {
+  if (!supabase.configurado()) return;
+  await require('../services/operacaoCompartilhada').baixarConfiguracao([
+    'param_regimes', 'param_aliquotas', 'param_regras', 'param_reducoes', 'param_simples', 'param_tributos', 'param_cfop',
+  ]);
+  regras.invalidar();
+}
 router.get('/cnpj/:cnpj/governo', async (req, res) => { try { const d = await cnpjReceita.consultar(req.params.cnpj); ok(res, { resultado: cnpjReceita.classificarEnteGovernamental(d, String(req.params.cnpj).replace(/\D/g, '')) }); } catch (e) { erro(res, e); } });
 // Cadastro central: não pertence a uma empresa específica. Os vínculos de
 // cliente/fornecedor continuam em `parceiros`, isolados por empresa.
@@ -918,8 +928,9 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
   } catch (e) { erro(res, e); }
 });
 
-router.get('/empresas/:id/cadeia/:tipo', (req, res) => {
+router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
   try {
+    await atualizarConfiguracaoDeCalculo();
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
     const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';
@@ -933,8 +944,9 @@ router.get('/empresas/:id/cadeia/:tipo', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.get('/empresas/:id/cenarios', (req, res) => {
+router.get('/empresas/:id/cenarios', async (req, res) => {
   try {
+    await atualizarConfiguracaoDeCalculo();
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
     const repasse = req.query.repasse !== undefined ? Number(req.query.repasse) : 1;
@@ -1000,8 +1012,9 @@ router.get('/cenarios/:id', (req, res, next) => {
 // ===========================================================================
 // MÓDULO 2 — PRECIFICAÇÃO
 // ===========================================================================
-router.post('/precificacao/simular', (req, res) => {
+router.post('/precificacao/simular', async (req, res) => {
   try {
+    await atualizarConfiguracaoDeCalculo();
     const empresa = req.body.empresa_id ? db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.body.empresa_id) : null;
     const referenciaFiscal = empresa ? referenciaFiscalPrecificacao(empresa.id, req.body) : null;
     ok(res, { resultado: prec.analisarItem({ ...req.body, referenciaFiscal, parametrosIVA: referenciaIvaDoProjeto(), regime: req.body.regime || (empresa && empresa.regime) || 'lucro_real' }) });
@@ -1013,8 +1026,9 @@ router.get('/empresas/:id/precificacao', (req, res) => ok(res, {
     .map((i) => ({ ...i, resultado: i.resultado ? JSON.parse(i.resultado) : null })),
 }));
 
-router.post('/empresas/:id/precificacao', (req, res) => {
+router.post('/empresas/:id/precificacao', async (req, res) => {
   try {
+    await atualizarConfiguracaoDeCalculo();
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     const b = req.body;
     const resultado = prec.analisarItem({ ...b, referenciaFiscal: referenciaFiscalPrecificacao(empresa.id, b), parametrosIVA: referenciaIvaDoProjeto(), regime: empresa.regime });
@@ -1030,8 +1044,9 @@ router.post('/empresas/:id/precificacao', (req, res) => {
 
 router.delete('/precificacao/:id', (req, res) => { db.prepare('DELETE FROM itens_precificacao WHERE id=?').run(req.params.id); ok(res, {}); });
 
-router.post('/empresas/:id/precificacao/importar', upload.single('arquivo'), (req, res) => {
+router.post('/empresas/:id/precificacao/importar', upload.single('arquivo'), async (req, res) => {
   try {
+    await atualizarConfiguracaoDeCalculo();
     if (!req.file) throw new Error('Envie a planilha no campo "arquivo".');
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     const { linhas } = imp.lerPlanilha(req.file.buffer);
