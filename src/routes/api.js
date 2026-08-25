@@ -9,6 +9,7 @@ const { CLAUSULAS, TRILHAS } = require('../config/conteudo');
 const calc = require('../engine/calculadora');
 const prec = require('../engine/precificacao');
 const { analisarCadeia } = require('../engine/cadeia');
+const consolidacaoOficial = require('../services/consolidacaoOficial');
 const imp = require('../services/importador');
 const questor = require('../services/questor');
 const ia = require('../services/ia');
@@ -934,12 +935,11 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
     const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';
+    // A execução é materializada antes da leitura. A cadeia apenas agrega
+    // motor_resultados; ela não recalcula base, CBS, IBS ou crédito.
+    motorExec.executar(empresa.id, { ano: 2027 });
     const cfg = prepararCadeia(empresa, tipo, req.query);
-    const resultado = analisarCadeia(cfg.movimentos, {
-      regimeEmpresa: empresa.regime, lado: tipo, anos: cfg.anos,
-      parametrosIVA: cfg.parametrosIVA,
-      grauRepasse: req.query.repasse !== undefined ? Number(req.query.repasse) : 1,
-    });
+    const resultado = consolidacaoOficial.cadeia(empresa.id, tipo, { executarSeAusente: false });
     ok(res, { empresa, analise: resultado, pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', valor: Number(m.valor) || 0 })) });
   } catch (e) { erro(res, e); }
 });
@@ -950,43 +950,8 @@ router.get('/empresas/:id/impacto-final-cbs', async (req, res) => {
     await atualizarConfiguracaoDeCalculo();
     const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
-    const repasse = req.query.repasse !== undefined ? Number(req.query.repasse) : 1;
-    const cfgCompras = prepararCadeia(empresa, 'fornecedor', req.query);
-    const cfgVendas = prepararCadeia(empresa, 'cliente', req.query);
-    const compras = analisarCadeia(cfgCompras.movimentos, { regimeEmpresa: empresa.regime, lado: 'fornecedor', anos: cfgCompras.anos, parametrosIVA: cfgCompras.parametrosIVA, grauRepasse: repasse });
-    const vendas = analisarCadeia(cfgVendas.movimentos, { regimeEmpresa: empresa.regime, lado: 'cliente', anos: cfgVendas.anos, parametrosIVA: cfgVendas.parametrosIVA, grauRepasse: repasse });
-    const ultimo = (lista) => lista.cenarios[lista.cenarios.length - 1] || {};
-    const saidas = ultimo(vendas), entradas = ultimo(compras);
-    const somar = (lista, campo) => lista.reduce((s, x) => s + (Number(x[campo]) || 0), 0);
-    const cbsDebitoVendas = calc.r2(saidas.cbs || 0);
-    const cbsCreditoCompras = calc.r2(somar(compras.detalhes, 'creditoCbs'));
-    const cbsLiquida = calc.r2(cbsDebitoVendas - cbsCreditoCompras);
-    const receitaProjetada = calc.r2(saidas.precoFinal || 0);
-    const baseEconomicaSaidas = calc.r2(saidas.baseEconomica || 0);
-    const pisDebitos = calc.r2(somar(vendas.detalhes, 'pisCofinsAtual'));
-    const pisCreditos = calc.r2(somar(compras.detalhes, 'creditoPisCofinsHoje'));
-    const pisIndeterminado = vendas.detalhes.some((x) => x.pisCofinsIndeterminado) || compras.detalhes.some((x) => x.pisCofinsIndeterminado);
-    const pisCofinsLiquidoAtual = pisIndeterminado ? null : calc.r2(pisDebitos - pisCreditos);
-    const variacaoCargaFederal = pisCofinsLiquidoAtual === null ? null : calc.r2(cbsLiquida - pisCofinsLiquidoAtual);
-    const variacaoPercentual = pisCofinsLiquidoAtual === null || pisCofinsLiquidoAtual === 0 ? null : calc.r4(variacaoCargaFederal / Math.abs(pisCofinsLiquidoAtual));
-
-    // Reconciliação não substitui os números da Cadeia: evidencia qualquer
-    // diferença frente ao último motor materializado, sem escondê-la.
-    const linhasMotor = db.prepare('SELECT sentido, cbs, credito_cbs FROM motor_resultados WHERE empresa_id=?').all(empresa.id);
-    const motorDebito = calc.r2(somar(linhasMotor.filter((x) => x.sentido === 'saida'), 'cbs'));
-    const motorCredito = calc.r2(somar(linhasMotor.filter((x) => x.sentido === 'entrada'), 'credito_cbs'));
-    const reconciliacao = { disponivel: linhasMotor.length > 0, itens: linhasMotor.length,
-      cbsDebitoVendas: motorDebito, cbsCreditoCompras: motorCredito,
-      diferencaDebito: calc.r2(cbsDebitoVendas - motorDebito), diferencaCredito: calc.r2(cbsCreditoCompras - motorCredito),
-      confere: linhasMotor.length > 0 && Math.abs(cbsDebitoVendas - motorDebito) < 0.01 && Math.abs(cbsCreditoCompras - motorCredito) < 0.01 };
-    ok(res, { empresa, repasse, cbs_debito_vendas: cbsDebitoVendas, cbs_credito_compras: cbsCreditoCompras,
-      cbs_liquida: cbsLiquida, receita_projetada: receitaProjetada, base_economica_saidas: baseEconomicaSaidas,
-      carga_efetiva_cbs_receita: receitaProjetada ? calc.r4(cbsLiquida / receitaProjetada) : null,
-      carga_efetiva_cbs_base: baseEconomicaSaidas ? calc.r4(cbsLiquida / baseEconomicaSaidas) : null,
-      pis_cofins_debitos_atuais: pisDebitos, pis_cofins_creditos_atuais: pisCreditos, pis_cofins_liquido_atual: pisCofinsLiquidoAtual,
-      pis_cofins_indeterminado: pisIndeterminado, variacao_carga_federal: variacaoCargaFederal, variacao_percentual: variacaoPercentual,
-      credito_cbs_recebido_fornecedores: cbsCreditoCompras, credito_cbs_entregue_clientes: cbsDebitoVendas,
-      reconciliacao, drill_down: { clientes: 'clientes', fornecedores: 'fornecedores', memoria_atual: 'clientes' } });
+    motorExec.executar(empresa.id, { ano: 2027 });
+    ok(res, { empresa, ...consolidacaoOficial.impactoFinal(empresa.id, { executarSeAusente: false }) });
   } catch (e) { erro(res, e); }
 });
 router.get('/empresas/:id/cenarios', async (req, res) => {
@@ -994,33 +959,26 @@ router.get('/empresas/:id/cenarios', async (req, res) => {
     await atualizarConfiguracaoDeCalculo();
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
-    const repasse = req.query.repasse !== undefined ? Number(req.query.repasse) : 1;
-    const cfgCompras = prepararCadeia(empresa, 'fornecedor', req.query);
-    const cfgVendas = prepararCadeia(empresa, 'cliente', req.query);
-    const compras = analisarCadeia(cfgCompras.movimentos, { regimeEmpresa: empresa.regime, lado: 'fornecedor', anos: cfgCompras.anos, parametrosIVA: cfgCompras.parametrosIVA, grauRepasse: repasse });
-    const vendas = analisarCadeia(cfgVendas.movimentos, { regimeEmpresa: empresa.regime, lado: 'cliente', anos: cfgVendas.anos, parametrosIVA: cfgVendas.parametrosIVA, grauRepasse: repasse });
-
-    const anos = [...new Set([...cfgCompras.anos, ...cfgVendas.anos])];
-    const consolidado = anos.map((ano) => {
-      const c = compras.cenarios.find((x) => x.ano === ano) || {};
-      const v = vendas.cenarios.find((x) => x.ano === ano) || {};
-      const receitaLiquida = (v.precoFinal || 0) - (v.tributos || 0);
-      const custo = c.custoEfetivo || 0;
-      return {
-        ano, nota: P.CRONOGRAMA[ano].nota,
-        receitaBruta: v.precoFinal || 0, tributosSaida: v.tributos || 0, receitaLiquida: calc.r2(receitaLiquida),
-        custoEfetivo: calc.r2(custo), creditos: c.credito || 0,
-        resultadoBruto: calc.r2(receitaLiquida - custo),
-        margemPerc: v.precoFinal ? calc.r4((receitaLiquida - custo) / v.precoFinal) : 0,
-        cargaEfetiva: v.cargaEfetiva || 0,
-      };
-    });
+    motorExec.executar(empresa.id, { ano: 2027 });
+    const compras = consolidacaoOficial.cadeia(empresa.id, 'fornecedor', { executarSeAusente: false });
+    const vendas = consolidacaoOficial.cadeia(empresa.id, 'cliente', { executarSeAusente: false });
+    const c = compras.cenarios[0] || {}, v = vendas.cenarios[0] || {};
+    const receitaLiquida = calc.r2((v.precoFinal || 0) - (v.cbs || 0) - (v.ibs || 0));
+    const custo = Number(compras.totais.custoLiquido) || 0;
+    const consolidado = [{
+      ano: 2027, nota: 'Referência CBS materializada pelo motor técnico.',
+      receitaBruta: v.precoFinal || 0, tributosSaida: calc.r2((v.cbs || 0) + (v.ibs || 0)), receitaLiquida,
+      custoEfetivo: calc.r2(custo), creditos: c.credito || 0,
+      resultadoBruto: calc.r2(receitaLiquida - custo),
+      margemPerc: v.precoFinal ? calc.r4((receitaLiquida - custo) / v.precoFinal) : null,
+      cargaEfetiva: v.baseEconomica ? calc.r4(((v.cbs || 0) + (v.ibs || 0)) / v.baseEconomica) : null,
+    }];
     const base = consolidado[0] || {};
     const alvo = consolidado[consolidado.length - 1] || {};
     ok(res, {
       empresa, consolidado, compras: compras.cenarios, vendas: vendas.cenarios,
       totaisCompras: compras.totais, totaisVendas: vendas.totais,
-      riscos: [...compras.riscos, ...vendas.riscos],
+      riscos: [...compras.riscos, ...vendas.riscos], fonte: 'motor_resultados',
       resumo: {
         variacaoResultado: calc.r2((alvo.resultadoBruto || 0) - (base.resultadoBruto || 0)),
         variacaoMargem: calc.r4((alvo.margemPerc || 0) - (base.margemPerc || 0)),

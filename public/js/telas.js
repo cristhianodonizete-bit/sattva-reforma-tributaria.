@@ -431,7 +431,7 @@ async function telaCadeia(el, tipo) {
       ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' sobre o preço atual', 'destaque')}
     </div>
     <div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Impacto para a empresa — entradas' : 'Impacto para a empresa — saídas'}</h2>
-      <p class="desc">${eForn ? 'Compra atual − tributos atuais embutidos = base econômica + IBS + CBS = compra projetada − compra atual = impacto da compra.' : 'Venda atual − PIS/COFINS atual = base econômica + IBS + CBS = venda projetada − venda atual = impacto da venda.'} CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
+      <p class="desc">${eForn ? 'Compra atual − tributos atuais embutidos = base econômica + IBS + CBS = compra projetada − compra atual = impacto da compra.' : 'Venda atual − tributos atuais identificados = base econômica + IBS + CBS = venda projetada − venda atual = impacto da venda.'} CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
       ${A.tabela([
         { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: () => A.moeda(t.valor) },
         ...(!eForn ? [{ t: '(-) PIS/COFINS atual', num: true, r: () => A.moeda(analise.regimes.reduce((s, r) => s + (Number(r.pisCofinsAtual) || 0), 0)) }] : []),
@@ -473,7 +473,7 @@ async function telaCadeia(el, tipo) {
           ] : []),
           ...(ibsAtivo ? [{ t: eForn ? 'IBS da compra' : 'IBS da venda', num: true, r: (r) => A.moeda(r.ibs) }] : []),
           { t: eForn ? 'CBS da compra' : 'CBS da venda', num: true, r: (r) => A.moeda(r.cbs) },
-          { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (r) => A.moeda(r.precoProjetado) },
+          { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (r) => A.moeda(r.precoFinal) },
           { t: eForn ? 'Impacto da compra' : 'Impacto da venda', num: true, r: (r) => A.setaR$(r.impactoOperacao) },
           { t: 'Crédito potencial da operação', num: true, r: (r) => A.moeda(r.creditoPotencial) },
           { t: eForn ? 'Relevância para a empresa' : 'Relevância para o cliente', r: (r) => `<span class="tag ${String(r.relevanciaCreditoCliente || '').startsWith('Potencialmente') ? 'c' : 'n'}">${A.esc(r.relevanciaCreditoCliente)}</span>` },

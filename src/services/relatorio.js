@@ -4,10 +4,10 @@
 const XLSX = require('xlsx');
 const db = require('../db');
 const P = require('../config/parametros');
-const { analisarCadeia } = require('../engine/cadeia');
 const { CLAUSULAS } = require('../config/conteudo');
 const motorExec = require('./motorExec');
 const mapaRiscos = require('./mapaRiscos');
+const consolidacaoOficial = require('./consolidacaoOficial');
 
 const perc = (n) => (Number(n) || 0);
 const arq = (s) => String(s || '').replace(/[\\/:*?"<>|]/g, '-').slice(0, 80);
@@ -69,6 +69,15 @@ function gerar(empresaId, tipo, query = {}) {
   const repasse = query.repasse !== undefined ? Number(query.repasse) : 1;
   const referenciaCbs = db.prepare('SELECT * FROM param_aliquotas WHERE ano=2027').get() || {};
 
+  // Relatórios finais leem a execução materializada do motor. Se as somas
+  // oficiais não reconciliarem com o Perfil CBS, não emitimos um arquivo que
+  // possa dar aparência de conclusão a um resultado divergente.
+  motorExec.executar(empresaId, { ano: 2027 });
+  const impactoOficial = consolidacaoOficial.impactoFinal(empresaId, { executarSeAusente: false });
+  if (impactoOficial.reconciliacao.status === 'DIVERGENTE') {
+    throw new Error('Relatório bloqueado: a execução possui divergência material com o Perfil CBS. Revise a reconciliação antes de emitir a entrega.');
+  }
+
   const capa = [
     { Campo: 'Empresa', Valor: empresa.razao_social },
     { Campo: 'CNPJ', Valor: empresa.cnpj },
@@ -84,43 +93,40 @@ function gerar(empresaId, tipo, query = {}) {
   aba(wb, 'Capa', capa, [{ wch: 28 }, { wch: 70 }]);
 
   if (tipo === 'diagnostico' || tipo === 'fornecedores') {
-    const cfg = prepararCadeia(empresaId, 'fornecedor');
-    const a = analisarCadeia(cfg.movimentos, { regimeEmpresa: empresa.regime, lado: 'fornecedor', anos: cfg.anos, parametrosIVA: cfg.parametrosIVA, grauRepasse: repasse });
+    const a = consolidacaoOficial.cadeia(empresaId, 'fornecedor', { executarSeAusente: false });
     aba(wb, 'Fornecedores', a.parceiros.map((p) => ({
       'Fornecedor': p.nome, 'CNPJ': p.cnpj, 'Regime': p.regimeLabel, 'Itens': p.itens,
       'Valor': p.valor, 'Representatividade': perc(p.representatividade), 'Classe ABC': p.classeAbc,
-      'Tributos hoje': p.tributos, 'Crédito hoje': p.creditoHoje, 'Custo efetivo hoje': p.custoHoje,
-      'Custo efetivo projetado': p.custoFinal, 'Variação R$': p.variacaoCusto, 'Variação %': perc(p.variacaoCustoPerc),
+      'Base econômica': p.baseEconomica, 'CBS da compra': p.cbs, 'Crédito CBS': p.creditoFinal,
+      'Compra projetada': p.precoFinal, 'Impacto R$': p.impactoOperacao, 'Impacto %': perc(p.impactoOperacaoPerc),
     })));
     aba(wb, 'Compras por regime', a.regimes.map((r) => ({
       'Regime': r.label, 'Fornecedores': r.parceiros, 'Valor': r.valor, 'Participação': perc(r.representatividade),
-      'Crédito hoje': r.creditoHoje, 'Crédito potencial': r.creditoPotencial, 'Variação de crédito': r.variacaoCredito,
-      'Custo hoje': r.custoHoje, 'Custo projetado': r.custoFinal, 'Variação de custo': r.variacaoCusto,
+      'Base econômica': r.baseEconomica, 'CBS da compra': r.cbs, 'Crédito potencial': r.creditoPotencial,
+      'Compra projetada': r.precoFinal, 'Impacto R$': r.impactoOperacao,
     })));
     aba(wb, 'Cenarios compras', a.cenarios.map((c) => ({
-      'Ano': c.ano, 'Valor de compras': c.valor, 'Tributos': c.tributos, 'Créditos': c.credito,
-      'Custo efetivo': c.custoEfetivo, 'Carga efetiva': perc(c.cargaEfetiva),
-      'Variação de custo': c.variacaoCusto, 'Variação %': perc(c.variacaoCustoPerc), 'Marco': c.nota,
+      'Referência': c.ano, 'Valor de compras': c.valor, 'Base econômica': c.baseEconomica, 'CBS': c.cbs,
+      'Crédito CBS': c.credito, 'Compra projetada': c.precoFinal, 'Impacto': c.impactoOperacao,
     })));
     aba(wb, 'Riscos compras', a.riscos.map((r) => ({ 'Nível': r.nivel, 'Risco': r.titulo, 'Descrição': r.texto, 'Ação recomendada': r.acao })),
       [{ wch: 10 }, { wch: 45 }, { wch: 80 }, { wch: 80 }]);
   }
 
   if (tipo === 'diagnostico' || tipo === 'clientes') {
-    const cfg = prepararCadeia(empresaId, 'cliente');
-    const a = analisarCadeia(cfg.movimentos, { regimeEmpresa: empresa.regime, lado: 'cliente', anos: cfg.anos, parametrosIVA: cfg.parametrosIVA, grauRepasse: repasse });
+    const a = consolidacaoOficial.cadeia(empresaId, 'cliente', { executarSeAusente: false });
     aba(wb, 'Clientes', a.parceiros.map((p) => ({
       'Cliente': p.nome, 'CNPJ/CPF': p.cnpj, 'Perfil': p.regimeLabel, 'Itens': p.itens,
       'Venda atual': p.valor, 'Representatividade': perc(p.representatividade), 'Classe ABC': p.classeAbc,
-      'Venda sem PIS/COFINS': p.baseEconomica, 'PIS/COFINS atual': p.pisCofinsAtual,
+      'Base econômica': p.baseEconomica, 'PIS/COFINS atual': p.pisCofinsAtual,
       'IBS da venda': p.ibs, 'CBS da venda': p.cbs, 'Venda projetada': p.precoFinal,
       'Impacto da venda R$': p.impactoOperacao, 'Impacto da venda %': perc(p.impactoOperacaoPerc),
       'Crédito potencial da operação': p.creditoPotencial, 'Relevância para o cliente': p.relevanciaCreditoCliente,
     })));
     aba(wb, 'Carteira por perfil', a.regimes.map((r) => ({
       'Perfil': r.label, 'Clientes': r.parceiros, 'Venda atual': r.valor, 'Participação': perc(r.representatividade),
-      'Venda sem PIS/COFINS': r.baseEconomica, 'PIS/COFINS atual': r.pisCofinsAtual,
-      'IBS da venda': r.ibs, 'CBS da venda': r.cbs, 'Venda projetada': r.precoProjetado,
+      'Base econômica': r.baseEconomica, 'PIS/COFINS atual': r.pisCofinsAtual,
+      'IBS da venda': r.ibs, 'CBS da venda': r.cbs, 'Venda projetada': r.precoFinal,
       'Impacto da venda': r.impactoOperacao, 'Crédito potencial': r.creditoPotencial,
       'Relevância para o cliente': r.relevanciaCreditoCliente,
     })));
