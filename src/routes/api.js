@@ -2373,7 +2373,7 @@ router.get('/config/regras', async (_req, res) => {
   try {
     // Esta é a rota que alimenta a tela de Configurações. Ela consulta a
     // fonte compartilhada antes de montar o formulário, nunca um cache antigo.
-    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas']);
+    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas','param_regimes']);
     regras.invalidar();
     const local = db.prepare('SELECT ano,cbs,ibs,calcular_ibs,atualizado_em FROM param_aliquotas WHERE ano=2027').get() || null;
     const auditoria = { cache_render: local, supabase_configurado: supabase.configurado(),
