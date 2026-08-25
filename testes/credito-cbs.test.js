@@ -3,7 +3,9 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 process.env.SATTVA_DADOS = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-credito-cbs-'));
-const { avaliarCredito } = require('../src/engine/motor');
+const db = require('../src/db');
+const regras = require('../src/services/regras');
+const { avaliarCredito, projetarItem } = require('../src/engine/motor');
 const cls = { status: 'CLASSIFICADO' };
 const regular = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeFornecedor: 'lucro_real', cls });
 assert.deepEqual([regular.tipoCredito, regular.statusDeterminacao], ['NORMAL', 'DETERMINADO']);
@@ -20,4 +22,17 @@ assert.deepEqual([meiSemHipotese.tipoCredito, meiSemHipotese.statusDeterminacao]
 const insuficiente = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeFornecedor: null, cls });
 assert.equal(insuficiente.statusDeterminacao, 'INDETERMINADO');
 assert.notEqual(insuficiente.tipoCredito, 'SEM_CREDITO');
-console.log('credito-cbs.test: seis cenários e indeterminado preservados');
+
+// A premissa CBS do Simples é a referência operacional da compra: ela precisa
+// prevalecer sobre qualquer informação de faixa/DAS eventualmente disponível.
+db.prepare("UPDATE param_regimes SET credito_cbs_simples_referencia = ? WHERE chave = 'simples_nacional'").run(0.025);
+regras.invalidar();
+const compraSimples = projetarItem({
+  valor: 1000, valor_total: 1000, cfop: '1102', descricao: 'Item de teste', cst: '000',
+}, {
+  sentido: 'entrada', ano: 2027, empresa: { regime: 'lucro_real' }, regimeContraparte: 'simples_nacional',
+  simplesEmitente: { aliquotaEfetiva: 0.08, reparticao: { pis: 0.02, cofins: 0.03 }, origem: 'faturamento conhecido' },
+});
+assert.equal(compraSimples.cbs, Math.round(compraSimples.baseEconomica * 0.025 * 100) / 100);
+assert.equal(compraSimples.natureza, 'SIMULADO');
+console.log('credito-cbs.test: cenários de crédito e premissa CBS do Simples validados');

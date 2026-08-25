@@ -189,10 +189,21 @@ function projetarItem(item, ctx) {
   const emitenteNoDas = !!(regEmit && regEmit.noDas) && !ctx.hibrido;
   let ibs = 0, cbs = 0, natureza = 'CALCULADO';
 
-  const referenciaCreditoSimples = sentido === 'entrada' && regimeEmitente === 'simples_nacional' && !simplesInfo
+  // A referência CBS do Simples é uma premissa operacional explícita para
+  // compras. Ela tem precedência sobre qualquer faixa/repartição eventualmente
+  // disponível: a carteira não será mapeada fornecedor a fornecedor pelo DAS.
+  // Não confundir com o fallback de PIS/COFINS atual, que é usado apenas na
+  // reconstrução da carga vigente.
+  const referenciaCreditoSimples = sentido === 'entrada' && regimeEmitente === 'simples_nacional'
     ? Number(regras.regime(regimeEmitente)?.creditoCbsSimplesReferencia) || 0 : 0;
   if (emitenteNoDas) {
-    if (simplesInfo && simplesInfo.aliquotaEfetiva) {
+    if (referenciaCreditoSimples > 0) {
+      // A CBS dentro do DAS não é identificável fornecedor a fornecedor nesta
+      // análise. A parcela transferível é estimada exclusivamente pela
+      // premissa CBS configurada (ex.: 2,5%) sobre a base econômica.
+      cbs = rec.baseEconomica * referenciaCreditoSimples;
+      natureza = 'SIMULADO';
+    } else if (simplesInfo && simplesInfo.aliquotaEfetiva) {
       // parcela do DAS que corresponde a IBS (ICMS/ISS) e CBS (PIS/COFINS)
       const rep = simplesInfo.reparticao || {};
       cbs = rec.precoMercadoria * simplesInfo.aliquotaEfetiva * (num(rep.pis) + num(rep.cofins));
