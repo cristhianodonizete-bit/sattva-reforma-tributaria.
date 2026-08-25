@@ -2153,8 +2153,15 @@ router.get('/empresas/:id/motor', (req, res) => {
 
 /** Itens 34 e 35 — consolidado por fornecedor e por cliente */
 function consolidado(lado) {
-  return (req, res) => {
+  return async (req, res) => {
     try {
+      // A cadeia é uma projeção ao vivo; deve carregar os parâmetros de
+      // crédito antes de calcular, inclusive se a requisição cair em outra
+      // instância do Render.
+      if (supabase.configurado()) {
+        await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_regimes','param_aliquotas','param_simples']);
+        regras.invalidar();
+      }
       const r = motorExec.executar(req.params.id, { ano: req.query.ano, gravar: false });
       ok(res, {
         ano: r.ano,
