@@ -110,6 +110,7 @@ const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/grupos-empresas/.test(caminho)) return 'gestao_projetos';
   if (/^\/empresas\/\d+\/turmas/.test(caminho) || /^\/(turmas|participantes)/.test(caminho)) return 'capacitacao';
   if (/^\/empresas\/\d+\/contratos/.test(caminho) || /^\/contratos/.test(caminho)) return 'contratos';
+  if (/^\/empresas\/\d+\/formacao-custo/.test(caminho) || /^\/formacao-custo/.test(caminho)) return 'precificacao';
   const tarefaDoModulo = caminho.match(/^\/empresas\/\d+\/projeto\/tarefas\/([^/]+)$/);
   if (tarefaDoModulo) return areaDaTarefaModulo(tarefaDoModulo[1]);
   const responsavelDoModulo = caminho.match(/^\/empresas\/\d+\/projeto\/responsaveis\/([^/]+)$/);
@@ -1046,6 +1047,93 @@ router.post('/empresas/:id/precificacao', async (req, res) => {
 });
 
 router.delete('/precificacao/:id', (req, res) => { db.prepare('DELETE FROM itens_precificacao WHERE id=?').run(req.params.id); ok(res, {}); });
+
+// ---------------------------------------------------------------------------
+// BASE DE FORMAÇÃO DE CUSTO
+// Esta camada aloca insumos e créditos já calculados pelo motor. Ela nunca
+// recalcula CBS, classificação ou base econômica.
+// ---------------------------------------------------------------------------
+function resumoFormacaoCusto(empresaId, item) {
+  const componentes = db.prepare(`SELECT c.*, m.descricao AS movimento_descricao, m.codigo_produto,
+    r.base_economica, r.cbs, r.credito_cbs, r.tipo_credito, r.modalidade_credito,
+    r.status_credito_determinacao, r.natureza
+    FROM formacao_custo_componentes c
+    LEFT JOIN movimentos m ON m.id=c.movimento_id
+    LEFT JOIN motor_resultados r ON r.movimento_id=c.movimento_id AND r.empresa_id=?
+    WHERE c.item_formacao_id=? ORDER BY c.id`).all(empresaId, item.id);
+  let creditoTotal = 0, direto = 0, rateavel = 0, naoAlocado = 0;
+  for (const c of componentes) {
+    const credito = Number(c.credito_cbs) || 0;
+    creditoTotal += credito;
+    if (c.status_alocacao_credito === 'DIRETO') direto += credito;
+    else if (c.status_alocacao_credito === 'RATEAVEL' && c.criterio_rateio && Number(c.percentual_rateio) > 0) rateavel += credito * Number(c.percentual_rateio);
+    else naoAlocado += credito;
+  }
+  const completo = componentes.length > 0 && componentes.every((c) => c.relacionamento !== 'NAO_RELACIONADA'
+    && (c.status_alocacao_credito !== 'RATEAVEL' || (c.criterio_rateio && Number(c.percentual_rateio) > 0)));
+  return {
+    ...item, componentes,
+    credito_cbs_total: Math.round(creditoTotal * 100) / 100,
+    credito_cbs_direto: Math.round(direto * 100) / 100,
+    credito_cbs_rateado: Math.round(rateavel * 100) / 100,
+    credito_cbs_nao_alocado: Math.round(naoAlocado * 100) / 100,
+    credito_cbs_precificavel: Math.round((direto + rateavel) * 100) / 100,
+    status_formacao_custo: completo ? 'COMPLETO' : 'INCOMPLETO',
+  };
+}
+
+router.get('/empresas/:id/formacao-custo', (req, res) => {
+  try {
+    const itens = db.prepare('SELECT * FROM formacao_custo_itens WHERE empresa_id=? ORDER BY descricao,id').all(req.params.id);
+    ok(res, { itens: itens.map((item) => resumoFormacaoCusto(req.params.id, item)),
+      criterios_rateio: ['faturamento', 'custo', 'quantidade', 'volume', 'horas', 'centro_custo', 'outro_parametrizado'],
+      relacionamentos: ['DIRETA', 'COMPOSICAO', 'RATEIO', 'NAO_RELACIONADA'] });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/formacao-custo', (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!String(b.descricao || '').trim()) throw new Error('Informe a descrição do produto ou serviço de saída.');
+    const r = db.prepare(`INSERT INTO formacao_custo_itens
+      (empresa_id,codigo,descricao,tipo,sku,gtin,ncm,nbs,unidade,centro_custo,ativo,status_formacao_custo,origem)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(req.params.id, b.codigo || '', String(b.descricao).trim(),
+      b.tipo === 'servico' ? 'servico' : 'mercadoria', b.sku || '', b.gtin || '', b.ncm || '', b.nbs || '', b.unidade || '',
+      b.centro_custo || '', b.ativo === false ? 0 : 1, 'INCOMPLETO', 'MANUAL');
+    registrar(req.params.id, req, 'criar', 'formacao_custo_item', r.lastInsertRowid, '', JSON.stringify(b));
+    ok(res, { id: r.lastInsertRowid });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/formacao-custo/:id/componentes', (req, res) => {
+  try {
+    const item = db.prepare('SELECT * FROM formacao_custo_itens WHERE id=?').get(req.params.id);
+    if (!item) throw new Error('Item de formação de custo não encontrado.');
+    const b = req.body || {};
+    const rel = ['DIRETA', 'COMPOSICAO', 'RATEIO', 'NAO_RELACIONADA'].includes(b.relacionamento) ? b.relacionamento : 'NAO_RELACIONADA';
+    const status = ['DIRETO', 'RATEAVEL', 'NAO_ALOCADO'].includes(b.statusAlocacaoCredito) ? b.statusAlocacaoCredito : 'NAO_ALOCADO';
+    if (status === 'RATEAVEL' && (!b.criterioRateio || !(Number(b.percentualRateio) > 0))) throw new Error('Crédito rateável exige critério e percentual de rateio explícitos.');
+    const r = db.prepare(`INSERT INTO formacao_custo_componentes
+      (item_formacao_id,movimento_id,codigo_origem,descricao_origem,relacionamento,criterio_rateio,percentual_rateio,quantidade,unidade,status_alocacao_credito,observacoes)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(item.id, b.movimentoId || null, b.codigoOrigem || '', b.descricaoOrigem || '', rel,
+      b.criterioRateio || null, Number(b.percentualRateio) || null, Number(b.quantidade) || null, b.unidade || '', status, b.observacoes || '');
+    db.prepare("UPDATE formacao_custo_itens SET status_formacao_custo='INCOMPLETO', atualizado_em=datetime('now','localtime') WHERE id=?").run(item.id);
+    registrar(item.empresa_id, req, 'criar', 'formacao_custo_componente', r.lastInsertRowid, '', JSON.stringify(b));
+    ok(res, { id: r.lastInsertRowid });
+  } catch (e) { erro(res, e); }
+});
+
+router.delete('/formacao-custo/componentes/:id', (req, res) => {
+  try {
+    const c = db.prepare(`SELECT c.*, i.empresa_id, c.item_formacao_id FROM formacao_custo_componentes c
+      JOIN formacao_custo_itens i ON i.id=c.item_formacao_id WHERE c.id=?`).get(req.params.id);
+    if (!c) throw new Error('Componente não encontrado.');
+    db.prepare('DELETE FROM formacao_custo_componentes WHERE id=?').run(c.id);
+    db.prepare("UPDATE formacao_custo_itens SET status_formacao_custo='INCOMPLETO', atualizado_em=datetime('now','localtime') WHERE id=?").run(c.item_formacao_id);
+    registrar(c.empresa_id, req, 'excluir', 'formacao_custo_componente', c.id, JSON.stringify(c), '');
+    ok(res, {});
+  } catch (e) { erro(res, e); }
+});
 
 router.post('/empresas/:id/precificacao/importar', upload.single('arquivo'), async (req, res) => {
   try {

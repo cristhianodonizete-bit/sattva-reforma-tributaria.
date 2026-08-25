@@ -358,6 +358,37 @@ CREATE TABLE IF NOT EXISTS itens_precificacao (
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- Base de formação de custo: separada do motor tributário. NCM/NBS ajudam a
+-- identificar o item, mas nunca são usados como chave automática de composição.
+CREATE TABLE IF NOT EXISTS formacao_custo_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  codigo TEXT, descricao TEXT NOT NULL, tipo TEXT DEFAULT 'mercadoria',
+  sku TEXT, gtin TEXT, ncm TEXT, nbs TEXT, unidade TEXT,
+  centro_custo TEXT, ativo INTEGER DEFAULT 1,
+  status_formacao_custo TEXT DEFAULT 'INCOMPLETO',
+  origem TEXT DEFAULT 'MANUAL',
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_formacao_custo_empresa ON formacao_custo_itens(empresa_id);
+
+CREATE TABLE IF NOT EXISTS formacao_custo_componentes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_formacao_id INTEGER NOT NULL REFERENCES formacao_custo_itens(id) ON DELETE CASCADE,
+  movimento_id INTEGER REFERENCES movimentos(id) ON DELETE SET NULL,
+  codigo_origem TEXT, descricao_origem TEXT,
+  relacionamento TEXT NOT NULL DEFAULT 'NAO_RELACIONADA', -- DIRETA | COMPOSICAO | RATEIO | NAO_RELACIONADA
+  criterio_rateio TEXT, percentual_rateio REAL,
+  quantidade REAL, unidade TEXT,
+  status_alocacao_credito TEXT DEFAULT 'NAO_ALOCADO', -- DIRETO | RATEAVEL | NAO_ALOCADO
+  observacoes TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_formacao_componentes_item ON formacao_custo_componentes(item_formacao_id);
+CREATE INDEX IF NOT EXISTS ix_formacao_componentes_movimento ON formacao_custo_componentes(movimento_id);
+
 -- ============ MÓDULO 3 — CONTRATOS ============
 CREATE TABLE IF NOT EXISTS contratos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
