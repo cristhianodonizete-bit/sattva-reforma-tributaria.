@@ -2387,7 +2387,15 @@ router.get('/config/regras', async (_req, res) => {
         auditoria.fonte_supabase = referencia ? { ano: referencia.ano, cbs: referencia.cbs, ibs: referencia.ibs, calcular_ibs: referencia.calcular_ibs } : null;
       } catch (e) { auditoria.erro_supabase = e.message; }
     }
-    ok(res, { ...regras.tudo(), auditoria });
+    const simplesLocal = db.prepare("SELECT pis_cofins,credito_cbs_simples_referencia FROM param_regimes WHERE chave='simples_nacional'").get() || null;
+    const auditoriaRegimeSimples = { cache_render: simplesLocal, supabase_configurado: supabase.configurado(), fonte_supabase: null, erro_supabase: null };
+    if (supabase.configurado()) try {
+      const { data, error } = await supabase.admin().from('parametros_operacionais').select('dados').eq('tabela', 'configuracao').eq('chave', 'param_regimes').maybeSingle();
+      if (error) throw error;
+      const r = (data?.dados || []).find((x) => x.chave === 'simples_nacional') || null;
+      auditoriaRegimeSimples.fonte_supabase = r ? { pis_cofins: r.pis_cofins, credito_cbs_simples_referencia: r.credito_cbs_simples_referencia ?? null } : null;
+    } catch (e) { auditoriaRegimeSimples.erro_supabase = e.message; }
+    ok(res, { ...regras.tudo(), auditoria, auditoriaRegimeSimples });
   } catch (e) { erro(res, e); }
 });
 

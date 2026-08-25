@@ -189,10 +189,12 @@ function tributos(box, d) {
 
 // ------------------------------------------------------------------ REGIMES
 function regimes(box, d) {
+  const au = d.auditoriaRegimeSimples || {};
+  const aud = `<details class="aviso neutro" style="margin-bottom:16px"><summary><b>Auditoria do crédito CBS do Simples</b> · verificação técnica</summary><div class="mini" style="margin-top:10px"><div><b>Cache usado pelo Render:</b> ${au.cache_render ? `referência CBS ${A.pct(au.cache_render.credito_cbs_simples_referencia)} · PIS/COFINS atual ${A.pct(au.cache_render.pis_cofins)}` : 'não encontrado'}</div><div><b>Fonte Supabase:</b> ${au.fonte_supabase ? `referência CBS ${A.pct(au.fonte_supabase.credito_cbs_simples_referencia)} · PIS/COFINS atual ${A.pct(au.fonte_supabase.pis_cofins)}` : (au.supabase_configurado ? 'sem registro' : 'indisponível')}</div>${au.erro_supabase ? `<div><b>Erro:</b> ${A.esc(au.erro_supabase)}</div>` : ''}</div></details>`;
   box.innerHTML = `<div class="aviso"><b>Quem gera crédito e quem aproveita</b>
       Para IBS/CBS o que importa é estar dentro ou fora do Simples. As colunas de PIS/COFINS servem
       apenas para reconstruir a carga atual quando o documento não traz o valor destacado —
-      deixe em branco para não estimar.</div>
+      deixe em branco para não estimar.</div>${aud}
     <div class="cartao"><h2>Regimes tributários</h2>
       ${A.tabela([
         { t: 'Regime', r: (r) => `<b>${A.esc(r.label)}</b>` },
