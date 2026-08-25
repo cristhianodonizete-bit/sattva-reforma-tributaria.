@@ -10,7 +10,7 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test:cbs": "node testes/cadeia-cbs.test.js",
-    "test": "node testes/cadeia-cbs.test.js && node testes/credito-cbs.test.js && node testes/perfil-cbs.test.js && node testes/impacto-final-cbs.test.js && node testes/consolidacao-oficial.test.js && node testes/excecoes-motor.test.js && node testes/cenarios.test.js"
+    "test": "node testes/cadeia-cbs.test.js && node testes/credito-cbs.test.js && node testes/perfil-cbs.test.js && node testes/impacto-final-cbs.test.js && node testes/consolidacao-oficial.test.js && node testes/excecoes-motor.test.js && node testes/cenarios.test.js && node testes/precificacao-oficial.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",

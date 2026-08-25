@@ -148,17 +148,24 @@ function gerar(empresaId, tipo, query = {}) {
   }
 
   if (tipo === 'diagnostico' || tipo === 'precificacao') {
-    const itens = db.prepare('SELECT * FROM itens_precificacao WHERE empresa_id = ?').all(empresaId)
-      .map((i) => ({ ...i, r: i.resultado ? JSON.parse(i.resultado) : null })).filter((i) => i.r);
+    // Relatório comercial: não lê a tabela legada itens_precificacao. A fonte
+    // fiscal é a saída oficial materializada; a formação só informa cobertura.
+    const itens = db.prepare(`SELECT i.id,i.descricao,i.codigo,i.tipo,i.movimento_saida_id,i.status_formacao_custo,
+      r.preco_atual,r.base_economica,r.cbs,r.ibs,r.preco_projetado,r.tratamento,r.cst,r.cclasstrib,r.natureza,
+      COUNT(c.id) componentes
+      FROM formacao_custo_itens i
+      LEFT JOIN motor_resultados r ON r.empresa_id=i.empresa_id AND r.movimento_id=i.movimento_saida_id
+      LEFT JOIN formacao_custo_componentes c ON c.item_formacao_id=i.id
+      WHERE i.empresa_id=? GROUP BY i.id ORDER BY i.descricao,i.id`).all(empresaId);
     aba(wb, 'Precificacao', itens.map((i) => ({
-      'Item': i.descricao, 'NCM': i.ncm, 'Tipo': i.tipo, 'Ano': i.ano,
-      'Preço hoje': i.r.hoje.preco, 'Preço sem imposto': i.r.hoje.precoSemImposto,
-      'Carga hoje': perc(i.r.hoje.cargaEfetiva), 'Margem hoje R$': i.r.hoje.margem, 'Margem hoje %': perc(i.r.hoje.margemPerc),
-      'Margem s/ reajuste R$': i.r.precoCongelado.margem, 'Margem s/ reajuste %': perc(i.r.precoCongelado.margemPerc),
-      'Perda de margem': i.r.precoCongelado.variacaoMargem,
-      'Preço neutro': i.r.precoNeutro.preco, 'Reajuste necessário': perc(i.r.precoNeutro.reajusteNecessario),
-      'Perfil do cliente': i.r.cliente.label, 'Cliente credita': i.r.cliente.credita ? 'Sim' : 'Não',
-      'Impacto p/ cliente %': perc(i.r.cliente.variacaoPerc),
+      'Item': i.descricao, 'Código': i.codigo, 'Tipo': i.tipo,
+      'Movimento de saída oficial': i.movimento_saida_id || 'NÃO VINCULADO',
+      'Cobertura da formação': i.movimento_saida_id && i.componentes ? i.status_formacao_custo : 'INCOMPLETO',
+      'Componentes cadastrados': i.componentes,
+      'Preço atual (motor)': i.preco_atual, 'Base econômica (motor)': i.base_economica,
+      'CBS (motor)': i.cbs, 'IBS (motor)': i.ibs, 'Preço projetado (motor)': i.preco_projetado,
+      'Tratamento (motor)': i.tratamento, 'CST (motor)': i.cst, 'cClassTrib (motor)': i.cclasstrib,
+      'Natureza (motor)': i.natureza,
     })));
   }
 

@@ -11,86 +11,31 @@ const cab = (olho, titulo, texto, acoes = '') =>
 // MÓDULO 2 — PRECIFICAÇÃO E MARGEM
 // ===========================================================================
 Telas.precificacao = async (el) => {
-  const { itens } = await A.api(`/empresas/${S.empresaId}/precificacao`);
-  const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
+  const { itens, legado } = await A.api(`/empresas/${S.empresaId}/precificacao`);
+  const completos = itens.filter((i) => i.status === 'COMPLETO').length;
   el.innerHTML = cab('Módulo 2', 'Precificação e margem',
-    `Receita (-) impostos (-) custos = margem bruta. ${ibsAtivo ? 'Se o preço não mudar, quanto de margem some?' : 'A simulação atual considera a CBS em uma referência única.'} Para serviços, a alíquota atual vem da referência fiscal cadastrada para a empresa.`,
-    `<button class="btn" id="simular">Simular item</button>
-     <button class="btn vazio" id="importarItens">Importar planilha</button>
+    'A precificação comercial usa somente a saída oficial de motor_resultados e a composição de custo explicitamente cadastrada. NCM, NBS e descrição não criam vínculos automáticos.',
+    `<button class="btn" id="abrirFormacao">Gerenciar formação de custo</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/precificacao')">Exportar Excel</button>`) +
-    (itens.length ? resumoPreco(itens) : '') +
-    `<div class="cartao"><h2>Itens simulados</h2>
+    `<div class="grade g3">${A.kpi('Itens em formação', itens.length)}${A.kpi('Resultados definitivos', completos)}${A.kpi('Itens legados desativados', legado, 'não entram no cálculo oficial')}</div>
+    <div class="cartao"><h2>Precificação oficial</h2>
       ${A.tabela([
-        { t: 'Item', r: (i) => `${A.esc(i.descricao || '—')}<div class="mini mono">${A.esc(i.ncm || '')}</div>` },
-        ...(ibsAtivo ? [{ t: 'Ano', r: (i) => `<span class="mono">${i.ano}</span>` }] : []),
-        { t: 'Preço hoje', num: true, r: (i) => A.moeda(i.r.hoje.preco) },
-        { t: 'Sem imposto', num: true, r: (i) => A.moeda(i.r.hoje.precoSemImposto) },
-        { t: 'Margem hoje', num: true, r: (i) => `${A.moeda(i.r.hoje.margem)}<div class="mini">${A.pct(i.r.hoje.margemPerc)}</div>` },
-        { t: 'Margem s/ reajuste', num: true, r: (i) => `${A.moeda(i.r.precoCongelado.margem)}<div class="mini ${A.sinal(i.r.precoCongelado.variacaoMargem)}">${A.pct(i.r.precoCongelado.margemPerc)}</div>` },
-        { t: 'Perda', num: true, r: (i) => A.setaR$(i.r.precoCongelado.variacaoMargem) },
-        { t: 'Preço neutro', num: true, r: (i) => `<b>${A.moeda(i.r.precoNeutro.preco)}</b>` },
-        { t: 'Reajuste', num: true, r: (i) => A.setaPct(i.r.precoNeutro.reajusteNecessario) },
-        { t: 'Cliente credita', r: (i) => `<span class="tag ${i.r.cliente.credita ? 'c' : 'a'}">${i.r.cliente.credita ? 'Sim' : 'Não'}</span>` },
-        { t: '', r: (i) => `<button class="btn pq vazio" data-vi="${i.id}">Detalhar</button>
-          <button class="btn pq perigo" data-ri="${i.id}">Remover</button>` },
-      ], itens.map((i) => ({ ...i, r: i.resultado })), { vazio: 'Nenhum item simulado. Comece por um produto ou serviço representativo.' })}
+        {t:'Saída oficial / item',r:i=>`<b>${A.esc(i.item.descricao || '—')}</b><div class="mini mono">movimento ${A.esc(i.item.movimento_saida_id || 'não vinculado')}</div>`},
+        {t:'Status',r:i=>`<span class="tag ${i.status === 'COMPLETO' ? 'c' : i.status === 'DIVERGENTE' ? 'a' : 'b'}">${A.esc(i.status)}</span>`},
+        {t:'Preço atual',num:true,r:i=>A.moeda(i.saida?.preco_atual)},
+        {t:'Base econômica',num:true,r:i=>A.moeda(i.saida?.base_economica)},
+        {t:'CBS da saída',num:true,r:i=>A.moeda(i.saida?.cbs)},
+        {t:'Custo líquido',num:true,r:i=>A.moeda(i.formacao?.custo_liquido)},
+        {t:'Margem atual',num:true,r:i=>i.comercial ? `${A.moeda(i.comercial.margem_atual)}<div class="mini">${A.pct(i.comercial.margem_atual_percentual)}</div>` : '—'},
+        {t:'Margem projetada',num:true,r:i=>i.comercial ? `${A.moeda(i.comercial.margem_projetada)}<div class="mini">${A.pct(i.comercial.margem_projetada_percentual)}</div>` : '—'},
+        {t:'',r:i=>`<button class="btn pq vazio" data-detalhe="${i.item.id}">Memória</button>`},
+      ], itens, {vazio:'Nenhum item de formação de custo cadastrado.'})}
     </div>`;
-
-  document.getElementById('simular').onclick = () => abrirSimulacao();
-  document.getElementById('importarItens').onclick = () => A.modal({
-    titulo: 'Importar itens para precificação', confirmar: null,
-    descricao: `Colunas aceitas: Descrição, NCM, Tipo, Preço Venda, Custo Compra, Despesas Variáveis, Regime Fornecedor, Perfil Cliente, Redução${ibsAtivo ? ', Ano' : ''}.`,
-    corpo: A.dropzone('zonaPreco', '<b>Solte a planilha aqui</b><div class="mini">ou clique para escolher</div>', async (f) => {
-      const fd = new FormData(); fd.append('arquivo', f);
-      try { const r = await A.api(`/empresas/${S.empresaId}/precificacao/importar`, { metodo: 'POST', corpo: fd });
-        A.toast(`${r.importados} itens importados`, 'ok'); A.ir('precificacao'); } catch (e) { A.toast(e.message, 'erro'); }
-    }),
+  document.getElementById('abrirFormacao').onclick = () => A.ir('formacaoCusto');
+  el.querySelectorAll('[data-detalhe]').forEach((b) => b.onclick = () => {
+    const i = itens.find((x) => x.item.id === Number(b.dataset.detalhe));
+    A.modal({ titulo: `Memória — ${i.item.descricao || 'item'}`, largura: 920, corpo: blocoResultadoOficial(i) });
   });
-
-  el.querySelectorAll('[data-ri]').forEach((b) => { b.onclick = async () => { await A.api(`/precificacao/${b.dataset.ri}`, { metodo: 'DELETE' }); A.ir('precificacao'); }; });
-  el.querySelectorAll('[data-vi]').forEach((b) => { b.onclick = () => {
-    const i = itens.find((x) => x.id === Number(b.dataset.vi));
-    detalharItem(i.resultado);
-  }; });
-
-  function abrirSimulacao() {
-    A.modal({
-      titulo: 'Simular precificação', confirmar: 'Salvar item', largura: 820,
-      descricao: ibsAtivo ? 'O sistema volta a base do preço e do custo, aplica o IVA por fora e devolve o preço que preserva a margem.' : 'O sistema volta a base do preço e do custo, aplica a CBS por fora e devolve o preço que preserva a margem. Para serviço, cadastre primeiro a referência fiscal em Cadastros e importação → Clientes.',
-      corpo: `<div class="grade g2">${A.campo('descricao', 'Produto ou serviço')}${A.campo('ncm', 'NCM (se houver)')}</div>
-        <div class="grade g3">
-          ${A.campo('precoVenda', 'Preço de venda hoje (R$)', 1000, 'number', 'step=0.01')}
-          ${A.campo('custoCompra', 'Custo de aquisição hoje (R$)', 600, 'number', 'step=0.01')}
-          ${A.campo('despesasVariaveis', 'Despesas variáveis (0,05 = 5%)', 0, 'number', 'step=0.001')}
-        </div>
-        <div class="grade g3">
-          ${A.selecao('tipo', 'Natureza', [{ v: 'mercadoria', t: 'Mercadoria' }, { v: 'servico', t: 'Serviço' }], 'mercadoria')}
-          ${A.selecao('regimeFornecedor', 'Regime do fornecedor', A.opcoesRegime(), S.empresa?.regime || 'lucro_real')}
-          ${A.selecao('perfilCliente', 'Perfil do cliente', A.opcoesRegime(), 'lucro_real')}
-        </div>
-        <div class="grade g3">
-          ${A.selecao('reducao', `Enquadramento no ${ibsAtivo ? 'IVA' : 'CBS'} (venda)`, A.opcoesReducao(), 'integral')}
-          ${ibsAtivo ? A.selecao('ano', 'Ano do cenário', A.opcoesAno(), 2033) : '<input type="hidden" name="ano" value="2033">'}
-          ${A.campo('aliqEspecifica', 'Alíquota específica (opcional)', '', 'number', 'step=0.0001')}
-        </div>
-        <button class="btn vazio" id="previa" style="width:100%">Ver prévia sem salvar</button>
-        <div id="previaBox" style="margin-top:14px"></div>`,
-      aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/precificacao`, { metodo: 'POST', corpo: d }); A.toast('Item salvo', 'ok'); A.ir('precificacao'); },
-    });
-    setTimeout(() => {
-      const btn = document.getElementById('previa');
-      if (!btn) return;
-      btn.onclick = async () => {
-        const d = {}; btn.closest('.modal').querySelectorAll('[name]').forEach((i) => { d[i.name] = i.value; });
-        try {
-          const { resultado } = await A.api('/precificacao/simular', { metodo: 'POST', corpo: { ...d, empresa_id: S.empresaId } });
-          document.getElementById('previaBox').innerHTML = blocoResultado(resultado);
-        } catch (e) { A.toast(e.message, 'erro'); }
-      };
-    }, 0);
-  }
-
-  function detalharItem(r) { A.modal({ titulo: r.item.descricao || 'Item', largura: 820, corpo: blocoResultado(r) }); }
 };
 
 // ===========================================================================
@@ -112,12 +57,17 @@ Telas.formacaoCusto = async (el) => {
       { t: '', r: (x) => `<button class="btn pq vazio" data-formacao="${x.id}">Gerenciar componentes (${x.componentes.length})</button>` },
     ], d.itens, { vazio: 'Nenhum produto ou serviço de saída cadastrado. Cadastre o portfólio antes de associar suas entradas.' })}</div>`;
 
+  const opcoesSaidaFormacao = [{ v: '', t: 'Definir depois — item ficará INCOMPLETO' }].concat((d.saidasDisponiveis || []).map((m) => ({
+    v: m.id, t: `${m.codigo_produto || '—'} · ${m.descricao || 'Sem descrição'} · ${A.moeda(m.valor)}`,
+  })));
   document.getElementById('novoItemFormacao').onclick = () => A.modal({
     titulo: 'Novo item de formação de custo', confirmar: 'Salvar item',
     descricao: 'NCM/NBS são referências fiscais. Informe SKU, código interno ou centro de custo quando existirem; não haverá vinculação automática por NCM/NBS.',
     corpo: `<div class="grade g2">${A.campo('descricao', 'Descrição do produto ou serviço')}${A.campo('codigo', 'Código interno / SKU')}</div>
+      ${A.selecao('movimentoSaidaId', 'Operação de saída no motor (obrigatória para precificar)', opcoesSaidaFormacao, '')}
       <div class="grade g3">${A.selecao('tipo', 'Natureza', [{v:'mercadoria',t:'Mercadoria'}, {v:'servico',t:'Serviço'}], 'mercadoria')}${A.campo('ncm', 'NCM (opcional)')}${A.campo('nbs', 'NBS (opcional)')}</div>
-      <div class="grade g3">${A.campo('gtin', 'GTIN (opcional)')}${A.campo('unidade', 'Unidade')}${A.campo('centroCusto', 'Centro de custo')}</div>`,
+      <div class="grade g3">${A.campo('gtin', 'GTIN (opcional)')}${A.campo('unidade', 'Unidade')}${A.campo('centroCusto', 'Centro de custo')}</div>
+      ${A.campo('despesasVariaveis', 'Despesas variáveis comerciais (0,05 = 5%)', 0, 'number', 'step=0.0001')}`,
     aoConfirmar: async (b) => { await A.api(`/empresas/${S.empresaId}/formacao-custo`, { metodo: 'POST', corpo: b }); A.toast('Item criado. Agora vincule os componentes.', 'ok'); A.ir('formacaoCusto'); },
   });
   el.querySelectorAll('[data-formacao]').forEach((b) => { b.onclick = () => abrirComponentes(d.itens.find((x) => x.id === Number(b.dataset.formacao))); });
@@ -142,6 +92,25 @@ Telas.formacaoCusto = async (el) => {
     setTimeout(() => document.querySelectorAll('[data-remover-comp]').forEach((b) => { b.onclick = async () => { await A.api(`/formacao-custo/componentes/${b.dataset.removerComp}`, {metodo:'DELETE'}); A.ir('formacaoCusto'); }; }), 0);
   }
 };
+
+function blocoResultadoOficial(r) {
+  if (!r.comercial) return `<div class="aviso atencao"><b>${A.esc(r.status)}</b><br>${A.esc(r.motivo || 'Não há dados suficientes para resultado definitivo.')}</div>`;
+  return `<div class="aviso"><b>Fonte fiscal: motor_resultados</b><br>Saída oficial: ${A.esc(r.saida.movimento_id)} · tratamento ${A.esc(r.saida.tratamento || '—')} · CST ${A.esc(r.saida.cst || '—')} · cClassTrib ${A.esc(r.saida.cclasstrib || '—')} · natureza ${A.esc(r.saida.natureza || '—')}</div>
+    <div class="grade g4" style="margin-top:14px">
+      ${A.kpi('Preço atual', A.moeda(r.saida.preco_atual))}
+      ${A.kpi('Base econômica', A.moeda(r.saida.base_economica))}
+      ${A.kpi('CBS da saída', A.moeda(r.saida.cbs))}
+      ${A.kpi('Venda projetada', A.moeda(r.saida.preco_projetado))}
+      ${A.kpi('Custo econômico formado', A.moeda(r.formacao.custo_economico_bruto))}
+      ${A.kpi('Crédito direto', A.moeda(r.formacao.credito_direto))}
+      ${A.kpi('Crédito rateado', A.moeda(r.formacao.credito_rateado))}
+      ${A.kpi('Crédito não alocado', A.moeda(r.formacao.credito_nao_alocado))}
+      ${A.kpi('Custo líquido', A.moeda(r.formacao.custo_liquido))}
+      ${A.kpi('Margem atual', A.moeda(r.comercial.margem_atual), A.pct(r.comercial.margem_atual_percentual))}
+      ${A.kpi('Margem projetada', A.moeda(r.comercial.margem_projetada), A.pct(r.comercial.margem_projetada_percentual))}
+      ${A.kpi('Impacto comercial', A.setaR$(r.comercial.impacto_comercial))}
+    </div><div class="aviso ${r.status === 'COMPLETO' ? 'bom' : 'atencao'}" style="margin-top:14px"><b>Formação: ${A.esc(r.formacao.cobertura)}</b><br>Reconciliação de crédito: ${A.esc(r.formacao.reconciliacao_credito)}. ${A.esc(r.comercial.observacao_preco_alvo)}</div>`;
+}
 
 function blocoResultado(r) {
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);

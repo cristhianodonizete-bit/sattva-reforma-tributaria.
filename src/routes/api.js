@@ -1018,37 +1018,12 @@ router.get('/cenarios/:id', (req, res, next) => {
 // ===========================================================================
 // MÓDULO 2 — PRECIFICAÇÃO
 // ===========================================================================
-router.post('/precificacao/simular', async (req, res) => {
-  try {
-    await atualizarConfiguracaoDeCalculo();
-    const empresa = req.body.empresa_id ? db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.body.empresa_id) : null;
-    const referenciaFiscal = empresa ? referenciaFiscalPrecificacao(empresa.id, req.body) : null;
-    ok(res, { resultado: prec.analisarItem({ ...req.body, referenciaFiscal, parametrosIVA: referenciaIvaDoProjeto(), regime: req.body.regime || (empresa && empresa.regime) || 'lucro_real' }) });
-  } catch (e) { erro(res, e); }
-});
-
-router.get('/empresas/:id/precificacao', (req, res) => ok(res, {
-  itens: db.prepare('SELECT * FROM itens_precificacao WHERE empresa_id = ? ORDER BY id DESC').all(req.params.id)
-    .map((i) => ({ ...i, resultado: i.resultado ? JSON.parse(i.resultado) : null })),
-}));
-
-router.post('/empresas/:id/precificacao', async (req, res) => {
-  try {
-    await atualizarConfiguracaoDeCalculo();
-    const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
-    const b = req.body;
-    const resultado = prec.analisarItem({ ...b, referenciaFiscal: referenciaFiscalPrecificacao(empresa.id, b), parametrosIVA: referenciaIvaDoProjeto(), regime: empresa.regime });
-    const r = db.prepare(`INSERT INTO itens_precificacao (empresa_id, descricao, ncm, tipo, preco_venda,
-      custo_compra, despesas_variaveis, regime_fornecedor, perfil_cliente, reducao, aliq_especifica, ano, resultado)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(req.params.id, b.descricao || '', b.ncm || '', b.tipo || 'mercadoria',
-      +b.precoVenda || 0, +b.custoCompra || 0, +b.despesasVariaveis || 0, b.regimeFornecedor || empresa.regime,
-      b.perfilCliente || 'lucro_real', b.reducao || 'integral', b.aliqEspecifica || null, +b.ano || 2033,
-      JSON.stringify(resultado));
-    ok(res, { id: r.lastInsertRowid, resultado });
-  } catch (e) { erro(res, e); }
-});
-
-router.delete('/precificacao/:id', (req, res) => { db.prepare('DELETE FROM itens_precificacao WHERE id=?').run(req.params.id); ok(res, {}); });
+// A precificação fiscal manual foi desativada. A tela consome a saída oficial
+// materializada e a formação de custo explícita; não há mais simulador paralelo.
+router.post('/precificacao/simular', (_req, res) => erro(res, new Error('A simulação manual foi desativada. Use a Formação de custo vinculada à saída oficial e peça qualquer cenário tributário ao motor central.'), 409));
+router.post('/empresas/:id/precificacao', (_req, res) => erro(res, new Error('O cadastro manual de precificação foi desativado. Cadastre a Formação de custo e selecione explicitamente a saída oficial.'), 409));
+router.post('/empresas/:id/precificacao/importar', (_req, res) => erro(res, new Error('A importação de simulações manuais foi desativada. A Precificação usa apenas saídas oficiais e formação de custo explícita.'), 409));
+router.delete('/precificacao/:id', (_req, res) => erro(res, new Error('Itens legados não são mais fonte de precificação oficial.'), 409));
 
 // ---------------------------------------------------------------------------
 // BASE DE FORMAÇÃO DE CUSTO
@@ -1057,21 +1032,37 @@ router.delete('/precificacao/:id', (req, res) => { db.prepare('DELETE FROM itens
 // ---------------------------------------------------------------------------
 function resumoFormacaoCusto(empresaId, item) {
   const componentes = db.prepare(`SELECT c.*, m.descricao AS movimento_descricao, m.codigo_produto,
-    r.base_economica, r.cbs, r.credito_cbs, r.tipo_credito, r.modalidade_credito,
+    r.base_economica, r.custo_liquido, r.ibs, r.credito_ibs, r.cbs, r.credito_cbs, r.tipo_credito, r.modalidade_credito,
     r.status_credito_determinacao, r.natureza
     FROM formacao_custo_componentes c
     LEFT JOIN movimentos m ON m.id=c.movimento_id
     LEFT JOIN motor_resultados r ON r.movimento_id=c.movimento_id AND r.empresa_id=?
     WHERE c.item_formacao_id=? ORDER BY c.id`).all(empresaId, item.id);
-  let creditoTotal = 0, direto = 0, rateavel = 0, naoAlocado = 0;
+  let creditoTotal = 0, direto = 0, rateavel = 0, naoAlocado = 0, custoBrutoAlocado = 0;
   for (const c of componentes) {
     const credito = Number(c.credito_cbs) || 0;
     creditoTotal += credito;
-    if (c.status_alocacao_credito === 'DIRETO') direto += credito;
-    else if (c.status_alocacao_credito === 'RATEAVEL' && c.criterio_rateio && Number(c.percentual_rateio) > 0) rateavel += credito * Number(c.percentual_rateio);
-    else naoAlocado += credito;
+    // O custo oficial já pode estar líquido de crédito. Para a formação, ele
+    // volta ao bruto e só reduz a parcela de crédito explicitamente alocada.
+    const custoBruto = (Number(c.custo_liquido) || 0) + credito + (Number(c.credito_ibs) || 0);
+    if (c.status_alocacao_credito === 'DIRETO') {
+      direto += credito;
+      custoBrutoAlocado += custoBruto;
+    } else if (c.status_alocacao_credito === 'RATEAVEL' && c.criterio_rateio && Number(c.percentual_rateio) > 0) {
+      const fracao = Math.min(1, Number(c.percentual_rateio));
+      rateavel += credito * fracao;
+      // A parcela não distribuída é crédito da empresa, não do item.
+      naoAlocado += credito * (1 - fracao);
+      custoBrutoAlocado += custoBruto * fracao;
+    } else {
+      naoAlocado += credito;
+      // Sem alocação de crédito, o insumo pode compor custo bruto quando a
+      // relação econômica for explícita, mas nenhum crédito reduz o item.
+      if (c.relacionamento !== 'NAO_RELACIONADA') custoBrutoAlocado += custoBruto;
+    }
   }
-  const completo = componentes.length > 0 && componentes.every((c) => c.relacionamento !== 'NAO_RELACIONADA'
+  const creditoReconciliado = Math.abs(creditoTotal - (direto + rateavel + naoAlocado)) <= 0.01;
+  const completo = Boolean(item.movimento_saida_id) && componentes.length > 0 && creditoReconciliado && componentes.every((c) => c.relacionamento !== 'NAO_RELACIONADA'
     && (c.status_alocacao_credito !== 'RATEAVEL' || (c.criterio_rateio && Number(c.percentual_rateio) > 0)));
   return {
     ...item, componentes,
@@ -1080,9 +1071,28 @@ function resumoFormacaoCusto(empresaId, item) {
     credito_cbs_rateado: Math.round(rateavel * 100) / 100,
     credito_cbs_nao_alocado: Math.round(naoAlocado * 100) / 100,
     credito_cbs_precificavel: Math.round((direto + rateavel) * 100) / 100,
-    status_formacao_custo: completo ? 'COMPLETO' : 'INCOMPLETO',
+    custo_economico_bruto_alocado: Math.round(custoBrutoAlocado * 100) / 100,
+    reconciliacao_credito: creditoReconciliado ? 'RECONCILIADO' : 'DIVERGENTE',
+    status_formacao_custo: completo ? 'COMPLETO' : (creditoReconciliado ? 'INCOMPLETO' : 'DIVERGENTE'),
   };
 }
+
+router.get('/empresas/:id/precificacao', (req, res) => {
+  try {
+    const itens = db.prepare('SELECT * FROM formacao_custo_itens WHERE empresa_id=? AND ativo=1 ORDER BY descricao,id').all(req.params.id);
+    const porMovimento = db.prepare(`SELECT m.id AS movimento_id,m.descricao,m.codigo_produto,m.ncm,m.nbs,
+      r.preco_atual,r.base_economica,r.cbs,r.ibs,r.credito_cbs,r.preco_projetado,
+      r.tratamento,r.cst,r.cclasstrib,r.natureza
+      FROM movimentos m JOIN motor_resultados r ON r.movimento_id=m.id AND r.empresa_id=m.empresa_id
+      WHERE m.empresa_id=? AND m.id=?`);
+    const resultado = itens.map((item) => {
+      const formacao = resumoFormacaoCusto(req.params.id, item);
+      const saida = item.movimento_saida_id ? porMovimento.get(req.params.id, item.movimento_saida_id) : null;
+      return prec.analisarItemOficial({ item, saida, formacao, despesasVariaveis: Number(item.despesas_variaveis) || 0 });
+    });
+    ok(res, { itens: resultado, fonte: 'motor_resultados', legado: db.prepare('SELECT COUNT(*) AS total FROM itens_precificacao WHERE empresa_id=?').get(req.params.id).total });
+  } catch (e) { erro(res, e); }
+});
 
 router.get('/empresas/:id/formacao-custo', (req, res) => {
   try {
@@ -1092,8 +1102,12 @@ router.get('/empresas/:id/formacao-custo', (req, res) => {
       FROM movimentos m LEFT JOIN motor_resultados r ON r.movimento_id=m.id AND r.empresa_id=m.empresa_id
       WHERE m.empresa_id=? AND (m.tipo='fornecedor' OR m.sentido='entrada')
       ORDER BY m.descricao,m.id LIMIT 500`).all(req.params.id);
+    const saidasDisponiveis = db.prepare(`SELECT m.id,m.codigo_produto,m.descricao,m.ncm,m.nbs,m.valor,
+      r.preco_atual,r.base_economica,r.cbs,r.credito_cbs,r.preco_projetado,r.natureza
+      FROM movimentos m LEFT JOIN motor_resultados r ON r.movimento_id=m.id AND r.empresa_id=m.empresa_id
+      WHERE m.empresa_id=? AND (m.tipo='cliente' OR m.sentido='saida') ORDER BY m.descricao,m.id LIMIT 500`).all(req.params.id);
     ok(res, { itens: itens.map((item) => resumoFormacaoCusto(req.params.id, item)),
-      entradasDisponiveis,
+      entradasDisponiveis, saidasDisponiveis,
       criterios_rateio: ['faturamento', 'custo', 'quantidade', 'volume', 'horas', 'centro_custo', 'outro_parametrizado'],
       relacionamentos: ['DIRETA', 'COMPOSICAO', 'RATEIO', 'NAO_RELACIONADA'] });
   } catch (e) { erro(res, e); }
@@ -1104,10 +1118,10 @@ router.post('/empresas/:id/formacao-custo', (req, res) => {
     const b = req.body || {};
     if (!String(b.descricao || '').trim()) throw new Error('Informe a descrição do produto ou serviço de saída.');
     const r = db.prepare(`INSERT INTO formacao_custo_itens
-      (empresa_id,codigo,descricao,tipo,sku,gtin,ncm,nbs,unidade,centro_custo,ativo,status_formacao_custo,origem)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(req.params.id, b.codigo || '', String(b.descricao).trim(),
+      (empresa_id,codigo,descricao,tipo,sku,gtin,ncm,nbs,unidade,centro_custo,despesas_variaveis,movimento_saida_id,ativo,status_formacao_custo,origem)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(req.params.id, b.codigo || '', String(b.descricao).trim(),
       b.tipo === 'servico' ? 'servico' : 'mercadoria', b.sku || '', b.gtin || '', b.ncm || '', b.nbs || '', b.unidade || '',
-      b.centro_custo || '', b.ativo === false ? 0 : 1, 'INCOMPLETO', 'MANUAL');
+      b.centro_custo || '', Number(b.despesasVariaveis) || 0, b.movimentoSaidaId || null, b.ativo === false ? 0 : 1, 'INCOMPLETO', 'MANUAL');
     registrar(req.params.id, req, 'criar', 'formacao_custo_item', r.lastInsertRowid, '', JSON.stringify(b));
     ok(res, { id: r.lastInsertRowid });
   } catch (e) { erro(res, e); }
@@ -1140,44 +1154,6 @@ router.delete('/formacao-custo/componentes/:id', (req, res) => {
     db.prepare("UPDATE formacao_custo_itens SET status_formacao_custo='INCOMPLETO', atualizado_em=datetime('now','localtime') WHERE id=?").run(c.item_formacao_id);
     registrar(c.empresa_id, req, 'excluir', 'formacao_custo_componente', c.id, JSON.stringify(c), '');
     ok(res, {});
-  } catch (e) { erro(res, e); }
-});
-
-router.post('/empresas/:id/precificacao/importar', upload.single('arquivo'), async (req, res) => {
-  try {
-    await atualizarConfiguracaoDeCalculo();
-    if (!req.file) throw new Error('Envie a planilha no campo "arquivo".');
-    const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
-    const { linhas } = imp.lerPlanilha(req.file.buffer);
-    const norm = (s) => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
-    const acha = (l, nomes) => { for (const k of Object.keys(l)) { if (nomes.includes(norm(k))) return l[k]; } return ''; };
-    const ins = db.prepare(`INSERT INTO itens_precificacao (empresa_id, descricao, ncm, tipo, preco_venda,
-      custo_compra, despesas_variaveis, regime_fornecedor, perfil_cliente, reducao, ano, resultado)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`);
-    let n = 0;
-    db.transaction(() => {
-      for (const l of linhas) {
-        const item = {
-          descricao: String(acha(l, ['descricao', 'produto', 'item']) || ''),
-          ncm: String(acha(l, ['ncm']) || ''),
-          tipo: norm(acha(l, ['tipo'])) === 'servico' ? 'servico' : 'mercadoria',
-          precoVenda: imp.numeroBR(acha(l, ['precovenda', 'preco', 'valorvenda'])),
-          custoCompra: imp.numeroBR(acha(l, ['custocompra', 'custo', 'valorcusto'])),
-          despesasVariaveis: imp.numeroBR(acha(l, ['despesasvariaveis', 'despesavariavel', 'comissao'])) / (String(acha(l, ['despesasvariaveis', 'despesavariavel', 'comissao'])).includes('%') ? 100 : 1),
-          regimeFornecedor: imp.resolverRegime(acha(l, ['regimefornecedor', 'regimedofornecedor']), empresa.regime),
-          perfilCliente: imp.resolverRegime(acha(l, ['perfilcliente', 'regimecliente']), 'lucro_real'),
-          reducao: imp.resolverReducao(acha(l, ['reducao', 'enquadramento'])),
-          ano: Number(acha(l, ['ano'])) || 2033,
-          regime: empresa.regime,
-        };
-        if (!item.precoVenda) continue;
-        const resultado = prec.analisarItem({ ...item, referenciaFiscal: referenciaFiscalPrecificacao(empresa.id, item), parametrosIVA: referenciaIvaDoProjeto() });
-        ins.run(req.params.id, item.descricao, item.ncm, item.tipo, item.precoVenda, item.custoCompra,
-          item.despesasVariaveis, item.regimeFornecedor, item.perfilCliente, item.reducao, item.ano, JSON.stringify(resultado));
-        n++;
-      }
-    })();
-    ok(res, { importados: n });
   } catch (e) { erro(res, e); }
 });
 
@@ -2558,8 +2534,6 @@ router.post('/config/recalcular', async (_req, res) => {
       regras.invalidar();
     }
     const empresas = db.prepare('SELECT * FROM empresas ORDER BY id').all();
-    const itensPreco = db.prepare('SELECT * FROM itens_precificacao WHERE empresa_id = ?').all;
-    const atualizarPreco = db.prepare('UPDATE itens_precificacao SET resultado = ? WHERE id = ?');
     const saida = { empresas: empresas.length, motores: 0, movimentos: 0, itensPrecificacao: 0, erros: [] };
 
     for (const empresa of empresas) {
@@ -2573,18 +2547,8 @@ router.post('/config/recalcular', async (_req, res) => {
         motorExec.executar(empresa.id, { ano: ultima ? ultima.ano : 2027 });
         saida.motores++;
 
-        for (const item of itensPreco(empresa.id)) {
-          const resultado = prec.analisarItem({
-            descricao: item.descricao, ncm: item.ncm, tipo: item.tipo,
-            precoVenda: item.preco_venda, custoCompra: item.custo_compra,
-            despesasVariaveis: item.despesas_variaveis, regime: empresa.regime,
-            regimeFornecedor: item.regime_fornecedor, perfilCliente: item.perfil_cliente,
-          reducao: item.reducao, aliqEspecifica: item.aliq_especifica, ano: item.ano,
-            referenciaFiscal: referenciaFiscalPrecificacao(empresa.id, { descricao: item.descricao, ncm: item.ncm, tipo: item.tipo }), parametrosIVA: referenciaIvaDoProjeto(),
-          });
-          atualizarPreco.run(JSON.stringify(resultado), item.id);
-          saida.itensPrecificacao++;
-        }
+        // Itens de precificação legados não são recalculados. A visão oficial
+        // é montada sob demanda a partir de motor_resultados + formação de custo.
       } catch (e) {
         saida.erros.push({ empresa_id: empresa.id, empresa: empresa.razao_social, erro: e.message });
       }

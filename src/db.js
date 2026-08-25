@@ -69,6 +69,7 @@ const COLUNAS_NOVAS = {
   empresa_servicos_fiscais: {
     pis_cofins: 'REAL', das_efetivo: 'REAL', iss_aliquota: 'REAL', ativo: 'INTEGER DEFAULT 1', origem: "TEXT DEFAULT 'manual'",
   },
+  formacao_custo_itens: { movimento_saida_id: 'INTEGER', despesas_variaveis: 'REAL DEFAULT 0' },
   regras_governo: { origem_linha: 'TEXT' },
   base_ncm: {
     operacao_pis_cofins: 'TEXT', cst_pis_atual: 'TEXT', cst_cofins_atual: 'TEXT', pis_percentual: 'REAL', cofins_percentual: 'REAL',
@@ -365,7 +366,8 @@ CREATE TABLE IF NOT EXISTS formacao_custo_itens (
   empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
   codigo TEXT, descricao TEXT NOT NULL, tipo TEXT DEFAULT 'mercadoria',
   sku TEXT, gtin TEXT, ncm TEXT, nbs TEXT, unidade TEXT,
-  centro_custo TEXT, ativo INTEGER DEFAULT 1,
+  centro_custo TEXT, despesas_variaveis REAL DEFAULT 0, ativo INTEGER DEFAULT 1,
+  movimento_saida_id INTEGER REFERENCES movimentos(id) ON DELETE SET NULL,
   status_formacao_custo TEXT DEFAULT 'INCOMPLETO',
   origem TEXT DEFAULT 'MANUAL',
   criado_em TEXT DEFAULT (datetime('now','localtime')),
