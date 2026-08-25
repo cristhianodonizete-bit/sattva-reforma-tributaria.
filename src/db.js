@@ -45,6 +45,7 @@ const COLUNAS_NOVAS = {
   },
   motor_resultados: {
     cenario_id: 'INTEGER', grupo_origem: 'TEXT', fracao: 'REAL DEFAULT 1',
+    tipo_credito: 'TEXT', modalidade_credito: 'TEXT', status_credito_determinacao: 'TEXT', regime_cbs_emitente: 'TEXT', regime_cbs_adquirente: 'TEXT',
   },
   param_cfop: { prioridade: 'INTEGER DEFAULT 2' },
   param_aliquotas: { calcular_ibs: 'INTEGER DEFAULT 0' },
@@ -623,6 +624,8 @@ CREATE TABLE IF NOT EXISTS motor_resultados (
   status_classificacao TEXT, status_credito TEXT, natureza TEXT,
   preco_atual REAL, base_economica REAL,
   ibs REAL, cbs REAL, credito_ibs REAL, credito_cbs REAL,
+  tipo_credito TEXT, modalidade_credito TEXT, status_credito_determinacao TEXT,
+  regime_cbs_emitente TEXT, regime_cbs_adquirente TEXT,
   preco_projetado REAL, custo_liquido REAL,
   cst TEXT, cclasstrib TEXT, tratamento TEXT,
   perfil_destinatario TEXT, sensibilidade TEXT,

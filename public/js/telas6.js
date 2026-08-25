@@ -196,7 +196,7 @@ function regimes(box, d) {
     <div class="cartao"><h2>Regimes tributários</h2>
       ${A.tabela([
         { t: 'Regime', r: (r) => `<b>${A.esc(r.label)}</b>` },
-        { t: 'PIS/COFINS atual', num: true, r: (r) => `<input type="number" step="0.0001" value="${r.pisCofins === null ? '' : r.pisCofins}" placeholder="não estimar" data-f="pc" data-c="${r.chave}" style="width:92px;text-align:right">` },
+        { t: 'PIS/COFINS atual – fallback', num: true, r: (r) => `<input title="Percentual de referência usado apenas quando não houver evidência fiscal superior. Pode representar média ou premissa configurada." type="number" step="0.0001" value="${r.pisCofins === null ? '' : r.pisCofins}" placeholder="não estimar" data-f="pc" data-c="${r.chave}" style="width:92px;text-align:right">` },
         { t: 'Credita IBS/CBS', r: (r) => `<input type="checkbox" data-f="cn" data-c="${r.chave}" ${r.creditaNovo ? 'checked' : ''}>` },
         { t: 'Gera crédito IBS/CBS', r: (r) => `<input type="checkbox" data-f="gn" data-c="${r.chave}" ${r.geraCreditoNovo ? 'checked' : ''}>` },
         { t: 'Recolhe no DAS', r: (r) => `<input type="checkbox" data-f="das" data-c="${r.chave}" ${r.noDas ? 'checked' : ''}>` },

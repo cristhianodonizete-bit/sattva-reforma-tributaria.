@@ -145,8 +145,15 @@ function reconstruir(item) {
       estimado = true;
       passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: 'repartição do DAS',
         formula: `valor × alíquota efetiva (${(s.aliquotaEfetiva * 100).toFixed(4)}%) × repartição PIS+COFINS`, valor: r2(parcela) });
+      memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(parcela), carga_atual_pis_cofins_percentual: valor ? r6(parcela / valor) : 0, carga_atual_pis_cofins_origem: 'REPARTICAO_DAS', carga_atual_pis_cofins_natureza: 'SIMULADO' };
     } else {
-      pendencias.push('Fornecedor do Simples sem faixa determinada — parcela de PIS/COFINS embutida no DAS não pôde ser calculada.');
+      const fallback = regras.estimativaPisCofins(regime);
+      if (fallback !== null && fallback > 0) {
+        const bloco = valor * fallback; pis = bloco * proporcaoPis(); cofins = bloco - pis; estimado = true;
+        passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: 'PARAMETRO_REGIME', formula: `valor × ${(fallback * 100).toFixed(2)}% (fallback do regime)`, valor: r2(bloco) });
+        memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(bloco), carga_atual_pis_cofins_percentual: r6(fallback), carga_atual_pis_cofins_origem: 'PARAMETRO_REGIME', carga_atual_pis_cofins_natureza: 'SIMULADO' };
+        pendencias.push('PIS/COFINS reconstruído por premissa cadastrada do Simples; não é alíquota legal fixa.');
+      } else pendencias.push('Fornecedor do Simples sem faixa determinada — parcela de PIS/COFINS embutida no DAS não pôde ser calculada.');
     }
   } else {
     const aliq = regras.estimativaPisCofins(regime);

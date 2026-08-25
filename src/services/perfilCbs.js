@@ -29,6 +29,11 @@ function grupoTratamento(linha) {
 }
 
 function grupoCredito(linha, detalhe) {
+  const tipo = String(linha.tipo_credito || '').toUpperCase();
+  if (tipo === 'NORMAL') return 'compras_credito_normal';
+  if (tipo === 'SIMPLES') return linha.status_credito_determinacao === 'INDETERMINADO' ? 'compras_credito_indeterminado' : 'compras_credito_simples';
+  if (tipo === 'PRESUMIDO') return 'compras_credito_presumido';
+  if (tipo === 'SEM_CREDITO') return 'compras_sem_credito';
   const s = String(linha.status_credito || '').toUpperCase();
   if (s === 'PROJETADO') return 'compras_credito_normal';
   if (s === 'PROJETADO_LIMITADO') return /simples|mei/.test(String(detalhe?.regimeEmitente || '')) ? 'compras_credito_simples' : 'compras_credito_limitado';
@@ -77,7 +82,7 @@ function materializar(empresaId, opcoes = {}) {
     } else {
       soma(g, 'compras_brutas', valor); soma(g, 'base_economica_entradas', base); soma(g, 'cbs_credito', linha.credito_cbs);
       soma(g, grupoCredito(linha, detalhe), valor); soma(g, '_entradas', valor);
-      if (['PROJETADO', 'PROJETADO_LIMITADO', 'CREDITO_PRESUMIDO', 'SEM_DIREITO'].includes(linha.status_credito)) soma(g, '_credito', valor);
+      if (['DETERMINADO', 'SUJEITO_VALIDACAO'].includes(linha.status_credito_determinacao) || ['PROJETADO', 'PROJETADO_LIMITADO', 'CREDITO_PRESUMIDO', 'SEM_DIREITO'].includes(linha.status_credito)) soma(g, '_credito', valor);
     }
   }
   const colunas = ['empresa_id','competencia','receita_bruta','compras_brutas','base_economica_saidas','base_economica_entradas','cbs_debito','cbs_credito','cbs_liquida','aliquota_efetiva_cbs_saida','taxa_recuperacao_cbs_entrada','receita_tributacao_integral','receita_reducao_cbs','receita_aliquota_zero_cbs','receita_imunidade_cbs','receita_regime_especifico_cbs','receita_beneficio_governo_cbs','receita_tratamento_indeterminado_cbs','compras_credito_normal','compras_credito_limitado','compras_credito_simples','compras_credito_presumido','compras_sem_credito','compras_credito_indeterminado','cobertura_classificacao_cbs','cobertura_base_economica','cobertura_credito_cbs','percentual_real','percentual_calculado','percentual_simulado','percentual_indeterminado','quantidade_documentos','quantidade_operacoes','motor_execucao_id'];

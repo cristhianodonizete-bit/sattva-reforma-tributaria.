@@ -89,44 +89,52 @@ function reducaoPorChave(chave) {
  * Determina o direito ao crédito do adquirente (item 31).
  * Retorna sempre um status, nunca um crédito "certo" quando há dúvida.
  */
-function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido }) {
+function regimeCbs(regime) {
+  if (['lucro_real', 'lucro_presumido', 'regime_regular'].includes(regime)) return 'REGULAR';
+  if (regime === 'simples_nacional') return 'SIMPLES_DAS';
+  if (regime === 'simples_regime_regular') return 'SIMPLES_REGIME_REGULAR';
+  if (regime === 'mei') return 'MEI';
+  if (['produtor_rural_pf', 'imune_isento', 'orgao_publico', 'pessoa_fisica'].includes(regime)) return 'NAO_CONTRIBUINTE';
+  return 'INDETERMINADO';
+}
+function credito(legado, tipoCredito, modalidadeCredito, statusDeterminacao, motivo) {
+  return { status: legado, tipoCredito, modalidadeCredito, statusDeterminacao, motivo };
+}
+function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simplesFornecedorConhecido = false }) {
   // Regime do adquirente desconhecido não pode ser tratado como se creditasse:
   // isso superestimaria o crédito entregue ao cliente. O desconhecido tem que
   // continuar desconhecido — e virar apontamento, não número otimista.
   if (!regimeAdquirente) {
-    return { status: 'DADOS_INSUFICIENTES',
-      motivo: 'Regime do adquirente desconhecido — não é possível afirmar que ele aproveita o crédito.' };
+    return credito('DADOS_INSUFICIENTES', null, null, 'INDETERMINADO', 'Regime do adquirente desconhecido — não é possível afirmar que ele aproveita o crédito.');
   }
   // Quem credita e quem gera crédito é definido na tabela param_regimes
   const rAdq = regras.regime(regimeAdquirente);
   if (rAdq && !rAdq.creditaNovo) {
-    return { status: 'SEM_DIREITO', motivo: `Adquirente em ${regimeAdquirente} não apura IBS/CBS pelo regime regular — sem apropriação de crédito.` };
+    return credito('SEM_DIREITO', 'SEM_CREDITO', null, 'DETERMINADO', `Adquirente em ${regimeAdquirente} não apura IBS/CBS pelo regime regular — sem apropriação de crédito.`);
   }
   if (cls.vedacaoPossivel) {
-    return { status: 'SUJEITO_VALIDACAO', motivo: 'Aquisição possivelmente de uso e consumo ou ativo — confirmar se há vedação ao crédito.' };
+    return credito('SUJEITO_VALIDACAO', null, null, 'SUJEITO_VALIDACAO', 'Aquisição possivelmente de uso e consumo ou ativo — confirmar se há vedação ao crédito.');
   }
   if (cls.status === 'REQUER_VALIDACAO') {
-    return { status: 'SUJEITO_VALIDACAO', motivo: 'Classificação do item ainda não concluída — crédito depende do enquadramento definitivo.' };
+    return credito('SUJEITO_VALIDACAO', null, null, 'SUJEITO_VALIDACAO', 'Classificação do item ainda não concluída — crédito depende do enquadramento definitivo.');
   }
   if (cls.status === 'SEM_CORRESPONDENCIA') {
-    return { status: 'DADOS_INSUFICIENTES', motivo: 'Item sem correspondência nas bases — não é possível projetar o crédito.' };
+    return credito('DADOS_INSUFICIENTES', null, null, 'INDETERMINADO', 'Item sem correspondência nas bases — não é possível projetar o crédito.');
   }
   if (!regimeFornecedor) {
-    return { status: 'DADOS_INSUFICIENTES', motivo: 'Regime do fornecedor desconhecido — o crédito depende de como ele apura IBS/CBS.' };
+    return credito('DADOS_INSUFICIENTES', null, null, 'INDETERMINADO', 'Regime do fornecedor desconhecido — o crédito depende de como ele apura IBS/CBS.');
   }
   const rForn = regras.regime(regimeFornecedor);
-  if (rForn && !rForn.geraCreditoNovo) {
-    // MEI e demais fora do regime regular não geram crédito ordinário, mas a
-    // legislação prevê hipóteses de crédito presumido em operações
-    // específicas (agro, por exemplo). O motor não reduz "Simples" nem "MEI"
-    // a "sem crédito" — distingue as duas situações.
-    if (regimeFornecedor === 'mei' || regimeFornecedor === 'produtor_rural_pf') {
-      return { status: 'CREDITO_PRESUMIDO',
-        motivo: 'Fornecedor fora do regime regular: sem crédito ordinário. Verificar hipótese de crédito presumido prevista para esta operação.' };
-    }
-    return { status: 'PROJETADO_LIMITADO', motivo: 'Fornecedor não destaca IBS/CBS por fora: crédito limitado ao valor embutido no DAS.' };
+  if (regimeFornecedor === 'simples_nacional') {
+    if (!simplesFornecedorConhecido) return credito('DADOS_INSUFICIENTES', 'SIMPLES', 'LIMITADO_CBS_SIMPLES', 'INDETERMINADO', 'Fornecedor do Simples sem faixa ou alíquota efetiva determinada — crédito não é zero, mas permanece indeterminado.');
+    return credito('PROJETADO_LIMITADO', 'SIMPLES', 'LIMITADO_CBS_SIMPLES', 'DETERMINADO', 'Crédito limitado ao CBS efetivamente gerado dentro do Simples.');
   }
-  return { status: 'PROJETADO', motivo: 'Fornecedor do regime regular: crédito integral do IBS/CBS destacado.' };
+  if (regimeFornecedor === 'mei') {
+    if (cls.creditoPresumido === true) return credito('CREDITO_PRESUMIDO', 'PRESUMIDO', 'HIPOTESE_LEGAL', 'DETERMINADO', 'Hipótese legal específica de crédito presumido identificada na operação.');
+    return credito('SEM_DIREITO', 'SEM_CREDITO', null, 'DETERMINADO', 'MEI não gera crédito presumido automaticamente; não foi identificada hipótese legal específica.');
+  }
+  if (rForn && !rForn.geraCreditoNovo) return credito('SEM_DIREITO', 'SEM_CREDITO', null, 'DETERMINADO', 'Fornecedor não gera crédito CBS nesta operação.');
+  return credito('PROJETADO', 'NORMAL', 'INTEGRAL', 'DETERMINADO', 'Fornecedor do regime regular: crédito CBS da operação elegível.');
 }
 
 
@@ -200,7 +208,7 @@ function projetarItem(item, ctx) {
   if (Number(aliq.parametros.calcular_ibs) !== 1) ibs = 0;
 
   // ---------- 5. CRÉDITO ----------
-  const cred = avaliarCredito({ regimeAdquirente, regimeFornecedor: regimeEmitente, cls, sentido });
+  const cred = avaliarCredito({ regimeAdquirente, regimeFornecedor: regimeEmitente, cls, sentido, simplesFornecedorConhecido: !!simplesInfo });
   let creditoIbs = 0, creditoCbs = 0;
   if (['PROJETADO', 'PROJETADO_LIMITADO'].includes(cred.status)) { creditoIbs = ibs; creditoCbs = cbs; }
   // CREDITO_PRESUMIDO fica em zero até que a hipótese seja informada como
@@ -232,6 +240,7 @@ function projetarItem(item, ctx) {
     ibs: r2(ibs), cbs: r2(cbs), totalIvA: r2(ibs + cbs),
     creditoIbs: r2(creditoIbs), creditoCbs: r2(creditoCbs), creditoTotal: r2(creditoIbs + creditoCbs),
     credito: cred,
+    regimeCbsEmitente: regimeCbs(regimeEmitente), regimeCbsAdquirente: regimeCbs(regimeAdquirente),
     precoProjetado: r2(precoProjetado),
     custoLiquido: r2(custoLiquido),
     emitenteNoDas,
@@ -407,7 +416,7 @@ function cargaAtual(itens) {
 }
 
 module.exports = {
-  naturezaItem, projetarItem, cenariosSimples, classificarDestinatario, sensibilidadeCredito,
+  naturezaItem, projetarItem, cenariosSimples, classificarDestinatario, sensibilidadeCredito, regimeCbs,
   compararPerfis, apurar, cargaAtual, aliquotasEfetivas, aliquotasDoAno, anosDisponiveis,
   anexosSimples, avaliarCredito,
 };

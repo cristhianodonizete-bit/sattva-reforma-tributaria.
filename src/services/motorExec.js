@@ -324,14 +324,14 @@ function gravar(empresaId, ano, resumo, entradas, saidas) {
   db.prepare('DELETE FROM motor_resultados WHERE empresa_id = ?').run(empresaId);
   const ins = db.prepare(`INSERT INTO motor_resultados (empresa_id, movimento_id, execucao_id, sentido, ano,
     status_classificacao, status_credito, natureza, preco_atual, base_economica, ibs, cbs,
-    credito_ibs, credito_cbs, preco_projetado, custo_liquido, cst, cclasstrib, tratamento,
+    credito_ibs, credito_cbs, tipo_credito, modalidade_credito, status_credito_determinacao, regime_cbs_emitente, regime_cbs_adquirente, preco_projetado, custo_liquido, cst, cclasstrib, tratamento,
     perfil_destinatario, sensibilidade, detalhe)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   db.transaction(() => {
     for (const x of [...entradas, ...saidas]) {
       ins.run(empresaId, x.movimento_id, id, x.sentido, ano,
         x.classificacao.status, x.credito.status, x.natureza,
-        x.precoAtual, x.baseEconomica, x.ibs, x.cbs, x.creditoIbs, x.creditoCbs,
+        x.precoAtual, x.baseEconomica, x.ibs, x.cbs, x.creditoIbs, x.creditoCbs, x.credito.tipoCredito || null, x.credito.modalidadeCredito || null, x.credito.statusDeterminacao || null, x.regimeCbsEmitente || null, x.regimeCbsAdquirente || null,
         x.precoProjetado, x.custoLiquido, x.classificacao.cst, x.classificacao.cclasstrib,
         x.classificacao.tratamento, x.destinatario ? x.destinatario.perfil : null,
         x.sensibilidade ? x.sensibilidade.nivel : null, JSON.stringify(x));
