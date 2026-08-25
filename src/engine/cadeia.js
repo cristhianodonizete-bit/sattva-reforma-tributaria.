@@ -10,6 +10,7 @@
 
 const P = require('../config/parametros');
 const { calcularOperacao, r2, r4 } = require('./calculadora');
+const regras = require('../services/regras');
 
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
 const soma = (arr, f) => arr.reduce((s, x) => s + num(f(x)), 0);
@@ -112,6 +113,9 @@ function analisarCadeia(movimentos, cfg = {}) {
       aliqSimples: m.referenciaFiscal?.das_efetivo,
       aliqIss: m.referenciaFiscal?.iss_aliquota,
       grauRepasse: cfg.grauRepasse, anos, parametrosIVA: cfg.parametrosIVA,
+      // A referência é a regra central parametrizada em Configurações; não é
+      // derivada do PIS/COFINS atual nem fica duplicada neste motor.
+      creditoCbsSimplesReferencia: regras.regime('simples_nacional')?.creditoCbsSimplesReferencia,
     });
 
     const chave = m.cnpj || m.inscr_federal || m.nome || 'SEM IDENTIFICAÇÃO';

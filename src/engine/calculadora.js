@@ -231,7 +231,7 @@ function aplicarIVA(cfg) {
 // ---------------------------------------------------------------------------
 // 4. CRÉDITO NOVO
 // ---------------------------------------------------------------------------
-function creditoNovo(novo, regimeFornecedor, regimeAdquirente, atual) {
+function creditoNovo(novo, regimeFornecedor, regimeAdquirente, atual, op = {}) {
   const adq = P.REGIMES[regimeAdquirente] || P.REGIMES.lucro_real;
   const forn = P.REGIMES[regimeFornecedor] || P.REGIMES.lucro_real;
   const cron = P.CRONOGRAMA[novo.ano] || P.CRONOGRAMA[2027];
@@ -241,10 +241,17 @@ function creditoNovo(novo, regimeFornecedor, regimeAdquirente, atual) {
   if (!adq.creditaNovo) {
     obs.push('Adquirente não se apropria de créditos de IBS/CBS (Simples Nacional no DAS, MEI, PF, órgão público ou imune).');
   } else if (!forn.geraCreditoNovo) {
-    // fornecedor no Simples/MEI: crédito limitado ao IBS/CBS embutido no DAS
+    // Fornecedor no Simples/MEI: crédito limitado ao IBS/CBS embutido no DAS.
+    // A referência CBS só é usada quando foi parametrizada explicitamente.
+    const referenciaCbsSimples = num(op.creditoCbsSimplesReferencia);
     const embutido = (atual ? atual.totalTributos : 0) * 1.0;
-    cbs = embutido * 0.35; ibs = embutido * 0.65;
-    obs.push('Fornecedor optante pelo Simples/MEI: crédito limitado ao valor de IBS/CBS embutido no DAS — bem inferior ao crédito de um fornecedor do regime regular.');
+    if (atual.regime === 'simples_nacional' && referenciaCbsSimples > 0) {
+      cbs = novo.valorSemImposto * referenciaCbsSimples;
+      obs.push('Crédito CBS estimado pela referência cadastrada do Simples (natureza: SIMULADO).');
+    } else {
+      cbs = embutido * 0.35; ibs = embutido * 0.65;
+      obs.push('Fornecedor optante pelo Simples/MEI: crédito limitado ao valor de IBS/CBS embutido no DAS — bem inferior ao crédito de um fornecedor do regime regular.');
+    }
   } else {
     cbs = novo.cbs; ibs = novo.ibs;
   }
@@ -279,7 +286,7 @@ function calcularOperacao(op) {
       aliqEspecifica: op.aliqEspecifica, regime: atual.regime,
       grauRepasse: op.grauRepasse, parametrosIVA, atual,
     });
-    const cred = creditoNovo(novo, atual.regime, regimeAdquirente, atual);
+    const cred = creditoNovo(novo, atual.regime, regimeAdquirente, atual, op);
     const custoEfetivo = r2(novo.precoFinal - cred.total);
     return {
       ...novo,
