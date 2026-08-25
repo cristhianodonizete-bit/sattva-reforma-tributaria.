@@ -52,10 +52,13 @@ function dadosPorCompetencia(empresaId, _execucaoId) {
 
 function materializar(empresaId, opcoes = {}) {
   let execucao = motorExec.ultimaExecucao(empresaId);
-  const ultimaMovimentacao = db.prepare("SELECT MAX(criado_em) AS data FROM movimentos WHERE empresa_id=?").get(empresaId)?.data;
-  const precisaExecutar = !execucao || Boolean(opcoes.forcar) || (ultimaMovimentacao && String(ultimaMovimentacao) > String(execucao.criado_em));
-  if (precisaExecutar) motorExec.executar(empresaId, { ano: 2027 });
-  execucao = motorExec.ultimaExecucao(empresaId);
+  // A consolidação não possui motor próprio: quando há mudança, pede ao
+  // orquestrador que atualize apenas as linhas invalidadas. A execução
+  // integral continua exclusiva do comando administrativo explícito.
+  // Perfil CBS é exclusivamente uma materialização. A atualização do motor é
+  // orquestrada antes por importação, alteração de regra ou fila incremental;
+  // esta leitura nunca pode recalcular a situação-base por conta própria.
+  const motorExecutado = false;
   if (!execucao) return { execucao: null, competencias: [] };
 
   const grupos = new Map();
@@ -100,7 +103,7 @@ function materializar(empresaId, opcoes = {}) {
     g.quantidade_documentos = g._documentos.size; g.motor_execucao_id = execucao.id;
     ins.run(...colunas.map((c) => g[c] ?? null)); saida.push(g);
   }} )();
-  return { execucao, competencias: saida, motorExecutado: precisaExecutar };
+  return { execucao, competencias: saida, motorExecutado };
 }
 
 function listar(empresaId) { return db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=? ORDER BY competencia DESC').all(empresaId); }

@@ -940,7 +940,9 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';
     // A execução é materializada antes da leitura. A cadeia apenas agrega
     // motor_resultados; ela não recalcula base, CBS, IBS ou crédito.
-    motorExec.executar(empresa.id, { ano: 2027 });
+    // Leitura operacional nunca refaz a empresa inteira. Só atualiza a
+    // fotografia se alguma dependência efetivamente mudou.
+    motorExec.reprocessarIncremental(empresa.id, { ano: 2027 });
     const cfg = prepararCadeia(empresa, tipo, req.query);
     const resultado = consolidacaoOficial.cadeia(empresa.id, tipo, { executarSeAusente: false });
     ok(res, { empresa, analise: resultado, pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', valor: Number(m.valor) || 0 })) });
@@ -953,7 +955,7 @@ router.get('/empresas/:id/impacto-final-cbs', async (req, res) => {
     await atualizarConfiguracaoDeCalculo();
     const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
-    motorExec.executar(empresa.id, { ano: 2027 });
+    motorExec.reprocessarIncremental(empresa.id, { ano: 2027 });
     ok(res, { empresa, ...consolidacaoOficial.impactoFinal(empresa.id, { executarSeAusente: false }) });
   } catch (e) { erro(res, e); }
 });
@@ -962,7 +964,7 @@ router.get('/empresas/:id/cenarios', async (req, res) => {
     await atualizarConfiguracaoDeCalculo();
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
-    motorExec.executar(empresa.id, { ano: 2027 });
+    motorExec.reprocessarIncremental(empresa.id, { ano: 2027 });
     const compras = consolidacaoOficial.cadeia(empresa.id, 'fornecedor', { executarSeAusente: false });
     const vendas = consolidacaoOficial.cadeia(empresa.id, 'cliente', { executarSeAusente: false });
     const c = compras.cenarios[0] || {}, v = vendas.cenarios[0] || {};
@@ -2478,6 +2480,10 @@ router.get('/config/processamentos-carteira/:id?', (req, res) => {
     const processamento = req.params.id ? processamentoCarteira.consultar(req.params.id) : processamentoCarteira.ultimo();
     ok(res, { processamento });
   } catch (e) { erro(res, e); }
+});
+router.post('/config/processamentos-carteira/jobs/:id/cancelar', async (req, res) => {
+  try { ok(res, await processamentoCarteira.cancelar(req.params.id)); }
+  catch (e) { erro(res, e); }
 });
 
 // Central de exceções: não cria cálculo novo. Mostra somente o que o motor

@@ -48,6 +48,7 @@ const COLUNAS_NOVAS = {
     tipo_credito: 'TEXT', modalidade_credito: 'TEXT', status_credito_determinacao: 'TEXT', regime_cbs_emitente: 'TEXT', regime_cbs_adquirente: 'TEXT',
     movimento_hash: 'TEXT', regra_version: 'TEXT', catalogo_version: 'TEXT', parceiro_version: 'TEXT', parametro_version: 'TEXT', motor_version: 'TEXT',
   },
+  jobs_carteira: { proxima_tentativa_em: 'TEXT', resultado: 'TEXT' },
   param_regimes: { credito_cbs_simples_referencia: 'REAL' },
   param_cfop: { prioridade: 'INTEGER DEFAULT 2' },
   param_aliquotas: { calcular_ibs: 'INTEGER DEFAULT 0' },
@@ -712,12 +713,17 @@ CREATE TABLE IF NOT EXISTS jobs_carteira (
   worker_id TEXT,
   heartbeat TEXT,
   erro TEXT,
+  proxima_tentativa_em TEXT,
+  resultado TEXT,
   criado_em TEXT DEFAULT (datetime('now','localtime')),
   iniciado_em TEXT,
   finalizado_em TEXT,
   UNIQUE(processamento_id, empresa_id, competencia, tipo_job)
 );
 CREATE INDEX IF NOT EXISTS ix_jobs_carteira_status ON jobs_carteira(status, prioridade DESC, criado_em);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_jobs_carteira_ativo
+  ON jobs_carteira(empresa_id, competencia, tipo_job)
+  WHERE status IN ('PENDENTE','PROCESSANDO');
 
 -- Processamento de carteira: persistimos o cabeçalho e cada empresa para que
 -- a operação seja acompanhável e retomável, sem abrir 600 projetos um a um.

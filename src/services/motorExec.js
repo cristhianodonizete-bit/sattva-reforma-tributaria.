@@ -43,6 +43,45 @@ const hashParceiro = (p) => hash({
   uf: p?.uf_parceiro ?? p?.uf ?? null,
 });
 
+// Assinatura das dependências realmente usadas por uma operação. A versão
+// global continua disponível para auditoria, mas não serve como gatilho da
+// rotina incremental: uma premissa exclusiva do Simples não deve refazer a
+// carteira de fornecedor regular.
+function versoesDaOperacao(movimento, parceiro) {
+  const p = regras.tudo();
+  const regime = parceiro?.regime_cadastro ?? parceiro?.regime ?? movimento.regime ?? 'indeterminado';
+  const cfop = String(movimento.cfop || '').replace(/\D/g, '');
+  const regrasCfop = (p.cfop || []).filter((x) => cfop && cfop.startsWith(String(x.prefixo || '').replace(/\D/g, '')));
+  const regimeConfigurado = (p.regimes || []).find((x) => x.chave === regime) || null;
+  const reducaoConfigurada = (p.reducoes || []).find((x) => x.chave === (movimento.reducao || 'integral')) || null;
+  const regra = {
+    tributos: p.tributos,
+    reducao: reducaoConfigurada,
+    cfop: regrasCfop,
+    // A regra do regime da contraparte é a única regra de regime usada nesta
+    // operação; os demais regimes não devem invalidá-la.
+    regime: regimeConfigurado,
+  };
+  const parametro = {
+    // CBS/IBS afetam toda operação, portanto a versão é compartilhada quando
+    // essa tabela muda. Parâmetros do Simples só entram em linhas do Simples.
+    aliquotas: p.aliquotas,
+    simples: ['simples_nacional', 'mei'].includes(regime) ? p.simples : null,
+    credito_simples: regime === 'simples_nacional'
+      ? ((p.regimes || []).find((x) => x.chave === 'simples_nacional')?.creditoCbsSimplesReferencia ?? null) : null,
+  };
+  return {
+    regra_version: hash(regra),
+    parametro_version: hash(parametro),
+    // A classificação efetiva (NCM/NBS/cClassTrib/redução) integra o hash do
+    // movimento. Assim catálogo sem reflexo naquela classificação não invalida
+    // a operação, enquanto uma reclassificação efetiva a invalida.
+    catalogo_version: hash({ ncm: movimento.ncm, nbs: movimento.nbs, cclasstrib: movimento.cclasstrib, reducao: movimento.reducao, origem: movimento.classificacao_origem }),
+    parceiro_version: hashParceiro(parceiro),
+    motor_version: MOTOR_VERSION,
+  };
+}
+
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
 const chaveReferenciaServico = (m) => {
@@ -364,7 +403,6 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
     const ids = linhas.map((x) => x.movimento_id).filter(Boolean);
     if (ids.length) db.prepare(`DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN (${ids.map(() => '?').join(',')})`).run(empresaId, ...ids);
   } else db.prepare('DELETE FROM motor_resultados WHERE empresa_id = ?').run(empresaId);
-  const versoes = versoesAtuais();
   const ins = db.prepare(`INSERT INTO motor_resultados (empresa_id, movimento_id, execucao_id, sentido, ano,
     status_classificacao, status_credito, natureza, preco_atual, base_economica, ibs, cbs,
     credito_ibs, credito_cbs, tipo_credito, modalidade_credito, status_credito_determinacao, movimento_hash, regra_version, catalogo_version, parceiro_version, parametro_version, motor_version, regime_cbs_emitente, regime_cbs_adquirente, preco_projetado, custo_liquido, cst, cclasstrib, tratamento,
@@ -374,6 +412,7 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
     for (const x of linhas) {
       const movimento = db.prepare('SELECT * FROM movimentos WHERE id=?').get(x.movimento_id) || {};
       const parceiro = db.prepare('SELECT * FROM parceiros WHERE empresa_id=? AND cnpj=? AND tipo=?').get(empresaId, movimento.inscr_federal || '', movimento.tipo || '');
+      const versoes = versoesDaOperacao(movimento, parceiro);
       ins.run(empresaId, x.movimento_id, id, x.sentido, ano,
         x.classificacao.status, x.credito.status, x.natureza,
         x.precoAtual, x.baseEconomica, x.ibs, x.cbs, x.creditoIbs, x.creditoCbs, x.credito.tipoCredito || null, x.credito.modalidadeCredito || null, x.credito.statusDeterminacao || null,
@@ -485,7 +524,6 @@ function resultadoMaterializado(empresa, ano) {
 
 /** Identifica apenas operações cuja entrada ou dependência mudou. */
 function pendentesIncrementais(empresaId, opcoes = {}) {
-  const versoes = versoesAtuais();
   const todos = db.prepare(`SELECT m.*, p.regime AS regime_cadastro, p.perfil_economico AS perfil_cadastro,
     p.descricao AS nome_cadastro, p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro
     FROM movimentos m LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo AND p.cnpj=m.inscr_federal
@@ -494,12 +532,13 @@ function pendentesIncrementais(empresaId, opcoes = {}) {
     FROM motor_resultados WHERE empresa_id=?`).all(empresaId).map((x) => [x.movimento_id, x]));
   return todos.filter((m) => {
     const anterior = atuais.get(m.id);
+    const versoes = versoesDaOperacao(m, m);
     if (!anterior) return true;
     if (opcoes.forcar) return true;
     return anterior.movimento_hash !== hashMovimento(m)
       || anterior.regra_version !== versoes.regra_version
       || anterior.catalogo_version !== versoes.catalogo_version
-      || anterior.parceiro_version !== hashParceiro(m)
+      || anterior.parceiro_version !== versoes.parceiro_version
       || anterior.parametro_version !== versoes.parametro_version
       || anterior.motor_version !== versoes.motor_version;
   }).map((m) => m.id);
@@ -522,4 +561,4 @@ function reprocessarIncremental(empresaId, opcoes = {}) {
   return { empresa_id: empresaId, reprocessados: movimentoIds.length, removidos, status: 'CONCLUIDO', resultado };
 }
 
-module.exports = { executar, reprocessarIncremental, pendentesIncrementais, porFornecedor, porCliente, ultimaExecucao, resultados, normalizar, hashMovimento, versoesAtuais };
+module.exports = { executar, reprocessarIncremental, pendentesIncrementais, porFornecedor, porCliente, ultimaExecucao, resultados, normalizar, hashMovimento, versoesAtuais, versoesDaOperacao };
