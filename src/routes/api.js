@@ -1724,8 +1724,9 @@ router.get('/questor/log', (_req, res) => ok(res, {
 // ===========================================================================
 // RELATÓRIOS
 // ===========================================================================
-router.get('/empresas/:id/relatorio/:tipo', (req, res) => {
+router.get('/empresas/:id/relatorio/:tipo', async (req, res) => {
   try {
+    await atualizarConfiguracaoDeCalculo();
     const { buffer, nome } = relatorio.gerar(req.params.id, req.params.tipo, req.query);
     res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition', `attachment; filename="${nome}"`);
