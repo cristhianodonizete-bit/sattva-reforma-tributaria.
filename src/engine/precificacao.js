@@ -28,7 +28,7 @@ const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
  *   perfilCliente ..... regime do cliente (define se ele credita)
  */
 function analisarItem(item) {
-  const ano = Number(item.ano) || 2033;
+  const ano = Number(item.ano) || 2027;
   const tipo = item.tipo === 'servico' ? 'servico' : 'mercadoria';
   const regime = item.regime || 'lucro_real';
   const regimeFornecedor = item.regimeFornecedor || regime;

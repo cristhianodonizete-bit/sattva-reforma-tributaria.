@@ -36,7 +36,7 @@ function calcularVendaCbs(m, regimeEmpresa, regimeCliente, cfg) {
   const usaDocumento = pisDocumento > 0;
   const pisCofins = usaDocumento ? pisDocumento : valor * aliquotaReferencia;
   const baseEconomica = Math.max(valor - pisCofins, 0);
-  const anos = (cfg.anos && cfg.anos.length ? cfg.anos : [2033]).map(Number);
+  const anos = (cfg.anos && cfg.anos.length ? cfg.anos : [2027]).map(Number);
   const projecao = anos.map((ano) => {
     const p = parametrosDoCenario(cfg, ano);
     const cbsAliq = num(p.cbs);

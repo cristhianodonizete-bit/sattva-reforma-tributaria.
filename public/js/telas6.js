@@ -117,7 +117,7 @@ function aliquotas(box, d) {
     ${aud.erro_supabase ? `<div class="erro"><b>Erro ao consultar Supabase:</b> ${A.esc(aud.erro_supabase)}</div>` : ''}
   </div></details>`;
   if (!ibsAtivo) {
-    const a = d.aliquotas.find((x) => Number(x.ano) === 2033) || d.aliquotas[d.aliquotas.length - 1];
+    const a = d.aliquotas.find((x) => Number(x.ano) === 2027) || d.aliquotas[0];
     box.innerHTML = `${auditoria}<div class="aviso bom"><b>Análise CBS</b> A projeção não é anual nesta etapa. A CBS abaixo é a única referência do motor.</div>
       <div class="cartao"><h2>Configuração da projeção CBS</h2><div class="grade g2">
         ${A.campo('cbs_unica','Alíquota CBS de referência',a.cbs,'number','step="0.0001"')}

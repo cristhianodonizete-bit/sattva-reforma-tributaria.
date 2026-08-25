@@ -145,8 +145,8 @@ function creditoAtual(atual, regimeAdquirente) {
  *   atual ............. objeto do grossDown (para o cenário sem repasse)
  */
 function aplicarIVA(cfg) {
-  const ano = Number(cfg.ano) || 2033;
-  const cronPadrao = P.CRONOGRAMA[ano] || P.CRONOGRAMA[2033];
+  const ano = Number(cfg.ano) || 2027;
+  const cronPadrao = P.CRONOGRAMA[ano] || P.CRONOGRAMA[2027];
   // As telas de cadeia também precisam obedecer às regras salvas no projeto.
   // O cronograma do arquivo é somente a semente/fallback da calculadora avulsa.
   const parametrizado = cfg.parametrosIVA;
@@ -234,7 +234,7 @@ function aplicarIVA(cfg) {
 function creditoNovo(novo, regimeFornecedor, regimeAdquirente, atual) {
   const adq = P.REGIMES[regimeAdquirente] || P.REGIMES.lucro_real;
   const forn = P.REGIMES[regimeFornecedor] || P.REGIMES.lucro_real;
-  const cron = P.CRONOGRAMA[novo.ano] || P.CRONOGRAMA[2033];
+  const cron = P.CRONOGRAMA[novo.ano] || P.CRONOGRAMA[2027];
 
   let cbs = 0, ibs = 0, residual = 0, obs = [];
 

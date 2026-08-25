@@ -51,8 +51,8 @@ function prepararCadeia(empresaId, tipo) {
   }
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
   const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
-  const referencia = aliquotas.find((a) => Number(a.ano) === 2033) || aliquotas[aliquotas.length - 1];
-  return { movimentos, anos: ibsAtivo ? aliquotas.map((a) => Number(a.ano)) : [Number(referencia?.ano || 2033)],
+  const referencia = aliquotas.find((a) => Number(a.ano) === 2027) || aliquotas[0];
+  return { movimentos, anos: ibsAtivo ? aliquotas.map((a) => Number(a.ano)) : [Number(referencia?.ano || 2027)],
     parametrosIVA: ibsAtivo ? Object.fromEntries(aliquotas.map((a) => [Number(a.ano), a])) : referencia };
 }
 
@@ -67,7 +67,7 @@ function gerar(empresaId, tipo, query = {}) {
   if (!empresa) throw new Error('Empresa não encontrada');
   const wb = XLSX.utils.book_new();
   const repasse = query.repasse !== undefined ? Number(query.repasse) : 1;
-  const referenciaCbs = db.prepare('SELECT * FROM param_aliquotas WHERE ano=2033').get() || {};
+  const referenciaCbs = db.prepare('SELECT * FROM param_aliquotas WHERE ano=2027').get() || {};
 
   const capa = [
     { Campo: 'Empresa', Valor: empresa.razao_social },

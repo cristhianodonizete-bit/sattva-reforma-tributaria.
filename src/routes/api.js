@@ -360,7 +360,9 @@ router.get('/parametros', async (_req, res) => {
     }
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
   const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
-  const referencia = aliquotas.find((a) => Number(a.ano) === 2033) || aliquotas[aliquotas.length - 1] || {};
+  // Enquanto a análise for somente CBS, a referência é 2027. A transição
+  // anual permanece exclusiva da etapa de IBS.
+  const referencia = aliquotas.find((a) => Number(a.ano) === 2027) || aliquotas[0] || {};
   const cronograma = Object.fromEntries(aliquotas.map((a) => [a.ano, {
     cbs: Number(a.cbs) || 0, ibs: Number(a.calcular_ibs) === 1 ? (Number(a.ibs) || 0) : 0,
     fatorIcmsIss: Number(a.fator_icms_iss) || 0, fatorPisCofins: Number(a.fator_pis_cofins) || 0,
@@ -521,7 +523,7 @@ function analisarPerfil(empresa, linhas) {
 
   const aliquotasProjeto = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
   const ibsAtivo = aliquotasProjeto.some((a) => Number(a.calcular_ibs) === 1);
-  const referenciaCbs = aliquotasProjeto.find((a) => Number(a.ano) === 2033) || aliquotasProjeto[aliquotasProjeto.length - 1];
+  const referenciaCbs = aliquotasProjeto.find((a) => Number(a.ano) === 2027) || aliquotasProjeto[0];
   const anos = ibsAtivo ? aliquotasProjeto.map((a) => Number(a.ano)) : [Number(referenciaCbs?.ano || 2027)];
   const projecao = anos.map((ano) => {
     const cron = aliquotasProjeto.find((a) => Number(a.ano) === Number(ano)) || referenciaCbs || {};
@@ -768,9 +770,9 @@ function prepararCadeia(empresa, tipo, query = {}) {
   }
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
   const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
-  const referencia = aliquotas.find((a) => Number(a.ano) === 2033) || aliquotas[aliquotas.length - 1];
+  const referencia = aliquotas.find((a) => Number(a.ano) === 2027) || aliquotas[0];
   const anos = query.anos ? String(query.anos).split(',').map(Number)
-    : (ibsAtivo ? aliquotas.map((a) => Number(a.ano)) : [Number(referencia?.ano || 2033)]);
+    : (ibsAtivo ? aliquotas.map((a) => Number(a.ano)) : [Number(referencia?.ano || 2027)]);
   return { movimentos, anos, parametrosIVA: ibsAtivo ? Object.fromEntries(aliquotas.map((a) => [Number(a.ano), a])) : referencia,
     pendenciasReferencias: query.pendenciasReferencias || [] };
 }
@@ -779,7 +781,7 @@ function referenciaIvaDoProjeto() {
   const linhas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
   const ibsAtivo = linhas.some((a) => Number(a.calcular_ibs) === 1);
   if (ibsAtivo) return Object.fromEntries(linhas.map((a) => [Number(a.ano), a]));
-  return linhas.find((a) => Number(a.ano) === 2033) || linhas[linhas.length - 1];
+  return linhas.find((a) => Number(a.ano) === 2027) || linhas[0];
 }
 
 function referenciaFiscalPrecificacao(empresaId, item, exigir = true) {
@@ -2354,7 +2356,7 @@ router.get('/config/regras', async (_req, res) => {
     // fonte compartilhada antes de montar o formulário, nunca um cache antigo.
     if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas']);
     regras.invalidar();
-    const local = db.prepare('SELECT ano,cbs,ibs,calcular_ibs,atualizado_em FROM param_aliquotas WHERE ano=2033').get() || null;
+    const local = db.prepare('SELECT ano,cbs,ibs,calcular_ibs,atualizado_em FROM param_aliquotas WHERE ano=2027').get() || null;
     const auditoria = { cache_render: local, supabase_configurado: supabase.configurado(),
       modo_operacao_compartilhada: process.env.SUPABASE_OPERACAO_COMPARTILHADA !== 'false',
       commit_render: process.env.RENDER_GIT_COMMIT || null, fonte_supabase: null, erro_supabase: null };
@@ -2362,7 +2364,7 @@ router.get('/config/regras', async (_req, res) => {
       try {
         const { data, error } = await supabase.admin().from('parametros_operacionais').select('dados').eq('tabela', 'configuracao').eq('chave', 'param_aliquotas').maybeSingle();
         if (error) throw error;
-        const referencia = (data?.dados || []).find((x) => Number(x.ano) === 2033) || null;
+        const referencia = (data?.dados || []).find((x) => Number(x.ano) === 2027) || null;
         auditoria.fonte_supabase = referencia ? { ano: referencia.ano, cbs: referencia.cbs, ibs: referencia.ibs, calcular_ibs: referencia.calcular_ibs } : null;
       } catch (e) { auditoria.erro_supabase = e.message; }
     }
