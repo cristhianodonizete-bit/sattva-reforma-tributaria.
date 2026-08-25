@@ -2396,8 +2396,15 @@ router.get('/config/regras', async (_req, res) => {
  * calculam sob demanda com as regras atuais; Classificações e Precificação
  * guardam resultado no banco e precisam desta atualização explícita.
  */
-router.post('/config/recalcular', (_req, res) => {
+router.post('/config/recalcular', async (_req, res) => {
   try {
+    // Um recálculo precisa sempre partir da fonte compartilhada das regras.
+    // Sem esta carga, uma instância do Render pode usar o cache iniciado antes
+    // da alteração do crédito CBS do Simples.
+    if (supabase.configurado()) {
+      await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_regimes','param_aliquotas','param_regras','param_reducoes','param_simples']);
+      regras.invalidar();
+    }
     const empresas = db.prepare('SELECT * FROM empresas ORDER BY id').all();
     const itensPreco = db.prepare('SELECT * FROM itens_precificacao WHERE empresa_id = ?').all;
     const atualizarPreco = db.prepare('UPDATE itens_precificacao SET resultado = ? WHERE id = ?');
