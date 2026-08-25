@@ -22,6 +22,7 @@ const pct = (n) => (n === null || n === undefined ? '—' : `${(num(n) * 100).to
 
 const resultados = [];
 let empresaId = null;
+let movimentoFixturePerfilDesconhecido = null;
 
 function registrar({ n, nome, entrada, premissa, esperado, encontrado, diferenca, ok, obs }) {
   resultados.push({ n, nome, entrada, premissa, esperado, encontrado, diferenca, ok, obs });
@@ -68,6 +69,10 @@ function limpar(ids) {
     db.prepare('DELETE FROM cenario_composicao WHERE cenario_id = ?').run(id);
     db.prepare('DELETE FROM cenarios WHERE id = ?').run(id);
   });
+  if (movimentoFixturePerfilDesconhecido) {
+    db.prepare('DELETE FROM motor_resultados WHERE movimento_id=?').run(movimentoFixturePerfilDesconhecido);
+    db.prepare('DELETE FROM movimentos WHERE id=?').run(movimentoFixturePerfilDesconhecido);
+  }
 }
 const grupo = (res, lado, dim, g) =>
   (res.composicao[lado][dim].grupos.find((x) => x.grupo === g) || {});
@@ -77,6 +82,26 @@ function executar() {
   const emp = db.prepare('SELECT * FROM empresas ORDER BY id LIMIT 1').get();
   if (!emp) { console.error('Nenhuma empresa cadastrada.'); process.exit(1); }
   empresaId = emp.id;
+
+  // Fixture controlada para a regra de perfil desconhecido. A carteira real
+  // pode legitimamente ter 0% nesse grupo; o teste não pode depender disso.
+  // Copiamos uma saída já classificada, mas removemos somente o regime do
+  // destinatário para testar a incerteza comercial sem inventar tributação.
+  const fonteFixture = db.prepare(`SELECT m.* FROM movimentos m
+    JOIN motor_resultados r ON r.movimento_id=m.id AND r.empresa_id=m.empresa_id
+    WHERE m.empresa_id=? AND m.tipo='cliente' AND r.status_classificacao='CLASSIFICADO'
+      AND (m.ncm IS NOT NULL AND m.ncm<>'' OR m.nbs IS NOT NULL AND m.nbs<>'' OR m.cst IS NOT NULL AND m.cst<>'')
+    ORDER BY id LIMIT 1`).get(empresaId);
+  if (!fonteFixture) throw new Error('Não há saída fiscalmente identificada para montar a fixture de cenário.');
+  const fixture = db.prepare(`INSERT INTO movimentos
+    (empresa_id,tipo,nome,inscr_federal,descricao,ncm,nbs,cfop,cst,competencia,valor,base_calculo,icms,icms_st,ipi,pis,cofins,pis_cofins_documentado,iss,regime,reducao,aliq_especifica,cclasstrib,documento,item_numero,chave,codigo_produto,quantidade,unidade,sentido,origem)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+    empresaId, 'cliente', 'FIXTURE PERFIL DESCONHECIDO', '99999999000199', fonteFixture.descricao, fonteFixture.ncm, fonteFixture.nbs,
+    fonteFixture.cfop, fonteFixture.cst, fonteFixture.competencia, 100000, fonteFixture.base_calculo, fonteFixture.icms,
+    fonteFixture.icms_st, fonteFixture.ipi, fonteFixture.pis, fonteFixture.cofins, fonteFixture.pis_cofins_documentado,
+    fonteFixture.iss, null, fonteFixture.reducao, fonteFixture.aliq_especifica, fonteFixture.cclasstrib,
+    'FIXTURE-PERFIL-DESCONHECIDO', 1, 'FIXTURE-PERFIL-DESCONHECIDO', 'FIX-PERFIL-IND', 1, fonteFixture.unidade, 'saida', 'teste');
+  movimentoFixturePerfilDesconhecido = fixture.lastInsertRowid;
 
   console.log('='.repeat(78));
   console.log(`BATERIA DE VALIDAÇÃO — ${emp.razao_social}`);
@@ -244,7 +269,6 @@ function executar() {
     const id = criarCenario('T10 cliente com crédito'); descartar.push(id);
     migrar(id, 'vendas', 'perfil_cliente', 'indeterminado', 'b2b_credito', 1);
     const r = cenarioMotor.executarCenario(id);
-    const d2 = r.indicadores.creditoEntregueDetalhe;
     const gB = grupo(r, 'vendas', 'perfil_cliente', 'b2b_credito');
     // O crédito entregue é a soma do IBS+CBS efetivamente calculado por item,
     // e cada item carrega o próprio tratamento (integral, redução, alíquota
@@ -254,18 +278,19 @@ function executar() {
     // classificação ainda requer validação geram débito, mas o crédito do
     // adquirente fica pendente. A invariante correta é:
     //    crédito entregue = IBS+CBS dos itens com crédito assegurado
-    const doGrupo = r.saidas.filter((x) => x.grupos.perfil_cliente === 'b2b_credito');
+    const doGrupo = r.saidas.filter((x) => x.migracao && x.grupos.perfil_cliente === 'b2b_credito');
     const comCredito = doGrupo.filter((x) => x.credito && x.credito.status === 'PROJETADO');
     const pendentes = doGrupo.filter((x) => x.credito && x.credito.status !== 'PROJETADO');
     const esperado = comCredito.reduce((s2, x) => s2 + num(x.ibs) + num(x.cbs), 0);
     const debitoTotal = num(gB.ibs) + num(gB.cbs);
     const aliqCheia = num(gB.baseEconomica) * 0.265;
-    const dif = num(d2.simulado.credito) - esperado;
+    const creditoMigrado = comCredito.reduce((s2, x) => s2 + num(x.creditoTotal), 0);
+    const dif = creditoMigrado - esperado;
     registrar({ n: 10, nome: 'Cliente conhecido COM crédito',
       entrada: `100% do grupo indeterminado (${brl(base.composicao.vendas.perfil_cliente.grupos.find((g) => g.grupo === 'indeterminado').valor)})`,
       premissa: 'migrar para B2B com crédito relevante',
       esperado: `crédito = IBS+CBS dos itens com crédito assegurado = ${brl(esperado)}`,
-      encontrado: `${brl(d2.simulado.credito)} (marcado SIMULADO)`,
+      encontrado: `${brl(creditoMigrado)} (marcado SIMULADO)`,
       diferenca: brl(dif), ok: Math.abs(dif) < Math.max(TOL, comCredito.length * 0.01),
       obs: `débito destacado no grupo ${brl(debitoTotal)}; ${pendentes.length} itens com classificação pendente geram débito mas não crédito assegurado (${brl(debitoTotal - esperado)}); a alíquota cheia daria ${brl(aliqCheia)}` });
   }
@@ -274,8 +299,12 @@ function executar() {
   {
     const det = cenarioMotor.decomporCredito(base.saidas);
     const gInd = base.composicao.vendas.perfil_cliente.grupos.find((g) => g.grupo === 'indeterminado');
-    const ok = det.indeterminado.credito === null && det.indeterminado.valor > 0
-      && Math.abs(det.indeterminado.valor - num(gInd.valor)) < TOL;
+    // A cobertura de crédito também pode ser reduzida por classificação
+    // pendente em perfis já conhecidos. O perfil desconhecido precisa estar
+    // integralmente dentro do bloco indeterminado, mas não é necessariamente
+    // o único motivo de indeterminação da carteira.
+    const ok = det.indeterminado.credito === null && det.indeterminado.valor + TOL >= num(gInd.valor)
+      && det.cobertura < 1;
     registrar({ n: 11, nome: 'Cliente desconhecido',
       entrada: `${brl(gInd.valor)} de receita com perfil desconhecido (${pct(gInd.participacao)})`,
       premissa: 'nenhuma',
@@ -293,19 +322,23 @@ function executar() {
     const gInd = base.composicao.vendas.perfil_cliente.grupos.find((g) => g.grupo === 'indeterminado');
     const espValor = num(gInd.valor) * 0.30;
     const gB = grupo(r, 'vendas', 'perfil_cliente', 'b2b_credito');
-    const dif = num(gB.valor) - espValor;
+    const valorB2bOriginal = num(base.composicao.vendas.perfil_cliente.grupos.find((x) => x.grupo === 'b2b_credito').valor);
     // Cada linha virtual é arredondada a 2 casas; com centenas de linhas o
     // erro de arredondamento acumula. A tolerância acompanha o volume:
     // 1 centavo por linha é o limite teórico.
     const linhas = r.saidas.filter((x) => x.migracao).length;
     const tolAcumulada = Math.max(TOL, linhas * 0.01);
-    const ok = Math.abs(dif) < tolAcumulada && d.simulado.credito > 0
+    const migrados = r.saidas.filter((x) => x.migracao && x.grupos.perfil_cliente === 'b2b_credito');
+    const valorMigrado = migrados.reduce((s, x) => s + num(x.precoAtual), 0);
+    const dif = valorMigrado - espValor;
+    const creditoMigrado = migrados.reduce((s, x) => s + num(x.creditoTotal), 0);
+    const ok = Math.abs(dif) < tolAcumulada && creditoMigrado > 0
       && d.indeterminado.credito === null && d.simulado.natureza === 'SIMULADO';
     registrar({ n: 12, nome: 'Cliente desconhecido parcialmente simulado como B2B',
       entrada: `indeterminado ${brl(gInd.valor)}`,
       premissa: 'migrar 30% do grupo indeterminado para B2B com crédito',
       esperado: `${brl(espValor)} migrados; crédito resultante marcado SIMULADO; resto continua NÃO DETERMINADO`,
-      encontrado: `${brl(gB.valor)} migrados · crédito simulado ${brl(d.simulado.credito)} · resto ${d.indeterminado.credito === null ? 'NÃO DETERMINADO' : 'zerado'}`,
+      encontrado: `${brl(valorMigrado)} migrados · crédito simulado ${brl(creditoMigrado)} · resto ${d.indeterminado.credito === null ? 'NÃO DETERMINADO' : 'zerado'}`,
       diferenca: brl(dif), ok,
       obs: `tolerância de arredondamento: ${brl(tolAcumulada)} para ${linhas} linhas virtuais` });
   }

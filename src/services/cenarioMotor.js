@@ -313,12 +313,21 @@ function recalcular(base, lado, itensExpandidos, premissas) {
         natureza: 'SIMULADO', justificativa: 'variação de preço bruto informada como premissa comercial' };
     }
 
+    // Sem premissa de perfil, o cenário preserva exatamente o destinatário
+    // determinado no cenário-base. Reconsultar apenas pelo CNPJ/regime aqui
+    // perderia a classificação já disponível na operação e transformaria uma
+    // carteira conhecida em "indeterminada".
+    const perfilAlterado = lado === 'vendas' && Boolean((mig && DESTINO_PARA_PERFIL[mig.para]) || over.regime);
+    const destinatarioCenario = lado === 'vendas'
+      ? (!perfilAlterado && item.destinatario
+        ? item.destinatario
+        : motor.classificarDestinatario({ regime: regimeContraparte, cnpj: item.cnpj }))
+      : null;
+
     const proj = motor.projetarItem(itemAjustado, {
       empresa, sentido, ano,
       regimeContraparte,
-      perfilDestinatario: lado === 'vendas'
-        ? motor.classificarDestinatario({ regime: regimeContraparte, cnpj: item.cnpj }).perfil
-        : undefined,
+      perfilDestinatario: destinatarioCenario ? destinatarioCenario.perfil : undefined,
       simplesEmitente,
       hibrido: over.hibrido || false,
       grauRepasse: over.grau_repasse,
@@ -329,7 +338,7 @@ function recalcular(base, lado, itensExpandidos, premissas) {
     const escalado = escalar(proj, f);
 
     if (lado === 'vendas') {
-      const d = motor.classificarDestinatario({ regime: regimeContraparte, cnpj: item.cnpj });
+      const d = destinatarioCenario;
       escalado.destinatario = d;
       escalado.sensibilidade = motor.sensibilidadeCredito({
         perfil: d.perfil, credita: d.credita, credito: proj.credito, projecao: proj });
