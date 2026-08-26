@@ -190,24 +190,17 @@ function projetarItem(item, ctx) {
   let ibs = 0, cbs = 0, natureza = 'CALCULADO';
 
   // A referência CBS do Simples é uma premissa operacional explícita para
-  // compras. Ela tem precedência sobre qualquer faixa/repartição eventualmente
-  // disponível: a carteira não será mapeada fornecedor a fornecedor pelo DAS.
-  // Não confundir com o fallback de PIS/COFINS atual, que é usado apenas na
-  // reconstrução da carga vigente.
+  // compras. Ela não substitui um percentual efetivo que esteja documentado
+  // ou determinado para a operação. Não confundir com o fallback de
+  // PIS/COFINS atual, que é usado apenas na reconstrução da carga vigente.
   const referenciaCreditoSimples = sentido === 'entrada' && regimeEmitente === 'simples_nacional'
     ? Number(regras.regime(regimeEmitente)?.creditoCbsSimplesReferencia) || 0 : 0;
   if (emitenteNoDas) {
-    if (referenciaCreditoSimples > 0) {
-      // A CBS dentro do DAS não é identificável fornecedor a fornecedor nesta
-      // análise. A parcela transferível é estimada exclusivamente pela
-      // premissa CBS configurada (ex.: 2,5%) sobre a base econômica.
-      cbs = rec.baseEconomica * referenciaCreditoSimples;
-      natureza = 'SIMULADO';
-    } else if (simplesInfo && simplesInfo.aliquotaEfetiva) {
+    if (simplesInfo && simplesInfo.aliquotaEfetiva) {
       // parcela do DAS que corresponde a IBS (ICMS/ISS) e CBS (PIS/COFINS)
       const rep = simplesInfo.reparticao || {};
-      cbs = rec.precoMercadoria * simplesInfo.aliquotaEfetiva * (num(rep.pis) + num(rep.cofins));
-      ibs = rec.precoMercadoria * simplesInfo.aliquotaEfetiva * num(rep.icms_iss);
+      cbs = rec.baseEconomica * simplesInfo.aliquotaEfetiva * (num(rep.pis) + num(rep.cofins));
+      ibs = rec.baseEconomica * simplesInfo.aliquotaEfetiva * num(rep.icms_iss);
       natureza = simplesInfo.origem === 'faturamento conhecido' ? 'CALCULADO' : 'SIMULADO';
     } else if (referenciaCreditoSimples > 0) {
       cbs = rec.baseEconomica * referenciaCreditoSimples;
@@ -225,7 +218,14 @@ function projetarItem(item, ctx) {
   if (Number(aliq.parametros.calcular_ibs) !== 1) ibs = 0;
 
   // ---------- 5. CRÉDITO ----------
-  const cred = avaliarCredito({ regimeAdquirente, regimeFornecedor: regimeEmitente, cls, sentido, simplesFornecedorConhecido: !!simplesInfo, simplesFornecedorReferencia: referenciaCreditoSimples });
+  const percentualEfetivoSimples = !!(simplesInfo && simplesInfo.aliquotaEfetiva);
+  const cred = avaliarCredito({
+    regimeAdquirente, regimeFornecedor: regimeEmitente, cls, sentido,
+    simplesFornecedorConhecido: percentualEfetivoSimples,
+    // O status de crédito deve registrar DETERMINADO quando a operação traz o
+    // percentual efetivo. A premissa só é enviada quando foi realmente usada.
+    simplesFornecedorReferencia: percentualEfetivoSimples ? null : referenciaCreditoSimples,
+  });
   let creditoIbs = 0, creditoCbs = 0;
   if (['PROJETADO', 'PROJETADO_LIMITADO'].includes(cred.status)) { creditoIbs = ibs; creditoCbs = cbs; }
   // CREDITO_PRESUMIDO fica em zero até que a hipótese seja informada como

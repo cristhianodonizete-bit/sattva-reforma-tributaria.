@@ -434,7 +434,7 @@ async function telaCadeia(el, tipo) {
       <p class="desc">${eForn ? 'Compra atual − tributos atuais embutidos = base econômica + IBS + CBS = compra projetada − compra atual = impacto da compra.' : 'Venda atual − tributos atuais identificados = base econômica + IBS + CBS = venda projetada − venda atual = impacto da venda.'} CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
       ${A.tabela([
         { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: () => A.moeda(t.valor) },
-        ...(!eForn ? [{ t: '(-) PIS/COFINS atual', num: true, r: () => A.moeda(analise.regimes.reduce((s, r) => s + (Number(r.pisCofinsAtual) || 0), 0)) }] : []),
+        ...(!eForn ? [{ t: 'Tributos atuais retirados', num: true, r: () => A.moeda(analise.regimes.reduce((s, r) => s + (Number(r.pisCofinsAtual) || 0), 0)) }] : []),
         { t: 'Base econômica', num: true, r: () => A.moeda(ultimo.baseEconomica || 0) },
         ...(ibsAtivo ? [{ t: 'IBS projetado', num: true, r: () => A.moeda(ultimo.ibs || 0) }] : []),
         { t: 'Alíquota CBS', num: true, r: () => A.pct(cbsReferencia) },
@@ -468,7 +468,7 @@ async function telaCadeia(el, tipo) {
           { t: 'Valor', num: true, r: (r) => A.moeda(r.valor) },
           { t: 'Part.', num: true, r: (r) => A.pct(r.representatividade, 1) },
           ...(!eForn ? [
-            { t: 'Venda sem PIS/COFINS', num: true, r: (r) => A.moeda(r.baseEconomica) },
+            { t: 'Base econômica da venda', num: true, r: (r) => A.moeda(r.baseEconomica) },
             { t: 'PIS/COFINS atual', num: true, r: (r) => A.moeda(r.pisCofinsAtual) },
           ] : []),
           ...(ibsAtivo ? [{ t: eForn ? 'IBS da compra' : 'IBS da venda', num: true, r: (r) => A.moeda(r.ibs) }] : []),
@@ -525,6 +525,10 @@ async function telaCadeia(el, tipo) {
         { t: 'Total retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.total) },
         { t: 'Base econômica', num: true, r: (d) => A.moeda(d.valorSemImposto) },
         { t: 'Origem', r: (d) => `<span class="tag ${String(d.origemBaseEconomica).toUpperCase() === 'DOCUMENTO' ? 'c' : 'a'}">${A.esc(d.origemBaseEconomica || 'a validar')}</span>` },
+        { t: 'Memória por tributo', r: (d) => ['pis', 'cofins', 'iss', 'icms'].map((k) => {
+          const m = d.memoriaTributos?.[k];
+          return m ? `${k.toUpperCase()}: ${A.esc(m.origem || 'INDETERMINADO')} · ${A.esc(m.regra || m.status || '')}` : '';
+        }).filter(Boolean).join('<br>') },
         { t: 'Motivo / regra usada', r: (d) => `<span class="mini">${A.esc(d.motivoBaseEconomica || d.formulaBaseEconomica)}</span>` },
         { t: 'Natureza', r: (d) => `<span class="tag ${String(d.natureza).toUpperCase() === 'REAL' ? 'c' : String(d.natureza).toUpperCase() === 'SIMULADO' ? 'a' : 'n'}">${A.esc(d.natureza || 'INDETERMINADO')}</span>` },
         ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (d) => A.moeda(d.ibs) }] : []),

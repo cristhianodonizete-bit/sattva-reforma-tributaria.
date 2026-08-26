@@ -7,6 +7,14 @@
  * base + CBS = venda projetada; venda projetada - venda atual = impacto.
  */
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+// Este teste é de compatibilidade da calculadora legada. Isola a sua base
+// para que uma configuração compartilhada de projeto não altere a fixture.
+process.env.SATTVA_DADOS = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-cadeia-cbs-'));
+const db = require('../src/db');
+const regras = require('../src/services/regras');
 const { analisarCadeia } = require('../src/engine/cadeia');
 const { calcularOperacao } = require('../src/engine/calculadora');
 
@@ -73,12 +81,17 @@ function verificar(nome, encontrado, esperado) {
 // Fornecedor do Simples não destaca CBS cheia; o crédito do adquirente é
 // limitado à parcela embutida do DAS e nunca se confunde com CBS da operação.
 {
+  // Premissa operacional explícita para o crédito CBS futuro do adquirente.
+  // Não é o fallback de PIS/COFINS atual e não torna o fornecedor regular.
+  db.prepare("UPDATE param_regimes SET credito_cbs_simples_referencia = ? WHERE chave = 'simples_nacional'").run(0.025);
+  regras.invalidar();
   const r = calcularOperacao({ valor: 1000, tipo: 'servico', regime: 'simples_nacional', regimeAdquirente: 'lucro_real',
-    aliqSimples: 0.06, anos: [2033], parametrosIVA: { 2033: { cbs: 0.0925, ibs: 0.5, calcular_ibs: 0, fator_icms_iss: 0, fator_pis_cofins: 0, fator_ipi: 0 } } });
+    aliqSimples: 0.06, creditoCbsSimplesReferencia: 0.025, anos: [2033], parametrosIVA: { 2033: { cbs: 0.0925, ibs: 0.5, calcular_ibs: 0, fator_icms_iss: 0, fator_pis_cofins: 0, fator_ipi: 0 } } });
   const final = r.projecao[0];
-  verificar('entrada Simples — CBS cheia não destacada', final.cbs, 0);
-  verificar('entrada Simples — crédito limitado é positivo', final.credito.total > 0, true);
-  verificar('entrada Simples — crédito não excede tributos atuais', final.credito.total <= r.atual.totalTributos, true);
+  const creditoEsperado = r2(final.valorSemImposto * 0.025);
+  verificar('entrada Simples — CBS cheia não destacada', final.cbs, creditoEsperado);
+  verificar('entrada Simples — crédito limitado pela premissa', final.credito.detalhe.cbs, creditoEsperado);
+  verificar('entrada Simples — crédito não é CBS cheia regular', final.credito.detalhe.cbs < 92.5, true);
 }
 
 console.log('\nValidação CBS concluída com sucesso.');

@@ -110,7 +110,16 @@ function gravarLinhasComColunas(tabela, linhas) {
 async function baixarResultadosMotor(remotoInformado = null) {
   const remoto = remotoInformado || supabase.admin();
   const execucoes = await buscarTudo(remoto, 'motor_execucoes_operacionais');
-  const resultados = await buscarTudo(remoto, 'motor_resultados_operacionais');
+  // O histórico permanece no Supabase, mas o SQLite que atende as telas deve
+  // receber exclusivamente a fotografia ativa. Sem este filtro, uma execução
+  // anterior seria somada novamente após qualquer reinício da instância.
+  const resultados = [];
+  for (let de = 0;; de += 1000) {
+    const { data, error } = await remoto.from('motor_resultados_operacionais').select('*').eq('ativo', true).range(de, de + 999);
+    if (error) throw new Error(`motor_resultados_operacionais: ${error.message}`);
+    resultados.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
   db.transaction(() => { db.prepare('DELETE FROM motor_resultados').run(); db.prepare('DELETE FROM motor_execucoes').run(); })();
   return {
     execucoes: gravarLinhasComColunas('motor_execucoes', execucoes.map((x) => x.dados || x)),

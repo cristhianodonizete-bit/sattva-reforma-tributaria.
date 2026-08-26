@@ -148,6 +148,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
       cofins: r2(x.detalhe?.reconstrucao?.tributosAtuais?.cofins ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.cofins),
       total: r2(x.detalhe?.reconstrucao?.retiradosDaBase),
     },
+    memoriaTributos: x.detalhe?.reconstrucao?.memoriaTributos || {},
     formulaBaseEconomica: x.detalhe?.reconstrucao?.formula || 'Base econômica registrada pelo motor.',
     motivoBaseEconomica: x.detalhe?.reconstrucao?.memoriaPisCofins?.base_reconstrucao_metodo
       ? `PIS/COFINS: ${x.detalhe.reconstrucao.memoriaPisCofins.base_reconstrucao_metodo}${x.detalhe.reconstrucao.memoriaPisCofins.fundamento ? ` — ${x.detalhe.reconstrucao.memoriaPisCofins.fundamento}` : ''}`
