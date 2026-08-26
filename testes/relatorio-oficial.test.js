@@ -16,6 +16,7 @@ const fonte = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'rel
 for (const proibido of ['motorExec.executar(', "require('../engine/calculadora')", "require('../engine/reconstrucao')", "require('../engine/classificador')"]) {
   assert.equal(fonte.includes(proibido), false, `relatório base não pode conter ${proibido}`);
 }
+assert.equal(fonte.includes('executarSeAusente: true'), false, 'relatório não pode criar fotografia fiscal ao ser emitido');
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const empresaId = Number(db.prepare("INSERT INTO empresas (cnpj,razao_social,regime,regime_resolvido) VALUES ('96000000000001','Fixture relatório','lucro_real','lucro_real')").run().lastInsertRowid);
@@ -46,6 +47,8 @@ assert.equal(r2(valor('Saldo CBS projetado')), r2(cbsDebito - cbsCredito));
 assert.equal(impacto.cbs_debito_vendas, cbsDebito);
 assert.equal(impacto.cbs_credito_compras, cbsCredito);
 assert.equal(impacto.reconciliacao.status, 'RECONCILIADO');
+const semFotografia = Number(db.prepare("INSERT INTO empresas (cnpj,razao_social,regime) VALUES ('96000000000002','Sem fotografia','lucro_real')").run().lastInsertRowid);
+assert.throws(() => relatorio.gerar(semFotografia, 'tecnico'), /não há fotografia oficial/i, 'emissão sem fotografia deve bloquear, sem recalcular');
 console.log(`relatorio-oficial.test: relatório reconciliado com ${linhas.length} resultados oficiais.`);
 try { db.close?.(); } catch (_) { /* noop */ }
 fs.rmSync(dir, { recursive: true, force: true });

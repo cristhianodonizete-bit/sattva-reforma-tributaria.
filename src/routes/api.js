@@ -714,7 +714,7 @@ function agendarEnriquecimentoAutomatico(empresaId) {
       if (fila.status === 'agendado' || fila.status === 'executando') return;
       clearInterval(aguardar);
       if (fila.status === 'concluido' && fila.resultado && fila.resultado.atualizados) {
-        try { motorExec.executar(empresaId, { ano: 2027 }); } catch (_) { /* próxima abertura recalcula */ }
+        try { motorExec.reprocessarIncremental(empresaId, { ano: 2027 }); } catch (_) { /* a fila retomará no próximo ciclo */ }
       }
     }, 1000);
   }

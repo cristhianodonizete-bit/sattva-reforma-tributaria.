@@ -44,7 +44,7 @@ function requerReferenciaFiscalServico(m) {
 // riscos a partir do detalhe já persistido em motor_resultados. Não chama o
 // motor nem calcula base, CBS, crédito ou classificação novamente.
 function motorPersistido(empresaId) {
-  const base = consolidacaoOficial.linhas(empresaId, { executarSeAusente: true });
+  const base = consolidacaoOficial.linhas(empresaId, { executarSeAusente: false });
   const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(empresaId);
   const linhas = base.linhas.map((r) => ({ ...r.detalhe, movimento_id: r.movimento_id, sentido: r.sentido }));
   const entradas = linhas.filter((x) => x.sentido === 'entrada');
@@ -101,7 +101,10 @@ function gerar(empresaId, tipo, query = {}) {
   // Relatórios finais leem a execução materializada do motor. Se as somas
   // oficiais não reconciliarem com o Perfil CBS, não emitimos um arquivo que
   // possa dar aparência de conclusão a um resultado divergente.
-  const impactoOficial = consolidacaoOficial.impactoFinal(empresaId, { executarSeAusente: true });
+  const impactoOficial = consolidacaoOficial.impactoFinal(empresaId, { executarSeAusente: false });
+  if (!impactoOficial.execucao) {
+    throw new Error('Relatório bloqueado: não há fotografia oficial do motor. Reprocesse a empresa antes de emitir a entrega.');
+  }
   if (impactoOficial.reconciliacao.status === 'DIVERGENTE') {
     throw new Error('Relatório bloqueado: a execução possui divergência material com o Perfil CBS. Revise a reconciliação antes de emitir a entrega.');
   }
