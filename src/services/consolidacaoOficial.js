@@ -141,6 +141,20 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     creditoCbs: r2(x.credito_cbs), creditoIbs: r2(x.credito_ibs), creditoPotencial: lado === 'cliente' ? r2(n(x.cbs) + n(x.ibs)) : r2(n(x.credito_cbs) + n(x.credito_ibs)),
     pisCofinsAtual: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor ?? null,
     origemPisCofins: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_origem || 'INDETERMINADO',
+    tributosRetirados: {
+      icms: r2(x.detalhe?.reconstrucao?.tributosAtuais?.icms ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.icms),
+      iss: r2(x.detalhe?.reconstrucao?.tributosAtuais?.iss ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.iss),
+      pis: r2(x.detalhe?.reconstrucao?.tributosAtuais?.pis ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.pis),
+      cofins: r2(x.detalhe?.reconstrucao?.tributosAtuais?.cofins ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.cofins),
+      total: r2(x.detalhe?.reconstrucao?.retiradosDaBase),
+    },
+    formulaBaseEconomica: x.detalhe?.reconstrucao?.formula || 'Base econômica registrada pelo motor.',
+    motivoBaseEconomica: x.detalhe?.reconstrucao?.memoriaPisCofins?.base_reconstrucao_metodo
+      ? `PIS/COFINS: ${x.detalhe.reconstrucao.memoriaPisCofins.base_reconstrucao_metodo}${x.detalhe.reconstrucao.memoriaPisCofins.fundamento ? ` — ${x.detalhe.reconstrucao.memoriaPisCofins.fundamento}` : ''}`
+      : (x.detalhe?.reconstrucao?.pendencias || []).join(' ') || 'Tributos atuais identificados conforme a memória do motor.',
+    origemBaseEconomica: x.detalhe?.reconstrucao?.memoriaPisCofins?.base_reconstrucao_fonte
+      || x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_origem || 'INDETERMINADO',
+    statusBaseEconomica: x.detalhe?.reconstrucao?.status || 'INDETERMINADO',
     impactoOperacao: r2(n(x.preco_projetado) - n(x.preco_atual)), impactoOperacaoPerc: x.preco_atual ? r4((n(x.preco_projetado) - n(x.preco_atual)) / n(x.preco_atual)) : null,
     tipoCredito: x.tipo_credito, modalidadeCredito: x.modalidade_credito, statusCredito: x.status_credito_determinacao || x.status_credito,
     natureza: natureza(x), detalhe: x.detalhe,

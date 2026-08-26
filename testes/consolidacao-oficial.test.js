@@ -27,4 +27,9 @@ assert.equal(impacto.cbs_debito_vendas, debito, 'Impacto Final deve ler o débit
 assert.equal(impacto.cbs_credito_compras, credito, 'Impacto Final deve ler o crédito materializado');
 assert.equal(impacto.cbs_liquida, r2(debito - credito), 'CBS líquida deve reconciliar');
 assert.equal(impacto.reconciliacao.status, 'RECONCILIADO', 'Perfil CBS e motor_resultados devem reconciliar');
+const rastreabilidade = clientes.detalhes[0];
+assert.ok(rastreabilidade?.tributosRetirados, 'detalhe deve expor os tributos retirados da base');
+assert.equal(typeof rastreabilidade.tributosRetirados.total, 'number');
+assert.ok(rastreabilidade.formulaBaseEconomica, 'detalhe deve expor a fórmula da base econômica');
+assert.ok(rastreabilidade.motivoBaseEconomica, 'detalhe deve expor o motivo da base econômica');
 console.log(`consolidacao-oficial.test: ${linhas.length} operações reconciliadas em motor_resultados.`);

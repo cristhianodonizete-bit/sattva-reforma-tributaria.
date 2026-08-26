@@ -512,14 +512,21 @@ async function telaCadeia(el, tipo) {
       ], analise.parceiros.slice(0, 200))}
     </div>` : ''}
     ${mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade da base econômica</h2>
-      <p class="desc">Mostra como cada venda chegou à base usada para CBS. O valor do documento prevalece; a referência fiscal entra apenas quando não há PIS/COFINS informado.</p>
+      <p class="desc">Mostra, documento a documento, os tributos efetivamente retirados e o motivo de a base econômica ter sido usada. Não recalcula nada nesta tela: todos os dados vêm da memória persistida do motor.</p>
       ${A.tabela([
+        { t: 'Documento', r: (d) => `<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '')}</div>` },
         { t: 'Cliente', r: (d) => `${A.esc(d.parceiro)}<div class="mini mono">${A.cnpjFmt(d.cnpj)}</div>` },
         { t: 'Serviço', r: (d) => `${A.esc(d.produto)}<div class="mini mono">${A.esc(d.nbs || d.ncm || 'sem NBS/NCM')}</div>` },
         { t: 'Venda atual', num: true, r: (d) => A.moeda(d.valor) },
-        { t: 'PIS/COFINS', num: true, r: (d) => A.moeda(d.pisCofinsAtual) },
-        { t: 'Origem', r: (d) => `<span class="tag ${d.origemPisCofins === 'documento' ? 'c' : 'a'}">${A.esc(d.origemPisCofins || 'a validar')}</span>` },
+        { t: 'ICMS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.icms) },
+        { t: 'ISS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.iss) },
+        { t: 'PIS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.pis) },
+        { t: 'COFINS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.cofins) },
+        { t: 'Total retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.total) },
         { t: 'Base econômica', num: true, r: (d) => A.moeda(d.valorSemImposto) },
+        { t: 'Origem', r: (d) => `<span class="tag ${String(d.origemBaseEconomica).toUpperCase() === 'DOCUMENTO' ? 'c' : 'a'}">${A.esc(d.origemBaseEconomica || 'a validar')}</span>` },
+        { t: 'Motivo / regra usada', r: (d) => `<span class="mini">${A.esc(d.motivoBaseEconomica || d.formulaBaseEconomica)}</span>` },
+        { t: 'Natureza', r: (d) => `<span class="tag ${String(d.natureza).toUpperCase() === 'REAL' ? 'c' : String(d.natureza).toUpperCase() === 'SIMULADO' ? 'a' : 'n'}">${A.esc(d.natureza || 'INDETERMINADO')}</span>` },
         ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (d) => A.moeda(d.ibs) }] : []),
         { t: 'CBS', num: true, r: (d) => A.moeda(d.cbs) },
         { t: 'Venda projetada', num: true, r: (d) => A.moeda(d.precoFinal) },
