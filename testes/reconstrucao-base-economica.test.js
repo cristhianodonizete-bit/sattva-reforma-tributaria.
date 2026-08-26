@@ -48,6 +48,25 @@ assert.equal(r.tributosAtuais.iss, 2);
 assert.equal(r.memoriaTributos.iss.origem, 'DOCUMENTO');
 assert.equal(r.memoriaTributos.iss.natureza, 'REAL');
 
+// CBS-only: PIS/COFINS saem, mas ISS/ICMS continuam economicamente no preço
+// enquanto IBS estiver desligado. Esse é o caso canônico 100 → 105,22.
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', iss: 2 }, { ibsHabilitado: false });
+assert.equal(r.tipoBaseEconomica, 'CBS_ONLY');
+assert.equal(r.baseEconomicaCbs, 96.35);
+assert.equal(r.baseEconomica, 96.35);
+assert.equal(r.baseEconomicaIntegral, 94.35);
+assert.equal(r.componentesRetirados.iss, 0);
+assert.equal(r.componentesPreservados.iss, 2);
+
+// ICMS documental segue a mesma regra CBS-only e só participa da base
+// integral quando o contexto IBS estiver habilitado.
+r = reconstruir({ valor: 100, tipo: 'mercadoria', regime: 'lucro_presumido', icms: 18 }, { ibsHabilitado: false });
+assert.equal(r.baseEconomicaCbs, 96.35);
+assert.equal(r.componentesRetirados.icms, 0);
+r = reconstruir({ valor: 100, tipo: 'mercadoria', regime: 'lucro_presumido', icms: 18 }, { ibsHabilitado: true });
+assert.equal(r.tipoBaseEconomica, 'INTEGRAL');
+assert.equal(r.baseEconomica, 78.35);
+
 // IBS desabilitado precisa resultar zero no cálculo, não apenas sumir da tela.
 db.prepare('UPDATE param_aliquotas SET calcular_ibs = 0, ibs = 0.177, cbs = 0.0921 WHERE ano = 2027').run();
 regras.invalidar();
@@ -56,5 +75,10 @@ const p = projetarItem({ valor: 100, cfop: '5102', descricao: 'serviço', iss: 2
 });
 assert.equal(p.ibs, 0);
 assert.equal(p.precoProjetado, Math.round((p.baseEconomica + p.cbs) * 100) / 100);
+assert.equal(p.baseEconomica, 96.35);
+assert.equal(p.cbs, 8.87);
+assert.equal(p.precoProjetado, 105.22);
+assert.equal(Math.round(((p.precoProjetado - p.precoAtual) / p.precoAtual) * 10000) / 10000, 0.0522);
+assert.equal(p.reconstrucao.componentesPreservados.iss, 2);
 
-console.log('reconstrucao-base-economica.test: precedência, ISS rastreável e IBS desabilitado validados');
+console.log('reconstrucao-base-economica.test: precedência, CBS-only 5,22%, ISS/ICMS rastreáveis e IBS desabilitado validados');

@@ -94,7 +94,7 @@ function memoriaTributo({ valor = 0, base = null, aliquota = null, origem = 'IND
  *   simples ............ { aliquotaEfetiva, reparticao } quando emitente do Simples
  * @returns objeto de reconstrução, com rastreabilidade da fórmula
  */
-function reconstruir(item) {
+function reconstruir(item, contexto = {}) {
   const valor = num(item.valor);
   const tipo = item.tipo === 'servico' ? 'servico' : 'mercadoria';
   const regime = item.regime || 'lucro_real';
@@ -231,18 +231,34 @@ function reconstruir(item) {
     origem: 'documento', valor: r2(icmsSt), observacao: regraSt.descricao });
 
   // ---------- composição ----------
-  let retiradosDaBase = 0, foraDaBase = 0;
+  // A base integral preserva a metodologia histórica de retirada dos
+  // tributos substituídos por IBS/CBS. A visão CBS-only, porém, só neutraliza
+  // PIS/COFINS: ISS e ICMS continuam identificados e economicamente
+  // presentes enquanto IBS estiver desabilitado.
+  let retiradosIntegral = 0, foraDaBase = 0;
   for (const [chave, valor] of [['icms', icms], ['iss', iss], ['pis', pis], ['cofins', cofins],
                                  ['ipi', ipi], ['icms_st', icmsSt]]) {
     if (!valor) continue;
-    if (regras.tributo(chave).saiDaBase) retiradosDaBase += valor; else foraDaBase += valor;
+    if (regras.tributo(chave).saiDaBase) retiradosIntegral += valor; else foraDaBase += valor;
   }
 
   // Se o valor do item já vier somado de IPI/ST (nota totalizada), o preço da
   // mercadoria é o valor menos esses acréscimos. O campo `valor_com_acrescimos`
   // sinaliza esse caso; por padrão assume-se que `valor` é o valor do produto.
   const precoMercadoria = item.valor_com_acrescimos ? valor - foraDaBase : valor;
-  const baseEconomica = Math.max(precoMercadoria - retiradosDaBase, 0);
+  const baseEconomicaIntegral = Math.max(precoMercadoria - retiradosIntegral, 0);
+  const retiradosCbs = pis + cofins;
+  const baseEconomicaCbs = Math.max(precoMercadoria - retiradosCbs, 0);
+  const ibsHabilitado = contexto.ibsHabilitado === true;
+  const tipoBaseEconomica = ibsHabilitado ? 'INTEGRAL' : 'CBS_ONLY';
+  const baseEconomica = ibsHabilitado ? baseEconomicaIntegral : baseEconomicaCbs;
+  const retiradosDaBase = ibsHabilitado ? retiradosIntegral : retiradosCbs;
+  const componentesRetirados = ibsHabilitado
+    ? { icms: r2(icms), iss: r2(iss), pis: r2(pis), cofins: r2(cofins) }
+    : { icms: 0, iss: 0, pis: r2(pis), cofins: r2(cofins) };
+  const componentesPreservados = ibsHabilitado
+    ? { icms: 0, iss: 0 }
+    : { icms: r2(icms), iss: r2(iss) };
 
   let status = 'reconstruida';
   const temComponenteIndeterminado = [memoriaTributos.pis, memoriaTributos.cofins].some((x) => x.status === 'INDETERMINADO');
@@ -255,17 +271,23 @@ function reconstruir(item) {
     precoAtual: r2(valor),
     precoMercadoria: r2(precoMercadoria),
     baseEconomica: r2(baseEconomica),
+    baseEconomicaCbs: r2(baseEconomicaCbs),
+    baseEconomicaIntegral: r2(baseEconomicaIntegral),
+    tipoBaseEconomica,
+    versaoMetodologiaBase: ibsHabilitado ? 'INTEGRAL_V1' : 'CBS_ONLY_V1',
     tributosAtuais: { icms: r2(icms), iss: r2(iss), pis: r2(pis), cofins: r2(cofins),
-      ipi: r2(ipi), icms_st: r2(icmsSt), total: r2(retiradosDaBase + foraDaBase) },
+      ipi: r2(ipi), icms_st: r2(icmsSt), total: r2(retiradosIntegral + foraDaBase) },
     retiradosDaBase: r2(retiradosDaBase),
     foraDaBase: r2(foraDaBase),
-    cargaAtual: precoMercadoria ? r6((retiradosDaBase + foraDaBase) / precoMercadoria) : 0,
+    cargaAtual: precoMercadoria ? r6((retiradosIntegral + foraDaBase) / precoMercadoria) : 0,
     estimado,
     memoriaTributos,
-    memoriaPisCofins: { ...(memoriaPisCofins || { carga_atual_pis_cofins_valor: null, carga_atual_pis_cofins_percentual: null, carga_atual_pis_cofins_origem: 'INDETERMINADO', carga_atual_pis_cofins_natureza: 'INDETERMINADO', modo_reconstrucao_monofasia: 'INDETERMINADO', base_reconstrucao_metodo: 'INDETERMINADO', base_reconstrucao_percentual: null, base_reconstrucao_valor_excluido: 0, base_reconstrucao_fonte: '', base_reconstrucao_natureza: 'INDETERMINADO' }), tributos_retirados_da_base: { icms: r2(icms), iss: r2(iss), pis: r2(pis), cofins: r2(cofins) }, base_economica: r2(baseEconomica) },
-    formula: item.valor_com_acrescimos
-      ? 'base = (valor − IPI − ICMS-ST) − (ICMS + ISS + PIS + COFINS)'
-      : 'base = valor − (ICMS + ISS + PIS + COFINS)   [IPI e ICMS-ST são por fora e não integram a base]',
+    memoriaPisCofins: { ...(memoriaPisCofins || { carga_atual_pis_cofins_valor: null, carga_atual_pis_cofins_percentual: null, carga_atual_pis_cofins_origem: 'INDETERMINADO', carga_atual_pis_cofins_natureza: 'INDETERMINADO', modo_reconstrucao_monofasia: 'INDETERMINADO', base_reconstrucao_metodo: 'INDETERMINADO', base_reconstrucao_percentual: null, base_reconstrucao_valor_excluido: 0, base_reconstrucao_fonte: '', base_reconstrucao_natureza: 'INDETERMINADO' }), tributos_retirados_da_base: componentesRetirados, tributos_preservados_na_visao_cbs: componentesPreservados, base_economica: r2(baseEconomica), base_economica_cbs: r2(baseEconomicaCbs), base_economica_integral: r2(baseEconomicaIntegral), tipo_base_economica: tipoBaseEconomica, versao_metodologia_base: ibsHabilitado ? 'INTEGRAL_V1' : 'CBS_ONLY_V1' },
+    componentesRetirados,
+    componentesPreservados,
+    formula: ibsHabilitado
+      ? 'base integral = valor − (ICMS + ISS + PIS + COFINS)'
+      : 'base CBS = valor − (PIS + COFINS); ISS e ICMS permanecem na visão CBS porque IBS está desabilitado',
     passos, pendencias,
   };
 }

@@ -144,9 +144,10 @@ function analisarCadeia(movimentos, cfg = {}) {
     p.custoHoje += res.atual.custoEfetivo;
     p.custoFinal += ultimo.custoEfetivo;
     p.precoFinal += ultimo.precoFinal;
-    // A operação sempre gera IBS/CBS quando tributada. O crédito efetivamente
-    // aproveitado depende do adquirente, mas não apaga o imposto destacado.
-    p.creditoPotencial += ultimo.ibs + ultimo.cbs;
+    // O tributo da saída continua existindo em `p.cbs`/`p.ibs`. A coluna de
+    // crédito potencial, porém, só pode refletir o crédito do adquirente já
+    // apurado pela operação; PF e perfis sem direito não viram crédito cheio.
+    p.creditoPotencial += ultimo.credito.total;
     p.creditoFinal += ultimo.credito.total;
 
     if (lado === 'cliente') {
@@ -175,7 +176,7 @@ function analisarCadeia(movimentos, cfg = {}) {
     rg.custoHoje += res.atual.custoEfetivo;
     rg.custoFinal += ultimo.custoEfetivo;
     rg.precoFinal += ultimo.precoFinal;
-    rg.creditoPotencial += ultimo.ibs + ultimo.cbs;
+    rg.creditoPotencial += ultimo.credito.total;
 
     for (const proj of res.projecao) {
       const a = porAno.get(proj.ano);

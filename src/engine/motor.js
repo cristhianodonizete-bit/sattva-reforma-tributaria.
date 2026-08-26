@@ -177,10 +177,12 @@ function projetarItem(item, ctx) {
 
   // ---------- 2. BASE ECONÔMICA ----------
   const simplesInfo = ctx.simplesEmitente || null;
-  const rec = reconstruir({ ...item, tipo, regime: regimeEmitente, simples: simplesInfo });
 
-  // ---------- 3. ALÍQUOTA ----------
+  // ---------- 3. ALÍQUOTA E CONTEXTO DA BASE ----------
   const aliq = aliquotasEfetivas(ano, cls);
+  const rec = reconstruir({ ...item, tipo, regime: regimeEmitente, simples: simplesInfo }, {
+    ibsHabilitado: Number(aliq.parametros.calcular_ibs) === 1,
+  });
 
   // ---------- 4. TRIBUTO ----------
   // Optante do Simples que NÃO migrou para o regime regular não destaca

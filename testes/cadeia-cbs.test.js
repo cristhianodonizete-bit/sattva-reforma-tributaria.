@@ -43,7 +43,7 @@ function verificar(nome, encontrado, esperado) {
   verificar('venda projetada', linha.precoProjetado, 1052.62);
   verificar('impacto em R$', linha.impactoOperacao, 52.62);
   verificar('impacto em %', detalhe.impactoOperacaoPerc, 0.0526);
-  verificar('crédito potencial existe para PF', linha.creditoPotencial, 89.12);
+  verificar('PF não recebe crédito potencial automático', linha.creditoPotencial, 0);
   verificar('relevância para PF não altera o imposto', linha.relevanciaCreditoCliente, 'Não aplicável — consumidor final');
 }
 
@@ -62,7 +62,7 @@ function verificar(nome, encontrado, esperado) {
   const r = cadeia({ valor: 500, nome: 'Cliente Simples', regime: 'simples_nacional', referenciaFiscal: { pis_cofins: 0.0365 } });
   const linha = r.regimes[0];
   verificar('CBS gerada na venda ao Simples', linha.cbs, r2(481.75 * 0.0925));
-  verificar('crédito potencial da operação ao Simples', linha.creditoPotencial, r2(481.75 * 0.0925));
+  verificar('Simples não recebe crédito potencial automático', linha.creditoPotencial, 0);
   verificar('relevância comercial do Simples', linha.relevanciaCreditoCliente, 'Sem apropriação no perfil informado');
 }
 

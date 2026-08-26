@@ -30,6 +30,11 @@ assert.equal(impacto.reconciliacao.status, 'RECONCILIADO', 'Perfil CBS e motor_r
 const rastreabilidade = clientes.detalhes[0];
 assert.ok(rastreabilidade?.tributosRetirados, 'detalhe deve expor os tributos retirados da base');
 assert.equal(typeof rastreabilidade.tributosRetirados.total, 'number');
+assert.ok(rastreabilidade?.tributosIdentificados, 'detalhe deve distinguir tributos identificados dos efetivamente retirados');
 assert.ok(rastreabilidade.formulaBaseEconomica, 'detalhe deve expor a fórmula da base econômica');
 assert.ok(rastreabilidade.motivoBaseEconomica, 'detalhe deve expor o motivo da base econômica');
+for (const d of clientes.detalhes) {
+  assert.equal(d.creditoPotencial, r2(d.creditoCbs + d.creditoIbs), 'crédito potencial do cliente deve vir do crédito oficial, não da CBS total da venda');
+  if (d.statusCredito === 'SEM_DIREITO') assert.equal(d.creditoPotencial, 0, 'perfil sem direito não recebe crédito potencial automático');
+}
 console.log(`consolidacao-oficial.test: ${linhas.length} operações reconciliadas em motor_resultados.`);

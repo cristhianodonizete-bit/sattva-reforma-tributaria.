@@ -11,6 +11,7 @@ const db = require('../src/db');
 const motorExec = require('../src/services/motorExec');
 const operacao = require('../src/services/operacaoCompartilhada');
 const supabase = require('../src/services/supabase');
+const regras = require('../src/services/regras');
 
 const EMPRESA_ID = 1;
 const ANO = 2027;
@@ -22,10 +23,21 @@ function detalheDe(linha) { return json(json(linha.dados).detalhe); }
 function metodoDa(linha) { return detalheDe(linha).reconstrucao?.memoriaPisCofins?.base_reconstrucao_metodo || 'SEM_MEMORIA'; }
 function alvo(linha) {
   const d = json(linha.dados);
+  // Correção semântica da saída: o Simples que permanece no DAS não toma
+  // crédito integral. Somente o perfil separado "simples_regime_regular"
+  // pode creditar. Reprocessa apenas vendas cujo destinatário é Simples.
+  if (process.argv.includes('--simples-destinatario')) return d.sentido === 'saida' && d.regime_cbs_adquirente === 'SIMPLES_DAS';
   // Correção pontual posterior: o parâmetro de crédito CBS do Simples já
   // existe na fonte compartilhada, mas não estava na fotografia histórica.
   // Reprocessa somente entradas SIMPLES_DAS, sem tocar nas demais linhas.
   if (process.argv.includes('--simples')) return d.sentido === 'entrada' && d.regime_cbs_emitente === 'SIMPLES_DAS';
+  // CBS-only: somente quem teve ISS/ICMS retirado pela metodologia integral
+  // precisa ser recalculado. Demais resultados são reutilizados intactos.
+  if (process.argv.includes('--cbs-only')) {
+    const detalhe = json(d.detalhe);
+    const tributos = detalhe.reconstrucao?.tributosAtuais || {};
+    return Number(tributos.iss || 0) !== 0 || Number(tributos.icms || 0) !== 0;
+  }
   return d.sentido === 'saida' && ['CUMULATIVIDADE_CONDICIONADA', 'SEM_CATALOGO'].includes(metodoDa(linha));
 }
 function categoriaPis(d) {
@@ -75,6 +87,14 @@ function linhaNova(x, movimento, id, execucaoId) {
 async function executar() {
   if (!process.argv.includes('--executar')) throw new Error('Confirmação ausente. Use --executar.');
   await operacao.baixarConfiguracao();
+  if (process.argv.includes('--simples-destinatario')) {
+    const simples = regras.regime('simples_nacional');
+    if (!simples) throw new Error('Regime Simples Nacional não encontrado na configuração compartilhada.');
+    if (simples.creditaNovo) {
+      regras.salvarRegime('simples_nacional', { ...simples, creditaNovo: false }, 'homologacao-cbs-only');
+      await operacao.publicarConfiguracao(['param_regimes']);
+    }
+  }
   const remoto = supabase.admin();
   const { data: ativos, error } = await remoto.from('motor_resultados_operacionais').select('*').eq('empresa_id', EMPRESA_ID).eq('ativo', true);
   if (error) throw error;
@@ -112,9 +132,12 @@ async function executar() {
       linha.ativo = false;
     }
     const antes = resumo(ativos); const depois = resumo(linhas);
-    const tipoHomologacao = process.argv.includes('--simples') ? 'CREDITO_CBS_SIMPLES' : 'RECONSTRUCAO_BASE_ECONOMICA';
+    const tipoHomologacao = process.argv.includes('--simples-destinatario') ? 'CREDITO_CLIENTE_SIMPLES_DAS'
+      : process.argv.includes('--simples') ? 'CREDITO_CBS_SIMPLES'
+      : process.argv.includes('--cbs-only') ? 'BASE_ECONOMICA_CBS_ONLY'
+        : 'RECONSTRUCAO_BASE_ECONOMICA';
     const cabecalho = { id: execucaoId, empresa_id: EMPRESA_ID, ano: ANO, itens: linhas.length, classificados: 0, requer_validacao: 0, sem_correspondencia: 0,
-      resumo: JSON.stringify({ homologacao: tipoHomologacao, execucao_anterior: 9, reprocessados: ids.length, reutilizados: linhas.length - ids.length, antes, depois }), criado_em: new Date().toISOString() };
+      resumo: JSON.stringify({ homologacao: tipoHomologacao, execucao_anterior: Number(ativos[0]?.execucao_id) || null, reprocessados: ids.length, reutilizados: linhas.length - ids.length, antes, depois }), criado_em: new Date().toISOString() };
     const client = await pool.connect();
     try {
       await client.query('begin');
@@ -135,7 +158,7 @@ async function executar() {
       await client.query('update public.motor_resultados_operacionais set ativo=true where empresa_id=$1 and execucao_id=$2', [EMPRESA_ID, execucaoId]);
       await client.query('commit');
     } catch (e) { await client.query('rollback'); throw e; } finally { client.release(); }
-    console.log(JSON.stringify({ homologacao: tipoHomologacao, execucao_anterior: 9, execucao_nova: execucaoId, total_operacoes: ativos.length, reprocessados: ids.length, reutilizados: ativos.length - ids.length, antes, depois }, null, 2));
+    console.log(JSON.stringify({ homologacao: tipoHomologacao, execucao_anterior: Number(ativos[0]?.execucao_id) || null, execucao_nova: execucaoId, total_operacoes: ativos.length, reprocessados: ids.length, reutilizados: ativos.length - ids.length, antes, depois }, null, 2));
   } finally { await pool.end(); }
 }
 if (require.main === module) executar().catch((e) => { console.error(e.stack || e.message); process.exitCode = 1; });

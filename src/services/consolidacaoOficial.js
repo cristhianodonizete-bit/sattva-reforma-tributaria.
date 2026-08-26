@@ -101,7 +101,10 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     destino.cbs = n(destino.cbs) + n(x.cbs);
     destino.precoFinal = n(destino.precoFinal) + n(x.preco_projetado);
     destino.custoLiquido = n(destino.custoLiquido) + n(x.custo_liquido);
-    destino.creditoPotencial = n(destino.creditoPotencial) + (lado === 'cliente' ? n(x.cbs) + n(x.ibs) : n(x.credito_cbs) + n(x.credito_ibs));
+    // O débito CBS da saída existe independentemente do perfil do destinatário.
+    // Já o crédito potencial é lido do resultado oficial de crédito: para PF e
+    // perfis sem direito, ele permanece zero sem apagar a CBS da venda.
+    destino.creditoPotencial = n(destino.creditoPotencial) + n(x.credito_cbs) + n(x.credito_ibs);
     destino.creditoFinal = n(destino.creditoFinal) + n(x.credito_cbs) + n(x.credito_ibs);
     destino.pisCofinsAtual = n(destino.pisCofinsAtual) + n(pis);
     destino.pisIndeterminado = Boolean(destino.pisIndeterminado || pis === null || pis === undefined);
@@ -138,16 +141,20 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     movimento_id: x.movimento_id, documento: x.documento || x.chave || '', parceiro: x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || '', cnpj: x.inscr_federal || '',
     produto: x.descricao || '', ncm: x.ncm || '', nbs: x.nbs || '', cfop: x.cfop || '', competencia: x.competencia || null,
     valor: r2(x.preco_atual), valorSemImposto: r2(x.base_economica), ibs: r2(x.ibs), cbs: r2(x.cbs), precoFinal: r2(x.preco_projetado),
-    creditoCbs: r2(x.credito_cbs), creditoIbs: r2(x.credito_ibs), creditoPotencial: lado === 'cliente' ? r2(n(x.cbs) + n(x.ibs)) : r2(n(x.credito_cbs) + n(x.credito_ibs)),
+    creditoCbs: r2(x.credito_cbs), creditoIbs: r2(x.credito_ibs), creditoPotencial: r2(n(x.credito_cbs) + n(x.credito_ibs)),
     pisCofinsAtual: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor ?? null,
     origemPisCofins: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_origem || 'INDETERMINADO',
     tributosRetirados: {
-      icms: r2(x.detalhe?.reconstrucao?.tributosAtuais?.icms ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.icms),
-      iss: r2(x.detalhe?.reconstrucao?.tributosAtuais?.iss ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.iss),
-      pis: r2(x.detalhe?.reconstrucao?.tributosAtuais?.pis ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.pis),
-      cofins: r2(x.detalhe?.reconstrucao?.tributosAtuais?.cofins ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.cofins),
+      // A memória de componentes retirados é distinta dos tributos apenas
+      // identificados. Em CBS-only, ISS/ICMS ficam identificados, mas zerados
+      // aqui porque não reduzem a base CBS.
+      icms: r2(x.detalhe?.reconstrucao?.componentesRetirados?.icms ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.icms),
+      iss: r2(x.detalhe?.reconstrucao?.componentesRetirados?.iss ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.iss),
+      pis: r2(x.detalhe?.reconstrucao?.componentesRetirados?.pis ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.pis),
+      cofins: r2(x.detalhe?.reconstrucao?.componentesRetirados?.cofins ?? x.detalhe?.reconstrucao?.memoriaPisCofins?.tributos_retirados_da_base?.cofins),
       total: r2(x.detalhe?.reconstrucao?.retiradosDaBase),
     },
+    tributosIdentificados: x.detalhe?.reconstrucao?.tributosAtuais || {},
     memoriaTributos: x.detalhe?.reconstrucao?.memoriaTributos || {},
     formulaBaseEconomica: x.detalhe?.reconstrucao?.formula || 'Base econômica registrada pelo motor.',
     motivoBaseEconomica: x.detalhe?.reconstrucao?.memoriaPisCofins?.base_reconstrucao_metodo
@@ -162,7 +169,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   }));
   const t = finalizar(total); t.parceiros = parceiros.length;
   return { execucao: base.execucao, lado, totais: t, parceiros, regimes, detalhes,
-    cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, precoFinal: t.precoFinal, credito: t.creditoFinal, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
+    cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, precoFinal: t.precoFinal, credito: t.creditoFinal, creditoPotencial: t.creditoPotencial, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
     riscos: [], fonte: 'motor_resultados' };
 }
 

@@ -411,6 +411,7 @@ async function telaCadeia(el, tipo) {
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   const cbsReferencia = Number(S.params?.aliquotaReferencia?.cbs) || 0;
   const ibsReferencia = ibsAtivo ? (Number(S.params?.aliquotaReferencia?.ibs) || 0) : 0;
+  const rotuloBase = ibsAtivo ? 'Base econômica integral' : 'Base econômica CBS';
   const abaCliente = S.aba.clientesCadeia || 'carteira';
   const mostrarCarteira = eForn || abaCliente === 'carteira';
   const mostrarRiscos = eForn || abaCliente === 'riscos';
@@ -426,16 +427,16 @@ async function telaCadeia(el, tipo) {
     (t.registros ? `
     <div class="grade g4">
       ${A.kpi(eForn ? 'Compra atual' : 'Venda atual', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
-      ${A.kpi('Base econômica', A.moeda(ultimo.baseEconomica || 0), 'preço atual menos tributos embutidos')}
+      ${A.kpi(rotuloBase, A.moeda(ultimo.baseEconomica || 0), ibsAtivo ? 'visão IBS + CBS' : 'venda atual menos PIS/COFINS; ISS/ICMS preservados')}
       ${A.kpi(eForn ? 'Compra projetada' : 'Venda projetada', A.moeda(ultimo.precoFinal || 0), ibsAtivo ? 'IBS + CBS' : 'CBS')}
       ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' sobre o preço atual', 'destaque')}
     </div>
     <div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Impacto para a empresa — entradas' : 'Impacto para a empresa — saídas'}</h2>
-      <p class="desc">${eForn ? 'Compra atual − tributos atuais embutidos = base econômica + IBS + CBS = compra projetada − compra atual = impacto da compra.' : 'Venda atual − tributos atuais identificados = base econômica + IBS + CBS = venda projetada − venda atual = impacto da venda.'} CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
+      <p class="desc">${eForn ? 'Compra atual − tributos substituídos = base econômica + IBS + CBS = compra projetada − compra atual = impacto da compra.' : (ibsAtivo ? 'Venda atual − tributos substituídos = base econômica integral + IBS + CBS = venda projetada − venda atual = impacto da venda.' : 'Venda atual − PIS/COFINS atuais = base econômica CBS + CBS = venda projetada − venda atual = impacto da venda. ISS e ICMS permanecem na estrutura econômica.') } CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
       ${A.tabela([
         { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: () => A.moeda(t.valor) },
         ...(!eForn ? [{ t: 'Tributos atuais retirados', num: true, r: () => A.moeda(analise.regimes.reduce((s, r) => s + (Number(r.pisCofinsAtual) || 0), 0)) }] : []),
-        { t: 'Base econômica', num: true, r: () => A.moeda(ultimo.baseEconomica || 0) },
+        { t: rotuloBase, num: true, r: () => A.moeda(ultimo.baseEconomica || 0) },
         ...(ibsAtivo ? [{ t: 'IBS projetado', num: true, r: () => A.moeda(ultimo.ibs || 0) }] : []),
         { t: 'Alíquota CBS', num: true, r: () => A.pct(cbsReferencia) },
         { t: 'CBS projetada', num: true, r: () => A.moeda(ultimo.cbs || 0) },
@@ -443,7 +444,7 @@ async function telaCadeia(el, tipo) {
         { t: 'Impacto R$', num: true, r: () => A.setaR$(ultimo.impactoOperacao || 0) },
         { t: 'Impacto %', num: true, r: () => A.setaPct(ultimo.impactoOperacaoPerc || 0) },
       ], [{}])}
-      <p class="mini" style="margin-top:12px"><b>Crédito potencial juridicamente associado à operação:</b> ${A.moeda((ultimo.ibs || 0) + (ultimo.cbs || 0))}. A relevância para o comprador é exibida por perfil; não há apuração de crédito do vendedor nesta análise de venda.</p>
+      <p class="mini" style="margin-top:12px"><b>Crédito potencial juridicamente associado à operação:</b> ${A.moeda(ultimo.creditoPotencial || 0)}. A CBS da venda é exibida separadamente e não pressupõe direito de crédito para Pessoa Física, Simples ou outro perfil sem apropriação.</p>
       ${!eForn ? `<div class="aviso neutro" style="margin-top:12px"><b>Origem do PIS/COFINS usado na base econômica</b><br>${Object.entries(t.origensPisCofins || {}).map(([origem, x]) => `${A.esc(origem)}: <b>${A.moeda(x.valor)}</b> em ${x.registros} lançamento(s) · ${A.pct(t.valor ? x.vendas / t.valor : 0, 1)} das vendas`).join(' · ') || 'Sem informação disponível.'}</div>` : ''}
     </div>
     ${eForn ? `<div class="cartao" style="margin-top:16px">
@@ -468,7 +469,7 @@ async function telaCadeia(el, tipo) {
           { t: 'Valor', num: true, r: (r) => A.moeda(r.valor) },
           { t: 'Part.', num: true, r: (r) => A.pct(r.representatividade, 1) },
           ...(!eForn ? [
-            { t: 'Base econômica da venda', num: true, r: (r) => A.moeda(r.baseEconomica) },
+            { t: ibsAtivo ? 'Base econômica integral' : 'Base econômica CBS', num: true, r: (r) => A.moeda(r.baseEconomica) },
             { t: 'PIS/COFINS atual', num: true, r: (r) => A.moeda(r.pisCofinsAtual) },
           ] : []),
           ...(ibsAtivo ? [{ t: eForn ? 'IBS da compra' : 'IBS da venda', num: true, r: (r) => A.moeda(r.ibs) }] : []),
@@ -502,7 +503,7 @@ async function telaCadeia(el, tipo) {
         { t: 'Regime', r: (p) => `<span class="tag ${['simples_nacional', 'mei'].includes(p.regime) ? 'a' : ''}">${A.esc(p.regimeLabel)}</span>` },
         { t: 'Valor', num: true, r: (p) => A.moeda(p.valor) },
         { t: 'Part.', num: true, r: (p) => A.pct(p.representatividade, 1) },
-        { t: 'Base econômica', num: true, r: (p) => A.moeda(p.baseEconomica) },
+        { t: rotuloBase, num: true, r: (p) => A.moeda(p.baseEconomica) },
         ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (p) => A.moeda(p.ibs) }] : []),
         { t: 'CBS', num: true, r: (p) => A.moeda(p.cbs) },
         { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (p) => A.moeda(p.precoFinal) },
@@ -512,7 +513,7 @@ async function telaCadeia(el, tipo) {
       ], analise.parceiros.slice(0, 200))}
     </div>` : ''}
     ${mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade da base econômica</h2>
-      <p class="desc">Mostra, documento a documento, os tributos efetivamente retirados e o motivo de a base econômica ter sido usada. Não recalcula nada nesta tela: todos os dados vêm da memória persistida do motor.</p>
+      <p class="desc">Mostra, documento a documento, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. Não recalcula nada nesta tela: todos os dados vêm da memória persistida do motor.</p>
       ${A.tabela([
         { t: 'Documento', r: (d) => `<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '')}</div>` },
         { t: 'Cliente', r: (d) => `${A.esc(d.parceiro)}<div class="mini mono">${A.cnpjFmt(d.cnpj)}</div>` },
@@ -520,10 +521,14 @@ async function telaCadeia(el, tipo) {
         { t: 'Venda atual', num: true, r: (d) => A.moeda(d.valor) },
         { t: 'ICMS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.icms) },
         { t: 'ISS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.iss) },
+        ...(!ibsAtivo ? [
+          { t: 'ICMS identificado (preservado)', num: true, r: (d) => A.moeda(d.tributosIdentificados?.icms) },
+          { t: 'ISS identificado (preservado)', num: true, r: (d) => A.moeda(d.tributosIdentificados?.iss) },
+        ] : []),
         { t: 'PIS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.pis) },
         { t: 'COFINS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.cofins) },
         { t: 'Total retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.total) },
-        { t: 'Base econômica', num: true, r: (d) => A.moeda(d.valorSemImposto) },
+        { t: rotuloBase, num: true, r: (d) => A.moeda(d.valorSemImposto) },
         { t: 'Origem', r: (d) => `<span class="tag ${String(d.origemBaseEconomica).toUpperCase() === 'DOCUMENTO' ? 'c' : 'a'}">${A.esc(d.origemBaseEconomica || 'a validar')}</span>` },
         { t: 'Memória por tributo', r: (d) => ['pis', 'cofins', 'iss', 'icms'].map((k) => {
           const m = d.memoriaTributos?.[k];
