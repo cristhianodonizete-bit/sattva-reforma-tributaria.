@@ -2475,12 +2475,16 @@ router.post('/config/processamentos-carteira', async (_req, res) => {
   try { ok(res, { processamento: await processamentoCarteira.iniciar({ tipo: 'RECALCULO_INCREMENTAL' }) }); }
   catch (e) { erro(res, e); }
 });
-router.get('/config/processamentos-carteira/:id?', (req, res) => {
+function consultarProcessamentoCarteira(req, res) {
   try {
     const processamento = req.params.id ? processamentoCarteira.consultar(req.params.id) : processamentoCarteira.ultimo();
     ok(res, { processamento });
   } catch (e) { erro(res, e); }
-});
+}
+// Express 5 / path-to-regexp não aceita mais o modificador ? em parâmetros.
+// Mantemos as duas URLs públicas, com handlers explícitos.
+router.get('/config/processamentos-carteira', consultarProcessamentoCarteira);
+router.get('/config/processamentos-carteira/:id', consultarProcessamentoCarteira);
 router.post('/config/processamentos-carteira/jobs/:id/cancelar', async (req, res) => {
   try { ok(res, await processamentoCarteira.cancelar(req.params.id)); }
   catch (e) { erro(res, e); }
