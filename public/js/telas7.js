@@ -610,8 +610,15 @@ const valorExec = (v) => v === null || v === undefined ? '<span class="tag a">IN
 
 async function saidaExecutiva(el) {
   const estado = execEstado();
-  const { cenarios } = await A.api(`/empresas/${S.empresaId}/cenarios/lista`);
-  const ano = Number(S.ano) || 2027;
+  let { cenarios } = await A.api(`/empresas/${S.empresaId}/cenarios/lista`);
+  // A apresentação deve abrir a mesma fotografia oficial que a composição
+  // de cenário. Se ainda não houver linha persistida, a rota a materializa a
+  // partir do motor central; não cria um cálculo paralelo.
+  const ano = Number(M.anoAtual()) || 2033;
+  if (!cenarios.some((c) => c.tipo === 'base' && Number(c.ano) === ano)) {
+    await A.api(`/empresas/${S.empresaId}/cenarios/base?ano=${ano}`);
+    ({ cenarios } = await A.api(`/empresas/${S.empresaId}/cenarios/lista`));
+  }
   const cenariosAno = cenarios.filter((c) => Number(c.ano) === ano);
   const base = cenariosAno.find((c) => c.tipo === 'base');
   if (!base) {
