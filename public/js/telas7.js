@@ -648,9 +648,17 @@ async function saidaExecutiva(el) {
       document.getElementById('baixarSaidaExec').disabled = false;
     } catch (err) { box.innerHTML = `<div class="aviso alto"><b>Não foi possível gerar a apresentação</b><div>${A.esc(err.message)}</div></div>`; }
   };
-  document.getElementById('baixarSaidaExec').onclick = () => {
-    const ids = estado.ids.join(',');
-    window.location.href = `/api/empresas/${S.empresaId}/saida-executiva.pdf?ano=${encodeURIComponent(ano)}&cenarios=${encodeURIComponent(ids)}`;
+  document.getElementById('baixarSaidaExec').onclick = async () => {
+    const botao = document.getElementById('baixarSaidaExec'); const ids = estado.ids.join(',');
+    try {
+      botao.disabled = true; botao.textContent = 'Gerando PDF…';
+      // A API usa Authorization; navegação direta/window.open não carrega esse
+      // cabeçalho. Baixamos o blob autenticado sem colocar token na URL.
+      const token = localStorage.getItem('sattva_token');
+      const r = await fetch(`/api/empresas/${S.empresaId}/saida-executiva.pdf?ano=${encodeURIComponent(ano)}&cenarios=${encodeURIComponent(ids)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+      if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.erro || 'Não foi possível gerar o PDF.'); }
+      const url = URL.createObjectURL(await r.blob()); const a = document.createElement('a'); a.href = url; a.download = 'diagnostico-executivo-cbs.pdf'; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    } catch (e) { A.toast(e.message, 'erro'); } finally { botao.disabled = false; botao.textContent = 'Exportar PDF'; }
   };
   if (estado.relatorio) vincularMemoriaExecutiva(document.getElementById('corpoSaidaExec'), estado.relatorio);
 }
