@@ -10,13 +10,14 @@
     "start": "node server.js",
     "dev": "node --watch server.js",
     "test:cbs": "node testes/cadeia-cbs.test.js",
-    "test": "node testes/cadeia-cbs.test.js && node testes/credito-cbs.test.js && node testes/perfil-cbs.test.js && node testes/impacto-final-cbs.test.js && node testes/consolidacao-oficial.test.js && node testes/excecoes-motor.test.js && node testes/cenarios.test.js && node testes/precificacao-oficial.test.js && node testes/vinculos-precificacao.test.js && node testes/relatorio-oficial.test.js && node testes/fase1-operacao.test.js && node testes/reconstrucao-base-economica.test.js && node testes/qualidade-cobertura.test.js && node testes/fase2a-cobertura.test.js && node testes/fase2a-simples-legal.test.js && node testes/fase2a-b2b-classificacao.test.js && node testes/fase2b-premissas.test.js && node testes/fase2c-cenarios-automaticos.test.js && node testes/etapa5-analise-cadeia.test.js"
+    "test": "node testes/cadeia-cbs.test.js && node testes/credito-cbs.test.js && node testes/perfil-cbs.test.js && node testes/impacto-final-cbs.test.js && node testes/consolidacao-oficial.test.js && node testes/excecoes-motor.test.js && node testes/cenarios.test.js && node testes/precificacao-oficial.test.js && node testes/vinculos-precificacao.test.js && node testes/relatorio-oficial.test.js && node testes/fase1-operacao.test.js && node testes/reconstrucao-base-economica.test.js && node testes/qualidade-cobertura.test.js && node testes/fase2a-cobertura.test.js && node testes/fase2a-simples-legal.test.js && node testes/fase2a-b2b-classificacao.test.js && node testes/fase2b-premissas.test.js && node testes/fase2c-cenarios-automaticos.test.js && node testes/etapa5-analise-cadeia.test.js && node testes/saida-executiva.test.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.112.3",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "multer": "^2.0.0",
+    "pdfkit": "^0.20.1",
     "pg": "^8.23.0",
     "pg-copy-streams": "^7.0.0",
     "xlsx": "0.18.5"

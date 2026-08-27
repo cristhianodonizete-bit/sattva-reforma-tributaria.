@@ -26,6 +26,7 @@ const cenarioMotor = require('../services/cenarioMotor');
 const cenarioMemoria = require('../services/cenarioMemoria');
 const cenarioTemplates = require('../services/cenarioTemplates');
 const analiseCadeia = require('../services/analiseCadeia');
+const saidaExecutiva = require('../services/saidaExecutiva');
 const cnpjReceita = require('../services/cnpjReceita');
 const baseRegime = require('../services/baseRegimeReceita');
 const relatorio = require('../services/relatorio');
@@ -2856,6 +2857,44 @@ router.get('/cenarios/:id/analitica', (req, res) => {
     const r = cenarioMotor.executarCenario(req.params.id);
     ok(res, { cenario:{ id:r.cenario.id, nome:r.cenario.nome, tipo:r.cenario.tipo, ano:r.ano },
       analise:analiseCadeia.analisar(r) });
+  } catch (e) { erro(res, e); }
+});
+
+/**
+ * Saída executiva: organiza exclusivamente a fotografia já calculada pelos
+ * cenários oficiais. Nenhuma regra fiscal é executada aqui além da chamada ao
+ * mesmo orquestrador que também sustenta as telas de cenários.
+ */
+function idsSaidaExecutiva(req) {
+  const bruto = req.method === 'GET' ? String(req.query.cenarios || '').split(',') : (req.body?.cenario_ids || []);
+  return [...new Set((Array.isArray(bruto) ? bruto : []).map(Number).filter(Boolean))];
+}
+function montarSaidaExecutiva(empresaId, ids, anoSolicitado) {
+  const cenarios = db.prepare(`SELECT id,empresa_id,tipo,ano FROM cenarios WHERE empresa_id=?`).all(empresaId);
+  const permitidos = new Set(cenarios.map((x) => Number(x.id)));
+  const escolhidos = cenarios.filter((x) => ids.includes(Number(x.id)));
+  const ano = Number(anoSolicitado) || Number(escolhidos[0]?.ano) || 2027;
+  if (escolhidos.some((x) => Number(x.ano) !== ano)) throw new Error('Selecione cenários da mesma referência para a apresentação.');
+  const base = cenarios.find((x) => x.tipo === 'base' && Number(x.ano) === ano);
+  const selecionados = [...new Set([base?.id, ...ids].filter(Boolean).map(Number))];
+  if (!base) throw new Error(`Cenário base ${ano} não encontrado para esta empresa.`);
+  if (selecionados.some((id) => !permitidos.has(id))) throw new Error('Há cenário selecionado que não pertence à empresa em análise.');
+  if (selecionados.length > 5) throw new Error('Selecione o cenário base e no máximo quatro hipóteses.');
+  return saidaExecutiva.montar(selecionados.map((id) => cenarioMotor.executarCenario(id)));
+}
+router.post('/empresas/:id/saida-executiva', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    ok(res, { relatorio:montarSaidaExecutiva(Number(req.params.id), idsSaidaExecutiva(req), req.body?.ano) });
+  } catch (e) { erro(res, e); }
+});
+router.get('/empresas/:id/saida-executiva.pdf', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const relatorio = montarSaidaExecutiva(Number(req.params.id), idsSaidaExecutiva(req), req.query.ano);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="diagnostico-executivo-cbs.pdf"');
+    saidaExecutiva.gerarPdf(relatorio, res);
   } catch (e) { erro(res, e); }
 });
 

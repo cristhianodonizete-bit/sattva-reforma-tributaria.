@@ -601,10 +601,89 @@ function painelMatriz(matriz) {
     </tbody></table></div></div>`;
 }
 
+// =========================================================================
+// SAÍDA EXECUTIVA — apresentação e PDF derivados do cenário oficial
+// =========================================================================
+const execEstado = () => (S.cache.saidaExecutiva = S.cache.saidaExecutiva || { ids: [], relatorio: null });
+const tagNatureza = (n) => `<span class="tag ${natTag(n)[0]}">${natTag(n)[1]}</span>`;
+const valorExec = (v) => v === null || v === undefined ? '<span class="tag a">INCOMPLETO</span>' : A.moeda(v);
+
+async function saidaExecutiva(el) {
+  const estado = execEstado();
+  const { cenarios } = await A.api(`/empresas/${S.empresaId}/cenarios/lista`);
+  const ano = Number(S.ano) || 2027;
+  const cenariosAno = cenarios.filter((c) => Number(c.ano) === ano);
+  const base = cenariosAno.find((c) => c.tipo === 'base');
+  if (!base) {
+    el.innerHTML = '<div class="aviso atencao"><b>Crie ou abra o cenário base antes de gerar a saída executiva.</b></div>';
+    return;
+  }
+  const hipoteses = cenariosAno.filter((c) => c.tipo !== 'base');
+  estado.ids = estado.ids.filter((id) => hipoteses.some((x) => Number(x.id) === Number(id))).slice(0, 4);
+  el.innerHTML = M.seletorAno(() => A.ir('cenarios')) + `<div class="aviso bom"><b>Saída executiva e entregáveis do diagnóstico</b>
+    <div class="acao">A apresentação usa somente cenário base, cenários simulados, indicadores, alertas, matriz, waterfall e memória de cálculo. Nenhum tributo é recalculado nesta tela.</div></div>
+    <div class="cartao"><h2>Selecionar cenários</h2><p class="desc">O cenário base sempre acompanha a apresentação. Selecione até quatro hipóteses para comparação.</p>
+      <div class="grade g3"><label class="aviso" style="margin:0"><input type="checkbox" checked disabled> <b>${A.esc(base.nome)}</b><div class="mini">Referência oficial</div></label>
+      ${hipoteses.map((c) => `<label class="aviso" style="margin:0"><input type="checkbox" class="execCenario" value="${c.id}" ${estado.ids.includes(Number(c.id)) ? 'checked' : ''}> <b>${A.esc(c.nome)}</b><div class="mini">${c.premissas || 0} premissa(s) · ${c.alocacoes || 0} migração(ões)</div></label>`).join('') || '<div class="mini">Ainda não há hipótese adicional criada.</div>'}</div>
+      <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap"><button class="btn ouro" id="gerarSaidaExec">Gerar análise executiva</button>
+        <button class="btn vazio" id="baixarSaidaExec" ${estado.relatorio ? '' : 'disabled'}>Exportar PDF</button></div>
+    </div><div id="corpoSaidaExec" style="margin-top:16px">${estado.relatorio ? renderSaidaExecutiva(estado.relatorio) : '<div class="aviso">Selecione os cenários e gere a apresentação.</div>'}</div>`;
+  document.querySelectorAll('.execCenario').forEach((b) => b.onchange = () => {
+    estado.ids = [...document.querySelectorAll('.execCenario:checked')].map((x) => Number(x.value)).slice(0, 4);
+    if ([...document.querySelectorAll('.execCenario:checked')].length > 4) { b.checked = false; estado.ids = [...document.querySelectorAll('.execCenario:checked')].map((x) => Number(x.value)); A.toast('Selecione no máximo quatro hipóteses.', 'erro'); }
+  });
+  document.getElementById('gerarSaidaExec').onclick = async () => {
+    estado.ids = [...document.querySelectorAll('.execCenario:checked')].map((x) => Number(x.value));
+    const box = document.getElementById('corpoSaidaExec'); box.innerHTML = '<div class="carregando">Consolidando os resultados oficiais…</div>';
+    try {
+      const r = await A.api(`/empresas/${S.empresaId}/saida-executiva`, { metodo:'POST', corpo:{ cenario_ids:estado.ids, ano } });
+      estado.relatorio = r.relatorio; box.innerHTML = renderSaidaExecutiva(r.relatorio); vincularMemoriaExecutiva(box, r.relatorio);
+      document.getElementById('baixarSaidaExec').disabled = false;
+    } catch (err) { box.innerHTML = `<div class="aviso alto"><b>Não foi possível gerar a apresentação</b><div>${A.esc(err.message)}</div></div>`; }
+  };
+  document.getElementById('baixarSaidaExec').onclick = () => {
+    const ids = estado.ids.join(',');
+    window.location.href = `/api/empresas/${S.empresaId}/saida-executiva.pdf?ano=${encodeURIComponent(ano)}&cenarios=${encodeURIComponent(ids)}`;
+  };
+  if (estado.relatorio) vincularMemoriaExecutiva(document.getElementById('corpoSaidaExec'), estado.relatorio);
+}
+
+function cardExec(titulo, valor, natureza, sub, d) {
+  return `<div class="kpi ${natureza === 'INDETERMINADO' || natureza === 'INCOMPLETO' ? 'destaque' : ''}"><span>${A.esc(titulo)}</span><b class="mono">${valorExec(valor)}</b><small>${tagNatureza(natureza)} ${A.esc(sub || '')}</small>${d ? `<button class="btn pq vazio" data-exec-mem='${A.esc(JSON.stringify(d))}'>Memória</button>` : ''}</div>`;
+}
+function listaEvidencias(lista, vazio) {
+  return lista?.length ? `<div class="grade g2">${lista.map((a) => `<div class="aviso ${a.natureza === 'INDETERMINADO' || a.severidade === 'alto' ? 'alto' : a.severidade === 'bom' ? 'bom' : 'atencao'}"><b>${A.esc(a.titulo || a.cenario || 'Evidência')} ${tagNatureza(a.natureza || 'CALCULADO')}</b><div>${A.esc(a.texto || '')}</div>${a.memoria?.grupos?.length ? `<button class="btn pq vazio" data-exec-mem='${A.esc(JSON.stringify(a.memoria))}' style="margin-top:8px">Abrir memória</button>` : ''}</div>`).join('')}</div>` : `<div class="aviso">${A.esc(vazio)}</div>`;
+}
+function renderSaidaExecutiva(r) {
+  const b = r.base, s = r.secoes, primeiraMatriz = s.matriz;
+  return `<div class="topo"><div><div class="olho">Diagnóstico executivo</div><h1>${A.esc(r.titulo)}</h1><p>${A.esc(r.subtitulo)} · Fonte: ${A.esc(r.fonte)}</p></div></div>
+    <div class="cartao"><h2>1. Resumo executivo</h2><div class="grade g3">${s.resumoExecutivo.fatos.map((x) => cardExec(x.rotulo, x.valor, x.natureza, 'resultado oficial', x.memoria)).join('')}</div></div>
+    <div class="cartao"><h2>2. Qualidade e cobertura dos dados</h2><p class="desc">Cobertura é apresentada sem redistribuir dados desconhecidos.</p><div class="grade g3">${s.qualidade.indicadores.map((x) => cardExec(x.nome, x.valor, x.percentual === null ? 'INDETERMINADO' : 'CALCULADO', x.percentual === null ? 'não determinado' : A.pct(x.percentual), x.drilldown)).join('')}</div></div>
+    <div class="cartao"><h2>3. Cenário base</h2><div class="grade g4">${cardExec('Receita atual',b.receita,b.natureza,'fotografia base',b.memoriaVendas)}${cardExec('Base econômica das saídas',b.baseEconomicaSaidas,b.natureza,'motor oficial',b.memoriaVendas)}${cardExec('CBS líquida projetada',b.cbsLiquida,b.natureza,'débito menos crédito',b.memoriaVendas)}${cardExec('Operações',b.operacoesCompras + b.operacoesVendas,b.natureza,'compras e vendas')}</div></div>
+    <div class="cartao"><h2>4. Impacto nas compras</h2><div class="grade g4">${cardExec('Compras atuais',s.compras.valor,s.compras.natureza,'valor importado',s.compras.memoria)}${cardExec('Base econômica',s.compras.baseEconomica,s.compras.natureza,'motor oficial',s.compras.memoria)}${cardExec('Crédito CBS recebido',s.compras.credito,s.compras.natureza,'potencial aproveitável',s.compras.memoria)}${cardExec('Custo efetivo',b.custoEfetivo,b.natureza,'após crédito',s.compras.memoria)}</div></div>
+    <div class="cartao"><h2>5. Impacto nas vendas</h2><div class="grade g4">${cardExec('Venda atual',s.vendas.valor,s.vendas.natureza,'valor importado',s.vendas.memoria)}${cardExec('Base econômica',s.vendas.baseEconomica,s.vendas.natureza,'motor oficial',s.vendas.memoria)}${cardExec('CBS da venda',s.vendas.cbs,s.vendas.natureza,'não depende do perfil do cliente',s.vendas.memoria)}${cardExec('Venda projetada',s.vendas.precoProjetado,s.vendas.natureza,'base + tributos',s.vendas.memoria)}</div></div>
+    <div class="cartao"><h2>6. Crédito recebido e crédito entregue</h2><div class="grade g2">${cardExec('Crédito CBS recebido dos fornecedores',b.creditoRecebido,b.natureza,'reduz a CBS líquida quando aproveitável',b.memoriaCompras)}${cardExec('Crédito CBS entregue aos clientes',b.creditoEntregue,b.natureza,'indicador comercial; não reduz a CBS líquida do vendedor',b.memoriaVendas)}</div></div>
+    <div class="cartao"><h2>7. Waterfall econômico</h2>${s.waterfall ? `<p class="desc">${A.esc(s.waterfall.leitura || 'Efeito consolidado da hipótese selecionada.')}</p><div class="grade g4">${cardExec('Base econômica - base',s.waterfall.baseEconomicaBase,s.waterfall.natureza,'compras')}${cardExec('Base econômica - cenário',s.waterfall.baseEconomicaCenario,s.waterfall.natureza,'compras')}${cardExec('Variação do crédito',s.waterfall.efeitoCredito,s.waterfall.natureza,'efeito econômico')}${cardExec('Variação do custo efetivo',s.waterfall.efeitoLiquido,s.waterfall.natureza,'efeito econômico')}</div>` : '<div class="aviso">O cenário base não possui hipótese para comparar; selecione uma simulação para visualizar o waterfall.</div>'}</div>
+    <div class="cartao"><h2>8. Comparação Base × Cenário(s)</h2>${A.tabela([{t:'Cenário',r:x=>`<b>${A.esc(x.cenario)}</b> ${tagNatureza(x.natureza)}`},{t:'Receita projetada',num:true,r:x=>A.moeda(x.receitaProjetada)},{t:'CBS líquida',num:true,r:x=>A.moeda(x.cbsLiquida)},{t:'Δ CBS',num:true,r:x=>A.setaR$(x.deltaCbsLiquida)},{t:'Crédito recebido',num:true,r:x=>A.moeda(x.creditoRecebido)},{t:'Custo efetivo',num:true,r:x=>A.moeda(x.custoEfetivo)},{t:'Margem',num:true,r:x=>x.margem === null ? '<span class="tag a">INCOMPLETO</span>' : A.moeda(x.margem)}],r.comparacao)}</div>
+    <div class="cartao"><h2>9. Matriz Fornecedores × Clientes</h2><p class="desc">${A.esc(primeiraMatriz.observacao)}</p>${painelMatriz(primeiraMatriz)}</div>
+    <div class="cartao"><h2>10. Principais alertas</h2>${listaEvidencias(s.alertas,'Nenhum limiar de alerta foi atingido.')}</div>
+    <div class="cartao"><h2>11. Oportunidades e pontos de atenção</h2><h3 style="font-size:14px">Oportunidades evidenciadas</h3>${listaEvidencias(s.oportunidades,'Nenhuma oportunidade é inferida sem evidência calculada.')}<h3 style="font-size:14px;margin-top:16px">Pontos de atenção</h3>${listaEvidencias(s.atencoes,'Nenhum ponto de atenção adicional pelos limiares configurados.')}</div>
+    <div class="cartao"><h2>12. Premissas utilizadas</h2>${s.premissas.length ? A.tabela([{t:'Cenário',r:x=>A.esc(x.cenario)},{t:'Tipo',r:x=>A.esc(x.tipo)},{t:'Regra',r:x=>A.esc(x.campo || `${x.grupo_origem} → ${x.grupo_destino}`)},{t:'Valor',r:x=>A.esc(x.valor_simulado || A.pct(x.percentual_grupo))},{t:'Natureza',r:x=>tagNatureza(x.natureza)},{t:'Justificativa',r:x=>A.esc(x.justificativa || '—')}],s.premissas) : '<div class="aviso">Cenário base sem premissas simuladas.</div>'}</div>
+    <div class="cartao"><h2>13. Limitações e dados indeterminados</h2>${listaEvidencias(s.limitacoes,'Nenhuma limitação adicional identificada na fotografia selecionada.')}</div>
+    <div class="cartao"><h2>14. Memória e resumo metodológico</h2><p>${A.esc(s.metodologia.texto)}</p><div class="aviso"><b>Naturezas preservadas</b><div class="acao">${tagNatureza('REAL')} dado documental · ${tagNatureza('CALCULADO')} resultado do motor · ${tagNatureza('SIMULADO')} premissa de cenário · ${tagNatureza('INDETERMINADO')} ausência explícita de evidência.</div></div></div>`;
+}
+function vincularMemoriaExecutiva(box, r) {
+  box.querySelectorAll('[data-exec-mem]').forEach((b) => b.onclick = () => {
+    const d = JSON.parse(b.dataset.execMem); const grupo = d.grupos?.[0];
+    if (grupo) memoria({ cenarioId:d.cenarioId || r.base.id, lado:d.lado, dimensao:d.dimensao }, grupo);
+  });
+}
+
 // registra a aba na tela de Cenários, ao lado das que já existem
 M.comAbas('cenarios', M.abasCenarios.concat([
   { id: 'simulacao', t: 'Composição de cenário', render: simulacaoCadeia },
   { id: 'indicadores', t: 'Indicadores e alertas', render: indicadoresCadeia },
+  { id: 'saida_executiva', t: 'Saída executiva', render: saidaExecutiva },
 ]), 'simulacao');
 })();
 
