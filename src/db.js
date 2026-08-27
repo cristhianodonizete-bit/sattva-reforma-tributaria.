@@ -84,6 +84,11 @@ const COLUNAS_NOVAS = {
     regime_pis_cofins_receita: 'TEXT', tratamento_pis_cofins: 'TEXT', papel_na_cadeia_necessario: 'TEXT', tratamento_efetivo_saida: 'TEXT', natureza_reconstrucao: 'TEXT', percentual_reconstrucao_sugerido: 'REAL', regra_precedencia: 'TEXT',
   },
   cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT' },
+  contratos: {
+    nome: 'TEXT', moeda: "TEXT DEFAULT 'BRL'", periodicidade_reajuste: 'TEXT', tipo_relacao: 'TEXT',
+    renovacao: 'TEXT', observacoes: 'TEXT', arquivo_origem: 'TEXT', status_analise: "TEXT DEFAULT 'NAO_INICIADA'",
+  },
+  contrato_precificacao_vinculos: { pricing_simulacao_id: 'INTEGER' },
 };
 
 function migrarEsquema() {
@@ -441,6 +446,17 @@ CREATE TABLE IF NOT EXISTS pricing_import_batches (
   arquivo TEXT, status TEXT NOT NULL, resumo TEXT, criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- Fotografia oficial do simulador. Outros módulos apenas leem esta saída;
+-- eles nunca chamam o motor tributário em nome próprio.
+CREATE TABLE IF NOT EXISTS pricing_simulacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  modo TEXT NOT NULL, parametros_json TEXT, resultados_json TEXT NOT NULL,
+  origem TEXT NOT NULL DEFAULT 'MOTOR_FISCAL_OFICIAL', natureza TEXT NOT NULL DEFAULT 'CALCULADO',
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_pricing_simulacoes_empresa ON pricing_simulacoes(empresa_id, id DESC);
+
 -- ============ MÓDULO 3 — CONTRATOS ============
 CREATE TABLE IF NOT EXISTS contratos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -462,6 +478,76 @@ CREATE TABLE IF NOT EXISTS contrato_checklist (
   clausula_id TEXT, situacao TEXT DEFAULT 'ausente',  -- ausente | parcial | adequada | na
   observacao TEXT
 );
+
+-- Entrega 1 de Contratos: o documento original nunca é substituído pelo
+-- texto extraído. Cláusulas, riscos e vínculos econômicos são camadas
+-- independentes, rastreáveis e sem qualquer inferência tributária automática.
+CREATE TABLE IF NOT EXISTS contrato_documentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  contrato_id INTEGER NOT NULL REFERENCES contratos(id) ON DELETE CASCADE,
+  nome_original TEXT NOT NULL, mime_type TEXT, tipo_origem TEXT NOT NULL,
+  conteudo_original BLOB, hash_original TEXT, tamanho_bytes INTEGER DEFAULT 0,
+  texto_extraido TEXT, status_extracao TEXT DEFAULT 'PENDENTE',
+  observacao_extracao TEXT, criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_contrato_documentos_contrato ON contrato_documentos(contrato_id);
+
+CREATE TABLE IF NOT EXISTS contrato_clausulas_extraidas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  documento_id INTEGER NOT NULL REFERENCES contrato_documentos(id) ON DELETE CASCADE,
+  contrato_id INTEGER NOT NULL REFERENCES contratos(id) ON DELETE CASCADE,
+  ordem INTEGER NOT NULL, texto_original TEXT NOT NULL, localizacao TEXT NOT NULL,
+  pagina INTEGER, secao TEXT, tema TEXT NOT NULL, confianca REAL DEFAULT 1,
+  natureza TEXT NOT NULL DEFAULT 'EXTRAIDO', criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_contrato_clausulas_documento ON contrato_clausulas_extraidas(documento_id, ordem);
+
+CREATE TABLE IF NOT EXISTS contrato_riscos_iniciais (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  documento_id INTEGER NOT NULL REFERENCES contrato_documentos(id) ON DELETE CASCADE,
+  contrato_id INTEGER NOT NULL REFERENCES contratos(id) ON DELETE CASCADE,
+  clausula_id INTEGER REFERENCES contrato_clausulas_extraidas(id) ON DELETE SET NULL,
+  codigo TEXT NOT NULL, risco TEXT NOT NULL, evidencia TEXT NOT NULL,
+  impacto_potencial TEXT NOT NULL, nivel TEXT NOT NULL, fundamento TEXT NOT NULL,
+  natureza TEXT NOT NULL DEFAULT 'INTERPRETADO', status TEXT DEFAULT 'ABERTO',
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_contrato_riscos_documento ON contrato_riscos_iniciais(documento_id);
+
+CREATE TABLE IF NOT EXISTS contrato_precificacao_vinculos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contrato_id INTEGER NOT NULL REFERENCES contratos(id) ON DELETE CASCADE,
+  tipo_item TEXT NOT NULL CHECK(tipo_item IN ('produto','servico')),
+  item_precificacao_id INTEGER NOT NULL,
+  pricing_simulacao_id INTEGER REFERENCES pricing_simulacoes(id) ON DELETE SET NULL,
+  status TEXT NOT NULL DEFAULT 'PENDENTE_CONFIRMACAO', origem TEXT NOT NULL DEFAULT 'EXPLICITO',
+  observacoes TEXT, confirmado_em TEXT, criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(contrato_id,tipo_item,item_precificacao_id)
+);
+
+CREATE TABLE IF NOT EXISTS contrato_recomendacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contrato_id INTEGER NOT NULL REFERENCES contratos(id) ON DELETE CASCADE,
+  risco_id INTEGER REFERENCES contrato_riscos_iniciais(id) ON DELETE SET NULL,
+  clausula_id INTEGER REFERENCES contrato_clausulas_extraidas(id) ON DELETE SET NULL,
+  recomendacao TEXT NOT NULL, evidencia TEXT NOT NULL, impacto_potencial TEXT NOT NULL,
+  prioridade TEXT NOT NULL CHECK(prioridade IN ('ALTA','MEDIA','BAIXA')),
+  fundamento TEXT NOT NULL, natureza TEXT NOT NULL DEFAULT 'INTERPRETADO',
+  origem TEXT NOT NULL DEFAULT 'TRIAGEM_CONTRATUAL', criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_contrato_recomendacoes_contrato ON contrato_recomendacoes(contrato_id);
+
+CREATE TABLE IF NOT EXISTS contrato_sugestoes_clausulas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contrato_id INTEGER NOT NULL REFERENCES contratos(id) ON DELETE CASCADE,
+  risco_id INTEGER REFERENCES contrato_riscos_iniciais(id) ON DELETE SET NULL,
+  clausula_original TEXT, sugestao_redacao TEXT NOT NULL, motivo TEXT NOT NULL,
+  impacto_esperado TEXT NOT NULL, fundamento TEXT NOT NULL,
+  natureza TEXT NOT NULL DEFAULT 'SUGERIDO', status TEXT DEFAULT 'RASCUNHO',
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_contrato_sugestoes_contrato ON contrato_sugestoes_clausulas(contrato_id);
 
 -- ============ MÓDULO 4 — CAPACITAÇÃO ============
 CREATE TABLE IF NOT EXISTS turmas (

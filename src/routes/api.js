@@ -10,6 +10,8 @@ const calc = require('../engine/calculadora');
 const prec = require('../engine/precificacao');
 const precificacaoIndependente = require('../services/precificacaoIndependente');
 const precificacaoExecutiva = require('../services/precificacaoExecutiva');
+const contratosEntrega1 = require('../services/contratosEntrega1');
+const contratosEntrega2 = require('../services/contratosEntrega2');
 const { analisarCadeia } = require('../engine/cadeia');
 const consolidacaoOficial = require('../services/consolidacaoOficial');
 const imp = require('../services/importador');
@@ -1088,7 +1090,17 @@ router.get('/empresas/:id/precificacao-independente/formacao', (req, res) => {
   try { ok(res, { itens: precificacaoIndependente.calcularEmpresa(Number(req.params.id), { ano: Number(req.query.ano) || 2027 }), fonte_fiscal: 'motor.projetarItem', finalidade: 'FORMACAO_DE_CUSTO' }); } catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/precificacao-independente/simular', (req, res) => {
-  try { ok(res, { itens: precificacaoIndependente.simularEmpresa(Number(req.params.id), req.body || {}), fonte_fiscal: 'motor.projetarItem', finalidade: 'SIMULACAO_COMERCIAL' }); } catch (e) { erro(res, e); }
+  try {
+    const empresaId = Number(req.params.id); const opcoes = req.body || {};
+    const itens = precificacaoIndependente.simularEmpresa(empresaId, opcoes);
+    // A fotografia é produzida pela Precificação. Contratos e demais módulos
+    // apenas a consomem, sem chamar o motor fiscal outra vez.
+    const natureza = itens.some((x) => x.status === 'INCOMPLETO') ? 'INCOMPLETO' : (itens.some((x) => x.simulacao?.natureza === 'SIMULADO') ? 'SIMULADO' : 'CALCULADO');
+    const reg = db.prepare('INSERT INTO pricing_simulacoes (empresa_id,modo,parametros_json,resultados_json,origem,natureza) VALUES (?,?,?,?,?,?)')
+      .run(empresaId, opcoes.modo || 'REAJUSTE_LIVRE', JSON.stringify(opcoes), JSON.stringify(itens), 'MOTOR_FISCAL_OFICIAL', natureza);
+    auditar(req, { empresaId, acao: 'Gerou fotografia oficial de Precificação', entidade: 'pricing_simulacao', entidadeId: reg.lastInsertRowid, depois: { modo: opcoes.modo || 'REAJUSTE_LIVRE', itens: itens.length, natureza } });
+    ok(res, { itens, simulacao_id: reg.lastInsertRowid, fonte_fiscal: 'motor.projetarItem', finalidade: 'SIMULACAO_COMERCIAL' });
+  } catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/precificacao-independente/saida-executiva', (req, res) => {
   try { ok(res, { relatorio: precificacaoExecutiva.montar(Number(req.params.id), req.body || {}) }); } catch (e) { erro(res, e); }
@@ -1333,6 +1345,128 @@ router.put('/contratos/:id/checklist', async (req, res) => {
 });
 
 router.delete('/contratos/:id', async (req, res) => { try { const contrato = await contratoPermitido(req, req.params.id); db.prepare('DELETE FROM contratos WHERE id=?').run(req.params.id); auditar(req, { empresaId: contrato.empresa_id, acao: 'Excluiu contrato', entidade: 'contrato', entidadeId: req.params.id, antes: { contraparte: contrato.contraparte } }); ok(res, {}); } catch (e) { erro(res, e); } });
+
+// ---------------------------------------------------------------------------
+// CONTRATOS — ENTREGA 1: acervo original, extração determinística e riscos.
+// Não substitui a revisão existente nem cria pareceres/cláusulas finais.
+// ---------------------------------------------------------------------------
+router.post('/empresas/:id/contratos/entrega1', (req, res) => {
+  try {
+    const b = req.body || {}; const empresaId = Number(req.params.id);
+    const tipo = String(b.tipo_contrato || b.tipo || 'OUTRO').toLowerCase();
+    const reg = db.prepare(`INSERT INTO contratos (empresa_id,tipo,contraparte,cnpj_contraparte,regime_contraparte,objeto,valor,vigencia_inicio,vigencia_fim,reajuste,status,risco,parecer,nome,moeda,periodicidade_reajuste,tipo_relacao,renovacao,observacoes,arquivo_origem,status_analise)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
+      empresaId, tipo, b.contraparte || '', imp.soDigitos(b.cnpj_contraparte || ''), b.regime_contraparte || '', b.objeto || '',
+      Number(b.valor) || 0, b.data_inicio || b.vigencia_inicio || '', b.data_fim || b.vigencia_fim || '', b.reajuste || '',
+      'pendente', 'nao_avaliado', '', b.nome || b.objeto || 'Contrato sem título', b.moeda || 'BRL', b.periodicidade_reajuste || '',
+      b.tipo_relacao || '', b.renovacao || '', b.observacoes || '', '', 'NAO_INICIADA');
+    auditar(req, { empresaId, acao: 'Criou contrato para triagem documental', entidade: 'contrato', entidadeId: reg.lastInsertRowid, depois: { nome: b.nome || '', tipo } });
+    ok(res, { contrato_id: reg.lastInsertRowid });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/contratos/:id/documentos', upload.single('arquivo'), async (req, res) => {
+  try {
+    const contrato = await contratoPermitido(req, req.params.id);
+    const textoManual = String(req.body?.texto || '').trim();
+    if (!req.file && !textoManual) throw new Error('Envie um arquivo PDF, DOCX ou TXT, ou informe o texto do contrato.');
+    const arquivo = req.file || { originalname: req.body?.nome || 'texto-manual.txt', mimetype: 'text/plain', buffer: Buffer.from(textoManual, 'utf8') };
+    const extracao = await contratosEntrega1.extrairArquivo(arquivo, {
+      extrairPdf: ia.config().ativo ? async (f) => (await ia.extrairTexto(f)).texto : null,
+    });
+    const conteudo = Buffer.from(arquivo.buffer); const digesto = contratosEntrega1.hash(conteudo);
+    const inserirDoc = db.prepare(`INSERT INTO contrato_documentos (empresa_id,contrato_id,nome_original,mime_type,tipo_origem,conteudo_original,hash_original,tamanho_bytes,texto_extraido,status_extracao,observacao_extracao)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
+    const inserirClausula = db.prepare(`INSERT INTO contrato_clausulas_extraidas (documento_id,contrato_id,ordem,texto_original,localizacao,pagina,secao,tema,confianca,natureza) VALUES (?,?,?,?,?,?,?,?,?,?)`);
+    const inserirRisco = db.prepare(`INSERT INTO contrato_riscos_iniciais (documento_id,contrato_id,clausula_id,codigo,risco,evidencia,impacto_potencial,nivel,fundamento,natureza,status) VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
+    let documentoId; let resultado = { clausulas: [], riscos: [] };
+    db.transaction(() => {
+      const d = inserirDoc.run(contrato.empresa_id, contrato.id, arquivo.originalname, arquivo.mimetype || 'text/plain', extracao.tipo, conteudo, digesto, conteudo.length, extracao.texto || '', extracao.status, extracao.observacao || '');
+      documentoId = d.lastInsertRowid;
+      if (extracao.status === 'CONCLUIDA') {
+        resultado = contratosEntrega1.analisarTexto(extracao.texto);
+        const clausulaPorOrdem = new Map();
+        for (const c of resultado.clausulas) {
+          const r = inserirClausula.run(documentoId, contrato.id, c.ordem, c.texto_original, c.localizacao, c.pagina || null, c.secao || null, c.tema, c.confianca, c.natureza);
+          if (!clausulaPorOrdem.has(c.ordem)) clausulaPorOrdem.set(c.ordem, r.lastInsertRowid);
+        }
+        for (const r of resultado.riscos) inserirRisco.run(documentoId, contrato.id, r.clausula_ordem ? clausulaPorOrdem.get(r.clausula_ordem) || null : null, r.codigo, r.risco, r.evidencia, r.impacto_potencial, r.nivel, r.fundamento, r.natureza, r.status);
+      }
+      db.prepare('UPDATE contratos SET arquivo_origem=?, status_analise=?, risco=? WHERE id=?').run(arquivo.originalname, extracao.status === 'CONCLUIDA' ? 'TRIAGEM_INICIAL_CONCLUIDA' : extracao.status, resultado.riscos.some((r) => r.nivel === 'alto') ? 'alto' : resultado.riscos.length ? 'medio' : 'nao_avaliado', contrato.id);
+    })();
+    auditar(req, { empresaId: contrato.empresa_id, acao: 'Preservou documento e executou triagem contratual inicial', entidade: 'contrato_documento', entidadeId: documentoId, depois: { arquivo: arquivo.originalname, status_extracao: extracao.status, clausulas: resultado.clausulas.length, riscos: resultado.riscos.length } });
+    ok(res, { documento_id: documentoId, status_extracao: extracao.status, observacao: extracao.observacao, clausulas: resultado.clausulas.length, riscos: resultado.riscos.length });
+  } catch (e) { erro(res, e); }
+});
+
+router.get('/contratos/:id/memoria-inicial', async (req, res) => {
+  try {
+    const contrato = await contratoPermitido(req, req.params.id);
+    const documentos = db.prepare('SELECT id,nome_original,mime_type,tipo_origem,hash_original,tamanho_bytes,status_extracao,observacao_extracao,criado_em FROM contrato_documentos WHERE contrato_id=? ORDER BY id DESC').all(contrato.id);
+    const clausulas = db.prepare('SELECT * FROM contrato_clausulas_extraidas WHERE contrato_id=? ORDER BY documento_id,ordem,id').all(contrato.id);
+    const riscos = db.prepare('SELECT * FROM contrato_riscos_iniciais WHERE contrato_id=? ORDER BY documento_id,id').all(contrato.id);
+    const vinculos = db.prepare('SELECT * FROM contrato_precificacao_vinculos WHERE contrato_id=? ORDER BY id').all(contrato.id);
+    const recomendacoes = db.prepare('SELECT * FROM contrato_recomendacoes WHERE contrato_id=? ORDER BY CASE prioridade WHEN \'ALTA\' THEN 1 WHEN \'MEDIA\' THEN 2 ELSE 3 END,id').all(contrato.id);
+    const sugestoes = db.prepare('SELECT * FROM contrato_sugestoes_clausulas WHERE contrato_id=? ORDER BY id').all(contrato.id);
+    ok(res, { contrato, documentos, clausulas, riscos, vinculos, recomendacoes, sugestoes, natureza_documento: 'EXTRAIDO', natureza_risco: 'INTERPRETADO', observacao: 'Triagem e recomendações rastreáveis: rascunhos não constituem parecer ou cláusula final.' });
+  } catch (e) { erro(res, e); }
+});
+
+router.get('/contrato-documentos/:id/original', async (req, res) => {
+  try {
+    const documento = db.prepare('SELECT * FROM contrato_documentos WHERE id=?').get(req.params.id);
+    if (!documento) throw new Error('Documento não encontrado.');
+    await garantirEmpresaPermitida(req, documento.empresa_id);
+    res.setHeader('Content-Type', documento.mime_type || 'application/octet-stream');
+    res.setHeader('Content-Disposition', `attachment; filename="${String(documento.nome_original).replace(/[\r\n"]/g, '_')}"`);
+    res.send(documento.conteudo_original);
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/contratos/:id/vinculos-precificacao', async (req, res) => {
+  try {
+    const contrato = await contratoPermitido(req, req.params.id); const b = req.body || {};
+    const tipo = String(b.tipo_item || ''); const itemId = Number(b.item_precificacao_id);
+    if (!['produto', 'servico'].includes(tipo) || !itemId) throw new Error('Informe explicitamente produto ou serviço e o item de Precificação.');
+    const tabela = tipo === 'produto' ? 'pricing_products' : 'pricing_services';
+    const item = db.prepare(`SELECT id,descricao FROM ${tabela} WHERE id=? AND empresa_id=?`).get(itemId, contrato.empresa_id);
+    if (!item) throw new Error('Item de Precificação não encontrado nesta empresa. Nenhum vínculo automático é permitido.');
+    const simulacaoId = b.pricing_simulacao_id == null || b.pricing_simulacao_id === '' ? null : Number(b.pricing_simulacao_id);
+    if (simulacaoId && !db.prepare('SELECT id FROM pricing_simulacoes WHERE id=? AND empresa_id=?').get(simulacaoId, contrato.empresa_id)) throw new Error('A fotografia de Precificação informada não pertence a esta empresa.');
+    db.prepare(`INSERT INTO contrato_precificacao_vinculos (contrato_id,tipo_item,item_precificacao_id,pricing_simulacao_id,status,origem,observacoes,confirmado_em) VALUES (?,?,?,?,?,?,?,?)
+      ON CONFLICT(contrato_id,tipo_item,item_precificacao_id) DO UPDATE SET pricing_simulacao_id=excluded.pricing_simulacao_id,status=excluded.status,observacoes=excluded.observacoes,confirmado_em=excluded.confirmado_em`).run(contrato.id, tipo, itemId, simulacaoId, b.status === 'CONFIRMADO' ? 'CONFIRMADO' : 'PENDENTE_CONFIRMACAO', 'EXPLICITO', b.observacoes || '', b.status === 'CONFIRMADO' ? new Date().toISOString() : null);
+    auditar(req, { empresaId: contrato.empresa_id, acao: 'Criou vínculo explícito entre contrato e Precificação', entidade: 'contrato_precificacao_vinculo', entidadeId: contrato.id, depois: { tipo, item_id: itemId, simulacao_id: simulacaoId, status: b.status === 'CONFIRMADO' ? 'CONFIRMADO' : 'PENDENTE_CONFIRMACAO' } });
+    ok(res, { item, mensagem: 'Vínculo econômico explícito registrado; nenhuma classificação fiscal foi inferida.' });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/contratos/:id/entrega2/gerar', async (req, res) => {
+  try {
+    const contrato = await contratoPermitido(req, req.params.id);
+    const clausulas = db.prepare('SELECT * FROM contrato_clausulas_extraidas WHERE contrato_id=? ORDER BY id').all(contrato.id);
+    const riscos = db.prepare('SELECT * FROM contrato_riscos_iniciais WHERE contrato_id=? AND status<>? ORDER BY id').all(contrato.id, 'ARQUIVADO');
+    const vinculos = db.prepare("SELECT * FROM contrato_precificacao_vinculos WHERE contrato_id=? AND status='CONFIRMADO' AND pricing_simulacao_id IS NOT NULL").all(contrato.id);
+    const itensPrecificacao = [];
+    for (const v of vinculos) {
+      const snap = db.prepare('SELECT * FROM pricing_simulacoes WHERE id=? AND empresa_id=?').get(v.pricing_simulacao_id, contrato.empresa_id);
+      if (!snap) continue;
+      const itens = JSON.parse(snap.resultados_json || '[]');
+      const item = itens.find((x) => x?.item?.natureza_item === v.tipo_item && Number(x?.item?.id) === Number(v.item_precificacao_id));
+      if (item) itensPrecificacao.push(item);
+    }
+    const gerado = contratosEntrega2.gerar({ riscos, clausulas, itensPrecificacao });
+    const insRec = db.prepare(`INSERT INTO contrato_recomendacoes (contrato_id,risco_id,clausula_id,recomendacao,evidencia,impacto_potencial,prioridade,fundamento,natureza,origem) VALUES (?,?,?,?,?,?,?,?,?,?)`);
+    const insSug = db.prepare(`INSERT INTO contrato_sugestoes_clausulas (contrato_id,risco_id,clausula_original,sugestao_redacao,motivo,impacto_esperado,fundamento,natureza,status) VALUES (?,?,?,?,?,?,?,?,?)`);
+    db.transaction(() => {
+      db.prepare("DELETE FROM contrato_recomendacoes WHERE contrato_id=? AND origem IN ('TRIAGEM_CONTRATUAL','PRECIFICACAO_VINCULO_EXPLICITO')").run(contrato.id);
+      db.prepare("DELETE FROM contrato_sugestoes_clausulas WHERE contrato_id=? AND status='RASCUNHO'").run(contrato.id);
+      for (const r of gerado.recomendacoes) insRec.run(contrato.id, r.risco_id || null, r.clausula_id || null, r.recomendacao, r.evidencia, r.impacto_potencial, r.prioridade, r.fundamento, r.natureza, r.origem || 'TRIAGEM_CONTRATUAL');
+      for (const s of gerado.sugestoes) insSug.run(contrato.id, s.risco_id || null, s.clausula_original || null, s.sugestao_redacao, s.motivo, s.impacto_esperado, s.fundamento, s.natureza, s.status);
+    })();
+    auditar(req, { empresaId: contrato.empresa_id, acao: 'Gerou recomendações e rascunhos contratuais', entidade: 'contrato', entidadeId: contrato.id, depois: { recomendacoes: gerado.recomendacoes.length, sugestoes: gerado.sugestoes.length, vinculos_economicos_lidos: itensPrecificacao.length } });
+    ok(res, { recomendacoes: gerado.recomendacoes.length, sugestoes: gerado.sugestoes.length, vinculos_economicos_lidos: itensPrecificacao.length, aviso: 'Rascunhos sugeridos exigem revisão jurídica; o documento original não foi alterado.' });
+  } catch (e) { erro(res, e); }
+});
 
 // ===========================================================================
 // MÓDULO 4 — CAPACITAÇÃO

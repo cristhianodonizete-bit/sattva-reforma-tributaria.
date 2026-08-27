@@ -269,7 +269,9 @@ Telas.contratos = async (el) => {
         { t: 'Preço c/ tributo', r: (c) => c.preco_com_tributo ? '<span class="tag b">incluso</span>' : '<span class="tag c">líquido</span>' },
         { t: 'Risco', r: risco },
         { t: 'Status', r: (c) => `<span class="tag n">${A.esc(c.status)}</span>` },
-        { t: '', r: (c) => `<button class="btn pq ouro" data-rev="${c.id}">Revisar</button>
+        { t: '', r: (c) => `<button class="btn pq" data-doc="${c.id}">Documento</button>
+          <button class="btn pq" data-rec="${c.id}">Recomendações</button>
+          <button class="btn pq ouro" data-rev="${c.id}">Revisar</button>
           <button class="btn pq vazio" data-ec="${c.id}">Editar</button>
           <button class="btn pq perigo" data-rc="${c.id}">Excluir</button>` },
       ], contratos, { vazio: 'Nenhum contrato cadastrado. Comece pelos contratos de maior valor e maior prazo.' })}
@@ -305,6 +307,42 @@ Telas.contratos = async (el) => {
   }; });
   el.querySelectorAll('[data-rc]').forEach((b) => { b.onclick = () => A.confirmar('Excluir este contrato?', async () => {
     await A.api(`/contratos/${b.dataset.rc}`, { metodo: 'DELETE' }); A.ir('contratos'); }); });
+
+  // Triagem documental é distinta da revisão: preserva o arquivo original e
+  // mostra somente trechos extraídos e riscos iniciais rastreáveis.
+  el.querySelectorAll('[data-doc]').forEach((b) => { b.onclick = async () => {
+    const c = contratos.find((x) => x.id === Number(b.dataset.doc));
+    let memoria = { documentos: [], clausulas: [], riscos: [], vinculos: [] };
+    try { memoria = await A.api(`/contratos/${c.id}/memoria-inicial`); } catch (_) { /* contrato ainda sem documento */ }
+    const resumo = () => `<div class="aviso bom"><b>Triagem documental inicial</b> O original é preservado. Trechos são EXTRAÍDOS; riscos são INTERPRETADOS e não constituem parecer final.</div>
+      <div class="grade g3">${A.kpi('Documentos', memoria.documentos.length)}${A.kpi('Trechos extraídos', memoria.clausulas.length)}${A.kpi('Riscos iniciais', memoria.riscos.length)}</div>
+      ${memoria.documentos.length ? `<details open><summary><b>Documentos preservados</b></summary>${memoria.documentos.map((d) => `<p class="mini">${A.esc(d.nome_original)} · ${A.esc(d.tipo_origem)} · ${A.esc(d.status_extracao)} · <a href="/api/contrato-documentos/${d.id}/original" target="_blank">baixar original</a></p>`).join('')}</details>` : ''}
+      ${memoria.riscos.length ? `<details><summary><b>Riscos iniciais com evidência</b></summary>${memoria.riscos.map((r) => `<div class="cartao" style="box-shadow:none;margin:8px 0"><b>${A.esc(r.risco)}</b> <span class="tag ${r.nivel === 'alto' ? 'a' : 'b'}">${A.esc(r.nivel)}</span><p class="mini">${A.esc(r.evidencia)}</p></div>`).join('')}</details>` : ''}
+      <hr><label class="campo"><span>Arquivo original (PDF, DOCX ou TXT)</span><input type="file" id="contratoArquivo" accept=".pdf,.docx,.txt,text/plain,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"></label>
+      ${A.area('texto_contrato', 'Ou cole o texto do contrato', '', 8)}`;
+    const modal = A.modal({ titulo: `Documento — ${c.contraparte || c.nome || 'contrato'}`, largura: 900, confirmar: 'Preservar e realizar triagem', corpo: resumo(),
+      aoConfirmar: async (d, fundo) => {
+        const arquivo = fundo.querySelector('#contratoArquivo')?.files?.[0];
+        const texto = d.texto_contrato || '';
+        if (!arquivo && !texto.trim()) throw new Error('Selecione um arquivo ou informe o texto do contrato.');
+        const fd = new FormData(); if (arquivo) fd.append('arquivo', arquivo); if (texto.trim()) fd.append('texto', texto); if (!arquivo) fd.append('nome', 'texto-manual.txt');
+        const r = await A.api(`/contratos/${c.id}/documentos`, { metodo: 'POST', corpo: fd });
+        A.toast(`Original preservado. ${r.clausulas} trecho(s) e ${r.riscos} risco(s) iniciais registrados.`, 'ok');
+        A.ir('contratos');
+      } });
+    return modal;
+  }; });
+
+  el.querySelectorAll('[data-rec]').forEach((b) => { b.onclick = async () => {
+    const c = contratos.find((x) => x.id === Number(b.dataset.rec));
+    let memoria = await A.api(`/contratos/${c.id}/memoria-inicial`);
+    if (!memoria.riscos.length) { A.toast('Envie ou cole um documento antes de gerar recomendações.', 'erro'); return; }
+    const mostrar = () => `${memoria.recomendacoes?.length ? `<section><h3>Recomendações interpretadas</h3>${memoria.recomendacoes.map((r) => `<div class="cartao" style="box-shadow:none;margin:8px 0"><span class="tag ${r.prioridade === 'ALTA' ? 'a' : r.prioridade === 'MEDIA' ? 'b' : 'c'}">${A.esc(r.prioridade)}</span><p><b>${A.esc(r.recomendacao)}</b></p><p class="mini">Evidência: ${A.esc(r.evidencia)}</p><p class="mini">Impacto: ${A.esc(r.impacto_potencial)} · Fundamento: ${A.esc(r.fundamento)} · ${A.esc(r.natureza)}</p></div>`).join('')}</section>` : '<div class="aviso atencao">Ainda não foram geradas recomendações para esta triagem.</div>'}
+      ${memoria.sugestoes?.length ? `<section><h3>Rascunhos de cláusula</h3><div class="aviso atencao"><b>RASCUNHOS SUGERIDOS</b> Exigem revisão jurídica e não substituem o documento original.</div>${memoria.sugestoes.map((s) => `<details class="clausula"><summary>${A.esc(s.motivo)}</summary><p class="mini">Original/evidência: ${A.esc(s.clausula_original || '')}</p><div class="texto">${A.esc(s.sugestao_redacao)}</div><p class="mini">Impacto esperado: ${A.esc(s.impacto_esperado)} · ${A.esc(s.natureza)}</p></details>`).join('')}</section>` : ''}`;
+    A.modal({ titulo: `Recomendações — ${c.contraparte || c.nome || 'contrato'}`, largura: 980, confirmar: 'Gerar/atualizar recomendações',
+      descricao: 'A análise usa apenas riscos com evidência e fotografias de Precificação vinculadas explicitamente. Nenhum cálculo fiscal é refeito aqui.', corpo: mostrar(),
+      aoConfirmar: async () => { const r = await A.api(`/contratos/${c.id}/entrega2/gerar`, { metodo: 'POST', corpo: {} }); A.toast(`${r.recomendacoes} recomendação(ões) e ${r.sugestoes} rascunho(s) atualizados.`, 'ok'); A.ir('contratos'); }, });
+  }; });
 
   el.querySelectorAll('[data-rev]').forEach((b) => { b.onclick = async () => {
     const c = contratos.find((x) => x.id === Number(b.dataset.rev));
