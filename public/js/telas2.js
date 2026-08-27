@@ -44,7 +44,7 @@ async function telaPrecificacaoIndependente(el) {
   const d = await A.api(`/empresas/${S.empresaId}/precificacao-independente`);
   el.innerHTML = cab('Módulo 2', 'Precificação e margem — base independente',
     'Use uma base própria de portfólio e composição. Cada insumo é associado explicitamente ao item de saída; o cálculo fiscal continua sendo realizado pelo motor homologado.',
-    `<a class="btn vazio" href="/api/empresas/${S.empresaId}/precificacao-independente/template">Baixar modelo XLSX</a><button class="btn" id="importarBasePrec">Importar base</button><button class="btn vazio" id="saidaExecPrec">Saída executiva</button><button class="btn vazio" id="voltarPrec">Voltar</button>`) +
+    `<button class="btn vazio" id="baixarModeloPrec">Baixar modelo XLSX</button><button class="btn" id="importarBasePrec">Importar base</button><button class="btn vazio" id="saidaExecPrec">Saída executiva</button><button class="btn vazio" id="voltarPrec">Voltar</button>`) +
     `<div class="aviso"><b>Modo independente.</b> Não exige movimentações importadas do Diagnóstico. Esta primeira camada é somente cadastral: valida portfólio e composição, sem calcular preço, margem ou crédito.</div>
     <div class="grade g3">${A.kpi('Produtos', d.produtos.length)}${A.kpi('Serviços', d.servicos.length)}${A.kpi('Componentes', d.componentes.length)}</div>
     <div class="cartao" style="margin-top:16px"><h2>Simulador comercial</h2><div class="grade g3">${A.selecao('modoPrecInd','Modo',[{v:'PRESERVAR_PRECO_FINAL',t:'Preservar preço final'},{v:'PRESERVAR_MARGEM',t:'Preservar margem'},{v:'PRESERVAR_CUSTO_EFETIVO_CLIENTE',t:'Preservar custo efetivo do cliente'},{v:'REAJUSTE_LIVRE',t:'Reajuste livre'}],'PRESERVAR_PRECO_FINAL')}${A.campo('percentualPrecInd','Reajuste livre (0,05 = 5%)',0,'number','step=0.0001')}<button class="btn" id="simularPrecInd">Simular</button></div><div id="resultadoPrecInd" class="mini" style="margin-top:10px">A simulação usa o motor fiscal oficial e não altera a base importada.</div></div>
@@ -52,6 +52,13 @@ async function telaPrecificacaoIndependente(el) {
     <div class="cartao" style="margin-top:16px"><h2>Serviços de saída</h2>${A.tabela([{t:'Código',r:x=>A.esc(x.codigo)},{t:'Descrição',r:x=>A.esc(x.descricao)},{t:'LC 116',r:x=>A.esc(x.lc116)},{t:'NBS',r:x=>A.esc(x.nbs)},{t:'Venda atual',num:true,r:x=>A.moeda(x.valor_venda_atual)}],d.servicos,{vazio:'Nenhum serviço importado.'})}</div>
     <div class="cartao" style="margin-top:16px"><h2>Composição econômica</h2>${A.tabela([{t:'Componente',r:x=>`<b>${A.esc(x.codigo_componente)}</b> · ${A.esc(x.descricao)}`},{t:'Tipo',r:x=>A.esc(x.tipo_componente)},{t:'Vínculo de saída',r:x=>x.produto_saida_id?`Produto #${x.produto_saida_id}`:`Serviço #${x.servico_saida_id}`},{t:'Fornecedor/regime',r:x=>A.esc(x.regime_fornecedor || 'não informado')},{t:'Custo unitário',num:true,r:x=>A.moeda(x.custo_unitario_bruto)}],d.componentes,{vazio:'Nenhum componente importado.'})}</div>`;
   document.getElementById('voltarPrec').onclick = () => Telas.precificacao(el);
+  document.getElementById('baixarModeloPrec').onclick = async()=>{
+    try {
+      const resposta=await fetch(`/api/empresas/${S.empresaId}/precificacao-independente/template`,{headers:{Authorization:`Bearer ${localStorage.getItem('sattva_token')||''}`}});
+      if(!resposta.ok) throw new Error('Não foi possível gerar o modelo XLSX.');
+      const url=URL.createObjectURL(await resposta.blob()); const a=document.createElement('a'); a.href=url; a.download='modelo-precificacao-margem.xlsx'; a.click(); URL.revokeObjectURL(url);
+    } catch(e){A.toast(e.message,'erro');}
+  };
   document.getElementById('saidaExecPrec').onclick = async()=>{
     try {
       const base = await A.api(`/empresas/${S.empresaId}/precificacao-independente/base`);
