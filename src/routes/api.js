@@ -1074,7 +1074,7 @@ router.delete('/empresas/:id/precificacao-independente/testes/:prefixo', (req, r
       return { componentes, produtos, servicos, lotes };
     });
     const removidos = transacao();
-    registrar(empresaId, req, 'limpar_teste', 'precificacao_independente', null, '', JSON.stringify({ prefixo, removidos }));
+    auditar(req, { empresaId, acao: 'Limpou dados sintéticos de Precificação', entidade: 'precificacao_independente', entidadeId: prefixo, depois: removidos });
     ok(res, { prefixo, removidos });
   } catch (e) { erro(res, e); }
 });
@@ -1109,7 +1109,7 @@ router.post('/empresas/:id/precificacao-independente/importar', upload.single('a
       servicos.forEach((x) => { const r = inserirServico.run(empresaId,x.codigo,x.descricao,x.lc116 || '',x.nbs || '',x.unidade || '',Number(x.quantidade_producao),Number(x.valor_venda_atual),Number(x.custo_direto) || 0,x.perfil_cliente || '', 'IMPORTACAO'); servicosIds.set(x.codigo,r.lastInsertRowid); });
       componentes.forEach((x) => { const codigo = String(x.codigo_item_saida).trim(); inserirComp.run(empresaId,produtosIds.get(codigo) || null,servicosIds.get(codigo) || null,x.codigo_componente,x.descricao || x.codigo_componente,String(x.tipo_componente).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ /g,'_'),x.ncm || '',x.nbs || '',x.lc116 || '',String(x.cnpj_fornecedor || '').replace(/\D/g,''),String(x.regime_fornecedor || '').trim().toLowerCase().replace(/ /g,'_'),Number(x.quantidade),Number(x.custo_unitario_bruto),Number(x.perda_percentual) || 0,'IMPORTACAO'); });
       db.prepare('INSERT INTO pricing_import_batches (empresa_id,arquivo,status,resumo) VALUES (?,?,?,?)').run(empresaId,req.file.originalname,'IMPORTADO',JSON.stringify({ produtos: produtos.length, servicos: servicos.length, componentes: componentes.length }));
-    }); transacao(); registrar(empresaId, req, 'importar', 'precificacao_independente', null, '', JSON.stringify({ produtos: produtos.length, servicos: servicos.length, componentes: componentes.length }));
+    }); transacao(); auditar(req, { empresaId, acao: 'Importou base independente de Precificação', entidade: 'precificacao_independente', entidadeId: req.file.originalname, depois: { produtos: produtos.length, servicos: servicos.length, componentes: componentes.length } });
     ok(res, { importado: true, produtos: produtos.length, servicos: servicos.length, componentes: componentes.length });
   } catch (e) { erro(res, e); }
 });
