@@ -538,9 +538,73 @@ async function drillComparacao(cenarioId) {
     ], itens) : '<div class="aviso">Não há itens no grupo regular para este cenário. Abra o cenário e escolha outro grupo na memória.</div>' });
 }
 
+// =========================================================================
+// ETAPA 5 — INDICADORES, ALERTAS E MATRIZ FORNECEDORES × CLIENTES
+// =========================================================================
+async function indicadoresCadeia(el) {
+  const { cenarios } = await A.api(`/empresas/${S.empresaId}/cenarios/lista`);
+  const e = est();
+  const padrao = e.cenarioId || (cenarios.find((c) => c.tipo === 'base') || {}).id;
+  el.innerHTML = M.seletorAno(() => A.ir('cenarios')) + `<div class="cartao" style="display:flex;gap:12px;align-items:end;flex-wrap:wrap">
+    <label class="campo" style="margin:0;min-width:320px"><span>Cenário analisado</span>
+      <select id="analiseCenario">${cenarios.map((c) => `<option value="${c.id}" ${Number(c.id) === Number(padrao) ? 'selected' : ''}>${A.esc(c.nome)}${c.tipo === 'base' ? ' · referência' : ''}</option>`).join('')}</select></label>
+    <button class="btn" id="analiseAtualizar">Atualizar indicadores</button>
+  </div><div id="corpoAnalise" style="margin-top:16px"><div class="carregando">Consolidando resultados oficiais…</div></div>`;
+  const carregar = async () => {
+    const id = Number(document.getElementById('analiseCenario').value);
+    await desenharAnalise(document.getElementById('corpoAnalise'), id);
+  };
+  document.getElementById('analiseAtualizar').onclick = carregar;
+  document.getElementById('analiseCenario').onchange = carregar;
+  if (padrao) await carregar();
+}
+
+async function desenharAnalise(box, cenarioId) {
+  try {
+    const { cenario, analise } = await A.api(`/cenarios/${cenarioId}/analitica`);
+    const inds = Object.values(analise.indicadores);
+    const valor = (x) => x.valor === null || x.valor === undefined ? '<span class="tag a">INCOMPLETO</span>' : A.moeda(x.valor);
+    const percentual = (x) => x.percentual === null || x.percentual === undefined ? '—' : A.pct(x.percentual);
+    box.innerHTML = `<div class="aviso bom"><b>Indicadores derivados da memória do cenário</b><div class="acao">Fonte: ${A.esc(analise.origem)}. Nenhum indicador redistribui dados desconhecidos ou recalcula tributos.</div></div>
+      <div class="grade g4" style="margin-top:16px">${inds.map((x) => A.kpi(x.nome, x.chave === 'indice_mudanca_cadeia' ? `${A.pct(x.compras)} compras · ${A.pct(x.vendas)} vendas` : valor(x), x.percentual !== undefined ? percentual(x) : x.descricao, x.chave === 'exposicao_credito_indeterminado' ? 'destaque' : '')).join('')}</div>
+      <div class="cartao"><h2>Indicadores detalhados — ${A.esc(cenario.nome)}</h2><p class="desc">Clique em “Memória” para chegar ao grupo, parceiro e documento que sustentam cada número.</p>
+        ${A.tabela([
+          { t:'Indicador', r:(x) => `<b>${A.esc(x.nome)}</b><div class="mini">${A.esc(x.descricao)}</div>` },
+          { t:'Valor', num:true, r:valor }, { t:'Participação', num:true, r:percentual },
+          { t:'', r:(x) => x.drilldown?.grupos?.length ? `<button class="btn pq vazio" data-ind-drill='${A.esc(JSON.stringify(x.drilldown))}'>Memória</button>` : '—' },
+        ], inds)}</div>
+      ${painelAlertas(analise.alertas)}
+      ${painelMatriz(analise.matriz)}`;
+    box.querySelectorAll('[data-ind-drill]').forEach((b) => { b.onclick = () => {
+      const d = JSON.parse(b.dataset.indDrill); memoria({ cenarioId, lado:d.lado, dimensao:d.dimensao }, d.grupos[0]);
+    }; });
+    box.querySelectorAll('[data-matriz-drill]').forEach((b) => { b.onclick = () => {
+      const d = JSON.parse(b.dataset.matrizDrill); memoria({ cenarioId, lado:d.lado, dimensao:d.dimensao }, d.grupos[0]);
+    }; });
+  } catch (err) { box.innerHTML = `<div class="aviso alto"><b>Não foi possível consolidar a análise</b>${A.esc(err.message)}</div>`; }
+}
+
+function painelAlertas(alertas) {
+  return `<div class="cartao"><h2>Alertas explicáveis</h2><p class="desc">Cada alerta informa o dado que o originou; não há recomendação automática sem memória.</p>
+    ${alertas.length ? `<div class="grade g2">${alertas.map((a) => `<div class="aviso ${a.severidade === 'alto' ? 'alto' : a.severidade === 'bom' ? 'bom' : 'atencao'}"><b>${A.esc(a.titulo)}</b><div>${A.esc(a.texto)}</div>
+      <div class="mini" style="margin-top:6px">Evidência: ${A.esc(JSON.stringify(a.evidencia))}</div>
+      ${a.drilldown?.grupos?.length ? `<button class="btn pq vazio" data-ind-drill='${A.esc(JSON.stringify(a.drilldown))}' style="margin-top:8px">Abrir memória</button>` : ''}</div>`).join('')}</div>` : '<div class="aviso bom">Nenhum limiar de alerta foi atingido pelos resultados disponíveis.</div>'}
+  </div>`;
+}
+
+function painelMatriz(matriz) {
+  const cab = matriz.horizontais.map((h) => `<th class="num">${A.esc(h.nome)}</th>`).join('');
+  return `<div class="cartao"><h2>Matriz estratégica — Fornecedores × Clientes</h2><p class="desc">${A.esc(matriz.observacao)}</p>
+    <div style="overflow:auto"><table class="compacta"><thead><tr><th>Perfil de fornecedores</th>${cab}</tr></thead><tbody>
+      ${matriz.linhas.map((l) => `<tr><td><b>${A.esc(l.nome)}</b><div class="mini">${A.pct(l.participacao)} das compras</div></td>${l.celulas.map((c) => `<td class="num" style="min-width:180px"><b>Exposição ${A.moeda(c.exposicaoEconomica)}</b><div class="mini">Margem: ${c.margem === null ? 'INCOMPLETO' : A.moeda(c.margem)}<br>Custo efetivo: ${A.moeda(c.custoEfetivo)}<br>Crédito recebido: ${A.moeda(c.creditoRecebido)}<br>Crédito entregue: ${A.moeda(c.creditoEntregue)}</div>
+        <button class="btn pq vazio" data-matriz-drill='${A.esc(JSON.stringify(c.drilldown.compras))}'>Compras</button> <button class="btn pq vazio" data-matriz-drill='${A.esc(JSON.stringify(c.drilldown.vendas))}'>Vendas</button></td>`).join('')}</tr>`).join('')}
+    </tbody></table></div></div>`;
+}
+
 // registra a aba na tela de Cenários, ao lado das que já existem
 M.comAbas('cenarios', M.abasCenarios.concat([
   { id: 'simulacao', t: 'Composição de cenário', render: simulacaoCadeia },
+  { id: 'indicadores', t: 'Indicadores e alertas', render: indicadoresCadeia },
 ]), 'simulacao');
 })();
 

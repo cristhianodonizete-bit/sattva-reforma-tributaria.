@@ -25,6 +25,7 @@ const dimensoes = require('../services/dimensoes');
 const cenarioMotor = require('../services/cenarioMotor');
 const cenarioMemoria = require('../services/cenarioMemoria');
 const cenarioTemplates = require('../services/cenarioTemplates');
+const analiseCadeia = require('../services/analiseCadeia');
 const cnpjReceita = require('../services/cnpjReceita');
 const baseRegime = require('../services/baseRegimeReceita');
 const relatorio = require('../services/relatorio');
@@ -2846,6 +2847,15 @@ router.post('/cenarios/:id/executar', (req, res) => {
         vendas: cenarioMemoria.reconciliar(r, 'vendas'),
       },
     });
+  } catch (e) { erro(res, e); }
+});
+
+/** Etapa 5: indicadores, alertas e matriz exclusivamente derivados do cenário executado. */
+router.get('/cenarios/:id/analitica', (req, res) => {
+  try {
+    const r = cenarioMotor.executarCenario(req.params.id);
+    ok(res, { cenario:{ id:r.cenario.id, nome:r.cenario.nome, tipo:r.cenario.tipo, ano:r.ano },
+      analise:analiseCadeia.analisar(r) });
   } catch (e) { erro(res, e); }
 });
 
