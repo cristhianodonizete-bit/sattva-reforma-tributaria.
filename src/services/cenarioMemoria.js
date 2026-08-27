@@ -136,6 +136,7 @@ function drillDown(resultado, lado, dimensao, grupo, limite = 300) {
     motivoCredito: x.credito ? x.credito.motivo : '',
     custoLiquido: r2(x.custoLiquido),
     premissas: x.premissas || {},
+    resolucaoPremissas: x.resolucaoPremissas || {},
     precedencia: explicarPrecedencia(x.premissas),
     natureza: x.natureza,
   }));

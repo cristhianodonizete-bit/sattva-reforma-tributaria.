@@ -87,12 +87,21 @@ function executar() {
   // pode legitimamente ter 0% nesse grupo; o teste não pode depender disso.
   // Copiamos uma saída já classificada, mas removemos somente o regime do
   // destinatário para testar a incerteza comercial sem inventar tributação.
-  const fonteFixture = db.prepare(`SELECT m.* FROM movimentos m
+  let fonteFixture = db.prepare(`SELECT m.* FROM movimentos m
     JOIN motor_resultados r ON r.movimento_id=m.id AND r.empresa_id=m.empresa_id
     WHERE m.empresa_id=? AND m.tipo='cliente' AND r.status_classificacao='CLASSIFICADO'
       AND (m.ncm IS NOT NULL AND m.ncm<>'' OR m.nbs IS NOT NULL AND m.nbs<>'' OR m.cst IS NOT NULL AND m.cst<>'')
     ORDER BY id LIMIT 1`).get(empresaId);
-  if (!fonteFixture) throw new Error('Não há saída fiscalmente identificada para montar a fixture de cenário.');
+  // A fixture não pode depender da fotografia compartilhada: ela pode conter
+  // somente itens pendentes em uma empresa real. Neste caso, cria a origem a
+  // partir de NCM com uma única classificação determinística do catálogo.
+  if (!fonteFixture) {
+    const catalogo = db.prepare(`SELECT ncm, MAX(descricao) descricao, MAX(cst) cst, MAX(cclasstrib) cclasstrib,
+      MAX(reducao) reducao FROM base_ncm WHERE ncm<>'' GROUP BY ncm HAVING COUNT(DISTINCT cclasstrib)=1 LIMIT 1`).get();
+    if (!catalogo) throw new Error('Catálogo sem NCM determinístico para montar fixture independente de cenário.');
+    fonteFixture = { ...catalogo, nbs: null, cfop: '5102', competencia: '2027-01', base_calculo: 100000,
+      icms: 0, icms_st: 0, ipi: 0, pis: 0, cofins: 0, pis_cofins_documentado: 0, iss: 0, aliq_especifica: null, unidade: 'UN' };
+  }
   const fixture = db.prepare(`INSERT INTO movimentos
     (empresa_id,tipo,nome,inscr_federal,descricao,ncm,nbs,cfop,cst,competencia,valor,base_calculo,icms,icms_st,ipi,pis,cofins,pis_cofins_documentado,iss,regime,reducao,aliq_especifica,cclasstrib,documento,item_numero,chave,codigo_produto,quantidade,unidade,sentido,origem)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
@@ -332,13 +341,21 @@ function executar() {
     const valorMigrado = migrados.reduce((s, x) => s + num(x.precoAtual), 0);
     const dif = valorMigrado - espValor;
     const creditoMigrado = migrados.reduce((s, x) => s + num(x.creditoTotal), 0);
-    const ok = Math.abs(dif) < tolAcumulada && creditoMigrado > 0
+    // Uma premissa comercial B2B não altera a classificação fiscal nem cria
+    // crédito CBS. Se o item segue pendente, o crédito continua pendente/zero
+    // apurado; se já era determinado, preserva apenas o crédito oficial.
+    const fiscaisPreservados = migrados.every((x) => x.classificacao?.status !== 'CLASSIFICADO'
+      ? ['SUJEITO_VALIDACAO', 'DADOS_INSUFICIENTES', 'INDETERMINADO', 'SEM_DIREITO'].includes(x.credito?.statusDeterminacao || x.credito?.status)
+      : true);
+    const semCreditoInventado = migrados.every((x) => x.classificacao?.status !== 'CLASSIFICADO'
+      ? num(x.creditoTotal) === 0 : true);
+    const ok = Math.abs(dif) < tolAcumulada && fiscaisPreservados && semCreditoInventado
       && d.indeterminado.credito === null && d.simulado.natureza === 'SIMULADO';
     registrar({ n: 12, nome: 'Cliente desconhecido parcialmente simulado como B2B',
       entrada: `indeterminado ${brl(gInd.valor)}`,
       premissa: 'migrar 30% do grupo indeterminado para B2B com crédito',
-      esperado: `${brl(espValor)} migrados; crédito resultante marcado SIMULADO; resto continua NÃO DETERMINADO`,
-      encontrado: `${brl(valorMigrado)} migrados · crédito simulado ${brl(creditoMigrado)} · resto ${d.indeterminado.credito === null ? 'NÃO DETERMINADO' : 'zerado'}`,
+      esperado: `${brl(espValor)} migrados; perfil comercial B2B sem alterar classificação nem criar crédito; resto continua NÃO DETERMINADO`,
+      encontrado: `${brl(valorMigrado)} migrados · crédito preservado ${brl(creditoMigrado)} · estado fiscal preservado: ${fiscaisPreservados} · resto ${d.indeterminado.credito === null ? 'NÃO DETERMINADO' : 'zerado'}`,
       diferenca: brl(dif), ok,
       obs: `tolerância de arredondamento: ${brl(tolAcumulada)} para ${linhas} linhas virtuais` });
   }

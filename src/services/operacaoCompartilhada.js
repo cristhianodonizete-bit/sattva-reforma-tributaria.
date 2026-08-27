@@ -36,8 +36,13 @@ async function buscarTudo(remoto, tabela) {
 function gravar(tabela, linhas) {
   if (!linhas.length) return 0;
   const campos = CAMPOS[tabela];
+  // Exceções têm unicidade funcional por empresa + movimento + código; o ID
+  // pode divergir entre cache e Supabase. Usar a chave errada interrompia uma
+  // baixa antes da fotografia e deixava o cache local incompleto.
+  const conflito = tabela === 'excecoes_motor' ? '(empresa_id,movimento_id,codigo)' : '(id)';
+  const excluirAtualizacao = tabela === 'excecoes_motor' ? ['id','empresa_id','movimento_id','codigo'] : ['id'];
   const sql = `INSERT INTO ${tabela} (${campos.join(',')}) VALUES (${campos.map(() => '?').join(',')})
-    ON CONFLICT(id) DO UPDATE SET ${campos.filter((x) => x !== 'id').map((x) => `${x}=excluded.${x}`).join(',')}`;
+    ON CONFLICT${conflito} DO UPDATE SET ${campos.filter((x) => !excluirAtualizacao.includes(x)).map((x) => `${x}=excluded.${x}`).join(',')}`;
   const inserir = db.prepare(sql);
   db.transaction(() => linhas.forEach((x) => inserir.run(...campos.map((c) => x[c] ?? null))))();
   return linhas.length;
@@ -90,7 +95,15 @@ function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], ta
 async function baixar() {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {};
-  for (const tabela of Object.keys(CAMPOS)) resultado[tabela] = gravar(tabela, await buscarTudo(remoto, tabela));
+  for (const tabela of Object.keys(CAMPOS)) {
+    const linhas = await buscarTudo(remoto, tabela);
+    // Exceções são um espelho operacional completo do Supabase e possuem duas
+    // chaves únicas (id técnico e chave funcional). Limpar somente esse
+    // espelho antes da reposição elimina colisões entre IDs legados sem tocar
+    // em qualquer fonte remota.
+    if (tabela === 'excecoes_motor') db.prepare('DELETE FROM excecoes_motor').run();
+    resultado[tabela] = gravar(tabela, linhas);
+  }
   resultado.motor = await baixarResultadosMotor(remoto);
   Object.assign(resultado, await baixarConfiguracao(CONFIG_TABELAS, remoto));
   resultado.gestao = await baixarGestao(remoto);
@@ -100,11 +113,12 @@ async function baixar() {
 // Fotografia técnica compartilhada: reiniciar uma instância não pode significar
 // recalcular toda a carteira. O motor só roda novamente após importação,
 // alteração de regra ou pedido explícito de recálculo.
-function gravarLinhasComColunas(tabela, linhas) {
+function gravarLinhasComColunas(tabela, linhas, dentroDaTransacao = false) {
   const colunas = db.prepare(`PRAGMA table_info(${tabela})`).all().map((x) => x.name);
   if (!colunas.length || !linhas.length) return 0;
   const inserir = db.prepare(`INSERT OR REPLACE INTO ${tabela} (${colunas.join(',')}) VALUES (${colunas.map(() => '?').join(',')})`);
-  db.transaction(() => linhas.forEach((x) => inserir.run(...colunas.map((c) => x[c] ?? null))))();
+  const gravar = () => linhas.forEach((x) => inserir.run(...colunas.map((c) => x[c] ?? null)));
+  if (dentroDaTransacao) gravar(); else db.transaction(gravar)();
   return linhas.length;
 }
 async function baixarResultadosMotor(remotoInformado = null) {
@@ -120,10 +134,23 @@ async function baixarResultadosMotor(remotoInformado = null) {
     resultados.push(...(data || []));
     if (!data || data.length < 1000) break;
   }
-  db.transaction(() => { db.prepare('DELETE FROM motor_resultados').run(); db.prepare('DELETE FROM motor_execucoes').run(); })();
+  // Validação obrigatória antes de apagar a fotografia local. Uma fotografia
+  // operacional não pode referenciar movimento que ainda não chegou à base
+  // local; anteriormente o delete ocorria antes dessa checagem e uma falha
+  // de chave estrangeira deixava o cache sem resultados.
+  const locais = new Set(db.prepare('SELECT id FROM movimentos').all().map((x) => Number(x.id)));
+  const ausentes = resultados.map((x) => Number(x.movimento_id)).filter((id) => !locais.has(id));
+  if (ausentes.length) throw new Error(`Fotografia compartilhada referencia ${ausentes.length} movimento(s) ausente(s) no cache local: ${ausentes.slice(0, 20).join(', ')}. Sincronize a operação antes de substituir a fotografia.`);
+  const gravarExecucoes = (execs) => gravarLinhasComColunas('motor_execucoes', execs.map((x) => x.dados || x), true);
+  const gravarResultados = (itens) => gravarLinhasComColunas('motor_resultados', itens.map((x) => x.dados || x), true);
+  let quantidadeExecucoes = 0, quantidadeResultados = 0;
+  db.transaction(() => {
+    db.prepare('DELETE FROM motor_resultados').run(); db.prepare('DELETE FROM motor_execucoes').run();
+    quantidadeExecucoes = gravarExecucoes(execucoes); quantidadeResultados = gravarResultados(resultados);
+  })();
   return {
-    execucoes: gravarLinhasComColunas('motor_execucoes', execucoes.map((x) => x.dados || x)),
-    resultados: gravarLinhasComColunas('motor_resultados', resultados.map((x) => x.dados || x)),
+    execucoes: quantidadeExecucoes,
+    resultados: quantidadeResultados,
   };
 }
 async function publicarResultadosMotor(empresaId = null) {

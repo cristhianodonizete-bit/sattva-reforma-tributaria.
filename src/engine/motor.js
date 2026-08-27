@@ -18,6 +18,7 @@ const { reconstruir, simplesEfetivo } = require('./reconstrucao');
 const { classificar } = require('./classificador');
 const { CENARIOS_SIMULACAO } = require('../config/tabelasSimples');
 const regras = require('../services/regras');
+const resolvedorRegra = require('../services/resolvedorRegra');
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const r6 = (n) => Math.round((Number(n) || 0) * 1e6) / 1e6;
@@ -99,6 +100,24 @@ function regimeCbs(regime) {
 }
 function credito(legado, tipoCredito, modalidadeCredito, statusDeterminacao, motivo) {
   return { status: legado, tipoCredito, modalidadeCredito, statusDeterminacao, motivo };
+}
+function memoriaElegibilidadeSimples({ sentido, regimeEmitente, regimeAdquirente, cls, item, ano }) {
+  if (sentido !== 'entrada' || regimeEmitente !== 'simples_nacional' || !['lucro_real', 'lucro_presumido', 'regime_regular'].includes(regimeAdquirente)) return null;
+  const resposta = resolvedorRegra.resolver({
+    tipo_operacao: 'AQUISICAO', direcao: 'ENTRADA', data: `${Number(ano) || 2027}-01-01`,
+    fornecedor: { regime: regimeEmitente }, adquirente: { regime: regimeAdquirente },
+    operacao_entrada: true, fornecedor_simples: true, adquirente_regular: true,
+    aquisicao_abrangida: !cls.vedacaoPossivel, documento_fiscal: Boolean(item.documento),
+    fornecedor_mei: false, adquirente_simples: false,
+  });
+  return {
+    regra_id: resposta.regra?.id || null, regra_versao: resposta.regra?.versao || null,
+    fundamento_legal: resposta.regra?.fundamento_legal || null,
+    vigencia: resposta.regra?.vigencia_inicio || null,
+    fornecedor_simples: 'SIM', adquirente_regular: 'SIM',
+    elegibilidade_credito: resposta.status === 'DETERMINADO' ? 'DETERMINADA' : resposta.status,
+    pendencias: resposta.pendencias || [], origem_regra: resposta.origem,
+  };
 }
 function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simplesFornecedorConhecido = false, simplesFornecedorReferencia = null }) {
   // Regime do adquirente desconhecido não pode ser tratado como se creditasse:
@@ -228,6 +247,15 @@ function projetarItem(item, ctx) {
     // percentual efetivo. A premissa só é enviada quando foi realmente usada.
     simplesFornecedorReferencia: percentualEfetivoSimples ? null : referenciaCreditoSimples,
   });
+  const elegibilidadeSimples = memoriaElegibilidadeSimples({ sentido, regimeEmitente, regimeAdquirente, cls, item, ano });
+  if (elegibilidadeSimples) {
+    cred.elegibilidadeLegal = elegibilidadeSimples;
+    cred.percentualCreditoOrigem = percentualEfetivoSimples ? 'DOCUMENTO_OU_FAIXA_EFETIVA'
+      : referenciaCreditoSimples > 0 ? 'PARAMETRO_CREDITO_SIMPLES' : 'PERCENTUAL_NAO_DETERMINADO';
+    cred.origem = cred.percentualCreditoOrigem;
+    cred.natureza = percentualEfetivoSimples ? 'CALCULADO'
+      : referenciaCreditoSimples > 0 ? 'SIMULADO' : 'INDETERMINADO';
+  }
   let creditoIbs = 0, creditoCbs = 0;
   if (['PROJETADO', 'PROJETADO_LIMITADO'].includes(cred.status)) { creditoIbs = ibs; creditoCbs = cbs; }
   // CREDITO_PRESUMIDO fica em zero até que a hipótese seja informada como

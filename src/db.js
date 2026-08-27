@@ -804,6 +804,69 @@ CREATE TABLE IF NOT EXISTS base_importacoes (
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- ============ FASE 2A — COBERTURA E ENQUADRAMENTO ============
+-- Estas estruturas não calculam tributo. Elas guardam evidências, regras
+-- condicionais e fotografia de cobertura para que o motor central possa ser
+-- enriquecido sem criar uma segunda fonte de cálculo.
+CREATE TABLE IF NOT EXISTS cadastro_produtos_mestre (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chave TEXT NOT NULL UNIQUE,
+  sku TEXT, gtin TEXT, descricao TEXT, ncm TEXT, cest TEXT, unidade TEXT,
+  papel_cadeia TEXT DEFAULT 'INDETERMINADO', tratamento_conhecido TEXT,
+  vigencia_inicio TEXT, vigencia_fim TEXT, origem TEXT, evidencia TEXT,
+  status TEXT DEFAULT 'ATIVO', atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_cadastro_produtos_ncm ON cadastro_produtos_mestre(ncm);
+
+CREATE TABLE IF NOT EXISTS cadastro_parceiros_mestre (
+  cnpj TEXT PRIMARY KEY, razao_social TEXT, tipo TEXT, regime_atual TEXT, regime_cbs TEXT,
+  simples INTEGER, mei INTEGER, governo INTEGER, esfera TEXT, produtor_rural INTEGER,
+  cooperativa INTEGER, perfil_credito TEXT, vigencia_inicio TEXT, vigencia_fim TEXT,
+  origem TEXT, evidencia TEXT, status TEXT DEFAULT 'ATIVO', versao INTEGER DEFAULT 1,
+  atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_cadastro_parceiros_regime ON cadastro_parceiros_mestre(regime_atual, regime_cbs);
+
+CREATE TABLE IF NOT EXISTS cadastro_servicos_mestre (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chave TEXT NOT NULL UNIQUE,
+  codigo_interno TEXT, descricao TEXT, nbs TEXT, lc116 TEXT, municipio TEXT,
+  natureza_servico TEXT, referencia_fiscal TEXT, tratamento_conhecido TEXT,
+  condicoes TEXT, vigencia_inicio TEXT, vigencia_fim TEXT, origem TEXT,
+  evidencia TEXT, status TEXT DEFAULT 'ATIVO', atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_cadastro_servicos_nbs ON cadastro_servicos_mestre(nbs);
+
+CREATE TABLE IF NOT EXISTS regras_enquadramento (
+  id TEXT PRIMARY KEY,
+  familia TEXT NOT NULL, subfamilia TEXT, tipo_operacao TEXT, direcao TEXT,
+  perfil_fornecedor TEXT, perfil_adquirente TEXT, regime_fornecedor TEXT,
+  regime_adquirente TEXT, ncm TEXT, nbs TEXT, cclasstrib TEXT, cst TEXT,
+  cfop TEXT, papel_cadeia TEXT, unidade TEXT, condicoes_obrigatorias TEXT,
+  condicoes_excludentes TEXT, tratamento_resultante TEXT, formula_id TEXT,
+  fundamento_legal TEXT, vigencia_inicio TEXT, vigencia_fim TEXT,
+  prioridade INTEGER NOT NULL DEFAULT 0, versao INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'RASCUNHO', fonte TEXT, evidencia TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_regras_enquadramento_busca ON regras_enquadramento(status, familia, ncm, nbs, prioridade DESC);
+
+CREATE TABLE IF NOT EXISTS hipoteses_credito_presumido (
+  hipotese_id TEXT PRIMARY KEY, familia TEXT, tipo_operacao TEXT,
+  perfil_fornecedor TEXT, perfil_adquirente TEXT, condicoes TEXT,
+  base_calculo TEXT, percentual REAL, formula TEXT, limite TEXT,
+  vigencia_inicio TEXT, vigencia_fim TEXT, fundamento_legal TEXT,
+  cclasstrib TEXT, tipo_credito TEXT DEFAULT 'PRESUMIDO', status TEXT DEFAULT 'RASCUNHO',
+  fonte TEXT, evidencia TEXT, atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS cobertura_fotografias (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  execucao_id INTEGER, tipo TEXT NOT NULL DEFAULT 'FASE_2A', dados TEXT NOT NULL,
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_cobertura_fotografias_empresa ON cobertura_fotografias(empresa_id, criado_em DESC);
+
 -- ============ BASE DE CONHECIMENTO (RAG) ============
 CREATE TABLE IF NOT EXISTS conhecimento_documentos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

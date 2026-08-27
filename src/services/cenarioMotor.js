@@ -80,15 +80,45 @@ function calcularBase(empresaId, ano, opcoes = {}) {
   }
   const entradas = r.entradas.map((x) => ({ ...x, fracao: 1, grupos: dimensoes.classificarItem(x, 'compras') }));
   const saidas = r.saidas.map((x) => ({ ...x, fracao: 1, grupos: dimensoes.classificarItem(x, 'vendas') }));
+  const formacaoPorSaida = carregarFormacaoCusto(empresaId, entradas);
   return {
     empresa: r.empresa, ano: r.ano, resumo: r.resumo, apuracao: r.apuracao,
-    entradas, saidas, brutos,
+    entradas, saidas, brutos, formacaoPorSaida,
     composicao: {
       compras: dimensoes.compor(entradas, 'compras'),
       vendas: dimensoes.compor(saidas, 'vendas'),
     },
-    indicadores: calcularIndicadores(entradas, saidas, r),
+    indicadores: calcularIndicadores(entradas, saidas, { ...r, formacaoPorSaida }),
   };
+}
+
+/** Reúne apenas custo explicitamente vinculado; não há associação por NCM/NBS. */
+function carregarFormacaoCusto(empresaId, entradas) {
+  const porMovimento = new Map(entradas.map((x) => [Number(x.movimento_id), x]));
+  const itens = db.prepare(`SELECT * FROM formacao_custo_itens
+    WHERE empresa_id=? AND ativo=1 AND movimento_saida_id IS NOT NULL`).all(empresaId);
+  const componentes = db.prepare(`SELECT * FROM formacao_custo_componentes
+    WHERE item_formacao_id=? ORDER BY id`);
+  const mapa = new Map();
+  for (const item of itens) {
+    let custoBruto = 0, credito = 0, completo = Boolean(item.movimento_saida_id);
+    const cs = componentes.all(item.id);
+    if (!cs.length) completo = false;
+    for (const c of cs) {
+      const entrada = porMovimento.get(Number(c.movimento_id));
+      if (!entrada || c.relacionamento === 'NAO_RELACIONADA') { completo = false; continue; }
+      const fracao = c.status_alocacao_credito === 'RATEAVEL' ? num(c.percentual_rateio) : 1;
+      if (c.status_alocacao_credito === 'RATEAVEL' && !(fracao > 0 && fracao <= 1)) { completo = false; continue; }
+      const creditoItem = num(entrada.creditoCbs) + num(entrada.creditoIbs);
+      custoBruto += (num(entrada.custoLiquido) + creditoItem) * fracao;
+      if (['DIRETO', 'RATEAVEL'].includes(c.status_alocacao_credito)) credito += creditoItem * fracao;
+    }
+    mapa.set(Number(item.movimento_saida_id), {
+      status: completo ? 'COMPLETO' : 'INCOMPLETO',
+      custoLiquido: r2(custoBruto - credito), despesasVariaveis: num(item.despesas_variaveis),
+    });
+  }
+  return mapa;
 }
 
 /** Persiste a composição do cenário para comparação posterior */
@@ -118,30 +148,51 @@ function gravarComposicao(cenarioId, composicao) {
  * Devolve também a TRILHA: qual nível determinou cada campo. É isso que
  * torna a precedência visível na memória, como pedido.
  */
-function resolverPremissas(item, lado, premissas) {
+function resolverPremissas(item, lado, premissas, originais = {}) {
   const ctx = {};
   const trilha = {};
-
-  const aplicar = (p, nivel) => {
-    ctx[p.campo] = converter(p.campo, p.valor_simulado);
-    trilha[p.campo] = { nivel, valor: p.valor_simulado, premissa_id: p.id,
-      justificativa: p.justificativa || '', natureza: 'SIMULADO' };
+  const resolucao = {};
+  const candidatas = new Map();
+  const pertinente = (p) => {
+    if (p.nivel === 'global') return !p.lado || p.lado === lado;
+    if (p.nivel === 'grupo') return p.lado === lado && item.grupos && item.grupos[p.dimensao] === p.grupo;
+    return p.nivel === 'individual' && p.lado === lado
+      && ((p.entidade_tipo === 'parceiro' && String(p.entidade_id) === String(item.cnpj))
+        || (p.entidade_tipo === 'movimento' && String(p.entidade_id) === String(item.movimento_id)));
   };
-
-  // global → grupo → individual (o último a escrever vence)
-  premissas.filter((p) => p.nivel === 'global' && (!p.lado || p.lado === lado))
-    .forEach((p) => aplicar(p, 'global'));
-
-  premissas.filter((p) => p.nivel === 'grupo' && p.lado === lado)
-    .filter((p) => item.grupos && item.grupos[p.dimensao] === p.grupo)
-    .forEach((p) => aplicar(p, 'grupo'));
-
-  premissas.filter((p) => p.nivel === 'individual' && p.lado === lado)
-    .filter((p) => (p.entidade_tipo === 'parceiro' && p.entidade_id === item.cnpj)
-                || (p.entidade_tipo === 'movimento' && String(p.entidade_id) === String(item.movimento_id)))
-    .forEach((p) => aplicar(p, 'individual'));
-
-  return { ctx, trilha };
+  // Ordenação torna o resultado reprodutível mesmo se houver registros antigos
+  // duplicados no mesmo escopo. A última inclusão é a mais recente e vence
+  // apenas dentro daquele mesmo nível; entre níveis a ordem é fixa.
+  const porNivel = ['global', 'grupo', 'individual'];
+  for (const nivel of porNivel) {
+    premissas.filter((p) => p.nivel === nivel && pertinente(p))
+      .sort((a, b) => Number(a.id || 0) - Number(b.id || 0))
+      .forEach((p) => {
+        if (!candidatas.has(p.campo)) candidatas.set(p.campo, {});
+        candidatas.get(p.campo)[nivel] = p;
+      });
+  }
+  for (const [campo, niveis] of candidatas.entries()) {
+    const vencedora = niveis.individual || niveis.grupo || niveis.global;
+    const nivel = niveis.individual ? 'individual' : niveis.grupo ? 'grupo' : 'global';
+    const valorEfetivo = converter(campo, vencedora.valor_simulado);
+    ctx[campo] = valorEfetivo;
+    trilha[campo] = { nivel, valor: vencedora.valor_simulado, premissa_id: vencedora.id,
+      justificativa: vencedora.justificativa || '', natureza: vencedora.natureza || 'SIMULADO' };
+    const detalhe = (p) => p ? { id: p.id || null, valor: converter(campo, p.valor_simulado),
+      justificativa: p.justificativa || '', natureza: p.natureza || 'SIMULADO' } : null;
+    resolucao[campo] = {
+      valor_original: Object.prototype.hasOwnProperty.call(originais, campo) ? originais[campo] : (item[campo] ?? null),
+      premissa_global: detalhe(niveis.global),
+      premissa_grupo: detalhe(niveis.grupo),
+      premissa_individual: detalhe(niveis.individual),
+      valor_efetivo: valorEfetivo,
+      nivel_precedencia_aplicado: nivel,
+      origem_da_premissa: vencedora.fonte || nivel,
+      natureza: vencedora.natureza || 'SIMULADO',
+    };
+  }
+  return { ctx, trilha, resolucao };
 }
 
 function converter(campo, valor) {
@@ -266,11 +317,20 @@ function recalcular(base, lado, itensExpandidos, premissas) {
   const saida = [];
 
   for (const item of itensExpandidos) {
-    const { ctx: over, trilha } = resolverPremissas(item, lado, premissas);
+    const regimeOriginal = lado === 'compras' ? item.regimeEmitente : item.regimeAdquirente;
+    const { ctx: over, trilha, resolucao } = resolverPremissas(item, lado, premissas, {
+      regime: regimeOriginal || null,
+      variacao_preco: 0,
+      rbt12: item.simples?.rbt12 || null,
+      anexo_simples: item.simples?.anexo || null,
+      hibrido: false,
+      grau_repasse: null,
+      estrategia_preco: null,
+    });
     const mig = item.migracao;
 
     // --- regime da contraparte: migração > premissa > dado original
-    let regimeContraparte = lado === 'compras' ? item.regimeEmitente : item.regimeAdquirente;
+    let regimeContraparte = regimeOriginal;
     if (over.regime) { regimeContraparte = over.regime; }
     // A migração é premissa de GRUPO. A premissa INDIVIDUAL tem precedência
     // sobre ela — é isso que permite dizer "migre 40% do grupo, mas este
@@ -304,13 +364,18 @@ function recalcular(base, lado, itensExpandidos, premissas) {
     }
 
     // --- preço: constante por padrão; variação é premissa explícita
-    const variacao = mig ? num(mig.variacaoPreco) : num(over.variacao_preco || 0);
+    // Premissa explícita (individual > grupo > global) é independente da
+    // migração. A variação informada na migração é apenas o fallback do grupo.
+    const temPremissaPreco = Object.prototype.hasOwnProperty.call(over, 'variacao_preco');
+    const variacao = temPremissaPreco ? num(over.variacao_preco) : (mig ? num(mig.variacaoPreco) : 0);
     // insumo do motor: o movimento original, nunca o resultado anterior
     const bruto = brutos.get(item.movimento_id) || item;
     const itemAjustado = variacao ? ajustarPreco(bruto, variacao) : bruto;
     if (variacao) {
-      trilha.preco = { nivel: mig ? 'migração' : 'grupo', valor: `${(variacao * 100).toFixed(2)}%`,
-        natureza: 'SIMULADO', justificativa: 'variação de preço bruto informada como premissa comercial' };
+      trilha.preco = { nivel: temPremissaPreco ? trilha.variacao_preco.nivel : (mig ? 'migração (grupo)' : 'original'),
+        valor: `${(variacao * 100).toFixed(2)}%`, natureza: temPremissaPreco ? trilha.variacao_preco.natureza : 'SIMULADO',
+        justificativa: temPremissaPreco ? (trilha.variacao_preco.justificativa || 'variação de preço definida por premissa')
+          : 'variação de preço bruto informada na migração do grupo' };
     }
 
     // Sem premissa de perfil, o cenário preserva exatamente o destinatário
@@ -324,14 +389,39 @@ function recalcular(base, lado, itensExpandidos, premissas) {
         : motor.classificarDestinatario({ regime: regimeContraparte, cnpj: item.cnpj }))
       : null;
 
-    const proj = motor.projetarItem(itemAjustado, {
+    const contextoMotor = {
       empresa, sentido, ano,
       regimeContraparte,
       perfilDestinatario: destinatarioCenario ? destinatarioCenario.perfil : undefined,
       simplesEmitente,
       hibrido: over.hibrido || false,
       grauRepasse: over.grau_repasse,
-    });
+    };
+    let proj = motor.projetarItem(itemAjustado, contextoMotor);
+
+    // Estratégias C e D não calculam tributos: procuram um preço de entrada
+    // e chamam repetidamente o MESMO motor oficial para obter a saída fiscal.
+    // Sem formação de custo completa, D não altera preço e deixa a cobertura
+    // comercial explícita no indicador, em vez de supor custo zero.
+    if (lado === 'vendas' && over.estrategia_preco) {
+      const estrategia = over.estrategia_preco;
+      const formacao = base.formacaoPorSaida && base.formacaoPorSaida.get(Number(item.movimento_id));
+      const atual = motor.projetarItem(bruto, contextoMotor);
+      let alvo = null;
+      if (estrategia === 'PRESERVAR_PRECO_FINAL') alvo = { tipo: 'preco', valor: num(atual.precoAtual) };
+      if (estrategia === 'PRESERVAR_MARGEM' && formacao && formacao.status === 'COMPLETO') {
+        alvo = { tipo: 'margem', valor: num(atual.baseEconomica) - num(formacao.custoLiquido) - num(atual.precoAtual) * num(formacao.despesasVariaveis) };
+      }
+      if (alvo) {
+        proj = resolverPrecoPorObjetivo(bruto, contextoMotor, alvo, formacao);
+        trilha.estrategia_preco = { ...(trilha.estrategia_preco || {}),
+          justificativa: `${trilha.estrategia_preco?.justificativa || ''} — preço resolvido pelo motor oficial`.trim() };
+      } else if (estrategia === 'PRESERVAR_MARGEM') {
+        trilha.estrategia_preco = { ...(trilha.estrategia_preco || {}),
+          justificativa: `${trilha.estrategia_preco?.justificativa || ''} — sem formação de custo completa; preço não foi inferido`.trim(),
+          status: 'INCOMPLETO' };
+      }
+    }
 
     // proporcionaliza os valores monetários pela fração da linha virtual
     const f = item.fracao === undefined ? 1 : item.fracao;
@@ -348,6 +438,7 @@ function recalcular(base, lado, itensExpandidos, premissas) {
     escalado.movimento_id = item.movimento_id;
     escalado.migracao = mig || null;
     escalado.premissas = trilha;
+    escalado.resolucaoPremissas = resolucao;
     escalado.natureza = Object.keys(trilha).length || mig ? 'SIMULADO' : proj.natureza;
     escalado.grupos = dimensoes.classificarItem(escalado, lado);
     saida.push(escalado);
@@ -365,6 +456,24 @@ function ajustarPreco(item, variacao) {
     icms: esc(item.icms), iss: esc(item.iss), pis: esc(item.pis),
     cofins: esc(item.cofins), ipi: esc(item.ipi), icms_st: esc(item.icms_st),
   };
+}
+
+function resolverPrecoPorObjetivo(bruto, contexto, alvo, formacao) {
+  const valorOriginal = Math.max(0.01, num(bruto.valor));
+  let baixo = 0, alto = 3, melhor = motor.projetarItem(bruto, contexto);
+  const medida = (p) => alvo.tipo === 'preco'
+    ? num(p.precoProjetado)
+    : num(p.baseEconomica) - num(formacao.custoLiquido) - num(p.precoProjetado) * num(formacao.despesasVariaveis);
+  // Expande limite só quando necessário; continua determinístico e não cria
+  // percentual tributário nem altera qualquer classificação fiscal.
+  while (medida(motor.projetarItem(ajustarPreco(bruto, alto - 1), contexto)) < alvo.valor && alto < 20) alto *= 2;
+  for (let i = 0; i < 28; i++) {
+    const fator = (baixo + alto) / 2;
+    const candidato = motor.projetarItem(ajustarPreco(bruto, fator - 1), contexto);
+    melhor = candidato;
+    if (medida(candidato) < alvo.valor) baixo = fator; else alto = fator;
+  }
+  return melhor;
 }
 
 /** Aplica a fração aos valores monetários, preservando percentuais e status */
@@ -442,6 +551,18 @@ function calcularIndicadores(entradas, saidas, r) {
   const pct = (v, t) => (t ? r6(v / t) : 0);
   const recebido = decomporCredito(entradas);
   const entregue = decomporCredito(saidas);
+  const baseEconomicaSaidas = soma(saidas, (x) => x.baseEconomica);
+  const baseEconomicaEntradas = soma(entradas, (x) => x.baseEconomica);
+  const receitaProjetada = soma(saidas, (x) => x.precoProjetado);
+  const comprasProjetadas = soma(entradas, (x) => x.precoProjetado);
+  const operacoesSaida = saidas.length;
+  const margem = calcularMargemConhecida(saidas, r && r.formacaoPorSaida);
+  const apuracao = r ? r.apuracao : null;
+  // Não é fluxo de caixa financeiro (não há prazos de recebimento/pagamento
+  // na fonte). É a disponibilidade operacional da cadeia antes de prazo,
+  // por isso só é exibida se a margem tiver composição de custo completa.
+  const caixaOperacional = margem.cobertura === 1 && apuracao
+    ? r2(receitaProjetada - comprasProjetadas - num(apuracao.cargaLiquida)) : null;
   return {
     compras: r2(compras), receita: r2(receita),
     creditoRecebido: r2(creditoRecebido), creditoEntregue: r2(creditoEntregue),
@@ -460,8 +581,34 @@ function calcularIndicadores(entradas, saidas, r) {
     coberturaCadastralFornecedores: pct(compras - regimeIndet, compras),
     coberturaCadastralClientes: pct(receita - perfilIndet, receita),
     custoEfetivoCompras: r2(soma(entradas, (x) => x.custoLiquido)),
+    receitaProjetada: r2(receitaProjetada), comprasProjetadas: r2(comprasProjetadas),
+    precoMedio: operacoesSaida ? r2(receitaProjetada / operacoesSaida) : null,
+    baseEconomicaSaidas: r2(baseEconomicaSaidas), baseEconomicaEntradas: r2(baseEconomicaEntradas),
+    margem: margem.valor, coberturaMargem: margem.cobertura,
+    caixaOperacional, statusCaixa: caixaOperacional === null ? 'INCOMPLETO' : 'CALCULADO',
     apuracao: r ? r.apuracao : null,
   };
+}
+
+/**
+ * Margem é comercial, não fiscal. Só agrega saídas que têm formação de custo
+ * explícita e completa; as demais permanecem fora do número e reduzem a
+ * cobertura. Isso evita transformar ausência de custo em margem positiva.
+ */
+function calcularMargemConhecida(saidas, formacaoPorSaida) {
+  if (!formacaoPorSaida) return { valor: null, cobertura: 0, itensCobertos: 0, itens: saidas.length };
+  let valor = 0, cobertos = 0;
+  for (const x of saidas) {
+    const f = formacaoPorSaida.get(Number(x.movimento_id));
+    if (!f || f.status !== 'COMPLETO') continue;
+    const fracao = num(x.fracao === undefined ? 1 : x.fracao);
+    const custo = num(f.custoLiquido) * fracao;
+    const despesa = num(x.precoProjetado) * num(f.despesasVariaveis);
+    valor += num(x.baseEconomica) - custo - despesa;
+    cobertos++;
+  }
+  return { valor: cobertos ? r2(valor) : null, cobertura: saidas.length ? r6(cobertos / saidas.length) : 0,
+    itensCobertos: cobertos, itens: saidas.length };
 }
 
 // ==========================================================================
@@ -492,7 +639,7 @@ function executarCenario(cenarioId) {
     compras: dimensoes.compor(entradas, 'compras'),
     vendas: dimensoes.compor(saidas, 'vendas'),
   };
-  const indicadores = calcularIndicadores(entradas, saidas, { apuracao });
+  const indicadores = calcularIndicadores(entradas, saidas, { apuracao, formacaoPorSaida: base.formacaoPorSaida });
   const resultado = {
     cenario: cen, empresa: base.empresa, ano: cen.ano,
     entradas, saidas, apuracao, composicao, indicadores,
@@ -600,7 +747,7 @@ function indiceMudanca(base, cen) {
 }
 
 module.exports = {
-  decomporCredito, obterOuCriarBase, calcularBase, executarCenario, expandir, resolverPremissas,
+  decomporCredito, obterOuCriarBase, calcularBase, executarCenario, expandir, recalcular, resolverPremissas,
   calcularIndicadores, gravarComposicao, decomporEfeitos,
   DESTINO_PARA_REGIME, DESTINO_PARA_PERFIL,
 };

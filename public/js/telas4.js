@@ -182,4 +182,19 @@ Telas.bases = async (el) => {
     } catch (e) { A.toast(e.message, 'erro'); }
   }; });
 };
+
+// Fase 2A: leitura da fotografia oficial, sem criar novo cálculo tributário.
+Telas.coberturaDiagnostico = async (el) => {
+  const d = await A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`);
+  const p = d.fotografia;
+  const pct = (v) => v == null ? '—' : A.pct(v);
+  const bloco = (titulo, x) => `<div class="cartao"><h2>${titulo}</h2><table class="compacta"><thead><tr><th>Status</th><th class="num">Operações</th><th class="num">Valor</th></tr></thead><tbody>${x.itens.map((i) => `<tr><td>${A.esc(i.status)}</td><td class="num mono">${i.quantidade}</td><td class="num mono">${A.moeda(i.valor)}</td></tr>`).join('')}</tbody></table><p class="mini">Cobertura: <b>${pct(x.cobertura_quantidade)}</b> das operações · <b>${pct(x.cobertura_valor)}</b> do valor.</p></div>`;
+  el.innerHTML = `<div class="topo"><div><div class="olho">FASE 2A · COBERTURA</div><h1>Cobertura do diagnóstico</h1><p>Fotografia da execução oficial. Esta visão não recalcula CBS nem converte ausência de evidência em zero.</p></div><button class="btn" id="registrarFotografia">Registrar fotografia</button></div>
+    <div class="grade g4">${A.kpi('Operações', p.total.quantidade)}${A.kpi('Valor analisado', A.moeda(p.total.valor))}${A.kpi('Cobertura do resultado', pct(p.automacao.cobertura_valor), 'por valor')}${A.kpi('Exceções abertas', d.excecoes.resumo.abertas, A.moeda(d.excecoes.resumo.valor_envolvido))}</div>
+    <div class="grade g2" style="margin-top:16px">${bloco('Classificação',p.cobertura.classificacao)}${bloco('Tratamento',p.cobertura.tratamento)}${bloco('Reconstrução',p.cobertura.reconstrucao)}${bloco('Crédito',p.cobertura.credito)}</div>
+    <div class="cartao"><h2>Matriz de suporte por família</h2><p class="desc">Identificado não significa motor completo. Somente “Suportado” percorreu classificação, cálculo, crédito, memória e fotografia oficial.</p><table class="compacta"><thead><tr><th>Família</th><th>Estado</th><th class="num">Operações</th><th class="num">Valor</th><th>Gap</th></tr></thead><tbody>${d.familias.filter((x) => x.identificado).map((x) => `<tr><td>${A.esc(x.familia)}</td><td><span class="tag ${x.suportado ? 'c' : 'a'}">${A.esc(x.nivel_suporte)}</span></td><td class="num mono">${x.quantidade}</td><td class="num mono">${A.moeda(x.valor)}</td><td class="mini">${A.esc(x.gap || '—')}</td></tr>`).join('') || '<tr><td colspan="5">Nenhuma família identificada.</td></tr>'}</tbody></table></div>
+    <div class="cartao"><h2>Exceções agrupadas por causa</h2><table class="compacta"><thead><tr><th>Causa</th><th>Categoria</th><th class="num">Operações</th><th class="num">Valor</th><th class="num">Impacto CBS</th></tr></thead><tbody>${d.excecoes.agrupadas.map((x) => `<tr><td>${A.esc(x.causa)}</td><td>${A.esc(x.categoria)}</td><td class="num mono">${x.quantidade}</td><td class="num mono">${A.moeda(x.valor)}</td><td class="num mono">${A.moeda(x.impacto)}</td></tr>`).join('') || '<tr><td colspan="5">Sem exceções abertas.</td></tr>'}</tbody></table></div>
+    <div class="cartao"><h2>Cadastros e regras reutilizáveis</h2><div class="grade g4">${A.kpi('Parceiros mestre', d.mestres.parceiros.registros, d.mestres.parceiros.operacional ? 'operacional' : 'sem registros')}${A.kpi('Produtos mestre', d.mestres.produtos.registros, `${d.mestres.produtos.catalogo} no catálogo`)}${A.kpi('Serviços mestre', d.mestres.servicos.registros, `${d.mestres.servicos.catalogo} no catálogo`)}${A.kpi('Regras ativas', d.mestres.regras_enquadramento.ativas, `${d.mestres.regras_enquadramento.registros} cadastradas`)}</div></div>`;
+  document.getElementById('registrarFotografia').onclick = async () => { await A.api(`/empresas/${S.empresaId}/cobertura-diagnostico/fotografias`, { metodo: 'POST', corpo: { tipo: 'FASE_2A' } }); A.toast('Fotografia registrada sem alterar o motor.', 'ok'); };
+};
 })();

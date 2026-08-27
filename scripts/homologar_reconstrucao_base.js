@@ -23,6 +23,14 @@ function detalheDe(linha) { return json(json(linha.dados).detalhe); }
 function metodoDa(linha) { return detalheDe(linha).reconstrucao?.memoriaPisCofins?.base_reconstrucao_metodo || 'SEM_MEMORIA'; }
 function alvo(linha) {
   const d = json(linha.dados);
+  // Fase 2A: a regra legal de crédito do Simples é aplicada exclusivamente
+  // às entradas de fornecedor Simples para adquirente regular. O predicado
+  // usa operação + sentido + ambos os regimes; nunca apenas o fornecedor.
+  if (process.argv.includes('--fase2a-simples-legal')) {
+    return d.sentido === 'entrada'
+      && d.regime_cbs_emitente === 'SIMPLES_DAS'
+      && d.regime_cbs_adquirente === 'REGULAR';
+  }
   // Correção semântica da saída: o Simples que permanece no DAS não toma
   // crédito integral. Somente o perfil separado "simples_regime_regular"
   // pode creditar. Reprocessa apenas vendas cujo destinatário é Simples.
@@ -50,9 +58,9 @@ function categoriaPis(d) {
   return 'OUTRA_REGRA';
 }
 function resumo(linhas) {
-  const out = { itens: linhas.length, saidas: 0, entradas: 0, venda: 0, base: 0, pis: 0, cofins: 0, iss: 0, icms: 0, cbs: 0, ibs: 0, projetada: 0, impacto: 0, distribuicao: {}, issAliquotas: {}, ibsDiferenteZero: 0 };
+  const out = { itens: linhas.length, saidas: 0, entradas: 0, venda: 0, base: 0, pis: 0, cofins: 0, iss: 0, icms: 0, cbs: 0, ibs: 0, creditosCbs: 0, projetada: 0, impacto: 0, distribuicao: {}, issAliquotas: {}, ibsDiferenteZero: 0 };
   for (const linha of linhas) {
-    const d = json(linha.dados); if (d.sentido !== 'saida') { out.entradas++; continue; }
+    const d = json(linha.dados); if (d.sentido !== 'saida') { out.entradas++; out.creditosCbs += numero(d.credito_cbs); continue; }
     out.saidas++; out.venda += numero(d.preco_atual); out.base += numero(d.base_economica); out.cbs += numero(d.cbs); out.ibs += numero(d.ibs); out.projetada += numero(d.preco_projetado);
     const rec = json(d.detalhe).reconstrucao || {}; const t = rec.tributosAtuais || {};
     out.pis += numero(t.pis); out.cofins += numero(t.cofins); out.iss += numero(t.iss); out.icms += numero(t.icms); out.impacto += numero(d.preco_projetado) - numero(d.preco_atual);
@@ -61,7 +69,7 @@ function resumo(linhas) {
     const g = out.distribuicao[cat]; g.quantidade++; g.venda += numero(d.preco_atual); g.pis += numero(t.pis); g.cofins += numero(t.cofins);
     if (numero(t.iss)) { const a = r2(numero(t.iss) / numero(d.preco_atual)); out.issAliquotas[a] = (out.issAliquotas[a] || 0) + 1; }
   }
-  for (const k of ['venda','base','pis','cofins','iss','icms','cbs','ibs','projetada','impacto']) out[k] = r2(out[k]);
+  for (const k of ['venda','base','pis','cofins','iss','icms','cbs','ibs','creditosCbs','projetada','impacto']) out[k] = r2(out[k]);
   for (const g of Object.values(out.distribuicao)) { g.venda = r2(g.venda); g.pis = r2(g.pis); g.cofins = r2(g.cofins); }
   return out;
 }
@@ -100,6 +108,9 @@ async function executar() {
   if (error) throw error;
   if (!ativos?.length) throw new Error('Não existe fotografia ativa para a empresa.');
   const alvos = ativos.filter(alvo); const ids = alvos.map((x) => Number(x.movimento_id)).filter(Boolean);
+  if (process.argv.includes('--fase2a-simples-legal') && !ids.length) {
+    throw new Error('Nenhum dependente real da regra legal do Simples foi localizado; reprocessamento seletivo cancelado.');
+  }
   const movimentos = db.prepare(`SELECT id FROM movimentos WHERE empresa_id=? AND id IN (${ids.map(() => '?').join(',')})`).all(EMPRESA_ID, ...ids);
   if (movimentos.length !== ids.length) throw new Error(`Base local não contém todos os alvos (${movimentos.length}/${ids.length}); operação cancelada.`);
   const pool = new Pool({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
@@ -132,7 +143,8 @@ async function executar() {
       linha.ativo = false;
     }
     const antes = resumo(ativos); const depois = resumo(linhas);
-    const tipoHomologacao = process.argv.includes('--simples-destinatario') ? 'CREDITO_CLIENTE_SIMPLES_DAS'
+    const tipoHomologacao = process.argv.includes('--fase2a-simples-legal') ? 'REGRA_LEGAL_CREDITO_SIMPLES_SELETIVA'
+      : process.argv.includes('--simples-destinatario') ? 'CREDITO_CLIENTE_SIMPLES_DAS'
       : process.argv.includes('--simples') ? 'CREDITO_CBS_SIMPLES'
       : process.argv.includes('--cbs-only') ? 'BASE_ECONOMICA_CBS_ONLY'
         : 'RECONSTRUCAO_BASE_ECONOMICA';

@@ -95,7 +95,7 @@ function listar(empresaId, filtros = {}) {
   let sql = 'SELECT * FROM excecoes_motor WHERE empresa_id=?'; const p = [empresaId];
   if (filtros.status) { sql += ' AND status=?'; p.push(filtros.status); }
   else sql += " AND status='ABERTA'";
-  sql += ' ORDER BY materialidade DESC, valor_envolvido DESC, id DESC LIMIT ?'; p.push(Math.min(Number(filtros.limite) || 100, 1000));
+  sql += ' ORDER BY materialidade DESC, valor_envolvido DESC, id DESC LIMIT ?'; p.push(Math.min(Number(filtros.limite) || 100, 5000));
   return db.prepare(sql).all(...p).map((x) => ({ ...x, detalhe: (() => { try { return JSON.parse(x.detalhe || '{}'); } catch (_) { return {}; } })() }));
 }
 

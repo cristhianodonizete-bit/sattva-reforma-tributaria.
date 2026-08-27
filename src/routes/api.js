@@ -24,16 +24,19 @@ const regras = require('../services/regras');
 const dimensoes = require('../services/dimensoes');
 const cenarioMotor = require('../services/cenarioMotor');
 const cenarioMemoria = require('../services/cenarioMemoria');
+const cenarioTemplates = require('../services/cenarioTemplates');
 const cnpjReceita = require('../services/cnpjReceita');
 const baseRegime = require('../services/baseRegimeReceita');
 const relatorio = require('../services/relatorio');
 const perfilCbs = require('../services/perfilCbs');
 const excecoesMotor = require('../services/excecoesMotor');
+const coberturaDiagnostico = require('../services/coberturaDiagnostico');
 const processamentoCarteira = require('../services/processamentoCarteira');
 const supabase = require('../services/supabase');
 const { executar: sincronizarGestaoSupabase } = require('../../scripts/sincronizar_gestao_supabase');
 
 const router = express.Router();
+const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 
 // Toda rota que calcula parte da fonte compartilhada. Assim, uma instância nova
 // do Render nunca decide com um SQLite vazio ou com cache anterior à alteração.
@@ -2499,6 +2502,30 @@ router.get('/empresas/:id/excecoes', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
+// Fase 2A — leitura consolidada da cobertura. A rota não roda motor, não
+// reclassifica e não converte ausência de evidência em zero.
+router.get('/empresas/:id/cobertura-diagnostico', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    ok(res, coberturaDiagnostico.fotografia(Number(req.params.id)));
+  } catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/cobertura-diagnostico/fotografias', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    ok(res, coberturaDiagnostico.registrarFotografia(Number(req.params.id), req.body?.tipo || 'FASE_2A'));
+  } catch (e) { erro(res, e); }
+});
+router.get('/empresas/:id/cobertura-diagnostico/fotografias', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    ok(res, { fotografias: coberturaDiagnostico.listarFotografias(Number(req.params.id)) });
+  } catch (e) { erro(res, e); }
+});
+router.post('/config/cadastros-mestre/popular', async (_req, res) => {
+  try { ok(res, coberturaDiagnostico.popularCadastrosMestre()); } catch (e) { erro(res, e); }
+});
+
 router.get('/config/regras', async (_req, res) => {
   try {
     // Esta é a rota que alimenta a tela de Configurações. Ela consulta a
@@ -2741,11 +2768,19 @@ router.delete('/cenarios/alocacoes/:id', (req, res) => {
 });
 
 /** Premissa global, por grupo ou individual */
+const CAMPOS_PREMISSA_CENARIO = new Set(['regime', 'variacao_preco', 'rbt12', 'anexo_simples', 'hibrido', 'grau_repasse', 'estrategia_preco']);
+const CAMPOS_FISCAIS_PROTEGIDOS_CENARIO = new Set(['ncm', 'nbs', 'cst', 'cclasstrib', 'tratamento_fiscal', 'status_classificacao', 'classificacao']);
 router.post('/cenarios/:id/premissas', (req, res) => {
   try {
     const b = req.body;
     if (!['global', 'grupo', 'individual'].includes(b.nivel)) throw new Error('Nível deve ser global, grupo ou individual.');
     if (!b.campo) throw new Error('Informe o campo da premissa.');
+    if (CAMPOS_FISCAIS_PROTEGIDOS_CENARIO.has(b.campo)) {
+      throw new Error('NCM, NBS, CST, cClassTrib, tratamento e status fiscal não podem ser alterados por uma premissa comercial de cenário.');
+    }
+    if (!CAMPOS_PREMISSA_CENARIO.has(b.campo)) {
+      throw new Error('Campo de premissa não suportado neste cenário. Use regime, variação de preço, faixa/anexo do Simples, híbrido ou grau de repasse.');
+    }
     const r = db.prepare(`INSERT INTO cenario_premissas (cenario_id, nivel, lado, dimensao, grupo,
       entidade_tipo, entidade_id, campo, valor_original, valor_simulado, justificativa, fonte)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?)`)
@@ -2762,6 +2797,39 @@ router.delete('/cenarios/premissas/:id', (req, res) => {
   db.prepare('DELETE FROM cenario_premissas WHERE id = ?').run(req.params.id);
   if (p) db.prepare(`UPDATE cenarios SET status = 'rascunho' WHERE id = ?`).run(p.cenario_id);
   ok(res, {});
+});
+
+/** Catálogo de hipóteses A–H. Retorna configuração, nunca resultado calculado. */
+router.get('/cenarios/templates', (_req, res) => ok(res, { templates: cenarioTemplates.listar() }));
+
+/**
+ * Materializa um template como cenário normal e editável. A gravação das
+ * premissas usa a mesma tabela/contrato da composição manual.
+ */
+router.post('/empresas/:id/cenarios/templates/:chave', (req, res) => {
+  try {
+    const tpl = cenarioTemplates.obter(req.params.chave);
+    if (!tpl) throw new Error('Template de cenário não encontrado.');
+    const ano = Number(req.body.ano) || 2033;
+    const base = cenarioMotor.obterOuCriarBase(req.params.id, ano);
+    if (tpl.base) return ok(res, { id: base.id, base: true, nome: tpl.nome });
+    // H não muda regime automaticamente: a confirmação é uma decisão do
+    // consultor e a regra legal continua no motor.
+    if (tpl.exigeSimples && !req.body.confirmar_simples) {
+      throw new Error('O cenário H exige confirmação explícita de que a comparação é juridicamente cabível para a empresa analisada.');
+    }
+    const r = db.prepare(`INSERT INTO cenarios (empresa_id,nome,descricao,tipo,base_id,versao,ano,status,parametros)
+      VALUES (?,?,?,'hipotese',?,1,?,'rascunho',?)`).run(
+      req.params.id, `${tpl.codigo} — ${tpl.nome}`, tpl.descricao, base.id, ano,
+      JSON.stringify({ template: tpl.chave, fase: '2C', editavel: true }));
+    const ins = db.prepare(`INSERT INTO cenario_premissas
+      (cenario_id,nivel,lado,dimensao,grupo,entidade_tipo,entidade_id,campo,valor_original,valor_simulado,justificativa,fonte,natureza)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'SIMULADO')`);
+    db.transaction(() => (tpl.premissas || []).forEach((p) => ins.run(r.lastInsertRowid, p.nivel, p.lado || null,
+      p.dimensao || null, p.grupo || null, null, null, p.campo, null, String(p.valor_simulado),
+      p.justificativa || '', p.fonte || 'TEMPLATE_2C')))();
+    ok(res, { id: r.lastInsertRowid, template: tpl.chave, editavel: true });
+  } catch (e) { erro(res, e); }
 });
 
 /** Executa o cenário e devolve composição, indicadores e efeitos */
@@ -2801,15 +2869,28 @@ router.get('/cenarios/:id/drilldown/:lado/:dimensao/:grupo', (req, res) => {
 /** Comparação lado a lado de 2 a 5 cenários */
 router.post('/cenarios/comparar', (req, res) => {
   try {
-    const ids = (req.body.ids || []).slice(0, 5);
+    const solicitados = req.body.ids || [];
+    if (solicitados.length > 5) throw new Error('Selecione no máximo cinco cenários para a comparação.');
+    const ids = [...new Set(solicitados.map(Number).filter(Boolean))];
     if (ids.length < 2) throw new Error('Selecione ao menos dois cenários.');
     const linhas = ids.map((id) => {
       const r = cenarioMotor.executarCenario(id);
       return { id, nome: r.cenario.nome, tipo: r.cenario.tipo, ano: r.ano,
         indicadores: r.indicadores, apuracao: r.apuracao,
         efeitos: r.efeitos || null, indiceMudanca: r.indiceMudanca || null,
-        composicao: r.composicao };
+        composicao: r.composicao,
+        drilldown: { cenario_id: id, disponivel: true } };
     });
+    const referencia = linhas.find((x) => x.tipo === 'base') || linhas[0];
+    for (const linha of linhas) {
+      const b = referencia.indicadores;
+      const i = linha.indicadores;
+      linha.efeitoEconomico = {
+        credito_adicional: r2(i.creditoRecebido - b.creditoRecebido),
+        alteracao_custo_bruto: r2(i.comprasProjetadas - b.comprasProjetadas),
+        ganho_perda_custo_efetivo: r2(b.custoEfetivoCompras - i.custoEfetivoCompras),
+      };
+    }
     ok(res, { cenarios: linhas });
   } catch (e) { erro(res, e); }
 });

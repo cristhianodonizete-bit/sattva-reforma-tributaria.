@@ -65,9 +65,10 @@ function legenda(grupos, comparacao) {
 // =========================================================================
 async function simulacaoCadeia(el) {
   const e = est();
-  const [{ cenarios }, dims] = await Promise.all([
+  const [{ cenarios }, dims, templates] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/cenarios/lista`),
     A.api('/cenarios/dimensoes'),
+    A.api('/cenarios/templates'),
   ]);
   const dimsLado = dims[e.lado] || [];
   if (!dimsLado.find((d) => d.chave === e.dimensao)) e.dimensao = dimsLado[0].chave;
@@ -76,6 +77,10 @@ async function simulacaoCadeia(el) {
   if (e.cenarioId && !cenarios.find((c) => c.id === e.cenarioId)) e.cenarioId = null;
 
   el.innerHTML = M.seletorAno(() => A.ir('cenarios')) +
+    `<div class="aviso bom" style="margin-bottom:16px"><b>Composição de cenário</b>
+      <div class="acao">1. Crie uma hipótese · 2. selecione origem, destino e percentual · 3. aplique e recalcule · 4. compare Base × Cenário · 5. abra a memória até o documento. A hipótese comercial nunca substitui a classificação fiscal pendente.</div>
+    </div>` +
+    painelTemplates(templates.templates || []) +
     `<div class="cartao" style="display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap">
       <label class="campo" style="margin:0;min-width:200px"><span>Cenário</span>
         <select id="selCenario">
@@ -94,7 +99,8 @@ async function simulacaoCadeia(el) {
       <div style="margin-left:auto;display:flex;gap:8px">
         <button class="btn" id="novoCenario">Criar simulação</button>
         ${e.cenarioId ? '<button class="btn vazio" id="duplicar">Duplicar</button>' : ''}
-        ${hipoteses.length >= 2 ? '<button class="btn vazio" id="comparar">Comparar</button>' : ''}
+        ${e.cenarioId ? '<button class="btn vazio" id="compararBase">Comparar Base × cenário</button>' : ''}
+        ${hipoteses.length >= 2 ? '<button class="btn vazio" id="comparar">Comparar vários</button>' : ''}
       </div>
     </div>
     <div id="corpoSim"><div class="carregando">Calculando composição…</div></div>`;
@@ -103,12 +109,39 @@ async function simulacaoCadeia(el) {
   document.getElementById('selLado').onchange = (ev) => { e.lado = ev.target.value; e.dimensao = null; A.ir('cenarios'); };
   document.getElementById('selDim').onchange = (ev) => { e.dimensao = ev.target.value; A.ir('cenarios'); };
   document.getElementById('novoCenario').onclick = () => criarCenario(cenarios);
+  document.querySelectorAll('[data-template]').forEach((b) => { b.onclick = () => criarTemplate(b.dataset.template); });
   const dup = document.getElementById('duplicar');
   if (dup) dup.onclick = () => criarCenario(cenarios, e.cenarioId);
+  const cmpBase = document.getElementById('compararBase');
+  if (cmpBase) cmpBase.onclick = () => compararCenarios(cenarios, [
+    (cenarios.find((c) => c.tipo === 'base') || {}).id,
+    e.cenarioId,
+  ].filter(Boolean));
   const cmp = document.getElementById('comparar');
   if (cmp) cmp.onclick = () => compararCenarios(cenarios);
 
   await desenhar(document.getElementById('corpoSim'), e, dimsLado);
+}
+
+function painelTemplates(templates) {
+  return `<div class="cartao" style="margin-bottom:16px"><h2>Cenários sugeridos A–H</h2>
+    <p class="desc">São modelos de premissas editáveis — não são resultados prontos e nunca substituem a decisão do consultor.</p>
+    <div class="grade g4">${templates.map((t) => `<div class="aviso" style="margin:0;display:flex;flex-direction:column;align-items:flex-start;gap:8px">
+      <b>${A.esc(t.codigo)} — ${A.esc(t.nome)}</b><span class="mini">${A.esc(t.descricao)}</span>
+      <button class="btn pq ${t.base ? 'vazio' : 'ouro'}" data-template="${A.esc(t.chave)}">${t.base ? 'Abrir referência' : 'Criar editável'}</button>
+    </div>`).join('')}</div></div>`;
+}
+
+async function criarTemplate(chave) {
+  const confirmar = chave === 'H_SIMPLES'
+    ? window.confirm('Confirma que a comparação do Simples Nacional é juridicamente cabível para esta empresa e período?') : true;
+  if (!confirmar) return;
+  try {
+    const r = await A.api(`/empresas/${S.empresaId}/cenarios/templates/${chave}`, { metodo: 'POST', corpo: {
+      ano: M.anoAtual(), confirmar_simples: chave === 'H_SIMPLES' } });
+    if (r.base) est().cenarioId = null; else est().cenarioId = r.id;
+    A.toast(r.base ? 'Referência aberta' : 'Template criado como cenário editável', 'ok'); A.ir('cenarios');
+  } catch (err) { A.toast(err.message, 'erro'); }
 }
 
 // -------------------------------------------------------------------------
@@ -129,7 +162,9 @@ async function desenhar(box, e, dimsLado) {
         <div class="aviso"><b>Este é o cenário base</b>
           A fotografia econômica atual, construída apenas com os dados importados. É imutável — toda
           hipótese é criada por cima dele.
-          <div class="acao">Use "Criar simulação" para alterar a composição por grupos.</div></div>`;
+          <div class="acao">Use "Criar simulação" para selecionar grupo de origem, grupo de destino e percentual.</div>
+          <button class="btn ouro" id="criarDaBase" style="margin-top:10px">Criar hipótese de composição</button></div>`;
+      box.querySelector('#criarDaBase').onclick = () => criarCenario([]);
       return;
     }
 
@@ -255,7 +290,7 @@ async function painelMigracao(e, compBase, dim) {
   const opt = (sel) => grupos.map((g) =>
     `<option value="${A.esc(g.grupo)}" ${sel === g.grupo ? 'selected' : ''}>${A.esc(g.nome)} — ${A.pct(g.participacao)}</option>`).join('');
 
-  return `<div class="cartao"><h2>Alteração do cenário</h2>
+  return `<div class="cartao"><h2>1. Compor a hipótese</h2>
     <p class="desc">Escolha qual parte da composição deseja simular. O percentual é do <b>grupo</b>,
       não do total — o sistema mostra a equivalência.</p>
     <div class="grade g4" style="align-items:end">
@@ -271,7 +306,7 @@ async function painelMigracao(e, compBase, dim) {
     <div class="aviso" id="migPrevia"></div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
       <input type="text" id="migJust" placeholder="Justificativa da hipótese (opcional)" style="flex:1;min-width:240px">
-      <button class="btn ouro" id="migAplicar">Aplicar migração</button>
+      <button class="btn ouro" id="migAplicar">Aplicar e recalcular</button>
     </div>
     ${cen.alocacoes ? `<hr class="sep"><h2 style="font-size:13px">Migrações deste cenário</h2>
       <div id="listaAloc"><div class="carregando">carregando…</div></div>` : ''}
@@ -389,17 +424,27 @@ async function drill(e, grupo) {
       { t: 'CBS', num: true, r: (x) => A.moeda(x.cbs) },
       { t: 'Crédito', num: true, r: (x) => A.moeda(x.creditoIbs + x.creditoCbs) },
       { t: 'Natureza', r: (x) => `<span class="tag ${natTag(x.natureza)[0]}">${natTag(x.natureza)[1]}</span>` },
-      { t: '', r: (x) => `<button class="btn pq vazio" data-prec='${A.esc(JSON.stringify(x.precedencia || []))}'
-          ${(x.precedencia || []).length ? '' : 'disabled'}>Premissas</button>` },
+      { t: 'Regra vencedora', r: (x) => {
+        const campos = Object.entries(x.resolucaoPremissas || {});
+        return campos.length ? `<button class="btn pq vazio" data-res='${A.esc(JSON.stringify(x.resolucaoPremissas))}'>${campos.map(([c, r]) => `${A.esc(c)} · ${A.esc(r.nivel_precedencia_aplicado)}`).join('<br>')}</button>` : 'Original';
+      } },
     ], itens)}
     <div class="mini" style="margin-top:8px">Mostrando ${itens.length} linhas. A fração indica a parte
       do lançamento que pertence a este grupo — a expansão proporcional preserva o mix tributário.</div>`;
-  box.querySelectorAll('[data-prec]').forEach((b) => { b.onclick = () => {
-    const lista = JSON.parse(b.dataset.prec);
-    A.modal({ titulo: 'Precedência das premissas', largura: 640, confirmar: null,
-      descricao: 'individual > grupo > global > dado original',
-      corpo: lista.map((p) => `<div class="aviso ${p.campo === 'migracao_ignorada' ? 'atencao' : ''}">
-        <b>${A.esc(p.campo)}</b>${A.esc(p.texto)}</div>`).join('') });
+  box.querySelectorAll('[data-res]').forEach((b) => { b.onclick = () => {
+    const resolucoes = JSON.parse(b.dataset.res);
+    const valor = (x) => x === null || x === undefined ? '—' : A.esc(String(x));
+    A.modal({ titulo: 'Resolução das premissas', largura: 900, confirmar: null,
+      descricao: 'individual > grupo > global > original. Os fatos do documento permanecem preservados.',
+      corpo: A.tabela([
+        { t: 'Campo', r: (x) => `<b>${A.esc(x.campo)}</b>` },
+        { t: 'Original', r: (x) => valor(x.valor_original) },
+        { t: 'Global', r: (x) => valor(x.premissa_global?.valor) },
+        { t: 'Grupo', r: (x) => valor(x.premissa_grupo?.valor) },
+        { t: 'Individual', r: (x) => valor(x.premissa_individual?.valor) },
+        { t: 'Valor efetivo', r: (x) => `<b>${valor(x.valor_efetivo)}</b>` },
+        { t: 'Regra vencedora', r: (x) => `<span class="tag b">${A.esc(x.nivel_precedencia_aplicado)}</span><div class="mini">${A.esc(x.origem_da_premissa || '')} · ${A.esc(x.natureza || '')}</div>` },
+      ], Object.entries(resolucoes).map(([campo, r]) => ({ campo, ...r }))) });
   }; });
 }
 
@@ -422,28 +467,38 @@ function criarCenario(cenarios, duplicarDe) {
   });
 }
 
-function compararCenarios(cenarios) {
+function compararCenarios(cenarios, preselecionados = null) {
   const e = est();
+  const selecionado = (c) => preselecionados ? preselecionados.includes(c.id) : (c.tipo === 'base' || c.id === e.cenarioId);
   A.modal({
-    titulo: 'Comparar cenários', largura: 960, confirmar: 'Comparar',
-    descricao: 'Selecione de 2 a 5 cenários.',
+    titulo: preselecionados ? 'Base × cenário' : 'Comparar cenários', largura: 960, confirmar: 'Comparar',
+    descricao: preselecionados ? 'A comparação usa a fotografia base imutável e a hipótese selecionada.' : 'Selecione de 2 a 5 cenários.',
     corpo: `<div class="lista-sel">${cenarios.map((c) => `<label class="it">
-        <input type="checkbox" data-cmp="${c.id}" ${c.tipo === 'base' || c.id === e.cenarioId ? 'checked' : ''}>
+        <input type="checkbox" data-cmp="${c.id}" ${selecionado(c) ? 'checked' : ''}>
         <span><span class="nome">${A.esc(c.nome)}</span>
           <span class="txt mini">${c.tipo === 'base' ? 'cenário base' : `v${c.versao} · ${c.alocacoes} migração(ões)`}</span></span>
       </label>`).join('')}</div><div id="boxCmp" style="margin-top:14px"></div>`,
     aoConfirmar: async (_d, fundo) => {
       const ids = [...fundo.querySelectorAll('[data-cmp]:checked')].map((i) => Number(i.dataset.cmp));
       if (ids.length < 2) throw new Error('Selecione ao menos dois cenários.');
+      if (ids.length > 5) throw new Error('Selecione no máximo cinco cenários.');
       const box = fundo.querySelector('#boxCmp');
       box.innerHTML = '<div class="carregando">Calculando…</div>';
       const { cenarios: linhas } = await A.api('/cenarios/comparar', { metodo: 'POST', corpo: { ids } });
       const linha = (rot, fn, fmt = A.moeda) => `<tr><td>${rot}</td>${linhas.map((c) =>
         `<td class="num mono">${fmt(fn(c))}</td>`).join('')}</tr>`;
-      box.innerHTML = `<table class="compacta"><thead><tr><th>Indicador</th>
+      const n = (v) => v === null || v === undefined ? '<span class="tag a">INCOMPLETO</span>' : A.moeda(v);
+      const comp = (c, lado, dim) => ((c.composicao[lado] || {})[dim] || {}).grupos || [];
+      const resumoComp = (c, lado, dim) => comp(c, lado, dim).filter((g) => g.participacao > 0.0001)
+        .map((g) => `${A.esc(g.nome)} ${A.pct(g.participacao)}`).join('<br>') || '—';
+      box.innerHTML = `<div class="aviso"><b>Comparação reconciliada com o motor</b><div class="acao">Margem e caixa só aparecem quando existe formação de custo explícita e completa. Caixa = disponibilidade operacional antes de prazos; não representa fluxo financeiro contratado.</div></div>
+        <div style="overflow:auto"><table class="compacta"><thead><tr><th>Indicador</th>
           ${linhas.map((c) => `<th class="num">${A.esc(c.nome.slice(0, 24))}</th>`).join('')}</tr></thead><tbody>
           ${linha('Compras', (c) => c.indicadores.compras)}
           ${linha('Receita', (c) => c.indicadores.receita)}
+          ${linha('Preço médio projetado', (c) => c.indicadores.precoMedio)}
+          ${linha('Base econômica — saídas', (c) => c.indicadores.baseEconomicaSaidas)}
+          ${linha('Base econômica — entradas', (c) => c.indicadores.baseEconomicaEntradas)}
           ${linha('Crédito recebido', (c) => c.indicadores.creditoRecebido)}
           ${linha('Crédito entregue', (c) => c.indicadores.creditoEntregue)}
           ${linha('Custo efetivo das compras', (c) => c.indicadores.custoEfetivoCompras)}
@@ -452,19 +507,41 @@ function compararCenarios(cenarios) {
           ${linha('Débito CBS', (c) => c.apuracao.cbs.debitos)}
           ${linha('Crédito CBS', (c) => c.apuracao.cbs.creditos)}
           ${linha('Carga líquida', (c) => c.apuracao.cargaLiquida)}
+          <tr><td>Margem econômica <div class="mini">cobertura de custo</div></td>${linhas.map((c) => `<td class="num mono">${n(c.indicadores.margem)}<div class="mini">${A.pct(c.indicadores.coberturaMargem || 0)}</div></td>`).join('')}</tr>
+          <tr><td>Caixa operacional <div class="mini">antes de prazos</div></td>${linhas.map((c) => `<td class="num mono">${n(c.indicadores.caixaOperacional)}</td>`).join('')}</tr>
           ${linha('Taxa de recuperação', (c) => c.indicadores.taxaRecuperacao, A.pct)}
           ${linha('Cobertura de fornecedores', (c) => c.indicadores.coberturaCadastralFornecedores, A.pct)}
           ${linha('Carteira alterada (compras)', (c) => (c.indiceMudanca || {}).compras || 0, A.pct)}
+          <tr><td>Composição de fornecedores</td>${linhas.map((c) => `<td class="mini">${resumoComp(c, 'compras', 'regime_fornecedor')}</td>`).join('')}</tr>
+          <tr><td>Composição de clientes</td>${linhas.map((c) => `<td class="mini">${resumoComp(c, 'vendas', 'perfil_cliente')}</td>`).join('')}</tr>
+        </tbody></table></div>
+        <h3 style="font-size:14px;margin-top:16px">Efeito econômico versus referência</h3>
+        <table class="compacta"><thead><tr><th>Cenário</th><th class="num">Crédito adicional</th><th class="num">Alteração do custo bruto</th><th class="num">Ganho/perda líquida no custo efetivo</th><th></th></tr></thead><tbody>
+          ${linhas.map((c) => `<tr><td><b>${A.esc(c.nome)}</b></td><td class="num mono">${A.setaR$(c.efeitoEconomico.credito_adicional)}</td><td class="num mono">${A.setaR$(c.efeitoEconomico.alteracao_custo_bruto)}</td><td class="num mono">${A.setaR$(c.efeitoEconomico.ganho_perda_custo_efetivo)}</td><td><button class="btn pq vazio" data-drill-cenario="${c.id}">Drill-down</button></td></tr>`).join('')}
         </tbody></table>`;
+      box.querySelectorAll('[data-drill-cenario]').forEach((b) => { b.onclick = () => drillComparacao(Number(b.dataset.drillCenario)); });
       return false;   // mantém o modal aberto com o resultado
     },
   });
 }
 
+async function drillComparacao(cenarioId) {
+  const { itens } = await A.api(`/cenarios/${cenarioId}/drilldown/compras/regime_fornecedor/regular?limite=80`)
+    .catch(() => ({ itens: [] }));
+  A.modal({ titulo: 'Drill-down do cenário', largura: 1000, confirmar: null,
+    descricao: 'Detalhe do cenário até documento/operação. Para outros grupos, abra a composição do cenário e use a memória por grupo.',
+    corpo: itens.length ? A.tabela([
+      { t: 'Documento', r: (x) => A.esc(x.documento || '—') }, { t: 'Contraparte', r: (x) => A.esc(x.contraparte || '—') },
+      { t: 'NCM/NBS', r: (x) => A.esc(x.ncm || x.nbs || '—') }, { t: 'Base econômica', num: true, r: (x) => A.moeda(x.baseEconomica) },
+      { t: 'CBS', num: true, r: (x) => A.moeda(x.cbs) }, { t: 'Crédito', num: true, r: (x) => A.moeda((x.creditoIbs || 0) + (x.creditoCbs || 0)) },
+      { t: 'Natureza', r: (x) => A.esc(x.natureza) },
+    ], itens) : '<div class="aviso">Não há itens no grupo regular para este cenário. Abra o cenário e escolha outro grupo na memória.</div>' });
+}
+
 // registra a aba na tela de Cenários, ao lado das que já existem
 M.comAbas('cenarios', M.abasCenarios.concat([
-  { id: 'simulacao', t: 'Simulação da cadeia', render: simulacaoCadeia },
-]), 'atual');
+  { id: 'simulacao', t: 'Composição de cenário', render: simulacaoCadeia },
+]), 'simulacao');
 })();
 
 /* =========================================================================

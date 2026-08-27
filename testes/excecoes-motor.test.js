@@ -9,7 +9,7 @@ if (!empresa) throw new Error('Fixture ausente: é necessária uma empresa para 
 
 motorExec.executar(empresa.id, { ano: 2027 });
 const resumo = excecoes.resumo(empresa.id);
-const lista = excecoes.listar(empresa.id, { limite: 1000 });
+const lista = excecoes.listar(empresa.id, { limite: 5000 });
 
 assert.equal(resumo.abertas, lista.length, 'Resumo e lista de exceções abertas devem reconciliar');
 assert.ok(lista.every((x) => Number(x.materialidade) >= 0), 'Exceções devem conter materialidade não negativa');

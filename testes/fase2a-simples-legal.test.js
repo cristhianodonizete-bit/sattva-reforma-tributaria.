@@ -1,0 +1,15 @@
+const assert = require('assert');
+const db = require('../src/db');
+const motor = require('../src/engine/motor');
+const resolvedor = require('../src/services/resolvedorRegra');
+const regra = { id: 'TESTE_LC214_SIMPLES_V1', familia: 'TESTE', subfamilia: 'SIMPLES', tipo_operacao: 'AQUISICAO', direcao: 'ENTRADA', perfil_fornecedor: 'SIMPLES', perfil_adquirente: 'REGULAR', regime_fornecedor: 'SIMPLES_DAS', regime_adquirente: 'REGULAR', condicoes_obrigatorias: JSON.stringify(['operacao_entrada','fornecedor_simples','adquirente_regular','aquisicao_abrangida','documento_fiscal']), condicoes_excludentes: JSON.stringify(['fornecedor_mei','adquirente_simples']), tratamento_resultante: 'ELEGIVEL_A_CREDITO_SIMPLES', fundamento_legal: 'teste', vigencia_inicio: '2027-01-01', prioridade: 999, versao: 1, status: 'ATIVA' };
+const cols = Object.keys(regra);
+db.prepare(`INSERT OR REPLACE INTO regras_enquadramento (${cols.join(',')}) VALUES (${cols.map(() => '?').join(',')})`).run(...cols.map((c) => regra[c]));
+const base = { tipo_operacao: 'AQUISICAO', direcao: 'ENTRADA', data: '2027-01-01', fornecedor: { regime: 'simples_nacional' }, adquirente: { regime: 'regime_regular' }, operacao_entrada: true, fornecedor_simples: true, adquirente_regular: true, aquisicao_abrangida: true, documento_fiscal: true };
+assert.equal(resolvedor.resolver(base).regra.id, regra.id);
+assert.equal(resolvedor.resolver({ ...base, documento_fiscal: false }).status, 'SUJEITO_VALIDACAO');
+assert.equal(resolvedor.resolver({ ...base, fornecedor: { regime: 'mei' }, fornecedor_mei: true }).regra, null);
+assert.equal(resolvedor.resolver({ ...base, fornecedor: { regime: 'lucro_real' } }).regra, null);
+assert.equal(resolvedor.resolver({ ...base, data: '2026-12-31' }).regra, null);
+db.prepare("DELETE FROM regras_enquadramento WHERE id=?").run(regra.id);
+console.log('fase2a-simples-legal: ok');
