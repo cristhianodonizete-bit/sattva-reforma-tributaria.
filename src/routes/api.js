@@ -1065,7 +1065,7 @@ router.get('/empresas/:id/precificacao-independente/base', (req, res) => {
 // Limpeza deliberadamente restrita a lotes sintéticos. É usada apenas para
 // homologação/smoke test e jamais aceita um prefixo genérico que possa tocar
 // a base comercial do cliente.
-router.delete('/empresas/:id/precificacao-independente/testes/:prefixo', (req, res) => {
+router.delete('/empresas/:id/precificacao-independente/testes/:prefixo', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
     const prefixo = String(req.params.prefixo || '');
@@ -1079,6 +1079,7 @@ router.delete('/empresas/:id/precificacao-independente/testes/:prefixo', (req, r
       return { componentes, produtos, servicos, lotes };
     });
     const removidos = transacao();
+    await require('../services/operacaoCompartilhada').publicar();
     auditar(req, { empresaId, acao: 'Limpou dados sintéticos de Precificação', entidade: 'precificacao_independente', entidadeId: prefixo, depois: removidos });
     ok(res, { prefixo, removidos });
   } catch (e) { erro(res, e); }
@@ -1095,7 +1096,7 @@ router.post('/empresas/:id/precificacao-independente/saida-executiva', (req, res
 router.get('/empresas/:id/precificacao-independente/saida-executiva.pdf', (req, res) => {
   try { const relatorio=precificacaoExecutiva.montar(Number(req.params.id), { modo:req.query.modo, percentual_reajuste:req.query.percentual_reajuste, item_chaves:String(req.query.itens || '').split(',').filter(Boolean) }); res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition','attachment; filename="precificacao-margem-executivo.pdf"');precificacaoExecutiva.gerarPdf(relatorio,res); } catch(e){erro(res,e);}
 });
-router.post('/empresas/:id/precificacao-independente/importar', upload.single('arquivo'), (req, res) => {
+router.post('/empresas/:id/precificacao-independente/importar', upload.single('arquivo'), async (req, res) => {
   try {
     if (!req.file?.buffer) throw new Error('Selecione a planilha XLSX da precificação.');
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
@@ -1114,7 +1115,7 @@ router.post('/empresas/:id/precificacao-independente/importar', upload.single('a
       servicos.forEach((x) => { const r = inserirServico.run(empresaId,x.codigo,x.descricao,x.lc116 || '',x.nbs || '',x.unidade || '',Number(x.quantidade_producao),Number(x.valor_venda_atual),Number(x.custo_direto) || 0,x.perfil_cliente || '', 'IMPORTACAO'); servicosIds.set(x.codigo,r.lastInsertRowid); });
       componentes.forEach((x) => { const codigo = String(x.codigo_item_saida).trim(); inserirComp.run(empresaId,produtosIds.get(codigo) || null,servicosIds.get(codigo) || null,x.codigo_componente,x.descricao || x.codigo_componente,String(x.tipo_componente).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ /g,'_'),x.ncm || '',x.nbs || '',x.lc116 || '',String(x.cnpj_fornecedor || '').replace(/\D/g,''),String(x.regime_fornecedor || '').trim().toLowerCase().replace(/ /g,'_'),Number(x.quantidade),Number(x.custo_unitario_bruto),Number(x.perda_percentual) || 0,'IMPORTACAO'); });
       db.prepare('INSERT INTO pricing_import_batches (empresa_id,arquivo,status,resumo) VALUES (?,?,?,?)').run(empresaId,req.file.originalname,'IMPORTADO',JSON.stringify({ produtos: produtos.length, servicos: servicos.length, componentes: componentes.length }));
-    }); transacao(); auditar(req, { empresaId, acao: 'Importou base independente de Precificação', entidade: 'precificacao_independente', entidadeId: req.file.originalname, depois: { produtos: produtos.length, servicos: servicos.length, componentes: componentes.length } });
+    }); transacao(); await require('../services/operacaoCompartilhada').publicar(); auditar(req, { empresaId, acao: 'Importou base independente de Precificação', entidade: 'precificacao_independente', entidadeId: req.file.originalname, depois: { produtos: produtos.length, servicos: servicos.length, componentes: componentes.length } });
     ok(res, { importado: true, produtos: produtos.length, servicos: servicos.length, componentes: componentes.length });
   } catch (e) { erro(res, e); }
 });

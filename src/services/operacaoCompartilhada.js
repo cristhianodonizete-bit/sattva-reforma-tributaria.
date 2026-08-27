@@ -29,6 +29,7 @@ const CAMPOS = {
   pricing_import_batches: ['id','empresa_id','arquivo','status','resumo','criado_em'],
 };
 const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','servicos','combos','combo_itens'];
+const TABELAS_PRECIFICACAO = ['pricing_products','pricing_services','pricing_components','pricing_import_batches'];
 
 function ativo() { return supabase.configurado() && process.env.SUPABASE_OPERACAO_COMPARTILHADA !== 'false'; }
 async function buscarTudo(remoto, tabela) {
@@ -221,12 +222,34 @@ async function publicar() {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {};
   for (const [tabela, campos] of Object.entries(CAMPOS)) {
+    if (TABELAS_PRECIFICACAO.includes(tabela)) continue;
     const linhas = db.prepare(`SELECT ${campos.join(',')} FROM ${tabela}`).all();
     for (let i = 0; i < linhas.length; i += 500) {
       const { error } = await remoto.from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: 'id' });
       if (error) throw new Error(`${tabela}: ${error.message}`);
     }
     resultado[tabela] = linhas.length;
+  }
+  // A importação de Precificação substitui a base inteira da empresa. Upsert
+  // por ID não propaga exclusões e pode manter componentes apontando para IDs
+  // de uma instância efêmera anterior do Render. Replicar a fotografia da
+  // empresa, na ordem de dependência, preserva a relação econômica explícita.
+  const empresas = db.prepare('SELECT id FROM empresas').all();
+  for (const empresa of empresas) {
+    const empresaId = empresa.id;
+    for (const tabela of ['pricing_components','pricing_import_batches','pricing_products','pricing_services']) {
+      const { error } = await remoto.from(tabela).delete().eq('empresa_id', empresaId);
+      if (error) throw new Error(`${tabela}: ${error.message}`);
+    }
+    for (const tabela of ['pricing_products','pricing_services','pricing_components','pricing_import_batches']) {
+      const campos = CAMPOS[tabela];
+      const linhas = db.prepare(`SELECT ${campos.join(',')} FROM ${tabela} WHERE empresa_id=?`).all(empresaId);
+      for (let i = 0; i < linhas.length; i += 500) {
+        const { error } = await remoto.from(tabela).insert(linhas.slice(i, i + 500));
+        if (error) throw new Error(`${tabela}: ${error.message}`);
+      }
+      resultado[tabela] = (resultado[tabela] || 0) + linhas.length;
+    }
   }
   // Parâmetros fiscais não acompanham esta publicação genérica. O banco local
   // do Render pode iniciar com valores padrão e jamais pode sobrescrever a
