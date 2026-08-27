@@ -1057,6 +1057,11 @@ router.get('/empresas/:id/precificacao-independente/template', (_req, res) => {
 router.get('/empresas/:id/precificacao-independente', (req, res) => {
   try { ok(res, { ...precificacaoIndependente.listarBase(Number(req.params.id)), modo: 'INDEPENDENTE', calculo_habilitado: false }); } catch (e) { erro(res, e); }
 });
+// Alias explícito consumido pela saída executiva: expõe somente a base própria
+// do módulo, sem qualquer reclassificação ou cálculo tributário adicional.
+router.get('/empresas/:id/precificacao-independente/base', (req, res) => {
+  try { ok(res, precificacaoIndependente.listarBase(Number(req.params.id))); } catch (e) { erro(res, e); }
+});
 // Limpeza deliberadamente restrita a lotes sintéticos. É usada apenas para
 // homologação/smoke test e jamais aceita um prefixo genérico que possa tocar
 // a base comercial do cliente.
