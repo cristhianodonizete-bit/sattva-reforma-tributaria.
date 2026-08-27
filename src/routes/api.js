@@ -1093,7 +1093,7 @@ router.post('/empresas/:id/precificacao-independente/saida-executiva', (req, res
   try { ok(res, { relatorio: precificacaoExecutiva.montar(Number(req.params.id), req.body || {}) }); } catch (e) { erro(res, e); }
 });
 router.get('/empresas/:id/precificacao-independente/saida-executiva.pdf', (req, res) => {
-  try { const relatorio=precificacaoExecutiva.montar(Number(req.params.id), { modo:req.query.modo, percentual_reajuste:req.query.percentual_reajuste, item_ids:String(req.query.itens || '').split(',').filter(Boolean).map(Number) }); res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition','attachment; filename="precificacao-margem-executivo.pdf"');precificacaoExecutiva.gerarPdf(relatorio,res); } catch(e){erro(res,e);}
+  try { const relatorio=precificacaoExecutiva.montar(Number(req.params.id), { modo:req.query.modo, percentual_reajuste:req.query.percentual_reajuste, item_chaves:String(req.query.itens || '').split(',').filter(Boolean) }); res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition','attachment; filename="precificacao-margem-executivo.pdf"');precificacaoExecutiva.gerarPdf(relatorio,res); } catch(e){erro(res,e);}
 });
 router.post('/empresas/:id/precificacao-independente/importar', upload.single('arquivo'), (req, res) => {
   try {

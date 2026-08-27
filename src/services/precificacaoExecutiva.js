@@ -17,7 +17,14 @@ function recomendacoes(itens) {
   });
 }
 function montar(empresaId, opcoes={}) {
-  const itens = pricing.simularEmpresa(empresaId, opcoes).filter((x) => !opcoes.item_ids?.length || opcoes.item_ids.map(Number).includes(Number(x.item.id)));
+  // Produto e serviço possuem séries de IDs independentes. A seleção executiva
+  // precisa carregar também a natureza para não confundir produto #1 com
+  // serviço #1. Mantemos item_ids como compatibilidade com chamadas antigas.
+  const chaves = new Set((opcoes.item_chaves || []).map(String));
+  const itens = pricing.simularEmpresa(empresaId, opcoes).filter((x) => {
+    if (chaves.size) return chaves.has(`${x.item.natureza_item}:${x.item.id}`);
+    return !opcoes.item_ids?.length || opcoes.item_ids.map(Number).includes(Number(x.item.id));
+  });
   const completos = itens.filter(x=>x.status !== 'INCOMPLETO'); const soma=(fn)=>r2(itens.reduce((a,x)=>a+n(fn(x)),0));
   const variacoes = completos.map(x=>x.simulacao.preco_projetado-x.simulacao.valor_venda_atual);
   const margemVar = completos.filter(x=>x.margem.valor!=null&&x.simulacao.margem_projetada!=null).map(x=>x.simulacao.margem_projetada-x.margem.valor);

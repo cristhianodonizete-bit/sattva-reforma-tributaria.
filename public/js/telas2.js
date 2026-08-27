@@ -67,19 +67,19 @@ async function telaPrecificacaoIndependente(el) {
   };
   document.getElementById('saidaExecPrec').onclick = async()=>{
     try {
-      const base = await A.api(`/empresas/${S.empresaId}/precificacao-independente/base`);
-      const itens = [...base.produtos, ...base.servicos];
+      const itens = [...d.produtos, ...d.servicos];
+      const chaveItem = (x) => `${x.natureza_item || (x.nbs != null || x.lc116 != null ? 'servico' : 'produto')}:${x.id}`;
       A.modal({ titulo:'Configurar saída executiva', largura:720, confirmar:'Gerar saída', corpo:`
         <div class="grade g2">${A.selecao('modo','Modo da simulação',[
           {v:'PRESERVAR_PRECO_FINAL',t:'Preservar preço final'}, {v:'PRESERVAR_MARGEM',t:'Preservar margem'},
           {v:'PRESERVAR_CUSTO_EFETIVO_CLIENTE',t:'Preservar custo efetivo do cliente'}, {v:'REAJUSTE_LIVRE',t:'Reajuste livre'}
         ],'PRESERVAR_PRECO_FINAL')}</div>
         <p class="desc">Selecione os produtos e serviços que devem compor a apresentação. Itens sem marcação não entram nos indicadores nem no PDF.</p>
-        <div class="lista-check">${itens.map(x=>`<label><input type="checkbox" name="item_${x.id}" checked> ${A.esc(x.codigo)} — ${A.esc(x.descricao)}</label>`).join('')}</div>`,
+        <div class="lista-check">${itens.map(x=>`<label><input type="checkbox" name="item_${chaveItem(x)}" checked> ${A.esc(x.codigo)} — ${A.esc(x.descricao)}</label>`).join('')}</div>`,
         aoConfirmar:async(dados, fundo)=>{
-          const item_ids = itens.filter(x=>dados[`item_${x.id}`]).map(x=>x.id);
-          if (!item_ids.length) throw new Error('Selecione ao menos um produto ou serviço.');
-          const r=await A.api(`/empresas/${S.empresaId}/precificacao-independente/saida-executiva`,{metodo:'POST',corpo:{modo:dados.modo,item_ids}});
+          const item_chaves = itens.filter(x=>dados[`item_${chaveItem(x)}`]).map(chaveItem);
+          if (!item_chaves.length) throw new Error('Selecione ao menos um produto ou serviço.');
+          const r=await A.api(`/empresas/${S.empresaId}/precificacao-independente/saida-executiva`,{metodo:'POST',corpo:{modo:dados.modo,item_chaves}});
           const z=r.relatorio;
           const detalhe=A.modal({titulo:'Saída executiva — Precificação',largura:1100,corpo:`
             <div class="grade g4">${Object.entries(z.indicadores).map(([k,v])=>A.kpi(k.replaceAll('_',' '),typeof v==='number'?A.moeda(v):A.esc(v))).join('')}</div>
@@ -88,7 +88,7 @@ async function telaPrecificacaoIndependente(el) {
             <h3 style="margin-top:16px">Waterfall e pontos de atenção</h3><div class="grade g3">${A.kpi('Margem comprimida',z.secoes.margem_comprimida.length)}${A.kpi('Aumento de preço',z.secoes.aumento_preco.length)}${A.kpi('Competitividade B2B comprovada',z.secoes.competitividade_b2b_afetada.length)}${A.kpi('Dados incompletos / indeterminados',z.secoes.dados_incompletos.length)}</div>
             <button class="btn" data-pdf-prec>Exportar PDF</button>`});
           detalhe.fundo.querySelector('[data-pdf-prec]').onclick=async()=>{
-            const q=new URLSearchParams({modo:dados.modo,itens:item_ids.join(',')});
+            const q=new URLSearchParams({modo:dados.modo,itens:item_chaves.join(',')});
             const resposta=await fetch(`/api/empresas/${S.empresaId}/precificacao-independente/saida-executiva.pdf?${q}`,{headers:{Authorization:`Bearer ${localStorage.getItem('sattva_token')||''}`}});
             if(!resposta.ok) throw new Error('Não foi possível gerar o PDF executivo.');
             const url=URL.createObjectURL(await resposta.blob()); const a=document.createElement('a'); a.href=url; a.download='precificacao-margem-executivo.pdf'; a.click(); URL.revokeObjectURL(url);
