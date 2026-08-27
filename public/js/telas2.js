@@ -42,9 +42,10 @@ Telas.precificacao = async (el) => {
 
 async function telaPrecificacaoIndependente(el) {
   const d = await A.api(`/empresas/${S.empresaId}/precificacao-independente`);
+  const temSmoke = [...d.produtos, ...d.servicos, ...d.componentes].some((x) => String(x.codigo || x.codigo_componente || x.descricao || '').startsWith('SMOKE_PRICING_'));
   el.innerHTML = cab('Módulo 2', 'Precificação e margem — base independente',
     'Use uma base própria de portfólio e composição. Cada insumo é associado explicitamente ao item de saída; o cálculo fiscal continua sendo realizado pelo motor homologado.',
-    `<button class="btn vazio" id="baixarModeloPrec">Baixar modelo XLSX</button><button class="btn" id="importarBasePrec">Importar base</button><button class="btn vazio" id="saidaExecPrec">Saída executiva</button><button class="btn vazio" id="voltarPrec">Voltar</button>`) +
+    `<button class="btn vazio" id="baixarModeloPrec">Baixar modelo XLSX</button><button class="btn" id="importarBasePrec">Importar base</button><button class="btn vazio" id="saidaExecPrec">Saída executiva</button>${temSmoke ? '<button class="btn perigo" id="limparSmokePrec">Limpar dados sintéticos</button>' : ''}<button class="btn vazio" id="voltarPrec">Voltar</button>`) +
     `<div class="aviso"><b>Modo independente.</b> Não exige movimentações importadas do Diagnóstico. Esta primeira camada é somente cadastral: valida portfólio e composição, sem calcular preço, margem ou crédito.</div>
     <div class="grade g3">${A.kpi('Produtos', d.produtos.length)}${A.kpi('Serviços', d.servicos.length)}${A.kpi('Componentes', d.componentes.length)}</div>
     <div class="cartao" style="margin-top:16px"><h2>Simulador comercial</h2><div class="grade g3">${A.selecao('modoPrecInd','Modo',[{v:'PRESERVAR_PRECO_FINAL',t:'Preservar preço final'},{v:'PRESERVAR_MARGEM',t:'Preservar margem'},{v:'PRESERVAR_CUSTO_EFETIVO_CLIENTE',t:'Preservar custo efetivo do cliente'},{v:'REAJUSTE_LIVRE',t:'Reajuste livre'}],'PRESERVAR_PRECO_FINAL')}${A.campo('percentualPrecInd','Reajuste livre (0,05 = 5%)',0,'number','step=0.0001')}<button class="btn" id="simularPrecInd">Simular</button></div><div id="resultadoPrecInd" class="mini" style="margin-top:10px">A simulação usa o motor fiscal oficial e não altera a base importada.</div></div>
@@ -52,6 +53,11 @@ async function telaPrecificacaoIndependente(el) {
     <div class="cartao" style="margin-top:16px"><h2>Serviços de saída</h2>${A.tabela([{t:'Código',r:x=>A.esc(x.codigo)},{t:'Descrição',r:x=>A.esc(x.descricao)},{t:'LC 116',r:x=>A.esc(x.lc116)},{t:'NBS',r:x=>A.esc(x.nbs)},{t:'Venda atual',num:true,r:x=>A.moeda(x.valor_venda_atual)}],d.servicos,{vazio:'Nenhum serviço importado.'})}</div>
     <div class="cartao" style="margin-top:16px"><h2>Composição econômica</h2>${A.tabela([{t:'Componente',r:x=>`<b>${A.esc(x.codigo_componente)}</b> · ${A.esc(x.descricao)}`},{t:'Tipo',r:x=>A.esc(x.tipo_componente)},{t:'Vínculo de saída',r:x=>x.produto_saida_id?`Produto #${x.produto_saida_id}`:`Serviço #${x.servico_saida_id}`},{t:'Fornecedor/regime',r:x=>A.esc(x.regime_fornecedor || 'não informado')},{t:'Custo unitário',num:true,r:x=>A.moeda(x.custo_unitario_bruto)}],d.componentes,{vazio:'Nenhum componente importado.'})}</div>`;
   document.getElementById('voltarPrec').onclick = () => Telas.precificacao(el);
+  if (temSmoke) document.getElementById('limparSmokePrec').onclick = () => A.modal({
+    titulo:'Remover dados sintéticos de smoke test', confirmar:'Remover definitivamente',
+    corpo:'Serão removidos somente produtos, serviços, componentes e lotes cujo identificador começa com <b>SMOKE_PRICING_20260827_</b>. Nenhum cadastro real será afetado.',
+    aoConfirmar:async()=>{ const r=await A.api(`/empresas/${S.empresaId}/precificacao-independente/testes/SMOKE_PRICING_20260827_`,{metodo:'DELETE'}); A.toast(`Smoke removido: ${r.removidos.produtos} produto(s), ${r.removidos.servicos} serviço(s), ${r.removidos.componentes} componente(s) e ${r.removidos.lotes} lote(s).`,'ok'); telaPrecificacaoIndependente(el); }
+  });
   document.getElementById('baixarModeloPrec').onclick = async()=>{
     try {
       const resposta=await fetch(`/api/empresas/${S.empresaId}/precificacao-independente/template`,{headers:{Authorization:`Bearer ${localStorage.getItem('sattva_token')||''}`}});

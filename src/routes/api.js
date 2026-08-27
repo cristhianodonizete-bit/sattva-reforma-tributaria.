@@ -1057,6 +1057,27 @@ router.get('/empresas/:id/precificacao-independente/template', (_req, res) => {
 router.get('/empresas/:id/precificacao-independente', (req, res) => {
   try { ok(res, { ...precificacaoIndependente.listarBase(Number(req.params.id)), modo: 'INDEPENDENTE', calculo_habilitado: false }); } catch (e) { erro(res, e); }
 });
+// Limpeza deliberadamente restrita a lotes sintéticos. É usada apenas para
+// homologação/smoke test e jamais aceita um prefixo genérico que possa tocar
+// a base comercial do cliente.
+router.delete('/empresas/:id/precificacao-independente/testes/:prefixo', (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    const prefixo = String(req.params.prefixo || '');
+    if (!/^SMOKE_PRICING_\d{8}_$/.test(prefixo)) throw new Error('Prefixo de teste inválido.');
+    const like = `${prefixo}%`;
+    const transacao = db.transaction(() => {
+      const componentes = db.prepare('DELETE FROM pricing_components WHERE empresa_id=? AND (codigo_componente LIKE ? OR descricao LIKE ?)').run(empresaId, like, like).changes;
+      const produtos = db.prepare('DELETE FROM pricing_products WHERE empresa_id=? AND (codigo LIKE ? OR descricao LIKE ?)').run(empresaId, like, like).changes;
+      const servicos = db.prepare('DELETE FROM pricing_services WHERE empresa_id=? AND (codigo LIKE ? OR descricao LIKE ?)').run(empresaId, like, like).changes;
+      const lotes = db.prepare('DELETE FROM pricing_import_batches WHERE empresa_id=? AND arquivo LIKE ?').run(empresaId, like).changes;
+      return { componentes, produtos, servicos, lotes };
+    });
+    const removidos = transacao();
+    registrar(empresaId, req, 'limpar_teste', 'precificacao_independente', null, '', JSON.stringify({ prefixo, removidos }));
+    ok(res, { prefixo, removidos });
+  } catch (e) { erro(res, e); }
+});
 router.get('/empresas/:id/precificacao-independente/formacao', (req, res) => {
   try { ok(res, { itens: precificacaoIndependente.calcularEmpresa(Number(req.params.id), { ano: Number(req.query.ano) || 2027 }), fonte_fiscal: 'motor.projetarItem', finalidade: 'FORMACAO_DE_CUSTO' }); } catch (e) { erro(res, e); }
 });
