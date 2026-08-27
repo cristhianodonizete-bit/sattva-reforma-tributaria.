@@ -15,7 +15,8 @@ Telas.precificacao = async (el) => {
   const completos = itens.filter((i) => i.status === 'COMPLETO').length;
   el.innerHTML = cab('Módulo 2', 'Precificação e margem',
     'A precificação comercial usa somente a saída oficial de motor_resultados e a composição de custo explicitamente cadastrada. NCM, NBS e descrição não criam vínculos automáticos.',
-    `<button class="btn" id="abrirFormacao">Gerenciar formação de custo</button>
+    `<button class="btn" id="abrirIndependente">Base independente</button>
+     <button class="btn" id="abrirFormacao">Gerenciar formação de custo</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/precificacao')">Exportar Excel</button>`) +
     `<div class="grade g3">${A.kpi('Itens em formação', itens.length)}${A.kpi('Resultados definitivos', completos)}${A.kpi('Itens legados desativados', legado, 'não entram no cálculo oficial')}</div>
     <div class="cartao"><h2>Precificação oficial</h2>
@@ -32,11 +33,63 @@ Telas.precificacao = async (el) => {
       ], itens, {vazio:'Nenhum item de formação de custo cadastrado.'})}
     </div>`;
   document.getElementById('abrirFormacao').onclick = () => A.ir('formacaoCusto');
+  document.getElementById('abrirIndependente').onclick = () => telaPrecificacaoIndependente(el);
   el.querySelectorAll('[data-detalhe]').forEach((b) => b.onclick = () => {
     const i = itens.find((x) => x.item.id === Number(b.dataset.detalhe));
     A.modal({ titulo: `Memória — ${i.item.descricao || 'item'}`, largura: 920, corpo: blocoResultadoOficial(i) });
   });
 };
+
+async function telaPrecificacaoIndependente(el) {
+  const d = await A.api(`/empresas/${S.empresaId}/precificacao-independente`);
+  el.innerHTML = cab('Módulo 2', 'Precificação e margem — base independente',
+    'Use uma base própria de portfólio e composição. Cada insumo é associado explicitamente ao item de saída; o cálculo fiscal continua sendo realizado pelo motor homologado.',
+    `<a class="btn vazio" href="/api/empresas/${S.empresaId}/precificacao-independente/template">Baixar modelo XLSX</a><button class="btn" id="importarBasePrec">Importar base</button><button class="btn vazio" id="saidaExecPrec">Saída executiva</button><button class="btn vazio" id="voltarPrec">Voltar</button>`) +
+    `<div class="aviso"><b>Modo independente.</b> Não exige movimentações importadas do Diagnóstico. Esta primeira camada é somente cadastral: valida portfólio e composição, sem calcular preço, margem ou crédito.</div>
+    <div class="grade g3">${A.kpi('Produtos', d.produtos.length)}${A.kpi('Serviços', d.servicos.length)}${A.kpi('Componentes', d.componentes.length)}</div>
+    <div class="cartao" style="margin-top:16px"><h2>Simulador comercial</h2><div class="grade g3">${A.selecao('modoPrecInd','Modo',[{v:'PRESERVAR_PRECO_FINAL',t:'Preservar preço final'},{v:'PRESERVAR_MARGEM',t:'Preservar margem'},{v:'PRESERVAR_CUSTO_EFETIVO_CLIENTE',t:'Preservar custo efetivo do cliente'},{v:'REAJUSTE_LIVRE',t:'Reajuste livre'}],'PRESERVAR_PRECO_FINAL')}${A.campo('percentualPrecInd','Reajuste livre (0,05 = 5%)',0,'number','step=0.0001')}<button class="btn" id="simularPrecInd">Simular</button></div><div id="resultadoPrecInd" class="mini" style="margin-top:10px">A simulação usa o motor fiscal oficial e não altera a base importada.</div></div>
+    <div class="cartao" style="margin-top:16px"><h2>Produtos de saída</h2>${A.tabela([{t:'Código',r:x=>A.esc(x.codigo)},{t:'Descrição',r:x=>A.esc(x.descricao)},{t:'NCM',r:x=>A.esc(x.ncm)},{t:'Produção',num:true,r:x=>A.num(x.quantidade_producao)},{t:'Venda atual',num:true,r:x=>A.moeda(x.valor_venda_atual)}],d.produtos,{vazio:'Nenhum produto importado.'})}</div>
+    <div class="cartao" style="margin-top:16px"><h2>Serviços de saída</h2>${A.tabela([{t:'Código',r:x=>A.esc(x.codigo)},{t:'Descrição',r:x=>A.esc(x.descricao)},{t:'LC 116',r:x=>A.esc(x.lc116)},{t:'NBS',r:x=>A.esc(x.nbs)},{t:'Venda atual',num:true,r:x=>A.moeda(x.valor_venda_atual)}],d.servicos,{vazio:'Nenhum serviço importado.'})}</div>
+    <div class="cartao" style="margin-top:16px"><h2>Composição econômica</h2>${A.tabela([{t:'Componente',r:x=>`<b>${A.esc(x.codigo_componente)}</b> · ${A.esc(x.descricao)}`},{t:'Tipo',r:x=>A.esc(x.tipo_componente)},{t:'Vínculo de saída',r:x=>x.produto_saida_id?`Produto #${x.produto_saida_id}`:`Serviço #${x.servico_saida_id}`},{t:'Fornecedor/regime',r:x=>A.esc(x.regime_fornecedor || 'não informado')},{t:'Custo unitário',num:true,r:x=>A.moeda(x.custo_unitario_bruto)}],d.componentes,{vazio:'Nenhum componente importado.'})}</div>`;
+  document.getElementById('voltarPrec').onclick = () => Telas.precificacao(el);
+  document.getElementById('saidaExecPrec').onclick = async()=>{
+    try {
+      const base = await A.api(`/empresas/${S.empresaId}/precificacao-independente/base`);
+      const itens = [...base.produtos, ...base.servicos];
+      A.modal({ titulo:'Configurar saída executiva', largura:720, confirmar:'Gerar saída', corpo:`
+        <div class="grade g2">${A.selecao('modo','Modo da simulação',[
+          {v:'PRESERVAR_PRECO_FINAL',t:'Preservar preço final'}, {v:'PRESERVAR_MARGEM',t:'Preservar margem'},
+          {v:'PRESERVAR_CUSTO_EFETIVO_CLIENTE',t:'Preservar custo efetivo do cliente'}, {v:'REAJUSTE_LIVRE',t:'Reajuste livre'}
+        ],'PRESERVAR_PRECO_FINAL')}</div>
+        <p class="desc">Selecione os produtos e serviços que devem compor a apresentação. Itens sem marcação não entram nos indicadores nem no PDF.</p>
+        <div class="lista-check">${itens.map(x=>`<label><input type="checkbox" name="item_${x.id}" checked> ${A.esc(x.codigo)} — ${A.esc(x.descricao)}</label>`).join('')}</div>`,
+        aoConfirmar:async(dados, fundo)=>{
+          const item_ids = itens.filter(x=>dados[`item_${x.id}`]).map(x=>x.id);
+          if (!item_ids.length) throw new Error('Selecione ao menos um produto ou serviço.');
+          const r=await A.api(`/empresas/${S.empresaId}/precificacao-independente/saida-executiva`,{metodo:'POST',corpo:{modo:dados.modo,item_ids}});
+          const z=r.relatorio;
+          const detalhe=A.modal({titulo:'Saída executiva — Precificação',largura:1100,corpo:`
+            <div class="grade g4">${Object.entries(z.indicadores).map(([k,v])=>A.kpi(k.replaceAll('_',' '),typeof v==='number'?A.moeda(v):A.esc(v))).join('')}</div>
+            <h3 style="margin-top:16px">Recomendações com evidência</h3>${z.recomendacoes.length?A.tabela([{t:'Recomendação',r:x=>A.esc(x.texto)},{t:'Indicador',r:x=>A.esc(x.indicador)},{t:'Causa',r:x=>A.esc(x.causa)},{t:'Premissa',r:x=>A.esc(x.premissa)},{t:'Natureza',r:x=>A.esc(x.natureza)}],z.recomendacoes,{vazio:''}):'<div class="aviso">Nenhuma recomendação conclusiva: não há evidência suficiente.</div>'}
+            <h3 style="margin-top:16px">Produtos e serviços — preço, custo e tributação</h3>${A.tabela([{t:'Item',r:x=>A.esc(x.item.descricao)},{t:'Preço atual',num:true,r:x=>A.moeda(x.simulacao.valor_venda_atual)},{t:'Preço projetado',num:true,r:x=>A.moeda(x.simulacao.preco_projetado)},{t:'Custo bruto',num:true,r:x=>A.moeda(x.waterfall.custo.componentes_brutos)},{t:'Créditos',num:true,r:x=>x.waterfall.custo.creditos_recuperaveis==null?'INDETERMINADO':A.moeda(x.waterfall.custo.creditos_recuperaveis)},{t:'Custo líquido',num:true,r:x=>x.custos.custo_formado==null?'INCOMPLETO':A.moeda(x.custos.custo_formado)},{t:'IBS / CBS',num:true,r:x=>`${A.moeda(x.simulacao.ibs)} / ${A.moeda(x.simulacao.cbs)}`},{t:'Margem',num:true,r:x=>x.simulacao.margem_projetada==null?'INCOMPLETO':A.moeda(x.simulacao.margem_projetada)},{t:'Crédito / custo efetivo cliente',num:true,r:x=>x.simulacao.credito_entregue_ao_cliente==null?'INDETERMINADO':`${A.moeda(x.simulacao.credito_entregue_ao_cliente)} / ${A.moeda(x.simulacao.custo_efetivo_do_cliente)}`},{t:'Memória',r:x=>`<button class="btn vazio" data-memoria-prec="${x.item.id}">Abrir</button>`}],z.itens,{vazio:'Sem itens.'})}
+            <h3 style="margin-top:16px">Waterfall e pontos de atenção</h3><div class="grade g3">${A.kpi('Margem comprimida',z.secoes.margem_comprimida.length)}${A.kpi('Aumento de preço',z.secoes.aumento_preco.length)}${A.kpi('Competitividade B2B comprovada',z.secoes.competitividade_b2b_afetada.length)}${A.kpi('Dados incompletos / indeterminados',z.secoes.dados_incompletos.length)}</div>
+            <button class="btn" data-pdf-prec>Exportar PDF</button>`});
+          detalhe.fundo.querySelector('[data-pdf-prec]').onclick=async()=>{
+            const q=new URLSearchParams({modo:dados.modo,itens:item_ids.join(',')});
+            const resposta=await fetch(`/api/empresas/${S.empresaId}/precificacao-independente/saida-executiva.pdf?${q}`,{headers:{Authorization:`Bearer ${localStorage.getItem('sattva_token')||''}`}});
+            if(!resposta.ok) throw new Error('Não foi possível gerar o PDF executivo.');
+            const url=URL.createObjectURL(await resposta.blob()); const a=document.createElement('a'); a.href=url; a.download='precificacao-margem-executivo.pdf'; a.click(); URL.revokeObjectURL(url);
+          };
+          detalhe.fundo.querySelectorAll('[data-memoria-prec]').forEach((el)=>el.onclick=()=>{
+            const x=z.itens.find(i=>Number(i.item.id)===Number(el.dataset.memoriaPrec));
+            A.modal({titulo:`Memória — ${x.item.descricao}`,largura:960,corpo:`<pre>${A.esc(JSON.stringify({formacao_custo:x.waterfall,resultado_fiscal:x.simulacao.memoria_fiscal,natureza:x.simulacao.natureza,origem:x.simulacao.origem,motivo:x.motivo},null,2))}</pre>`});
+          });
+        }});
+    } catch(e){A.toast(e.message,'erro');}
+  };
+  document.getElementById('simularPrecInd').onclick = async () => { const box=document.getElementById('resultadoPrecInd'); box.textContent='Calculando pelo motor oficial…'; try { const r=await A.api(`/empresas/${S.empresaId}/precificacao-independente/simular`,{metodo:'POST',corpo:{modo:document.querySelector('[name=modoPrecInd]').value,percentual_reajuste:Number(document.querySelector('[name=percentualPrecInd]').value)||0}}); box.innerHTML=A.tabela([{t:'Item',r:x=>A.esc(x.item.descricao)},{t:'Status',r:x=>A.esc(x.status)},{t:'Preço projetado',num:true,r:x=>A.moeda(x.simulacao.preco_projetado)},{t:'Margem projetada',num:true,r:x=>x.simulacao.margem_projetada==null?'INCOMPLETO':A.moeda(x.simulacao.margem_projetada)},{t:'Custo efetivo cliente',num:true,r:x=>x.simulacao.custo_efetivo_do_cliente==null?'INDETERMINADO':A.moeda(x.simulacao.custo_efetivo_do_cliente)},{t:'',r:x=>`<button class="btn pq vazio" data-mem-simulacao="${x.item.id}">Memória</button>`}],r.itens,{vazio:'Sem itens.'}); box.querySelectorAll('[data-mem-simulacao]').forEach(b=>b.onclick=()=>{const x=r.itens.find(i=>i.item.id===Number(b.dataset.memSimulacao)); A.modal({titulo:`Memória — ${x.item.descricao}`,largura:960,corpo:`<div class="aviso"><b>Fórmula do preço:</b> preço atual − tributos atuais = base econômica + IBS + CBS = preço projetado.</div><pre class="mono" style="white-space:pre-wrap">${A.esc(JSON.stringify({waterfall:x.waterfall,origem:x.simulacao.origem,natureza:x.simulacao.natureza,motivo:x.motivo},null,2))}</pre>`});}); } catch(e){box.innerHTML=`<div class="aviso alto">${A.esc(e.message)}</div>`;} };
+  document.getElementById('importarBasePrec').onclick = () => A.modal({ titulo:'Importar base de Precificação', confirmar:'Importar e validar', corpo:'<input type="file" id="arquivoPrec" accept=".xlsx" required><p class="mini">A validação ocorre antes da troca da base ativa. Se houver erro, a base atual permanece intacta.</p>', aoConfirmar: async () => { const arq = document.getElementById('arquivoPrec').files[0]; if (!arq) throw new Error('Selecione o arquivo XLSX.'); const fd = new FormData(); fd.append('arquivo', arq); const r = await A.api(`/empresas/${S.empresaId}/precificacao-independente/importar`, {metodo:'POST',corpo:fd, formData:true}); if (!r.importado) throw new Error(r.erros.map(x=>`${x.aba} ${x.linha}: ${x.erro}`).join('\n')); A.toast(`Base importada: ${r.produtos + r.servicos} itens e ${r.componentes} componentes.`, 'ok'); telaPrecificacaoIndependente(el); } });
+}
 
 // ===========================================================================
 // BASE DE FORMAÇÃO DE CUSTO

@@ -8,6 +8,8 @@ const P = require('../config/parametros');
 const { CLAUSULAS, TRILHAS } = require('../config/conteudo');
 const calc = require('../engine/calculadora');
 const prec = require('../engine/precificacao');
+const precificacaoIndependente = require('../services/precificacaoIndependente');
+const precificacaoExecutiva = require('../services/precificacaoExecutiva');
 const { analisarCadeia } = require('../engine/cadeia');
 const consolidacaoOficial = require('../services/consolidacaoOficial');
 const imp = require('../services/importador');
@@ -1031,6 +1033,65 @@ router.post('/precificacao/simular', (_req, res) => erro(res, new Error('A simul
 router.post('/empresas/:id/precificacao', (_req, res) => erro(res, new Error('O cadastro manual de precificação foi desativado. Cadastre a Formação de custo e selecione explicitamente a saída oficial.'), 409));
 router.post('/empresas/:id/precificacao/importar', (_req, res) => erro(res, new Error('A importação de simulações manuais foi desativada. A Precificação usa apenas saídas oficiais e formação de custo explícita.'), 409));
 router.delete('/precificacao/:id', (_req, res) => erro(res, new Error('Itens legados não são mais fonte de precificação oficial.'), 409));
+
+// ---------------------------------------------------------------------------
+// PRECIFICAÇÃO INDEPENDENTE
+// Base própria para clientes que contrataram somente Precificação e Margem.
+// O upload é validado integralmente antes de qualquer escrita na base ativa.
+// ---------------------------------------------------------------------------
+const cabecalhoPrecificacao = (linha = {}) => Object.fromEntries(Object.entries(linha).map(([k, v]) => [String(k).trim().toLowerCase().replace(/[\s\-/]+/g, '_').normalize('NFD').replace(/[\u0300-\u036f]/g, ''), v]));
+const linhasAba = (wb, nome) => XLSX.utils.sheet_to_json(wb.Sheets[nome] || {}, { defval: '' }).map(cabecalhoPrecificacao);
+router.get('/empresas/:id/precificacao-independente/template', (_req, res) => {
+  const wb = XLSX.utils.book_new();
+  const adicionar = (nome, cabecalhos, exemplo) => {
+    const ws = XLSX.utils.aoa_to_sheet([cabecalhos, exemplo]);
+    ws['!freeze'] = { xSplit: 0, ySplit: 1 }; ws['!autofilter'] = { ref: `A1:${XLSX.utils.encode_col(cabecalhos.length - 1)}2` };
+    ws['!cols'] = cabecalhos.map((h) => ({ wch: Math.max(15, Math.min(30, h.length + 4)) })); XLSX.utils.book_append_sheet(wb, ws, nome);
+  };
+  adicionar('Produtos_Saida', ['codigo','descricao','ncm','unidade','quantidade_producao','valor_venda_atual','custo_direto','perfil_cliente'], ['PROD-001','Produto exemplo','85171300','UN',100,250,0,'b2b']);
+  adicionar('Servicos_Saida', ['codigo','descricao','lc116','nbs','unidade','quantidade_producao','valor_venda_atual','custo_direto','perfil_cliente'], ['SERV-001','Serviço exemplo','1.07','115013000','H',10,500,0,'b2b']);
+  adicionar('Composicao_Insumos', ['codigo_item_saida','codigo_componente','descricao','tipo_componente','ncm','nbs','lc116','cnpj_fornecedor','regime_fornecedor','quantidade','custo_unitario_bruto','perda_percentual'], ['PROD-001','INS-001','Insumo exemplo','produto','85171300','','','', 'lucro_real',2,50,0]);
+  const arquivo = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx', compression: true });
+  res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); res.setHeader('Content-Disposition', 'attachment; filename="modelo-precificacao-margem.xlsx"'); res.send(arquivo);
+});
+router.get('/empresas/:id/precificacao-independente', (req, res) => {
+  try { ok(res, { ...precificacaoIndependente.listarBase(Number(req.params.id)), modo: 'INDEPENDENTE', calculo_habilitado: false }); } catch (e) { erro(res, e); }
+});
+router.get('/empresas/:id/precificacao-independente/formacao', (req, res) => {
+  try { ok(res, { itens: precificacaoIndependente.calcularEmpresa(Number(req.params.id), { ano: Number(req.query.ano) || 2027 }), fonte_fiscal: 'motor.projetarItem', finalidade: 'FORMACAO_DE_CUSTO' }); } catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/precificacao-independente/simular', (req, res) => {
+  try { ok(res, { itens: precificacaoIndependente.simularEmpresa(Number(req.params.id), req.body || {}), fonte_fiscal: 'motor.projetarItem', finalidade: 'SIMULACAO_COMERCIAL' }); } catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/precificacao-independente/saida-executiva', (req, res) => {
+  try { ok(res, { relatorio: precificacaoExecutiva.montar(Number(req.params.id), req.body || {}) }); } catch (e) { erro(res, e); }
+});
+router.get('/empresas/:id/precificacao-independente/saida-executiva.pdf', (req, res) => {
+  try { const relatorio=precificacaoExecutiva.montar(Number(req.params.id), { modo:req.query.modo, percentual_reajuste:req.query.percentual_reajuste, item_ids:String(req.query.itens || '').split(',').filter(Boolean).map(Number) }); res.setHeader('Content-Type','application/pdf');res.setHeader('Content-Disposition','attachment; filename="precificacao-margem-executivo.pdf"');precificacaoExecutiva.gerarPdf(relatorio,res); } catch(e){erro(res,e);}
+});
+router.post('/empresas/:id/precificacao-independente/importar', upload.single('arquivo'), (req, res) => {
+  try {
+    if (!req.file?.buffer) throw new Error('Selecione a planilha XLSX da precificação.');
+    const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+    const produtos = linhasAba(wb, 'Produtos_Saida'); const servicos = linhasAba(wb, 'Servicos_Saida'); const componentes = linhasAba(wb, 'Composicao_Insumos');
+    if (!wb.Sheets.Produtos_Saida || !wb.Sheets.Servicos_Saida || !wb.Sheets.Composicao_Insumos) throw new Error('A planilha deve conter as abas Produtos_Saida, Servicos_Saida e Composicao_Insumos.');
+    const validacao = precificacaoIndependente.validarPlanilha({ produtos, servicos, componentes });
+    if (validacao.erros.length) return ok(res, { importado: false, erros: validacao.erros, mensagem: 'Nenhuma alteração foi feita na base ativa.' });
+    const empresaId = Number(req.params.id); const inserirProduto = db.prepare(`INSERT INTO pricing_products (empresa_id,codigo,descricao,natureza_item,ncm,unidade,quantidade_producao,valor_venda_atual,custo_direto,perfil_cliente,origem) VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
+    const inserirServico = db.prepare(`INSERT INTO pricing_services (empresa_id,codigo,descricao,lc116,nbs,unidade,quantidade_producao,valor_venda_atual,custo_direto,perfil_cliente,origem) VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
+    const inserirComp = db.prepare(`INSERT INTO pricing_components (empresa_id,produto_saida_id,servico_saida_id,codigo_componente,descricao,tipo_componente,ncm,nbs,lc116,cnpj_fornecedor,regime_fornecedor,quantidade,custo_unitario_bruto,perda_percentual,origem) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    const transacao = db.transaction(() => {
+      db.prepare('DELETE FROM pricing_products WHERE empresa_id=?').run(empresaId);
+      db.prepare('DELETE FROM pricing_services WHERE empresa_id=?').run(empresaId);
+      const produtosIds = new Map(), servicosIds = new Map();
+      produtos.forEach((x) => { const r = inserirProduto.run(empresaId,x.codigo,x.descricao,'produto',x.ncm || '',x.unidade || '',Number(x.quantidade_producao),Number(x.valor_venda_atual),Number(x.custo_direto) || 0,x.perfil_cliente || '', 'IMPORTACAO'); produtosIds.set(x.codigo,r.lastInsertRowid); });
+      servicos.forEach((x) => { const r = inserirServico.run(empresaId,x.codigo,x.descricao,x.lc116 || '',x.nbs || '',x.unidade || '',Number(x.quantidade_producao),Number(x.valor_venda_atual),Number(x.custo_direto) || 0,x.perfil_cliente || '', 'IMPORTACAO'); servicosIds.set(x.codigo,r.lastInsertRowid); });
+      componentes.forEach((x) => { const codigo = String(x.codigo_item_saida).trim(); inserirComp.run(empresaId,produtosIds.get(codigo) || null,servicosIds.get(codigo) || null,x.codigo_componente,x.descricao || x.codigo_componente,String(x.tipo_componente).trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/ /g,'_'),x.ncm || '',x.nbs || '',x.lc116 || '',String(x.cnpj_fornecedor || '').replace(/\D/g,''),String(x.regime_fornecedor || '').trim().toLowerCase().replace(/ /g,'_'),Number(x.quantidade),Number(x.custo_unitario_bruto),Number(x.perda_percentual) || 0,'IMPORTACAO'); });
+      db.prepare('INSERT INTO pricing_import_batches (empresa_id,arquivo,status,resumo) VALUES (?,?,?,?)').run(empresaId,req.file.originalname,'IMPORTADO',JSON.stringify({ produtos: produtos.length, servicos: servicos.length, componentes: componentes.length }));
+    }); transacao(); registrar(empresaId, req, 'importar', 'precificacao_independente', null, '', JSON.stringify({ produtos: produtos.length, servicos: servicos.length, componentes: componentes.length }));
+    ok(res, { importado: true, produtos: produtos.length, servicos: servicos.length, componentes: componentes.length });
+  } catch (e) { erro(res, e); }
+});
 
 // ---------------------------------------------------------------------------
 // BASE DE FORMAÇÃO DE CUSTO

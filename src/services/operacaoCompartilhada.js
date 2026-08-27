@@ -20,6 +20,13 @@ const CAMPOS = {
   turmas: ['id','empresa_id','trilha','titulo','formato','data','carga_horaria','instrutor','limite_participantes','status','observacoes'],
   participantes: ['id','turma_id','empresa_id','nome','area','email','presenca','nota_avaliacao'],
   regras_governo: ['id','tipo','chave','lc116','nbs','ncm','descricao','tratamento','cst','cclasstrib','indop','reducao','aliquota_zero','ente_elegivel','condicoes','fundamento','vigencia','fonte','origem_linha'],
+  // Precificação é uma base própria, mas não pode ficar restrita ao disco
+  // efêmero do Render. Estas tabelas são sincronizadas como fatos
+  // operacionais; nenhum dado fiscal é inferido ou compartilhado por NCM/NBS.
+  pricing_products: ['id','empresa_id','codigo','descricao','ncm','unidade','quantidade_producao','valor_venda_atual','custo_direto','perfil_cliente','ativo','origem','criado_em','atualizado_em'],
+  pricing_services: ['id','empresa_id','codigo','descricao','lc116','nbs','unidade','quantidade_producao','valor_venda_atual','custo_direto','perfil_cliente','ativo','origem','criado_em','atualizado_em'],
+  pricing_components: ['id','empresa_id','produto_saida_id','servico_saida_id','codigo_componente','descricao','tipo_componente','ncm','nbs','lc116','cnpj_fornecedor','regime_fornecedor','quantidade','custo_unitario_bruto','perda_percentual','ativo','origem','criado_em','atualizado_em'],
+  pricing_import_batches: ['id','empresa_id','arquivo','status','resumo','criado_em'],
 };
 const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','servicos','combos','combo_itens'];
 

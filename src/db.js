@@ -393,6 +393,54 @@ CREATE TABLE IF NOT EXISTS formacao_custo_componentes (
 CREATE INDEX IF NOT EXISTS ix_formacao_componentes_item ON formacao_custo_componentes(item_formacao_id);
 CREATE INDEX IF NOT EXISTS ix_formacao_componentes_movimento ON formacao_custo_componentes(movimento_id);
 
+-- Precificação independente: a base comercial não depende da movimentação do
+-- diagnóstico. A composição é sempre explícita; NCM/NBS nunca são uma chave
+-- de associação entre insumo e item de venda.
+CREATE TABLE IF NOT EXISTS pricing_products (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  codigo TEXT NOT NULL, descricao TEXT NOT NULL, natureza_item TEXT NOT NULL DEFAULT 'produto',
+  ncm TEXT, nbs TEXT, lc116 TEXT, unidade TEXT,
+  quantidade_producao REAL DEFAULT 1, valor_venda_atual REAL DEFAULT 0,
+  custo_direto REAL DEFAULT 0, perfil_cliente TEXT, ativo INTEGER DEFAULT 1,
+  origem TEXT DEFAULT 'IMPORTACAO', criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id,codigo,natureza_item)
+);
+CREATE INDEX IF NOT EXISTS ix_pricing_products_empresa ON pricing_products(empresa_id);
+
+CREATE TABLE IF NOT EXISTS pricing_services (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  codigo TEXT NOT NULL, descricao TEXT NOT NULL, lc116 TEXT, nbs TEXT, unidade TEXT,
+  quantidade_producao REAL DEFAULT 1, valor_venda_atual REAL DEFAULT 0,
+  custo_direto REAL DEFAULT 0, perfil_cliente TEXT, ativo INTEGER DEFAULT 1,
+  origem TEXT DEFAULT 'IMPORTACAO', criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id,codigo)
+);
+CREATE INDEX IF NOT EXISTS ix_pricing_services_empresa ON pricing_services(empresa_id);
+
+CREATE TABLE IF NOT EXISTS pricing_components (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  produto_saida_id INTEGER REFERENCES pricing_products(id) ON DELETE CASCADE,
+  servico_saida_id INTEGER REFERENCES pricing_services(id) ON DELETE CASCADE,
+  codigo_componente TEXT NOT NULL, descricao TEXT NOT NULL, tipo_componente TEXT NOT NULL,
+  ncm TEXT, nbs TEXT, lc116 TEXT, cnpj_fornecedor TEXT, regime_fornecedor TEXT,
+  quantidade REAL NOT NULL DEFAULT 1, custo_unitario_bruto REAL NOT NULL DEFAULT 0,
+  perda_percentual REAL DEFAULT 0, ativo INTEGER DEFAULT 1,
+  origem TEXT DEFAULT 'IMPORTACAO', criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_pricing_components_produto ON pricing_components(produto_saida_id);
+CREATE INDEX IF NOT EXISTS ix_pricing_components_servico ON pricing_components(servico_saida_id);
+
+CREATE TABLE IF NOT EXISTS pricing_import_batches (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  arquivo TEXT, status TEXT NOT NULL, resumo TEXT, criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+
 -- ============ MÓDULO 3 — CONTRATOS ============
 CREATE TABLE IF NOT EXISTS contratos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
