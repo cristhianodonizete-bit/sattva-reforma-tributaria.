@@ -10,6 +10,7 @@ const calc = require('../engine/calculadora');
 const prec = require('../engine/precificacao');
 const precificacaoIndependente = require('../services/precificacaoIndependente');
 const precificacaoExecutiva = require('../services/precificacaoExecutiva');
+const acompanhamentoExecutivo = require('../services/acompanhamentoExecutivo');
 const contratosEntrega1 = require('../services/contratosEntrega1');
 const contratosEntrega2 = require('../services/contratosEntrega2');
 const contratosExecutivo = require('../services/contratosExecutivo');
@@ -3354,19 +3355,24 @@ const acompanhamento = require('../services/acompanhamento');
 const perfilOficialAcompanhamento = (empresaId) => db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=? ORDER BY competencia').all(empresaId);
 const baselineAcompanhamento = (id) => db.prepare('SELECT * FROM monitoring_baselines WHERE id=?').get(id);
 const snapshotAcompanhamento = (id) => db.prepare('SELECT * FROM monitoring_snapshots WHERE id=?').get(id);
+function dadosAcompanhamento(empresaId) {
+  const baselines = db.prepare('SELECT * FROM monitoring_baselines WHERE empresa_id=? ORDER BY versao DESC').all(empresaId);
+  const snapshots = db.prepare('SELECT * FROM monitoring_snapshots WHERE empresa_id=? ORDER BY periodo DESC,id DESC').all(empresaId);
+  const comparacoes = db.prepare(`SELECT c.*, b.versao baseline_versao, s.periodo snapshot_periodo FROM monitoring_comparisons c JOIN monitoring_baselines b ON b.id=c.baseline_id JOIN monitoring_snapshots s ON s.id=c.snapshot_id WHERE c.empresa_id=? ORDER BY c.id DESC`).all(empresaId);
+  const desvios = comparacoes.length ? db.prepare(`SELECT d.* FROM monitoring_deviations d WHERE d.comparison_id IN (${comparacoes.map(() => '?').join(',')}) ORDER BY d.id DESC`).all(...comparacoes.map((x) => x.id)) : [];
+  const alertas = db.prepare('SELECT * FROM monitoring_alerts WHERE empresa_id=? ORDER BY CASE prioridade WHEN \'ALTA\' THEN 1 WHEN \'MEDIA\' THEN 2 ELSE 3 END,id DESC').all(empresaId);
+  const acoes = db.prepare('SELECT * FROM monitoring_actions WHERE empresa_id=? ORDER BY CASE status WHEN \'ABERTA\' THEN 1 WHEN \'EM_ANDAMENTO\' THEN 2 ELSE 3 END,prazo').all(empresaId);
+  return { empresaId: Number(empresaId), baselines, snapshots, comparacoes, desvios, alertas, acoes };
+}
 
 router.get('/empresas/:id/acompanhamento', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);
-    const baselines = db.prepare('SELECT * FROM monitoring_baselines WHERE empresa_id=? ORDER BY versao DESC').all(req.params.id);
-    const snapshots = db.prepare('SELECT * FROM monitoring_snapshots WHERE empresa_id=? ORDER BY periodo DESC,id DESC').all(req.params.id);
-    const comparacoes = db.prepare(`SELECT c.*, b.versao baseline_versao, s.periodo snapshot_periodo FROM monitoring_comparisons c
-      JOIN monitoring_baselines b ON b.id=c.baseline_id JOIN monitoring_snapshots s ON s.id=c.snapshot_id WHERE c.empresa_id=? ORDER BY c.id DESC`).all(req.params.id);
-    const desvios = comparacoes.length ? db.prepare(`SELECT d.* FROM monitoring_deviations d WHERE d.comparison_id IN (${comparacoes.map(() => '?').join(',')}) ORDER BY d.id DESC`).all(...comparacoes.map((x) => x.id)) : [];
-    const alertas = db.prepare('SELECT * FROM monitoring_alerts WHERE empresa_id=? ORDER BY CASE prioridade WHEN \'ALTA\' THEN 1 WHEN \'MEDIA\' THEN 2 ELSE 3 END,id DESC').all(req.params.id);
-    const acoes = db.prepare('SELECT * FROM monitoring_actions WHERE empresa_id=? ORDER BY CASE status WHEN \'ABERTA\' THEN 1 WHEN \'EM_ANDAMENTO\' THEN 2 ELSE 3 END,prazo').all(req.params.id);
+    const { baselines, snapshots, comparacoes, desvios, alertas, acoes } = dadosAcompanhamento(req.params.id);
     const porPeriodo = snapshots.map((s) => ({ periodo: s.periodo, origem: s.origem, natureza: s.natureza, indicadores: acompanhamento.json(s.indicadores_realizados), comparacao: comparacoes.find((c) => Number(c.snapshot_id) === Number(s.id)) || null }));
-    ok(res, { baselines: baselines.map((x) => ({ ...x, indicadores: acompanhamento.json(x.indicadores_aprovados), memoria: acompanhamento.json(x.memoria) })), snapshots: snapshots.map((x) => ({ ...x, indicadores: acompanhamento.json(x.indicadores_realizados), memoria: acompanhamento.json(x.memoria) })), comparacoes, desvios: desvios.map((x) => ({ ...x, memoria: acompanhamento.json(x.memoria) })), alertas, acoes, evolucao: porPeriodo, aderencia: acompanhamento.aderencia(desvios, acoes) });
+    const aderencia = acompanhamento.aderencia(desvios, acoes);
+    const executivo = acompanhamentoExecutivo.montar({ empresaId:Number(req.params.id), baselines, snapshots, comparacoes, desvios, alertas, acoes }, { aderencia });
+    ok(res, { baselines: baselines.map((x) => ({ ...x, indicadores: acompanhamento.json(x.indicadores_aprovados), memoria: acompanhamento.json(x.memoria) })), snapshots: snapshots.map((x) => ({ ...x, indicadores: acompanhamento.json(x.indicadores_realizados), memoria: acompanhamento.json(x.memoria) })), comparacoes, desvios: desvios.map((x) => ({ ...x, memoria: acompanhamento.json(x.memoria) })), alertas, acoes, evolucao: porPeriodo, aderencia, executivo });
   } catch (e) { erro(res, e); }
 });
 
@@ -3449,8 +3455,31 @@ router.put('/acompanhamento/acoes/:id', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.get('/acompanhamento/desvios/:id/memoria', (req, res) => {
-  try { const d = db.prepare('SELECT * FROM monitoring_deviations WHERE id=?').get(req.params.id); if (!d) throw new Error('Desvio não encontrado.'); ok(res, { desvio: d, memoria: acompanhamento.json(d.memoria) }); } catch (e) { erro(res, e); }
+router.get('/empresas/:id/acompanhamento/saida-executiva', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const dados = dadosAcompanhamento(req.params.id);
+    ok(res, { relatorio: acompanhamentoExecutivo.montar(dados, { baseline_id:req.query.baseline_id, snapshot_id:req.query.snapshot_id, aderencia:acompanhamento.aderencia(dados.desvios, dados.acoes) }) });
+  } catch (e) { erro(res, e); }
+});
+router.get('/empresas/:id/acompanhamento/saida-executiva.pdf', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const dados = dadosAcompanhamento(req.params.id);
+    const relatorio = acompanhamentoExecutivo.montar(dados, { baseline_id:req.query.baseline_id, snapshot_id:req.query.snapshot_id, aderencia:acompanhamento.aderencia(dados.desvios, dados.acoes) });
+    res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', `attachment; filename="acompanhamento-${req.query.consolidado === '1' ? 'consolidado' : 'periodo'}.pdf"`);
+    acompanhamentoExecutivo.gerarPdf(relatorio, res, { consolidado:req.query.consolidado === '1' });
+  } catch (e) { erro(res, e); }
+});
+router.get('/acompanhamento/desvios/:id/memoria', async (req, res) => {
+  try {
+    const d = db.prepare('SELECT d.*,c.empresa_id,c.baseline_id,c.snapshot_id FROM monitoring_deviations d JOIN monitoring_comparisons c ON c.id=d.comparison_id WHERE d.id=?').get(req.params.id);
+    if (!d) throw new Error('Desvio não encontrado.'); await garantirEmpresaPermitida(req, d.empresa_id);
+    const baseline = baselineAcompanhamento(d.baseline_id), snapshot = snapshotAcompanhamento(d.snapshot_id);
+    const acoes = db.prepare('SELECT * FROM monitoring_actions WHERE desvio_id=? ORDER BY id').all(d.id);
+    const alertas = db.prepare('SELECT * FROM monitoring_alerts WHERE desvio_id=? ORDER BY id').all(d.id);
+    ok(res, { desvio: d, baseline, snapshot, acoes, alertas, memoria: acompanhamento.json(d.memoria) });
+  } catch (e) { erro(res, e); }
 });
 
 module.exports = router;
