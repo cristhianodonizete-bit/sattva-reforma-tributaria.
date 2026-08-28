@@ -27,9 +27,24 @@ const CAMPOS = {
   pricing_services: ['id','empresa_id','codigo','descricao','lc116','nbs','unidade','quantidade_producao','valor_venda_atual','custo_direto','perfil_cliente','ativo','origem','criado_em','atualizado_em'],
   pricing_components: ['id','empresa_id','produto_saida_id','servico_saida_id','codigo_componente','descricao','tipo_componente','ncm','nbs','lc116','cnpj_fornecedor','regime_fornecedor','quantidade','custo_unitario_bruto','perda_percentual','ativo','origem','criado_em','atualizado_em'],
   pricing_import_batches: ['id','empresa_id','arquivo','status','resumo','criado_em'],
+  // Fotografia imutável do simulador, lida por Contratos somente mediante
+  // vínculo explícito. Ela é sincronizada como resultado já produzido.
+  pricing_simulacoes: ['id','empresa_id','modo','parametros_json','resultados_json','origem','natureza','criado_em'],
+  // Contratos é uma base documental compartilhada. Seus fatos não passam por
+  // motor tributário: a sincronização preserva original, extração, risco,
+  // recomendação e rascunho como camadas diferentes.
+  contratos: ['id','empresa_id','tipo','contraparte','cnpj_contraparte','regime_contraparte','objeto','valor','vigencia_inicio','vigencia_fim','reajuste','preco_com_tributo','status','risco','parecer','criado_em','nome','moeda','periodicidade_reajuste','tipo_relacao','renovacao','observacoes','arquivo_origem','status_analise','natureza_contrato','natureza_contrato_origem','natureza_contrato_evidencia'],
+  contrato_checklist: ['id','contrato_id','clausula_id','situacao','observacao'],
+  contrato_documentos: ['id','empresa_id','contrato_id','nome_original','mime_type','tipo_origem','conteudo_original','hash_original','tamanho_bytes','texto_extraido','status_extracao','observacao_extracao','criado_em'],
+  contrato_clausulas_extraidas: ['id','documento_id','contrato_id','ordem','texto_original','localizacao','pagina','secao','tema','confianca','natureza','criado_em'],
+  contrato_riscos_iniciais: ['id','documento_id','contrato_id','clausula_id','codigo','risco','evidencia','impacto_potencial','nivel','fundamento','natureza','status','criado_em'],
+  contrato_precificacao_vinculos: ['id','contrato_id','tipo_item','item_precificacao_id','pricing_simulacao_id','status','origem','observacoes','confirmado_em','criado_em'],
+  contrato_recomendacoes: ['id','contrato_id','risco_id','clausula_id','recomendacao','evidencia','impacto_potencial','prioridade','fundamento','natureza','origem','criado_em'],
+  contrato_sugestoes_clausulas: ['id','contrato_id','risco_id','clausula_original','sugestao_redacao','motivo','impacto_esperado','fundamento','natureza','status','criado_em'],
 };
 const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','servicos','combos','combo_itens'];
 const TABELAS_PRECIFICACAO = ['pricing_products','pricing_services','pricing_components','pricing_import_batches'];
+const TABELAS_CONTRATOS = ['contratos','contrato_checklist','contrato_documentos','contrato_clausulas_extraidas','contrato_riscos_iniciais','contrato_precificacao_vinculos','contrato_recomendacoes','contrato_sugestoes_clausulas'];
 
 function ativo() { return supabase.configurado() && process.env.SUPABASE_OPERACAO_COMPARTILHADA !== 'false'; }
 async function buscarTudo(remoto, tabela) {
@@ -52,7 +67,14 @@ function gravar(tabela, linhas) {
   const sql = `INSERT INTO ${tabela} (${campos.join(',')}) VALUES (${campos.map(() => '?').join(',')})
     ON CONFLICT${conflito} DO UPDATE SET ${campos.filter((x) => !excluirAtualizacao.includes(x)).map((x) => `${x}=excluded.${x}`).join(',')}`;
   const inserir = db.prepare(sql);
-  db.transaction(() => linhas.forEach((x) => inserir.run(...campos.map((c) => x[c] ?? null))))();
+  const valorLocal = (x, c) => {
+    const v = x[c];
+    // PostgREST representa bytea como texto hexadecimal. Recuperar o Buffer
+    // garante que o download entregue exatamente o original preservado.
+    if (tabela === 'contrato_documentos' && c === 'conteudo_original' && typeof v === 'string' && v.startsWith('\\x')) return Buffer.from(v.slice(2), 'hex');
+    return v ?? null;
+  };
+  db.transaction(() => linhas.forEach((x) => inserir.run(...campos.map((c) => valorLocal(x, c)))))();
   return linhas.length;
 }
 function gravarConfiguracao(tabela, linhas) {
@@ -222,7 +244,7 @@ async function publicar() {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {};
   for (const [tabela, campos] of Object.entries(CAMPOS)) {
-    if (TABELAS_PRECIFICACAO.includes(tabela)) continue;
+    if (TABELAS_PRECIFICACAO.includes(tabela) || TABELAS_CONTRATOS.includes(tabela)) continue;
     const linhas = db.prepare(`SELECT ${campos.join(',')} FROM ${tabela}`).all();
     for (let i = 0; i < linhas.length; i += 500) {
       const { error } = await remoto.from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: 'id' });
@@ -251,12 +273,44 @@ async function publicar() {
       resultado[tabela] = (resultado[tabela] || 0) + linhas.length;
     }
   }
+  // Contratos usam uma fotografia por empresa porque uma exclusão local deve
+  // também remover somente o mesmo contrato remoto. A ordem preserva todas as
+  // chaves estrangeiras; o original binário é serializado como bytea hex.
+  for (const empresa of empresas) await publicarContratos(remoto, empresa.id);
   // Parâmetros fiscais não acompanham esta publicação genérica. O banco local
   // do Render pode iniciar com valores padrão e jamais pode sobrescrever a
   // configuração compartilhada por causa de uma alteração operacional (por
   // exemplo, importação, tarefa ou cadastro). Eles são publicados apenas por
   // suas rotas específicas, depois de uma alteração explícita do consultor.
   return resultado;
+}
+
+function linhaRemotaContrato(tabela, linha) {
+  if (tabela !== 'contrato_documentos' || !Buffer.isBuffer(linha.conteudo_original)) return linha;
+  return { ...linha, conteudo_original: `\\x${linha.conteudo_original.toString('hex')}` };
+}
+async function publicarContratos(remoto, empresaId) {
+  const contratos = db.prepare(`SELECT ${CAMPOS.contratos.join(',')} FROM contratos WHERE empresa_id=?`).all(empresaId);
+  // A exclusão fica restrita à empresa da fotografia e o FK em cascata remove
+  // apenas as dependências daqueles contratos, nunca dados de outras empresas.
+  const { error: apagar } = await remoto.from('contratos').delete().eq('empresa_id', empresaId);
+  if (apagar) throw new Error(`contratos: ${apagar.message}`);
+  const porContrato = contratos.map((x) => x.id);
+  if (!porContrato.length) return { contratos: 0 };
+  for (const tabela of TABELAS_CONTRATOS) {
+    let linhas;
+    if (tabela === 'contratos') linhas = contratos;
+    else if (tabela === 'contrato_documentos') linhas = db.prepare(`SELECT ${CAMPOS[tabela].join(',')} FROM ${tabela} WHERE empresa_id=?`).all(empresaId);
+    else {
+      const campoContrato = tabela === 'contrato_checklist' ? 'contrato_id' : 'contrato_id';
+      linhas = db.prepare(`SELECT ${CAMPOS[tabela].join(',')} FROM ${tabela} WHERE ${campoContrato} IN (${porContrato.map(() => '?').join(',')})`).all(...porContrato);
+    }
+    for (let i = 0; i < linhas.length; i += 250) {
+      const { error } = await remoto.from(tabela).insert(linhas.slice(i, i + 250).map((x) => linhaRemotaContrato(tabela, x)));
+      if (error) throw new Error(`${tabela}: ${error.message}`);
+    }
+  }
+  return { contratos: contratos.length };
 }
 module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarGestao, publicar,
   baixarResultadosMotor, publicarResultadosMotor };
