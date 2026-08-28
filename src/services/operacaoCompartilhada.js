@@ -51,6 +51,7 @@ const CAMPOS = {
 const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','servicos','combos','combo_itens'];
 const TABELAS_PRECIFICACAO = ['pricing_products','pricing_services','pricing_components','pricing_import_batches'];
 const TABELAS_CONTRATOS = ['contratos','contrato_checklist','contrato_documentos','contrato_clausulas_extraidas','contrato_riscos_iniciais','contrato_precificacao_vinculos','contrato_recomendacoes','contrato_sugestoes_clausulas'];
+const TABELAS_ACOMPANHAMENTO = ['monitoring_baselines','monitoring_snapshots','monitoring_comparisons','monitoring_deviations','monitoring_alerts','monitoring_actions'];
 
 function ativo() { return supabase.configurado() && process.env.SUPABASE_OPERACAO_COMPARTILHADA !== 'false'; }
 async function buscarTudo(remoto, tabela) {
@@ -131,8 +132,18 @@ function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], ta
 async function baixar() {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {};
+  // Acompanhamento é uma fotografia operacional: o cache não pode manter
+  // registros já excluídos da fonte compartilhada. Primeiro lemos todo o
+  // conjunto; somente após essa leitura bem-sucedida substituímos o espelho
+  // local em ordem segura. Assim uma falha de rede não apaga o cache.
+  const acompanhamentoRemoto = {};
+  for (const tabela of TABELAS_ACOMPANHAMENTO) acompanhamentoRemoto[tabela] = await buscarTudo(remoto, tabela);
+  db.transaction(() => {
+    ['monitoring_actions','monitoring_alerts','monitoring_deviations','monitoring_comparisons','monitoring_snapshots','monitoring_baselines']
+      .forEach((tabela) => db.prepare(`DELETE FROM ${tabela}`).run());
+  })();
   for (const tabela of Object.keys(CAMPOS)) {
-    const linhas = await buscarTudo(remoto, tabela);
+    const linhas = TABELAS_ACOMPANHAMENTO.includes(tabela) ? acompanhamentoRemoto[tabela] : await buscarTudo(remoto, tabela);
     // Exceções são um espelho operacional completo do Supabase e possuem duas
     // chaves únicas (id técnico e chave funcional). Limpar somente esse
     // espelho antes da reposição elimina colisões entre IDs legados sem tocar

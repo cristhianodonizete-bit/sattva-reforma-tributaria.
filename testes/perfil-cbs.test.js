@@ -21,4 +21,6 @@ assert.equal(c.base_economica_saidas, 900); assert.equal(c.base_economica_entrad
 assert.equal(c.cbs_debito, 82.89); assert.equal(c.cbs_credito, 41.45); assert.equal(c.cbs_liquida, 41.44);
 assert.equal(c.compras_credito_normal, 500); assert.equal(c.compras_credito_indeterminado, 200);
 assert.equal(c.receita_tributacao_integral, 1000); assert.equal(c.quantidade_documentos, 3);
+db.close?.();
+fs.rmSync(dir, { recursive: true, force: true });
 console.log('perfil-cbs.test: reconciliação operação → competência aprovada');

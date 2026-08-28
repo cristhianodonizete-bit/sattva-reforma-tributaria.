@@ -12,6 +12,11 @@ const insertBaseline = rotaApi.match(/INSERT INTO monitoring_baselines \([^)]*\)
 assert.ok(insertBaseline, 'rota de criação de baseline deve persistir a fotografia');
 assert.strictEqual(insertBaseline[1].split(',').length, 14, 'INSERT do baseline deve ter 14 valores para 14 colunas');
 
+const operacaoCompartilhada = fs.readFileSync(path.join(__dirname, '../src/services/operacaoCompartilhada.js'), 'utf8');
+assert.match(operacaoCompartilhada, /TABELAS_ACOMPANHAMENTO/, 'acompanhamento deve ter espelho operacional identificado');
+assert.match(operacaoCompartilhada, /const acompanhamentoRemoto = \{\}/, 'dados remotos devem ser lidos antes de limpar o cache');
+assert.match(operacaoCompartilhada, /monitoring_actions','monitoring_alerts','monitoring_deviations','monitoring_comparisons','monitoring_snapshots','monitoring_baselines/, 'espelho de acompanhamento deve limpar dependências antes das referências');
+
 const baseline = { id: 10, versao: 1, origem: 'OFICIAL', natureza: 'CALCULADO', indicadores_aprovados: JSON.stringify({ receita: 1000, compras: 600, cbs: 92.1, credito_cbs: 30, margem: 250, classificacao_pendente: 0 }) };
 const semDesvio = { id: 20, periodo: '2027-01', origem: 'XML', natureza: 'REAL', indicadores_realizados: JSON.stringify({ receita: 1000, compras: 600, cbs: 92.1, credito_cbs: 30, margem: 250, classificacao_pendente: 0 }) };
 const ok = acompanhamento.comparar(baseline, semDesvio);
