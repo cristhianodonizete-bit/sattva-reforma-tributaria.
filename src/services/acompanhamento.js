@@ -46,4 +46,28 @@ function comparar(baseline, snapshot) {
 function memoria(baseline, snapshot, desvio) {
   return { baseline: { id: baseline.id, versao: baseline.versao, natureza: baseline.natureza, origem: baseline.origem }, realizado: { id: snapshot.id, periodo: snapshot.periodo, natureza: snapshot.natureza, origem: snapshot.origem }, metrica: desvio.metrica, valor_previsto: desvio.baseline_valor, valor_realizado: desvio.realizado_valor, diferenca: desvio.diferenca_absoluta, evidencia: desvio.evidencia };
 }
-module.exports = { METRICAS, json, stringify, indicadoresPerfil, comparar, memoria };
+function prioridade(desvio) {
+  if (desvio.status === 'INCOMPLETO') return 'MEDIA';
+  if (['DESVIO_FISCAL','DESVIO_ECONOMICO'].includes(desvio.tipo)) return 'ALTA';
+  return 'MEDIA';
+}
+function textoAlerta(desvio) {
+  const nome = ({ credito_cbs: 'O crédito CBS realizado', margem: 'A margem realizada', classificacao_pendente: 'As classificações pendentes', compras: 'As compras realizadas', receita: 'A receita realizada' })[desvio.metrica] || `A métrica ${desvio.metrica}`;
+  if (desvio.status === 'INCOMPLETO') return `${nome} não pode ser concluído porque falta dado previsto ou realizado.`;
+  const unidade = ['margem','cobertura_cadastral'].includes(desvio.metrica) ? ' p.p.' : '';
+  return `${nome} divergiu do baseline: previsto ${desvio.baseline_valor}, realizado ${desvio.realizado_valor}, diferença ${desvio.diferenca_absoluta}${unidade}.`;
+}
+function alerta(desvio) {
+  if (!desvio?.evidencia || !['DIVERGENTE','INCOMPLETO'].includes(desvio.status)) return null;
+  return { titulo: desvio.tipo.replaceAll('_',' '), mensagem: textoAlerta(desvio), prioridade: prioridade(desvio), impacto: desvio.acao_sugerida || 'Validar causa antes de alterar a estratégia.', evidencia: desvio.evidencia, natureza: desvio.natureza || 'CALCULADO' };
+}
+function aderencia(desvios, acoes) {
+  const lista = desvios || [], tarefas = acoes || [];
+  if (!lista.length || lista.some((x) => x.status === 'INCOMPLETO')) return { status: 'INCOMPLETO', valor: null, formula: 'INCOMPLETO: há métricas sem baseline ou realizado suficiente.' };
+  const relevantes = lista.filter((x) => x.status !== 'INCOMPLETO');
+  const concluidas = new Set(tarefas.filter((x) => x.status === 'CONCLUIDA').map((x) => Number(x.desvio_id)));
+  const cumpridos = relevantes.filter((x) => x.status === 'SEM_DESVIO' || concluidas.has(Number(x.id))).length;
+  const valor = relevantes.length ? r2(cumpridos / relevantes.length) : null;
+  return { status: valor === 1 ? 'ADERENTE' : 'EM_ACAO', valor, formula: '(métricas sem desvio + desvios com ação concluída) ÷ métricas com dados completos' };
+}
+module.exports = { METRICAS, json, stringify, indicadoresPerfil, comparar, memoria, alerta, aderencia };

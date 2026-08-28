@@ -45,6 +45,8 @@ const CAMPOS = {
   monitoring_snapshots: ['id','empresa_id','periodo','origem','natureza','indicadores_realizados','composicao_fornecedores','composicao_clientes','classificacoes_reais','cobertura_dados','memoria','criado_em'],
   monitoring_comparisons: ['id','empresa_id','baseline_id','snapshot_id','status','memoria','criado_em'],
   monitoring_deviations: ['id','comparison_id','metrica','tipo','baseline_valor','realizado_valor','diferenca_absoluta','diferenca_percentual','status','causa','evidencia','acao_sugerida','natureza','memoria','criado_em'],
+  monitoring_alerts: ['id','empresa_id','desvio_id','titulo','mensagem','prioridade','impacto','evidencia','natureza','status','criado_em'],
+  monitoring_actions: ['id','empresa_id','desvio_id','acao','responsavel','prazo','prioridade','status','evidencia','origem','criado_em','atualizado_em'],
 };
 const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','servicos','combos','combo_itens'];
 const TABELAS_PRECIFICACAO = ['pricing_products','pricing_services','pricing_components','pricing_import_batches'];

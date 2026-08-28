@@ -30,3 +30,19 @@ create table if not exists public.monitoring_deviations (
 create index if not exists ix_monitoring_baselines_empresa on public.monitoring_baselines(empresa_id,versao desc);
 create index if not exists ix_monitoring_snapshots_empresa on public.monitoring_snapshots(empresa_id,periodo desc);
 create index if not exists ix_monitoring_deviations_comparison on public.monitoring_deviations(comparison_id,tipo);
+
+create table if not exists public.monitoring_alerts (
+  id bigint primary key, empresa_id bigint not null references public.empresas(id) on delete cascade,
+  desvio_id bigint not null references public.monitoring_deviations(id) on delete cascade,
+  titulo text not null, mensagem text not null, prioridade text not null, impacto text,
+  evidencia text not null, natureza text not null default 'CALCULADO', status text not null default 'ABERTO', criado_em text,
+  unique(desvio_id)
+);
+create table if not exists public.monitoring_actions (
+  id bigint primary key, empresa_id bigint not null references public.empresas(id) on delete cascade,
+  desvio_id bigint not null references public.monitoring_deviations(id) on delete restrict,
+  acao text not null, responsavel text, prazo text, prioridade text not null, status text not null default 'ABERTA',
+  evidencia text not null, origem text not null, criado_em text, atualizado_em text
+);
+create index if not exists ix_monitoring_alerts_empresa on public.monitoring_alerts(empresa_id,prioridade,status);
+create index if not exists ix_monitoring_actions_empresa on public.monitoring_actions(empresa_id,status,prazo);

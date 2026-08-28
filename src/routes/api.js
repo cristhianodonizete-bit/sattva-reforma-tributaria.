@@ -3363,7 +3363,10 @@ router.get('/empresas/:id/acompanhamento', async (req, res) => {
     const comparacoes = db.prepare(`SELECT c.*, b.versao baseline_versao, s.periodo snapshot_periodo FROM monitoring_comparisons c
       JOIN monitoring_baselines b ON b.id=c.baseline_id JOIN monitoring_snapshots s ON s.id=c.snapshot_id WHERE c.empresa_id=? ORDER BY c.id DESC`).all(req.params.id);
     const desvios = comparacoes.length ? db.prepare(`SELECT d.* FROM monitoring_deviations d WHERE d.comparison_id IN (${comparacoes.map(() => '?').join(',')}) ORDER BY d.id DESC`).all(...comparacoes.map((x) => x.id)) : [];
-    ok(res, { baselines: baselines.map((x) => ({ ...x, indicadores: acompanhamento.json(x.indicadores_aprovados), memoria: acompanhamento.json(x.memoria) })), snapshots: snapshots.map((x) => ({ ...x, indicadores: acompanhamento.json(x.indicadores_realizados), memoria: acompanhamento.json(x.memoria) })), comparacoes, desvios: desvios.map((x) => ({ ...x, memoria: acompanhamento.json(x.memoria) })) });
+    const alertas = db.prepare('SELECT * FROM monitoring_alerts WHERE empresa_id=? ORDER BY CASE prioridade WHEN \'ALTA\' THEN 1 WHEN \'MEDIA\' THEN 2 ELSE 3 END,id DESC').all(req.params.id);
+    const acoes = db.prepare('SELECT * FROM monitoring_actions WHERE empresa_id=? ORDER BY CASE status WHEN \'ABERTA\' THEN 1 WHEN \'EM_ANDAMENTO\' THEN 2 ELSE 3 END,prazo').all(req.params.id);
+    const porPeriodo = snapshots.map((s) => ({ periodo: s.periodo, origem: s.origem, natureza: s.natureza, indicadores: acompanhamento.json(s.indicadores_realizados), comparacao: comparacoes.find((c) => Number(c.snapshot_id) === Number(s.id)) || null }));
+    ok(res, { baselines: baselines.map((x) => ({ ...x, indicadores: acompanhamento.json(x.indicadores_aprovados), memoria: acompanhamento.json(x.memoria) })), snapshots: snapshots.map((x) => ({ ...x, indicadores: acompanhamento.json(x.indicadores_realizados), memoria: acompanhamento.json(x.memoria) })), comparacoes, desvios: desvios.map((x) => ({ ...x, memoria: acompanhamento.json(x.memoria) })), alertas, acoes, evolucao: porPeriodo, aderencia: acompanhamento.aderencia(desvios, acoes) });
   } catch (e) { erro(res, e); }
 });
 
@@ -3408,6 +3411,41 @@ router.post('/empresas/:id/acompanhamento/comparacoes', async (req, res) => {
     const inserir = db.prepare(`INSERT INTO monitoring_deviations (comparison_id,metrica,tipo,baseline_valor,realizado_valor,diferenca_absoluta,diferenca_percentual,status,causa,evidencia,acao_sugerida,natureza,memoria) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
     db.transaction(() => resultado.desvios.forEach((d) => inserir.run(comparacao.id,d.metrica,d.tipo,d.baseline_valor,d.realizado_valor,d.diferenca_absoluta,d.diferenca_percentual,d.status,d.causa,d.evidencia,d.acao_sugerida,d.natureza,acompanhamento.stringify(acompanhamento.memoria(baseline,snapshot,d)))))();
     ok(res, { comparison_id: comparacao.id, status: resultado.status, desvios: resultado.desvios });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/acompanhamento/alertas/gerar', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const desvios = db.prepare(`SELECT d.* FROM monitoring_deviations d JOIN monitoring_comparisons c ON c.id=d.comparison_id WHERE c.empresa_id=?`).all(req.params.id);
+    const inserir = db.prepare(`INSERT INTO monitoring_alerts (empresa_id,desvio_id,titulo,mensagem,prioridade,impacto,evidencia,natureza,status) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(desvio_id) DO UPDATE SET titulo=excluded.titulo,mensagem=excluded.mensagem,prioridade=excluded.prioridade,impacto=excluded.impacto,evidencia=excluded.evidencia,natureza=excluded.natureza`);
+    let gerados = 0;
+    db.transaction(() => desvios.forEach((d) => { const a = acompanhamento.alerta(d); if (!a) return; inserir.run(Number(req.params.id),d.id,a.titulo,a.mensagem,a.prioridade,a.impacto,a.evidencia,a.natureza,'ABERTO'); gerados++; }))();
+    ok(res, { gerados });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/acompanhamento/acoes', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const b = req.body || {}, d = db.prepare(`SELECT d.* FROM monitoring_deviations d JOIN monitoring_comparisons c ON c.id=d.comparison_id WHERE d.id=? AND c.empresa_id=?`).get(b.desvio_id, req.params.id);
+    if (!d) throw new Error('Desvio verificável não encontrado para esta empresa.');
+    if (!d.evidencia) throw new Error('Uma ação corretiva exige evidência do desvio de origem.');
+    if (!b.acao) throw new Error('Descreva a ação corretiva.');
+    const r = db.prepare(`INSERT INTO monitoring_actions (empresa_id,desvio_id,acao,responsavel,prazo,prioridade,status,evidencia,origem) VALUES (?,?,?,?,?,?,?,?,?)`).run(req.params.id,d.id,b.acao,b.responsavel || '',b.prazo || null,b.prioridade || acompanhamento.alerta(d)?.prioridade || 'MEDIA','ABERTA',d.evidencia,b.origem || 'ACOMPANHAMENTO');
+    auditar(req, { empresaId: req.params.id, acao: 'Criou ação corretiva de acompanhamento', entidade: 'monitoring_action', entidadeId: r.lastInsertRowid, depois: { desvio_id: d.id, prioridade: b.prioridade || 'MEDIA' } });
+    ok(res, { acao: db.prepare('SELECT * FROM monitoring_actions WHERE id=?').get(r.lastInsertRowid) });
+  } catch (e) { erro(res, e); }
+});
+
+router.put('/acompanhamento/acoes/:id', async (req, res) => {
+  try {
+    const atual = db.prepare('SELECT * FROM monitoring_actions WHERE id=?').get(req.params.id); if (!atual) throw new Error('Ação não encontrada.');
+    await garantirEmpresaPermitida(req, atual.empresa_id);
+    const b = req.body || {}, status = b.status || atual.status;
+    if (!['ABERTA','EM_ANDAMENTO','CONCLUIDA','CANCELADA'].includes(status)) throw new Error('Status de ação inválido.');
+    db.prepare('UPDATE monitoring_actions SET acao=?,responsavel=?,prazo=?,prioridade=?,status=?,evidencia=?,atualizado_em=? WHERE id=?').run(b.acao ?? atual.acao,b.responsavel ?? atual.responsavel,b.prazo ?? atual.prazo,b.prioridade ?? atual.prioridade,status,b.evidencia ?? atual.evidencia,new Date().toISOString(),atual.id);
+    ok(res, { acao: db.prepare('SELECT * FROM monitoring_actions WHERE id=?').get(atual.id) });
   } catch (e) { erro(res, e); }
 });
 

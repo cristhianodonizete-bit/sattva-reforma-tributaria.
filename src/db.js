@@ -239,6 +239,27 @@ CREATE TABLE IF NOT EXISTS monitoring_deviations (
 );
 CREATE INDEX IF NOT EXISTS ix_monitoring_deviations_comparison ON monitoring_deviations(comparison_id, tipo);
 
+CREATE TABLE IF NOT EXISTS monitoring_alerts (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  desvio_id INTEGER NOT NULL REFERENCES monitoring_deviations(id) ON DELETE CASCADE,
+  titulo TEXT NOT NULL, mensagem TEXT NOT NULL, prioridade TEXT NOT NULL,
+  impacto TEXT, evidencia TEXT NOT NULL, natureza TEXT NOT NULL DEFAULT 'CALCULADO',
+  status TEXT NOT NULL DEFAULT 'ABERTO', criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(desvio_id)
+);
+CREATE INDEX IF NOT EXISTS ix_monitoring_alerts_empresa ON monitoring_alerts(empresa_id, prioridade, status);
+
+CREATE TABLE IF NOT EXISTS monitoring_actions (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  desvio_id INTEGER NOT NULL REFERENCES monitoring_deviations(id) ON DELETE RESTRICT,
+  acao TEXT NOT NULL, responsavel TEXT, prazo TEXT, prioridade TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'ABERTA', evidencia TEXT NOT NULL, origem TEXT NOT NULL,
+  criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_monitoring_actions_empresa ON monitoring_actions(empresa_id, status, prazo);
+
 -- ============ PARCEIROS (clientes e fornecedores) ============
 CREATE TABLE IF NOT EXISTS parceiros (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
