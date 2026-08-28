@@ -5,6 +5,13 @@ process.env.SATTVA_DADOS = dir;
 const acompanhamento = require('../src/services/acompanhamento');
 const db = require('../src/db');
 
+// Regressão do endpoint publicado: a quantidade de placeholders deve coincidir
+// com as 14 colunas persistidas da fotografia imutável do baseline.
+const rotaApi = fs.readFileSync(path.join(__dirname, '../src/routes/api.js'), 'utf8');
+const insertBaseline = rotaApi.match(/INSERT INTO monitoring_baselines \([^)]*\) VALUES \(([^)]*)\)/);
+assert.ok(insertBaseline, 'rota de criação de baseline deve persistir a fotografia');
+assert.strictEqual(insertBaseline[1].split(',').length, 14, 'INSERT do baseline deve ter 14 valores para 14 colunas');
+
 const baseline = { id: 10, versao: 1, origem: 'OFICIAL', natureza: 'CALCULADO', indicadores_aprovados: JSON.stringify({ receita: 1000, compras: 600, cbs: 92.1, credito_cbs: 30, margem: 250, classificacao_pendente: 0 }) };
 const semDesvio = { id: 20, periodo: '2027-01', origem: 'XML', natureza: 'REAL', indicadores_realizados: JSON.stringify({ receita: 1000, compras: 600, cbs: 92.1, credito_cbs: 30, margem: 250, classificacao_pendente: 0 }) };
 const ok = acompanhamento.comparar(baseline, semDesvio);
