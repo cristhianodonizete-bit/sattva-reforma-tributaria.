@@ -86,7 +86,7 @@ const COLUNAS_NOVAS = {
   cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT' },
   contratos: {
     nome: 'TEXT', moeda: "TEXT DEFAULT 'BRL'", periodicidade_reajuste: 'TEXT', tipo_relacao: 'TEXT',
-    renovacao: 'TEXT', observacoes: 'TEXT', arquivo_origem: 'TEXT', status_analise: "TEXT DEFAULT 'NAO_INICIADA'",
+    renovacao: 'TEXT', observacoes: 'TEXT', arquivo_origem: 'TEXT', status_analise: "TEXT DEFAULT 'NAO_INICIADA'", natureza_contrato: "TEXT DEFAULT 'INDETERMINADO'", natureza_contrato_origem: 'TEXT', natureza_contrato_evidencia: 'TEXT',
   },
   contrato_precificacao_vinculos: { pricing_simulacao_id: 'INTEGER' },
 };

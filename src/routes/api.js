@@ -12,6 +12,7 @@ const precificacaoIndependente = require('../services/precificacaoIndependente')
 const precificacaoExecutiva = require('../services/precificacaoExecutiva');
 const contratosEntrega1 = require('../services/contratosEntrega1');
 const contratosEntrega2 = require('../services/contratosEntrega2');
+const contratosExecutivo = require('../services/contratosExecutivo');
 const { analisarCadeia } = require('../engine/cadeia');
 const consolidacaoOficial = require('../services/consolidacaoOficial');
 const imp = require('../services/importador');
@@ -1465,6 +1466,63 @@ router.post('/contratos/:id/entrega2/gerar', async (req, res) => {
     })();
     auditar(req, { empresaId: contrato.empresa_id, acao: 'Gerou recomendações e rascunhos contratuais', entidade: 'contrato', entidadeId: contrato.id, depois: { recomendacoes: gerado.recomendacoes.length, sugestoes: gerado.sugestoes.length, vinculos_economicos_lidos: itensPrecificacao.length } });
     ok(res, { recomendacoes: gerado.recomendacoes.length, sugestoes: gerado.sugestoes.length, vinculos_economicos_lidos: itensPrecificacao.length, aviso: 'Rascunhos sugeridos exigem revisão jurídica; o documento original não foi alterado.' });
+  } catch (e) { erro(res, e); }
+});
+
+function carregarRelatorioContratual(contrato) {
+  const documentos = db.prepare('SELECT id,nome_original,mime_type,tipo_origem,hash_original,tamanho_bytes,status_extracao,observacao_extracao,criado_em FROM contrato_documentos WHERE contrato_id=? ORDER BY id DESC').all(contrato.id);
+  const clausulas = db.prepare('SELECT * FROM contrato_clausulas_extraidas WHERE contrato_id=? ORDER BY documento_id,ordem,id').all(contrato.id);
+  const riscos = db.prepare('SELECT * FROM contrato_riscos_iniciais WHERE contrato_id=? AND status<>? ORDER BY id').all(contrato.id, 'ARQUIVADO');
+  const recomendacoes = db.prepare('SELECT * FROM contrato_recomendacoes WHERE contrato_id=? ORDER BY CASE prioridade WHEN \'ALTA\' THEN 1 WHEN \'MEDIA\' THEN 2 ELSE 3 END,id').all(contrato.id);
+  const sugestoes = db.prepare('SELECT * FROM contrato_sugestoes_clausulas WHERE contrato_id=? ORDER BY id').all(contrato.id);
+  const vinculos = db.prepare("SELECT * FROM contrato_precificacao_vinculos WHERE contrato_id=? AND status='CONFIRMADO' AND pricing_simulacao_id IS NOT NULL").all(contrato.id);
+  const impactosEconomicos = [];
+  for (const v of vinculos) {
+    const snap = db.prepare('SELECT resultados_json FROM pricing_simulacoes WHERE id=? AND empresa_id=?').get(v.pricing_simulacao_id, contrato.empresa_id);
+    if (!snap) continue;
+    const item = JSON.parse(snap.resultados_json || '[]').find((x) => x?.item?.natureza_item === v.tipo_item && Number(x?.item?.id) === Number(v.item_precificacao_id));
+    if (item) impactosEconomicos.push(contratosExecutivo.impactoEconomico(item, v));
+  }
+  return contratosExecutivo.montarContrato({ contrato, documentos, clausulas, riscos, recomendacoes, sugestoes, impactosEconomicos });
+}
+
+router.put('/contratos/:id/natureza', async (req, res) => {
+  try {
+    const contrato = await contratoPermitido(req, req.params.id); const natureza = String(req.body?.natureza_contrato || 'INDETERMINADO').toUpperCase();
+    const evidencia = String(req.body?.evidencia_natureza || '').trim(); const origem = String(req.body?.origem_natureza || '').trim();
+    if (!['CONTRATO_ADMINISTRATIVO', 'CONTRATO_PRIVADO', 'INDETERMINADO'].includes(natureza)) throw new Error('Natureza contratual inválida.');
+    if (natureza !== 'INDETERMINADO' && (!evidencia || !origem)) throw new Error('Para classificar como administrativo ou privado, informe a origem e a evidência expressa do documento ou cadastro.');
+    db.prepare('UPDATE contratos SET natureza_contrato=?, natureza_contrato_origem=?, natureza_contrato_evidencia=? WHERE id=?').run(natureza, natureza === 'INDETERMINADO' ? null : origem, natureza === 'INDETERMINADO' ? null : evidencia, contrato.id);
+    auditar(req, { empresaId: contrato.empresa_id, acao: 'Definiu natureza do contrato', entidade: 'contrato', entidadeId: contrato.id, depois: { natureza_contrato: natureza, origem: natureza === 'INDETERMINADO' ? null : origem, evidencia: natureza === 'INDETERMINADO' ? null : evidencia } });
+    ok(res, { natureza_contrato: natureza });
+  } catch (e) { erro(res, e); }
+});
+
+router.get('/contratos/:id/saida-executiva', async (req, res) => {
+  try { ok(res, { relatorio: carregarRelatorioContratual(await contratoPermitido(req, req.params.id)) }); } catch (e) { erro(res, e); }
+});
+
+router.get('/empresas/:id/contratos/saida-executiva', (req, res) => {
+  try {
+    const contratos = db.prepare('SELECT * FROM contratos WHERE empresa_id=? ORDER BY id DESC').all(req.params.id);
+    const relatorios = contratos.map(carregarRelatorioContratual);
+    ok(res, { painel: contratosExecutivo.painel(relatorios), relatorios });
+  } catch (e) { erro(res, e); }
+});
+
+router.get('/contratos/:id/saida-executiva.pdf', async (req, res) => {
+  try {
+    const relatorio = carregarRelatorioContratual(await contratoPermitido(req, req.params.id));
+    res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', 'attachment; filename="relatorio-contratual.pdf"');
+    contratosExecutivo.gerarPdfIndividual(relatorio, res);
+  } catch (e) { erro(res, e); }
+});
+
+router.get('/empresas/:id/contratos/saida-executiva.pdf', (req, res) => {
+  try {
+    const relatorios = db.prepare('SELECT * FROM contratos WHERE empresa_id=? ORDER BY id DESC').all(req.params.id).map(carregarRelatorioContratual);
+    res.setHeader('Content-Type', 'application/pdf'); res.setHeader('Content-Disposition', 'attachment; filename="carteira-contratual.pdf"');
+    contratosExecutivo.gerarPdfCarteira({ painel: contratosExecutivo.painel(relatorios), relatorios }, res);
   } catch (e) { erro(res, e); }
 });
 

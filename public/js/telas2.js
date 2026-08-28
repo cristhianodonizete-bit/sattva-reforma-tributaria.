@@ -257,6 +257,7 @@ Telas.contratos = async (el) => {
   el.innerHTML = cab('Módulo 3', 'Revisão de contratos',
     'Contrato sem cláusula de tributo é contrato que decide sozinho quem paga a conta da transição.',
     `<button class="btn" id="novoContrato">Cadastrar contrato</button>
+     <button class="btn vazio" id="painelContratos">Painel executivo</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/contratos')">Exportar Excel</button>`) +
     `<div class="cartao"><h2>Carteira contratual</h2>
       ${A.tabela([
@@ -271,6 +272,7 @@ Telas.contratos = async (el) => {
         { t: 'Status', r: (c) => `<span class="tag n">${A.esc(c.status)}</span>` },
         { t: '', r: (c) => `<button class="btn pq" data-doc="${c.id}">Documento</button>
           <button class="btn pq" data-rec="${c.id}">Recomendações</button>
+          <button class="btn pq" data-exec="${c.id}">Saída executiva</button>
           <button class="btn pq ouro" data-rev="${c.id}">Revisar</button>
           <button class="btn pq vazio" data-ec="${c.id}">Editar</button>
           <button class="btn pq perigo" data-rc="${c.id}">Excluir</button>` },
@@ -299,6 +301,19 @@ Telas.contratos = async (el) => {
     titulo: 'Cadastrar contrato', corpo: formContrato(), largura: 760,
     aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/contratos`, { metodo: 'POST', corpo: d }); A.ir('contratos'); },
   });
+  const baixarPdfAutenticado = async (caminho, nome) => {
+    const token = localStorage.getItem('sattva_token'); const r = await fetch('/api' + caminho, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!r.ok) { const j = await r.json().catch(() => ({})); throw new Error(j.erro || 'Não foi possível gerar o PDF.'); }
+    const blob = await r.blob(); const url = URL.createObjectURL(blob); const a = document.createElement('a'); a.href = url; a.download = nome; a.click(); setTimeout(() => URL.revokeObjectURL(url), 2000);
+  };
+  document.getElementById('painelContratos').onclick = async () => {
+    const r = await A.api(`/empresas/${S.empresaId}/contratos/saida-executiva`);
+    const cards = Object.entries(r.painel).map(([k, v]) => A.kpi(k.replaceAll('_', ' '), v.quantidade, `${v.contratos.length} contrato(s)`, v.quantidade ? 'destaque' : '')).join('');
+    const m = A.modal({ titulo: 'Carteira contratual — painel executivo', largura: 1080, confirmar: 'Baixar PDF consolidado',
+      descricao: 'Indicadores derivados da triagem, das recomendações e das fotografias explicitamente vinculadas da Precificação.',
+      corpo: `<div class="grade g4">${cards}</div><div class="cartao" style="box-shadow:none"><h3>Drill-down por contrato</h3>${A.tabela([{ t: 'Contrato', r: x => A.esc(x.contrato.nome || x.contrato.contraparte || `Contrato #${x.contrato.id}`) }, { t: 'Natureza', r: x => `<span class="tag">${A.esc(x.contrato.natureza_contrato)}</span>` }, { t: 'Riscos', r: x => String(x.riscos.length) }, { t: 'Alertas', r: x => String(x.alertas.length) }, { t: 'Pendências', r: x => String(x.pendencias.length) }], r.relatorios, { vazio: 'Nenhum contrato disponível.' })}</div>`,
+      aoConfirmar: async () => { await baixarPdfAutenticado(`/empresas/${S.empresaId}/contratos/saida-executiva.pdf`, 'carteira-contratual.pdf'); return false; } }); return m;
+  };
   el.querySelectorAll('[data-ec]').forEach((b) => { b.onclick = () => {
     const c = contratos.find((x) => x.id === Number(b.dataset.ec));
     A.modal({ titulo: 'Editar contrato', largura: 760, corpo: formContrato(c) + A.selecao('status', 'Status',
@@ -342,6 +357,26 @@ Telas.contratos = async (el) => {
     A.modal({ titulo: `Recomendações — ${c.contraparte || c.nome || 'contrato'}`, largura: 980, confirmar: 'Gerar/atualizar recomendações',
       descricao: 'A análise usa apenas riscos com evidência e fotografias de Precificação vinculadas explicitamente. Nenhum cálculo fiscal é refeito aqui.', corpo: mostrar(),
       aoConfirmar: async () => { const r = await A.api(`/contratos/${c.id}/entrega2/gerar`, { metodo: 'POST', corpo: {} }); A.toast(`${r.recomendacoes} recomendação(ões) e ${r.sugestoes} rascunho(s) atualizados.`, 'ok'); A.ir('contratos'); }, });
+  }; });
+
+  el.querySelectorAll('[data-exec]').forEach((b) => { b.onclick = async () => {
+    const c = contratos.find((x) => x.id === Number(b.dataset.exec)); const r = await A.api(`/contratos/${c.id}/saida-executiva`); const x = r.relatorio;
+    const estado = (v) => `<span class="tag ${v === 'INCOMPLETO' || v === 'INDETERMINADO' ? 'b' : ''}">${A.esc(v)}</span>`;
+    A.modal({ titulo: `Saída executiva — ${c.nome || c.contraparte || 'contrato'}`, largura: 1080, confirmar: 'Salvar natureza e baixar PDF',
+      descricao: 'Fatos extraídos, interpretações, cálculos já produzidos e rascunhos são mantidos em camadas distintas.',
+      corpo: `${A.selecao('natureza_contrato', 'Natureza do contrato', [{v:'INDETERMINADO',t:'Indeterminado'}, {v:'CONTRATO_PRIVADO',t:'Contrato privado'}, {v:'CONTRATO_ADMINISTRATIVO',t:'Contrato administrativo'}], x.contrato.natureza_contrato)}
+        <div class="grade g2">${A.selecao('origem_natureza', 'Origem da natureza', [{v:'',t:'Selecione quando aplicável'}, {v:'DOCUMENTO',t:'Documento contratual'}, {v:'CADASTRO',t:'Cadastro confirmado'}], x.contrato.natureza_contrato_origem || '')}
+        ${A.area('evidencia_natureza', 'Evidência expressa da natureza', x.contrato.natureza_contrato_evidencia || '', 2)}</div>
+        <div class="aviso atencao"><b>Trava de natureza:</b> administrativo ou privado exige origem e evidência expressa. Sem essa prova, o contrato permanece <b>INDETERMINADO</b>.</div>
+        <div class="aviso atencao"><b>Ressalva do parecer:</b> ${A.esc(x.parecer.ressalva)}</div>
+        <div class="cartao" style="box-shadow:none"><h3>Natureza e parecer técnico <span class="tag">INTERPRETADO</span></h3><p>${A.esc(x.parecer.administrativo)}</p></div>
+        <div class="cartao" style="box-shadow:none"><h3>O que está no contrato <span class="tag">EXTRAIDO</span></h3>${x.clausulas.length ? x.clausulas.map(q=>`<div style="margin:9px 0"><b>${A.esc(q.localizacao)}</b><p class="mini">${A.esc(q.texto_original)}</p></div>`).join('') : '<p class="mini">Nenhuma cláusula/trecho extraído.</p>'}</div>
+        <div class="cartao" style="box-shadow:none"><h3>O que foi interpretado <span class="tag">INTERPRETADO</span></h3>${x.riscos.length ? x.riscos.map(q=>`<div style="margin:9px 0"><b>${A.esc(q.risco)} · ${A.esc(q.nivel)}</b><p class="mini">${A.esc(q.evidencia)}</p></div>`).join('') : '<p class="mini">Nenhum risco interpretado.</p>'}</div>
+        <div class="cartao" style="box-shadow:none"><h3>O que veio da Precificação <span class="tag">CALCULADO</span></h3>${x.impactos_economicos.length ? A.tabela([{t:'Item',r:e=>A.esc(e.descricao)},{t:'Preço atual',num:true,r:e=>A.moeda(e.preco_atual)},{t:'Projetado',num:true,r:e=>A.moeda(e.preco_projetado)},{t:'Margem',num:true,r:e=>`${A.moeda(e.margem_atual)} → ${A.moeda(e.margem_projetada)}`},{t:'Crédito',num:true,r:e=>A.moeda(e.credito_entregue)},{t:'Estado',r:e=>estado(e.natureza)}],x.impactos_economicos) : '<p class="mini">Não há fotografia de Precificação vinculada explicitamente.</p>'}</div>
+        <div class="cartao" style="box-shadow:none"><h3>Recomendações <span class="tag">INTERPRETADO</span></h3>${x.recomendacoes.length ? x.recomendacoes.map(q=>`<div style="margin:9px 0"><b>${A.esc(q.prioridade)} · ${A.esc(q.recomendacao)}</b><p class="mini">${A.esc(q.evidencia)} · ${A.esc(q.natureza)}</p></div>`).join('') : '<p class="mini">Nenhuma recomendação sustentada.</p>'}</div>
+        <div class="cartao" style="box-shadow:none"><h3>Rascunhos de cláusula</h3>${x.sugestoes.length ? x.sugestoes.map(s=>`<details><summary>${estado('SUGERIDO')} RASCUNHO — ${A.esc(s.motivo)}</summary><p class="mini">Original: ${A.esc(s.clausula_original || 'Ausência objetiva')}</p><div class="texto">${A.esc(s.sugestao_redacao)}</div></details>`).join('') : '<p class="mini">Sem rascunhos.</p>'}</div>
+        <div class="cartao" style="box-shadow:none"><h3>Pendências e memória</h3>${x.pendencias.length ? x.pendencias.map(p=>`<p>${estado(p.natureza)} ${A.esc(p.texto)}</p>`).join('') : '<p class="mini">Sem pendência registrada.</p>'}</div>`,
+      aoConfirmar: async (d) => { await A.api(`/contratos/${c.id}/natureza`, { metodo: 'PUT', corpo: d }); await baixarPdfAutenticado(`/contratos/${c.id}/saida-executiva.pdf`, 'relatorio-contratual.pdf'); A.ir('contratos'); } });
   }; });
 
   el.querySelectorAll('[data-rev]').forEach((b) => { b.onclick = async () => {
