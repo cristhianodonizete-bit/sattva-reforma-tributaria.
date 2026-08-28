@@ -165,6 +165,9 @@ const App = (() => {
     { id: 'capacitacao', titulo: 'Módulo 4 · Capacitação', itens: [
       { id: 'capacitacao', t: 'Capacitação do time', i: '◌' }, { id: 'tarefasCapacitacao', t: 'Tarefas', i: '✓' },
     ] },
+    { id: 'acompanhamento', titulo: 'Módulo 5 · Acompanhamento', itens: [
+      { id: 'acompanhamento', t: 'Baseline e realizado', i: '◷' },
+    ] },
     { id: 'gestao', titulo: 'Gestão do produto', itens: [
       { id: 'plano', t: 'Plano de adequação', i: '✓' }, { id: 'servicos', t: 'Escopos e combos', i: '⊞' },
       { id: 'gestaoProjetos', t: 'Escopo e entregas', i: '▣' }, { id: 'configComercial', t: 'Configurar combos', i: '⚙' },
@@ -176,7 +179,7 @@ const App = (() => {
   const PERMISSAO_TELA = {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
     dados: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
-    precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao',
+    precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     servicos: 'gestao_projetos', gestaoProjetos: 'gestao_projetos', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', conhecimento: 'configuracoes', configuracoes: 'configuracoes', questor: 'configuracoes', acessos: 'acessos',
   };
   const pode = (tela, acao = 'ver') => {

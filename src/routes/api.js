@@ -122,6 +122,7 @@ const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/grupos-empresas/.test(caminho)) return 'gestao_projetos';
   if (/^\/empresas\/\d+\/turmas/.test(caminho) || /^\/(turmas|participantes)/.test(caminho)) return 'capacitacao';
   if (/^\/empresas\/\d+\/contratos/.test(caminho) || /^\/contratos/.test(caminho)) return 'contratos';
+  if (/^\/empresas\/\d+\/acompanhamento/.test(caminho) || /^\/acompanhamento/.test(caminho)) return 'gestao_projetos';
   if (/^\/empresas\/\d+\/formacao-custo/.test(caminho) || /^\/formacao-custo/.test(caminho)) return 'precificacao';
   const tarefaDoModulo = caminho.match(/^\/empresas\/\d+\/projeto\/tarefas\/([^/]+)$/);
   if (tarefaDoModulo) return areaDaTarefaModulo(tarefaDoModulo[1]);
@@ -3344,6 +3345,74 @@ router.post('/empresas/:id/parceiros/refinar-regime', async (req, res) => {
 router.delete('/base-regime', (req, res) => {
   try { ok(res, { removidos: baseRegime.limpar(req.query.regime, req.query.ano) }); }
   catch (e) { erro(res, e); }
+});
+
+// ============ MÓDULO DE ACOMPANHAMENTO ============
+// Acompanhamento só compara fotografias persistidas. Ele não chama o motor
+// fiscal, não atualiza cenário e jamais substitui o baseline aprovado.
+const acompanhamento = require('../services/acompanhamento');
+const perfilOficialAcompanhamento = (empresaId) => db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=? ORDER BY competencia').all(empresaId);
+const baselineAcompanhamento = (id) => db.prepare('SELECT * FROM monitoring_baselines WHERE id=?').get(id);
+const snapshotAcompanhamento = (id) => db.prepare('SELECT * FROM monitoring_snapshots WHERE id=?').get(id);
+
+router.get('/empresas/:id/acompanhamento', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const baselines = db.prepare('SELECT * FROM monitoring_baselines WHERE empresa_id=? ORDER BY versao DESC').all(req.params.id);
+    const snapshots = db.prepare('SELECT * FROM monitoring_snapshots WHERE empresa_id=? ORDER BY periodo DESC,id DESC').all(req.params.id);
+    const comparacoes = db.prepare(`SELECT c.*, b.versao baseline_versao, s.periodo snapshot_periodo FROM monitoring_comparisons c
+      JOIN monitoring_baselines b ON b.id=c.baseline_id JOIN monitoring_snapshots s ON s.id=c.snapshot_id WHERE c.empresa_id=? ORDER BY c.id DESC`).all(req.params.id);
+    const desvios = comparacoes.length ? db.prepare(`SELECT d.* FROM monitoring_deviations d WHERE d.comparison_id IN (${comparacoes.map(() => '?').join(',')}) ORDER BY d.id DESC`).all(...comparacoes.map((x) => x.id)) : [];
+    ok(res, { baselines: baselines.map((x) => ({ ...x, indicadores: acompanhamento.json(x.indicadores_aprovados), memoria: acompanhamento.json(x.memoria) })), snapshots: snapshots.map((x) => ({ ...x, indicadores: acompanhamento.json(x.indicadores_realizados), memoria: acompanhamento.json(x.memoria) })), comparacoes, desvios: desvios.map((x) => ({ ...x, memoria: acompanhamento.json(x.memoria) })) });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/acompanhamento/baselines', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const b = req.body || {}, empresaId = Number(req.params.id);
+    const anterior = db.prepare('SELECT MAX(versao) versao FROM monitoring_baselines WHERE empresa_id=?').get(empresaId);
+    const indicadores = b.indicadores || acompanhamento.indicadoresPerfil(perfilOficialAcompanhamento(empresaId));
+    const versao = Number(anterior?.versao || 0) + 1;
+    const memoria = { tipo: 'BASELINE_APROVADO', fonte: b.origem || 'PERFIL_CBS_OFICIAL', indicadores, observacao: 'Fotografia congelada; alterações futuras geram nova versão.' };
+    const r = db.prepare(`INSERT INTO monitoring_baselines (empresa_id,versao,data_aprovacao,origem,descricao,cenario_referencia,premissas_aprovadas,indicadores_aprovados,composicao_fornecedores,composicao_clientes,classificacoes_esperadas,recomendacoes_aprovadas,natureza,memoria) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(empresaId, versao, b.data_aprovacao || new Date().toISOString(), b.origem || 'PERFIL_CBS_OFICIAL', b.descricao || '', b.cenario_referencia || '', acompanhamento.stringify(b.premissas_aprovadas), acompanhamento.stringify(indicadores), acompanhamento.stringify(b.composicao_fornecedores), acompanhamento.stringify(b.composicao_clientes), acompanhamento.stringify(b.classificacoes_esperadas), acompanhamento.stringify(b.recomendacoes_aprovadas), b.natureza || 'CALCULADO', acompanhamento.stringify(memoria));
+    auditar(req, { empresaId, acao: 'Criou baseline de acompanhamento', entidade: 'monitoring_baseline', entidadeId: r.lastInsertRowid, depois: { versao, origem: b.origem || 'PERFIL_CBS_OFICIAL' } });
+    ok(res, { baseline: baselineAcompanhamento(r.lastInsertRowid) });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/acompanhamento/snapshots', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const b = req.body || {}, empresaId = Number(req.params.id);
+    if (!b.periodo) throw new Error('Informe o período da fotografia realizada.');
+    const indicadores = b.indicadores || acompanhamento.indicadoresPerfil(perfilOficialAcompanhamento(empresaId).filter((x) => !b.periodo || x.competencia === b.periodo));
+    const memoria = { tipo: 'FOTOGRAFIA_REALIZADA', fonte: b.origem || 'PLATAFORMA', periodo: b.periodo, indicadores };
+    const r = db.prepare(`INSERT INTO monitoring_snapshots (empresa_id,periodo,origem,natureza,indicadores_realizados,composicao_fornecedores,composicao_clientes,classificacoes_reais,cobertura_dados,memoria) VALUES (?,?,?,?,?,?,?,?,?,?)`).run(empresaId, b.periodo, b.origem || 'PLATAFORMA', b.natureza || 'CALCULADO', acompanhamento.stringify(indicadores), acompanhamento.stringify(b.composicao_fornecedores), acompanhamento.stringify(b.composicao_clientes), acompanhamento.stringify(b.classificacoes_reais), acompanhamento.stringify(b.cobertura_dados), acompanhamento.stringify(memoria));
+    auditar(req, { empresaId, acao: 'Registrou fotografia realizada', entidade: 'monitoring_snapshot', entidadeId: r.lastInsertRowid, depois: { periodo: b.periodo, origem: b.origem || 'PLATAFORMA' } });
+    ok(res, { snapshot: snapshotAcompanhamento(r.lastInsertRowid) });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/acompanhamento/comparacoes', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const baseline = baselineAcompanhamento(req.body.baseline_id), snapshot = snapshotAcompanhamento(req.body.snapshot_id);
+    if (!baseline || baseline.empresa_id !== Number(req.params.id)) throw new Error('Baseline não encontrado para esta empresa.');
+    if (!snapshot || snapshot.empresa_id !== Number(req.params.id)) throw new Error('Fotografia realizada não encontrada para esta empresa.');
+    const resultado = acompanhamento.comparar(baseline, snapshot);
+    const memoria = { baseline_id: baseline.id, snapshot_id: snapshot.id, resultado: resultado.status, regra: 'PREVISTO_X_REALIZADO' };
+    const r = db.prepare('INSERT OR REPLACE INTO monitoring_comparisons (empresa_id,baseline_id,snapshot_id,status,memoria) VALUES (?,?,?,?,?)').run(Number(req.params.id), baseline.id, snapshot.id, resultado.status, acompanhamento.stringify(memoria));
+    const comparacao = db.prepare('SELECT id FROM monitoring_comparisons WHERE baseline_id=? AND snapshot_id=?').get(baseline.id, snapshot.id);
+    db.prepare('DELETE FROM monitoring_deviations WHERE comparison_id=?').run(comparacao.id);
+    const inserir = db.prepare(`INSERT INTO monitoring_deviations (comparison_id,metrica,tipo,baseline_valor,realizado_valor,diferenca_absoluta,diferenca_percentual,status,causa,evidencia,acao_sugerida,natureza,memoria) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    db.transaction(() => resultado.desvios.forEach((d) => inserir.run(comparacao.id,d.metrica,d.tipo,d.baseline_valor,d.realizado_valor,d.diferenca_absoluta,d.diferenca_percentual,d.status,d.causa,d.evidencia,d.acao_sugerida,d.natureza,acompanhamento.stringify(acompanhamento.memoria(baseline,snapshot,d)))))();
+    ok(res, { comparison_id: comparacao.id, status: resultado.status, desvios: resultado.desvios });
+  } catch (e) { erro(res, e); }
+});
+
+router.get('/acompanhamento/desvios/:id/memoria', (req, res) => {
+  try { const d = db.prepare('SELECT * FROM monitoring_deviations WHERE id=?').get(req.params.id); if (!d) throw new Error('Desvio não encontrado.'); ok(res, { desvio: d, memoria: acompanhamento.json(d.memoria) }); } catch (e) { erro(res, e); }
 });
 
 module.exports = router;

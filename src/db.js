@@ -191,6 +191,54 @@ CREATE TABLE IF NOT EXISTS perfil_cbs_competencias (
 );
 CREATE INDEX IF NOT EXISTS ix_perfil_cbs_empresa_competencia ON perfil_cbs_competencias(empresa_id, competencia);
 
+-- ============ MÓDULO 5 — ACOMPANHAMENTO ============
+-- Baseline e realizado são fotografias independentes. Nenhuma delas altera o
+-- motor ou reescreve a outra: a comparação apenas evidencia o desvio.
+CREATE TABLE IF NOT EXISTS monitoring_baselines (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  versao INTEGER NOT NULL, data_aprovacao TEXT NOT NULL,
+  origem TEXT NOT NULL, descricao TEXT, cenario_referencia TEXT,
+  premissas_aprovadas TEXT, indicadores_aprovados TEXT NOT NULL,
+  composicao_fornecedores TEXT, composicao_clientes TEXT,
+  classificacoes_esperadas TEXT, recomendacoes_aprovadas TEXT,
+  natureza TEXT NOT NULL DEFAULT 'CALCULADO', memoria TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, versao)
+);
+CREATE INDEX IF NOT EXISTS ix_monitoring_baselines_empresa ON monitoring_baselines(empresa_id, versao DESC);
+
+CREATE TABLE IF NOT EXISTS monitoring_snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  periodo TEXT NOT NULL, origem TEXT NOT NULL, natureza TEXT NOT NULL DEFAULT 'REAL',
+  indicadores_realizados TEXT NOT NULL, composicao_fornecedores TEXT,
+  composicao_clientes TEXT, classificacoes_reais TEXT, cobertura_dados TEXT,
+  memoria TEXT, criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, periodo, origem)
+);
+CREATE INDEX IF NOT EXISTS ix_monitoring_snapshots_empresa ON monitoring_snapshots(empresa_id, periodo DESC);
+
+CREATE TABLE IF NOT EXISTS monitoring_comparisons (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  baseline_id INTEGER NOT NULL REFERENCES monitoring_baselines(id) ON DELETE RESTRICT,
+  snapshot_id INTEGER NOT NULL REFERENCES monitoring_snapshots(id) ON DELETE CASCADE,
+  status TEXT NOT NULL, memoria TEXT, criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(baseline_id, snapshot_id)
+);
+
+CREATE TABLE IF NOT EXISTS monitoring_deviations (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  comparison_id INTEGER NOT NULL REFERENCES monitoring_comparisons(id) ON DELETE CASCADE,
+  metrica TEXT NOT NULL, tipo TEXT NOT NULL, baseline_valor REAL,
+  realizado_valor REAL, diferenca_absoluta REAL, diferenca_percentual REAL,
+  status TEXT NOT NULL, causa TEXT, evidencia TEXT, acao_sugerida TEXT,
+  natureza TEXT NOT NULL DEFAULT 'CALCULADO', memoria TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_monitoring_deviations_comparison ON monitoring_deviations(comparison_id, tipo);
+
 -- ============ PARCEIROS (clientes e fornecedores) ============
 CREATE TABLE IF NOT EXISTS parceiros (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

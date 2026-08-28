@@ -41,6 +41,10 @@ const CAMPOS = {
   contrato_precificacao_vinculos: ['id','contrato_id','tipo_item','item_precificacao_id','pricing_simulacao_id','status','origem','observacoes','confirmado_em','criado_em'],
   contrato_recomendacoes: ['id','contrato_id','risco_id','clausula_id','recomendacao','evidencia','impacto_potencial','prioridade','fundamento','natureza','origem','criado_em'],
   contrato_sugestoes_clausulas: ['id','contrato_id','risco_id','clausula_original','sugestao_redacao','motivo','impacto_esperado','fundamento','natureza','status','criado_em'],
+  monitoring_baselines: ['id','empresa_id','versao','data_aprovacao','origem','descricao','cenario_referencia','premissas_aprovadas','indicadores_aprovados','composicao_fornecedores','composicao_clientes','classificacoes_esperadas','recomendacoes_aprovadas','natureza','memoria','criado_em'],
+  monitoring_snapshots: ['id','empresa_id','periodo','origem','natureza','indicadores_realizados','composicao_fornecedores','composicao_clientes','classificacoes_reais','cobertura_dados','memoria','criado_em'],
+  monitoring_comparisons: ['id','empresa_id','baseline_id','snapshot_id','status','memoria','criado_em'],
+  monitoring_deviations: ['id','comparison_id','metrica','tipo','baseline_valor','realizado_valor','diferenca_absoluta','diferenca_percentual','status','causa','evidencia','acao_sugerida','natureza','memoria','criado_em'],
 };
 const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','servicos','combos','combo_itens'];
 const TABELAS_PRECIFICACAO = ['pricing_products','pricing_services','pricing_components','pricing_import_batches'];
