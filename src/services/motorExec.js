@@ -13,6 +13,7 @@ const motor = require('../engine/motor');
 const { simplesEfetivo } = require('../engine/reconstrucao');
 const regras = require('./regras');
 const excecoesMotor = require('./excecoesMotor');
+const autonomiaTelemetry = require('./autonomiaTelemetry');
 const crypto = require('crypto');
 
 // A versão é gravada em cada resultado para permitir invalidar apenas as
@@ -406,22 +407,37 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
   const ins = db.prepare(`INSERT INTO motor_resultados (empresa_id, movimento_id, execucao_id, sentido, ano,
     status_classificacao, status_credito, natureza, preco_atual, base_economica, ibs, cbs,
     credito_ibs, credito_cbs, tipo_credito, modalidade_credito, status_credito_determinacao, movimento_hash, regra_version, catalogo_version, parceiro_version, parametro_version, motor_version, regime_cbs_emitente, regime_cbs_adquirente, preco_projetado, custo_liquido, cst, cclasstrib, tratamento,
-    perfil_destinatario, sensibilidade, detalhe)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    perfil_destinatario, sensibilidade, estado_autonomia, codigo_causa, origem_resolucao, evidencia_utilizada, regra_vencedora, requer_intervencao_humana, motivo_intervencao, detalhe)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   db.transaction(() => {
     for (const x of linhas) {
       const movimento = db.prepare('SELECT * FROM movimentos WHERE id=?').get(x.movimento_id) || {};
       const parceiro = db.prepare('SELECT * FROM parceiros WHERE empresa_id=? AND cnpj=? AND tipo=?').get(empresaId, movimento.inscr_federal || '', movimento.tipo || '');
       const versoes = versoesDaOperacao(movimento, parceiro);
+      const telemetria = autonomiaTelemetry.avaliar({
+        ...x, detalhe: x, status_classificacao: x.classificacao?.status,
+        status_credito_determinacao: x.credito?.statusDeterminacao,
+        status_credito: x.credito?.status, regra_version: versoes.regra_version,
+      });
       ins.run(empresaId, x.movimento_id, id, x.sentido, ano,
         x.classificacao.status, x.credito.status, x.natureza,
         x.precoAtual, x.baseEconomica, x.ibs, x.cbs, x.creditoIbs, x.creditoCbs, x.credito.tipoCredito || null, x.credito.modalidadeCredito || null, x.credito.statusDeterminacao || null,
         hashMovimento(movimento), versoes.regra_version, versoes.catalogo_version, hashParceiro(parceiro), versoes.parametro_version, versoes.motor_version, x.regimeCbsEmitente || null, x.regimeCbsAdquirente || null,
         x.precoProjetado, x.custoLiquido, x.classificacao.cst, x.classificacao.cclasstrib,
         x.classificacao.tratamento, x.destinatario ? x.destinatario.perfil : null,
-        x.sensibilidade ? x.sensibilidade.nivel : null, JSON.stringify(x));
+        x.sensibilidade ? x.sensibilidade.nivel : null,
+        telemetria.estado_autonomia, telemetria.codigo_causa, telemetria.origem_resolucao,
+        telemetria.evidencia_utilizada, telemetria.regra_vencedora, telemetria.requer_intervencao_humana,
+        telemetria.motivo_intervencao, JSON.stringify(x));
     }
   })();
+  const linhasTelemetria = db.prepare('SELECT * FROM motor_resultados WHERE empresa_id=? AND execucao_id=?').all(empresaId, id);
+  const consolidadoAutonomia = autonomiaTelemetry.consolidar(linhasTelemetria);
+  db.prepare(`INSERT INTO telemetria_autonomia_execucoes
+    (execucao_id,empresa_id,meta_autonomia,total_operacoes,operacoes_autonomas,operacoes_intervencao,taxa_autonomia,taxa_determinacao,taxa_simulacao,taxa_indeterminacao_automatica,taxa_intervencao_humana,estados_json,atualizado_em)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(execucao_id) DO UPDATE SET total_operacoes=excluded.total_operacoes,operacoes_autonomas=excluded.operacoes_autonomas,operacoes_intervencao=excluded.operacoes_intervencao,taxa_autonomia=excluded.taxa_autonomia,taxa_determinacao=excluded.taxa_determinacao,taxa_simulacao=excluded.taxa_simulacao,taxa_indeterminacao_automatica=excluded.taxa_indeterminacao_automatica,taxa_intervencao_humana=excluded.taxa_intervencao_humana,estados_json=excluded.estados_json,atualizado_em=excluded.atualizado_em`)
+    .run(id, empresaId, consolidadoAutonomia.meta_autonomia, consolidadoAutonomia.total_operacoes, consolidadoAutonomia.operacoes_autonomas, consolidadoAutonomia.operacoes_intervencao, consolidadoAutonomia.taxa_autonomia, consolidadoAutonomia.taxa_determinacao, consolidadoAutonomia.taxa_simulacao, consolidadoAutonomia.taxa_indeterminacao_automatica, consolidadoAutonomia.taxa_intervencao_humana, JSON.stringify(consolidadoAutonomia.estados), new Date().toISOString());
   // A classificação e a reconstrução já foram tentadas pelo motor. Só agora
   // persistimos o que realmente ficou pendente, priorizado por materialidade.
   // Isso permite operar por exceção, sem revisão manual de toda a carteira.

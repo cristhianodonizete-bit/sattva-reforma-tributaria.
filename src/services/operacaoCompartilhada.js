@@ -12,6 +12,8 @@ const CAMPOS = {
   formacao_custo_itens: ['id','empresa_id','codigo','descricao','tipo','sku','gtin','ncm','nbs','unidade','centro_custo','despesas_variaveis','movimento_saida_id','ativo','status_formacao_custo','origem','criado_em','atualizado_em'],
   formacao_custo_componentes: ['id','item_formacao_id','movimento_id','codigo_origem','descricao_origem','relacionamento','criterio_rateio','percentual_rateio','quantidade','unidade','status_alocacao_credito','observacoes','criado_em','atualizado_em'],
   excecoes_motor: ['id','empresa_id','movimento_id','execucao_id','codigo','categoria','gravidade','status','natureza','origem','valor_envolvido','impacto_cbs_estimado','materialidade','detalhe','criado_em','atualizado_em','resolvido_em'],
+  excecoes_motor_execucoes: ['id','empresa_id','execucao_id','movimento_id','codigo','categoria','gravidade','status','natureza','origem','valor_envolvido','impacto_cbs_estimado','materialidade','detalhe','criado_em'],
+  telemetria_autonomia_execucoes: ['execucao_id','empresa_id','meta_autonomia','total_operacoes','operacoes_autonomas','operacoes_intervencao','taxa_autonomia','taxa_determinacao','taxa_simulacao','taxa_indeterminacao_automatica','taxa_intervencao_humana','estados_json','criado_em','atualizado_em'],
   processamentos_carteira: ['id','tipo','status','total_empresas','processadas','automaticas','com_premissas','com_excecoes','bloqueadas','iniciado_em','concluido_em','criado_em'],
   processamentos_carteira_itens: ['id','processamento_id','empresa_id','status','motivo','itens_processados','excecoes_abertas','iniciado_em','concluido_em'],
   perfil_cbs_competencias: ['id','empresa_id','competencia','receita_bruta','compras_brutas','base_economica_saidas','base_economica_entradas','cbs_debito','cbs_credito','cbs_liquida','aliquota_efetiva_cbs_saida','taxa_recuperacao_cbs_entrada','receita_tributacao_integral','receita_reducao_cbs','receita_aliquota_zero_cbs','receita_imunidade_cbs','receita_regime_especifico_cbs','receita_beneficio_governo_cbs','receita_tratamento_indeterminado_cbs','compras_credito_normal','compras_credito_limitado','compras_credito_simples','compras_credito_presumido','compras_sem_credito','compras_credito_indeterminado','cobertura_classificacao_cbs','cobertura_base_economica','cobertura_credito_cbs','percentual_real','percentual_calculado','percentual_simulado','percentual_indeterminado','quantidade_documentos','quantidade_operacoes','motor_execucao_id','atualizado_em'],
@@ -211,14 +213,28 @@ async function publicarResultadosMotor(empresaId = null) {
     .map((x) => ({ id: x.id, empresa_id: x.empresa_id, movimento_id: x.movimento_id, dados: x,
       tipo_credito: x.tipo_credito, modalidade_credito: x.modalidade_credito,
       status_credito_determinacao: x.status_credito_determinacao,
-      regime_cbs_emitente: x.regime_cbs_emitente, regime_cbs_adquirente: x.regime_cbs_adquirente }));
+      regime_cbs_emitente: x.regime_cbs_emitente, regime_cbs_adquirente: x.regime_cbs_adquirente,
+      estado_autonomia: x.estado_autonomia, codigo_causa: x.codigo_causa,
+      origem_resolucao: x.origem_resolucao, requer_intervencao_humana: x.requer_intervencao_humana }));
   for (const [tabela, linhas] of [['motor_execucoes_operacionais', execucoes], ['motor_resultados_operacionais', resultados]]) {
     for (let i = 0; i < linhas.length; i += 500) {
       const { error } = await remoto.from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: 'id' });
       if (error) throw new Error(`${tabela}: ${error.message}`);
     }
   }
-  return { execucoes: execucoes.length, resultados: resultados.length };
+  const telemetrias = db.prepare(`SELECT * FROM telemetria_autonomia_execucoes${filtro}`).all(...parametros);
+  const excecoesExecucao = db.prepare(`SELECT * FROM excecoes_motor_execucoes${filtro}`).all(...parametros);
+  if (telemetrias.length) {
+    const { error } = await remoto.from('telemetria_autonomia_execucoes').upsert(telemetrias, { onConflict: 'execucao_id' });
+    if (error) throw new Error(`telemetria_autonomia_execucoes: ${error.message}`);
+  }
+  if (excecoesExecucao.length) {
+    for (let i = 0; i < excecoesExecucao.length; i += 500) {
+      const { error } = await remoto.from('excecoes_motor_execucoes').upsert(excecoesExecucao.slice(i, i + 500), { onConflict: 'empresa_id,execucao_id,movimento_id,codigo' });
+      if (error) throw new Error(`excecoes_motor_execucoes: ${error.message}`);
+    }
+  }
+  return { execucoes: execucoes.length, resultados: resultados.length, telemetrias: telemetrias.length, excecoes_execucao: excecoesExecucao.length };
 }
 // Parâmetros fiscais e de cálculo podem ser restaurados isoladamente do resto
 // do cache. É usado antes de a aplicação entregar qualquer alíquota à tela ou

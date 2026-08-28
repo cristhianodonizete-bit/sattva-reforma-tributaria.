@@ -47,6 +47,8 @@ const COLUNAS_NOVAS = {
     cenario_id: 'INTEGER', grupo_origem: 'TEXT', fracao: 'REAL DEFAULT 1',
     tipo_credito: 'TEXT', modalidade_credito: 'TEXT', status_credito_determinacao: 'TEXT', regime_cbs_emitente: 'TEXT', regime_cbs_adquirente: 'TEXT',
     movimento_hash: 'TEXT', regra_version: 'TEXT', catalogo_version: 'TEXT', parceiro_version: 'TEXT', parametro_version: 'TEXT', motor_version: 'TEXT',
+    estado_autonomia: 'TEXT', codigo_causa: 'TEXT', origem_resolucao: 'TEXT', evidencia_utilizada: 'TEXT', regra_vencedora: 'TEXT',
+    requer_intervencao_humana: 'INTEGER DEFAULT 0', motivo_intervencao: 'TEXT',
   },
   jobs_carteira: { proxima_tentativa_em: 'TEXT', resultado: 'TEXT' },
   param_regimes: { credito_cbs_simples_referencia: 'REAL' },
@@ -869,10 +871,29 @@ CREATE TABLE IF NOT EXISTS motor_resultados (
   preco_projetado REAL, custo_liquido REAL,
   cst TEXT, cclasstrib TEXT, tratamento TEXT,
   perfil_destinatario TEXT, sensibilidade TEXT,
+  estado_autonomia TEXT, codigo_causa TEXT, origem_resolucao TEXT,
+  evidencia_utilizada TEXT, regra_vencedora TEXT,
+  requer_intervencao_humana INTEGER DEFAULT 0, motivo_intervencao TEXT,
   detalhe TEXT,                          -- JSON completo para rastreabilidade
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_motor ON motor_resultados(empresa_id, execucao_id, sentido);
+CREATE INDEX IF NOT EXISTS ix_motor_autonomia ON motor_resultados(empresa_id, execucao_id, estado_autonomia, requer_intervencao_humana);
+
+-- Telemetria operacional: estados de autonomia não substituem natureza fiscal.
+CREATE TABLE IF NOT EXISTS telemetria_autonomia_execucoes (
+  execucao_id INTEGER PRIMARY KEY REFERENCES motor_execucoes(id) ON DELETE CASCADE,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  meta_autonomia REAL NOT NULL DEFAULT 0.95,
+  total_operacoes INTEGER NOT NULL DEFAULT 0,
+  operacoes_autonomas INTEGER NOT NULL DEFAULT 0,
+  operacoes_intervencao INTEGER NOT NULL DEFAULT 0,
+  taxa_autonomia REAL, taxa_determinacao REAL, taxa_simulacao REAL,
+  taxa_indeterminacao_automatica REAL, taxa_intervencao_humana REAL,
+  estados_json TEXT NOT NULL DEFAULT '{}', criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_telemetria_autonomia_empresa_execucao ON telemetria_autonomia_execucoes(empresa_id, execucao_id DESC);
 
 -- Central persistida de exceções: o motor continua calculando tudo que tem
 -- evidência suficiente e envia somente os casos não resolvidos para análise.
@@ -899,6 +920,22 @@ CREATE TABLE IF NOT EXISTS excecoes_motor (
   UNIQUE(empresa_id, movimento_id, codigo)
 );
 CREATE INDEX IF NOT EXISTS ix_excecoes_motor_empresa_status ON excecoes_motor(empresa_id, status, materialidade DESC);
+
+-- Fotografia imutável da Central de Exceções por execução. A tabela histórica
+-- anterior permanece intacta; esta evita que a execução mais recente regrave
+-- ou se confunda com pendências produzidas por uma execução anterior.
+CREATE TABLE IF NOT EXISTS excecoes_motor_execucoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  execucao_id INTEGER NOT NULL REFERENCES motor_execucoes(id) ON DELETE CASCADE,
+  movimento_id INTEGER,
+  codigo TEXT NOT NULL, categoria TEXT NOT NULL, gravidade TEXT DEFAULT 'media',
+  status TEXT NOT NULL DEFAULT 'ABERTA', natureza TEXT DEFAULT 'INDETERMINADO', origem TEXT DEFAULT 'MOTOR',
+  valor_envolvido REAL DEFAULT 0, impacto_cbs_estimado REAL, materialidade REAL DEFAULT 0,
+  detalhe TEXT, criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, execucao_id, movimento_id, codigo)
+);
+CREATE INDEX IF NOT EXISTS ix_excecoes_execucao_ativa ON excecoes_motor_execucoes(empresa_id, execucao_id, status, materialidade DESC);
 
 -- Fila durável local espelhada no Supabase. O worker sempre usa claim e
 -- heartbeat; a memória da instância jamais é a fonte de verdade do job.

@@ -54,49 +54,64 @@ function candidatas(linha) {
 function sincronizar(empresaId, execucaoId) {
   const linhas = db.prepare('SELECT * FROM motor_resultados WHERE empresa_id=? AND execucao_id=?').all(empresaId, execucaoId);
   const agora = new Date().toISOString();
-  const abertas = new Set();
-  const salvar = db.prepare(`INSERT INTO excecoes_motor
+  const salvarHistorico = db.prepare(`INSERT INTO excecoes_motor
     (empresa_id,movimento_id,execucao_id,codigo,categoria,gravidade,status,natureza,origem,valor_envolvido,impacto_cbs_estimado,materialidade,detalhe,criado_em,atualizado_em)
     VALUES (?,?,?,?,?,?, 'ABERTA',?,?,?,?,?,?,?,?)
     ON CONFLICT(empresa_id,movimento_id,codigo) DO UPDATE SET
       execucao_id=excluded.execucao_id,categoria=excluded.categoria,gravidade=excluded.gravidade,status='ABERTA',natureza=excluded.natureza,origem=excluded.origem,
       valor_envolvido=excluded.valor_envolvido,impacto_cbs_estimado=excluded.impacto_cbs_estimado,materialidade=excluded.materialidade,detalhe=excluded.detalhe,atualizado_em=excluded.atualizado_em,resolvido_em=NULL`);
 
+  const salvarExecucao = db.prepare(`INSERT INTO excecoes_motor_execucoes
+    (empresa_id,execucao_id,movimento_id,codigo,categoria,gravidade,status,natureza,origem,valor_envolvido,impacto_cbs_estimado,materialidade,detalhe,criado_em)
+    VALUES (?,?,?,?,?,?, 'ABERTA',?,?,?,?,?,?,?)
+    ON CONFLICT(empresa_id,execucao_id,movimento_id,codigo) DO UPDATE SET
+      categoria=excluded.categoria,gravidade=excluded.gravidade,status='ABERTA',natureza=excluded.natureza,origem=excluded.origem,
+      valor_envolvido=excluded.valor_envolvido,impacto_cbs_estimado=excluded.impacto_cbs_estimado,materialidade=excluded.materialidade,detalhe=excluded.detalhe`);
+
   db.transaction(() => {
     for (const linha of linhas) {
       for (const x of candidatas(linha)) {
-        const chave = `${linha.movimento_id}:${x.codigo}`;
-        abertas.add(chave);
         const valor = Math.abs(n(linha.preco_atual));
         const impacto = Math.abs(n(linha.cbs)) + Math.abs(n(linha.credito_cbs));
-        salvar.run(empresaId, linha.movimento_id, execucaoId, x.codigo, x.categoria, x.gravidade,
+        const payload = JSON.stringify({ mensagem: x.texto, motor_resultado_id: linha.id, status_classificacao: linha.status_classificacao,
+          status_credito: linha.status_credito_determinacao || linha.status_credito, natureza: linha.natureza });
+        salvarHistorico.run(empresaId, linha.movimento_id, execucaoId, x.codigo, x.categoria, x.gravidade,
           linha.natureza || 'INDETERMINADO', x.origem, r2(valor), r2(impacto), r2(Math.max(valor, impacto)),
-          JSON.stringify({ mensagem: x.texto, motor_resultado_id: linha.id, status_classificacao: linha.status_classificacao,
-            status_credito: linha.status_credito_determinacao || linha.status_credito, natureza: linha.natureza }), agora, agora);
+          payload, agora, agora);
+        salvarExecucao.run(empresaId, execucaoId, linha.movimento_id, x.codigo, x.categoria, x.gravidade,
+          linha.natureza || 'INDETERMINADO', x.origem, r2(valor), r2(impacto), r2(Math.max(valor, impacto)), payload, agora);
       }
     }
-    const existentes = db.prepare("SELECT id,movimento_id,codigo FROM excecoes_motor WHERE empresa_id=? AND status='ABERTA'").all(empresaId);
-    const fechar = db.prepare("UPDATE excecoes_motor SET status='RESOLVIDA_AUTOMATICAMENTE', atualizado_em=?, resolvido_em=? WHERE id=?");
-    for (const x of existentes) if (!abertas.has(`${x.movimento_id}:${x.codigo}`)) fechar.run(agora, agora, x.id);
   })();
-  return resumo(empresaId);
+  return resumo(empresaId, execucaoId);
 }
 
-function resumo(empresaId) {
+function execucaoAtiva(empresaId) {
+  return db.prepare('SELECT id FROM motor_execucoes WHERE empresa_id=? ORDER BY id DESC LIMIT 1').get(empresaId)?.id || null;
+}
+
+function resumo(empresaId, execucaoInformada = null) {
+  const execucaoId = execucaoInformada || execucaoAtiva(empresaId);
+  if (!execucaoId) return { execucao_ativa: null, abertas: 0, valor_envolvido: 0, impacto_cbs_estimado: 0, por_categoria: [] };
   const abertas = db.prepare(`SELECT COUNT(*) quantidade, COALESCE(SUM(valor_envolvido),0) valor, COALESCE(SUM(impacto_cbs_estimado),0) impacto
-    FROM excecoes_motor WHERE empresa_id=? AND status='ABERTA'`).get(empresaId);
+    FROM excecoes_motor_execucoes WHERE empresa_id=? AND execucao_id=? AND status='ABERTA'`).get(empresaId, execucaoId);
   const porCategoria = db.prepare(`SELECT categoria, gravidade, COUNT(*) quantidade, COALESCE(SUM(valor_envolvido),0) valor_envolvido,
-    COALESCE(SUM(impacto_cbs_estimado),0) impacto_cbs_estimado FROM excecoes_motor WHERE empresa_id=? AND status='ABERTA'
-    GROUP BY categoria,gravidade ORDER BY valor_envolvido DESC, impacto_cbs_estimado DESC`).all(empresaId);
-  return { abertas: abertas.quantidade || 0, valor_envolvido: r2(abertas.valor), impacto_cbs_estimado: r2(abertas.impacto), por_categoria: porCategoria };
+    COALESCE(SUM(impacto_cbs_estimado),0) impacto_cbs_estimado FROM excecoes_motor_execucoes WHERE empresa_id=? AND execucao_id=? AND status='ABERTA'
+    GROUP BY categoria,gravidade ORDER BY valor_envolvido DESC, impacto_cbs_estimado DESC`).all(empresaId, execucaoId);
+  return { execucao_ativa: execucaoId, abertas: abertas.quantidade || 0, valor_envolvido: r2(abertas.valor), impacto_cbs_estimado: r2(abertas.impacto), por_categoria: porCategoria };
 }
 
 function listar(empresaId, filtros = {}) {
-  let sql = 'SELECT * FROM excecoes_motor WHERE empresa_id=?'; const p = [empresaId];
-  if (filtros.status) { sql += ' AND status=?'; p.push(filtros.status); }
-  else sql += " AND status='ABERTA'";
-  sql += ' ORDER BY materialidade DESC, valor_envolvido DESC, id DESC LIMIT ?'; p.push(Math.min(Number(filtros.limite) || 100, 5000));
-  return db.prepare(sql).all(...p).map((x) => ({ ...x, detalhe: (() => { try { return JSON.parse(x.detalhe || '{}'); } catch (_) { return {}; } })() }));
+  const ativa = execucaoAtiva(empresaId);
+  const limite = Math.min(Number(filtros.limite) || 100, 5000);
+  const historico = String(filtros.visao || '').toLowerCase() === 'historico';
+  const tabela = historico ? 'excecoes_motor' : 'excecoes_motor_execucoes';
+  let sql = `SELECT *, ${historico ? "CASE WHEN execucao_id=? THEN status WHEN status='ABERTA' THEN 'SUPERADA_POR_NOVA_EXECUCAO' ELSE status END" : "'ABERTA'"} AS status_execucao FROM ${tabela} WHERE empresa_id=?`;
+  const p = historico ? [ativa, empresaId] : [empresaId];
+  if (!historico) { sql += ' AND execucao_id=? AND status=\'ABERTA\''; p.push(ativa); }
+  else if (filtros.status) { sql += ' AND status=?'; p.push(filtros.status); }
+  sql += ' ORDER BY materialidade DESC, valor_envolvido DESC, id DESC LIMIT ?'; p.push(limite);
+  return db.prepare(sql).all(...p).map((x) => ({ ...x, execucao_ativa: Number(x.execucao_id) === Number(ativa), detalhe: (() => { try { return JSON.parse(x.detalhe || '{}'); } catch (_) { return {}; } })() }));
 }
 
 module.exports = { sincronizar, resumo, listar, candidatas };

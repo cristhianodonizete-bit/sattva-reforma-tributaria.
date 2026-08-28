@@ -38,6 +38,7 @@ const baseRegime = require('../services/baseRegimeReceita');
 const relatorio = require('../services/relatorio');
 const perfilCbs = require('../services/perfilCbs');
 const excecoesMotor = require('../services/excecoesMotor');
+const autonomiaTelemetry = require('../services/autonomiaTelemetry');
 const coberturaDiagnostico = require('../services/coberturaDiagnostico');
 const processamentoCarteira = require('../services/processamentoCarteira');
 const supabase = require('../services/supabase');
@@ -2783,6 +2784,12 @@ router.get('/empresas/:id/excecoes', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);
     ok(res, { excecoes: excecoesMotor.listar(req.params.id, req.query), resumo: excecoesMotor.resumo(req.params.id) });
+  } catch (e) { erro(res, e); }
+});
+router.get('/empresas/:id/autonomia', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    ok(res, autonomiaTelemetry.obter(db, Number(req.params.id)));
   } catch (e) { erro(res, e); }
 });
 

@@ -99,16 +99,28 @@ async function controle(box) {
     A.ir(botao.dataset.destino);
   }; });
   box.querySelectorAll('[data-excecoes]').forEach((botao) => { botao.onclick = async () => {
-    const r = await A.api(`/empresas/${botao.dataset.excecoes}/excecoes?limite=100`);
-    A.modal({ titulo: `Exceções — ${botao.dataset.empresa}`, confirmar: null,
-      descricao: 'Somente casos não resolvidos automaticamente. A ordem é materialidade, não ordem de importação.',
-      corpo: A.tabela([
+    const [r, autonomia] = await Promise.all([
+      A.api(`/empresas/${botao.dataset.excecoes}/excecoes?limite=100`),
+      A.api(`/empresas/${botao.dataset.excecoes}/autonomia`),
+    ]);
+    const tabela = (linhas, historico = false) => A.tabela([
         { t: 'Exceção', r: (x) => `<b>${A.esc(x.categoria)}</b><div class="mini">${A.esc(x.detalhe?.mensagem || x.codigo)}</div>` },
+        ...(historico ? [{ t: 'Situação', r: (x) => `<span class="tag ${x.status_execucao === 'SUPERADA_POR_NOVA_EXECUCAO' ? 'c' : 'n'}">${A.esc(x.status_execucao || x.status)}</span>` }] : []),
         { t: 'Gravidade', r: (x) => `<span class="tag ${x.gravidade === 'alta' ? 'a' : 'n'}">${A.esc(x.gravidade)}</span>` },
         { t: 'Valor envolvido', num: true, r: (x) => A.moeda(x.valor_envolvido) },
         { t: 'Impacto CBS', num: true, r: (x) => A.moeda(x.impacto_cbs_estimado) },
-      ], r.excecoes || []),
+      ], linhas || []);
+    const m = A.modal({ titulo: `Exceções — ${botao.dataset.empresa}`, confirmar: null,
+      descricao: 'Execução ativa separada do histórico. A ordem é materialidade, não ordem de importação.',
+      corpo: `<div class="aviso neutro"><b>Execução ativa #${A.esc(r.resumo?.execucao_ativa || autonomia.execucao_id || '—')}</b> · autonomia ${A.pct(autonomia.taxa_autonomia || 0)} · ${A.esc(autonomia.operacoes_autonomas || 0)} autônomas · ${A.esc(autonomia.operacoes_intervencao || 0)} com intervenção humana.</div>
+        <p><button class="btn pq vazio" data-historico-excecoes>Ver histórico preservado</button></p><div data-lista-excecoes>${tabela(r.excecoes)}</div>`,
     });
+    m.fundo.querySelector('[data-historico-excecoes]').onclick = async (evento) => {
+      const h = await A.api(`/empresas/${botao.dataset.excecoes}/excecoes?visao=historico&limite=100`);
+      m.fundo.querySelector('[data-lista-excecoes]').innerHTML = tabela(h.excecoes, true);
+      evento.currentTarget.textContent = 'Histórico exibido (execuções antigas permanecem preservadas)';
+      evento.currentTarget.disabled = true;
+    };
   }; });
 }
 
