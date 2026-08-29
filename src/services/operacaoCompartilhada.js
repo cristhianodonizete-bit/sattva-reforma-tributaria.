@@ -159,6 +159,10 @@ async function baixar() {
     // espelho antes da reposição elimina colisões entre IDs legados sem tocar
     // em qualquer fonte remota.
     if (tabela === 'excecoes_motor') db.prepare('DELETE FROM excecoes_motor').run();
+    // Regras governamentais também são fotografia completa. A tabela possui
+    // tanto id técnico quanto unicidade funcional; limpar o espelho evita que
+    // um ID local legado colida com uma regra remota de chave diferente.
+    if (tabela === 'regras_governo') db.prepare('DELETE FROM regras_governo').run();
     resultado[tabela] = gravar(tabela, linhas);
   }
   resultado.motor = await baixarResultadosMotor(remoto);
