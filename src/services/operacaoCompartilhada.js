@@ -71,8 +71,12 @@ function gravar(tabela, linhas) {
   // Exceções têm unicidade funcional por empresa + movimento + código; o ID
   // pode divergir entre cache e Supabase. Usar a chave errada interrompia uma
   // baixa antes da fotografia e deixava o cache local incompleto.
-  const conflito = tabela === 'excecoes_motor' ? '(empresa_id,movimento_id,codigo)' : '(id)';
-  const excluirAtualizacao = tabela === 'excecoes_motor' ? ['id','empresa_id','movimento_id','codigo'] : ['id'];
+  const conflito = tabela === 'excecoes_motor' ? '(empresa_id,movimento_id,codigo)'
+    : tabela === 'telemetria_autonomia_execucoes' ? '(execucao_id)'
+      : tabela === 'regras_governo' ? '(tipo,chave,cclasstrib)' : '(id)';
+  const excluirAtualizacao = tabela === 'excecoes_motor' ? ['id','empresa_id','movimento_id','codigo']
+    : tabela === 'telemetria_autonomia_execucoes' ? ['execucao_id']
+      : tabela === 'regras_governo' ? ['id','tipo','chave','cclasstrib'] : ['id'];
   const sql = `INSERT INTO ${tabela} (${campos.join(',')}) VALUES (${campos.map(() => '?').join(',')})
     ON CONFLICT${conflito} DO UPDATE SET ${campos.filter((x) => !excluirAtualizacao.includes(x)).map((x) => `${x}=excluded.${x}`).join(',')}`;
   const inserir = db.prepare(sql);
@@ -81,6 +85,10 @@ function gravar(tabela, linhas) {
     // PostgREST representa bytea como texto hexadecimal. Recuperar o Buffer
     // garante que o download entregue exatamente o original preservado.
     if (tabela === 'contrato_documentos' && c === 'conteudo_original' && typeof v === 'string' && v.startsWith('\\x')) return Buffer.from(v.slice(2), 'hex');
+    // O PostgREST materializa json/jsonb como objeto. SQLite armazena estes
+    // campos em TEXT; serializá-los preserva integralmente a fotografia e
+    // impede que um objeto interrompa a reposição transacional do cache.
+    if (v && typeof v === 'object' && !Buffer.isBuffer(v) && !(v instanceof Date)) return JSON.stringify(v);
     return v ?? null;
   };
   db.transaction(() => linhas.forEach((x) => inserir.run(...campos.map((c) => valorLocal(x, c)))))();
