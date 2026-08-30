@@ -24,11 +24,35 @@ function localizar(item) {
   return escolher(r.candidatos || []);
 }
 
+function candidatosDoItem(item) {
+  if (item.catalogo_fiscal && typeof item.catalogo_fiscal === 'object') return [item.catalogo_fiscal];
+  const produto = String(item.ncm || '').replace(/\D/g, '');
+  if (produto) return bases.consultarNcm(produto).candidatos || [];
+  return bases.consultarServico(item.lc116 || '', item.nbs || '').candidatos || [];
+}
+
+function motivoSemCatalogo(item) {
+  const temProduto = Boolean(String(item.ncm || '').replace(/\D/g, ''));
+  const temServico = Boolean(String(item.nbs || '').trim() || String(item.lc116 || '').trim());
+  if (!temProduto && !temServico) return 'SEM_EVIDENCIA';
+  return 'SEM_CATALOGO';
+}
+
 function resolver(item) {
   const documento = num(item.pis) + num(item.cofins);
   if (item.pis_cofins_documentado || documento > 0) return { percentual: item.valor ? documento / num(item.valor) : 0, valor: documento, origem: 'DOCUMENTO', natureza: 'REAL', metodo: 'DOCUMENTO', modoMonofasia: 'VALOR_REAL_DOCUMENTO', catalogo: null };
   const c = localizar(item);
-  if (!c) return { percentual: null, valor: null, metodo: 'SEM_CATALOGO', catalogo: null, continuar: true };
+  // Ausência de catálogo não é autorização para escolher uma carga por
+  // conveniência. A regra geral de regime continua sendo uma regra válida
+  // quando for chamada explicitamente pelo motor, mas não pode mascarar a
+  // falta de classificação/tratamento específico desta operação.
+  if (!c) return {
+    percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO',
+    metodo: 'SEM_CATALOGO', motivoIndeterminacao: candidatosDoItem(item).length > 1 ? 'MULTIPLOS_CANDIDATOS' : motivoSemCatalogo(item),
+    candidatos: candidatosDoItem(item).map((x) => ({ id: x.id || null, ncm: x.ncm || null, nbs: x.nbs || null, cclasstrib: x.cclasstrib || null })),
+    catalogo: null, continuar: item.regra_geral_regime_confirmada === true,
+    justificativa: 'Não foi localizada regra fiscal conclusiva para a operação.',
+  };
   const tratamento = texto(c.tratamento_pis_cofins).toUpperCase();
   const efetivo = texto(c.tratamento_efetivo_saida).toUpperCase();
   const condicional = texto(c.grau_determinacao).toUpperCase().includes('CONDICIONADO');
@@ -47,14 +71,19 @@ function resolver(item) {
       // resolver a operação residual.
       const condicao = texto(c.condicao_cumulatividade || c.regra_precedencia).toUpperCase();
       const condicaoMaterial = item.condicao_material_pendente === true || /IMPEDIMENTO\s+MATERIAL|BLOQUEIA[_ ]FALLBACK/.test(condicao);
-      return { percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO', metodo: 'CUMULATIVIDADE_CONDICIONADA', catalogo: c, continuar: !condicaoMaterial, condicaoMaterial,
+      return { percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO', metodo: 'CUMULATIVIDADE_CONDICIONADA', motivoIndeterminacao: condicaoMaterial ? 'REGRA_INCONCLUSIVA' : 'SEM_REGRA_APLICAVEL', catalogo: c, continuar: !condicaoMaterial, condicaoMaterial,
         justificativa: condicaoMaterial ? `Condição material pendente: ${c.condicao_cumulatividade || c.regra_precedencia || 'não informada'}.` : 'Catálogo condicional sem impedimento material explícito; seguir para a regra validada da empresa/regime.' };
     }
     return { percentual: p, valor: num(item.valor) * p, origem: 'CATALOGO_REGRA_ESPECIFICA', natureza: 'CALCULADO', metodo: 'CUMULATIVIDADE_OBRIGATORIA', catalogo: c };
   }
   // Referência da empresa e regra do regime são deliberadamente resolvidas no
   // motor, após o catálogo: assim permanecem versionadas no cadastro central.
-  return { percentual: null, valor: null, metodo: 'CATALOGO_SEM_REGRA_CONCLUSIVA', catalogo: c, continuar: true };
+  return {
+    percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO',
+    metodo: 'CATALOGO_SEM_REGRA_CONCLUSIVA', motivoIndeterminacao: 'REGRA_INCONCLUSIVA',
+    catalogo: c, continuar: false,
+    justificativa: 'O catálogo foi localizado, mas não contém regra conclusiva aplicável à operação.',
+  };
 }
 
-module.exports = { localizar, resolver };
+module.exports = { localizar, resolver, motivoSemCatalogo, candidatosDoItem };

@@ -10,7 +10,7 @@ const { reconstruir } = require('../src/engine/reconstrucao');
 const { projetarItem } = require('../src/engine/motor');
 
 // Lucro Presumido padrão: regra central, não número hardcoded no catálogo.
-let r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido' });
+let r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', regra_geral_regime_confirmada: true });
 assert.equal(r.tributosAtuais.pis, 0.65);
 assert.equal(r.tributosAtuais.cofins, 3);
 assert.equal(r.memoriaTributos.pis.origem, 'REGRA_REGIME');
@@ -19,7 +19,7 @@ assert.equal(r.memoriaTributos.pis.natureza, 'CALCULADO');
 // Catálogo condicional sem impedimento material deve continuar a precedência.
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', catalogo_fiscal: {
   cumulatividade_obrigatoria: 'SIM', grau_determinacao: 'CONDICIONADO', condicao_cumulatividade: 'depende de validação operacional',
-} });
+}, regra_geral_regime_confirmada: true });
 assert.equal(r.tributosAtuais.pis, 0.65);
 assert.equal(r.tributosAtuais.cofins, 3);
 assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'REGRA_GERAL_REGIME');
@@ -38,7 +38,7 @@ assert.equal(r.status, 'parcialmente_determinada');
 assert.equal(r.memoriaTributos.pis.status, 'INDETERMINADO');
 
 // Serviço sem ISS documental não recebe 2% por default silencioso.
-r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido' });
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', regra_geral_regime_confirmada: true });
 assert.equal(r.tributosAtuais.iss, 0);
 assert.equal(r.memoriaTributos.iss.status, 'INDETERMINADO');
 
@@ -50,7 +50,7 @@ assert.equal(r.memoriaTributos.iss.natureza, 'REAL');
 
 // CBS-only: PIS/COFINS saem, mas ISS/ICMS continuam economicamente no preço
 // enquanto IBS estiver desligado. Esse é o caso canônico 100 → 105,22.
-r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', iss: 2 }, { ibsHabilitado: false });
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', iss: 2, regra_geral_regime_confirmada: true }, { ibsHabilitado: false });
 assert.equal(r.tipoBaseEconomica, 'CBS_ONLY');
 assert.equal(r.baseEconomicaCbs, 96.35);
 assert.equal(r.baseEconomica, 96.35);
@@ -60,17 +60,17 @@ assert.equal(r.componentesPreservados.iss, 2);
 
 // ICMS documental segue a mesma regra CBS-only e só participa da base
 // integral quando o contexto IBS estiver habilitado.
-r = reconstruir({ valor: 100, tipo: 'mercadoria', regime: 'lucro_presumido', icms: 18 }, { ibsHabilitado: false });
+r = reconstruir({ valor: 100, tipo: 'mercadoria', regime: 'lucro_presumido', icms: 18, regra_geral_regime_confirmada: true }, { ibsHabilitado: false });
 assert.equal(r.baseEconomicaCbs, 96.35);
 assert.equal(r.componentesRetirados.icms, 0);
-r = reconstruir({ valor: 100, tipo: 'mercadoria', regime: 'lucro_presumido', icms: 18 }, { ibsHabilitado: true });
+r = reconstruir({ valor: 100, tipo: 'mercadoria', regime: 'lucro_presumido', icms: 18, regra_geral_regime_confirmada: true }, { ibsHabilitado: true });
 assert.equal(r.tipoBaseEconomica, 'INTEGRAL');
 assert.equal(r.baseEconomica, 78.35);
 
 // IBS desabilitado precisa resultar zero no cálculo, não apenas sumir da tela.
 db.prepare('UPDATE param_aliquotas SET calcular_ibs = 0, ibs = 0.177, cbs = 0.0921 WHERE ano = 2027').run();
 regras.invalidar();
-const p = projetarItem({ valor: 100, cfop: '5102', descricao: 'serviço', iss: 2 }, {
+const p = projetarItem({ valor: 100, cfop: '5102', descricao: 'serviço', iss: 2, regra_geral_regime_confirmada: true }, {
   sentido: 'saida', ano: 2027, empresa: { regime: 'lucro_presumido' }, regimeContraparte: 'lucro_real',
 });
 assert.equal(p.ibs, 0);

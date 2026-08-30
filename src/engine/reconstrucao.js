@@ -150,7 +150,10 @@ function reconstruir(item, contexto = {}) {
       const p = num(item.pis_cofins_referencia);
       resolucao = { percentual: p, valor: valor * p, origem: 'REFERENCIA_EMPRESA', natureza: 'CALCULADO', metodo: 'REFERENCIA_EMPRESA', catalogo: resolucao.catalogo };
     }
-    if (resolucao.percentual === null && resolucao.continuar) {
+    // A regra geral do regime é permitida somente quando o contexto a declarou
+    // como regra versionada aplicável. Isso evita que a mera ausência de um
+    // catálogo conclusivo vire, silenciosamente, uma alíquota automática.
+    if (resolucao.percentual === null && resolucao.continuar && item.regra_geral_regime_confirmada === true) {
       const p = regras.estimativaPisCofins(regime);
       if (p !== null && p !== undefined) resolucao = { percentual: p, valor: valor * p, origem: 'REGRA_REGIME', natureza: 'CALCULADO', metodo: 'REGRA_GERAL_REGIME', catalogo: resolucao.catalogo, justificativa: 'Fallback parametrizado em Regimes e crédito; aplicado após ausência de documento e regra específica conclusiva.' };
     }
@@ -167,7 +170,7 @@ function reconstruir(item, contexto = {}) {
       if (resolucao.natureza !== 'REAL') pendencias.push(`PIS/COFINS reconstruído por ${resolucao.metodo}.`);
     } else {
       pendencias.push(`PIS/COFINS não determinado: ${resolucao.metodo}.`);
-      memoriaPisCofins = { carga_atual_pis_cofins_valor: null, carga_atual_pis_cofins_percentual: null, carga_atual_pis_cofins_origem: resolucao.origem, carga_atual_pis_cofins_natureza: resolucao.natureza, modo_reconstrucao_monofasia: resolucao.modoMonofasia || 'INDETERMINADO', regime_receita: resolucao.catalogo?.regime_pis_cofins_receita || regime, tratamento_especifico: resolucao.catalogo?.tratamento_pis_cofins || 'INDETERMINADO', papel_na_cadeia: resolucao.catalogo?.papel_na_cadeia || 'INDETERMINADO', fundamento: resolucao.catalogo?.regra_precedencia || '', base_reconstrucao_metodo: resolucao.metodo, base_reconstrucao_percentual: null, base_reconstrucao_valor_excluido: 0, base_reconstrucao_fonte: resolucao.catalogo ? 'CATÁLOGO FISCAL' : '', base_reconstrucao_natureza: resolucao.natureza };
+      memoriaPisCofins = { carga_atual_pis_cofins_valor: null, carga_atual_pis_cofins_percentual: null, carga_atual_pis_cofins_origem: resolucao.origem, carga_atual_pis_cofins_natureza: resolucao.natureza, modo_reconstrucao_monofasia: resolucao.modoMonofasia || 'INDETERMINADO', regime_receita: resolucao.catalogo?.regime_pis_cofins_receita || regime, tratamento_especifico: resolucao.catalogo?.tratamento_pis_cofins || 'INDETERMINADO', papel_na_cadeia: resolucao.catalogo?.papel_na_cadeia || 'INDETERMINADO', fundamento: resolucao.catalogo?.regra_precedencia || '', base_reconstrucao_metodo: resolucao.metodo, motivo_indeterminacao: resolucao.motivoIndeterminacao || 'SEM_EVIDENCIA', evidencia_necessaria: resolucao.evidenciaNecessaria || null, candidatos_existentes: resolucao.candidatos || [], base_reconstrucao_percentual: null, base_reconstrucao_valor_excluido: 0, base_reconstrucao_fonte: resolucao.catalogo ? 'CATÁLOGO FISCAL' : '', base_reconstrucao_natureza: resolucao.natureza };
       memoriaTributos.pis = memoriaTributo({ regra: resolucao.metodo, evidencia: resolucao.catalogo ? 'Catálogo fiscal' : '', justificativa: resolucao.justificativa || 'Não houve evidência suficiente para determinar PIS.' });
       memoriaTributos.cofins = memoriaTributo({ regra: resolucao.metodo, evidencia: resolucao.catalogo ? 'Catálogo fiscal' : '', justificativa: resolucao.justificativa || 'Não houve evidência suficiente para determinar COFINS.' });
     }

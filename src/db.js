@@ -895,6 +895,64 @@ CREATE TABLE IF NOT EXISTS telemetria_autonomia_execucoes (
 );
 CREATE INDEX IF NOT EXISTS ix_telemetria_autonomia_empresa_execucao ON telemetria_autonomia_execucoes(empresa_id, execucao_id DESC);
 
+-- Evidências complementares não substituem o documento ou resultado original.
+-- Elas alimentam somente uma futura execução incremental explicitamente pedida.
+CREATE TABLE IF NOT EXISTS enriquecimento_servicos_evidencias (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL,
+  movimento_id INTEGER NOT NULL,
+  ctribnac_original TEXT,
+  lc116_canonico TEXT,
+  nbs_original TEXT,
+  indop TEXT,
+  onerosa TEXT,
+  exterior TEXT,
+  local_incidencia TEXT,
+  descricao_estruturada TEXT,
+  cclasstrib TEXT,
+  origem_evidencia TEXT NOT NULL,
+  status_validacao TEXT NOT NULL DEFAULT 'PENDENTE',
+  criado_em TEXT DEFAULT (datetime('now')),
+  UNIQUE(empresa_id, movimento_id, origem_evidencia)
+);
+
+CREATE TABLE IF NOT EXISTS enriquecimento_pis_cofins_evidencias (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL,
+  movimento_id INTEGER NOT NULL,
+  pis_documentado REAL,
+  cofins_documentada REAL,
+  cst_pis TEXT,
+  cst_cofins TEXT,
+  regime_incidencia TEXT,
+  sped_referencia TEXT,
+  referencia_fiscal_empresa_item TEXT,
+  tratamento_especifico TEXT,
+  vigencia_inicio TEXT,
+  vigencia_fim TEXT,
+  origem_evidencia TEXT NOT NULL,
+  status_validacao TEXT NOT NULL DEFAULT 'PENDENTE',
+  criado_em TEXT DEFAULT (datetime('now')),
+  UNIQUE(empresa_id, movimento_id, origem_evidencia)
+);
+
+CREATE TABLE IF NOT EXISTS pendencias_enriquecimento_fiscal (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL,
+  movimento_id INTEGER NOT NULL,
+  resultado_id INTEGER,
+  tipo_pendencia TEXT NOT NULL,
+  evidencia_necessaria TEXT NOT NULL,
+  prioridade TEXT NOT NULL DEFAULT 'MEDIA',
+  status TEXT NOT NULL DEFAULT 'ABERTA',
+  origem TEXT NOT NULL DEFAULT 'MOTOR_FISCAL',
+  detalhe TEXT,
+  criado_em TEXT DEFAULT (datetime('now')),
+  resolvido_em TEXT,
+  UNIQUE(empresa_id, movimento_id, resultado_id, tipo_pendencia, status)
+);
+CREATE INDEX IF NOT EXISTS ix_pendencias_enriquecimento_abertas ON pendencias_enriquecimento_fiscal(empresa_id,status,prioridade);
+
 -- Central persistida de exceções: o motor continua calculando tudo que tem
 -- evidência suficiente e envia somente os casos não resolvidos para análise.
 -- Não é uma nova decisão tributária; é a fila auditável dos fatos que exigem

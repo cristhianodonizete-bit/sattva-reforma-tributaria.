@@ -14,6 +14,7 @@ const { simplesEfetivo } = require('../engine/reconstrucao');
 const regras = require('./regras');
 const excecoesMotor = require('./excecoesMotor');
 const autonomiaTelemetry = require('./autonomiaTelemetry');
+const pendenciasEnriquecimento = require('./pendenciasEnriquecimento');
 const crypto = require('crypto');
 
 // A versão é gravada em cada resultado para permitir invalidar apenas as
@@ -438,6 +439,9 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(execucao_id) DO UPDATE SET total_operacoes=excluded.total_operacoes,operacoes_autonomas=excluded.operacoes_autonomas,operacoes_intervencao=excluded.operacoes_intervencao,taxa_autonomia=excluded.taxa_autonomia,taxa_determinacao=excluded.taxa_determinacao,taxa_simulacao=excluded.taxa_simulacao,taxa_indeterminacao_automatica=excluded.taxa_indeterminacao_automatica,taxa_intervencao_humana=excluded.taxa_intervencao_humana,estados_json=excluded.estados_json,atualizado_em=excluded.atualizado_em`)
     .run(id, empresaId, consolidadoAutonomia.meta_autonomia, consolidadoAutonomia.total_operacoes, consolidadoAutonomia.operacoes_autonomas, consolidadoAutonomia.operacoes_intervencao, consolidadoAutonomia.taxa_autonomia, consolidadoAutonomia.taxa_determinacao, consolidadoAutonomia.taxa_simulacao, consolidadoAutonomia.taxa_indeterminacao_automatica, consolidadoAutonomia.taxa_intervencao_humana, JSON.stringify(consolidadoAutonomia.estados), new Date().toISOString());
+  // A fila não reprocessa nem escolhe uma classificação: só materializa o
+  // dado/evidência que uma futura execução incremental deve aguardar.
+  pendenciasEnriquecimento.sincronizar(db, empresaId, id);
   // A classificação e a reconstrução já foram tentadas pelo motor. Só agora
   // persistimos o que realmente ficou pendente, priorizado por materialidade.
   // Isso permite operar por exceção, sem revisão manual de toda a carteira.
