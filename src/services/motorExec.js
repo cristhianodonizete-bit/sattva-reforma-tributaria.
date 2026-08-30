@@ -14,6 +14,7 @@ const { simplesEfetivo } = require('../engine/reconstrucao');
 const regras = require('./regras');
 const excecoesMotor = require('./excecoesMotor');
 const autonomiaTelemetry = require('./autonomiaTelemetry');
+const { avaliarDimensoes } = require('./autonomiaDimensoes');
 const pendenciasEnriquecimento = require('./pendenciasEnriquecimento');
 const crypto = require('crypto');
 
@@ -408,8 +409,8 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
   const ins = db.prepare(`INSERT INTO motor_resultados (empresa_id, movimento_id, execucao_id, sentido, ano,
     status_classificacao, status_credito, natureza, preco_atual, base_economica, ibs, cbs,
     credito_ibs, credito_cbs, tipo_credito, modalidade_credito, status_credito_determinacao, movimento_hash, regra_version, catalogo_version, parceiro_version, parametro_version, motor_version, regime_cbs_emitente, regime_cbs_adquirente, preco_projetado, custo_liquido, cst, cclasstrib, tratamento,
-    perfil_destinatario, sensibilidade, estado_autonomia, codigo_causa, origem_resolucao, evidencia_utilizada, regra_vencedora, requer_intervencao_humana, motivo_intervencao, detalhe)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    perfil_destinatario, sensibilidade, estado_autonomia, codigo_causa, origem_resolucao, evidencia_utilizada, regra_vencedora, requer_intervencao_humana, motivo_intervencao, autonomia_calculo_cbs_propria, autonomia_credito_entrada, autonomia_credito_cliente, autonomia_classificatoria, autonomia_diagnostico_completo, memoria_autonomia_dimensoes, detalhe)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   db.transaction(() => {
     for (const x of linhas) {
       const movimento = db.prepare('SELECT * FROM movimentos WHERE id=?').get(x.movimento_id) || {};
@@ -420,6 +421,9 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
         status_credito_determinacao: x.credito?.statusDeterminacao,
         status_credito: x.credito?.status, regra_version: versoes.regra_version,
       });
+      const dimensoes = avaliarDimensoes({ ...x, sentido: x.sentido, base_economica: x.baseEconomica,
+        status_credito_determinacao: x.credito?.statusDeterminacao, status_credito: x.credito?.status,
+        cclasstrib: x.classificacao?.cclasstrib });
       ins.run(empresaId, x.movimento_id, id, x.sentido, ano,
         x.classificacao.status, x.credito.status, x.natureza,
         x.precoAtual, x.baseEconomica, x.ibs, x.cbs, x.creditoIbs, x.creditoCbs, x.credito.tipoCredito || null, x.credito.modalidadeCredito || null, x.credito.statusDeterminacao || null,
@@ -429,7 +433,10 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
         x.sensibilidade ? x.sensibilidade.nivel : null,
         telemetria.estado_autonomia, telemetria.codigo_causa, telemetria.origem_resolucao,
         telemetria.evidencia_utilizada, telemetria.regra_vencedora, telemetria.requer_intervencao_humana,
-        telemetria.motivo_intervencao, JSON.stringify(x));
+        telemetria.motivo_intervencao, dimensoes.autonomia_calculo_cbs_propria == null ? null : Number(dimensoes.autonomia_calculo_cbs_propria),
+        dimensoes.autonomia_credito_entrada == null ? null : Number(dimensoes.autonomia_credito_entrada),
+        dimensoes.autonomia_credito_cliente == null ? null : Number(dimensoes.autonomia_credito_cliente),
+        dimensoes.autonomia_classificatoria, dimensoes.autonomia_diagnostico_completo == null ? null : Number(dimensoes.autonomia_diagnostico_completo), JSON.stringify(dimensoes.memoria), JSON.stringify(x));
     }
   })();
   const linhasTelemetria = db.prepare('SELECT * FROM motor_resultados WHERE empresa_id=? AND execucao_id=?').all(empresaId, id);

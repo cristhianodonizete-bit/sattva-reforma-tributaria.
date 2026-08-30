@@ -1,0 +1,22 @@
+const crypto=require('crypto');
+const ok=(v)=>v===true||v===1||v==='1';
+function avaliarDimensoes(linha,{nbsEquivalentes=false}={}){
+ const saida=String(linha.sentido||'').toLowerCase()==='saida';
+ const base=Number.isFinite(Number(linha.base_economica))&&Number(linha.base_economica)>=0;
+ const cbs=Number.isFinite(Number(linha.cbs));
+ const classificacao=Boolean(linha.cclasstrib)||nbsEquivalentes;
+ const credito=String(linha.status_credito_determinacao||linha.status_credito||'').toUpperCase();
+ const creditoEntrada=!saida&&['DETERMINADO','DETERMINADO_POR_PREMISSA','SEM_DIREITO'].includes(credito);
+ const creditoCliente=saida&&['DETERMINADO','SEM_DIREITO','NAO_APLICAVEL'].includes(credito);
+ const propria=saida&&base&&cbs&&classificacao;
+ const classificatoria=classificacao?(nbsEquivalentes&&!linha.cclasstrib?'PARCIAL':'DETERMINADA'):'INDETERMINADA';
+ const completo=saida?propria&&creditoCliente:base&&classificacao&&creditoEntrada;
+ const memoria={
+  calculo_cbs_propria:{status:propria?'DETERMINADA':'INCOMPLETA',motivo:propria?'Base, débito e tratamento CBS determinados.':'Falta base, débito ou tratamento CBS.',evidencias:nbsEquivalentes?['MULTIPLAS_NBS_EQUIVALENTES']:[],regras:['AUTONOMIA_DIMENSOES_V1']},
+  credito_cliente:{status:saida?(creditoCliente?'DETERMINADO':'INDETERMINADO'):'NAO_APLICAVEL',motivo:saida?'Crédito do adquirente não altera o débito CBS próprio.':'Operação de entrada.',evidencias:[],regras:['CREDITO_CLIENTE_NAO_BLOQUEIA_DEBITO_PROPRIO_V1']},
+  classificatoria:{status:classificatoria,motivo:nbsEquivalentes?'Múltiplas NBS equivalentes; nenhuma NBS foi escolhida.':'Classificação persistida ou indeterminada.',evidencias:[],regras:['MULTIPLAS_NBS_EQUIVALENTES_V1']}
+ };
+ memoria.hash_decisao=crypto.createHash('sha256').update(JSON.stringify(memoria)).digest('hex');
+ return {autonomia_calculo_cbs_propria:propria,autonomia_credito_entrada:saida?null:creditoEntrada,autonomia_credito_cliente:saida?creditoCliente:null,autonomia_classificatoria:classificatoria,autonomia_diagnostico_completo:completo,memoria};
+}
+module.exports={avaliarDimensoes};

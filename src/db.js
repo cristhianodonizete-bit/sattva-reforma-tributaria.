@@ -49,6 +49,8 @@ const COLUNAS_NOVAS = {
     movimento_hash: 'TEXT', regra_version: 'TEXT', catalogo_version: 'TEXT', parceiro_version: 'TEXT', parametro_version: 'TEXT', motor_version: 'TEXT',
     estado_autonomia: 'TEXT', codigo_causa: 'TEXT', origem_resolucao: 'TEXT', evidencia_utilizada: 'TEXT', regra_vencedora: 'TEXT',
     requer_intervencao_humana: 'INTEGER DEFAULT 0', motivo_intervencao: 'TEXT',
+    autonomia_calculo_cbs_propria: 'INTEGER', autonomia_credito_entrada: 'INTEGER', autonomia_credito_cliente: 'INTEGER',
+    autonomia_classificatoria: 'TEXT', autonomia_diagnostico_completo: 'INTEGER', memoria_autonomia_dimensoes: 'TEXT',
   },
   jobs_carteira: { proxima_tentativa_em: 'TEXT', resultado: 'TEXT' },
   param_regimes: { credito_cbs_simples_referencia: 'REAL' },
@@ -874,6 +876,8 @@ CREATE TABLE IF NOT EXISTS motor_resultados (
   estado_autonomia TEXT, codigo_causa TEXT, origem_resolucao TEXT,
   evidencia_utilizada TEXT, regra_vencedora TEXT,
   requer_intervencao_humana INTEGER DEFAULT 0, motivo_intervencao TEXT,
+  autonomia_calculo_cbs_propria INTEGER, autonomia_credito_entrada INTEGER, autonomia_credito_cliente INTEGER,
+  autonomia_classificatoria TEXT, autonomia_diagnostico_completo INTEGER, memoria_autonomia_dimensoes TEXT,
   detalhe TEXT,                          -- JSON completo para rastreabilidade
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
@@ -890,6 +894,8 @@ CREATE TABLE IF NOT EXISTS telemetria_autonomia_execucoes (
   operacoes_intervencao INTEGER NOT NULL DEFAULT 0,
   taxa_autonomia REAL, taxa_determinacao REAL, taxa_simulacao REAL,
   taxa_indeterminacao_automatica REAL, taxa_intervencao_humana REAL,
+  taxa_autonomia_calculo_cbs_propria REAL, taxa_autonomia_credito_entrada REAL, taxa_autonomia_credito_cliente REAL,
+  taxa_autonomia_classificatoria REAL, taxa_autonomia_diagnostico_completo REAL, dimensoes_json TEXT NOT NULL DEFAULT '{}',
   estados_json TEXT NOT NULL DEFAULT '{}', criado_em TEXT DEFAULT (datetime('now','localtime')),
   atualizado_em TEXT DEFAULT (datetime('now','localtime'))
 );
