@@ -100,6 +100,25 @@ function gravar(tabela, linhas) {
   db.transaction(() => linhas.forEach((x) => inserir.run(...campos.map((c) => valorLocal(x, c)))))();
   return linhas.length;
 }
+
+function gravarEmpresas(linhas) {
+  const inserir = db.prepare(`INSERT INTO empresas
+    (id,cnpj,razao_social,nome_fantasia,regime,uf,municipio,cnae,atividade,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes,criado_em)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET cnpj=excluded.cnpj,razao_social=excluded.razao_social,nome_fantasia=excluded.nome_fantasia,
+      regime=excluded.regime,uf=excluded.uf,municipio=excluded.municipio,cnae=excluded.cnae,atividade=excluded.atividade,
+      faturamento_anual=excluded.faturamento_anual,setor=excluded.setor,reducao_padrao=excluded.reducao_padrao,
+      codigo_questor=excluded.codigo_questor,observacoes=excluded.observacoes,criado_em=excluded.criado_em`);
+  db.transaction(() => linhas.forEach((empresa) => {
+    const id = Number(empresa.origem_local_id || empresa.id);
+    if (!id) return;
+    inserir.run(id, String(empresa.cnpj || '').replace(/\D/g, ''), empresa.razao_social || 'Empresa sem razão social',
+      empresa.nome_fantasia || '', empresa.regime || 'lucro_real', empresa.uf || '', empresa.municipio || '', empresa.cnae || '',
+      empresa.atividade || '', Number(empresa.faturamento_anual) || 0, empresa.setor || '', empresa.reducao_padrao || 'integral',
+      empresa.codigo_questor || '', empresa.observacoes || '', empresa.criado_em || null);
+  }))();
+  return linhas.length;
+}
 function gravarConfiguracao(tabela, linhas) {
   const colunas = db.prepare(`PRAGMA table_info(${tabela})`).all().map((x) => x.name);
   if (!colunas.length) return;
@@ -168,7 +187,7 @@ async function baixar() {
     // tanto id técnico quanto unicidade funcional; limpar o espelho evita que
     // um ID local legado colida com uma regra remota de chave diferente.
       if (tabela === 'regras_governo') db.prepare('DELETE FROM regras_governo').run();
-      resultado[tabela] = gravar(tabela, linhas);
+      resultado[tabela] = tabela === 'empresas' ? gravarEmpresas(linhas) : gravar(tabela, linhas);
     } catch (e) {
       falhas[tabela] = e.message;
     }
