@@ -2623,7 +2623,7 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
 
     // A identificação e a validação acontecem antes de criar qualquer lote:
     // arquivo ilegível, de outra empresa ou fora do leiaute não deixa lote órfão.
-    const preparados = arquivos.map((arquivo) => ({ arquivo, resultado: sped.lerSped(arquivo.buffer, empresa.cnpj) }));
+    const preparados = arquivos.map((arquivo) => ({ arquivo, resultado: sped.inspecionarCabecalho(arquivo.buffer, empresa.cnpj) }));
     const efd = preparados.filter(({ resultado }) => resultado.tipoArquivo === 'efd_contribuicoes');
     let lote;
     if (efd.length) {
@@ -2657,8 +2657,9 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
       participantes: 0, produtos: 0, avisos: [], erros: [] };
 
     db.transaction(() => {
-      for (const { arquivo: f, resultado: r } of preparados) {
+      for (const { arquivo: f } of preparados) {
         try {
+          const r = sped.lerSped(f.buffer, empresa.cnpj);
           rel.periodos.push({ arquivo: f.originalname, tipo: r.tipoArquivo,
             inicio: r.periodo.inicio, fim: r.periodo.fim, ...r.resumo });
           rel.produtos += r.produtos;
@@ -2690,7 +2691,7 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
       }
     })();
 
-    db.prepare(`UPDATE lotes SET registros = ?, status_importacao = CASE WHEN tipo_arquivo='EFD_CONTRIBUICOES' THEN 'IMPORTADO' ELSE status_importacao END WHERE id = ?`).run(rel.itens, lote.lastInsertRowid);
+    db.prepare(`UPDATE lotes SET registros = ?, status_importacao = CASE WHEN tipo_arquivo='EFD_CONTRIBUICOES' THEN ? ELSE status_importacao END, mensagens = CASE WHEN tipo_arquivo='EFD_CONTRIBUICOES' THEN ? ELSE mensagens END WHERE id = ?`).run(rel.itens, rel.erros.length ? 'ERRO' : 'IMPORTADO', rel.erros.length ? rel.erros.join('\n').slice(0, 1000) : null, lote.lastInsertRowid);
     let classificacao = null;
     try {
       const tem = db.prepare('SELECT (SELECT COUNT(*) FROM base_ncm) + (SELECT COUNT(*) FROM base_servicos) c').get().c;

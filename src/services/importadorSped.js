@@ -347,4 +347,16 @@ function ehSped(buffer) {
   return /^\|0000\|/m.test(inicio);
 }
 
-module.exports = { lerSped, ehSped, decodificar };
+function inspecionarCabecalho(buffer, cnpjEmpresa) {
+  const linha = decodificar(buffer).split(/\r?\n/).find((x) => x.startsWith('|0000|'));
+  if (!linha) throw new Error('Registro 0000 não encontrado — o arquivo não parece ser um SPED válido.');
+  const p = linha.split('|');
+  const fiscal = /^\d{8}$/.test(String(p[4] || '').trim());
+  const tipoArquivo = fiscal ? 'efd_icms_ipi' : 'efd_contribuicoes';
+  const inicio = fiscal ? data(p[4]) : data(p[6]); const fim = fiscal ? data(p[5]) : data(p[7]);
+  const cnpj = soDigitos(fiscal ? p[7] : p[9]);
+  if (soDigitos(cnpjEmpresa) && cnpj && cnpj !== soDigitos(cnpjEmpresa)) throw new Error('Arquivo SPED pertence a empresa diferente da empresa em análise.');
+  return { tipoArquivo, periodo: { inicio, fim }, cabecalho: { cnpj } };
+}
+
+module.exports = { lerSped, ehSped, decodificar, inspecionarCabecalho };
