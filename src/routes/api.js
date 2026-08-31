@@ -43,7 +43,7 @@ const autonomiaTelemetry = require('../services/autonomiaTelemetry');
 const coberturaDiagnostico = require('../services/coberturaDiagnostico');
 const processamentoCarteira = require('../services/processamentoCarteira');
 const supabase = require('../services/supabase');
-const { executar: sincronizarGestaoSupabase } = require('../../scripts/sincronizar_gestao_supabase');
+const { executar: sincronizarGestaoSupabase, excluirEmpresa: excluirEmpresaSupabase } = require('../../scripts/sincronizar_gestao_supabase');
 const implantacaoEscopo = require('../services/implantacaoEscopo');
 
 const router = express.Router();
@@ -501,8 +501,16 @@ router.put('/empresas/:id', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.delete('/empresas/:id', (req, res) => {
-  try { db.prepare('DELETE FROM empresas WHERE id = ?').run(req.params.id); ok(res, {}); }
+router.delete('/empresas/:id', async (req, res) => {
+  try {
+    const empresa = db.prepare('SELECT id FROM empresas WHERE id=?').get(req.params.id);
+    if (!empresa) throw new Error('Empresa não encontrada.');
+    // A fonte compartilhada é removida primeiro. Se uma FK ou a rede falhar,
+    // o cache local continua íntegro e a empresa não some apenas de uma camada.
+    if (supabase.configurado()) await excluirEmpresaSupabase(empresa.id);
+    db.prepare('DELETE FROM empresas WHERE id = ?').run(empresa.id);
+    ok(res, {});
+  }
   catch (e) { erro(res, e); }
 });
 

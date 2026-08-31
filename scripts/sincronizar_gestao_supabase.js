@@ -12,9 +12,59 @@ async function upsert(tabela, linhas, chave = 'origem_local_id') {
   const { error } = await supabase.from(tabela).upsert(linhas, { onConflict: chave });
   if (error) throw new Error(`${tabela}: ${error.message}`);
 }
+async function espelharEmpresas(empresas, remoto = supabase) {
+  const { data: existentes, error } = await remoto.from('empresas').select('id,origem_local_id,cnpj');
+  if (error) throw error;
+  const porOrigem = new Map((existentes || []).filter((e) => e.origem_local_id != null).map((e) => [Number(e.origem_local_id), e]));
+  const porCnpj = new Map((existentes || []).filter((e) => e.cnpj).map((e) => [String(e.cnpj), e]));
+  for (const empresa of empresas) {
+    const linha = { origem_local_id: empresa.id, cnpj: empresa.cnpj, razao_social: empresa.razao_social, nome_fantasia: empresa.nome_fantasia || null };
+    // A publicação operacional legada já podia ter criado a empresa pelo ID
+    // local. Reaproveitamos essa mesma linha e materializamos a chave de
+    // gestão, evitando uma segunda empresa pelo mesmo CNPJ.
+    const existente = porOrigem.get(Number(empresa.id)) || porCnpj.get(String(empresa.cnpj));
+    const resposta = existente
+      ? await remoto.from('empresas').update(linha).eq('id', existente.id)
+      : await remoto.from('empresas').insert(linha);
+    if (resposta.error) throw new Error(`empresas: ${resposta.error.message}`);
+  }
+}
+
+async function excluirEmpresa(empresaLocalId, remoto = supabase) {
+  const origem = Number(empresaLocalId);
+  if (!Number.isInteger(origem) || origem <= 0) throw new Error('Empresa inválida para exclusão sincronizada.');
+  let consulta = await remoto.from('empresas').select('id,origem_local_id').eq('origem_local_id', origem);
+  if (consulta.error) throw new Error(`empresas: ${consulta.error.message}`);
+  // Instâncias anteriores podiam ter publicado a empresa somente pelo ID.
+  // O fallback é limitado ao mesmo identificador local; nunca procura por
+  // nome nem varre outras empresas.
+  if (!consulta.data?.length) {
+    consulta = await remoto.from('empresas').select('id,origem_local_id').eq('id', origem);
+    if (consulta.error) throw new Error(`empresas: ${consulta.error.message}`);
+  }
+  if (!consulta.data?.length) return { empresa: 0, dependencias: 0 };
+  if (consulta.data.length !== 1) throw new Error('Mais de uma empresa remota corresponde ao alvo local; exclusão cancelada.');
+  const empresaId = consulta.data[0].id;
+  // Estas tabelas restringem a remoção da empresa no schema compartilhado.
+  // Dependências com ON DELETE CASCADE (projetos, checklist, contratos etc.)
+  // permanecem sob responsabilidade das FKs, preservando a política atual
+  // de hard delete da aplicação local.
+  const dependencias = [
+    'pendencias_enriquecimento_fiscal', 'enriquecimento_pis_cofins_evidencias',
+    'enriquecimento_servicos_evidencias', 'evidencias_decisao', 'decisoes_memoria',
+    'empresas_usuarios', 'grupos_empresas_itens',
+  ];
+  for (const tabela of dependencias) {
+    const { error } = await remoto.from(tabela).delete().eq('empresa_id', empresaId);
+    if (error) throw new Error(`${tabela}: ${error.message}`);
+  }
+  const { error } = await remoto.from('empresas').delete().eq('id', empresaId);
+  if (error) throw new Error(`empresas: ${error.message}`);
+  return { empresa: 1, dependencias: dependencias.length };
+}
 async function executar() {
   const empresas = db.prepare('SELECT id, cnpj, razao_social, nome_fantasia FROM empresas').all();
-  await upsert('empresas', empresas.map((e) => ({ origem_local_id: e.id, cnpj: e.cnpj, razao_social: e.razao_social, nome_fantasia: e.nome_fantasia || null })));
+  await espelharEmpresas(empresas);
   const { data: remotas, error } = await supabase.from('empresas').select('id,origem_local_id');
   if (error) throw error;
   const mapaEmpresa = new Map(remotas.map((e) => [Number(e.origem_local_id), e.id]));
@@ -62,4 +112,4 @@ async function executar() {
   console.log(JSON.stringify({ empresas: empresas.length, projetos: projetos.length, entregas: entregas.length, acompanhamentos: acompanhamentos.length, responsaveis: responsaveis.length, tarefas: tarefas.length, checklist: checklist.length }));
 }
 if (require.main === module) executar().catch((e) => { console.error('ERRO:', e.message); process.exitCode = 1; });
-module.exports = { executar };
+module.exports = { executar, excluirEmpresa, espelharEmpresas };

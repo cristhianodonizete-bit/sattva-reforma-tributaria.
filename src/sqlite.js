@@ -11,6 +11,11 @@
  *   db.exec(sql) · db.prepare(sql).run/get/all(...) · db.transaction(fn)
  */
 const [maior, menor] = process.versions.node.split('.').map(Number);
+const MODOS_JORNAL = new Set(['WAL', 'MEMORY', 'DELETE', 'TRUNCATE', 'PERSIST', 'OFF']);
+const modoJournal = () => {
+  const modo = String(process.env.SATTVA_SQLITE_JOURNAL_MODE || 'WAL').toUpperCase();
+  return MODOS_JORNAL.has(modo) ? modo : 'WAL';
+};
 
 function normalizar(params) {
   return params.map((v) => {
@@ -33,7 +38,7 @@ function abrirComNodeSqlite(caminho) {
     );
   }
   const raw = new DatabaseSync(caminho);
-  raw.exec('PRAGMA journal_mode = WAL');
+  raw.exec(`PRAGMA journal_mode = ${modoJournal()}`);
   raw.exec('PRAGMA foreign_keys = ON');
 
   return {
@@ -66,7 +71,7 @@ function abrir(caminho) {
   try {
     const Better = require('better-sqlite3');
     const db = new Better(caminho);
-    db.pragma('journal_mode = WAL');
+    db.pragma(`journal_mode = ${modoJournal()}`);
     db.pragma('foreign_keys = ON');
     db.motor = 'better-sqlite3';
     return db;
