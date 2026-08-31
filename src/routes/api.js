@@ -491,7 +491,6 @@ router.post('/empresas', async (req, res) => {
     // de uma instância efêmera do Render.
     if (supabase.configurado()) {
       await sincronizarGestaoSupabase();
-      await require('../services/operacaoCompartilhada').publicar();
     }
     ok(res, { id: r.lastInsertRowid });
   } catch (e) { erro(res, e); }
@@ -554,15 +553,31 @@ router.get('/empresas/:id/dados-adicionais-analise', (req, res) => {
   try { ok(res, dadosAdicionaisAnalise.listar(db, Number(req.params.id))); }
   catch (e) { erro(res, e); }
 });
-async function publicarDadosAdicionais() {
+async function publicarDadosAdicionais(empresaLocalId) {
   if (!supabase.configurado()) return;
   await sincronizarGestaoSupabase();
-  await require('../services/operacaoCompartilhada').publicar();
+  const remoto = supabase.admin();
+  const { data: empresas, error: erroEmpresa } = await remoto.from('empresas').select('id').eq('origem_local_id', empresaLocalId);
+  if (erroEmpresa) throw erroEmpresa;
+  if (empresas?.length !== 1) throw new Error('Empresa remota não localizada para publicar os dados adicionais.');
+  const empresaRemotaId = empresas[0].id;
+  const espelhos = [
+    ['folhas_pagamento_competencias', 'empresa_id,competencia'],
+    ['margens_operacionais_premissas', 'empresa_id,periodo_inicio,periodo_fim'],
+    ['receitas_sem_dfe', 'empresa_id,chave_deduplicacao'],
+  ];
+  for (const [tabela, conflito] of espelhos) {
+    const linhas = db.prepare(`SELECT * FROM ${tabela} WHERE empresa_id=?`).all(empresaLocalId)
+      .map(({ id, ...linha }) => ({ ...linha, empresa_id: empresaRemotaId }));
+    if (!linhas.length) continue;
+    const { error } = await remoto.from(tabela).upsert(linhas, { onConflict: conflito });
+    if (error) throw new Error(`${tabela}: ${error.message}`);
+  }
 }
 router.post('/empresas/:id/folhas-pagamento', async (req, res) => {
   try {
     const resultado = dadosAdicionaisAnalise.salvarFolha(db, Number(req.params.id), req.body || {});
-    await publicarDadosAdicionais();
+    await publicarDadosAdicionais(Number(req.params.id));
     ok(res, resultado);
   }
   catch (e) { erro(res, e); }
@@ -570,7 +585,7 @@ router.post('/empresas/:id/folhas-pagamento', async (req, res) => {
 router.post('/empresas/:id/margens-operacionais', async (req, res) => {
   try {
     const resultado = dadosAdicionaisAnalise.salvarMargem(db, Number(req.params.id), req.body || {});
-    await publicarDadosAdicionais();
+    await publicarDadosAdicionais(Number(req.params.id));
     ok(res, resultado);
   }
   catch (e) { erro(res, e); }
@@ -578,7 +593,7 @@ router.post('/empresas/:id/margens-operacionais', async (req, res) => {
 router.post('/empresas/:id/receitas-sem-dfe', async (req, res) => {
   try {
     const resultado = dadosAdicionaisAnalise.salvarReceitaSemDfe(db, Number(req.params.id), req.body || {});
-    await publicarDadosAdicionais();
+    await publicarDadosAdicionais(Number(req.params.id));
     ok(res, resultado);
   }
   catch (e) { erro(res, e); }
