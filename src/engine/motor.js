@@ -19,6 +19,7 @@ const { resolverCreditoPisCofinsAdquirente } = require('./calculadora');
 const { classificar } = require('./classificador');
 const { CENARIOS_SIMULACAO } = require('../config/tabelasSimples');
 const regras = require('../services/regras');
+const bases = require('../services/basesReforma');
 const resolvedorRegra = require('../services/resolvedorRegra');
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -137,6 +138,38 @@ function classificacaoBloqueiaCredito(cls, decisaoClassificatoria = null) {
   return !(impactoNaoMaterial && classificacaoSuficiente);
 }
 
+// A classificação parcial é suficiente apenas quando o comparador demonstrou
+// que todos os candidatos têm o mesmo efeito material. A chave LC116 vem do
+// fato original normalizado; nenhuma NBS/NCM candidata é escolhida aqui.
+function contextoAposEquivalencia(item, cls, decisaoExterna = null) {
+  const equivalencia = cls?.equivalenciaFiscal || null;
+  const equivalente = equivalencia?.status === 'EQUIVALENTE_FISCALMENTE'
+    && equivalencia.impacto_tributario_material === false;
+  const decisao = {
+    ...(decisaoExterna || {}),
+    ...(equivalente ? {
+      impactoTributarioMaterial: false,
+      classificacaoFiscalmenteEquivalente: true,
+      autonomiaClassificatoria: 'PARCIAL',
+      regraEquivalencia: equivalencia.regra,
+      hashDecisao: equivalencia.hash_decisao,
+    } : {}),
+  };
+  if (!equivalente) return { item, decisao, equivalente: false, equivalencia: null };
+  return {
+    item: {
+      ...item,
+      // O resolvedor fiscal compara os candidatos e só consome regra quando
+      // a assinatura própria de PIS/Cofins também é conclusiva.
+      lc116: item.lc116 || bases.normLc116(item.cst),
+      equivalencia_classificatoria: equivalencia,
+    },
+    decisao,
+    equivalente: true,
+    equivalencia,
+  };
+}
+
 function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simplesFornecedorConhecido = false, simplesFornecedorReferencia = null, decisaoClassificatoria = null }) {
   // Regime do adquirente desconhecido não pode ser tratado como se creditasse:
   // isso superestimaria o crédito entregue ao cliente. O desconhecido tem que
@@ -211,15 +244,24 @@ function projetarItem(item, ctx) {
   // ---------- 1. CLASSIFICAÇÃO (sempre antes do cálculo) ----------
   const cls = classificar(item, { empresa: ctx.empresa, sentido, regimeContraparte: ctx.regimeContraparte,
     perfilDestinatario: ctx.perfilDestinatario });
+  const contextoClassificatorio = contextoAposEquivalencia(item, cls, ctx.decisaoClassificatoria || null);
 
   // ---------- 2. BASE ECONÔMICA ----------
   const simplesInfo = ctx.simplesEmitente || null;
 
   // ---------- 3. ALÍQUOTA E CONTEXTO DA BASE ----------
   const aliq = aliquotasEfetivas(ano, cls);
-  const rec = reconstruir({ ...item, tipo, regime: regimeEmitente, simples: simplesInfo }, {
+  const rec = reconstruir({ ...contextoClassificatorio.item, tipo, regime: regimeEmitente, simples: simplesInfo }, {
     ibsHabilitado: Number(aliq.parametros.calcular_ibs) === 1,
   });
+  if (contextoClassificatorio.equivalente) {
+    rec.equivalenciaClassificatoria = {
+      regra: contextoClassificatorio.equivalencia.regra,
+      catalogo_versoes: contextoClassificatorio.equivalencia.catalogo_versoes,
+      hash_decisao: contextoClassificatorio.equivalencia.hash_decisao,
+      origem: contextoClassificatorio.equivalencia.origem,
+    };
+  }
 
   // ---------- 4. TRIBUTO ----------
   // Optante do Simples que NÃO migrou para o regime regular não destaca
@@ -260,19 +302,20 @@ function projetarItem(item, ctx) {
   const percentualEfetivoSimples = !!(simplesInfo && simplesInfo.aliquotaEfetiva);
   const cred = avaliarCredito({
     regimeAdquirente, regimeFornecedor: regimeEmitente, cls, sentido,
-    decisaoClassificatoria: ctx.decisaoClassificatoria || null,
+    decisaoClassificatoria: contextoClassificatorio.decisao,
     simplesFornecedorConhecido: percentualEfetivoSimples,
     // O status de crédito deve registrar DETERMINADO quando a operação traz o
     // percentual efetivo. A premissa só é enviada quando foi realmente usada.
     simplesFornecedorReferencia: percentualEfetivoSimples ? null : referenciaCreditoSimples,
   });
-  if (cls.status === 'REQUER_VALIDACAO'
-    && !classificacaoBloqueiaCredito(cls, ctx.decisaoClassificatoria || null)) {
+  if (!classificacaoBloqueiaCredito(cls, contextoClassificatorio.decisao)
+    && contextoClassificatorio.equivalente) {
     cred.decisaoClassificatoria = {
       impacto_tributario_material: false,
-      classificacao_fiscalmente_equivalente: ctx.decisaoClassificatoria?.classificacaoFiscalmenteEquivalente === true,
-      autonomia_classificatoria: ctx.decisaoClassificatoria?.autonomiaClassificatoria || null,
-      origem: 'DECISAO_CLASSIFICATORIA_MATERIAL_V1',
+      classificacao_fiscalmente_equivalente: true,
+      autonomia_classificatoria: 'PARCIAL',
+      origem: contextoClassificatorio.equivalencia.regra,
+      hash_decisao: contextoClassificatorio.equivalencia.hash_decisao,
     };
   }
   const elegibilidadeSimples = memoriaElegibilidadeSimples({ sentido, regimeEmitente, regimeAdquirente, cls, item, ano });
@@ -501,5 +544,5 @@ function cargaAtual(itens) {
 module.exports = {
   naturezaItem, projetarItem, cenariosSimples, classificarDestinatario, sensibilidadeCredito, regimeCbs,
   compararPerfis, apurar, cargaAtual, aliquotasEfetivas, aliquotasDoAno, anosDisponiveis, classificacaoBloqueiaCredito,
-  anexosSimples, avaliarCredito,
+  anexosSimples, avaliarCredito, contextoAposEquivalencia,
 };
