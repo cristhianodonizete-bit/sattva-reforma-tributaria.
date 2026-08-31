@@ -44,9 +44,22 @@ async function executar() {
     const entrega = mapaEntrega.get(Number(t.entrega_id)); const projeto = entrega?.projeto_id || mapaProjeto.get(t.contratacao_id);
     return { origem_local_id:t.id, projeto_id:projeto, entrega_id:entrega?.id, titulo:t.titulo, descricao:t.descricao||null, status:t.status, data_abertura:t.data_abertura||null, data_conclusao:t.data_conclusao||null, envolve_cliente:!!t.envolve_cliente, pendencia_cliente:t.pendencia_cliente||null, interacoes_cliente:t.interacoes_cliente||null, criado_em:t.criado_em||null, atualizado_em:t.atualizado_em||null };
   }).filter((t) => t.projeto_id && t.entrega_id);
+  const responsaveisRemotos = await supabase.from('projeto_responsaveis').select('id,origem_local_id,projeto_id');
+  if (responsaveisRemotos.error) throw responsaveisRemotos.error;
+  const mapaResponsavel = new Map((responsaveisRemotos.data || []).map((r) => [Number(r.origem_local_id), r]));
+  const checklist = db.prepare('SELECT * FROM projeto_checklist_implantacao').all().map((i) => {
+    const entrega = i.entrega_id ? mapaEntrega.get(Number(i.entrega_id)) : null;
+    const projeto = entrega?.projeto_id || mapaProjeto.get(i.contratacao_id);
+    const responsavel = i.responsavel_id ? mapaResponsavel.get(Number(i.responsavel_id)) : null;
+    return { origem_local_id: i.id, projeto_id: projeto, entrega_id: entrega?.id || null, escopo: i.escopo, chave: i.chave,
+      titulo: i.titulo, tipo_evidencia: i.tipo_evidencia || null, status: i.status, responsavel_id: responsavel?.id || null,
+      origem_tipo: i.origem_tipo || null, origem_id: i.origem_id || null, observacoes: i.observacoes || null,
+      ordem: Number(i.ordem) || 0, origem: i.origem || 'AUTOMATICO', criado_em: i.criado_em || null, atualizado_em: i.atualizado_em || null };
+  }).filter((i) => i.projeto_id);
   await upsert('projeto_responsaveis', responsaveis);
   await upsert('projeto_tarefas', tarefas);
-  console.log(JSON.stringify({ empresas: empresas.length, projetos: projetos.length, entregas: entregas.length, acompanhamentos: acompanhamentos.length, responsaveis: responsaveis.length, tarefas: tarefas.length }));
+  await upsert('projeto_checklist_implantacao', checklist);
+  console.log(JSON.stringify({ empresas: empresas.length, projetos: projetos.length, entregas: entregas.length, acompanhamentos: acompanhamentos.length, responsaveis: responsaveis.length, tarefas: tarefas.length, checklist: checklist.length }));
 }
 if (require.main === module) executar().catch((e) => { console.error('ERRO:', e.message); process.exitCode = 1; });
 module.exports = { executar };

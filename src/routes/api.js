@@ -44,6 +44,7 @@ const coberturaDiagnostico = require('../services/coberturaDiagnostico');
 const processamentoCarteira = require('../services/processamentoCarteira');
 const supabase = require('../services/supabase');
 const { executar: sincronizarGestaoSupabase } = require('../../scripts/sincronizar_gestao_supabase');
+const implantacaoEscopo = require('../services/implantacaoEscopo');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -1659,10 +1660,11 @@ router.get('/empresas/:id/projeto', (req, res) => {
     const projeto = db.prepare(`SELECT c.*, co.nome combo_nome FROM contratacoes c
       LEFT JOIN combos co ON co.id=c.combo_id WHERE c.empresa_id=? AND c.aprovado_em IS NOT NULL
       ORDER BY c.aprovado_em DESC, c.id DESC LIMIT 1`).get(req.params.id);
-    if (!projeto) return ok(res, { projeto: null, entregas: [], acompanhamentos: [] });
+    if (!projeto) return ok(res, { projeto: null, entregas: [], acompanhamentos: [], checklist: [] });
     ok(res, { projeto: { ...projeto, modulos: modulosDaContratacao(projeto), servicos: JSON.parse(projeto.servicos_json || '[]') },
       entregas: db.prepare('SELECT * FROM projeto_entregas WHERE contratacao_id=? ORDER BY id').all(projeto.id),
-      acompanhamentos: db.prepare('SELECT * FROM projeto_acompanhamentos WHERE contratacao_id=? ORDER BY competencia').all(projeto.id) });
+      acompanhamentos: db.prepare('SELECT * FROM projeto_acompanhamentos WHERE contratacao_id=? ORDER BY competencia').all(projeto.id),
+      checklist: db.prepare('SELECT * FROM projeto_checklist_implantacao WHERE contratacao_id=? ORDER BY escopo,ordem,id').all(projeto.id) });
   } catch (e) { erro(res, e); }
 });
 
@@ -1701,10 +1703,16 @@ router.get('/gestao/projetos', async (req, res) => {
       const acompanhamentos = db.prepare('SELECT * FROM projeto_acompanhamentos WHERE contratacao_id=?').all(c.id);
       const responsaveis = db.prepare('SELECT * FROM projeto_responsaveis WHERE contratacao_id=? ORDER BY id').all(c.id);
       const tarefas = db.prepare('SELECT * FROM projeto_tarefas WHERE contratacao_id=? ORDER BY data_conclusao, id').all(c.id);
+      const checklist = db.prepare('SELECT * FROM projeto_checklist_implantacao WHERE contratacao_id=? ORDER BY escopo,ordem,id').all(c.id);
       const concluidas = entregas.filter((x) => x.status === 'concluida' || x.status === 'nao_aplicavel').length;
       const acompConcluidos = acompanhamentos.filter((x) => x.status === 'concluido').length;
-      return { ...c, servicos: JSON.parse(c.servicos_json || '[]'), modulos: modulosDaContratacao(c), entregas, acompanhamentos, responsaveis, tarefas, concluidas,
-        progresso: entregas.length ? Math.round((concluidas / entregas.length) * 100) : 0,
+      const progressoImplantacao = implantacaoEscopo.progresso(checklist);
+      const proximaAcao = checklist.find((x) => !['VALIDADO', 'CONCLUIDO', 'NAO_APLICAVEL'].includes(x.status)) || null;
+      const responsavelProjeto = responsaveis.find((x) => x.lado === 'sattva') || null;
+      return { ...c, servicos: JSON.parse(c.servicos_json || '[]'), modulos: modulosDaContratacao(c), entregas, acompanhamentos, responsaveis, tarefas, checklist, concluidas,
+        progresso: entregas.length ? Math.round((concluidas / entregas.length) * 100) : 0, progresso_implantacao: progressoImplantacao,
+        proxima_acao_implantacao: proximaAcao ? { id: proximaAcao.id, titulo: proximaAcao.titulo, status: proximaAcao.status } : null,
+        responsavel_implantacao: responsavelProjeto ? { id: responsavelProjeto.id, nome: responsavelProjeto.nome } : null,
         acompanhamentoConcluido: acompConcluidos, proximaCompetencia: (acompanhamentos.find((x) => x.status !== 'concluido') || {}).competencia || null };
     });
     const propostas = db.prepare(`SELECT c.*, e.razao_social, co.nome combo_nome FROM contratacoes c
@@ -1734,6 +1742,7 @@ router.post('/contratacoes/:id/aprovar', async (req, res) => {
       db.prepare('DELETE FROM projeto_entregas WHERE contratacao_id=?').run(c.id);
       db.prepare('DELETE FROM projeto_acompanhamentos WHERE contratacao_id=?').run(c.id);
       modulos.forEach((chave) => insEntrega.run(c.id, chave, ENTREGAS_PROJETO[chave]));
+      implantacaoEscopo.gerarChecklist(db, c.id, modulos, meses);
     })();
     auditar(req, { empresaId: c.empresa_id, acao: 'Aprovou o escopo do projeto', entidade: 'contratacao', entidadeId: c.id,
       antes: { status: c.status }, depois: { status: 'em_execucao', modulos, acompanhamento_meses: meses } });
@@ -2007,10 +2016,32 @@ router.put('/contratacoes/:id', async (req, res) => {
       if (antes.aprovado_em) {
         const ins = db.prepare('INSERT OR IGNORE INTO projeto_entregas (contratacao_id,chave,titulo) VALUES (?,?,?)');
         modulos.forEach((chave) => ins.run(antes.id, chave, ENTREGAS_PROJETO[chave]));
+        implantacaoEscopo.gerarChecklist(db, antes.id, modulos, antes.acompanhamento_meses);
       }
     })();
     auditar(req, { empresaId: antes.empresa_id, acao: antes.aprovado_em ? 'Registrou aditivo de escopo do projeto' : 'Atualizou escopo do projeto', entidade: 'contratacao', entidadeId: req.params.id, antes: { servicos: JSON.parse(antes.servicos_json || '[]'), modulos: modulosDaContratacao(antes) }, depois: { servicos: ids, modulos } });
     ok(res, {});
+  } catch (e) { erro(res, e); }
+});
+
+router.put('/projeto/checklist/:id', async (req, res) => {
+  try {
+    const item = db.prepare(`SELECT ci.*, c.empresa_id FROM projeto_checklist_implantacao ci
+      JOIN contratacoes c ON c.id=ci.contratacao_id WHERE ci.id=?`).get(req.params.id);
+    if (!item) throw new Error('Item de checklist não encontrado.');
+    await garantirEmpresaPermitida(req, item.empresa_id);
+    const status = String(req.body.status || item.status);
+    if (!implantacaoEscopo.STATUS.includes(status)) throw new Error('Status de checklist inválido.');
+    const responsavelId = req.body.responsavel_id ? Number(req.body.responsavel_id) : null;
+    if (responsavelId) {
+      const responsavel = db.prepare('SELECT id FROM projeto_responsaveis WHERE id=? AND contratacao_id=?').get(responsavelId, item.contratacao_id);
+      if (!responsavel) throw new Error('Responsável não pertence ao projeto.');
+    }
+    db.prepare(`UPDATE projeto_checklist_implantacao SET status=?,responsavel_id=?,origem_tipo=?,origem_id=?,observacoes=?,atualizado_em=datetime('now','localtime') WHERE id=?`)
+      .run(status, responsavelId, req.body.origem_tipo || null, req.body.origem_id || null, req.body.observacoes || '', item.id);
+    auditar(req, { empresaId: item.empresa_id, acao: 'Atualizou checklist de implantação', entidade: 'checklist_implantacao', entidadeId: item.id,
+      antes: { status: item.status }, depois: { status, origem_tipo: req.body.origem_tipo || null, origem_id: req.body.origem_id || null } });
+    ok(res, {}); sincronizarGestao();
   } catch (e) { erro(res, e); }
 });
 

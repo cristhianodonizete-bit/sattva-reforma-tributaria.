@@ -730,6 +730,27 @@ CREATE TABLE IF NOT EXISTS projeto_tarefas (
   criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT
 );
 
+-- Checklist automático da implantação: diferente de tarefa livre, registra
+-- a evidência solicitada pelo escopo e mantém a pendência auditável.
+CREATE TABLE IF NOT EXISTS projeto_checklist_implantacao (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contratacao_id INTEGER NOT NULL REFERENCES contratacoes(id) ON DELETE CASCADE,
+  entrega_id INTEGER REFERENCES projeto_entregas(id) ON DELETE SET NULL,
+  escopo TEXT NOT NULL,
+  chave TEXT NOT NULL,
+  titulo TEXT NOT NULL,
+  tipo_evidencia TEXT,
+  status TEXT NOT NULL DEFAULT 'NAO_SOLICITADO',
+  responsavel_id INTEGER REFERENCES projeto_responsaveis(id) ON DELETE SET NULL,
+  origem_tipo TEXT, origem_id TEXT, observacoes TEXT,
+  ordem INTEGER NOT NULL DEFAULT 0,
+  origem TEXT NOT NULL DEFAULT 'AUTOMATICO',
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(contratacao_id, chave)
+);
+CREATE INDEX IF NOT EXISTS ix_projeto_checklist_implantacao_contratacao ON projeto_checklist_implantacao(contratacao_id, escopo, ordem);
+
 -- ============ PLANO DE ADEQUAÇÃO ============
 CREATE TABLE IF NOT EXISTS acoes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

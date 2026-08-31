@@ -451,6 +451,7 @@ Telas.gestaoProjetos = async (el) => {
   const d = await A.api('/gestao/projetos');
   const statusEntrega = [{ v: 'pendente', t: 'Pendente' }, { v: 'em_andamento', t: 'Em andamento' }, { v: 'concluida', t: 'Concluída' }, { v: 'nao_aplicavel', t: 'Não aplicável' }];
   const statusAcomp = [{ v: 'planejado', t: 'Planejado' }, { v: 'em_andamento', t: 'Em andamento' }, { v: 'concluido', t: 'Concluído' }];
+  const statusChecklist = ['NAO_SOLICITADO','SOLICITADO','AGUARDANDO_CLIENTE','RECEBIDO','PARCIAL','COM_PENDENCIA','VALIDADO','CONCLUIDO','NAO_APLICAVEL'].map((v) => ({ v, t: v.replaceAll('_', ' ') }));
   const rotulo = (s) => (statusEntrega.concat(statusAcomp).find((x) => x.v === s) || {}).t || s;
   const tag = (s) => s === 'concluida' || s === 'concluido' ? 'c' : s === 'em_andamento' ? 'b' : 'n';
 
@@ -460,6 +461,7 @@ Telas.gestaoProjetos = async (el) => {
       ${A.kpi('Projetos em execução', d.projetos.filter((p) => p.status === 'em_execucao').length, 'escopo aprovado')}
       ${A.kpi('Escopos para aprovar', d.propostas.length, 'defina entregas e acompanhamento', d.propostas.length ? 'destaque' : '')}
       ${A.kpi('Acompanhamentos em aberto', d.projetos.reduce((n, p) => n + p.acompanhamentos.filter((a) => a.status !== 'concluido').length, 0), 'meses liberados')}
+      ${A.kpi('Pendências de implantação', d.projetos.reduce((n, p) => n + (p.progresso_implantacao?.pendentes || 0), 0), 'aguardando cliente ou com pendência')}
     </div>
     <div class="cartao lista-aprovacoes"><div class="cabecalho-lista"><div><h2>Escopos aguardando aprovação</h2><p class="desc">A aprovação registra a fotografia do plano e libera as etapas contratadas.</p></div><span class="tag">${d.propostas.length} pendentes</span></div>
       ${A.tabela([
@@ -470,9 +472,12 @@ Telas.gestaoProjetos = async (el) => {
       ], d.propostas, { vazio: 'Nenhuma proposta aguardando aprovação.' })}</div>
     <div class="projetos-entrega">${d.projetos.map((p) => `<section class="cartao projeto-entrega-card">
       <div class="projeto-entrega-cabecalho"><div>
-        <h2>${A.esc(p.razao_social)}</h2><p class="desc">${A.esc(p.combo_nome || 'Plano personalizado')} · aprovado em ${A.esc(p.aprovado_em || '—')}</p>
+        <h2>${A.esc(p.razao_social)}</h2><p class="desc">${A.esc(p.combo_nome || 'Plano personalizado')} · aprovado em ${A.esc(p.aprovado_em || '—')}${p.responsavel_implantacao ? ` · responsável: ${A.esc(p.responsavel_implantacao.nome)}` : ' · responsável a definir'}</p>
       </div><div class="projeto-progresso"><b class="mono">${p.progresso}%</b><div class="mini">${p.concluidas}/${p.entregas.length} entregas concluídas</div><button class="btn pq vazio" data-escopo="${p.id}">Alterar escopo</button></div></div>
       <div class="barra-prog projeto-barra"><i style="width:${p.progresso}%"></i></div>
+      <section class="tarefas-projeto"><h3 class="subtitulo-entrega">Implantação por escopo</h3><p class="mini">${p.progresso_implantacao?.concluidos || 0}/${p.progresso_implantacao?.total || 0} itens validados ou concluídos · ${p.progresso_implantacao?.percentual || 0}%${p.proxima_acao_implantacao ? ` · próxima ação: ${A.esc(p.proxima_acao_implantacao.titulo)}` : ' · sem pendências de implantação'}</p>
+        ${(p.checklist || []).map((i) => `<div class="linha-entrega"><span class="tag ${['VALIDADO','CONCLUIDO','NAO_APLICAVEL'].includes(i.status) ? 'c' : ['COM_PENDENCIA','AGUARDANDO_CLIENTE'].includes(i.status) ? 'a' : 'n'}">${A.esc(i.status.replaceAll('_',' '))}</span><span class="linha-entrega-texto"><b>${A.esc(i.titulo)}</b><small class="mini">${A.esc(i.escopo)} · ${A.esc(i.tipo_evidencia || 'sem evidência definida')}${i.origem_tipo ? ` · vínculo: ${A.esc(i.origem_tipo)} ${A.esc(i.origem_id || '')}` : ''}</small></span><button class="btn pq vazio" data-checklist="${i.id}">Atualizar</button></div>`).join('') || '<p class="mini">Nenhum item de implantação aplicável.</p>'}
+      </section>
       <div class="grade g2">
         <div><h3 class="subtitulo-entrega">Escopo aprovado</h3>
           ${p.entregas.map((x) => { const ts=p.tarefas.filter((t)=>t.entrega_id===x.id), rs=p.responsaveis.filter((r)=>r.entrega_id===x.id); return `<div class="linha-entrega"><span class="tag ${tag(x.status)}">${A.esc(rotulo(x.status))}</span><span class="linha-entrega-texto">${A.esc(x.titulo)}<small class="mini">${rs.length ? A.esc(rs.map(r=>r.nome).join(' · ')) : 'Sem responsáveis'} · ${ts.length} tarefa(s)</small></span><button class="btn pq vazio" data-entrega="${x.id}">Planejar</button></div>`; }).join('')}
@@ -516,6 +521,12 @@ Telas.gestaoProjetos = async (el) => {
       `<h3>Responsáveis</h3><p class="mini">${rs.length ? A.esc(rs.map((r)=>`${r.lado==='sattva'?'Sattva':'Cliente'}: ${r.nome}${r.email?' · '+r.email:''}`).join(' | ')) : 'Cadastre os responsáveis abaixo.'}</p><div class="grade g2">${A.campo('responsavel_sattva','Responsável Sattva','')}${A.campo('funcao_sattva','Função / papel','')}${A.campo('telefone_sattva','Telefone','')}${A.campo('email_sattva','E-mail','email')}${A.campo('responsavel_cliente','Responsável do cliente','')}${A.campo('funcao_cliente','Função / área','')}${A.campo('telefone_cliente','Telefone','')}${A.campo('email_cliente','E-mail','email')}</div>`+
       `<h3>Tarefas da etapa</h3><p class="mini">${ts.length ? A.esc(ts.map((t)=>`${t.titulo} (${t.status})`).join(' · ')) : 'Inclua a primeira tarefa desta etapa.'}</p>${A.campo('tarefa_titulo','Nova tarefa','')}<div class="grade g2">${A.campo('tarefa_abertura','Data de abertura','','date')}${A.campo('tarefa_conclusao','Previsão/conclusão','','date')}${A.selecao('tarefa_status','Situação',[{v:'aberta',t:'Aberta'},{v:'em_andamento',t:'Em andamento'},{v:'concluida',t:'Concluída'}],'aberta')}</div><label class="check"><input type="checkbox" name="envolve_cliente"> Envolve pendência ou interação do cliente</label>${A.area('pendencia_cliente','Pendência do cliente','',2)}${A.area('interacoes_cliente','Interações / histórico','',2)}${A.area('tarefa_descricao','Detalhamento da tarefa','',2)}`,
       aoConfirmar: async (form) => { await A.api(`/projeto/entregas/${x.id}`, { metodo: 'PUT', corpo: form }); A.ir('gestaoProjetos'); } });
+  }; });
+  el.querySelectorAll('[data-checklist]').forEach((b) => { b.onclick = () => {
+    const item = d.projetos.flatMap((p) => p.checklist || []).find((x) => x.id === Number(b.dataset.checklist));
+    A.modal({ titulo: `Checklist — ${item.titulo}`, largura: 650,
+      corpo: `${A.selecao('status', 'Situação', statusChecklist, item.status)}${A.campo('origem_tipo', 'Tipo de evidência/vínculo', item.origem_tipo || '')}${A.campo('origem_id', 'Identificador do upload ou documento', item.origem_id || '')}${A.area('observacoes', 'Observações e pendências', item.observacoes || '', 3)}`,
+      aoConfirmar: async (form) => { await A.api(`/projeto/checklist/${item.id}`, { metodo: 'PUT', corpo: form }); A.ir('gestaoProjetos'); } });
   }; });
   el.querySelectorAll('[data-acomp]').forEach((b) => { b.onclick = () => {
     const x = d.projetos.flatMap((p) => p.acompanhamentos).find((v) => v.id === Number(b.dataset.acomp));
