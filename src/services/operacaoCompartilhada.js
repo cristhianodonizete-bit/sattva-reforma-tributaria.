@@ -151,33 +151,35 @@ function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], ta
 }
 async function baixar() {
   if (!ativo()) return { ativo: false };
-  const remoto = supabase.admin(), resultado = {};
-  // Acompanhamento é uma fotografia operacional: o cache não pode manter
-  // registros já excluídos da fonte compartilhada. Primeiro lemos todo o
-  // conjunto; somente após essa leitura bem-sucedida substituímos o espelho
-  // local em ordem segura. Assim uma falha de rede não apaga o cache.
-  const acompanhamentoRemoto = {};
-  for (const tabela of TABELAS_ACOMPANHAMENTO) acompanhamentoRemoto[tabela] = await buscarTudo(remoto, tabela);
-  db.transaction(() => {
-    ['monitoring_actions','monitoring_alerts','monitoring_deviations','monitoring_comparisons','monitoring_snapshots','monitoring_baselines']
-      .forEach((tabela) => db.prepare(`DELETE FROM ${tabela}`).run());
-  })();
-  for (const tabela of Object.keys(CAMPOS)) {
-    const linhas = TABELAS_ACOMPANHAMENTO.includes(tabela) ? acompanhamentoRemoto[tabela] : await buscarTudo(remoto, tabela);
+  const remoto = supabase.admin(), resultado = {}, falhas = {};
+  // A carteira é a âncora do cache efêmero. Ela precisa ser carregada antes
+  // das bases auxiliares: uma falha isolada nunca pode fazer a interface
+  // parecer que todas as empresas foram excluídas.
+  const tabelas = ['empresas', ...Object.keys(CAMPOS).filter((tabela) => tabela !== 'empresas')];
+  for (const tabela of tabelas) {
+    try {
+      const linhas = await buscarTudo(remoto, tabela);
     // Exceções são um espelho operacional completo do Supabase e possuem duas
     // chaves únicas (id técnico e chave funcional). Limpar somente esse
     // espelho antes da reposição elimina colisões entre IDs legados sem tocar
     // em qualquer fonte remota.
-    if (tabela === 'excecoes_motor') db.prepare('DELETE FROM excecoes_motor').run();
+      if (tabela === 'excecoes_motor') db.prepare('DELETE FROM excecoes_motor').run();
     // Regras governamentais também são fotografia completa. A tabela possui
     // tanto id técnico quanto unicidade funcional; limpar o espelho evita que
     // um ID local legado colida com uma regra remota de chave diferente.
-    if (tabela === 'regras_governo') db.prepare('DELETE FROM regras_governo').run();
-    resultado[tabela] = gravar(tabela, linhas);
+      if (tabela === 'regras_governo') db.prepare('DELETE FROM regras_governo').run();
+      resultado[tabela] = gravar(tabela, linhas);
+    } catch (e) {
+      falhas[tabela] = e.message;
+    }
   }
-  resultado.motor = await baixarResultadosMotor(remoto);
-  Object.assign(resultado, await baixarConfiguracao(CONFIG_TABELAS, remoto));
-  resultado.gestao = await baixarGestao(remoto);
+  try { resultado.motor = await baixarResultadosMotor(remoto); }
+  catch (e) { falhas.motor = e.message; }
+  try { Object.assign(resultado, await baixarConfiguracao(CONFIG_TABELAS, remoto)); }
+  catch (e) { falhas.configuracao = e.message; }
+  try { resultado.gestao = await baixarGestao(remoto); }
+  catch (e) { falhas.gestao = e.message; }
+  if (Object.keys(falhas).length) resultado.falhas = falhas;
   return resultado;
 }
 

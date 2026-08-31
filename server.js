@@ -60,10 +60,12 @@ async function iniciar() {
       let dados = {};
       try { dados = await operacao.baixar(); }
       catch (e) { console.error('  carga operacional parcial falhou:', e.message); }
-      dados.parametros = await operacao.baixarConfiguracao(['param_aliquotas']);
+      try { dados.parametros = await operacao.baixarConfiguracao(['param_aliquotas']); }
+      catch (e) { console.error('  parâmetros compartilhados não carregados:', e.message); }
       // Gestão de escopo/entregas é carregada independentemente das bases do
       // motor: um erro em qualquer base não pode apagar contratos aprovados.
-      dados.gestao = await operacao.baixarGestao();
+      try { dados.gestao = await operacao.baixarGestao(); }
+      catch (e) { console.error('  gestão compartilhada não carregada:', e.message); }
       console.log(`  operação compartilhada carregada: ${JSON.stringify(dados)}`);
       const db = require('./src/db');
       const bases = require('./src/services/basesReforma');
