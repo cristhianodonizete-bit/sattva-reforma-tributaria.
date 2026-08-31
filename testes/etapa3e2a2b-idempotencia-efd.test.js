@@ -1,0 +1,15 @@
+const assert = require('assert');
+const crypto = require('crypto');
+const sqlite = require('../src/sqlite');
+const db = sqlite.abrir(':memory:');
+db.exec(`create table lotes(id integer primary key,empresa_id integer,tipo_arquivo text,hash_sha256 text,nome text);
+create unique index ux on lotes(empresa_id,tipo_arquivo,hash_sha256) where tipo_arquivo='EFD_CONTRIBUICOES';`);
+const hash = (v) => crypto.createHash('sha256').update(v).digest('hex');
+const inserir = (empresa, nome, conteudo, tipo='EFD_CONTRIBUICOES') => db.prepare('insert into lotes(empresa_id,tipo_arquivo,hash_sha256,nome) values(?,?,?,?)').run(empresa,tipo,hash(conteudo),nome);
+inserir(1,'a.txt','conteudo-a');
+assert.throws(() => inserir(1,'b.txt','conteudo-a'), /UNIQUE/);
+inserir(1,'a.txt','conteudo-b');
+inserir(2,'a.txt','conteudo-a');
+inserir(1,'sped.txt','conteudo-a','EFD_ICMS_IPI');
+assert.equal(db.prepare('select count(*) c from lotes').get().c,4);
+console.log('etapa3e2a2b-idempotencia-efd.test: hash e escopo EFD aprovados');

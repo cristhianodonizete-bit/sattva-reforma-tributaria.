@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
+const crypto = require('crypto');
 const os = require('os');
 const XLSX = require('xlsx');
 const db = require('../db');
@@ -2623,8 +2624,25 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
     // A identificação e a validação acontecem antes de criar qualquer lote:
     // arquivo ilegível, de outra empresa ou fora do leiaute não deixa lote órfão.
     const preparados = arquivos.map((arquivo) => ({ arquivo, resultado: sped.lerSped(arquivo.buffer, empresa.cnpj) }));
-    const lote = db.prepare(`INSERT INTO lotes (empresa_id, tipo, arquivo, registros, origem)
-      VALUES (?,?,?,0,'sped')`).run(req.params.id, 'sped', arquivos.map((a) => a.originalname).join(', ').slice(0, 200));
+    const efd = preparados.filter(({ resultado }) => resultado.tipoArquivo === 'efd_contribuicoes');
+    let lote;
+    if (efd.length) {
+      if (preparados.length !== 1) throw new Error('Envie EFD-Contribuições em arquivo individual.');
+      const { arquivo, resultado } = efd[0];
+      const hashSha256 = crypto.createHash('sha256').update(arquivo.buffer).digest('hex');
+      const existente = db.prepare(`SELECT id FROM lotes WHERE empresa_id=? AND tipo_arquivo='EFD_CONTRIBUICOES' AND hash_sha256=?`).get(req.params.id, hashSha256);
+      if (existente) return ok(res, { status: 'DUPLICADO', loteId: existente.id, mensagem: 'Este arquivo EFD-Contribuições já foi importado para a empresa.' });
+      try {
+        lote = db.prepare(`INSERT INTO lotes (empresa_id,tipo,arquivo,registros,origem,tipo_arquivo,hash_sha256,competencia_inicio,competencia_fim,cnpj_arquivo,status_importacao)
+          VALUES (?,?,?,0,'sped','EFD_CONTRIBUICOES',?,?,?,?, 'PROCESSANDO')`).run(req.params.id, 'sped', arquivo.originalname.slice(0, 200), hashSha256, resultado.periodo.inicio, resultado.periodo.fim, resultado.cabecalho.cnpj);
+      } catch (erroLote) {
+        if (/UNIQUE/i.test(erroLote.message)) return ok(res, { status: 'DUPLICADO', mensagem: 'Este arquivo EFD-Contribuições já foi importado para a empresa.' });
+        throw erroLote;
+      }
+    } else {
+      lote = db.prepare(`INSERT INTO lotes (empresa_id, tipo, arquivo, registros, origem)
+        VALUES (?,?,?,0,'sped')`).run(req.params.id, 'sped', arquivos.map((a) => a.originalname).join(', ').slice(0, 200));
+    }
 
     const insMov = db.prepare(`INSERT INTO movimentos (empresa_id, lote_id, tipo, sentido, nome, inscr_federal,
       descricao, ncm, nbs, cfop, cst, csosn, competencia, documento, chave, item_numero, codigo_produto,
@@ -2672,7 +2690,7 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
       }
     })();
 
-    db.prepare('UPDATE lotes SET registros = ? WHERE id = ?').run(rel.itens, lote.lastInsertRowid);
+    db.prepare(`UPDATE lotes SET registros = ?, status_importacao = CASE WHEN tipo_arquivo='EFD_CONTRIBUICOES' THEN 'IMPORTADO' ELSE status_importacao END WHERE id = ?`).run(rel.itens, lote.lastInsertRowid);
     let classificacao = null;
     try {
       const tem = db.prepare('SELECT (SELECT COUNT(*) FROM base_ncm) + (SELECT COUNT(*) FROM base_servicos) c').get().c;
