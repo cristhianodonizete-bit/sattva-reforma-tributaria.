@@ -177,6 +177,56 @@ CREATE TABLE IF NOT EXISTS perfil_tributario (
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- ============ DADOS COMPLEMENTARES DE DIAGNÓSTICO ============
+-- Fatos e premissas informados. Não são lidos pelo motor fiscal nem
+-- substituem documento fiscal já importado.
+CREATE TABLE IF NOT EXISTS folhas_pagamento_competencias (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  competencia TEXT NOT NULL,
+  valor_folha REAL NOT NULL CHECK(valor_folha >= 0),
+  pro_labore REAL CHECK(pro_labore IS NULL OR pro_labore >= 0),
+  origem TEXT NOT NULL DEFAULT 'MANUAL',
+  referencia_arquivo TEXT,
+  status_validacao TEXT NOT NULL DEFAULT 'PENDENTE',
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, competencia)
+);
+CREATE INDEX IF NOT EXISTS ix_folhas_empresa_competencia ON folhas_pagamento_competencias(empresa_id, competencia DESC);
+
+CREATE TABLE IF NOT EXISTS margens_operacionais_premissas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  periodo_inicio TEXT NOT NULL,
+  periodo_fim TEXT NOT NULL,
+  margem_operacional_percentual REAL NOT NULL CHECK(margem_operacional_percentual >= 0 AND margem_operacional_percentual <= 100),
+  origem TEXT NOT NULL DEFAULT 'MANUAL',
+  natureza TEXT NOT NULL DEFAULT 'PREMISSA_INFORMADA',
+  status_validacao TEXT NOT NULL DEFAULT 'PENDENTE',
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, periodo_inicio, periodo_fim)
+);
+CREATE INDEX IF NOT EXISTS ix_margens_empresa_periodo ON margens_operacionais_premissas(empresa_id, periodo_inicio DESC, periodo_fim DESC);
+
+CREATE TABLE IF NOT EXISTS receitas_sem_dfe (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  competencia TEXT NOT NULL,
+  tipo_receita TEXT NOT NULL,
+  descricao TEXT NOT NULL,
+  valor REAL NOT NULL CHECK(valor >= 0),
+  origem TEXT NOT NULL DEFAULT 'MANUAL',
+  evidencia TEXT,
+  status_validacao TEXT NOT NULL DEFAULT 'PENDENTE',
+  chave_deduplicacao TEXT NOT NULL,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, chave_deduplicacao)
+);
+CREATE INDEX IF NOT EXISTS ix_receitas_sem_dfe_empresa_competencia ON receitas_sem_dfe(empresa_id, competencia DESC);
+
 -- ============ PERFIL CBS (consolidação materializada do motor) ============
 -- Esta tabela não calcula tributos: apenas consolida motor_resultados por
 -- empresa e competência, preservando a execução que originou cada leitura.

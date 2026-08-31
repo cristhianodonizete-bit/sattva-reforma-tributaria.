@@ -45,6 +45,7 @@ const processamentoCarteira = require('../services/processamentoCarteira');
 const supabase = require('../services/supabase');
 const { executar: sincronizarGestaoSupabase, excluirEmpresa: excluirEmpresaSupabase } = require('../../scripts/sincronizar_gestao_supabase');
 const implantacaoEscopo = require('../services/implantacaoEscopo');
+const dadosAdicionaisAnalise = require('../services/dadosAdicionaisAnalise');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -538,6 +539,25 @@ router.post('/empresas/:id/perfil', (req, res) => {
 
 router.delete('/perfil/:id', (req, res) => {
   db.prepare('DELETE FROM perfil_tributario WHERE id = ?').run(req.params.id); ok(res, {});
+});
+
+// Dados adicionais para diagnóstico: são entradas declaradas/evidenciadas,
+// deliberadamente separadas de movimentos e de qualquer cálculo CBS.
+router.get('/empresas/:id/dados-adicionais-analise', (req, res) => {
+  try { ok(res, dadosAdicionaisAnalise.listar(db, Number(req.params.id))); }
+  catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/folhas-pagamento', (req, res) => {
+  try { ok(res, dadosAdicionaisAnalise.salvarFolha(db, Number(req.params.id), req.body || {})); }
+  catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/margens-operacionais', (req, res) => {
+  try { ok(res, dadosAdicionaisAnalise.salvarMargem(db, Number(req.params.id), req.body || {})); }
+  catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/receitas-sem-dfe', (req, res) => {
+  try { ok(res, dadosAdicionaisAnalise.salvarReceitaSemDfe(db, Number(req.params.id), req.body || {})); }
+  catch (e) { erro(res, e); }
 });
 
 router.get('/empresas/:id/perfil/analise', (req, res) => {

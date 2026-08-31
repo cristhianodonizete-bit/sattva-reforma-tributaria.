@@ -9,12 +9,15 @@ db.prepare('INSERT INTO projeto_entregas (id,contratacao_id,chave) VALUES (1,10,
 
 const escopos = escoposCanonicos(['diagnostico', 'contratos', 'precificacao', 'capacitacao_operacional'], 3);
 assert.deepStrictEqual(escopos, ['diagnostico', 'contratos', 'precificacao', 'capacitacao', 'acompanhamento']);
-assert.strictEqual(gerarChecklist(db, 10, escopos, 3), 16);
+assert.strictEqual(gerarChecklist(db, 10, escopos, 3), 19);
 assert.strictEqual(gerarChecklist(db, 10, escopos, 3), 0, 'geração deve ser idempotente');
 const itens = db.prepare('SELECT * FROM projeto_checklist_implantacao WHERE contratacao_id=10').all();
-assert.strictEqual(itens.length, 16);
+assert.strictEqual(itens.length, 19);
 assert(itens.every((x) => STATUS.includes(x.status) && x.origem === 'AUTOMATICO'));
 assert.strictEqual(itens.find((x) => x.chave === 'diagnostico:SOLICITAR_XML').tipo_evidencia, 'XML_DFE');
+assert.strictEqual(itens.find((x) => x.chave === 'diagnostico:SOLICITAR_FOLHA').tipo_evidencia, 'FOLHA_PAGAMENTO');
+assert.strictEqual(itens.find((x) => x.chave === 'diagnostico:SOLICITAR_MARGEM_OPERACIONAL').tipo_evidencia, 'MARGEM_OPERACIONAL');
+assert.strictEqual(itens.find((x) => x.chave === 'diagnostico:SOLICITAR_RECEITAS_SEM_DFE').tipo_evidencia, 'RECEITA_SEM_DFE');
 assert.strictEqual(itens.find((x) => x.chave === 'contratos:SOLICITAR_CONTRATOS').tipo_evidencia, 'CONTRATO');
 const resumo = progresso([{ status: 'VALIDADO' }, { status: 'CONCLUIDO' }, { status: 'COM_PENDENCIA' }, { status: 'RECEBIDO' }]);
 assert.deepStrictEqual(resumo, { total: 4, concluidos: 2, pendentes: 1, percentual: 50 });

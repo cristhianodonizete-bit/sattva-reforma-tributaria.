@@ -149,9 +149,10 @@ Telas.empresas = async (el) => {
 // ===========================================================================
 Telas.dados = async (el) => {
   const aba = S.aba.dados || 'fornecedor';
-  const [{ parceiros }, { lotes }] = await Promise.all([
+  const [{ parceiros }, { lotes }, dadosAdicionais] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/parceiros?tipo=${aba}`),
     A.api(`/empresas/${S.empresaId}/lotes`),
+    A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`),
   ]);
   const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=200`);
   const referenciasVendas = aba === 'cliente' ? await A.api(`/empresas/${S.empresaId}/referencias-vendas`) : null;
@@ -197,6 +198,21 @@ Telas.dados = async (el) => {
         </div>
       </div>
     </div>
+    ${aba === 'fornecedor' ? `<div class="cartao" style="margin-top:16px">
+      <h2>Dados adicionais para análise tributária</h2>
+      <p class="desc">Informações complementares por empresa. Elas permanecem separadas da movimentação e não recalculam a CBS.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
+        <button class="btn vazio pq" id="addFolha">Informar folha</button>
+        <button class="btn vazio pq" id="addMargemOperacional">Informar margem operacional</button>
+        <button class="btn vazio pq" id="addReceitaSemDfe">Adicionar receita sem DF-e</button>
+      </div>
+      <div class="grade g3">
+        <div>${A.kpi('Folhas informadas', (dadosAdicionais.folhas || []).length, 'por competência')}</div>
+        <div>${A.kpi('Margens informadas', (dadosAdicionais.margens || []).length, 'premissas declaradas')}</div>
+        <div>${A.kpi('Receitas sem DF-e', (dadosAdicionais.receitas_sem_dfe || []).length, 'não consolidadas automaticamente')}</div>
+      </div>
+      ${(dadosAdicionais.receitas_sem_dfe || []).some((x) => x.status_validacao === 'POSSIVEL_DUPLICIDADE') ? '<div class="aviso atencao" style="margin-top:12px"><b>Há receita(s) com possível duplicidade.</b> Elas não foram consolidadas automaticamente; revise a evidência antes de qualquer uso analítico.</div>' : ''}
+    </div>` : ''}
     ${aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
       <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
@@ -283,6 +299,24 @@ Telas.dados = async (el) => {
       });
     });
     el.querySelectorAll('[data-ir-importacao]').forEach((b) => { b.onclick = () => document.getElementById(b.dataset.irImportacao)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+
+  document.getElementById('addFolha')?.addEventListener('click', () => A.modal({
+    titulo: 'Informar folha de pagamento', descricao: 'Registro agregado por competência; não exige dados individuais de empregados.',
+    corpo: `<div class="grade g2">${A.campo('competencia','Competência (AAAA-MM)','','text','placeholder="2026-08"')}${A.campo('valor_folha','Valor da folha','', 'number','step="0.01" min="0"')}</div>` +
+      `<div class="grade g2">${A.campo('pro_labore','Pró-labore (se informado)','', 'number','step="0.01" min="0"')}${A.campo('referencia_arquivo','Referência do arquivo (opcional)')}</div>`,
+    aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/folhas-pagamento`, { metodo: 'POST', corpo: d }); A.toast('Folha registrada como dado complementar', 'ok'); A.ir('dados'); },
+  }));
+  document.getElementById('addMargemOperacional')?.addEventListener('click', () => A.modal({
+    titulo: 'Informar margem operacional', descricao: 'Premissa informada: lucro antes do IR dividido pela receita total. Não representa lucro tributável definitivo.',
+    corpo: `<div class="grade g3">${A.campo('periodo_inicio','Início (AAAA-MM)','','text','placeholder="2026-01"')}${A.campo('periodo_fim','Fim (AAAA-MM)','','text','placeholder="2026-12"')}${A.campo('margem_operacional_percentual','Margem (%)','', 'number','step="0.01" min="0" max="100"')}</div>`,
+    aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/margens-operacionais`, { metodo: 'POST', corpo: d }); A.toast('Margem operacional registrada como premissa', 'ok'); A.ir('dados'); },
+  }));
+  document.getElementById('addReceitaSemDfe')?.addEventListener('click', () => A.modal({
+    titulo: 'Adicionar receita sem documento fiscal', descricao: 'Use apenas receita ainda não capturada por XML/DF-e. Em caso de correlação não segura, o registro fica marcado como possível duplicidade e não é consolidado automaticamente.',
+    corpo: `<div class="grade g2">${A.campo('competencia','Competência (AAAA-MM)','','text','placeholder="2026-08"')}${A.campo('tipo_receita','Tipo de receita','','text','placeholder="Aluguel, locação, cessão…"')}</div>` +
+      `${A.campo('descricao','Descrição')}<div class="grade g2">${A.campo('valor','Valor','', 'number','step="0.01" min="0"')}${A.campo('evidencia','Evidência/referência (opcional)')}</div>`,
+    aoConfirmar: async (d) => { const r = await A.api(`/empresas/${S.empresaId}/receitas-sem-dfe`, { metodo: 'POST', corpo: d }); A.toast(r.possivel_duplicidade ? 'Receita registrada com possível duplicidade; não consolidada automaticamente' : 'Receita complementar registrada', r.possivel_duplicidade ? '' : 'ok'); A.ir('dados'); },
+  }));
 
   async function enviar(arquivo, destino) {
     const fd = new FormData();
