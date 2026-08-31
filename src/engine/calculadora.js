@@ -18,13 +18,14 @@
 
 const P = require('../config/parametros');
 const regras = require('../services/regras');
+const crypto = require('crypto');
 
 // O arquivo parametros é somente a semente para instalações novas. Em execução,
 // os motores consultam a configuração persistida; a semente é fallback defensivo.
 function regimeConfigurado(chave) {
   const salvo = regras.regime(chave);
   if (salvo) return {
-    label: salvo.label, pisCofins: salvo.pisCofins,
+    label: salvo.label, pisCofins: salvo.pisCofins, cumulativo: salvo.cumulativo,
     creditaAtual: { pisCofins: salvo.creditaAtualPisCofins, icms: salvo.creditaAtualIcms, ipi: salvo.creditaAtualIpi },
     geraCreditoAtual: { pisCofins: salvo.geraCreditoAtualPisCofins, icms: salvo.geraCreditoAtualIcms, ipi: salvo.geraCreditoAtualIpi },
     creditaNovo: salvo.creditaNovo, geraCreditoNovo: salvo.geraCreditoNovo,
@@ -149,6 +150,31 @@ function creditoAtual(atual, regimeAdquirente) {
 
   c = det.icms + det.pisCofins + det.ipi;
   return { total: r2(c), detalhe: { icms: r2(det.icms), pisCofins: r2(det.pisCofins), ipi: r2(det.ipi) } };
+}
+
+// Decisão da adquirente separada da carga que o fornecedor suportou na
+// operação. Uma conclusão de crédito zero só é determinada quando decorre de
+// regra expressa; ela nunca converte ausência de evidência em zero.
+function resolverCreditoPisCofinsAdquirente({ regimeAdquirente, regraEspecificaCredito = null, referenciaFiscal = null } = {}) {
+  const memoria = (decisao) => ({
+    ...decisao,
+    regra_versionamento: 'CREDITO_PIS_COFINS_ADQUIRENTE_V1',
+    hash_lineage: crypto.createHash('sha256').update(JSON.stringify({
+      regimeAdquirente, regraEspecificaCredito, referenciaFiscal, decisao,
+    })).digest('hex'),
+  });
+  const superior = regraEspecificaCredito || referenciaFiscal;
+  if (superior) {
+    const elegibilidade = String(superior.elegibilidade || superior.status || '').toUpperCase();
+    if (elegibilidade === 'ELEGIVEL') return memoria({ valor: null, status: 'DETERMINADO', classificacao: 'CREDITO_ELEGIVEL_POR_REGRA_ESPECIFICA', motivo: superior.motivo || 'Regra específica superior aplicável.', origem: regraEspecificaCredito ? 'REGRA_ESPECIFICA' : 'REFERENCIA_FISCAL', natureza: 'CALCULADO', ausencia_regra_especifica_superior: false });
+    if (elegibilidade === 'NAO_ELEGIVEL') return memoria({ valor: 0, status: 'DETERMINADO', classificacao: 'CREDITO_NAO_ELEGIVEL_POR_REGRA_ESPECIFICA', motivo: superior.motivo || 'Regra específica superior veda o crédito.', origem: regraEspecificaCredito ? 'REGRA_ESPECIFICA' : 'REFERENCIA_FISCAL', natureza: 'CALCULADO', ausencia_regra_especifica_superior: false });
+    return memoria({ valor: null, status: 'INDETERMINADO', classificacao: 'CREDITO_DEPENDE_CONDICAO_ESPECIFICA', motivo: superior.motivo || 'Regra específica exige condição ainda não comprovada.', origem: regraEspecificaCredito ? 'REGRA_ESPECIFICA' : 'REFERENCIA_FISCAL', natureza: 'INDETERMINADO', ausencia_regra_especifica_superior: false });
+  }
+  const regime = regimeConfigurado(regimeAdquirente);
+  if (regime.cumulativo === true && regime.creditaAtual.pisCofins === false) {
+    return memoria({ valor: 0, status: 'DETERMINADO', classificacao: 'CREDITO_NAO_ELEGIVEL_POR_REGIME', motivo: 'Regime PIS/Cofins cumulativo sem crédito ordinário, na ausência de regra específica superior.', origem: 'REGRA_REGIME_ADQUIRENTE', natureza: 'CALCULADO', ausencia_regra_especifica_superior: true });
+  }
+  return memoria({ valor: null, status: 'INDETERMINADO', classificacao: 'CREDITO_INDETERMINADO', motivo: 'Regime da adquirente não permite concluir a elegibilidade ordinária sem regra superior.', origem: 'INDETERMINADO', natureza: 'INDETERMINADO', ausencia_regra_especifica_superior: true });
 }
 
 // ---------------------------------------------------------------------------
@@ -361,4 +387,4 @@ function montarResumo(atual, custoAtual, projecao) {
 
 const fmtPerc = (n) => `${(n * 100).toFixed(2).replace('.', ',')}%`;
 
-module.exports = { grossDown, creditoAtual, aplicarIVA, creditoNovo, calcularOperacao, r2, r4 };
+module.exports = { grossDown, creditoAtual, resolverCreditoPisCofinsAdquirente, aplicarIVA, creditoNovo, calcularOperacao, r2, r4 };

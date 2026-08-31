@@ -15,6 +15,7 @@
  */
 const db = require('../db');
 const { reconstruir, simplesEfetivo } = require('./reconstrucao');
+const { resolverCreditoPisCofinsAdquirente } = require('./calculadora');
 const { classificar } = require('./classificador');
 const { CENARIOS_SIMULACAO } = require('../config/tabelasSimples');
 const regras = require('../services/regras');
@@ -258,6 +259,13 @@ function projetarItem(item, ctx) {
   }
   let creditoIbs = 0, creditoCbs = 0;
   if (['PROJETADO', 'PROJETADO_LIMITADO'].includes(cred.status)) { creditoIbs = ibs; creditoCbs = cbs; }
+  const creditoPisCofinsAdquirente = sentido === 'entrada'
+    ? resolverCreditoPisCofinsAdquirente({
+      regimeAdquirente,
+      regraEspecificaCredito: item.regra_credito_pis_cofins || null,
+      referenciaFiscal: item.referencia_credito_pis_cofins || null,
+    })
+    : null;
   // CREDITO_PRESUMIDO fica em zero até que a hipótese seja informada como
   // premissa — o sistema sinaliza a possibilidade, não a arbitra.
 
@@ -287,6 +295,7 @@ function projetarItem(item, ctx) {
     ibs: r2(ibs), cbs: r2(cbs), totalIvA: r2(ibs + cbs),
     creditoIbs: r2(creditoIbs), creditoCbs: r2(creditoCbs), creditoTotal: r2(creditoIbs + creditoCbs),
     credito: cred,
+    creditoPisCofinsAdquirente,
     regimeCbsEmitente: regimeCbs(regimeEmitente), regimeCbsAdquirente: regimeCbs(regimeAdquirente),
     precoProjetado: r2(precoProjetado),
     custoLiquido: r2(custoLiquido),
