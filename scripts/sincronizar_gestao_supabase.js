@@ -16,13 +16,17 @@ async function espelharEmpresas(empresas, remoto = supabase) {
   const { data: existentes, error } = await remoto.from('empresas').select('id,origem_local_id,cnpj');
   if (error) throw error;
   const porOrigem = new Map((existentes || []).filter((e) => e.origem_local_id != null).map((e) => [Number(e.origem_local_id), e]));
-  const porCnpj = new Map((existentes || []).filter((e) => e.cnpj).map((e) => [String(e.cnpj), e]));
+  // A origem local normaliza CNPJ para dígitos; integrações históricas podem
+  // conservar máscara. Comparar a chave canônica evita uma segunda empresa
+  // remota e mantém a exclusão sincronizada restrita ao mesmo cadastro.
+  const cnpjCanonico = (valor) => String(valor || '').replace(/\D/g, '');
+  const porCnpj = new Map((existentes || []).filter((e) => cnpjCanonico(e.cnpj)).map((e) => [cnpjCanonico(e.cnpj), e]));
   for (const empresa of empresas) {
     const linha = { origem_local_id: empresa.id, cnpj: empresa.cnpj, razao_social: empresa.razao_social, nome_fantasia: empresa.nome_fantasia || null };
     // A publicação operacional legada já podia ter criado a empresa pelo ID
     // local. Reaproveitamos essa mesma linha e materializamos a chave de
     // gestão, evitando uma segunda empresa pelo mesmo CNPJ.
-    const existente = porOrigem.get(Number(empresa.id)) || porCnpj.get(String(empresa.cnpj));
+    const existente = porOrigem.get(Number(empresa.id)) || porCnpj.get(cnpjCanonico(empresa.cnpj));
     const resposta = existente
       ? await remoto.from('empresas').update(linha).eq('id', existente.id)
       : await remoto.from('empresas').insert(linha);
