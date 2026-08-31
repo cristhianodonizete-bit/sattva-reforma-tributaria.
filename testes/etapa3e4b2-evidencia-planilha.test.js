@@ -1,0 +1,3 @@
+const assert=require('assert');const{normalizar}=require('../src/services/evidenciaPlanilha');
+const a=normalizar({'CST PIS':'01','CST_COFINS':'02','BC PIS':'100','ALIQUOTA Cofins':'0,076','PIS':'1.65'},{empresa_id:1,movimento_id:9,correlacao_deterministica:true});assert.equal(a.movimento_id,9);assert.equal(a.cst_cofins,'02');assert.equal(a.base_pis,100);assert.equal(a.aliquota_cofins,.076);
+const b=normalizar({}, {empresa_id:1,movimento_id:9});assert.equal(b.movimento_id,null);assert.equal(b.base_pis,null);assert.equal(b.cst_pis,null);console.log('etapa3e4b2-evidencia-planilha.test: aliases e vínculo seguro aprovados');
