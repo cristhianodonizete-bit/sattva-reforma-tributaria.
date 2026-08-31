@@ -1,0 +1,11 @@
+const assert = require('assert');
+const sqlite = require('../src/sqlite');
+const db = sqlite.abrir(':memory:');
+db.exec(`create table lotes (id integer primary key, empresa_id integer not null, tipo_arquivo text, nome_arquivo text, hash_sha256 text, competencia_inicio text, competencia_fim text, cnpj_arquivo text, status_importacao text, criado_em text);
+create unique index ux_lotes_efd_empresa_tipo_hash on lotes(empresa_id,tipo_arquivo,hash_sha256) where tipo_arquivo='EFD_CONTRIBUICOES' and hash_sha256 is not null;`);
+const inserir = db.prepare('insert into lotes(empresa_id,tipo_arquivo,nome_arquivo,hash_sha256,status_importacao) values(?,?,?,?,?)');
+inserir.run(1,'EFD_CONTRIBUICOES','jan.txt','hash-a','PENDENTE');
+assert.throws(() => inserir.run(1,'EFD_CONTRIBUICOES','renomeado.txt','hash-a','PENDENTE'), /UNIQUE/);
+inserir.run(1,'EFD_CONTRIBUICOES','jan.txt','hash-b','PENDENTE');
+assert.equal(db.prepare('select count(*) c from lotes').get().c, 2);
+console.log('etapa3e2a1-persistencia-efd.test: persistência e idempotência aprovadas');

@@ -21,6 +21,10 @@ const db = sqlite.abrir(path.join(DIR, 'reforma.db'));
  * sem apagar o banco recebe erro na primeira execução.
  */
 const COLUNAS_NOVAS = {
+  lotes: {
+    tipo_arquivo: 'TEXT', hash_sha256: 'TEXT', competencia_inicio: 'TEXT', competencia_fim: 'TEXT',
+    cnpj_arquivo: 'TEXT', status_importacao: 'TEXT',
+  },
   cenarios: {
     tipo: "TEXT DEFAULT 'hipotese'",
     base_id: 'INTEGER',
@@ -333,8 +337,13 @@ CREATE TABLE IF NOT EXISTS lotes (
   tipo TEXT, arquivo TEXT, registros INTEGER DEFAULT 0,
   ignorados INTEGER DEFAULT 0, valor_total REAL DEFAULT 0,
   mensagens TEXT, origem TEXT DEFAULT 'planilha',
+  tipo_arquivo TEXT, hash_sha256 TEXT, competencia_inicio TEXT, competencia_fim TEXT,
+  cnpj_arquivo TEXT, status_importacao TEXT,
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
+CREATE UNIQUE INDEX IF NOT EXISTS ux_lotes_efd_empresa_tipo_hash
+  ON lotes(empresa_id, tipo_arquivo, hash_sha256)
+  WHERE tipo_arquivo = 'EFD_CONTRIBUICOES' AND hash_sha256 IS NOT NULL;
 
 -- ============ CENÁRIOS E SIMULAÇÃO DA CADEIA ============
 -- A tabela original de cenários vira o cabeçalho. Um cenário é IMUTÁVEL
