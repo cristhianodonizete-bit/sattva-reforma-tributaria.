@@ -2620,6 +2620,9 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
     const arquivos = req.files || [];
     if (!arquivos.length) throw new Error('Envie um ou mais arquivos de SPED no campo "arquivos".');
 
+    // A identificação e a validação acontecem antes de criar qualquer lote:
+    // arquivo ilegível, de outra empresa ou fora do leiaute não deixa lote órfão.
+    const preparados = arquivos.map((arquivo) => ({ arquivo, resultado: sped.lerSped(arquivo.buffer, empresa.cnpj) }));
     const lote = db.prepare(`INSERT INTO lotes (empresa_id, tipo, arquivo, registros, origem)
       VALUES (?,?,?,0,'sped')`).run(req.params.id, 'sped', arquivos.map((a) => a.originalname).join(', ').slice(0, 200));
 
@@ -2636,9 +2639,8 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
       participantes: 0, produtos: 0, avisos: [], erros: [] };
 
     db.transaction(() => {
-      for (const f of arquivos) {
+      for (const { arquivo: f, resultado: r } of preparados) {
         try {
-          const r = sped.lerSped(f.buffer, empresa.cnpj);
           rel.periodos.push({ arquivo: f.originalname, tipo: r.tipoArquivo,
             inicio: r.periodo.inicio, fim: r.periodo.fim, ...r.resumo });
           rel.produtos += r.produtos;
