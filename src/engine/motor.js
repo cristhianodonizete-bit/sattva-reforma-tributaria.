@@ -120,7 +120,24 @@ function memoriaElegibilidadeSimples({ sentido, regimeEmitente, regimeAdquirente
     pendencias: resposta.pendencias || [], origem_regra: resposta.origem,
   };
 }
-function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simplesFornecedorConhecido = false, simplesFornecedorReferencia = null }) {
+function classificacaoBloqueiaCredito(cls, decisaoClassificatoria = null) {
+  if (cls.vedacaoPossivel) return true;
+  if (cls.status === 'SEM_CORRESPONDENCIA') return true;
+  if (cls.status !== 'REQUER_VALIDACAO') return false;
+
+  // A classificação bruta pode permanecer pendente quando existem candidatos
+  // equivalentes para os efeitos materiais da operação. A liberação só ocorre
+  // com decisão explícita e rastreável; B2B, saída ou regime do cliente nunca
+  // substituem essa evidência classificatória.
+  const decisao = decisaoClassificatoria || {};
+  const autonomia = String(decisao.autonomiaClassificatoria || '').toUpperCase();
+  const impactoNaoMaterial = decisao.impactoTributarioMaterial === false;
+  const classificacaoSuficiente = decisao.classificacaoFiscalmenteEquivalente === true
+    || ['DETERMINADA', 'PARCIAL'].includes(autonomia);
+  return !(impactoNaoMaterial && classificacaoSuficiente);
+}
+
+function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simplesFornecedorConhecido = false, simplesFornecedorReferencia = null, decisaoClassificatoria = null }) {
   // Regime do adquirente desconhecido não pode ser tratado como se creditasse:
   // isso superestimaria o crédito entregue ao cliente. O desconhecido tem que
   // continuar desconhecido — e virar apontamento, não número otimista.
@@ -135,7 +152,7 @@ function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simp
   if (cls.vedacaoPossivel) {
     return credito('SUJEITO_VALIDACAO', null, null, 'SUJEITO_VALIDACAO', 'Aquisição possivelmente de uso e consumo ou ativo — confirmar se há vedação ao crédito.');
   }
-  if (cls.status === 'REQUER_VALIDACAO') {
+  if (cls.status === 'REQUER_VALIDACAO' && classificacaoBloqueiaCredito(cls, decisaoClassificatoria)) {
     return credito('SUJEITO_VALIDACAO', null, null, 'SUJEITO_VALIDACAO', 'Classificação do item ainda não concluída — crédito depende do enquadramento definitivo.');
   }
   if (cls.status === 'SEM_CORRESPONDENCIA') {
@@ -243,11 +260,21 @@ function projetarItem(item, ctx) {
   const percentualEfetivoSimples = !!(simplesInfo && simplesInfo.aliquotaEfetiva);
   const cred = avaliarCredito({
     regimeAdquirente, regimeFornecedor: regimeEmitente, cls, sentido,
+    decisaoClassificatoria: ctx.decisaoClassificatoria || null,
     simplesFornecedorConhecido: percentualEfetivoSimples,
     // O status de crédito deve registrar DETERMINADO quando a operação traz o
     // percentual efetivo. A premissa só é enviada quando foi realmente usada.
     simplesFornecedorReferencia: percentualEfetivoSimples ? null : referenciaCreditoSimples,
   });
+  if (cls.status === 'REQUER_VALIDACAO'
+    && !classificacaoBloqueiaCredito(cls, ctx.decisaoClassificatoria || null)) {
+    cred.decisaoClassificatoria = {
+      impacto_tributario_material: false,
+      classificacao_fiscalmente_equivalente: ctx.decisaoClassificatoria?.classificacaoFiscalmenteEquivalente === true,
+      autonomia_classificatoria: ctx.decisaoClassificatoria?.autonomiaClassificatoria || null,
+      origem: 'DECISAO_CLASSIFICATORIA_MATERIAL_V1',
+    };
+  }
   const elegibilidadeSimples = memoriaElegibilidadeSimples({ sentido, regimeEmitente, regimeAdquirente, cls, item, ano });
   if (elegibilidadeSimples) {
     cred.elegibilidadeLegal = elegibilidadeSimples;
@@ -473,6 +500,6 @@ function cargaAtual(itens) {
 
 module.exports = {
   naturezaItem, projetarItem, cenariosSimples, classificarDestinatario, sensibilidadeCredito, regimeCbs,
-  compararPerfis, apurar, cargaAtual, aliquotasEfetivas, aliquotasDoAno, anosDisponiveis,
+  compararPerfis, apurar, cargaAtual, aliquotasEfetivas, aliquotasDoAno, anosDisponiveis, classificacaoBloqueiaCredito,
   anexosSimples, avaliarCredito,
 };
