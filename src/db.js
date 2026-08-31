@@ -25,6 +25,11 @@ const COLUNAS_NOVAS = {
     tipo_arquivo: 'TEXT', hash_sha256: 'TEXT', competencia_inicio: 'TEXT', competencia_fim: 'TEXT',
     cnpj_arquivo: 'TEXT', status_importacao: 'TEXT',
   },
+  enriquecimento_pis_cofins_evidencias: {
+    tipo_fonte: 'TEXT', lote_origem_id: 'INTEGER', hash_lineage: 'TEXT', numero_documento: 'TEXT', serie: 'TEXT',
+    base_pis: 'REAL', base_cofins: 'REAL', aliquota_pis: 'REAL', aliquota_cofins: 'REAL',
+    natureza_credito: 'TEXT', condicao_credito: 'TEXT', grau_confianca: 'TEXT',
+  },
   cenarios: {
     tipo: "TEXT DEFAULT 'hipotese'",
     base_id: 'INTEGER',
@@ -947,6 +952,10 @@ CREATE TABLE IF NOT EXISTS enriquecimento_pis_cofins_evidencias (
   vigencia_fim TEXT,
   origem_evidencia TEXT NOT NULL,
   status_validacao TEXT NOT NULL DEFAULT 'PENDENTE',
+  tipo_fonte TEXT, lote_origem_id INTEGER, hash_lineage TEXT,
+  numero_documento TEXT, serie TEXT, base_pis REAL, base_cofins REAL,
+  aliquota_pis REAL, aliquota_cofins REAL, natureza_credito TEXT,
+  condicao_credito TEXT, grau_confianca TEXT,
   criado_em TEXT DEFAULT (datetime('now')),
   UNIQUE(empresa_id, movimento_id, origem_evidencia)
 );
