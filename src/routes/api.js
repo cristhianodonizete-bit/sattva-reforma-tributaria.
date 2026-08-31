@@ -474,7 +474,7 @@ router.delete('/grupos-empresas/:id', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.post('/empresas', (req, res) => {
+router.post('/empresas', async (req, res) => {
   try {
     const b = req.body;
     const cnpj = imp.soDigitos(b.cnpj);
@@ -486,6 +486,13 @@ router.post('/empresas', (req, res) => {
       b.regime || 'lucro_real', b.uf || '', b.municipio || '', b.cnae || '', b.atividade || '',
       Number(b.faturamento_anual) || 0, b.setor || '', b.reducao_padrao || 'integral',
       b.codigo_questor || '', b.observacoes || '');
+    // A empresa precisa existir primeiro na fonte compartilhada. Isso evita
+    // que dados complementares recém-informados fiquem apenas no cache local
+    // de uma instância efêmera do Render.
+    if (supabase.configurado()) {
+      await sincronizarGestaoSupabase();
+      await require('../services/operacaoCompartilhada').publicar();
+    }
     ok(res, { id: r.lastInsertRowid });
   } catch (e) { erro(res, e); }
 });
@@ -547,16 +554,33 @@ router.get('/empresas/:id/dados-adicionais-analise', (req, res) => {
   try { ok(res, dadosAdicionaisAnalise.listar(db, Number(req.params.id))); }
   catch (e) { erro(res, e); }
 });
-router.post('/empresas/:id/folhas-pagamento', (req, res) => {
-  try { ok(res, dadosAdicionaisAnalise.salvarFolha(db, Number(req.params.id), req.body || {})); }
+async function publicarDadosAdicionais() {
+  if (!supabase.configurado()) return;
+  await sincronizarGestaoSupabase();
+  await require('../services/operacaoCompartilhada').publicar();
+}
+router.post('/empresas/:id/folhas-pagamento', async (req, res) => {
+  try {
+    const resultado = dadosAdicionaisAnalise.salvarFolha(db, Number(req.params.id), req.body || {});
+    await publicarDadosAdicionais();
+    ok(res, resultado);
+  }
   catch (e) { erro(res, e); }
 });
-router.post('/empresas/:id/margens-operacionais', (req, res) => {
-  try { ok(res, dadosAdicionaisAnalise.salvarMargem(db, Number(req.params.id), req.body || {})); }
+router.post('/empresas/:id/margens-operacionais', async (req, res) => {
+  try {
+    const resultado = dadosAdicionaisAnalise.salvarMargem(db, Number(req.params.id), req.body || {});
+    await publicarDadosAdicionais();
+    ok(res, resultado);
+  }
   catch (e) { erro(res, e); }
 });
-router.post('/empresas/:id/receitas-sem-dfe', (req, res) => {
-  try { ok(res, dadosAdicionaisAnalise.salvarReceitaSemDfe(db, Number(req.params.id), req.body || {})); }
+router.post('/empresas/:id/receitas-sem-dfe', async (req, res) => {
+  try {
+    const resultado = dadosAdicionaisAnalise.salvarReceitaSemDfe(db, Number(req.params.id), req.body || {});
+    await publicarDadosAdicionais();
+    ok(res, resultado);
+  }
   catch (e) { erro(res, e); }
 });
 
