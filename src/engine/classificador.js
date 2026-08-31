@@ -19,6 +19,7 @@
 const db = require('../db');
 const bases = require('../services/basesReforma');
 const regras = require('../services/regras');
+const { avaliarEquivalenciaClassificatoria } = require('../services/equivalenciaClassificatoria');
 
 const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
 // A base de serviços traz cClassTrib. Para o motor, o grupo do código define
@@ -112,7 +113,7 @@ function classificar(item, ctx = {}) {
     if (r.encontrado) {
       candidatos = r.candidatos;
       fundamentos.push(`NCM ${item.ncm} localizado na matriz da LC 214${r.nivel !== 'exato' ? ` por ${r.nivel}` : ''}.`);
-      if (r.nivel && r.nivel !== 'exato') {
+      if (r.nivel && r.nivel !== 'exato' && candidatos.length <= 1) {
         return montar('REQUER_VALIDACAO', null, origem,
           fundamentos.concat(['Correspondência apenas por posição/subposição — confirmar o NCM completo do produto.']),
           { natureza, sentido, candidatos });
@@ -127,11 +128,7 @@ function classificar(item, ctx = {}) {
       fundamentos.push(r.nivel === 'exato'
         ? `Serviço localizado pela chave LC 116 ${r.lc116} + NBS ${r.nbs}.`
         : `Serviço localizado apenas por ${r.nivel} — a chave completa é LC 116 + NBS.`);
-      if (r.nivel !== 'exato' && candidatos.length > 1) {
-        return montar('REQUER_VALIDACAO', null, origem,
-          fundamentos.concat(['A mesma NBS tem classificação diferente conforme o item da LC 116. Informar o item para concluir.']),
-          { natureza, sentido, candidatos });
-      }
+      if (r.nivel !== 'exato' && candidatos.length > 1) fundamentos.push('A chave documental está incompleta; os candidatos serão comparados somente pela assinatura tributária material.');
     }
   }
 
@@ -145,9 +142,15 @@ function classificar(item, ctx = {}) {
 
   // --- 4. mais de um candidato: o motor não escolhe (item 7)
   if (candidatos.length > 1) {
+    const equivalencia = avaliarEquivalenciaClassificatoria(candidatos, { tipo_operacao: natureza, destinacao: ctx.perfilDestinatario || '' });
+    if (equivalencia.status === 'EQUIVALENTE_FISCALMENTE') {
+      return montar('PARCIAL', null, origem,
+        fundamentos.concat([`${candidatos.length} classificações candidatas têm a mesma assinatura tributária material. Nenhum código foi escolhido.`]),
+        { natureza, sentido, candidatos, equivalenciaFiscal: equivalencia });
+    }
     return montar('REQUER_VALIDACAO', null, origem,
       fundamentos.concat([`${candidatos.length} enquadramentos possíveis para este código. A escolha depende da operação concreta.`]),
-      { natureza, sentido, candidatos });
+      { natureza, sentido, candidatos, equivalenciaFiscal: equivalencia });
   }
 
   // --- 5. único candidato, mas a operação pode afastá-lo
@@ -200,9 +203,12 @@ function montar(status, c, origem, fundamentos, extra = {}) {
     candidatos: (extra.candidatos || []).map((x) => ({
       cclasstrib: x.cclasstrib, cst: x.cst, classificacao: x.classificacao || x.nome_cclasstrib,
       anexo: x.anexo, reducao: x.reducao, reducao_ibs: x.reducao_ibs, lc116: x.lc116,
+      nbs: x.nbs, ncm: x.ncm, catalogo_versao_id: x.catalogo_versao_id || x.catalogoVersao || null,
     })),
     vedacaoPossivel: !!extra.vedacaoPossivel,
     divergencia: !!extra.divergencia,
+    equivalenciaFiscal: extra.equivalenciaFiscal || null,
+    impactoTributarioMaterial: extra.equivalenciaFiscal?.impacto_tributario_material ?? null,
     declarado: extra.declarado || null,
   };
 }

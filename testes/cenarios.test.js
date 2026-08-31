@@ -344,11 +344,17 @@ function executar() {
     // Uma premissa comercial B2B não altera a classificação fiscal nem cria
     // crédito CBS. Se o item segue pendente, o crédito continua pendente/zero
     // apurado; se já era determinado, preserva apenas o crédito oficial.
-    const fiscaisPreservados = migrados.every((x) => x.classificacao?.status !== 'CLASSIFICADO'
-      ? ['SUJEITO_VALIDACAO', 'DADOS_INSUFICIENTES', 'INDETERMINADO', 'SEM_DIREITO'].includes(x.credito?.statusDeterminacao || x.credito?.status)
-      : true);
-    const semCreditoInventado = migrados.every((x) => x.classificacao?.status !== 'CLASSIFICADO'
-      ? num(x.creditoTotal) === 0 : true);
+    // PARCIAL só é uma classificação resolvida quando a equivalência material
+    // está provada e documentada. Perfil B2B não produz essa equivalência nem
+    // cria crédito; ele apenas consome a decisão fiscal que já existia.
+    const parcialEquivalente = (x) => x.classificacao?.status === 'PARCIAL'
+      && x.classificacao?.equivalenciaFiscal?.status === 'EQUIVALENTE_FISCALMENTE'
+      && x.classificacao?.impactoTributarioMaterial === false;
+    const fiscaisPreservados = migrados.every((x) => x.classificacao?.status === 'CLASSIFICADO' || parcialEquivalente(x)
+      ? true
+      : ['SUJEITO_VALIDACAO', 'DADOS_INSUFICIENTES', 'INDETERMINADO', 'SEM_DIREITO'].includes(x.credito?.statusDeterminacao || x.credito?.status));
+    const semCreditoInventado = migrados.every((x) => x.classificacao?.status === 'CLASSIFICADO' || parcialEquivalente(x)
+      ? true : num(x.creditoTotal) === 0);
     const ok = Math.abs(dif) < tolAcumulada && fiscaisPreservados && semCreditoInventado
       && d.indeterminado.credito === null && d.simulado.natureza === 'SIMULADO';
     registrar({ n: 12, nome: 'Cliente desconhecido parcialmente simulado como B2B',
