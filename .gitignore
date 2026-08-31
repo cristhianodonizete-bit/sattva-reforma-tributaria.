@@ -1,3 +1,10 @@
 node_modules/
 dados/
 .env
+
+# Saídas de auditoria reproduzíveis. São preservadas localmente, mas não
+# compõem o release nem devem carregar dados de clientes para o repositório.
+/auditorias/*.json
+/auditorias/*.png
+/auditorias/*.xlsx
+/auditorias/*.md
