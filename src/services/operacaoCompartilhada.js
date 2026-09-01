@@ -196,6 +196,8 @@ async function baixar() {
   catch (e) { falhas.motor = e.message; }
   try { Object.assign(resultado, await baixarConfiguracao(CONFIG_TABELAS, remoto)); }
   catch (e) { falhas.configuracao = e.message; }
+  try { Object.assign(resultado, await baixarParametrosIrpjCsll(remoto)); }
+  catch (e) { falhas.parametros_irpj_csll = e.message; }
   try { resultado.gestao = await baixarGestao(remoto); }
   catch (e) { falhas.gestao = e.message; }
   if (Object.keys(falhas).length) resultado.falhas = falhas;
@@ -298,6 +300,22 @@ async function baixarConfiguracao(tabelas = CONFIG_TABELAS, remotoInformado = nu
   }
   return resultado;
 }
+
+// IRPJ/CSLL possui governança própria por vigência e não pode ser publicado
+// pelo cache efêmero. A leitura substitui a fotografia local somente depois
+// de obter a coleção remota completa com sucesso.
+async function baixarParametrosIrpjCsll(remotoInformado = null) {
+  if (!supabase.configurado()) return { ativo: false };
+  const remoto = remotoInformado || supabase.admin();
+  const linhas = await buscarTudo(remoto, 'param_irpj_csll_versionados');
+  const colunas = db.prepare('PRAGMA table_info(param_irpj_csll_versionados)').all().map((x) => x.name);
+  const inserir = db.prepare(`INSERT INTO param_irpj_csll_versionados (${colunas.join(',')}) VALUES (${colunas.map(() => '?').join(',')})`);
+  db.transaction(() => {
+    db.prepare('DELETE FROM param_irpj_csll_versionados').run();
+    for (const linha of linhas) inserir.run(...colunas.map((coluna) => linha[coluna] ?? null));
+  })();
+  return { parametros_irpj_csll: linhas.length };
+}
 async function publicarConfiguracao(tabelas = CONFIG_TABELAS) {
   if (!supabase.configurado()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {};
@@ -388,5 +406,5 @@ async function publicarContratos(remoto, empresaId) {
   }
   return { contratos: contratos.length };
 }
-module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarGestao, publicar,
+module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar,
   baixarResultadosMotor, publicarResultadosMotor };

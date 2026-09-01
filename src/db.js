@@ -63,6 +63,11 @@ const COLUNAS_NOVAS = {
   },
   jobs_carteira: { proxima_tentativa_em: 'TEXT', resultado: 'TEXT' },
   param_regimes: { credito_cbs_simples_referencia: 'REAL' },
+  param_irpj_csll_versionados: {
+    limite_receita_anual: 'REAL',
+    acrescimo_percentual_base_excedente: 'REAL',
+    aplicacao_excedente: 'TEXT',
+  },
   param_cfop: { prioridade: 'INTEGER DEFAULT 2' },
   param_aliquotas: { calcular_ibs: 'INTEGER DEFAULT 0' },
   parceiros: {
@@ -967,6 +972,9 @@ CREATE TABLE IF NOT EXISTS param_irpj_csll_versionados (
   aliquota REAL,
   adicional REAL,
   limite_adicional REAL,
+  limite_receita_anual REAL,
+  acrescimo_percentual_base_excedente REAL,
+  aplicacao_excedente TEXT,
   vigencia_inicio TEXT NOT NULL,
   vigencia_fim TEXT,
   fonte TEXT, fundamento TEXT,

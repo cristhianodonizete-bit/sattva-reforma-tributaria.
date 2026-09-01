@@ -682,8 +682,11 @@ router.get('/empresas/:id/perfil-tributario-historico', (req, res) => {
   catch (e) { erro(res, e); }
 });
 
-router.get('/empresas/:id/comparador-regimes', (req, res) => {
-  try { ok(res, comparadorRegimes.comparar(db, Number(req.params.id))); }
+router.get('/empresas/:id/comparador-regimes', async (req, res) => {
+  try {
+    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarParametrosIrpjCsll();
+    ok(res, comparadorRegimes.comparar(db, Number(req.params.id)));
+  }
   catch (e) { erro(res, e); }
 });
 
