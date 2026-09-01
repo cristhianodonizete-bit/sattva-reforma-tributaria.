@@ -40,7 +40,9 @@ function motivoSemCatalogo(item) {
 
 function resolver(item) {
   const documento = num(item.pis) + num(item.cofins);
-  if (item.pis_cofins_documentado || documento > 0) return { percentual: item.valor ? documento / num(item.valor) : 0, valor: documento, origem: 'DOCUMENTO', natureza: 'REAL', metodo: 'DOCUMENTO', modoMonofasia: 'VALOR_REAL_DOCUMENTO', catalogo: null };
+  // Flag de bloco XML não comprova valor: zero somente vem do documento quando
+  // houver evidência fiscal explícita para a alíquota zero.
+  if (documento > 0 || item.pis_cofins_zero_comprovado === true) return { percentual: item.valor ? documento / num(item.valor) : 0, valor: documento, origem: 'DOCUMENTO', natureza: 'REAL', metodo: 'DOCUMENTO', modoMonofasia: 'VALOR_REAL_DOCUMENTO', catalogo: null };
   const c = localizar(item);
   // Ausência de catálogo não é autorização para escolher uma carga por
   // conveniência. A regra geral de regime continua sendo uma regra válida
@@ -81,8 +83,11 @@ function resolver(item) {
   return {
     percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO',
     metodo: 'CATALOGO_SEM_REGRA_CONCLUSIVA', motivoIndeterminacao: 'REGRA_INCONCLUSIVA',
-    catalogo: c, continuar: false,
-    justificativa: 'O catálogo foi localizado, mas não contém regra conclusiva aplicável à operação.',
+    // A ausência de regra específica não é exceção fiscal. Quando o contexto
+    // confirmou a regra geral versionada do regime, ela é a próxima
+    // precedência; uma regra específica conclusiva continua prevalecendo.
+    catalogo: c, continuar: item.regra_geral_regime_confirmada === true,
+    justificativa: 'O catálogo foi localizado, mas não contém regra específica conclusiva aplicável à operação.',
   };
 }
 

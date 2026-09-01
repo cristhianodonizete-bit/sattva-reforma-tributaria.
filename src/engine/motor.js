@@ -251,7 +251,13 @@ function projetarItem(item, ctx) {
 
   // ---------- 3. ALÍQUOTA E CONTEXTO DA BASE ----------
   const aliq = aliquotasEfetivas(ano, cls);
-  const rec = reconstruir({ ...contextoClassificatorio.item, tipo, regime: regimeEmitente, simples: simplesInfo }, {
+  // Para emitente regular, a regra geral versionada entra após documento,
+  // exceção específica e referência fiscal. Ela saneia XML sem PIS/COFINS
+  // confiável; não substitui monofasia, alíquota zero ou regra específica.
+  const regraGeralRegimeConfirmada = ['lucro_presumido', 'lucro_real'].includes(regimeEmitente)
+    && contextoClassificatorio.item?.condicao_material_pendente !== true;
+  const rec = reconstruir({ ...contextoClassificatorio.item, tipo, regime: regimeEmitente, simples: simplesInfo,
+    regra_geral_regime_confirmada: regraGeralRegimeConfirmada }, {
     ibsHabilitado: Number(aliq.parametros.calcular_ibs) === 1,
   });
   if (contextoClassificatorio.equivalente) {

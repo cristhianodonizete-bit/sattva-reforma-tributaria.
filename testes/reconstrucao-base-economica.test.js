@@ -15,6 +15,30 @@ assert.equal(r.tributosAtuais.pis, 0.65);
 assert.equal(r.tributosAtuais.cofins, 3);
 assert.equal(r.memoriaTributos.pis.origem, 'REGRA_REGIME');
 assert.equal(r.memoriaTributos.pis.natureza, 'CALCULADO');
+assert.equal(r.pendencias.some((x) => x.includes('REGRA_GERAL_REGIME')), false, 'regra versionada não deve virar pendência');
+
+// Bloco XML zerado sem evidência fiscal não é carga documental: deve seguir a
+// regra versionada da empresa, ficando tratado como CALCULADO.
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', pis: 0, cofins: 0,
+  pis_cofins_documentado: true, regra_geral_regime_confirmada: true });
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 3.65);
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_origem, 'REGRA_REGIME');
+
+// Zero comprovado por regra/evidência continua tendo precedência sobre o fallback.
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', pis: 0, cofins: 0,
+  pis_cofins_documentado: true, pis_cofins_zero_comprovado: true, regra_geral_regime_confirmada: true });
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 0);
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_origem, 'DOCUMENTO');
+
+// A orquestração do motor confirma a regra do regime da empresa: a tela não
+// precisa nem pode depender de uma flag vinda do XML para sanear a ausência.
+const saneadoPeloMotor = projetarItem({ valor: 100, descricao: 'Serviço sem PIS/COFINS confiável', cfop: '5933',
+  pis: 0, cofins: 0, pis_cofins_documentado: true }, {
+  sentido: 'saida', ano: 2027, empresa: { regime: 'lucro_presumido' }, regimeContraparte: 'lucro_real',
+});
+assert.equal(saneadoPeloMotor.reconstrucao.tributosAtuais.pis + saneadoPeloMotor.reconstrucao.tributosAtuais.cofins, 3.65);
+assert.equal(saneadoPeloMotor.reconstrucao.memoriaPisCofins.carga_atual_pis_cofins_origem, 'REGRA_REGIME');
+assert.equal(saneadoPeloMotor.reconstrucao.status, 'reconstruida');
 
 // Catálogo condicional sem impedimento material deve continuar a precedência.
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', catalogo_fiscal: {
