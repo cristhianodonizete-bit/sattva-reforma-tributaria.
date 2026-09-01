@@ -491,6 +491,7 @@ Telas.capacitacao = async (el) => {
           const fd = new FormData(); fd.append('arquivo', f);
           try { const r = await A.api(`/turmas/${t.id}/importar`, { metodo: 'POST', corpo: fd }); A.toast(`${r.importados} participantes${r.foraDaCarteira ? ` · ${r.foraDaCarteira} sem acesso` : ''}`, 'ok'); A.ir('capacitacao'); }
           catch (e) { A.toast(e.message, 'erro'); } })}
+        <div style="margin-top:10px"><button class="btn vazio pq" onclick="window.open('/api/modelos/participantes')">Baixar modelo</button></div>
         <div style="margin-top:14px">${A.tabela([
           { t: 'Nome', r: (p) => A.esc(p.nome) },
           ...(t.trilha === 'workshop_boas_praticas' ? [{ t: 'Empresa', r: (p) => A.esc(p.empresa_nome || '—') }] : []),

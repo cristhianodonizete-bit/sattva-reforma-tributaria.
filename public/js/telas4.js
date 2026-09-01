@@ -24,6 +24,7 @@ Telas.bases = async (el) => {
       <h2>Catálogo fiscal completo — PIS/COFINS</h2>
       <p class="desc">Importe uma única vez a planilha com as abas <span class="mono">Produtos NCM</span> e <span class="mono">Serviços NBS</span>. Ela atualiza as duas bases e alimenta a reconstrução da carga atual sem depender do Excel depois da importação.</p>
       <div class="dropzone" id="zonaCatalogo"><b>Solte o catálogo fiscal completo aqui</b><div class="mini">.xlsx · produtos, serviços, cumulatividade e regras de reconstrução</div></div>
+      <div style="margin-top:10px"><button class="btn vazio pq" onclick="window.open('/api/bases/modelo/catalogo-fiscal')">Baixar modelo</button></div>
       <div id="statusCatalogo" style="margin-top:12px"></div>
     </div>
     <div class="grade g2" style="margin-top:16px">
@@ -31,12 +32,14 @@ Telas.bases = async (el) => {
         <h2>Base de mercadorias — NCM</h2>
         <p class="desc">Planilha com NCM, CST, cClassTrib, anexo da LC 214, fundamento e percentuais de redução de IBS e CBS. Aba esperada: <span class="mono">Detalhamento candidatos</span>.</p>
         <div class="dropzone" id="zonaNcm"><b>Solte a planilha de NCM aqui</b><div class="mini">substitui a base atual · .xlsx</div></div>
+        <div style="margin-top:10px"><button class="btn vazio pq" onclick="window.open('/api/bases/modelo/ncm')">Baixar modelo</button></div>
         <div id="statusNcm" style="margin-top:12px"></div>
       </div>
       <div class="cartao">
         <h2>Base de serviços — LC 116 + NBS</h2>
         <p class="desc">Planilha de correlação com Item LC 116, NBS, INDOP, local de incidência do IBS e cClassTrib. Aba esperada: <span class="mono">tabela geral</span>.</p>
         <div class="dropzone" id="zonaServ"><b>Solte a planilha de correlação aqui</b><div class="mini">substitui a base atual · .xlsx</div></div>
+        <div style="margin-top:10px"><button class="btn vazio pq" onclick="window.open('/api/bases/modelo/servicos')">Baixar modelo</button></div>
         <div id="statusServ" style="margin-top:12px"></div>
       </div>
     </div>

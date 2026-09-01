@@ -881,7 +881,7 @@ router.delete('/parceiros/:id', (req, res) => {
 // IMPORTAÇÕES
 // ===========================================================================
 router.get('/modelos/:tipo', (req, res) => {
-  const tipos = { parceiros: 'Modelo_Cadastro_Clientes_Fornecedores', movimento_fornecedor: 'Modelo_Movimentacao_Fornecedores', movimento_cliente: 'Modelo_Movimentacao_Clientes', referencias_servicos: 'Modelo_Referencias_Fiscais_Servicos', pgdas: 'Modelo_PGDAS', folha: 'Modelo_Folha_Pagamento', receitas_sem_dfe: 'Modelo_Receitas_Sem_DFe' };
+  const tipos = { parceiros: 'Modelo_Cadastro_Clientes_Fornecedores', movimento_fornecedor: 'Modelo_Movimentacao_Fornecedores', movimento_cliente: 'Modelo_Movimentacao_Clientes', referencias_servicos: 'Modelo_Referencias_Fiscais_Servicos', pgdas: 'Modelo_PGDAS', folha: 'Modelo_Folha_Pagamento', receitas_sem_dfe: 'Modelo_Receitas_Sem_DFe', participantes: 'Modelo_Participantes', apuracao_pis_cofins: 'Modelo_Apuracao_PIS_Cofins' };
   if (!tipos[req.params.tipo]) return erro(res, new Error('Modelo inexistente'), 404);
   const buf = imp.gerarModelo(req.params.tipo);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -2597,6 +2597,17 @@ router.post('/analises/:id/aplicar', (req, res) => {
 // ===========================================================================
 router.get('/bases', (_req, res) => ok(res, { estatisticas: bases.estatisticas() }));
 
+router.get('/bases/modelo/:tipo', (req, res) => {
+  try {
+    const tipo = ['ncm', 'servicos', 'catalogo-fiscal'].includes(req.params.tipo) ? req.params.tipo : null;
+    if (!tipo) throw new Error('Modelo de base inexistente.');
+    const arquivo = bases.gerarModelo(tipo);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="modelo-base-${tipo}.xlsx"`);
+    res.send(arquivo);
+  } catch (e) { erro(res, e, 404); }
+});
+
 router.post('/bases/importar/:tipo', upload.single('arquivo'), (req, res) => {
   try {
     if (!req.file) throw new Error('Envie a planilha no campo "arquivo".');
@@ -3624,6 +3635,13 @@ router.post('/empresas/:id/parceiros/enriquecer', async (req, res) => {
 // ===========================================================================
 router.get('/base-regime', async (_req, res) => {
   try { ok(res, await baseRegime.estatisticas()); } catch (e) { erro(res, e); }
+});
+
+router.get('/base-regime/modelo', (_req, res) => {
+  const conteudo = 'CNPJ;Ano;Forma de Tributação\n12345678000190;2026;Lucro Real\n';
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="modelo-base-receita.csv"');
+  res.send(`\uFEFF${conteudo}`);
 });
 
 /** Inspeciona o leiaute antes de importar — evita importar errado 1 milhão de linhas */

@@ -42,6 +42,22 @@ const normNcm = (v) => { const d = soDigitos(v); return d ? d.slice(0, 8).padSta
 const normalizar = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '')
   .toLowerCase().replace(/[^a-z0-9]/g, '');
 
+function gerarModelo(tipo) {
+  const wb = XLSX.utils.book_new();
+  const adicionar = (nome, linha) => {
+    const ws = XLSX.utils.json_to_sheet([linha]);
+    ws['!cols'] = Object.keys(linha).map((chave) => ({ wch: Math.max(14, Math.min(34, chave.length + 3)) }));
+    XLSX.utils.book_append_sheet(wb, ws, nome);
+  };
+  const ncm = { NCM: '30049099', 'Descrição NCM': 'Produto exemplo', 'CST IBS/CBS': '000', cClassTrib: '000001', Classificação: 'Tributação integral', Anexo: '', Fundamento: '', 'Redução IBS (%)': 0, 'Redução CBS (%)': 0, 'Operação atual PIS/COFINS': '', 'CST PIS atual': '', 'CST COFINS atual': '' };
+  const servicos = { 'Item LC 116': '1.07', NBS: '115013000', 'Descrição Item': 'Serviço exemplo', 'DESCRIÇÃO NBS': 'Descrição NBS exemplo', INDOP: '', 'Local incidência IBS': '', cClassTrib: '000001', 'Operação atual PIS/COFINS': '', 'CST PIS atual': '', 'CST COFINS atual': '' };
+  if (tipo === 'ncm' || tipo === 'catalogo-fiscal') adicionar('Produtos NCM', ncm);
+  if (tipo === 'servicos' || tipo === 'catalogo-fiscal') adicionar('Serviços NBS', servicos);
+  const instr = XLSX.utils.json_to_sheet([{ Instrução: 'Use os nomes de colunas do modelo. Campos não disponíveis podem ficar vazios; NCM ou Item LC 116/NBS são necessários para reconhecer a linha.' }]);
+  instr['!cols'] = [{ wch: 115 }]; XLSX.utils.book_append_sheet(wb, instr, 'Instruções');
+  return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+}
+
 /** Localiza a coluna pelo nome do cabeçalho, tolerando acento/caixa/espaço */
 function acha(linha, nomes) {
   for (const k of Object.keys(linha)) {
@@ -337,5 +353,5 @@ function estatisticas() {
   return { ncm: { ...ncm, comMultiplosCandidatos: mult }, servicos: serv, importacoes: imports };
 }
 
-module.exports = { importarServicos, importarNcm, importarCatalogoFiscal, consultarNcm, consultarServico, buscar,
+module.exports = { gerarModelo, importarServicos, importarNcm, importarCatalogoFiscal, consultarNcm, consultarServico, buscar,
   classificarMovimentos, pendencias, decidir, estatisticas, normNcm, normLc116, normNbs };

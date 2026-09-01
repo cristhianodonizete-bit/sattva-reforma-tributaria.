@@ -339,6 +339,12 @@ function gerarModelo(tipo) {
   } else if (tipo === 'receitas_sem_dfe') {
     nomeAba = 'Receitas sem DFe';
     dados = [{ 'Competência': '2026-01', 'Tipo de receita': 'Locação', 'Descrição': 'Locação de equipamentos', Valor: 3500, Evidência: 'Contrato 123' }];
+  } else if (tipo === 'participantes') {
+    nomeAba = 'Participantes';
+    dados = [{ Nome: 'Nome do participante', Área: 'Financeiro', 'E-mail': 'participante@empresa.com', Empresa: 'Empresa vinculada (somente turma compartilhada)', CNPJ: '12.345.678/0001-90' }];
+  } else if (tipo === 'apuracao_pis_cofins') {
+    nomeAba = 'Apuração PIS Cofins';
+    dados = [{ Competência: '2026-01', 'Regime PIS/Cofins': 'Cumulativo', 'Receita Base': 100000, 'PIS Débito': 650, 'COFINS Débito': 3000, 'PIS Crédito': '', 'COFINS Crédito': '', 'PIS Recolhido': 650, 'COFINS Recolhida': 3000, Observações: '' }];
   } else {
     nomeAba = tipo === 'movimento_cliente' ? 'Saidas' : 'Entradas';
     const rotulo = tipo === 'movimento_cliente' ? 'Cliente' : 'Fornecedor';
@@ -369,6 +375,8 @@ function gerarModelo(tipo) {
     ...(tipo === 'pgdas' ? [{ Campo: 'PGDAS', 'Valores aceitos': 'Competência e DAS são obrigatórios. Receita Bruta, PIS e COFINS são opcionais; ausência não é transformada em zero.' }] : []),
     ...(tipo === 'folha' ? [{ Campo: 'Folha', 'Valores aceitos': 'Competência e Valor da Folha são obrigatórios. Pró-labore e Referência do arquivo são opcionais.' }] : []),
     ...(tipo === 'receitas_sem_dfe' ? [{ Campo: 'Receita sem DF-e', 'Valores aceitos': 'Competência, Tipo de receita, Descrição e Valor são obrigatórios. Evidência é opcional; duplicidades são sinalizadas.' }] : []),
+    ...(tipo === 'participantes' ? [{ Campo: 'Participantes', 'Valores aceitos': 'Nome é obrigatório. Área e E-mail são opcionais. Empresa ou CNPJ só são usados em turmas compartilhadas.' }] : []),
+    ...(tipo === 'apuracao_pis_cofins' ? [{ Campo: 'Apuração PIS/Cofins', 'Valores aceitos': 'Use o relatório original quando disponível. A planilha modelo aceita Competência, Receita Base, débitos, créditos, recolhidos e observações; campos sem evidência permanecem não identificados.' }] : []),
   ];
   const wsI = XLSX.utils.json_to_sheet(instr);
   wsI['!cols'] = [{ wch: 24 }, { wch: 110 }];

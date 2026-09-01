@@ -14,7 +14,7 @@ const abrirIngestaoApuracao = (aoConcluir, reprocessar = false) => A.modal({
   titulo: reprocessar ? 'Reprocessar apuração histórica de PIS/Cofins' : 'Enviar apuração histórica de PIS/Cofins',
   descricao: 'Selecione o arquivo original. A extração preserva ausência como “Não identificado” e exige revisão humana quando houver baixa confiança.',
   confirmar: reprocessar ? 'Reprocessar' : 'Enviar e processar',
-  corpo: '<label class="campo"><span>Arquivo</span><input id="arquivoApuracao" type="file" accept=".pdf,.xlsx,.csv,.txt" required></label><label class="campo"><span>Tipo do documento</span><select id="tipoApuracao"><option value="PDF">PDF</option><option value="XLSX">XLSX</option><option value="CSV">CSV</option><option value="RELATORIO_ERP">Relatório ERP</option></select></label>',
+  corpo: '<label class="campo"><span>Arquivo</span><input id="arquivoApuracao" type="file" accept=".pdf,.xlsx,.csv,.txt" required></label><label class="campo"><span>Tipo do documento</span><select id="tipoApuracao"><option value="PDF">PDF</option><option value="XLSX">XLSX</option><option value="CSV">CSV</option><option value="RELATORIO_ERP">Relatório ERP</option></select></label><div><button type="button" class="btn vazio pq" onclick="window.open(\'/api/modelos/apuracao_pis_cofins\')">Baixar modelo de planilha</button></div>',
   aoConfirmar: async (_dados, fundo) => {
     const arquivo = fundo.querySelector('#arquivoApuracao')?.files?.[0];
     if (!arquivo) throw new Error('Selecione um documento.');
@@ -355,11 +355,11 @@ Telas.dados = async (el) => {
     document.getElementById('importarReferenciasServico')?.addEventListener('click', () => {
       A.modal({ titulo: 'Importar referências fiscais de serviços', confirmar: null,
         descricao: 'Colunas aceitas: Descrição do serviço, NBS, PIS/COFINS, DAS efetivo e ISS. Informe alíquotas como 9,25% ou 0,0925. A importação atualiza referências que já existirem com a mesma chave.',
-        corpo: A.dropzone('zonaImportarReferencias', '<b>Solte a planilha aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>', async (arquivo) => {
+        corpo: `${A.dropzone('zonaImportarReferencias', '<b>Solte a planilha aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>', async (arquivo) => {
           const fd = new FormData(); fd.append('arquivo', arquivo);
           try { const r = await A.api(`/empresas/${S.empresaId}/referencias-vendas/importar`, { metodo: 'POST', corpo: fd }); A.toast(`${r.importados} referência(s) importada(s)${r.ignorados ? ` · ${r.ignorados} ignorada(s)` : ''}`, 'ok'); A.ir('dados'); }
           catch (e) { A.toast(e.message, 'erro'); }
-        }),
+        })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="window.open('/api/modelos/referencias_servicos')">Baixar modelo</button></div>`,
       });
     });
     el.querySelectorAll('[data-ir-importacao]').forEach((b) => { b.onclick = () => document.getElementById(b.dataset.irImportacao)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });

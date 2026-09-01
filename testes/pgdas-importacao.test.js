@@ -1,6 +1,6 @@
 const assert = require('assert');
 const XLSX = require('xlsx');
-const { importarPgdas } = require('../src/services/importador');
+const { importarPgdas, gerarModelo } = require('../src/services/importador');
 
 function planilha(linhas) {
   const wb = XLSX.utils.book_new();
@@ -26,5 +26,10 @@ const parcial = importarPgdas(planilha([
 assert.strictEqual(parcial.registros.length, 1, 'Somente a linha com competência e DAS válidos deve ser aceita');
 assert.strictEqual(parcial.ignorados, 2);
 assert.strictEqual(parcial.registros[0].receita_bruta, null, 'Ausência deve permanecer nula, nunca zero');
+
+for (const tipo of ['pgdas', 'folha', 'receitas_sem_dfe', 'participantes', 'apuracao_pis_cofins']) {
+  const modelo = XLSX.read(gerarModelo(tipo), { type: 'buffer' });
+  assert(modelo.SheetNames.length >= 2, `Modelo ${tipo} deve conter dados e instruções`);
+}
 
 console.log('PGDAS: importação XLSX/CSV, campos opcionais e ausência preservada aprovados.');
