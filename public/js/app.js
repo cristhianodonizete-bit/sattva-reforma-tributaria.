@@ -152,7 +152,7 @@ const App = (() => {
     { id: 'dados', titulo: 'Dados', itens: [
       { id: 'dados', t: 'Central de Dados', i: '⇧' }, { id: 'empresas', t: 'Empresas e estabelecimentos', i: '▦' },
       { id: 'cadastrosCnpj', t: 'Cadastros compartilhados', i: '⌘' },
-      { id: 'bases', t: 'Bases carregadas e classificações', i: '⌘' },
+      { id: 'bases', t: 'Bases, catálogo NCM/NBS e classificações', i: '⌘' },
     ] },
     { id: 'diagnostico', titulo: 'Módulo 1 · Diagnóstico', itens: [
       { id: 'coberturaDiagnostico', t: 'Cobertura do diagnóstico', i: '◌' },
