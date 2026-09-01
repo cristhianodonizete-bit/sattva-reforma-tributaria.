@@ -652,6 +652,10 @@ router.get('/empresas/:id/apuracoes-pis-cofins', (req, res) => {
   try { ok(res, { apuracoes: apuracoesPisCofinsIa.listarParaRevisao(db, Number(req.params.id)) }); }
   catch (e) { erro(res, e); }
 });
+router.post('/empresas/:id/apuracoes-pis-cofins/:apuracaoId/confirmar', (req, res) => {
+  try { ok(res, { apuracao: apuracoesPisCofinsIa.confirmarRevisao(db, Number(req.params.id), Number(req.params.apuracaoId)) }); }
+  catch (e) { erro(res, e); }
+});
 
 router.get('/empresas/:id/perfil/analise', (req, res) => {
   try {

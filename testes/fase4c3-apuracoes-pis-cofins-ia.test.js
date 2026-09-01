@@ -1,4 +1,6 @@
 const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 const sqlite = require('../src/sqlite');
 const apuracoes = require('../src/services/apuracoesPisCofinsIa');
 const perfil = require('../src/services/perfilTributarioHistorico');
@@ -48,6 +50,10 @@ assert.ok(r.hash_sha256.length === 64);
 assert.strictEqual(r.divergencias.length, 0);
 assert.strictEqual(apuracoes.listarParaRevisao(db, 1)[0].campos_extraidos.length, 14);
 assert.strictEqual(apuracoes.listarParaRevisao(db, 1)[0].campos_extraidos.find((x) => x.campo === 'cofins_debito').confianca, 0.35);
+const confirmado = apuracoes.confirmarRevisao(db, 1, r.apuracao_id);
+assert.strictEqual(confirmado.status_validacao, 'VALIDADO_USUARIO');
+assert.strictEqual(confirmado.campos_extraidos.find((x) => x.campo === 'pis_debito').status_validacao, 'VALIDADO_USUARIO');
+assert.strictEqual(confirmado.campos_extraidos.find((x) => x.campo === 'observacoes').status_validacao, 'VALIDADO_USUARIO');
 
 const raio = perfil.consolidar(db, 1).historico[0];
 assert.strictEqual(raio.apuracao_pis_cofins_historica.pis_debito.valor, 6.5);
@@ -60,5 +66,10 @@ const parcial = apuracoes.ingestao(db, 2, { nome_original: 'parcial.csv', tipo_d
 assert.strictEqual(parcial.campos.find((x) => x.campo === 'pis_debito').valor_extraido, null, 'ausência deve permanecer NULL');
 assert.strictEqual(apuracoes.listarParaRevisao(db, 2).length, 1, 'empresa não pode ler apuração de outra empresa');
 assert.throws(() => apuracoes.ingestao(db, 1, { nome_original: 'renomeado.csv', tipo_documento: 'CSV', conteudo_original: Buffer.from('arquivo A') }, completo), /já foi ingerido/);
+const telaPerfil = fs.readFileSync(path.join(__dirname, '..', 'public', 'js', 'telas.js'), 'utf8');
+assert.match(telaPerfil, /Apurações Históricas de PIS\/Cofins/);
+assert.match(telaPerfil, /Confirmar dados/);
+assert.match(telaPerfil, /Não identificado/);
+assert.match(telaPerfil, /apuracoes-pis-cofins\/\$\{b\.dataset\.apuracaoConfirmar\}\/confirmar/);
 db.close();
-console.log('Fase 4C.3: ingestão de apuração preserva documento, NULL, confiança, isolamento e Raio-X.');
+console.log('Fase 4C.3: ingestão e tela preservam documento, NULL, confiança, revisão, confirmação, isolamento e Raio-X.');

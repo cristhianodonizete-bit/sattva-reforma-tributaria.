@@ -109,8 +109,25 @@ function listarParaRevisao(db, empresaId) {
   return apuracoes.map((a) => ({ ...a, campos_extraidos: porApuracao.get(a.id) || [], campos_pendentes: (porApuracao.get(a.id) || []).filter((x) => x.status_validacao !== 'VALIDADO_AUTOMATICAMENTE').map((x) => x.campo) }));
 }
 
+// A confirmação não recalcula nem altera valores extraídos. Ela apenas registra
+// a revisão humana de campos presentes e preserva NULL/INDETERMINADO.
+function confirmarRevisao(db, empresaId, apuracaoId) {
+  validarEmpresa(db, empresaId);
+  const apuracao = db.prepare('SELECT * FROM pis_cofins_apuracoes_historicas WHERE id=? AND empresa_id=?').get(apuracaoId, empresaId);
+  if (!apuracao) throw new Error('Apuração não encontrada para esta empresa.');
+  db.transaction(() => {
+    db.prepare("UPDATE pis_cofins_apuracao_campos SET status_validacao='VALIDADO_USUARIO' WHERE apuracao_id=? AND valor_extraido IS NOT NULL")
+      .run(apuracaoId);
+    db.prepare("UPDATE pis_cofins_apuracoes_historicas SET status_validacao='VALIDADO_USUARIO' WHERE id=? AND empresa_id=?")
+      .run(apuracaoId, empresaId);
+    db.prepare("UPDATE pis_cofins_apuracao_documentos SET status_processamento='VALIDADO_USUARIO' WHERE id=?")
+      .run(apuracao.documento_id);
+  })();
+  return listarParaRevisao(db, empresaId).find((x) => Number(x.id) === Number(apuracaoId));
+}
+
 function promptExtracao(textoDocumento) {
   return `Extraia apenas valores expressos no documento de apuração PIS/Cofins. Não calcule, não infira e não substitua ausência por zero. Retorne JSON com a chave campos e, para cada campo abaixo, valor_extraido, origem_documento, pagina_ou_localizacao, rotulo_original, confianca (0 a 1), metodo_extracao e status_validacao. Campos: ${CAMPOS.join(', ')}. Se não existir, valor_extraido deve ser null e status_validacao INDETERMINADO. Documento:\n${String(textoDocumento).slice(0, 70000)}`;
 }
 
-module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, promptExtracao, validarConsistencia };
+module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, confirmarRevisao, promptExtracao, validarConsistencia };
