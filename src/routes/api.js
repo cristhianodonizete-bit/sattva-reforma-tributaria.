@@ -643,6 +643,47 @@ router.post('/empresas/:id/receitas-sem-dfe', async (req, res) => {
   catch (e) { erro(res, e); }
 });
 
+// Importações em lote reutilizam a mesma validação e deduplicação dos
+// formulários manuais. Não alimentam nem recalculam o motor CBS.
+router.post('/empresas/:id/importar/folhas-pagamento', upload.single('arquivo'), async (req, res) => {
+  try {
+    if (!req.file?.buffer) throw new Error('Envie a planilha de folha no campo "arquivo".');
+    const r = imp.importarFolhas(req.file.buffer);
+    if (!r.registros.length) throw new Error('Nenhuma linha válida foi encontrada. Informe Competência e Valor da Folha.');
+    const mensagens = [...r.mensagens]; let importados = 0; let ignorados = r.ignorados;
+    for (const folha of r.registros) {
+      try {
+        dadosAdicionaisAnalise.salvarFolha(db, Number(req.params.id), {
+          ...folha, origem: 'PLANILHA_ERP', referencia_arquivo: folha.referencia_arquivo || req.file.originalname,
+        });
+        importados++;
+      } catch (e) { ignorados++; mensagens.push(`${folha.competencia}: ${e.message}`); }
+    }
+    if (importados) await publicarDadosAdicionais(Number(req.params.id));
+    ok(res, { importados, ignorados, mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/importar/receitas-sem-dfe', upload.single('arquivo'), async (req, res) => {
+  try {
+    if (!req.file?.buffer) throw new Error('Envie a planilha de receitas no campo "arquivo".');
+    const r = imp.importarReceitasSemDfe(req.file.buffer);
+    if (!r.registros.length) throw new Error('Nenhuma linha válida foi encontrada. Informe Competência, Tipo, Descrição e Valor.');
+    const mensagens = [...r.mensagens]; let importados = 0; let ignorados = r.ignorados; let possiveisDuplicidades = 0;
+    for (const receita of r.registros) {
+      try {
+        const resultado = dadosAdicionaisAnalise.salvarReceitaSemDfe(db, Number(req.params.id), {
+          ...receita, origem: 'PLANILHA_ERP', evidencia: receita.evidencia || req.file.originalname,
+        });
+        importados++;
+        if (resultado.possivel_duplicidade) possiveisDuplicidades++;
+      } catch (e) { ignorados++; mensagens.push(`${receita.competencia} · ${receita.descricao}: ${e.message}`); }
+    }
+    if (importados) await publicarDadosAdicionais(Number(req.params.id));
+    ok(res, { importados, ignorados, possiveisDuplicidades, mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas });
+  } catch (e) { erro(res, e); }
+});
+
 // Ingestão de apuração histórica: preserva o arquivo e armazena somente os
 // valores que a IA localizar. Não cria movimentos e não executa o motor CBS.
 function textoApuracaoArquivo(arquivo, tipoDocumento) {
@@ -840,7 +881,7 @@ router.delete('/parceiros/:id', (req, res) => {
 // IMPORTAÇÕES
 // ===========================================================================
 router.get('/modelos/:tipo', (req, res) => {
-  const tipos = { parceiros: 'Modelo_Cadastro_Clientes_Fornecedores', movimento_fornecedor: 'Modelo_Movimentacao_Fornecedores', movimento_cliente: 'Modelo_Movimentacao_Clientes', referencias_servicos: 'Modelo_Referencias_Fiscais_Servicos', pgdas: 'Modelo_PGDAS' };
+  const tipos = { parceiros: 'Modelo_Cadastro_Clientes_Fornecedores', movimento_fornecedor: 'Modelo_Movimentacao_Fornecedores', movimento_cliente: 'Modelo_Movimentacao_Clientes', referencias_servicos: 'Modelo_Referencias_Fiscais_Servicos', pgdas: 'Modelo_PGDAS', folha: 'Modelo_Folha_Pagamento', receitas_sem_dfe: 'Modelo_Receitas_Sem_DFe' };
   if (!tipos[req.params.tipo]) return erro(res, new Error('Modelo inexistente'), 404);
   const buf = imp.gerarModelo(req.params.tipo);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

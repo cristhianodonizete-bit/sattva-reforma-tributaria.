@@ -53,6 +53,21 @@ const CAMPOS_PGDAS = {
   cofins: ['cofins', 'valorcofins', 'cofinsrecolhida'],
 };
 
+const CAMPOS_FOLHA = {
+  competencia: ['competencia', 'periodo', 'mesano', 'referencia'],
+  valor_folha: ['valorfolha', 'folha', 'folhapagamento', 'valortotalfolha'],
+  pro_labore: ['prolabore', 'valorprolabore'],
+  referencia_arquivo: ['referenciaarquivo', 'referencia', 'evidencia', 'observacao'],
+};
+
+const CAMPOS_RECEITA_SEM_DFE = {
+  competencia: ['competencia', 'periodo', 'mesano', 'referencia'],
+  tipo_receita: ['tiporeceita', 'naturezareceita', 'tipo', 'natureza'],
+  descricao: ['descricao', 'historico', 'detalhe'],
+  valor: ['valor', 'valorreceita', 'valortotal', 'receita'],
+  evidencia: ['evidencia', 'referenciaarquivo', 'referencia', 'documentoorigem'],
+};
+
 // Sinônimos de regime tributário no texto da planilha
 const REGIME_ALIASES = {
   lucro_real: ['lucroreal', 'real', 'lr'],
@@ -151,6 +166,46 @@ function importarPgdas(buffer) {
       pis: numeroOpcional(mapa.pis ? linha[mapa.pis] : null),
       cofins: numeroOpcional(mapa.cofins ? linha[mapa.cofins] : null),
     });
+  }
+  return { registros, ignorados, mensagens, aba, mapa, colunas: Object.keys(linhas[0]) };
+}
+
+function importarFolhas(buffer) {
+  const { linhas, aba } = lerPlanilha(buffer);
+  if (!linhas.length) return { registros: [], ignorados: 0, mensagens: ['Planilha vazia.'], aba, mapa: {} };
+  const mapa = mapearColunas(linhas[0], CAMPOS_FOLHA);
+  const registros = [], mensagens = [];
+  let ignorados = 0;
+  for (const [indice, linha] of linhas.entries()) {
+    const competencia = competenciaPgdas(mapa.competencia ? linha[mapa.competencia] : '');
+    const valorFolha = numeroOpcional(mapa.valor_folha ? linha[mapa.valor_folha] : null);
+    if (!competencia && valorFolha === null) { ignorados++; continue; }
+    if (!competencia || valorFolha === null || valorFolha < 0) { mensagens.push(`Linha ${indice + 2} ignorada: competência e valor da folha são obrigatórios.`); ignorados++; continue; }
+    const proLabore = numeroOpcional(mapa.pro_labore ? linha[mapa.pro_labore] : null);
+    if (proLabore !== null && proLabore < 0) { mensagens.push(`Linha ${indice + 2} ignorada: pró-labore inválido.`); ignorados++; continue; }
+    registros.push({ competencia, valor_folha: valorFolha, pro_labore: proLabore,
+      referencia_arquivo: mapa.referencia_arquivo ? String(linha[mapa.referencia_arquivo] || '').trim() || null : null });
+  }
+  return { registros, ignorados, mensagens, aba, mapa, colunas: Object.keys(linhas[0]) };
+}
+
+function importarReceitasSemDfe(buffer) {
+  const { linhas, aba } = lerPlanilha(buffer);
+  if (!linhas.length) return { registros: [], ignorados: 0, mensagens: ['Planilha vazia.'], aba, mapa: {} };
+  const mapa = mapearColunas(linhas[0], CAMPOS_RECEITA_SEM_DFE);
+  const registros = [], mensagens = [];
+  let ignorados = 0;
+  for (const [indice, linha] of linhas.entries()) {
+    const competencia = competenciaPgdas(mapa.competencia ? linha[mapa.competencia] : '');
+    const tipo_receita = mapa.tipo_receita ? String(linha[mapa.tipo_receita] || '').trim() : '';
+    const descricao = mapa.descricao ? String(linha[mapa.descricao] || '').trim() : '';
+    const valor = numeroOpcional(mapa.valor ? linha[mapa.valor] : null);
+    if (!competencia && !tipo_receita && !descricao && valor === null) { ignorados++; continue; }
+    if (!competencia || !tipo_receita || !descricao || valor === null || valor < 0) {
+      mensagens.push(`Linha ${indice + 2} ignorada: competência, tipo, descrição e valor são obrigatórios.`); ignorados++; continue;
+    }
+    registros.push({ competencia, tipo_receita, descricao, valor,
+      evidencia: mapa.evidencia ? String(linha[mapa.evidencia] || '').trim() || null : null });
   }
   return { registros, ignorados, mensagens, aba, mapa, colunas: Object.keys(linhas[0]) };
 }
@@ -278,6 +333,12 @@ function gerarModelo(tipo) {
     dados = [
       { 'Competência': '2026-01', 'Receita Bruta': 100000, 'Receita Mercadorias': 25000, 'Receita Serviços': 75000, 'DAS': 8200, 'PIS': 180, 'COFINS': 820 },
     ];
+  } else if (tipo === 'folha') {
+    nomeAba = 'Folha';
+    dados = [{ 'Competência': '2026-01', 'Valor da Folha': 25000, 'Pró-labore': 5000, 'Referência do arquivo': 'Folha janeiro/2026' }];
+  } else if (tipo === 'receitas_sem_dfe') {
+    nomeAba = 'Receitas sem DFe';
+    dados = [{ 'Competência': '2026-01', 'Tipo de receita': 'Locação', 'Descrição': 'Locação de equipamentos', Valor: 3500, Evidência: 'Contrato 123' }];
   } else {
     nomeAba = tipo === 'movimento_cliente' ? 'Saidas' : 'Entradas';
     const rotulo = tipo === 'movimento_cliente' ? 'Cliente' : 'Fornecedor';
@@ -306,6 +367,8 @@ function gerarModelo(tipo) {
     { Campo: 'Impostos', 'Valores aceitos': 'Se não houver colunas de imposto, o sistema estima pelo regime. Uma coluna única "Impostos" também é aceita.' },
     ...(tipo === 'referencias_servicos' ? [{ Campo: 'Referências fiscais', 'Valores aceitos': 'Informe Descrição do serviço e ao menos PIS/COFINS ou DAS efetivo. As alíquotas aceitam 9,25% ou 0,0925. NBS é opcional.' }] : []),
     ...(tipo === 'pgdas' ? [{ Campo: 'PGDAS', 'Valores aceitos': 'Competência e DAS são obrigatórios. Receita Bruta, PIS e COFINS são opcionais; ausência não é transformada em zero.' }] : []),
+    ...(tipo === 'folha' ? [{ Campo: 'Folha', 'Valores aceitos': 'Competência e Valor da Folha são obrigatórios. Pró-labore e Referência do arquivo são opcionais.' }] : []),
+    ...(tipo === 'receitas_sem_dfe' ? [{ Campo: 'Receita sem DF-e', 'Valores aceitos': 'Competência, Tipo de receita, Descrição e Valor são obrigatórios. Evidência é opcional; duplicidades são sinalizadas.' }] : []),
   ];
   const wsI = XLSX.utils.json_to_sheet(instr);
   wsI['!cols'] = [{ wch: 24 }, { wch: 110 }];
@@ -314,4 +377,4 @@ function gerarModelo(tipo) {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
-module.exports = { importarParceiros, importarMovimentos, importarPgdas, gerarModelo, resolverRegime, resolverReducao, numeroBR, soDigitos, lerPlanilha };
+module.exports = { importarParceiros, importarMovimentos, importarPgdas, importarFolhas, importarReceitasSemDfe, gerarModelo, resolverRegime, resolverReducao, numeroBR, soDigitos, lerPlanilha };

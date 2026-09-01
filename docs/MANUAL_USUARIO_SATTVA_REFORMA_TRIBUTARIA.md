@@ -187,9 +187,11 @@ Abra o **Raio-X Histórico** para conferir o período importado ou siga para o *
 
 ## 11. Folha de pagamento
 
-**Onde acessar.** **Central de Dados → Fornecedores → Dados complementares → Informar folha**.
+**Onde acessar.** **Central de Dados → Fornecedores → Dados complementares**. Use **Informar folha** para uma competência ou **Importar folha** para enviar XLSX, XLS ou CSV.
 
-**O que preencher.** Competência (AAAA-MM), valor da folha, pró-labore se informado e referência de arquivo opcional.
+**O que preencher.** Competência (AAAA-MM) e valor da folha. Pró-labore e referência são opcionais.
+
+**Para importar.** Escolha **Importar folha**, envie a planilha e confira a mensagem com as linhas importadas e ignoradas. Use **Baixar modelo** caso precise do formato de referência.
 
 **O que conferir.** O cartão mostra o total de **Folhas informadas**. Se faltar informação em um período, ele continuará indicado como indisponível no Perfil Tributário.
 
@@ -205,9 +207,11 @@ Abra o **Raio-X Histórico** para conferir o período importado ou siga para o *
 
 ## 13. Receitas sem documento fiscal eletrônico
 
-**Onde acessar.** **Central de Dados → Dados complementares → Adicionar receita sem DF-e**.
+**Onde acessar.** **Central de Dados → Dados complementares**. Use **Adicionar receita sem DF-e** para um lançamento ou **Importar receitas sem DF-e** para enviar XLSX, XLS ou CSV.
 
 **O que preencher.** Competência, tipo de receita, descrição, valor e evidência/referência quando houver.
+
+**Para importar.** A planilha deve ter Competência, Tipo de receita, Descrição e Valor. Evidência é opcional. Baixe o modelo pelo botão da própria janela quando necessário.
 
 **O que conferir.** Se houver indício de repetição, o sistema marca **POSSIVEL_DUPLICIDADE** e não consolida automaticamente. Revise a evidência antes de usar a receita em análises.
 

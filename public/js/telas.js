@@ -241,8 +241,10 @@ Telas.dados = async (el) => {
       <p class="desc">Informações complementares por empresa. Elas permanecem separadas da movimentação e não recalculam a CBS.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
         <button class="btn vazio pq" id="addFolha">Informar folha</button>
+        <button class="btn vazio pq" id="importarFolha">Importar folha</button>
         <button class="btn vazio pq" id="addMargemOperacional">Informar margem operacional</button>
         <button class="btn vazio pq" id="addReceitaSemDfe">Adicionar receita sem DF-e</button>
+        <button class="btn vazio pq" id="importarReceitaSemDfe">Importar receitas sem DF-e</button>
       </div>
       <div class="grade g3">
         <div>${A.kpi('Folhas informadas', (dadosAdicionais.folhas || []).length, 'por competência')}</div>
@@ -368,6 +370,14 @@ Telas.dados = async (el) => {
       `<div class="grade g2">${A.campo('pro_labore','Pró-labore (se informado)','', 'number','step="0.01" min="0"')}${A.campo('referencia_arquivo','Referência do arquivo (opcional)')}</div>`,
     aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/folhas-pagamento`, { metodo: 'POST', corpo: d }); A.toast('Folha registrada como dado complementar', 'ok'); A.ir('dados'); },
   }));
+  document.getElementById('importarFolha')?.addEventListener('click', () => A.modal({
+    titulo: 'Importar folha de pagamento', descricao: 'Envie uma planilha agregada por competência. Competência e Valor da Folha são obrigatórios; Pró-labore e Referência são opcionais.', confirmar: null,
+    corpo: `${A.dropzone('zonaImportarFolha', '<b>Solte a planilha de folha aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>', async (arquivo) => {
+      const fd = new FormData(); fd.append('arquivo', arquivo);
+      const r = await A.api(`/empresas/${S.empresaId}/importar/folhas-pagamento`, { metodo: 'POST', corpo: fd });
+      A.toast(`${r.importados || 0} folha(s) importada(s)${r.ignorados ? ` · ${r.ignorados} ignorada(s)` : ''}`, 'ok'); A.ir('dados');
+    })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="window.open('/api/modelos/folha')">Baixar modelo</button></div>`,
+  }));
   document.getElementById('addMargemOperacional')?.addEventListener('click', () => A.modal({
     titulo: 'Informar margem operacional', descricao: 'Premissa informada: lucro antes do IR dividido pela receita total. Não representa lucro tributável definitivo.',
     corpo: `<div class="grade g3">${A.campo('periodo_inicio','Início (AAAA-MM)','','text','placeholder="2026-01"')}${A.campo('periodo_fim','Fim (AAAA-MM)','','text','placeholder="2026-12"')}${A.campo('margem_operacional_percentual','Margem (%)','', 'number','step="0.01" min="0" max="100"')}</div>`,
@@ -378,6 +388,14 @@ Telas.dados = async (el) => {
     corpo: `<div class="grade g2">${A.campo('competencia','Competência (AAAA-MM)','','text','placeholder="2026-08"')}${A.campo('tipo_receita','Tipo de receita','','text','placeholder="Aluguel, locação, cessão…"')}</div>` +
       `${A.campo('descricao','Descrição')}<div class="grade g2">${A.campo('valor','Valor','', 'number','step="0.01" min="0"')}${A.campo('evidencia','Evidência/referência (opcional)')}</div>`,
     aoConfirmar: async (d) => { const r = await A.api(`/empresas/${S.empresaId}/receitas-sem-dfe`, { metodo: 'POST', corpo: d }); A.toast(r.possivel_duplicidade ? 'Receita registrada com possível duplicidade; não consolidada automaticamente' : 'Receita complementar registrada', r.possivel_duplicidade ? '' : 'ok'); A.ir('dados'); },
+  }));
+  document.getElementById('importarReceitaSemDfe')?.addEventListener('click', () => A.modal({
+    titulo: 'Importar receitas sem documento fiscal', descricao: 'Use apenas receitas que ainda não estejam nos XML/DF-e. Competência, Tipo, Descrição e Valor são obrigatórios; o sistema sinaliza possível duplicidade.', confirmar: null,
+    corpo: `${A.dropzone('zonaImportarReceitasSemDfe', '<b>Solte a planilha de receitas aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>', async (arquivo) => {
+      const fd = new FormData(); fd.append('arquivo', arquivo);
+      const r = await A.api(`/empresas/${S.empresaId}/importar/receitas-sem-dfe`, { metodo: 'POST', corpo: fd });
+      A.toast(`${r.importados || 0} receita(s) importada(s)${r.possiveisDuplicidades ? ` · ${r.possiveisDuplicidades} com possível duplicidade` : ''}${r.ignorados ? ` · ${r.ignorados} ignorada(s)` : ''}`, 'ok'); A.ir('dados');
+    })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="window.open('/api/modelos/receitas_sem_dfe')">Baixar modelo</button></div>`,
   }));
   document.getElementById('abrirRaioXDados')?.addEventListener('click', () => A.ir('perfil'));
 
