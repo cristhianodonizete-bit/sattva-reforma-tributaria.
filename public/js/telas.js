@@ -412,12 +412,37 @@ Telas.dados = async (el) => {
 // 1.a PERFIL TRIBUTÁRIO
 // ===========================================================================
 Telas.perfil = async (el) => {
-  const dados = await A.api(`/empresas/${S.empresaId}/perfil-cbs`);
+  const [dados, tributario] = await Promise.all([
+    A.api(`/empresas/${S.empresaId}/perfil-cbs`),
+    A.api(`/empresas/${S.empresaId}/perfil-tributario-historico`),
+  ]);
   const competencias = dados.competencias || []; const atual = competencias[0];
+  const historicoTributario = tributario.historico || [];
   const na = (v) => v === null || v === undefined ? 'N/A' : A.pct(v);
+  const valorOuIndeterminado = (x, formato = A.moeda) => x?.natureza === 'INDETERMINADO' || x?.valor === null || x?.valor === undefined ? 'INDETERMINADO' : formato(x.valor);
+  const natureza = (x) => x?.natureza || 'INDETERMINADO';
   const especiais = atual ? ['receita_reducao_cbs','receita_aliquota_zero_cbs','receita_imunidade_cbs','receita_regime_especifico_cbs','receita_beneficio_governo_cbs'].reduce((s, k) => s + (+atual[k] || 0), 0) : 0;
   const indeterminadas = atual ? (+atual.receita_tratamento_indeterminado_cbs || 0) + (+atual.compras_credito_indeterminado || 0) : 0;
-  el.innerHTML = cab('Módulo 1.a', 'Perfil CBS', 'Consolidação por competência a partir dos documentos importados e do resultado oficial do motor.', '<button class="btn vazio" id="complementarCbs">Complementar dados</button><button class="btn" id="atualizarCbs">Atualizar Perfil CBS</button>') +
+  el.innerHTML = cab('Módulo 1.a', 'Perfil Tributário e Raio-X Histórico', 'Leitura consolidada dos fatos persistidos e da fotografia CBS já produzida pelo motor.', '<button class="btn vazio" id="complementarCbs">Complementar dados</button><button class="btn" id="atualizarCbs">Atualizar Perfil CBS</button>') +
+    `<div class="cartao"><h2>Perfil tributário consolidado</h2><div class="grade g4">
+      ${A.kpi('Regime atual', A.esc(tributario.empresa?.regime_atual || 'INDETERMINADO'), 'cadastro da empresa')}
+      ${A.kpi('Períodos analisados', historicoTributario.length, historicoTributario.length ? 'dados persistidos' : 'INDETERMINADO')}
+      ${A.kpi('Folha', tributario.cobertura?.folha === 'DISPONIVEL' ? 'DISPONÍVEL' : 'INDETERMINADO', 'por competência')}
+      ${A.kpi('Margem operacional', tributario.cobertura?.margem_operacional === 'DISPONIVEL' ? 'PREMISSA INFORMADA' : 'INDETERMINADO', 'não é lucro tributável')}
+    </div><p class="mini">CBS é consumida exclusivamente da fotografia existente do motor. Ausências permanecem explicitamente como INDETERMINADO.</p></div>
+    <div class="cartao" style="margin-top:16px"><h2>Raio-X histórico — situação anterior × CBS</h2>${historicoTributario.length ? A.tabela([
+      {t:'Competência',r:x=>A.esc(x.competencia)}, {t:'Regime',r:x=>A.esc(x.regime)},
+      {t:'Receita',num:true,r:x=>valorOuIndeterminado(x.receita)}, {t:'PIS / Cofins',num:true,r:x=>`${valorOuIndeterminado(x.pis_historico)} / ${valorOuIndeterminado(x.cofins_historico)}`},
+      {t:'Carga efetiva histórica',num:true,r:x=>valorOuIndeterminado(x.carga_efetiva_historica, A.pct)}, {t:'PGDAS',num:true,r:x=>x.pgdas?.natureza === 'NAO_APLICAVEL' ? 'NÃO APLICÁVEL' : valorOuIndeterminado(x.pgdas)},
+      {t:'Créditos Lucro Real',num:true,r:x=>x.creditos_lucro_real?.natureza === 'NAO_APLICAVEL' ? 'NÃO APLICÁVEL' : valorOuIndeterminado(x.creditos_lucro_real)},
+      {t:'CBS do motor',num:true,r:x=>x.cbs_motor_existente?.natureza === 'CALCULADO' ? A.moeda(x.cbs_motor_existente.liquida) : 'INDETERMINADO'},
+      {t:'Completude',r:x=>`${A.esc(natureza(x.receita))} · ${A.esc(natureza(x.cbs_motor_existente))}`},
+    ], historicoTributario) : A.vazio('Sem período histórico consolidado', 'Cadastre ou importe dados por competência; o sistema não estima a informação ausente.', '')}</div>
+    <div class="cartao" style="margin-top:16px"><h2>Composição, dados complementares e tratamentos</h2>${historicoTributario.length ? A.tabela([
+      {t:'Competência',r:x=>A.esc(x.competencia)}, {t:'Mercadorias',num:true,r:x=>x.composicao_receitas?.natureza === 'INDETERMINADO' ? 'INDETERMINADO' : valorOuIndeterminado(x.composicao_receitas.mercadorias)},
+      {t:'Serviços',num:true,r:x=>x.composicao_receitas?.natureza === 'INDETERMINADO' ? 'INDETERMINADO' : valorOuIndeterminado(x.composicao_receitas.servicos)}, {t:'Receitas sem DF-e',num:true,r:x=>valorOuIndeterminado(x.receitas_sem_dfe)},
+      {t:'Folha',num:true,r:x=>valorOuIndeterminado(x.folha)}, {t:'Margem operacional',num:true,r:x=>x.margem_operacional?.natureza === 'INDETERMINADO' ? 'INDETERMINADO' : `${Number(x.margem_operacional?.valor || 0).toFixed(2)}%`}, {t:'Tratamentos',r:x=>A.esc(x.tratamentos_identificados)},
+    ], historicoTributario) : ''}</div>` +
     (atual ? `<div class="aviso bom"><b>Competência selecionada: ${A.esc(atual.competencia)}</b> · ${competencias.length}/${dados.competencias_detectadas || competencias.length} competências materializadas · Cobertura de classificação CBS: ${na(atual.cobertura_classificacao_cbs)} · Última atualização: ${A.esc(atual.atualizado_em || '—')}</div>
       <div class="grade g4" style="margin-top:16px">${A.kpi('Base econômica das saídas', A.moeda(atual.base_economica_saidas), 'soma do motor')}${A.kpi('CBS débito', A.moeda(atual.cbs_debito), 'saídas projetadas', 'destaque')}${A.kpi('CBS crédito', A.moeda(atual.cbs_credito), 'crédito calculado nas entradas', 'destaque')}${A.kpi('CBS líquida', A.moeda(atual.cbs_liquida), 'débito − crédito', 'destaque')}</div>
       <div class="grade g4" style="margin-top:16px">${A.kpi('Alíquota efetiva CBS', na(atual.aliquota_efetiva_cbs_saida), 'CBS débito / base das saídas')}${A.kpi('Recuperação das compras', na(atual.taxa_recuperacao_cbs_entrada), 'CBS crédito / base das entradas')}${A.kpi('Operações com tratamento especial', A.moeda(especiais), 'receita associada')}${A.kpi('Operações indeterminadas', A.moeda(indeterminadas), 'não distribuídas entre grupos conhecidos', indeterminadas ? 'destaque' : '')}</div>

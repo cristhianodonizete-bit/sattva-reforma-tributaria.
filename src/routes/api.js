@@ -46,6 +46,7 @@ const supabase = require('../services/supabase');
 const { executar: sincronizarGestaoSupabase, excluirEmpresa: excluirEmpresaSupabase } = require('../../scripts/sincronizar_gestao_supabase');
 const implantacaoEscopo = require('../services/implantacaoEscopo');
 const dadosAdicionaisAnalise = require('../services/dadosAdicionaisAnalise');
+const perfilTributarioHistorico = require('../services/perfilTributarioHistorico');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -606,6 +607,12 @@ router.get('/empresas/:id/perfil/analise', (req, res) => {
     const linhas = db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id = ? ORDER BY competencia').all(req.params.id);
     ok(res, { analise: analisarPerfil(empresa, linhas) });
   } catch (e) { erro(res, e); }
+});
+
+// Camada executiva de leitura: não materializa CBS nem executa o motor.
+router.get('/empresas/:id/perfil-tributario-historico', (req, res) => {
+  try { ok(res, perfilTributarioHistorico.consolidar(db, Number(req.params.id))); }
+  catch (e) { erro(res, e); }
 });
 
 // Perfil CBS: lê exclusivamente o resultado já produzido pelo motor e a
