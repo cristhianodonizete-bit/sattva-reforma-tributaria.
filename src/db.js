@@ -177,6 +177,62 @@ CREATE TABLE IF NOT EXISTS perfil_tributario (
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- Apurações históricas: o arquivo e cada afirmação extraída ficam separados.
+-- A camada é somente de evidência para o Raio-X; jamais alimenta o motor CBS.
+CREATE TABLE IF NOT EXISTS pis_cofins_apuracao_documentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  nome_original TEXT NOT NULL,
+  tipo_documento TEXT NOT NULL,
+  mime_type TEXT,
+  conteudo_original BLOB NOT NULL,
+  hash_sha256 TEXT NOT NULL,
+  competencia_detectada TEXT,
+  data_processamento TEXT NOT NULL,
+  versao_modelo_extracao TEXT NOT NULL,
+  status_processamento TEXT NOT NULL,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, hash_sha256)
+);
+CREATE INDEX IF NOT EXISTS ix_apuracao_documentos_empresa_competencia
+  ON pis_cofins_apuracao_documentos(empresa_id, competencia_detectada DESC);
+
+CREATE TABLE IF NOT EXISTS pis_cofins_apuracoes_historicas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  documento_id INTEGER NOT NULL REFERENCES pis_cofins_apuracao_documentos(id) ON DELETE CASCADE,
+  competencia TEXT,
+  regime_pis_cofins TEXT,
+  receita_base REAL,
+  pis_debito REAL, cofins_debito REAL,
+  pis_credito REAL, cofins_credito REAL,
+  pis_credito_utilizado REAL, cofins_credito_utilizado REAL,
+  saldo_pis REAL, saldo_cofins REAL,
+  pis_recolhido REAL, cofins_recolhida REAL,
+  observacoes TEXT,
+  status_validacao TEXT NOT NULL,
+  divergencias TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(documento_id)
+);
+CREATE INDEX IF NOT EXISTS ix_apuracoes_historicas_empresa_competencia
+  ON pis_cofins_apuracoes_historicas(empresa_id, competencia DESC);
+
+CREATE TABLE IF NOT EXISTS pis_cofins_apuracao_campos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  apuracao_id INTEGER NOT NULL REFERENCES pis_cofins_apuracoes_historicas(id) ON DELETE CASCADE,
+  campo TEXT NOT NULL,
+  valor_extraido TEXT,
+  origem_documento TEXT,
+  pagina_ou_localizacao TEXT,
+  rotulo_original TEXT,
+  confianca REAL,
+  metodo_extracao TEXT NOT NULL,
+  status_validacao TEXT NOT NULL,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(apuracao_id, campo)
+);
+
 -- ============ DADOS COMPLEMENTARES DE DIAGNÓSTICO ============
 -- Fatos e premissas informados. Não são lidos pelo motor fiscal nem
 -- substituem documento fiscal já importado.

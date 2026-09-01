@@ -47,6 +47,8 @@ const { executar: sincronizarGestaoSupabase, excluirEmpresa: excluirEmpresaSupab
 const implantacaoEscopo = require('../services/implantacaoEscopo');
 const dadosAdicionaisAnalise = require('../services/dadosAdicionaisAnalise');
 const perfilTributarioHistorico = require('../services/perfilTributarioHistorico');
+const apuracoesPisCofinsIa = require('../services/apuracoesPisCofinsIa');
+const azureDocumentIntelligence = require('../services/azureDocumentIntelligence');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -597,6 +599,57 @@ router.post('/empresas/:id/receitas-sem-dfe', async (req, res) => {
     await publicarDadosAdicionais(Number(req.params.id));
     ok(res, resultado);
   }
+  catch (e) { erro(res, e); }
+});
+
+// Ingestão de apuração histórica: preserva o arquivo e armazena somente os
+// valores que a IA localizar. Não cria movimentos e não executa o motor CBS.
+function textoApuracaoArquivo(arquivo, tipoDocumento) {
+  if (tipoDocumento === 'CSV') return arquivo.buffer.toString('utf8');
+  if (tipoDocumento === 'XLSX') {
+    const livro = XLSX.read(arquivo.buffer, { type: 'buffer' });
+    return livro.SheetNames.map((nome) => `## ${nome}\n${XLSX.utils.sheet_to_csv(livro.Sheets[nome])}`).join('\n\n');
+  }
+  return null;
+}
+async function extrairDocumentoApuracao(arquivo, tipoDocumento) {
+  const textoEstruturado = textoApuracaoArquivo(arquivo, tipoDocumento);
+  if (textoEstruturado) return { texto: textoEstruturado, metodo: 'LEITURA_ESTRUTURADA_LOCAL', modelo: 'XLSX_CSV' };
+  if (azureDocumentIntelligence.config().ativo) {
+    try { return await azureDocumentIntelligence.extrair(arquivo); }
+    catch (_) { /* preserva o fallback de IA já homologado */ }
+  }
+  const fallback = await ia.extrairTexto(arquivo);
+  return { texto: fallback.texto, metodo: fallback.viaIA ? 'IA_EXISTENTE_OCR' : 'LEITURA_TEXTO', modelo: ia.config().modelo };
+}
+function jsonIa(texto) {
+  const limpo = String(texto || '').replace(/^```(?:json)?/m, '').replace(/```\s*$/m, '').trim();
+  const inicio = limpo.indexOf('{'), fim = limpo.lastIndexOf('}');
+  if (inicio < 0 || fim < inicio) throw new Error('A IA não retornou JSON estruturado para a apuração.');
+  return JSON.parse(limpo.slice(inicio, fim + 1));
+}
+router.post('/empresas/:id/apuracoes-pis-cofins/ingestao', upload.single('arquivo'), async (req, res) => {
+  try {
+    if (!req.file?.buffer) throw new Error('Envie o documento de apuração no campo "arquivo".');
+    const tipoDocumento = String(req.body?.tipo_documento || '').toUpperCase();
+    if (!['PDF', 'XLSX', 'CSV', 'RELATORIO_ERP'].includes(tipoDocumento)) throw new Error('Informe o tipo do documento: PDF, XLSX, CSV ou RELATORIO_ERP.');
+    const extracaoDocumento = await extrairDocumentoApuracao(req.file, tipoDocumento);
+    const textoDocumento = extracaoDocumento.texto;
+    if (!String(textoDocumento || '').trim()) throw new Error('Não foi possível obter texto do documento de apuração.');
+    if (!ia.config().ativo) throw new Error('A extração IA requer configuração ativa; o documento não foi persistido.');
+    const resposta = await ia.chamar([{ role: 'user', content: apuracoesPisCofinsIa.promptExtracao(textoDocumento) }], {
+      sistema: 'Você extrai fatos de apurações históricas. Nunca calcule, infira ou converta ausência em zero. Responda somente JSON válido.', maxTokens: 6000,
+    });
+    const extraido = jsonIa(resposta.texto);
+    const resultado = apuracoesPisCofinsIa.ingestao(db, Number(req.params.id), {
+      nome_original: req.file.originalname, tipo_documento: tipoDocumento, mime_type: req.file.mimetype,
+      conteudo_original: req.file.buffer, versao_modelo_extracao: extracaoDocumento.modelo,
+    }, extraido.campos || extraido);
+    ok(res, { ...resultado, campos_pendentes: resultado.campos.filter((x) => x.status_validacao !== 'VALIDADO_AUTOMATICAMENTE').map((x) => x.campo) });
+  } catch (e) { erro(res, e); }
+});
+router.get('/empresas/:id/apuracoes-pis-cofins', (req, res) => {
+  try { ok(res, { apuracoes: apuracoesPisCofinsIa.listarParaRevisao(db, Number(req.params.id)) }); }
   catch (e) { erro(res, e); }
 });
 

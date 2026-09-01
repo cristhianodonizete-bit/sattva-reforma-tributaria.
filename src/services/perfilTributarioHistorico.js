@@ -12,6 +12,10 @@ function valor(valor, natureza = 'REAL') {
   return tem(valor) ? { valor: numero(valor), natureza } : { valor: null, natureza: 'INDETERMINADO' };
 }
 
+function tabelaExiste(db, nome) {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(nome));
+}
+
 function consolidar(db, empresaId) {
   const empresa = db.prepare('SELECT id, razao_social, regime FROM empresas WHERE id=?').get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada.');
@@ -25,6 +29,11 @@ function consolidar(db, empresaId) {
       COUNT(*) quantidade_documentos, SUM(COALESCE(iss,0)) iss_documentado
     FROM movimentos WHERE empresa_id=? AND (tipo='cliente' OR sentido='saida')
       AND COALESCE(competencia,'')<>'' GROUP BY competencia`).all(empresaId);
+  const apuracoes = tabelaExiste(db, 'pis_cofins_apuracoes_historicas')
+    ? db.prepare(`SELECT a.*, d.nome_original, d.hash_sha256 FROM pis_cofins_apuracoes_historicas a
+      JOIN pis_cofins_apuracao_documentos d ON d.id=a.documento_id
+      WHERE a.empresa_id=? AND COALESCE(a.competencia,'')<>'' ORDER BY a.id DESC`).all(empresaId)
+    : [];
 
   const porCompetencia = new Map();
   const obter = (competencia) => {
@@ -35,6 +44,7 @@ function consolidar(db, empresaId) {
   folhas.forEach((x) => { obter(x.competencia).folha = x; });
   documentos.forEach((x) => { obter(x.competencia).documentos = x; });
   cbs.forEach((x) => { obter(x.competencia).cbs = x; });
+  apuracoes.forEach((x) => { if (!obter(x.competencia).apuracao_pis_cofins) obter(x.competencia).apuracao_pis_cofins = x; });
   receitasSemDfe.forEach((x) => {
     const p = obter(x.competencia); (p.receitas_sem_dfe ||= []).push(x);
   });
@@ -53,6 +63,7 @@ function consolidar(db, empresaId) {
     const especiais = cbsAtual ? numero(cbsAtual.receita_reducao_cbs) + numero(cbsAtual.receita_aliquota_zero_cbs)
       + numero(cbsAtual.receita_imunidade_cbs) + numero(cbsAtual.receita_regime_especifico_cbs)
       + numero(cbsAtual.receita_beneficio_governo_cbs) : null;
+    const apuracao = linha.apuracao_pis_cofins || null;
     return {
       competencia: linha.competencia,
       regime: empresa.regime || 'INDETERMINADO',
@@ -66,6 +77,12 @@ function consolidar(db, empresaId) {
       receitas_sem_dfe: { valor: (linha.receitas_sem_dfe || []).length ? receitaSemDfe : null, natureza: (linha.receitas_sem_dfe || []).length ? 'REAL' : 'INDETERMINADO', registros: (linha.receitas_sem_dfe || []).length },
       pis_historico: valor(p?.pis, p ? 'REAL' : 'INDETERMINADO'),
       cofins_historico: valor(p?.cofins, p ? 'REAL' : 'INDETERMINADO'),
+      apuracao_pis_cofins_historica: apuracao ? {
+        pis_debito: valor(apuracao.pis_debito, 'EXTRAIDO'), cofins_debito: valor(apuracao.cofins_debito, 'EXTRAIDO'),
+        pis_credito: valor(apuracao.pis_credito, 'EXTRAIDO'), cofins_credito: valor(apuracao.cofins_credito, 'EXTRAIDO'),
+        pis_recolhido: valor(apuracao.pis_recolhido, 'EXTRAIDO'), cofins_recolhida: valor(apuracao.cofins_recolhida, 'EXTRAIDO'),
+        status_validacao: apuracao.status_validacao, documento: apuracao.nome_original, hash_lineage: apuracao.hash_sha256,
+      } : { natureza: 'INDETERMINADO' },
       pgdas: eSimples ? valor(p?.das, p ? 'REAL' : 'INDETERMINADO') : { valor: null, natureza: 'NAO_APLICAVEL' },
       creditos_lucro_real: eLucroReal ? valor(p?.creditos_tomados, p ? 'REAL' : 'INDETERMINADO') : { valor: null, natureza: 'NAO_APLICAVEL' },
       carga_efetiva_historica: receitaParaCarga !== null && receitaParaCarga !== 0 && tributosHistoricos !== null
