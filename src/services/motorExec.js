@@ -28,7 +28,7 @@ const versoesAtuais = () => {
 };
 const hashMovimento = (m) => hash({
   id: m.id, valor: m.valor, base_calculo: m.base_calculo, icms: m.icms, icms_st: m.icms_st, ipi: m.ipi,
-  pis: m.pis, cofins: m.cofins, iss: m.iss, ncm: m.ncm, nbs: m.nbs, cfop: m.cfop, cst: m.cst,
+  pis: m.pis, cofins: m.cofins, iss: m.iss, ncm: m.ncm, nbs: m.nbs, lc116: m.lc116, cfop: m.cfop, cst: m.cst,
   csosn: m.csosn, regime: m.regime, inscr_federal: m.inscr_federal, data_emissao: m.data_emissao,
   descricao: m.descricao, quantidade: m.quantidade, desconto: m.desconto, frete: m.frete,
   // Estes campos são derivados do catálogo/base de classificação. Incluí-los
@@ -264,7 +264,7 @@ function normalizar(m) {
   return {
     documento: m.documento || '', item_numero: m.item_numero,
     nome: m.nome_cadastro || m.nome, inscr_federal: m.inscr_federal,
-    descricao: m.descricao, ncm: m.ncm, nbs: m.nbs, cfop: m.cfop,
+    descricao: m.descricao, ncm: m.ncm, nbs: m.nbs, lc116: m.lc116, cfop: m.cfop,
     cst: m.cst, csosn: m.csosn, quantidade: m.quantidade,
     valor: m.valor, base_calculo: m.base_calculo,
     icms: m.icms, icms_st: m.icms_st, ipi: m.ipi,

@@ -333,12 +333,20 @@ Telas.dados = async (el) => {
       const { movimentos: lista } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${tipo}&limite=5000`);
       const m = lista.find((x) => Number(x.id) === Number(pendencia.movimento_id));
       if (!m) { A.toast('O lançamento não está disponível para a empresa selecionada.', 'erro'); return; }
-      A.modal({ titulo: `Lançamento #${m.id}`, descricao: 'Conferência do fato original. A pendência não altera os valores do lançamento.', confirmar: null,
+      A.modal({ titulo: `Lançamento #${m.id}`, descricao: 'Conferência do fato original. A pendência não altera os valores do lançamento.', confirmar: 'Salvar classificação',
         corpo: `<div class="aviso atencao"><b>${A.esc(pendencia.dimensao)} · ${A.esc(pendencia.status)}</b><br>${A.esc(pendencia.causa)}<div class="mini" style="margin-top:6px"><b>Ação:</b> ${A.esc(pendencia.acao)}<br><b>Fonte mínima:</b> ${A.esc(pendencia.fonte_minima)}</div></div>` +
           `<div class="grade g2" style="margin-top:12px">${A.kpi('Valor', A.moeda(m.valor))}${A.kpi('Competência', m.competencia || 'Não identificada')}${A.kpi('Documento', m.documento || m.chave || 'Não identificado')}${A.kpi('Origem', m.origem || 'Não identificada')}</div>` +
           `<div class="cartao" style="margin-top:12px"><b>Parceiro</b><div>${A.esc(m.nome || 'Não identificado')}</div><div class="mini mono">${A.esc(m.inscr_federal || 'CNPJ/CPF não identificado')}</div></div>` +
-          `<div class="cartao" style="margin-top:12px"><b>Produto ou serviço</b><div>${A.esc(m.descricao || 'Não identificado')}</div><div class="mini">NBS: ${A.esc(m.nbs || 'Não identificado')} · NCM: ${A.esc(m.ncm || 'Não identificado')} · Regime: ${A.esc(m.regime || 'Não identificado')}</div></div>` +
+          `<div class="cartao" style="margin-top:12px"><b>Produto ou serviço</b><div>${A.esc(m.descricao || 'Não identificado')}</div><div class="mini">Código fiscal bruto no XML: ${A.esc(m.cst || 'Não identificado')} · Regime: ${A.esc(m.regime || 'Não identificado')}</div></div>` +
+          `<div class="cartao" style="margin-top:12px"><b>Classificação do lançamento</b><p class="mini">Revise somente o código aplicável ao fato. O item da LC116 extraído do XML é mostrado separadamente do código fiscal bruto; salvar não altera os valores nem executa o motor.</p><div class="grade g3">${A.campo('lc116', 'Item LC116', m.lc116 || '', 'text', 'placeholder="Ex.: 1.05"')}${A.campo('nbs', 'NBS', m.nbs || '', 'text')}${A.campo('ncm', 'NCM', m.ncm || '', 'text')}</div></div>` +
           `<div class="grade g4" style="margin-top:12px">${A.kpi('Base', A.moeda(m.base_calculo))}${A.kpi('PIS', A.moeda(m.pis))}${A.kpi('Cofins', A.moeda(m.cofins))}${A.kpi('ISS', A.moeda(m.iss))}</div>`,
+        aoConfirmar: async (dados) => {
+          const r = await A.api(`/empresas/${S.empresaId}/movimentos/${m.id}/classificacao`, { metodo: 'PUT', corpo: dados });
+          const status = r.classificacao?.status || 'INDETERMINADO';
+          A.toast(status === 'CLASSIFICADO' ? 'Classificação salva e vinculada ao catálogo.' : `Classificação salva: ${status}. Revise os candidatos ou complete o código necessário.`, status === 'CLASSIFICADO' ? 'ok' : 'erro');
+          S.aba.dadosPendencia = { ...pendencia, ...dados };
+          A.ir('dados');
+        },
       });
     }));
     document.getElementById('centralXmlSped')?.addEventListener('click', () => {

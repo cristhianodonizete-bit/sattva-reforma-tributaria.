@@ -1026,6 +1026,26 @@ router.get('/empresas/:id/movimentos', (req, res) => {
   });
 });
 
+// Correção pontual da classificação do fato original. O campo do XML é
+// preservado; a revisão do usuário fica explícita no próprio lançamento e
+// não aciona o motor nem reprocessa a empresa inteira.
+router.put('/empresas/:id/movimentos/:movimentoId/classificacao', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const limpar = (v) => String(v || '').replace(/[^0-9.]/g, '').slice(0, 20);
+    const lc116 = (v) => {
+      const digitos = String(v || '').replace(/\D/g, '').slice(0, 4);
+      return digitos ? digitos.padStart(4, '0') : '';
+    };
+    const movimento = db.prepare('SELECT id FROM movimentos WHERE empresa_id=? AND id=?').get(req.params.id, req.params.movimentoId);
+    if (!movimento) throw new Error('Lançamento não encontrado para a empresa selecionada.');
+    db.prepare(`UPDATE movimentos SET ncm=?, nbs=?, lc116=?, classificacao_origem='REVISAO_USUARIO' WHERE empresa_id=? AND id=?`)
+      .run(limpar(req.body?.ncm), limpar(req.body?.nbs), lc116(req.body?.lc116), req.params.id, req.params.movimentoId);
+    const classificacao = bases.classificarMovimento(Number(req.params.id), Number(req.params.movimentoId));
+    ok(res, { movimento_id: Number(req.params.movimentoId), classificacao });
+  } catch (e) { erro(res, e); }
+});
+
 // ===========================================================================
 // CALCULADORA
 // ===========================================================================
@@ -2784,11 +2804,11 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
       VALUES (?,?,?,0,'xml')`).run(req.params.id, 'xml', `${arquivos.length} XML(s)`);
 
     const insMov = db.prepare(`INSERT INTO movimentos (empresa_id, lote_id, tipo, sentido, nome, inscr_federal,
-      descricao, ncm, nbs, cfop, cst, csosn, competencia, documento, chave, item_numero, codigo_produto,
+      descricao, ncm, nbs, lc116, cfop, cst, csosn, competencia, documento, chave, item_numero, codigo_produto,
       quantidade, unidade, data_emissao, emitente_cnpj, destinatario_cnpj,
       valor, base_calculo, icms, icms_st, ipi, pis, cofins, pis_cofins_documentado, iss, frete, seguro, outras, desconto,
       cst_declarado, cclasstrib_declarado, ibs_declarado, cbs_declarado, origem)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'xml')`);
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'xml')`);
     const insPar = db.prepare(`INSERT INTO parceiros (empresa_id, tipo, cnpj, descricao, regime, uf, origem)
       VALUES (?,?,?,?,?,?, 'xml')
       ON CONFLICT(empresa_id, tipo, cnpj) DO UPDATE SET descricao = excluded.descricao`);
@@ -2815,7 +2835,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
           }
           for (const i of r.itens) {
             insMov.run(req.params.id, lote.lastInsertRowid, tipoParceiro, i.sentido, i.nome, i.inscr_federal,
-              i.descricao, i.ncm || '', i.nbs || '', i.cfop || '', i.cst || '', i.csosn || '', i.competencia,
+              i.descricao, i.ncm || '', i.nbs || '', i.lc116 || '', i.cfop || '', i.cst || '', i.csosn || '', i.competencia,
               i.documento, i.chave || '', i.item_numero, i.codigo_produto || '', i.quantidade || 0,
               i.unidade || '', i.data_emissao || '', i.emitente_cnpj, i.destinatario_cnpj,
               i.valor, i.base_calculo || i.valor, i.icms || 0, i.icms_st || 0, i.ipi || 0,
@@ -2969,10 +2989,10 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
     }
 
     const insMov = db.prepare(`INSERT INTO movimentos (empresa_id, lote_id, tipo, sentido, nome, inscr_federal,
-      descricao, ncm, nbs, cfop, cst, csosn, competencia, documento, chave, item_numero, codigo_produto,
+      descricao, ncm, nbs, lc116, cfop, cst, csosn, competencia, documento, chave, item_numero, codigo_produto,
       quantidade, unidade, data_emissao, emitente_cnpj, destinatario_cnpj,
       valor, base_calculo, icms, icms_st, ipi, pis, cofins, iss, frete, seguro, outras, desconto, origem)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'sped')`);
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'sped')`);
     const insPar = db.prepare(`INSERT INTO parceiros (empresa_id, tipo, cnpj, descricao, regime, municipio, origem)
       VALUES (?,?,?,?,'',?, 'sped')
       ON CONFLICT(empresa_id, tipo, cnpj) DO UPDATE SET descricao = excluded.descricao`);
@@ -3003,7 +3023,7 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
 
           for (const i of r.itens) {
             insMov.run(req.params.id, lote.lastInsertRowid, i.tipo, i.sentido, i.nome, i.inscr_federal,
-              i.descricao, i.ncm || '', i.nbs || '', i.cfop || '', i.cst || '', '', i.competencia,
+              i.descricao, i.ncm || '', i.nbs || '', i.lc116 || '', i.cfop || '', i.cst || '', '', i.competencia,
               i.documento, i.chave || '', i.item_numero, i.codigo_produto || '', i.quantidade || 0,
               i.unidade || '', i.data_emissao || '', i.emitente_cnpj || '', i.destinatario_cnpj || '',
               i.valor, i.base_calculo || i.valor, i.icms || 0, i.icms_st || 0, i.ipi || 0,

@@ -40,6 +40,7 @@ const COLUNAS_NOVAS = {
     calculado_em: 'TEXT',
   },
   movimentos: {
+    lc116: 'TEXT',
     cclasstrib: 'TEXT', classificacao_origem: 'TEXT',
     cst_declarado: 'TEXT', cclasstrib_declarado: 'TEXT',
     ibs_declarado: 'REAL', cbs_declarado: 'REAL',
@@ -424,7 +425,7 @@ CREATE TABLE IF NOT EXISTS movimentos (
   lote_id INTEGER,
   tipo TEXT NOT NULL,                   -- 'fornecedor' (entradas) | 'cliente' (saídas)
   nome TEXT, inscr_federal TEXT,
-  descricao TEXT, ncm TEXT, nbs TEXT, cfop TEXT, cst TEXT,
+  descricao TEXT, ncm TEXT, nbs TEXT, lc116 TEXT, cfop TEXT, cst TEXT,
   competencia TEXT,
   valor REAL DEFAULT 0, base_calculo REAL DEFAULT 0,
   icms REAL DEFAULT 0, icms_st REAL DEFAULT 0, ipi REAL DEFAULT 0,
@@ -1731,5 +1732,16 @@ if (fs.existsSync(SEED) && db.prepare('SELECT COUNT(*) c FROM empresas').get().c
 // chamada no início deste arquivo. Executar de novo aqui garante que as
 // colunas evolutivas também sejam incluídas na primeira inicialização.
 migrarEsquema();
+
+// XMLs municipais antigos guardavam o item da lista de serviços no campo
+// legado `cst`. A origem não é apagada: apenas espelhamos o item LC116 em seu
+// campo próprio quando o lançamento é claramente um serviço de XML.
+try {
+  db.prepare(`UPDATE movimentos
+    SET lc116 = substr(cst, 1, 4)
+    WHERE origem='xml' AND (lc116 IS NULL OR lc116='')
+      AND COALESCE(ncm,'')='' AND COALESCE(iss,0)<>0
+      AND length(COALESCE(cst,'')) >= 4`).run();
+} catch (_) { /* tabela ainda não existe durante uma inicialização incompleta */ }
 
 module.exports = db;

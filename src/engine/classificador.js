@@ -56,7 +56,7 @@ function grupoEspecial(empresaId) {
 function classificar(item, ctx = {}) {
   const sentido = ctx.sentido === 'saida' ? 'saida' : 'entrada';
   const natureza = naturezaPorCfop(item.cfop);
-  const eServico = !item.ncm && (item.nbs || item.cst || item.iss);
+  const eServico = !item.ncm && (item.nbs || item.lc116 || item.cst || item.iss);
   const fundamentos = [];
   let candidatos = [];
   let origem = '';
@@ -121,7 +121,7 @@ function classificar(item, ctx = {}) {
     }
   }
   if (!candidatos.length && (item.nbs || eServico)) {
-    const r = bases.consultarServico(item.cst, item.nbs);
+    const r = bases.consultarServico(item.lc116 || item.cst, item.nbs);
     origem = `base LC 116/NBS (${r.nivel || 'não encontrado'})`;
     if (r.encontrado) {
       candidatos = r.candidatos;

@@ -17,6 +17,13 @@
  */
 
 const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
+// A lista de serviços da LC 116 é persistida no formato operacional de quatro
+// dígitos: 1.05 → 0105. Isso evita que a mesma evidência apareça como 105 em
+// alguns XMLs e 0105 em outros.
+const itemLc116 = (v) => {
+  const d = soDigitos(v);
+  return d ? d.slice(0, 4).padStart(4, '0') : '';
+};
 const numero = (v) => { const n = Number(String(v == null ? '' : v).replace(',', '.')); return Number.isFinite(n) ? n : 0; };
 
 /** Remove o prefixo de namespace da tag: `nfe:det` → `det` */
@@ -245,6 +252,7 @@ function lerNfseNacional(xml) {
     descricao: valor(cServ, 'xDescServ') || valor(inf, 'xTribNac') || 'Serviço prestado',
     ncm: '',
     nbs: soDigitos(valor(cServ, 'cNBS')),
+    lc116: itemLc116(valor(cServ, 'ItemListaServico')),
     cst: soDigitos(valor(cServ, 'cTribNac')),
     cfop: '', csosn: '',
     quantidade: 1, unidade: '',
@@ -291,7 +299,9 @@ function lerNfseMunicipal(xml) {
     descricao: primeiro(serv, ['Discriminacao', 'xDescServ', 'xServ']) || 'Serviço prestado',
     ncm: '',
     nbs: soDigitos(primeiro(serv, ['cNBS', 'CodigoNBS'])),
-    cst: soDigitos(primeiro(serv, ['ItemListaServico', 'cTribNac', 'CodigoTributacaoMunicipio'])),
+    lc116: itemLc116(primeiro(serv, ['ItemListaServico'])),
+    // Código municipal/nacional do XML é preservado separado do item LC116.
+    cst: soDigitos(primeiro(serv, ['cTribNac', 'CodigoTributacaoMunicipio'])),
     cfop: '', csosn: '', quantidade: 1, unidade: '',
     valor: vServ,
     base_calculo: numero(primeiro(val, ['BaseCalculo', 'vBC'])) || vServ,

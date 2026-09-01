@@ -294,7 +294,7 @@ function buscar(termo, limite = 60) {
  * decisão — o sistema não escolhe sozinho.
  */
 function classificarMovimentos(empresaId) {
-  const movs = db.prepare('SELECT id, ncm, nbs, cst FROM movimentos WHERE empresa_id = ?').all(empresaId);
+  const movs = db.prepare('SELECT id, ncm, nbs, lc116, cst FROM movimentos WHERE empresa_id = ?').all(empresaId);
   const up = db.prepare('UPDATE movimentos SET reducao = ?, cclasstrib = ?, classificacao_origem = ? WHERE id = ?');
   const r = { total: movs.length, porNcm: 0, porNbs: 0, requerDecisao: 0, naoEncontrado: 0 };
 
@@ -302,7 +302,7 @@ function classificarMovimentos(empresaId) {
     for (const m of movs) {
       let res = null, origem = '';
       if (m.ncm) { res = consultarNcm(m.ncm); origem = 'ncm'; }
-      if ((!res || !res.encontrado) && (m.nbs || m.cst)) { res = consultarServico(m.cst, m.nbs); origem = 'nbs'; }
+      if ((!res || !res.encontrado) && (m.nbs || m.lc116 || m.cst)) { res = consultarServico(m.lc116 || m.cst, m.nbs); origem = 'nbs'; }
       if (!res || !res.encontrado) { r.naoEncontrado++; up.run('integral', '', 'nao_encontrado', m.id); continue; }
       if (res.requerDecisao) {
         r.requerDecisao++;
@@ -315,6 +315,28 @@ function classificarMovimentos(empresaId) {
     }
   })();
   return r;
+}
+
+// Reclassifica somente o lançamento revisado pelo usuário. Não executa o
+// motor e não altera nenhuma outra operação da empresa.
+function classificarMovimento(empresaId, movimentoId) {
+  const m = db.prepare('SELECT id, ncm, nbs, lc116, cst FROM movimentos WHERE empresa_id=? AND id=?').get(empresaId, movimentoId);
+  if (!m) throw new Error('Lançamento não encontrado para a empresa selecionada.');
+  let res = null; let origem = '';
+  if (m.ncm) { res = consultarNcm(m.ncm); origem = 'ncm'; }
+  if ((!res || !res.encontrado) && (m.nbs || m.lc116 || m.cst)) { res = consultarServico(m.lc116 || m.cst, m.nbs); origem = 'nbs'; }
+  const up = db.prepare('UPDATE movimentos SET reducao=?, cclasstrib=?, classificacao_origem=? WHERE empresa_id=? AND id=?');
+  if (!res || !res.encontrado) {
+    up.run('integral', '', 'nao_encontrado', empresaId, movimentoId);
+    return { status: 'SEM_CORRESPONDENCIA', origem, candidatos: 0 };
+  }
+  if (res.requerDecisao) {
+    up.run('integral', '', `requer_decisao:${origem}`, empresaId, movimentoId);
+    return { status: 'REQUER_VALIDACAO', origem, candidatos: (res.candidatos || []).length };
+  }
+  const c = res.candidatos[0];
+  up.run(res.reducao || 'integral', c.cclasstrib || '', `revisao:${origem}:${res.nivel}`, empresaId, movimentoId);
+  return { status: 'CLASSIFICADO', origem, candidatos: 1, cclasstrib: c.cclasstrib || '', reducao: res.reducao || 'integral' };
 }
 
 /** Itens que exigem decisão do consultor, agrupados por NCM/NBS */
@@ -354,4 +376,4 @@ function estatisticas() {
 }
 
 module.exports = { gerarModelo, importarServicos, importarNcm, importarCatalogoFiscal, consultarNcm, consultarServico, buscar,
-  classificarMovimentos, pendencias, decidir, estatisticas, normNcm, normLc116, normNbs };
+  classificarMovimentos, classificarMovimento, pendencias, decidir, estatisticas, normNcm, normLc116, normNbs };
