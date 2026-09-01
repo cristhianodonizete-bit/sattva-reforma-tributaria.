@@ -36,11 +36,11 @@ Tenha uma empresa de treinamento, uma planilha de parceiros/movimentos autorizad
 3. Mostre Escopo e entregas: aprovação, responsáveis, checklist, progresso, pendência e próxima ação.
 4. Abra a Central de Dados e apresente as abas **Fornecedores**, **Clientes**, **Planilhas** e **XML, SPED e motor**.
 5. Demonstre onde ficam Dados complementares, Importações e documentos, Tratamento e revisão e Lotes importados.
-6. Mostre que PGDAS está identificado como `NAO_SUPORTADO_ATUALMENTE` para importação própria.
+6. Para uma empresa do Simples Nacional, mostre **Central de Dados → Importar PGDAS** e explique que a exportação deve estar em XLSX, XLS ou CSV, com Competência e DAS.
 
 ### Exercício do aluno
 
-Selecionar uma empresa, localizar o checklist do projeto, encontrar a próxima ação e navegar até a Central de Dados. O aluno deve apontar onde importaria uma planilha, XML, SPED e apuração PIS/Cofins.
+Selecionar uma empresa, localizar o checklist do projeto, encontrar a próxima ação e navegar até a Central de Dados. O aluno deve apontar onde importaria uma planilha, XML, SPED, PGDAS (quando Simples Nacional) e apuração PIS/Cofins (quando Lucro Presumido ou Lucro Real).
 
 ### O que o instrutor deve conferir
 

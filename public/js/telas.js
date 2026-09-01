@@ -171,6 +171,9 @@ Telas.empresas = async (el) => {
 // ===========================================================================
 Telas.dados = async (el) => {
   const aba = S.aba.dados || 'fornecedor';
+  const regimeEmpresa = S.empresa?.regime || '';
+  const simplesNacional = regimeEmpresa === 'simples_nacional';
+  const exigeApuracaoPisCofins = ['lucro_presumido', 'lucro_real'].includes(regimeEmpresa);
   const [{ parceiros }, { lotes }, dadosAdicionais] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/parceiros?tipo=${aba}`),
     A.api(`/empresas/${S.empresaId}/lotes`),
@@ -204,10 +207,11 @@ Telas.dados = async (el) => {
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         <button class="btn vazio pq" id="centralXmlSped">Importar XML ou SPED</button>
         <button class="btn vazio pq" id="centralPlanilhas">Importar planilhas</button>
-        <button class="btn vazio pq" id="centralApuracao">Enviar apuração PIS/Cofins</button>
+        ${simplesNacional ? '<button class="btn vazio pq" id="centralPgdas">Importar PGDAS</button>' : ''}
+        <button class="btn vazio pq" id="centralApuracao">${exigeApuracaoPisCofins ? 'Enviar apuração PIS/Cofins obrigatória' : 'Enviar apuração PIS/Cofins'}</button>
         <button class="btn vazio pq" id="centralReferencias">Importar referências de serviços</button>
       </div>
-      <div class="mini" style="margin-top:10px"><b>PGDAS:</b> NAO_SUPORTADO_ATUALMENTE como importação própria; quando houver dado real disponível, ele permanece somente como evidência do Raio-X e do comparador.</div>
+      <div class="mini" style="margin-top:10px">${simplesNacional ? '<b>Empresa do Simples Nacional:</b> importe o PGDAS por competência em XLSX, XLS ou CSV para completar a evidência histórica.' : exigeApuracaoPisCofins ? '<b>Empresa no Lucro Presumido ou Lucro Real:</b> envie a apuração histórica de PIS/Cofins para completar a evidência do período.' : '<b>PGDAS:</b> a importação fica disponível para empresas enquadradas no Simples Nacional.'}</div>
     </div>
     <div class="grade g2">
       <div class="cartao" id="cadastro">
@@ -312,6 +316,15 @@ Telas.dados = async (el) => {
     });
     document.getElementById('centralPlanilhas')?.addEventListener('click', () => {
       S.aba.dadosMotor = 'atual'; A.ir('dados');
+    });
+    document.getElementById('centralPgdas')?.addEventListener('click', () => {
+      A.modal({ titulo: 'Importar PGDAS', descricao: 'Envie a exportação do PGDAS por competência. Competência e valor do DAS são obrigatórios; os demais campos são aproveitados somente quando existirem no arquivo.', confirmar: null,
+        corpo: `${A.dropzone('zonaPgdas', '<b>Solte a exportação do PGDAS aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>', async (arquivo) => {
+          const dados = new FormData(); dados.append('arquivo', arquivo);
+          const r = await A.api(`/empresas/${S.empresaId}/importar/pgdas`, { method: 'POST', body: dados });
+          A.toast(`${r.importados || 0} competência(s) importada(s) e ${r.atualizados || 0} atualizada(s).`, 'ok');
+          A.ir('dados');
+        })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="window.open('/api/modelos/pgdas')">Baixar modelo</button></div>` });
     });
     document.getElementById('centralApuracao')?.addEventListener('click', () => abrirIngestaoApuracao(() => A.ir('dados')));
     document.getElementById('centralReferencias')?.addEventListener('click', () => {

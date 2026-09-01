@@ -43,6 +43,19 @@ function escoposCanonicos(modulos = [], acompanhamentoMeses = 0) {
   return saida;
 }
 
+function exigenciasPorRegime(db, contratacaoId) {
+  const projeto = db.prepare(`SELECT e.regime FROM contratacoes c
+    JOIN empresas e ON e.id=c.empresa_id WHERE c.id=?`).get(contratacaoId);
+  const regime = String(projeto?.regime || '').toLowerCase();
+  if (regime === 'simples_nacional') {
+    return [['SOLICITAR_PGDAS', 'Importar PGDAS por competência', 'PGDAS']];
+  }
+  if (['lucro_presumido', 'lucro_real'].includes(regime)) {
+    return [['SOLICITAR_APURACAO_PIS_COFINS', 'Enviar apuração histórica de PIS/Cofins', 'APURACAO_PIS_COFINS']];
+  }
+  return [];
+}
+
 function gerarChecklist(db, contratacaoId, modulos, acompanhamentoMeses = 0) {
   const entregaPorChave = new Map(db.prepare('SELECT id,chave FROM projeto_entregas WHERE contratacao_id=?').all(contratacaoId).map((x) => [x.chave, x.id]));
   const inserir = db.prepare(`INSERT OR IGNORE INTO projeto_checklist_implantacao
@@ -51,7 +64,10 @@ function gerarChecklist(db, contratacaoId, modulos, acompanhamentoMeses = 0) {
   let criados = 0;
   for (const escopo of escoposCanonicos(modulos, acompanhamentoMeses)) {
     const entregaId = entregaPorChave.get(escopo) || null;
-    (CHECKLISTS[escopo] || []).forEach(([chave, titulo, tipoEvidencia], ordem) => {
+    const itens = escopo === 'diagnostico'
+      ? [...CHECKLISTS[escopo], ...exigenciasPorRegime(db, contratacaoId)]
+      : (CHECKLISTS[escopo] || []);
+    itens.forEach(([chave, titulo, tipoEvidencia], ordem) => {
       const r = inserir.run(contratacaoId, entregaId, escopo, `${escopo}:${chave}`, titulo, tipoEvidencia, ordem + 1);
       criados += Number(r.changes || 0);
     });
@@ -65,4 +81,4 @@ function progresso(checklist = []) {
   return { total: checklist.length, concluidos, pendentes, percentual: checklist.length ? Math.round(concluidos * 100 / checklist.length) : 0 };
 }
 
-module.exports = { STATUS, CHECKLISTS, escoposCanonicos, gerarChecklist, progresso };
+module.exports = { STATUS, CHECKLISTS, escoposCanonicos, exigenciasPorRegime, gerarChecklist, progresso };

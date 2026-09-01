@@ -840,7 +840,7 @@ router.delete('/parceiros/:id', (req, res) => {
 // IMPORTAÇÕES
 // ===========================================================================
 router.get('/modelos/:tipo', (req, res) => {
-  const tipos = { parceiros: 'Modelo_Cadastro_Clientes_Fornecedores', movimento_fornecedor: 'Modelo_Movimentacao_Fornecedores', movimento_cliente: 'Modelo_Movimentacao_Clientes', referencias_servicos: 'Modelo_Referencias_Fiscais_Servicos' };
+  const tipos = { parceiros: 'Modelo_Cadastro_Clientes_Fornecedores', movimento_fornecedor: 'Modelo_Movimentacao_Fornecedores', movimento_cliente: 'Modelo_Movimentacao_Clientes', referencias_servicos: 'Modelo_Referencias_Fiscais_Servicos', pgdas: 'Modelo_PGDAS' };
   if (!tipos[req.params.tipo]) return erro(res, new Error('Modelo inexistente'), 404);
   const buf = imp.gerarModelo(req.params.tipo);
   res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
@@ -893,6 +893,45 @@ router.post('/empresas/:id/importar/movimentos', upload.single('arquivo'), (req,
     } catch (_) { /* bases ausentes: segue com tributação integral */ }
     ok(res, { importados: r.registros.length, ignorados: r.ignorados, valorTotal: calc.r2(total),
       mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas, classificacao, ...vinc });
+  } catch (e) { erro(res, e); }
+});
+
+// PGDAS é evidência histórica do Simples Nacional. Os campos ausentes
+// permanecem nulos no importador e não são convertidos em zero.
+router.post('/empresas/:id/importar/pgdas', upload.single('arquivo'), (req, res) => {
+  try {
+    if (!req.file) throw new Error('Envie o arquivo XLSX, XLS ou CSV no campo "arquivo".');
+    const empresa = db.prepare('SELECT id, regime FROM empresas WHERE id=?').get(req.params.id);
+    if (!empresa) throw new Error('Empresa não encontrada.');
+    if (empresa.regime !== 'simples_nacional') throw new Error('A importação de PGDAS está disponível somente para empresas do Simples Nacional.');
+    const r = imp.importarPgdas(req.file.buffer);
+    if (!r.registros.length) throw new Error('Nenhuma apuração PGDAS válida foi encontrada. Informe Competência e DAS em cada linha.');
+
+    const existente = db.prepare('SELECT id FROM perfil_tributario WHERE empresa_id=? AND competencia=? ORDER BY id DESC LIMIT 1');
+    const inserir = db.prepare(`INSERT INTO perfil_tributario (empresa_id, competencia, receita_bruta, receita_mercadorias,
+      receita_servicos, receita_exportacao, pis, cofins, das, origem)
+      VALUES (?,?,?,?,?,?,?,?,?, 'pgdas_importado')`);
+    const atualizar = db.prepare(`UPDATE perfil_tributario SET receita_bruta=COALESCE(?, receita_bruta),
+      receita_mercadorias=COALESCE(?, receita_mercadorias), receita_servicos=COALESCE(?, receita_servicos),
+      receita_exportacao=COALESCE(?, receita_exportacao), pis=COALESCE(?, pis), cofins=COALESCE(?, cofins),
+      das=?, origem='pgdas_importado' WHERE id=?`);
+    let importados = 0;
+    let atualizados = 0;
+    db.transaction(() => {
+      for (const p of r.registros) {
+        const valores = [p.receita_bruta, p.receita_mercadorias, p.receita_servicos, p.receita_exportacao, p.pis, p.cofins];
+        const perfil = existente.get(req.params.id, p.competencia);
+        if (perfil) {
+          atualizar.run(...valores, p.das, perfil.id);
+          atualizados++;
+        } else {
+          inserir.run(req.params.id, p.competencia, ...valores, p.das);
+          importados++;
+        }
+      }
+    })();
+    ok(res, { importados, atualizados, ignorados: r.ignorados, mensagens: r.mensagens,
+      colunasDetectadas: r.mapa, colunasArquivo: r.colunas });
   } catch (e) { erro(res, e); }
 });
 

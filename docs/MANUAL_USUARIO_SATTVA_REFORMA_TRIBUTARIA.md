@@ -149,9 +149,41 @@ Produtos, serviços mestre, estabelecimentos e classificações não possuem tel
 
 ## 10. PGDAS
 
-`PGDAS_IMPORTACAO_PROPRIA = NAO_SUPORTADO_ATUALMENTE`.
+### Para que serve
 
-Quando houver dado real de PGDAS já disponível para a empresa, ele pode ser exibido no Raio-X Histórico e considerado pelo Comparador de Regimes. Não existe nesta versão um botão próprio para upload de PGDAS.
+Registrar a apuração do DAS por competência para empresas do Simples Nacional. Esses dados podem aparecer no Raio-X Histórico e apoiar o Comparador de Regimes.
+
+### Onde acessar
+
+**Central de Dados → Importações e documentos → Importar PGDAS**.
+
+### Antes de começar
+
+Selecione uma empresa enquadrada no **Simples Nacional** e tenha a exportação do PGDAS em formato **XLSX, XLS ou CSV**. O arquivo deve conter, no mínimo, as colunas **Competência** (ou Período) e **DAS** (ou Valor DAS). Receita Bruta, PIS e Cofins são opcionais.
+
+### Passo a passo
+
+1. Selecione a empresa do Simples Nacional.
+2. Abra a Central de Dados.
+3. Clique em **Importar PGDAS**.
+4. Escolha ou solte o arquivo na área indicada.
+5. Aguarde a mensagem de competências importadas ou atualizadas.
+
+### O que conferir
+
+Confira se a competência e o valor do DAS foram reconhecidos. Campos que não estiverem no arquivo permanecem sem identificação; eles não são substituídos por zero.
+
+### Se houver pendência ou erro
+
+Baixe o modelo pelo botão **Baixar modelo**, ajuste os cabeçalhos ou complete Competência e DAS nas linhas rejeitadas. Reenvie o arquivo depois da correção.
+
+### Como saber que terminou
+
+O sistema informa a quantidade de competências importadas ou atualizadas e os dados ficam disponíveis nas análises históricas da empresa.
+
+### Próxima ação
+
+Abra o **Raio-X Histórico** para conferir o período importado ou siga para o **Comparador de Regimes** quando os demais dados da empresa estiverem completos.
 
 ## 11. Folha de pagamento
 

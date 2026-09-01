@@ -42,6 +42,17 @@ const CAMPOS_MOVIMENTO = {
   reducao: ['reducao', 'enquadramentoiva', 'regimeiva', 'reducaoaliquota'],
 };
 
+const CAMPOS_PGDAS = {
+  competencia: ['competencia', 'periodo', 'mesano', 'referencia'],
+  receita_bruta: ['receitabruta', 'receita', 'receitatotal', 'receitabrutamensal'],
+  receita_mercadorias: ['receitamercadorias', 'receitacomercio', 'receitaindustria'],
+  receita_servicos: ['receitaservicos', 'receitaservico'],
+  receita_exportacao: ['receitaexportacao', 'exportacao'],
+  das: ['das', 'valordas', 'dasapurado', 'valorrecolhido'],
+  pis: ['pis', 'valorpis', 'pisrecolhido'],
+  cofins: ['cofins', 'valorcofins', 'cofinsrecolhida'],
+};
+
 // Sinônimos de regime tributário no texto da planilha
 const REGIME_ALIASES = {
   lucro_real: ['lucroreal', 'real', 'lr'],
@@ -95,6 +106,53 @@ function lerPlanilha(buffer) {
   const nome = wb.SheetNames[0];
   const linhas = XLSX.utils.sheet_to_json(wb.Sheets[nome], { defval: '', raw: false });
   return { aba: nome, abas: wb.SheetNames, linhas };
+}
+
+function competenciaPgdas(valor) {
+  const texto = String(valor == null ? '' : valor).trim();
+  if (/^\d{4}-(0[1-9]|1[0-2])$/.test(texto)) return texto;
+  const mesAno = texto.match(/^(\d{1,2})[\/-](\d{4})$/);
+  if (mesAno && Number(mesAno[1]) >= 1 && Number(mesAno[1]) <= 12) return `${mesAno[2]}-${mesAno[1].padStart(2, '0')}`;
+  const data = texto.match(/^\d{1,2}[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (data && Number(data[1]) >= 1 && Number(data[1]) <= 12) return `${data[2]}-${data[1].padStart(2, '0')}`;
+  return '';
+}
+
+function numeroOpcional(valor) {
+  if (valor === null || valor === undefined || String(valor).trim() === '') return null;
+  if (typeof valor === 'number') return Number.isFinite(valor) ? valor : null;
+  let texto = String(valor).replace(/[R$\s]/g, '');
+  if (texto.includes(',') && texto.includes('.')) texto = texto.replace(/\./g, '').replace(',', '.');
+  else if (texto.includes(',')) texto = texto.replace(',', '.');
+  const numero = Number(texto);
+  return Number.isFinite(numero) ? numero : null;
+}
+
+function importarPgdas(buffer) {
+  const { linhas, aba } = lerPlanilha(buffer);
+  if (!linhas.length) return { registros: [], ignorados: 0, mensagens: ['Planilha vazia.'], aba, mapa: {} };
+  const mapa = mapearColunas(linhas[0], CAMPOS_PGDAS);
+  const mensagens = [];
+  if (!mapa.competencia) mensagens.push('Coluna de competência não encontrada. Use “Competência” ou “Período”.');
+  if (!mapa.das) mensagens.push('Coluna do valor do DAS não encontrada. Use “DAS” ou “Valor DAS”.');
+  const registros = [];
+  let ignorados = 0;
+  for (const [indice, linha] of linhas.entries()) {
+    const competencia = competenciaPgdas(mapa.competencia ? linha[mapa.competencia] : '');
+    const das = numeroOpcional(mapa.das ? linha[mapa.das] : null);
+    if (!competencia && das === null) { ignorados++; continue; }
+    if (!competencia || das === null) { mensagens.push(`Linha ${indice + 2} ignorada: competência e valor do DAS são obrigatórios.`); ignorados++; continue; }
+    registros.push({
+      competencia, das,
+      receita_bruta: numeroOpcional(mapa.receita_bruta ? linha[mapa.receita_bruta] : null),
+      receita_mercadorias: numeroOpcional(mapa.receita_mercadorias ? linha[mapa.receita_mercadorias] : null),
+      receita_servicos: numeroOpcional(mapa.receita_servicos ? linha[mapa.receita_servicos] : null),
+      receita_exportacao: numeroOpcional(mapa.receita_exportacao ? linha[mapa.receita_exportacao] : null),
+      pis: numeroOpcional(mapa.pis ? linha[mapa.pis] : null),
+      cofins: numeroOpcional(mapa.cofins ? linha[mapa.cofins] : null),
+    });
+  }
+  return { registros, ignorados, mensagens, aba, mapa, colunas: Object.keys(linhas[0]) };
 }
 
 /** Constrói o mapa cabeçalho-real -> campo-canônico */
@@ -215,6 +273,11 @@ function gerarModelo(tipo) {
       { 'Descrição do serviço': 'CONSULTORIA TRIBUTÁRIA', 'NBS': '111032200', 'PIS/COFINS': '9,25%', 'DAS efetivo': '', 'ISS': '2,00%' },
       { 'Descrição do serviço': 'SUPORTE OPERACIONAL', 'NBS': '', 'PIS/COFINS': '', 'DAS efetivo': '6,50%', 'ISS': '2,00%' },
     ];
+  } else if (tipo === 'pgdas') {
+    nomeAba = 'PGDAS';
+    dados = [
+      { 'Competência': '2026-01', 'Receita Bruta': 100000, 'Receita Mercadorias': 25000, 'Receita Serviços': 75000, 'DAS': 8200, 'PIS': 180, 'COFINS': 820 },
+    ];
   } else {
     nomeAba = tipo === 'movimento_cliente' ? 'Saidas' : 'Entradas';
     const rotulo = tipo === 'movimento_cliente' ? 'Cliente' : 'Fornecedor';
@@ -242,6 +305,7 @@ function gerarModelo(tipo) {
     { Campo: 'Colunas', 'Valores aceitos': 'A ordem não importa. O sistema identifica pelo nome do cabeçalho e ignora acentos e maiúsculas.' },
     { Campo: 'Impostos', 'Valores aceitos': 'Se não houver colunas de imposto, o sistema estima pelo regime. Uma coluna única "Impostos" também é aceita.' },
     ...(tipo === 'referencias_servicos' ? [{ Campo: 'Referências fiscais', 'Valores aceitos': 'Informe Descrição do serviço e ao menos PIS/COFINS ou DAS efetivo. As alíquotas aceitam 9,25% ou 0,0925. NBS é opcional.' }] : []),
+    ...(tipo === 'pgdas' ? [{ Campo: 'PGDAS', 'Valores aceitos': 'Competência e DAS são obrigatórios. Receita Bruta, PIS e COFINS são opcionais; ausência não é transformada em zero.' }] : []),
   ];
   const wsI = XLSX.utils.json_to_sheet(instr);
   wsI['!cols'] = [{ wch: 24 }, { wch: 110 }];
@@ -250,4 +314,4 @@ function gerarModelo(tipo) {
   return XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
 }
 
-module.exports = { importarParceiros, importarMovimentos, gerarModelo, resolverRegime, resolverReducao, numeroBR, soDigitos, lerPlanilha };
+module.exports = { importarParceiros, importarMovimentos, importarPgdas, gerarModelo, resolverRegime, resolverReducao, numeroBR, soDigitos, lerPlanilha };
