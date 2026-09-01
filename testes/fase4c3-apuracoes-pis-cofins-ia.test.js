@@ -71,5 +71,8 @@ assert.match(telaPerfil, /Apurações Históricas de PIS\/Cofins/);
 assert.match(telaPerfil, /Confirmar dados/);
 assert.match(telaPerfil, /Não identificado/);
 assert.match(telaPerfil, /apuracoes-pis-cofins\/\$\{b\.dataset\.apuracaoConfirmar\}\/confirmar/);
+assert.match(telaPerfil, /fd\.append\('arquivo', arquivo\)/, 'modal deve enviar o campo multipart arquivo');
+assert.match(telaPerfil, /apuracoes-pis-cofins\/ingestao/, 'modal deve usar a rota de ingestão');
+assert.match(telaPerfil, /onclick = \(\) => enviarApuracao\(false\)/, 'MouseEvent não pode acionar reprocessamento');
 db.close();
 console.log('Fase 4C.3: ingestão e tela preservam documento, NULL, confiança, revisão, confirmação, isolamento e Raio-X.');
