@@ -20,7 +20,7 @@ const crypto = require('crypto');
 
 // A versão é gravada em cada resultado para permitir invalidar apenas as
 // operações afetadas. Não é usada como regra fiscal; apenas rastreabilidade.
-const MOTOR_VERSION = 'motor-cbs-2026-08-25';
+const MOTOR_VERSION = 'motor-cbs-2026-09-01-lc116-precedencia';
 const hash = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 24);
 const versoesAtuais = () => {
   const params = regras.tudo();

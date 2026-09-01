@@ -260,13 +260,19 @@ function consultarServico(lc116, nbs) {
   const l = normLc116(lc116), n = normNbs(nbs);
   let linhas = [];
   if (l && n) linhas = db.prepare('SELECT * FROM base_servicos WHERE lc116 = ? AND nbs = ?').all(l, n);
-  if (!linhas.length && n) linhas = db.prepare('SELECT * FROM base_servicos WHERE nbs = ?').all(n);
+  // Quando a combinação composta não existe, o Item LC116 extraído e
+  // normalizado do XML é a evidência mais específica disponível. Ele precisa
+  // ser consumido antes de um NBS isolado: caso contrário, um NBS genérico
+  // pode trazer exceções de outro item LC116 e apagar a regra geral já
+  // aplicável ao serviço documentado.
   if (!linhas.length && l) linhas = db.prepare('SELECT * FROM base_servicos WHERE lc116 = ? LIMIT 20').all(l);
+  if (!linhas.length && n) linhas = db.prepare('SELECT * FROM base_servicos WHERE nbs = ?').all(n);
   if (!linhas.length) return { encontrado: false, lc116: l, nbs: n };
-  const chave = l && n && linhas.length === 1;
+  const chave = l && n && linhas.length === 1 && linhas[0].lc116 === l && linhas[0].nbs === n;
+  const nivel = chave ? 'exato' : (linhas[0].lc116 === l ? 'lc116' : 'nbs');
   return {
     encontrado: true, lc116: l, nbs: n,
-    nivel: chave ? 'exato' : (n ? 'nbs' : 'lc116'),
+    nivel,
     candidatos: linhas, unico: linhas.length === 1,
     reducao: linhas.length === 1 ? linhas[0].reducao : null,
     requerDecisao: linhas.length > 1,

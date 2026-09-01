@@ -10,6 +10,7 @@ const xml = require('../src/services/importadorXml');
 const db = require('../src/db');
 const bases = require('../src/services/basesReforma');
 const normalizacao = require('../src/services/normalizacaoFiscalXml');
+const { classificar } = require('../src/engine/classificador');
 
 // O item da lista de serviços não pode mais ser confundido com o código
 // municipal/nacional do XML. Ambos permanecem rastreáveis no lançamento.
@@ -53,6 +54,21 @@ assert.deepEqual(pendencia, {
 const completa = normalizacao.avaliar({ origem: 'xml', ncm: '', iss: 2, lc116: '1.05', nbs: '1140100', cst: '010501' });
 assert.equal(completa.status, 'VALIDADO');
 assert.equal(completa.pendencia, '');
+
+// Se LC116 + NBS não existir exatamente no catálogo, o item LC116 presente e
+// normalizado no XML tem precedência sobre um NBS solto que apontaria para
+// outro item e para exceções materiais distintas.
+db.prepare(`INSERT INTO base_servicos (lc116, nbs, descricao_item, cclasstrib, reducao)
+  VALUES ('0107', '115013000', 'Suporte técnico', '000001', 'integral'),
+         ('0107', '115021000', 'Suporte técnico', '000001', 'integral'),
+         ('0106', '115012000', 'Outro serviço', '200043', 'reduzida'),
+         ('0106', '115012000', 'Outro serviço', '200044', 'reduzida')`).run();
+const preferenciaLc116 = bases.consultarServico('0107', '115012000');
+assert.equal(preferenciaLc116.nivel, 'lc116');
+assert.equal(preferenciaLc116.candidatos.every((x) => x.lc116 === '0107'), true);
+const classificadoPorLc116 = classificar({ nbs: '115012000', lc116: '0107', cst: '010701', iss: 1 }, { sentido: 'entrada' });
+assert.equal(classificadoPorLc116.status, 'PARCIAL');
+assert.equal(classificadoPorLc116.equivalenciaFiscal.impacto_tributario_material, false);
 
 console.log('lancamento-classificacao-lc116: item LC116 separado, editável e classificável: OK');
 try { db.close?.(); } catch (_) { /* noop */ }
