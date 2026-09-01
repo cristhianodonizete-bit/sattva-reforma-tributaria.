@@ -8,6 +8,25 @@ const cab = (olho, titulo, texto, acoes = '') =>
   `<div class="topo"><div><div class="olho">${olho}</div><h1>${titulo}</h1>${texto ? `<p>${texto}</p>` : ''}</div>
    <div class="acoes-topo">${acoes}</div></div>`;
 
+// Um único ponto de ingestão para a apuração histórica: a Central de Dados
+// e a revisão no Raio-X usam a mesma rota, serviço e normalização.
+const abrirIngestaoApuracao = (aoConcluir, reprocessar = false) => A.modal({
+  titulo: reprocessar ? 'Reprocessar apuração histórica de PIS/Cofins' : 'Enviar apuração histórica de PIS/Cofins',
+  descricao: 'Selecione o arquivo original. A extração preserva ausência como “Não identificado” e exige revisão humana quando houver baixa confiança.',
+  confirmar: reprocessar ? 'Reprocessar' : 'Enviar e processar',
+  corpo: '<label class="campo"><span>Arquivo</span><input id="arquivoApuracao" type="file" accept=".pdf,.xlsx,.csv,.txt" required></label><label class="campo"><span>Tipo do documento</span><select id="tipoApuracao"><option value="PDF">PDF</option><option value="XLSX">XLSX</option><option value="CSV">CSV</option><option value="RELATORIO_ERP">Relatório ERP</option></select></label>',
+  aoConfirmar: async (_dados, fundo) => {
+    const arquivo = fundo.querySelector('#arquivoApuracao')?.files?.[0];
+    if (!arquivo) throw new Error('Selecione um documento.');
+    const fd = new FormData();
+    fd.append('arquivo', arquivo);
+    fd.append('tipo_documento', fundo.querySelector('#tipoApuracao')?.value || '');
+    await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins/ingestao`, { metodo: 'POST', corpo: fd });
+    A.toast('Documento processado. Revise os campos antes de confirmar.', 'ok');
+    aoConcluir();
+  },
+});
+
 // ===========================================================================
 // PAINEL
 // ===========================================================================
@@ -179,6 +198,17 @@ Telas.dados = async (el) => {
         <b>3</b><span><strong>Confira a base</strong><small>${lotes.length ? `${lotes.length} lotes registrados` : 'Acompanhe os arquivos enviados'}</small></span>
       </button>
     </section>
+    <div class="cartao" style="margin-top:16px" id="importacoesCentral">
+      <h2>Importações e documentos</h2>
+      <p class="desc">Use esta Central como porta de entrada. Cada ação reutiliza o mesmo fluxo já tratado pelo sistema; nenhuma base ou processamento paralelo é criado.</p>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn vazio pq" id="centralXmlSped">Importar XML ou SPED</button>
+        <button class="btn vazio pq" id="centralPlanilhas">Importar planilhas</button>
+        <button class="btn vazio pq" id="centralApuracao">Enviar apuração PIS/Cofins</button>
+        <button class="btn vazio pq" id="centralReferencias">Importar referências de serviços</button>
+      </div>
+      <div class="mini" style="margin-top:10px"><b>PGDAS:</b> NAO_SUPORTADO_ATUALMENTE como importação própria; quando houver dado real disponível, ele permanece somente como evidência do Raio-X e do comparador.</div>
+    </div>
     <div class="grade g2">
       <div class="cartao" id="cadastro">
         <h2>1. Cadastro de ${rotulo}</h2>
@@ -217,7 +247,7 @@ Telas.dados = async (el) => {
       </div>
       ${(dadosAdicionais.receitas_sem_dfe || []).some((x) => x.status_validacao === 'POSSIVEL_DUPLICIDADE') ? '<div class="aviso atencao" style="margin-top:12px"><b>Há receita(s) com possível duplicidade.</b> Elas não foram consolidadas automaticamente; revise a evidência antes de qualquer uso analítico.</div>' : ''}
     </div>` : ''}
-    ${aba === 'fornecedor' ? `<div class="cartao" style="margin-top:16px"><h2>Tratamento e revisão de dados</h2><p class="desc">Acompanhe apurações históricas, campos com baixa confiança, pendências de classificação e rastreabilidade antes de usar os dados nas análises.</p><button class="btn vazio pq" id="abrirRaioXDados">Abrir Raio-X e revisão de apurações</button></div>` : ''}
+    ${aba === 'fornecedor' ? `<div class="cartao" style="margin-top:16px" id="tratamentoCentral"><h2>Tratamento e revisão de dados</h2><p class="desc">Acompanhe apurações históricas, campos com baixa confiança, pendências de classificação, inconsistências e rastreabilidade antes de usar os dados nas análises.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio pq" id="abrirRaioXDados">Revisar apurações e rastreabilidade</button><button class="btn vazio pq" id="centralPendenciasRegime">Ver pendências de regime</button><button class="btn vazio pq" id="centralPendenciasClassificacao">Ver pendências de classificação</button></div></div>` : ''}
     ${aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
       <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
@@ -277,6 +307,20 @@ Telas.dados = async (el) => {
     </div>`;
 
     el.querySelectorAll('[data-aba]').forEach((b) => { b.onclick = () => { S.aba.dados = b.dataset.aba; A.ir('dados'); }; });
+    document.getElementById('centralXmlSped')?.addEventListener('click', () => {
+      S.aba.dadosMotor = 'xml'; A.ir('dados');
+    });
+    document.getElementById('centralPlanilhas')?.addEventListener('click', () => {
+      S.aba.dadosMotor = 'atual'; A.ir('dados');
+    });
+    document.getElementById('centralApuracao')?.addEventListener('click', () => abrirIngestaoApuracao(() => A.ir('dados')));
+    document.getElementById('centralReferencias')?.addEventListener('click', () => {
+      S.aba.dados = 'cliente'; S.aba.dadosMotor = 'atual'; A.ir('dados');
+    });
+    document.getElementById('centralPendenciasRegime')?.addEventListener('click', () => document.getElementById('cadastro')?.scrollIntoView({ behavior: 'smooth', block: 'start' }));
+    document.getElementById('centralPendenciasClassificacao')?.addEventListener('click', () => {
+      S.aba.dados = 'cliente'; S.aba.dadosMotor = 'atual'; A.ir('dados');
+    });
     el.querySelectorAll('[data-ref-servico]').forEach((botao) => { botao.onclick = () => {
       const s = referenciasVendas.servicos.find((x) => x.chave === botao.dataset.refServico);
       const existente = referenciasVendas.referencias.find((x) => x.chave === s.chave) || {};
@@ -479,11 +523,7 @@ Telas.perfil = async (el) => {
   el.querySelector('#centralDadosPerfil').onclick = () => A.ir('dados');
   el.querySelector('#centralDadosApuracao')?.addEventListener('click', () => A.ir('dados'));
   el.querySelector('#complementarCbs').onclick = () => A.ir('dados');
-  const enviarApuracao = (reprocessar = false) => A.modal({ titulo: reprocessar ? 'Reprocessar apuração histórica de PIS/Cofins' : 'Enviar apuração histórica de PIS/Cofins', descricao: 'Selecione novamente o arquivo original. A IA extrai somente valores presentes no documento; campos ausentes permanecem como “Não identificado”.', confirmar: reprocessar ? 'Reprocessar' : 'Enviar e processar', corpo: '<label class="campo"><span>Arquivo</span><input id="arquivoApuracao" type="file" accept=".pdf,.xlsx,.csv,.txt" required></label><label class="campo"><span>Tipo do documento</span><select id="tipoApuracao"><option value="PDF">PDF</option><option value="XLSX">XLSX</option><option value="CSV">CSV</option><option value="RELATORIO_ERP">Relatório ERP</option></select></label>', aoConfirmar: async (_dados, fundo) => { const arquivo = fundo.querySelector('#arquivoApuracao')?.files?.[0]; if (!arquivo) throw new Error('Selecione um documento.'); const fd = new FormData(); fd.append('arquivo', arquivo); fd.append('tipo_documento', fundo.querySelector('#tipoApuracao')?.value || ''); await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins/ingestao`, { metodo: 'POST', corpo: fd }); A.toast('Documento processado. Revise os campos antes de confirmar.', 'ok'); A.ir('perfil'); } });
-  // O clique entrega um MouseEvent ao handler. Não o trate como a flag de
-  // reprocessamento, pois isso abria o fluxo de reprocessar no envio novo.
-  el.querySelector('#enviarApuracao')?.addEventListener('click', () => enviarApuracao(false));
-  el.querySelectorAll('[data-apuracao-reprocessar]').forEach((b) => { b.onclick = () => enviarApuracao(true); });
+  el.querySelectorAll('[data-apuracao-reprocessar]').forEach((b) => { b.onclick = () => abrirIngestaoApuracao(() => A.ir('perfil'), true); });
   el.querySelectorAll('[data-apuracao-revisar]').forEach((b) => { b.onclick = () => { const a = apuracoes.find((x) => Number(x.id) === Number(b.dataset.apuracaoRevisar)); if (a) A.modal({ titulo: `Revisar — ${a.nome_original}`, largura: 1200, corpo: tabelaCamposApuracao(a.campos_extraidos) }); }; });
   el.querySelectorAll('[data-apuracao-confirmar]').forEach((b) => { b.onclick = () => A.confirmar('Confirmar os valores identificados? Campos sem valor continuarão indeterminados.', async () => { await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins/${b.dataset.apuracaoConfirmar}/confirmar`, { metodo: 'POST', corpo: {} }); A.toast('Revisão confirmada pelo usuário.', 'ok'); A.ir('perfil'); }); });
   el.querySelectorAll('[data-cbs-detalhe]').forEach((b) => { b.onclick = async () => { const d = await A.api(`/empresas/${S.empresaId}/perfil-cbs/${encodeURIComponent(b.dataset.cbsDetalhe)}/detalhes`); A.modal({ titulo: `Memória CBS — ${b.dataset.cbsDetalhe}`, largura: 1100, corpo: A.tabela([{t:'Documento',r:x=>A.esc(x.documento||x.chave||'—')},{t:'Item / parceiro',r:x=>`${A.esc(x.descricao||'—')}<br><span class="mini">${A.esc(x.nome||'—')}</span>`},{t:'NCM/NBS',r:x=>A.esc(x.ncm||x.nbs||'—')},{t:'CST / cClassTrib',r:x=>`${A.esc(x.cst||'—')} / ${A.esc(x.cclasstrib||'—')}`},{t:'Tratamento',r:x=>A.esc(x.tratamento||'—')},{t:'Base',num:true,r:x=>A.moeda(x.base_economica)},{t:'CBS',num:true,r:x=>A.moeda(x.cbs)},{t:'Crédito CBS',num:true,r:x=>A.moeda(x.credito_cbs)},{t:'Crédito',r:x=>A.esc(x.status_credito||'—')},{t:'Natureza',r:x=>A.esc(x.natureza||'—')}],d.operacoes||[]) }); }; });
@@ -517,7 +557,7 @@ async function telaCadeia(el, tipo) {
     eForn ? 'Impacto da reforma no preço das compras da empresa. O crédito potencial é exibido separadamente e não reduz o impacto do preço.'
           : 'Impacto da reforma no preço das vendas da empresa. O perfil do cliente não altera o IBS/CBS devido na saída; ele apenas orienta a relevância comercial do crédito potencial.',
     `<button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/${eForn ? 'fornecedores' : 'clientes'}?repasse=${rep}')">Exportar Excel</button>`) +
-    (!eForn && pendenciasReferencias.length ? `<div class="aviso atencao" style="margin-top:16px"><b>${pendenciasReferencias.length} lançamento(s) de serviço estão sem referência fiscal específica.</b> A análise foi carregada com a melhor evidência disponível (documento, catálogo ou regime da empresa). Revise em Cadastros e importação → Clientes → Referências fiscais das vendas por serviço; esses itens permanecem <b>a validar</b>.</div>` : '') +
+    (!eForn && pendenciasReferencias.length ? `<div class="aviso atencao" style="margin-top:16px"><b>${pendenciasReferencias.length} lançamento(s) de serviço estão sem referência fiscal específica.</b> A análise foi carregada com a melhor evidência disponível (documento, catálogo ou regime da empresa). <button class="btn pq vazio" id="corrigirDadosCadeia">Corrigir na Central de Dados</button> Esses itens permanecem <b>a validar</b>.</div>` : '') +
     (t.registros ? `
     <div class="grade g4">
       ${A.kpi(eForn ? 'Compra atual' : 'Venda atual', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
@@ -644,6 +684,9 @@ async function telaCadeia(el, tipo) {
   if (r) r.onchange = () => { S.cache[`rep_${tipo}`] = Number(r.value); A.ir(tipo === 'fornecedor' ? 'fornecedores' : 'clientes'); };
   el.querySelectorAll('[data-aba-cliente]').forEach((botao) => {
     botao.onclick = () => { S.aba.clientesCadeia = botao.dataset.abaCliente; A.ir('clientes'); };
+  });
+  document.getElementById('corrigirDadosCadeia')?.addEventListener('click', () => {
+    S.aba.dados = 'cliente'; S.aba.dadosMotor = 'atual'; A.ir('dados');
   });
   document.getElementById('corrigirReferencias')?.addEventListener('click', () => { S.aba.dados = 'cliente'; A.ir('dados'); });
 }
