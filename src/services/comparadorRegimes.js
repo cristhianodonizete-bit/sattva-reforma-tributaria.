@@ -81,6 +81,21 @@ function calcularIrpjCsll(parametros, regime, contexto) {
   }
   return regras.length ? { valor, natureza: 'CALCULADO', regras, detalhes, meses } : { valor: null, motivo: 'Receita sem natureza enquadrável.' };
 }
+function dasRemanescenteDoHibrido(empresa, perfis) {
+  if (empresa.regime !== 'simples_nacional') return { valor: null, motivo: 'PGDAS real não é aplicável ao regime cadastral da empresa.' };
+  if (!perfis.length) return { valor: null, motivo: 'Não há competências de PGDAS para separar PIS/Cofins do DAS.' };
+  let valor = 0;
+  for (const perfil of perfis) {
+    const das = Number(perfil.das), pis = Number(perfil.pis), cofins = Number(perfil.cofins);
+    // Zero por default de persistência não prova a decomposição do DAS.
+    if (!Number.isFinite(das) || das <= 0 || !Number.isFinite(pis) || !Number.isFinite(cofins) || pis + cofins <= 0) {
+      return { valor: null, motivo: `Decomposição PIS/Cofins do PGDAS não está comprovada em ${perfil.competencia}.` };
+    }
+    if (das + 0.005 < pis + cofins) return { valor: null, motivo: `DAS menor que PIS/Cofins informado em ${perfil.competencia}.` };
+    valor += das - pis - cofins;
+  }
+  return { valor, natureza: 'REAL', origem: 'PGDAS real menos componentes PIS/Cofins documentados' };
+}
 function comparar(db, empresaId, opcoes = {}) {
   const empresa = db.prepare('SELECT id, razao_social, regime FROM empresas WHERE id=?').get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada.');
@@ -102,8 +117,8 @@ function comparar(db, empresaId, opcoes = {}) {
   const cenarios = REGIMES.map((regime) => {
     const p = parametros.get(regime.chave), componentes = {}, pendencias = [];
     if (receita === null) pendencias.push('Receita fiscal por período não disponível.');
-    if (p?.pis_cofins !== null && p?.pis_cofins !== undefined && receita !== null) componentes.pis_cofins = { valor: receita * n(p.pis_cofins), natureza: 'CALCULADO', regra: `param_regimes.${regime.chave}` };
-    else if (regime.chave !== 'simples_nacional') pendencias.push('Regra parametrizada de PIS/Cofins não disponível para este regime.');
+    if (regime.chave !== 'simples_regime_regular' && p?.pis_cofins !== null && p?.pis_cofins !== undefined && receita !== null) componentes.pis_cofins = { valor: receita * n(p.pis_cofins), natureza: 'CALCULADO', regra: `param_regimes.${regime.chave}` };
+    else if (!['simples_nacional', 'simples_regime_regular'].includes(regime.chave)) pendencias.push('Regra parametrizada de PIS/Cofins não disponível para este regime.');
     const irpjCsll = ['lucro_real', 'lucro_presumido'].includes(regime.chave) ? calcularIrpjCsll(parametrosIrpjCsll, regime.chave, { receita, margem, receitasPorNatureza: segregacao.valores, receitaIndeterminada: segregacao.indeterminada, meses }) : null;
     if (irpjCsll?.valor !== null && irpjCsll?.valor !== undefined) componentes.irpj_csll = { valor: irpjCsll.valor, natureza: irpjCsll.natureza, regras: irpjCsll.regras.map((x) => ({ tributo: x.tributo, natureza_receita: x.natureza_receita, versao: x.versao, fonte: x.fonte, fundamento: x.fundamento })), detalhes: irpjCsll.detalhes || null };
     if (cbs.quantidade > 0) componentes.cbs_motor_existente = { valor: n(cbs.valor), natureza: 'CALCULADO', origem: 'perfil_cbs_competencias' }; else pendencias.push('Fotografia CBS do motor não materializada.');
@@ -112,8 +127,15 @@ function comparar(db, empresaId, opcoes = {}) {
     else if (['lucro_real', 'lucro_presumido'].includes(regime.chave) && receita !== null && componentes.pis_cofins && componentes.irpj_csll && componentes.cbs_motor_existente) { tributosEstimados = componentes.pis_cofins.valor + componentes.irpj_csll.valor + componentes.cbs_motor_existente.valor; natureza = regime.chave === 'lucro_real' ? 'SIMULADO' : 'CALCULADO'; status = 'COMPLETO'; }
     else { pendencias.push(regime.chave === 'simples_nacional' ? 'PGDAS real ou dados completos para apuração do DAS não disponíveis.' : irpjCsll?.motivo || 'IRPJ/CSLL e demais componentes necessários à carga total não estão determinados pelas evidências disponíveis.'); natureza = receita !== null && Object.keys(componentes).length ? 'PARCIAL' : 'INCOMPLETO'; status = natureza; }
     if (regime.chave === 'simples_regime_regular') {
+      const dasRemanescente = dasRemanescenteDoHibrido(empresa, perfis);
+      if (dasRemanescente.valor !== null) componentes.das_remanescente_pgdas = { valor: dasRemanescente.valor, natureza: dasRemanescente.natureza, origem: dasRemanescente.origem };
+      else pendencias.push(dasRemanescente.motivo);
       if (hibridoMotor?.apuracao?.cbs) componentes.cbs_hibrida_motor = { valor: n(hibridoMotor.apuracao.cbs.saldo), natureza: 'SIMULADO', origem: 'motorExec.executar(regimeEmpresa=simples_regime_regular)' }; else pendencias.push(`Motor CBS híbrido não disponível em sombra${erroHibrido ? `: ${erroHibrido}` : '.'}`);
-      tributosEstimados = null; natureza = receita !== null ? 'PARCIAL' : 'INCOMPLETO'; status = natureza; pendencias.push('Demais componentes da carga total híbrida não estão versionados para comparação.');
+      if (hibridoMotor?.apuracao?.ibs) componentes.ibs_hibrida_motor = { valor: n(hibridoMotor.apuracao.ibs.saldo), natureza: 'SIMULADO', origem: 'motorExec.executar(regimeEmpresa=simples_regime_regular)' }; else pendencias.push(`Motor IBS híbrido não disponível em sombra${erroHibrido ? `: ${erroHibrido}` : '.'}`);
+      if (receita !== null && componentes.das_remanescente_pgdas && componentes.cbs_hibrida_motor && componentes.ibs_hibrida_motor) {
+        tributosEstimados = componentes.das_remanescente_pgdas.valor + componentes.cbs_hibrida_motor.valor + componentes.ibs_hibrida_motor.valor;
+        natureza = 'SIMULADO'; status = 'COMPLETO';
+      } else { natureza = receita !== null && Object.keys(componentes).length ? 'PARCIAL' : 'INCOMPLETO'; status = natureza; }
     }
     return { ...regime, tributos_estimados: tributosEstimados, carga_efetiva_percentual: tributosEstimados !== null && receita > 0 ? tributosEstimados / receita : null, diferenca_para_menor: null, status, completude: status, natureza, componentes_disponiveis: componentes,
       premissas_utilizadas: [receitaPerfil !== null ? 'Receita do Perfil Tributário.' : 'Receita fiscal de documentos.', receitaComplementar > 0 ? 'Receitas sem DF-e validadas foram adicionadas à mesma base econômica.' : null, cbs.quantidade > 0 ? 'CBS consumida da fotografia materializada do motor.' : 'CBS indisponível.', regime.chave === 'simples_nacional' && temDasReal ? 'PGDAS real prevaleceu sobre estimativa.' : null, regime.chave === 'lucro_real' && margemInformada ? 'Margem operacional informada: PREMISSA_INFORMADA em cenário simulado; não é lucro tributável real.' : null, regime.chave === 'lucro_presumido' && componentes.irpj_csll ? 'Presunção segregada por natureza de receita, com excedente 2026 proporcional.' : null, regime.chave === 'simples_regime_regular' && hibridoMotor ? 'CBS híbrida executada pelo motor existente em modo sombra.' : null].filter(Boolean), pendencias };
@@ -123,4 +145,4 @@ function comparar(db, empresaId, opcoes = {}) {
   if (menor) completos.forEach((x) => { x.diferenca_para_menor = x.tributos_estimados - menor.tributos_estimados; });
   return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO' }, receita_analisada: receita, cenarios, melhor_cenario_estimado: menor ? menor.chave : 'INDETERMINADO', economia_estimada: menor ? Math.max(...completos.map((x) => x.tributos_estimados)) - menor.tributos_estimados : null, status_comparacao: comparacaoCompleta ? 'COMPLETA' : 'INCOMPLETA', cenarios_comparaveis: completos.length, cbs_hibrida_via_motor: Boolean(hibridoMotor?.apuracao?.cbs), pgdas_conectado: temDasReal, irpj_csll_resolvidos: ['lucro_real', 'lucro_presumido'].every((r) => cenarios.find((x) => x.chave === r)?.componentes_disponiveis?.irpj_csll) ? 'SIM' : 'NAO', pendencias: [...new Set(cenarios.flatMap((x) => x.pendencias))] };
 }
-module.exports = { comparar, REGIMES, calcularIrpjCsll, receitaSegregada };
+module.exports = { comparar, REGIMES, calcularIrpjCsll, receitaSegregada, dasRemanescenteDoHibrido };

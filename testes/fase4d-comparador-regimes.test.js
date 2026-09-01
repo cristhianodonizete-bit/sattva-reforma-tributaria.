@@ -4,7 +4,7 @@ const comparador = require('../src/services/comparadorRegimes');
 const db = sqlite.abrir(':memory:');
 db.exec(`
   CREATE TABLE empresas (id INTEGER PRIMARY KEY, razao_social TEXT, regime TEXT);
-  CREATE TABLE perfil_tributario (empresa_id INTEGER, competencia TEXT, receita_bruta REAL, receita_mercadorias REAL, receita_servicos REAL, receita_exportacao REAL, das REAL);
+  CREATE TABLE perfil_tributario (empresa_id INTEGER, competencia TEXT, receita_bruta REAL, receita_mercadorias REAL, receita_servicos REAL, receita_exportacao REAL, das REAL, pis REAL, cofins REAL);
   CREATE TABLE movimentos (empresa_id INTEGER, tipo TEXT, sentido TEXT, valor REAL);
   CREATE TABLE perfil_cbs_competencias (empresa_id INTEGER, cbs_liquida REAL);
   CREATE TABLE margens_operacionais_premissas (empresa_id INTEGER, periodo_inicio TEXT, periodo_fim TEXT, margem_operacional_percentual REAL);
@@ -17,11 +17,11 @@ db.exec(`
   );
 `);
 db.prepare("INSERT INTO empresas VALUES (1,'Empresa A','lucro_presumido'),(2,'Empresa Simples','simples_nacional')").run();
-db.prepare("INSERT INTO perfil_tributario VALUES (1,'2026-01',1000,0,1000,0,0),(2,'2026-01',1000,0,1000,0,90)").run();
+db.prepare("INSERT INTO perfil_tributario VALUES (1,'2026-01',1000,0,1000,0,0,0,0),(2,'2026-01',1000,0,1000,0,90,5,10)").run();
 db.prepare('INSERT INTO perfil_cbs_competencias VALUES (1,88),(2,77)').run();
 db.prepare("INSERT INTO margens_operacionais_premissas VALUES (1,'2026-01','2026-12',12.5)").run();
 db.prepare("INSERT INTO param_regimes VALUES ('lucro_real',0.0925),('lucro_presumido',0.0365),('simples_nacional',0),('simples_regime_regular',0)").run();
-const motorSombra = (_empresaId, opcoes) => { assert.strictEqual(opcoes.gravar, false); assert.strictEqual(opcoes.regimeEmpresa, 'simples_regime_regular'); return { apuracao: { cbs: { saldo: 77 } } }; };
+const motorSombra = (_empresaId, opcoes) => { assert.strictEqual(opcoes.gravar, false); assert.strictEqual(opcoes.regimeEmpresa, 'simples_regime_regular'); return { apuracao: { cbs: { saldo: 77 }, ibs: { saldo: 3 } } }; };
 let r = comparador.comparar(db, 1, { executarMotor: motorSombra });
 assert.strictEqual(r.cenarios.find((x) => x.chave === 'lucro_presumido').status, 'PARCIAL');
 assert.strictEqual(r.melhor_cenario_estimado, 'INDETERMINADO');
@@ -50,7 +50,7 @@ assert.strictEqual(r.cenarios.find((x) => x.chave === 'simples_regime_regular').
 
 // O excedente 2026 é aplicado somente acima do limite proporcional de três meses.
 db.prepare("INSERT INTO empresas VALUES (3,'Empresa Excedente','lucro_presumido')").run();
-for (const competencia of ['2026-01','2026-02','2026-03']) db.prepare('INSERT INTO perfil_tributario VALUES (3,?,500000,0,500000,0,0)').run(competencia);
+for (const competencia of ['2026-01','2026-02','2026-03']) db.prepare('INSERT INTO perfil_tributario VALUES (3,?,500000,0,500000,0,0,0,0)').run(competencia);
 db.prepare('INSERT INTO perfil_cbs_competencias VALUES (3,0)').run();
 const excedente = comparador.comparar(db, 3, { executarMotor: motorSombra }).cenarios.find((x) => x.chave === 'lucro_presumido');
 assert.strictEqual(excedente.status, 'COMPLETO');
@@ -59,5 +59,20 @@ assert.strictEqual(excedente.componentes_disponiveis.irpj_csll.detalhes[0].exced
 const simples = comparador.comparar(db, 2, { executarMotor: motorSombra });
 assert.strictEqual(simples.cenarios.find((x) => x.chave === 'simples_nacional').status, 'COMPLETO');
 assert.strictEqual(simples.pgdas_conectado, true);
+const hibrido = simples.cenarios.find((x) => x.chave === 'simples_regime_regular');
+assert.strictEqual(hibrido.status, 'COMPLETO');
+assert.strictEqual(hibrido.natureza, 'SIMULADO');
+assert.strictEqual(hibrido.componentes_disponiveis.das_remanescente_pgdas.valor, 75);
+assert.strictEqual(hibrido.tributos_estimados, 155);
+assert.strictEqual(simples.cenarios_comparaveis, 3);
+assert.notStrictEqual(simples.melhor_cenario_estimado, 'INDETERMINADO');
+
+// DAS sem decomposição documentada não autoriza subtrair PIS/Cofins por aproximação.
+db.prepare("INSERT INTO empresas VALUES (4,'Empresa Simples Sem Decomposição','simples_nacional')").run();
+db.prepare("INSERT INTO perfil_tributario VALUES (4,'2026-01',1000,0,1000,0,90,0,0)").run();
+db.prepare('INSERT INTO perfil_cbs_competencias VALUES (4,77)').run();
+const hibridoSemDecomposicao = comparador.comparar(db, 4, { executarMotor: motorSombra }).cenarios.find((x) => x.chave === 'simples_regime_regular');
+assert.strictEqual(hibridoSemDecomposicao.status, 'PARCIAL');
+assert.strictEqual(hibridoSemDecomposicao.tributos_estimados, null);
 db.close();
-console.log('Fase 4D.2: matriz IRPJ/CSLL versionada, presunção segregada e ranking sem vencedor incompleto.');
+console.log('Fase 4D.3: cenário híbrido compara DAS remanescente real com CBS/IBS do motor em sombra.');
