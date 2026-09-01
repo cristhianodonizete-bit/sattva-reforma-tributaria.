@@ -6,7 +6,7 @@ Este roteiro ensina como conduzir usuários na operação do sistema. Demonstre 
 
 - Confirme que o participante possui acesso e uma empresa selecionada.
 - Use uma empresa de treinamento ou dados autorizados; não altere dados reais durante demonstrações sem autorização.
-- Abra o menu e mantenha a **Central de Dados** como referência para cadastro, importação, correção e revisão.
+- Abra o menu e mantenha a **Central de Dados** como referência para cadastro, importação, correção e revisão. O material de apoio pode ser consultado ou baixado em **Gestão do produto → Manuais do sistema**.
 - Explique a sequência operacional: **Central de Dados → tratamento e validações → módulos → relatórios**.
 
 ---

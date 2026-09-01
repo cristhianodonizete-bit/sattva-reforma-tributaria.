@@ -1,6 +1,7 @@
 const express = require('express');
 const multer = require('multer');
 const fs = require('fs');
+const path = require('path');
 const crypto = require('crypto');
 const os = require('os');
 const XLSX = require('xlsx');
@@ -53,6 +54,24 @@ const azureDocumentIntelligence = require('../services/azureDocumentIntelligence
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+
+// Os manuais são a fonte publicada no próprio repositório. A tela sempre os
+// lê no momento da consulta, evitando uma cópia paralela ou desatualizada.
+const DOCUMENTOS_USO = {
+  manual_usuario: { titulo: 'Manual do Usuário', arquivo: 'MANUAL_USUARIO_SATTVA_REFORMA_TRIBUTARIA.md', download: 'manual-usuario-sattva-reforma-tributaria.md' },
+  guia_instrutor: { titulo: 'Guia do Instrutor', arquivo: 'GUIA_INSTRUTOR_SATTVA_REFORMA_TRIBUTARIA.md', download: 'guia-instrutor-sattva-reforma-tributaria.md' },
+};
+const documentoUso = (tipo) => {
+  const documento = DOCUMENTOS_USO[tipo];
+  if (!documento) throw new Error('Documento de uso não encontrado.');
+  const caminho = path.resolve(__dirname, '..', '..', 'docs', documento.arquivo);
+  if (!fs.existsSync(caminho)) throw new Error('Documento de uso ainda não está disponível nesta versão publicada.');
+  return { ...documento, caminho };
+};
+const metadadosDocumentoUso = (tipo) => {
+  const documento = documentoUso(tipo);
+  return { tipo, titulo: documento.titulo, arquivo: documento.arquivo, atualizado_em: fs.statSync(documento.caminho).mtime.toISOString() };
+};
 
 // Toda rota que calcula parte da fonte compartilhada. Assim, uma instância nova
 // do Render nunca decide com um SQLite vazio ou com cache anterior à alteração.
@@ -142,7 +161,7 @@ const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/empresas\/\d+\/acoes/.test(caminho) || /^\/acoes/.test(caminho)) return 'gestao_projetos';
   if (/^\/empresas/.test(caminho)) return metodo === 'GET' ? 'visao_geral' : 'diagnostico';
   if (/^\/(contratacoes|projeto|servicos|combos|gestao)/.test(caminho)) return 'gestao_projetos';
-  if (/^\/(config|regras|questor|conhecimento|rag|ia)/.test(caminho)) return 'configuracoes';
+  if (/^\/(config|regras|questor|conhecimento|rag|ia|documentacao-uso)/.test(caminho)) return 'configuracoes';
   if (/^\/precificacao/.test(caminho)) return 'precificacao';
   if (/^\/contratos/.test(caminho)) return 'contratos';
   if (/^\/capacitacao/.test(caminho)) return 'capacitacao';
@@ -157,6 +176,27 @@ router.use((req, res, next) => {
   if (permissoes[chave]?.[acao]) return next();
   return res.status(403).json({ ok: false, erro: `Seu perfil não pode ${acao === 'ver' ? 'acessar' : 'executar ações em'} esta área.` });
 });
+
+// DOCUMENTAÇÃO DE USO — arquivos oficiais, visualização e download.
+router.get('/documentacao-uso', (_req, res) => {
+  try { ok(res, { documentos: Object.keys(DOCUMENTOS_USO).map(metadadosDocumentoUso) }); }
+  catch (e) { erro(res, e, 404); }
+});
+router.get('/documentacao-uso/:tipo/download', (req, res) => {
+  try {
+    const documento = documentoUso(req.params.tipo);
+    res.setHeader('Content-Type', 'text/markdown; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="${documento.download}"`);
+    res.send(fs.readFileSync(documento.caminho, 'utf8'));
+  } catch (e) { erro(res, e, 404); }
+});
+router.get('/documentacao-uso/:tipo', (req, res) => {
+  try {
+    const documento = documentoUso(req.params.tipo);
+    ok(res, { documento: { ...metadadosDocumentoUso(req.params.tipo), conteudo: fs.readFileSync(documento.caminho, 'utf8') } });
+  } catch (e) { erro(res, e, 404); }
+});
+
 async function empresasPermitidasUsuario(usuario) {
   if (!usuario || ['administrador', 'gestor'].includes(usuario.papel)) return null;
   const { data, error } = await supabase.admin().from('empresas_usuarios').select('empresa_id').eq('usuario_id', usuario.id);

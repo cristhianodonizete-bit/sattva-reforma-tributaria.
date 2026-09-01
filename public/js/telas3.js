@@ -303,6 +303,54 @@ Telas.conhecimento = async (el) => {
 };
 
 // ===========================================================================
+// MANUAIS DO SISTEMA
+// ===========================================================================
+Telas.documentacaoSistema = async (el) => {
+  const { documentos } = await A.api('/documentacao-uso');
+  let tipoAtual = 'manual_usuario';
+  const formatarData = (valor) => valor ? new Date(valor).toLocaleString('pt-BR') : 'Não informado';
+  const renderizarMarkdown = (conteudo) => A.esc(conteudo || 'Documento sem conteúdo.')
+    .replace(/^### (.+)$/gm, '<h3 style="margin:20px 0 8px">$1</h3>')
+    .replace(/^## (.+)$/gm, '<h2 style="margin:26px 0 10px">$1</h2>')
+    .replace(/^# (.+)$/gm, '<h1 style="margin:0 0 14px">$1</h1>')
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>');
+  const baixar = async (tipo) => {
+    const token = localStorage.getItem('sattva_token');
+    const resposta = await fetch(`/api/documentacao-uso/${encodeURIComponent(tipo)}/download`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!resposta.ok) {
+      const erro = await resposta.json().catch(() => ({}));
+      throw new Error(erro.erro || 'Não foi possível baixar o documento.');
+    }
+    const nome = resposta.headers.get('Content-Disposition')?.match(/filename="?([^";]+)/i)?.[1] || 'manual-sattva.md';
+    const url = URL.createObjectURL(await resposta.blob());
+    const link = document.createElement('a'); link.href = url; link.download = nome;
+    document.body.appendChild(link); link.click(); link.remove(); URL.revokeObjectURL(url);
+  };
+  const renderizar = async (tipo) => {
+    tipoAtual = tipo;
+    const { documento } = await A.api(`/documentacao-uso/${encodeURIComponent(tipo)}`);
+    el.innerHTML = cab('Gestão do produto', documento.titulo,
+      'Consulte ou baixe a versão publicada. Esta tela lê o arquivo oficial a cada abertura, sem cópia paralela.',
+      '<button class="btn vazio" id="atualizarManual">Atualizar visualização</button><button class="btn" id="baixarManual">Baixar</button>') +
+      `<div class="grade g2" style="margin-bottom:16px">${documentos.map((item) =>
+        `<button class="cartao" type="button" data-documento="${A.esc(item.tipo)}" style="text-align:left;cursor:pointer;${item.tipo === tipo ? 'outline:2px solid var(--ouro);' : ''}">
+          <h2 style="margin:0">${A.esc(item.titulo)}</h2><p class="desc">Atualizado em ${A.esc(formatarData(item.atualizado_em))}</p>
+          <span class="mini">Visualizar ou baixar</span></button>`).join('')}</div>` +
+      `<div class="aviso bom"><b>Versão sempre atual</b>O conteúdo exibido e o arquivo baixado são a versão oficial publicada do sistema. Quando o manual for atualizado e a versão for publicada, esta tela mostrará o novo conteúdo automaticamente.</div>` +
+      `<article class="cartao" style="margin-top:16px"><div class="texto" style="white-space:pre-wrap;line-height:1.65;max-width:980px">${renderizarMarkdown(documento.conteudo)}</div></article>`;
+    el.querySelectorAll('[data-documento]').forEach((botao) => { botao.onclick = () => renderizar(botao.dataset.documento); });
+    el.querySelector('#atualizarManual').onclick = () => renderizar(tipoAtual);
+    el.querySelector('#baixarManual').onclick = async () => {
+      try { await baixar(tipoAtual); A.toast('Download iniciado.', 'ok'); }
+      catch (e) { A.toast(e.message, 'erro'); }
+    };
+  };
+  await renderizar(tipoAtual);
+};
+
+// ===========================================================================
 // CONFIGURAÇÃO DE ESCOPO — SERVIÇOS E COMBOS
 // ===========================================================================
 Telas.configComercial = async (el) => {

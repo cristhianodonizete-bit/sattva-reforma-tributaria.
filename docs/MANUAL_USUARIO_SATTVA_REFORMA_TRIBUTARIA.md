@@ -10,7 +10,7 @@ Este manual ensina a operar o sistema. Use a **Central de Dados** para cadastrar
 
 **O que conferir.** Após o acesso, confira o nome da empresa no Painel do projeto. Para trocar, abra **Dados → Empresas e estabelecimentos**, localize a empresa e clique em **Abrir projeto**.
 
-**Navegação.** O menu separa **Dados** (Central de Dados, Empresas e estabelecimentos, Cadastros compartilhados) dos módulos: **Módulo 1 · Diagnóstico**, **Precificação**, **Contratos**, **Capacitação** e **Acompanhamento**. A área **Gestão do produto → Escopo e entregas** reúne o projeto e o checklist.
+**Navegação.** O menu separa **Dados** (Central de Dados, Empresas e estabelecimentos, Cadastros compartilhados e Bases, catálogos e classificações) dos módulos: **Módulo 1 · Diagnóstico**, **Precificação**, **Contratos**, **Capacitação** e **Acompanhamento**. A área **Gestão do produto → Escopo e entregas** reúne o projeto e o checklist. Em **Gestão do produto → Manuais do sistema**, consulte ou baixe este manual e o Guia do Instrutor sempre na versão publicada mais recente.
 
 **Concluído quando.** O Painel exibe a empresa correta. A próxima ação é abrir a Central de Dados ou o módulo previsto no escopo.
 
