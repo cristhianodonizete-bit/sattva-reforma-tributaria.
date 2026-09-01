@@ -263,6 +263,21 @@ async function baixarResultadosMotor(remotoInformado = null) {
     resultados: quantidadeResultados,
   };
 }
+
+// A fotografia remota é a fonte que uma nova instância do Render restaura.
+// Publicar resultados sem promovê-los deixava a instância seguinte voltando à
+// execução anterior, mesmo quando o motor local havia acabado de recalcular.
+async function promoverFotografiaAtiva(remoto, empresaId, execucaoId) {
+  const anterior = await remoto.from('motor_resultados_operacionais')
+    .update({ ativo: false }).eq('empresa_id', empresaId).eq('ativo', true);
+  if (anterior.error) throw new Error(`motor_resultados_operacionais (desativar fotografia): ${anterior.error.message}`);
+  const atual = await remoto.from('motor_resultados_operacionais')
+    // A tabela operacional armazena o resultado completo no JSON `dados`.
+    // `execucao_id` pertence a essa fotografia, não a uma coluna física.
+    .update({ ativo: true }).eq('empresa_id', empresaId).contains('dados', { execucao_id: execucaoId });
+  if (atual.error) throw new Error(`motor_resultados_operacionais (ativar fotografia): ${atual.error.message}`);
+}
+
 async function publicarResultadosMotor(empresaId = null) {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin();
@@ -283,6 +298,14 @@ async function publicarResultadosMotor(empresaId = null) {
       if (error) throw new Error(`${tabela}: ${error.message}`);
     }
   }
+  // Só promovemos após publicar integralmente as execuções e resultados. A
+  // maior execução local por empresa é a fotografia acabada mais recente.
+  const maisRecentes = new Map();
+  for (const execucao of execucoes) {
+    const anterior = maisRecentes.get(execucao.empresa_id);
+    if (!anterior || Number(execucao.id) > Number(anterior.id)) maisRecentes.set(execucao.empresa_id, execucao);
+  }
+  for (const execucao of maisRecentes.values()) await promoverFotografiaAtiva(remoto, execucao.empresa_id, execucao.id);
   const telemetrias = db.prepare(`SELECT * FROM telemetria_autonomia_execucoes${filtro}`).all(...parametros);
   const excecoesExecucao = db.prepare(`SELECT * FROM excecoes_motor_execucoes${filtro}`).all(...parametros);
   if (telemetrias.length) {
@@ -423,4 +446,4 @@ async function publicarContratos(remoto, empresaId) {
   return { contratos: contratos.length };
 }
 module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar,
-  baixarResultadosMotor, publicarResultadosMotor, filtrarOrfaosOperacionais };
+  baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaAtiva, filtrarOrfaosOperacionais };
