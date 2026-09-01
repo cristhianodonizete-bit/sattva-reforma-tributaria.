@@ -10,6 +10,7 @@ const xml = require('../src/services/importadorXml');
 const db = require('../src/db');
 const bases = require('../src/services/basesReforma');
 const normalizacao = require('../src/services/normalizacaoFiscalXml');
+const motorExec = require('../src/services/motorExec');
 const { classificar } = require('../src/engine/classificador');
 
 // O item da lista de serviços não pode mais ser confundido com o código
@@ -54,6 +55,15 @@ assert.deepEqual(pendencia, {
 const completa = normalizacao.avaliar({ origem: 'xml', ncm: '', iss: 2, lc116: '1.05', nbs: '1140100', cst: '010501' });
 assert.equal(completa.status, 'VALIDADO');
 assert.equal(completa.pendencia, '');
+
+// Em XMLs cujo item não vem em tag separada, os quatro primeiros dígitos do
+// código fiscal preservado são a evidência do item LC116.
+const apenasCodigoFiscal = normalizacao.avaliar({ origem: 'xml', ncm: '', iss: 0, lc116: '', nbs: '115013000', cst: '010701' });
+assert.equal(normalizacao.lc116DoDocumento({ lc116: '', cst: '010701' }), '0107');
+assert.equal(apenasCodigoFiscal.status, 'VALIDADO');
+assert.equal(motorExec.normalizar({
+  documento: 'x', origem: 'xml', ncm: '', nbs: '115013000', lc116: '', cst: '010701',
+}).lc116, '0107', 'o motor deve consumir o item LC116 já presente no código fiscal do XML');
 
 // Se LC116 + NBS não existir exatamente no catálogo, o item LC116 presente e
 // normalizado no XML tem precedência sobre um NBS solto que apontaria para

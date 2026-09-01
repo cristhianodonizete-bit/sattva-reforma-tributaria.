@@ -16,11 +16,12 @@ const excecoesMotor = require('./excecoesMotor');
 const autonomiaTelemetry = require('./autonomiaTelemetry');
 const { avaliarDimensoes } = require('./autonomiaDimensoes');
 const pendenciasEnriquecimento = require('./pendenciasEnriquecimento');
+const normalizacaoFiscalXml = require('./normalizacaoFiscalXml');
 const crypto = require('crypto');
 
 // A versão é gravada em cada resultado para permitir invalidar apenas as
 // operações afetadas. Não é usada como regra fiscal; apenas rastreabilidade.
-const MOTOR_VERSION = 'motor-cbs-2026-09-01-lc116-precedencia';
+const MOTOR_VERSION = 'motor-cbs-2026-09-01-normalizacao-lc116';
 const hash = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 24);
 const versoesAtuais = () => {
   const params = regras.tudo();
@@ -264,7 +265,10 @@ function normalizar(m) {
   return {
     documento: m.documento || '', item_numero: m.item_numero,
     nome: m.nome_cadastro || m.nome, inscr_federal: m.inscr_federal,
-    descricao: m.descricao, ncm: m.ncm, nbs: m.nbs, lc116: m.lc116, cfop: m.cfop,
+    // O XML preserva o código fiscal bruto. Quando a tag do item LC116 não
+    // chegou separada ao cache, a normalização recupera o item já informado
+    // pelo documento (sem inventar classificação) para o motor consumir.
+    descricao: m.descricao, ncm: m.ncm, nbs: m.nbs, lc116: normalizacaoFiscalXml.lc116DoDocumento(m), cfop: m.cfop,
     cst: m.cst, csosn: m.csosn, quantidade: m.quantidade,
     valor: m.valor, base_calculo: m.base_calculo,
     icms: m.icms, icms_st: m.icms_st, ipi: m.ipi,

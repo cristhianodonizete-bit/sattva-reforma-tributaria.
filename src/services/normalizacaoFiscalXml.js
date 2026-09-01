@@ -12,13 +12,20 @@ const normalizarLc116 = (v) => {
   const d = somenteDigitos(v).slice(0, 4);
   return d ? d.padStart(4, '0') : '';
 };
+// Alguns provedores de NFS-e trazem o item da lista apenas como os quatro
+// primeiros dígitos do código fiscal municipal/nacional. O código bruto é
+// preservado em `cst`; aqui apenas recuperamos a mesma evidência documental
+// para a chave LC116, sem inventar classificação.
+function lc116DoDocumento(movimento) {
+  return normalizarLc116(movimento.lc116) || normalizarLc116(movimento.cst);
+}
 
 function avaliar(movimento) {
-  const lc116 = normalizarLc116(movimento.lc116);
+  const lc116 = lc116DoDocumento(movimento);
   const nbs = somenteDigitos(movimento.nbs);
   const cst = somenteDigitos(movimento.cst);
   const xmlServico = String(movimento.origem || '').toLowerCase() === 'xml'
-    && !somenteDigitos(movimento.ncm) && Number(movimento.iss || 0) !== 0;
+    && !somenteDigitos(movimento.ncm) && Boolean(Number(movimento.iss || 0) || nbs || lc116 || cst);
 
   if (!xmlServico) return { status: 'NAO_APLICAVEL', pendencia: '', evidencia: '' };
   if (!lc116) {
@@ -46,8 +53,8 @@ function validarMovimento(movimentoId) {
   const resultado = avaliar(movimento);
   db.prepare(`UPDATE movimentos
     SET lc116=?, normalizacao_status=?, normalizacao_pendencia=?, normalizacao_evidencia=?
-    WHERE id=?`).run(normalizarLc116(movimento.lc116), resultado.status, resultado.pendencia, resultado.evidencia, movimentoId);
+    WHERE id=?`).run(lc116DoDocumento(movimento), resultado.status, resultado.pendencia, resultado.evidencia, movimentoId);
   return resultado;
 }
 
-module.exports = { normalizarLc116, avaliar, validarMovimento };
+module.exports = { normalizarLc116, lc116DoDocumento, avaliar, validarMovimento };
