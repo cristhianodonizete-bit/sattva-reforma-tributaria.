@@ -29,6 +29,29 @@ avaliada = qualidade.avaliarLinha(linha({ detalhe: { reconstrucao: { status: 'in
 assert.equal(avaliada.dimensoes.reconstrucao, qualidade.STATUS.INDETERMINADO);
 assert.equal(avaliada.dimensoes.resultado, qualidade.STATUS.INDETERMINADO);
 
+// Classificação parcial só deixa de bloquear quando o motor preservou a
+// equivalência fiscal e demonstrou que o efeito tributário é não material.
+avaliada = qualidade.avaliarLinha(linha({
+  status_classificacao: 'PARCIAL', tratamento: null,
+  detalhe: {
+    reconstrucao: { status: 'reconstruida' },
+    classificacao: { equivalenciaFiscal: { status: 'EQUIVALENTE_FISCALMENTE', impacto_tributario_material: false } },
+  },
+}));
+assert.equal(avaliada.dimensoes.classificacao, qualidade.STATUS.DETERMINADO);
+assert.equal(avaliada.dimensoes.tratamento, qualidade.STATUS.DETERMINADO);
+assert.equal(avaliada.dimensoes.resultado, qualidade.STATUS.DETERMINADO);
+
+avaliada = qualidade.avaliarLinha(linha({
+  status_classificacao: 'PARCIAL', tratamento: null,
+  detalhe: {
+    reconstrucao: { status: 'reconstruida' },
+    classificacao: { equivalenciaFiscal: { status: 'DIVERGENTE_FISCALMENTE', impacto_tributario_material: true } },
+  },
+}));
+assert.equal(avaliada.dimensoes.classificacao, qualidade.STATUS.INDETERMINADO, 'divergência material permanece pendente');
+assert.equal(avaliada.dimensoes.tratamento, qualidade.STATUS.INDETERMINADO);
+
 const consolidado = qualidade.consolidar([
   linha({ movimento_id: 1 }),
   linha({ movimento_id: 2, detalhe: { reconstrucao: { status: 'estimada' } } }),

@@ -20,8 +20,19 @@ const valorLinha = (linha) => numero(linha.preco_atual);
 const arred = (v) => Math.round(numero(v) * 100) / 100;
 const resolvido = (status) => [STATUS.DETERMINADO, STATUS.PREMISSA, STATUS.NA].includes(status);
 
+// A classificação pode permanecer PARCIAL sem escolha arbitrária de NBS/NCM.
+// Quando o motor já demonstrou que todos os candidatos válidos possuem a mesma
+// assinatura tributária, ela é suficiente para cobertura: não existe ação
+// humana fiscal a executar. A checagem exige a memória explícita da
+// equivalência e do impacto não material; um PARCIAL genérico continua aberto.
+function classificacaoEquivalenteNaoMaterial(linha) {
+  const equivalencia = linha.detalhe?.classificacao?.equivalenciaFiscal;
+  return equivalencia?.status === 'EQUIVALENTE_FISCALMENTE'
+    && equivalencia?.impacto_tributario_material === false;
+}
 function statusClassificacao(linha) {
   if (linha.status_classificacao === 'CLASSIFICADO') return STATUS.DETERMINADO;
+  if (linha.status_classificacao === 'PARCIAL' && classificacaoEquivalenteNaoMaterial(linha)) return STATUS.DETERMINADO;
   if (linha.status_classificacao === 'REQUER_VALIDACAO') return STATUS.VALIDACAO;
   return STATUS.INDETERMINADO;
 }
@@ -33,6 +44,10 @@ function statusReconstrucao(linha) {
   return STATUS.INDETERMINADO;
 }
 function statusTratamento(linha, classificacao) {
+  // A equivalência material já contém a assinatura tributária comparada. Não
+  // há necessidade de escolher um código histórico para reconhecer o
+  // tratamento como coberto.
+  if (classificacaoEquivalenteNaoMaterial(linha)) return STATUS.DETERMINADO;
   if (classificacao !== STATUS.DETERMINADO) return classificacao === STATUS.VALIDACAO ? STATUS.VALIDACAO : STATUS.INDETERMINADO;
   return linha.tratamento ? STATUS.DETERMINADO : STATUS.INDETERMINADO;
 }
