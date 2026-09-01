@@ -8,6 +8,10 @@
  * linhas virtuais; não há crédito fixado nem regra tributária duplicada aqui.
  */
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+process.env.SATTVA_DADOS = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-fase2a-'));
 const db = require('../src/db');
 const motor = require('../src/engine/motor');
 const { classificar } = require('../src/engine/classificador');
@@ -88,14 +92,13 @@ function validarClassificado(nome, item, movimentoId) {
   assert.equal(depois.creditoCbs, depois.cbs, `${nome}: crédito é o resultado oficial do motor, sem valor mockado`);
 }
 
-function validarPendente(nome, item, movimentoId) {
+function validarRegraPadrao(nome, item, movimentoId) {
   const antes = classificar(item, contextoB2B);
   const depois = peloCenario(item, movimentoId);
-  assert.notEqual(antes.status, 'CLASSIFICADO', `${nome}: código pendente não pode ter classificação inventada`);
-  assert.notEqual(depois.classificacao.status, 'CLASSIFICADO', `${nome}: B2B não promove a classificação fiscal`);
-  assert.ok(['INDETERMINADO', 'SUJEITO_VALIDACAO'].includes(depois.credito.statusDeterminacao),
-    `${nome}: crédito deve permanecer não determinado ou sujeito à validação`);
-  assert.equal(depois.creditoCbs, 0, `${nome}: zero exibido é acompanhado de estado não determinado, nunca crédito automático`);
+  assert.equal(antes.status, 'CLASSIFICADO', `${nome}: ausência de exceção deve usar a regra padrão CBS`);
+  assert.equal(antes.cclasstrib, '000001', `${nome}: regra padrão não escolhe NCM/NBS, apenas tributação integral`);
+  assert.equal(depois.classificacao.status, 'CLASSIFICADO', `${nome}: motor deve consumir a regra padrão`);
+  assert.ok(depois.cbs > 0, `${nome}: CBS regular é parametrizada e aplicável sem exceção específica`);
 }
 
 try {
@@ -103,16 +106,18 @@ try {
   validarClassificado('PRODUTO_CLASSIFICADO_ELEGIVEL', {
     ...comum, ncm: CODIGO_PRODUTO, descricao: 'Produto classificado e elegível', natureza_item: 'PRODUTO',
   }, -201);
-  validarPendente('PRODUTO_NCM_PENDENTE', {
+  validarRegraPadrao('PRODUTO_NCM_SEM_EXCECAO', {
     ...comum, ncm: '99887766', descricao: 'Produto com NCM deliberadamente pendente', natureza_item: 'PRODUTO',
   }, -202);
   validarClassificado('SERVICO_CLASSIFICADO_ELEGIVEL', {
     ...comum, nbs: CODIGO_SERVICO, cst: LC116_SERVICO, iss: 0, descricao: 'Serviço classificado e elegível', natureza_item: 'SERVICO',
   }, -203);
-  validarPendente('SERVICO_NBS_PENDENTE', {
+  validarRegraPadrao('SERVICO_NBS_SEM_EXCECAO', {
     ...comum, nbs: '998877665', cst: '9.99', iss: 0, descricao: 'Serviço com NBS deliberadamente pendente', natureza_item: 'SERVICO',
   }, -204);
   console.log('fase2a-b2b-classificacao: 4 fixtures isoladas passaram pelo classificador, motor fiscal/crédito e orquestrador de cenários.');
 } finally {
   removerFixtures();
+  try { db.close?.(); } catch (_) { /* noop */ }
+  try { fs.rmSync(process.env.SATTVA_DADOS, { recursive: true, force: true }); } catch (_) { /* SQLite pode manter handle breve no Windows */ }
 }

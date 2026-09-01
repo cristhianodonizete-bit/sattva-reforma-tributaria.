@@ -551,7 +551,7 @@ Telas.perfil = async (el) => {
   ], campos || [], { vazio: 'Nenhum campo extraído.' });
   const especiais = atual ? ['receita_reducao_cbs','receita_aliquota_zero_cbs','receita_imunidade_cbs','receita_regime_especifico_cbs','receita_beneficio_governo_cbs'].reduce((s, k) => s + (+atual[k] || 0), 0) : 0;
   const indeterminadas = atual ? (+atual.receita_tratamento_indeterminado_cbs || 0) + (+atual.compras_credito_indeterminado || 0) : 0;
-  el.innerHTML = cab('Módulo 1.a', 'Perfil Tributário e Raio-X Histórico', 'Leitura consolidada dos fatos persistidos e da fotografia CBS já produzida pelo motor.', '<button class="btn vazio" id="centralDadosPerfil">Central de Dados</button><button class="btn vazio" id="complementarCbs">Completar informações</button><button class="btn" id="atualizarCbs">Atualizar Perfil CBS</button>') +
+  el.innerHTML = cab('Módulo 1.a', 'Perfil Tributário e Raio-X Histórico', 'Leitura da carga atual de PIS/Cofins por competência. A CBS aparece apenas na comparação do Raio-X.', '<button class="btn vazio" id="centralDadosPerfil">Central de Dados</button><button class="btn vazio" id="complementarCbs">Completar informações</button><button class="btn" id="atualizarCbs">Atualizar Perfil CBS</button>') +
     `<div class="cartao"><h2>Perfil tributário consolidado</h2><div class="grade g4">
       ${A.kpi('Regime atual', A.esc(tributario.empresa?.regime_atual || 'INDETERMINADO'), 'cadastro da empresa')}
       ${A.kpi('Períodos analisados', historicoTributario.length, historicoTributario.length ? 'dados persistidos' : 'INDETERMINADO')}
@@ -560,8 +560,8 @@ Telas.perfil = async (el) => {
     </div><p class="mini">CBS é consumida exclusivamente da fotografia existente do motor. Ausências permanecem explicitamente como INDETERMINADO.</p></div>
     <div class="cartao" style="margin-top:16px"><h2>Raio-X histórico — situação anterior × CBS</h2>${historicoTributario.length ? A.tabela([
       {t:'Competência',r:x=>A.esc(x.competencia)}, {t:'Regime',r:x=>A.esc(x.regime)},
-      {t:'Receita',num:true,r:x=>valorOuIndeterminado(x.receita)}, {t:'PIS / Cofins',num:true,r:x=>`${valorOuIndeterminado(x.pis_historico)} / ${valorOuIndeterminado(x.cofins_historico)}`},
-      {t:'Carga efetiva histórica',num:true,r:x=>valorOuIndeterminado(x.carga_efetiva_historica, A.pct)}, {t:'PGDAS',num:true,r:x=>x.pgdas?.natureza === 'NAO_APLICAVEL' ? 'NÃO APLICÁVEL' : valorOuIndeterminado(x.pgdas)},
+      {t:'Receita',num:true,r:x=>valorOuIndeterminado(x.receita)}, {t:'PIS/Cofins atual',num:true,r:x=>valorOuIndeterminado(x.carga_pis_cofins_atual)},
+      {t:'Carga atual',num:true,r:x=>valorOuIndeterminado(x.carga_pis_cofins_percentual, A.pct)}, {t:'Origem',r:x=>A.esc(x.carga_pis_cofins_atual?.origem || 'INDETERMINADO')}, {t:'PGDAS',num:true,r:x=>x.pgdas?.natureza === 'NAO_APLICAVEL' ? 'NÃO APLICÁVEL' : valorOuIndeterminado(x.pgdas)},
       {t:'Créditos Lucro Real',num:true,r:x=>x.creditos_lucro_real?.natureza === 'NAO_APLICAVEL' ? 'NÃO APLICÁVEL' : valorOuIndeterminado(x.creditos_lucro_real)},
       {t:'CBS do motor',num:true,r:x=>x.cbs_motor_existente?.natureza === 'CALCULADO' ? A.moeda(x.cbs_motor_existente.liquida) : 'INDETERMINADO'},
       {t:'Completude',r:x=>`${A.esc(natureza(x.receita))} · ${A.esc(natureza(x.cbs_motor_existente))}`},
@@ -771,10 +771,10 @@ Telas.impactoFinalCbs = async (el) => {
   el.innerHTML = cab('Módulo 1 · Consolidação CBS', 'Impacto Final CBS da Cadeia',
     'Leitura consolidada das Cadeias de Clientes e Fornecedores. Não há novo motor: os valores abaixo são as somas das análises já apuradas.') +
     `<div class="grade g4">
-      ${A.kpi('PIS/COFINS líquido atual', dinheiro(d.pis_cofins_liquido_atual), naoApurado(d.pis_cofins_liquido_atual) ? 'há dado atual indeterminado' : 'débitos − créditos atuais')}
+      ${A.kpi('PIS/COFINS atual', dinheiro(d.pis_cofins_liquido_atual), naoApurado(d.pis_cofins_liquido_atual) ? 'há dado atual indeterminado' : `${A.pct(d.carga_atual_percentual || 0, 2)} sobre venda atual · ${A.esc(d.origem_carga_atual || 'INDETERMINADO')}`)}
       ${A.kpi('CBS líquida projetada', dinheiro(d.cbs_liquida), 'CBS das vendas − crédito CBS das compras', 'destaque')}
       ${A.kpi('Diferença R$', diferenca(d.variacao_carga_federal), 'CBS líquida vs. PIS/COFINS líquido atual', naoApurado(d.variacao_carga_federal) ? '' : 'destaque')}
-      ${A.kpi('Diferença %', percentual(d.variacao_percentual), naoApurado(d.variacao_percentual) ? 'não é tratada como zero' : 'sobre PIS/COFINS líquido atual')}
+      ${A.kpi('Diferença p.p.', percentual(d.variacao_percentual), naoApurado(d.variacao_percentual) ? 'não é tratada como zero' : 'CBS líquida % − carga atual %')}
     </div>
     ${d.pis_cofins_indeterminado ? `<div class="aviso atencao" style="margin-top:16px"><b>PIS/COFINS líquido atual a validar.</b> Existe operação sem base suficiente para apurar o valor atual; por isso a diferença percentual não foi convertida em zero.</div>` : ''}
     <div class="cartao" style="margin-top:16px"><h2>Formação da CBS líquida</h2>
@@ -787,7 +787,7 @@ Telas.impactoFinalCbs = async (el) => {
         { nome:'CBS líquida projetada', memoria:'CBS débito − crédito CBS das compras', valor:d.cbs_liquida },
       ])}
       <div class="grade g2" style="margin-top:16px">
-        ${A.kpi('Carga efetiva sobre receita projetada', percentual(d.carga_efetiva_cbs_receita), 'CBS líquida / receita projetada')}
+        ${A.kpi('Carga efetiva sobre venda atual', percentual(d.carga_efetiva_cbs_receita), 'CBS líquida / venda atual')}
         ${A.kpi('Carga efetiva sobre base econômica das saídas', percentual(d.carga_efetiva_cbs_base), 'CBS líquida / base econômica das saídas')}
       </div>
     </div>

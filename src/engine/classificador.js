@@ -133,10 +133,13 @@ function classificar(item, ctx = {}) {
   }
 
   if (!candidatos.length) {
-    return montar('SEM_CORRESPONDENCIA', null, origem || 'sem código de produto/serviço',
-      [item.ncm || item.nbs
-        ? `Código ${item.ncm || item.nbs} não localizado nas bases carregadas.`
-        : 'Item sem NCM e sem NBS — não há chave para classificar.'],
+    // Sem exceção identificada, a projeção econômica segue a tributação
+    // regular parametrizada. Não escolhe NCM/NBS arbitrariamente: registra
+    // apenas a regra padrão CBS, preservando a ausência de código na memória.
+    return montar('CLASSIFICADO', { cst: '000', cclasstrib: '000001', classificacao: 'Tributação integral — regra padrão', reducao: 'integral' },
+      'regra padrão CBS', [item.ncm || item.nbs || item.lc116
+        ? `Código ${item.ncm || item.nbs || item.lc116} sem exceção específica no catálogo; aplicada tributação regular parametrizada.`
+        : 'Sem código de produto/serviço; aplicada tributação regular parametrizada, sem atribuir classificação documental.'],
       { natureza, sentido });
   }
 

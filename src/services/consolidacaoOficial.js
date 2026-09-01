@@ -177,11 +177,26 @@ function impactoFinal(empresaId, opcoes = {}) {
   const base = linhas(empresaId, opcoes); const saidas = base.linhas.filter((x) => x.sentido === 'saida'); const entradas = base.linhas.filter((x) => x.sentido === 'entrada');
   const soma = (lista, campo) => r2(lista.reduce((s, x) => s + n(x[campo]), 0));
   const cbsDebito = soma(saidas, 'cbs'); const cbsCredito = soma(entradas, 'credito_cbs');
-  const receitaProjetada = soma(saidas, 'preco_projetado'); const baseSaidas = soma(saidas, 'base_economica');
+  const receitaProjetada = soma(saidas, 'preco_projetado');
+  const receitaAtual = soma(saidas, 'preco_atual'); const baseSaidas = soma(saidas, 'base_economica');
   const pisDebitos = saidas.map((x) => x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor);
   const pisCreditos = entradas.map((x) => x.detalhe?.creditoAtual?.pisCofins);
   const pisIndeterminado = [...pisDebitos, ...pisCreditos].some((x) => x === null || x === undefined);
-  const pisLiquido = pisIndeterminado ? null : r2(pisDebitos.reduce((s, x) => s + n(x), 0) - pisCreditos.reduce((s, x) => s + n(x), 0));
+  const pisLiquidoReconstruido = pisIndeterminado ? null : r2(pisDebitos.reduce((s, x) => s + n(x), 0) - pisCreditos.reduce((s, x) => s + n(x), 0));
+  // A apuração confirmada é a melhor fonte da carga vigente por competência.
+  // Onde ela não existir, preservamos a reconstrução já materializada pelo
+  // motor, sem transformar ausência em zero.
+  const apuracoes = db.prepare(`SELECT competencia, pis_recolhido, cofins_recolhida
+    FROM pis_cofins_apuracoes_historicas
+    WHERE empresa_id=? AND status_validacao='VALIDADO_USUARIO'
+      AND pis_recolhido IS NOT NULL AND cofins_recolhida IS NOT NULL
+    ORDER BY id DESC`).all(empresaId);
+  const apuracaoPorCompetencia = new Map();
+  for (const a of apuracoes) if (!apuracaoPorCompetencia.has(a.competencia)) apuracaoPorCompetencia.set(a.competencia, r2(n(a.pis_recolhido) + n(a.cofins_recolhida)));
+  const competenciasSaida = [...new Set(saidas.map((x) => x.competencia).filter(Boolean))];
+  const apuracaoCompleta = competenciasSaida.length > 0 && competenciasSaida.every((c) => apuracaoPorCompetencia.has(c));
+  const pisLiquido = apuracaoCompleta ? r2(competenciasSaida.reduce((s, c) => s + n(apuracaoPorCompetencia.get(c)), 0)) : pisLiquidoReconstruido;
+  const origemCargaAtual = apuracaoCompleta ? 'APURACAO_CONFIRMADA' : pisIndeterminado ? 'INDETERMINADO' : 'RECONSTRUCAO_REGRA';
   const liquida = r2(cbsDebito - cbsCredito);
   const perfil = base.execucao ? perfilCbs.materializar(empresaId) : { competencias: [] };
   const pDebito = r2((perfil.competencias || []).reduce((s, x) => s + n(x.cbs_debito), 0));
@@ -189,13 +204,17 @@ function impactoFinal(empresaId, opcoes = {}) {
   const tol = .01;
   const status = !base.execucao ? 'INCOMPLETO' : Math.abs(cbsDebito - pDebito) < tol && Math.abs(cbsCredito - pCredito) < tol ? 'RECONCILIADO' : 'DIVERGENTE';
   return { execucao: base.execucao, cbs_debito_vendas: cbsDebito, cbs_credito_compras: cbsCredito, cbs_liquida: liquida,
-    receita_projetada: receitaProjetada, base_economica_saidas: baseSaidas,
-    carga_efetiva_cbs_receita: receitaProjetada ? r4(liquida / receitaProjetada) : null,
+    receita_atual: receitaAtual, receita_projetada: receitaProjetada, base_economica_saidas: baseSaidas,
+    carga_efetiva_cbs_receita: receitaAtual ? r4(liquida / receitaAtual) : null,
     carga_efetiva_cbs_base: baseSaidas ? r4(liquida / baseSaidas) : null,
     pis_cofins_debitos_atuais: pisIndeterminado ? null : r2(pisDebitos.reduce((s, x) => s + n(x), 0)),
     pis_cofins_creditos_atuais: pisIndeterminado ? null : r2(pisCreditos.reduce((s, x) => s + n(x), 0)),
-    pis_cofins_liquido_atual: pisLiquido, pis_cofins_indeterminado: pisIndeterminado,
-    variacao_carga_federal: pisLiquido === null ? null : r2(liquida - pisLiquido), variacao_percentual: pisLiquido === null || !pisLiquido ? null : r4((liquida - pisLiquido) / Math.abs(pisLiquido)),
+    pis_cofins_liquido_atual: pisLiquido, pis_cofins_indeterminado: pisLiquido === null,
+    origem_carga_atual: origemCargaAtual,
+    carga_atual_percentual: pisLiquido === null || !receitaAtual ? null : r4(pisLiquido / receitaAtual),
+    variacao_carga_federal: pisLiquido === null ? null : r2(liquida - pisLiquido),
+    // Diferença em pontos percentuais: ambas as cargas usam a mesma venda atual.
+    variacao_percentual: pisLiquido === null || !receitaAtual ? null : r4((liquida / receitaAtual) - (pisLiquido / receitaAtual)),
     credito_cbs_recebido_fornecedores: cbsCredito, credito_cbs_entregue_clientes: cbsDebito,
     reconciliacao: { status, disponivel: Boolean(base.execucao), itens: base.linhas.length, confere: status === 'RECONCILIADO',
       cbsDebitoVendas: pDebito, cbsCreditoCompras: pCredito,

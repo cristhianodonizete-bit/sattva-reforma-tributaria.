@@ -64,6 +64,13 @@ function consolidar(db, empresaId) {
       + numero(cbsAtual.receita_imunidade_cbs) + numero(cbsAtual.receita_regime_especifico_cbs)
       + numero(cbsAtual.receita_beneficio_governo_cbs) : null;
     const apuracao = linha.apuracao_pis_cofins || null;
+    const apuracaoConfirmada = apuracao?.status_validacao === 'VALIDADO_USUARIO'
+      && apuracao.pis_recolhido !== null && apuracao.pis_recolhido !== undefined
+      && apuracao.cofins_recolhida !== null && apuracao.cofins_recolhida !== undefined;
+    const cargaPisCofinsAtual = apuracaoConfirmada
+      ? { valor: numero(apuracao.pis_recolhido) + numero(apuracao.cofins_recolhida), natureza: 'REAL', origem: 'APURACAO_CONFIRMADA' }
+      : p ? { valor: numero(p.pis) + numero(p.cofins), natureza: 'REAL', origem: 'PERFIL_HISTORICO' }
+        : { valor: null, natureza: 'INDETERMINADO', origem: 'INDETERMINADO' };
     return {
       competencia: linha.competencia,
       regime: empresa.regime || 'INDETERMINADO',
@@ -77,6 +84,8 @@ function consolidar(db, empresaId) {
       receitas_sem_dfe: { valor: (linha.receitas_sem_dfe || []).length ? receitaSemDfe : null, natureza: (linha.receitas_sem_dfe || []).length ? 'REAL' : 'INDETERMINADO', registros: (linha.receitas_sem_dfe || []).length },
       pis_historico: valor(p?.pis, p ? 'REAL' : 'INDETERMINADO'),
       cofins_historico: valor(p?.cofins, p ? 'REAL' : 'INDETERMINADO'),
+      carga_pis_cofins_atual: cargaPisCofinsAtual,
+      carga_pis_cofins_percentual: receitaParaCarga ? { valor: cargaPisCofinsAtual.valor === null ? null : cargaPisCofinsAtual.valor / receitaParaCarga, natureza: cargaPisCofinsAtual.natureza, origem: cargaPisCofinsAtual.origem } : { valor: null, natureza: 'INDETERMINADO', origem: 'INDETERMINADO' },
       apuracao_pis_cofins_historica: apuracao ? {
         pis_debito: valor(apuracao.pis_debito, 'EXTRAIDO'), cofins_debito: valor(apuracao.cofins_debito, 'EXTRAIDO'),
         pis_credito: valor(apuracao.pis_credito, 'EXTRAIDO'), cofins_credito: valor(apuracao.cofins_credito, 'EXTRAIDO'),
@@ -90,7 +99,7 @@ function consolidar(db, empresaId) {
       tratamentos_identificados: especiais === null ? 'INDETERMINADO' : especiais > 0 ? 'TRATAMENTO_ESPECIAL_IDENTIFICADO' : 'NAO_IDENTIFICADO_NA_FOTOGRAFIA_CBS',
       cbs_motor_existente: cbsAtual ? { debito: numero(cbsAtual.cbs_debito), credito: numero(cbsAtual.cbs_credito), liquida: numero(cbsAtual.cbs_liquida), natureza: 'CALCULADO', motor_execucao_id: cbsAtual.motor_execucao_id } : { natureza: 'INDETERMINADO' },
       comparacao_anterior_x_cbs: {
-        carga_efetiva_historica: receitaParaCarga !== null && receitaParaCarga !== 0 && tributosHistoricos !== null ? tributosHistoricos / receitaParaCarga : null,
+        carga_efetiva_historica: receitaParaCarga !== null && receitaParaCarga !== 0 && cargaPisCofinsAtual.valor !== null ? cargaPisCofinsAtual.valor / receitaParaCarga : null,
         cbs_liquida_motor: cbsAtual ? numero(cbsAtual.cbs_liquida) : null,
         natureza: cbsAtual ? 'CALCULADO' : 'INDETERMINADO',
       },
