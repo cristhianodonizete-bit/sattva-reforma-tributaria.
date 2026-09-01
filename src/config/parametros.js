@@ -77,11 +77,12 @@ const REGIMES = {
   },
   simples_nacional: {
     label: 'Simples Nacional',
-    pisCofins: 0, cumulativo: true,
+    // Premissa econômica de reconstrução. Não é alíquota legal fixa do DAS.
+    pisCofins: 0.025, cumulativo: true,
     creditaAtual: { pisCofins: false, icms: false, ipi: false, iss: false },
     geraCreditoAtual: { pisCofins: false, icms: false, ipi: false },
     creditaNovo: false, geraCreditoNovo: false,
-    obs: 'Permanece no DAS. NÃO se apropria de créditos e transfere ao adquirente apenas o valor de IBS/CBS embutido no DAS. Pode OPTAR pelo regime regular do IBS/CBS (apurando por fora) — decisão central do diagnóstico.',
+    obs: 'Permanece no DAS. Para reconstrução econômica sem repartição efetiva disponível, usa a premissa versionada de 2,5% para PIS/COFINS. NÃO se apropria de créditos e transfere ao adquirente apenas o valor de IBS/CBS embutido no DAS. Pode OPTAR pelo regime regular do IBS/CBS (apurando por fora) — decisão central do diagnóstico.',
   },
   simples_regime_regular: {
     label: 'Simples Nacional (optante pelo regime regular de IBS/CBS)',

@@ -38,11 +38,13 @@ function motivoSemCatalogo(item) {
   return 'SEM_CATALOGO';
 }
 
-function resolver(item) {
+function resolver(item, opcoes = {}) {
   const documento = num(item.pis) + num(item.cofins);
   // Flag de bloco XML não comprova valor: zero somente vem do documento quando
   // houver evidência fiscal explícita para a alíquota zero.
-  if (documento > 0 || item.pis_cofins_zero_comprovado === true) return { percentual: item.valor ? documento / num(item.valor) : 0, valor: documento, origem: 'DOCUMENTO', natureza: 'REAL', metodo: 'DOCUMENTO', modoMonofasia: 'VALOR_REAL_DOCUMENTO', catalogo: null };
+  // Zero só é aceito quando foi comprovado; não é o mesmo que o valor positivo
+  // destacado em XML, que a projeção pode substituir pela matriz saneada.
+  if (item.pis_cofins_zero_comprovado === true || (!opcoes.ignorarDocumento && documento > 0)) return { percentual: item.valor ? documento / num(item.valor) : 0, valor: documento, origem: 'DOCUMENTO', natureza: 'REAL', metodo: 'DOCUMENTO', modoMonofasia: 'VALOR_REAL_DOCUMENTO', catalogo: null };
   const c = localizar(item);
   // Ausência de catálogo não é autorização para escolher uma carga por
   // conveniência. A regra geral de regime continua sendo uma regra válida

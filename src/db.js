@@ -1614,6 +1614,15 @@ if (db.prepare('SELECT COUNT(*) c FROM param_regimes').get().c === 0) {
   })();
 }
 
+// Ajuste de parâmetro já homologado para bancos operacionais existentes.
+// Este cache não recebe `param_regimes` do Supabase: a carga saneada do
+// Simples deve usar a premissa versionada de 2,5%, sem afetar percentuais
+// distintos que tenham sido configurados manualmente pelo usuário.
+db.prepare(`UPDATE param_regimes
+  SET pis_cofins = 0.025,
+      obs = 'Premissa versionada de 2,5% para reconstrução econômica de PIS/COFINS quando não houver regra específica; não é alíquota legal fixa do DAS.'
+  WHERE chave = 'simples_nacional' AND (pis_cofins IS NULL OR ABS(pis_cofins) < 0.0000001)`).run();
+
 if (db.prepare('SELECT COUNT(*) c FROM param_reducoes').get().c === 0) {
   const P = require('./config/parametros');
   const ins = db.prepare('INSERT INTO param_reducoes (chave, label, reducao, especifico, descricao, ordem) VALUES (?,?,?,?,?,?)');

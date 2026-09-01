@@ -24,6 +24,30 @@ r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', pis: 0
 assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 3.65);
 assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_origem, 'REGRA_REGIME');
 
+// Documento com valor positivo é fato histórico, mas a projeção usa a regra
+// saneada do fornecedor: Real 9,25% e Presumido 3,65%.
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_real', pis: 1.65, cofins: 3,
+  pis_cofins_documentado: true, regra_geral_regime_confirmada: true });
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 9.25);
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_origem, 'REGRA_REGIME');
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_natureza, 'CALCULADO');
+
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', pis: 1.65, cofins: 7.6,
+  pis_cofins_documentado: true, regra_geral_regime_confirmada: true });
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 3.65);
+
+// A premissa cadastrada do Simples é explícita e não é substituída por um
+// destaque documental que pode estar incorreto.
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'simples_nacional', pis: 7, cofins: 11,
+  pis_cofins_documentado: true });
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 2.5);
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_natureza, 'SIMULADO');
+
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'mei', pis: 1.65, cofins: 7.6,
+  pis_cofins_documentado: true });
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 0);
+assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'MEI_SEM_PIS_COFINS');
+
 // Zero comprovado por regra/evidência continua tendo precedência sobre o fallback.
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', pis: 0, cofins: 0,
   pis_cofins_documentado: true, pis_cofins_zero_comprovado: true, regra_geral_regime_confirmada: true });
@@ -52,6 +76,13 @@ assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'REGRA_GERAL_REGIME');
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', catalogo_fiscal: { tratamento_pis_cofins: 'ALÍQUOTA ZERO' } });
 assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 0);
 assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'ALIQUOTA_ZERO');
+
+// Tratamento monofásico do catálogo permanece superior à regra de regime e
+// ao valor informado pelo XML.
+r = reconstruir({ valor: 100, tipo: 'mercadoria', regime: 'lucro_real', pis: 1.65, cofins: 7.6,
+  catalogo_fiscal: { tratamento_pis_cofins: 'MONOFÁSICO', percentual_reconstrucao_sugerido: 0.125 } });
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 12.5);
+assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'MONOFASICO_PREMISSA');
 
 // Condição explicitamente material não se torna zero: a base fica parcial.
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', catalogo_fiscal: {
