@@ -43,6 +43,76 @@ function suporte(grupo) {
   // e passou pela fotografia oficial; não é inferido só pelo catálogo.
   return 'SUPORTADO';
 }
+
+// Uma operação pode ter várias dimensões pendentes. A fila escolhe uma causa
+// principal, em ordem de impedimento, para não contar o mesmo valor duas
+// vezes e para entregar uma ação executável ao responsável pelo dado.
+function pendenciaPrincipal(item) {
+  const d = item.dimensoes || {};
+  const candidatos = [
+    ['classificacao', d.classificacao],
+    ['reconstrucao', d.reconstrucao],
+    ['tratamento', d.tratamento],
+    ['credito', d.credito],
+  ];
+  const [dimensao, status] = candidatos.find(([, valor]) => !['DETERMINADO', 'SIMULADO_POR_PREMISSA', 'NAO_APLICAVEL'].includes(valor)) || [];
+  const contexto = item.linha || {};
+  const evidencia = [
+    contexto.documento && `Documento: ${contexto.documento}`,
+    contexto.cnpj && `CNPJ/CPF: ${contexto.cnpj}`,
+    contexto.nbs && `NBS: ${contexto.nbs}`,
+    contexto.ncm && `NCM: ${contexto.ncm}`,
+    contexto.competencia && `Competência: ${contexto.competencia}`,
+  ].filter(Boolean);
+  const porDimensao = {
+    classificacao: {
+      causa: 'Classificação fiscal pendente ou requer validação.',
+      fonte_minima: 'Descrição do item e documento; confirmar NBS, LC116 ou NCM quando aplicável.',
+      acao: 'Revisar a classificação e confirmar o código fiscal aplicável.',
+      destino_central: 'TRATAMENTO_DE_DADOS',
+      natureza: 'EVIDENCIA_OU_VALIDACAO_FISCAL',
+    },
+    reconstrucao: {
+      causa: 'Carga/base econômica atual sem evidência suficiente para reconstrução.',
+      fonte_minima: 'XML, EFD-Contribuições, planilha/ERP ou cadastro fiscal com evidência aplicável.',
+      acao: 'Enviar ou vincular a fonte fiscal/econômica disponível.',
+      destino_central: 'IMPORTACOES_E_DADOS_COMPLEMENTARES',
+      natureza: 'EVIDENCIA_EXTERNA',
+    },
+    tratamento: {
+      causa: 'Tratamento fiscal não foi determinado pela evidência disponível.',
+      fonte_minima: 'Documento fiscal ou regra/cadastro fiscal aplicável ao item e competência.',
+      acao: 'Completar a evidência fiscal ou encaminhar para validação do tratamento.',
+      destino_central: 'TRATAMENTO_DE_DADOS',
+      natureza: 'VALIDACAO_FISCAL',
+    },
+    credito: {
+      causa: 'Elegibilidade de crédito requer confirmação.',
+      fonte_minima: 'Regime da contraparte e evidência da natureza/elegibilidade da operação.',
+      acao: 'Completar o cadastro do parceiro ou anexar a evidência de elegibilidade.',
+      destino_central: 'CADASTROS_E_TRATAMENTO_DE_DADOS',
+      natureza: 'EVIDENCIA_OU_VALIDACAO_FISCAL',
+    },
+  };
+  return {
+    movimento_id: item.movimento_id,
+    valor: r2(item.valor),
+    sentido: item.sentido,
+    dimensao: dimensao || 'resultado',
+    status: status || item.dimensoes?.resultado || 'INDETERMINADO',
+    ...porDimensao[dimensao],
+    evidencia_disponivel: evidencia.length ? evidencia : ['Sem identificadores suficientes na fotografia.'],
+    parceiro: contexto.parceiro || 'Não identificado',
+    documento: contexto.documento || contexto.chave || 'Não identificado',
+    descricao: contexto.descricao || 'Não identificada',
+  };
+}
+function pendenciasOperacionais(avaliadas) {
+  return avaliadas
+    .filter((item) => !['DETERMINADO', 'SIMULADO_POR_PREMISSA', 'NAO_APLICAVEL'].includes(item.dimensoes?.resultado))
+    .map(pendenciaPrincipal)
+    .sort((a, b) => b.valor - a.valor || a.movimento_id - b.movimento_id);
+}
 function familias(avaliadas) {
   const mapa = new Map();
   for (const item of avaliadas) {
@@ -89,7 +159,8 @@ function fotografia(empresaId, opcoes = {}) {
   const dimensoes = Object.fromEntries(['classificacao','tratamento','reconstrucao','credito','resultado'].map((k) => [k, matriz(q.matrizes[k] || {})]));
   const abertas = excecoes.listar(empresaId, { limite: 1000 });
   const agrupadas = Object.values(abertas.reduce((m, x) => { const k = `${x.codigo}:${x.categoria}`; const a = m[k] || { causa: x.codigo, categoria: x.categoria, quantidade: 0, valor: 0, impacto: 0, status: x.status }; a.quantidade++; a.valor += n(x.valor_envolvido); a.impacto += n(x.impacto_cbs_estimado); m[k] = a; return m; }, {})).map((x) => ({ ...x, valor: r2(x.valor), impacto: r2(x.impacto) })).sort((a,b) => b.valor - a.valor);
-  return { empresa_id: Number(empresaId), execucao: q.execucao, fotografia: { total: q.total, por_sentido: q.por_sentido, cobertura: dimensoes, automacao: dimensoes.resultado, pendencias: q.pendencias },
+  const pendencias_operacionais = pendenciasOperacionais(avaliadas);
+  return { empresa_id: Number(empresaId), execucao: q.execucao, fotografia: { total: q.total, por_sentido: q.por_sentido, cobertura: dimensoes, automacao: dimensoes.resultado, pendencias: q.pendencias, pendencias_operacionais },
     familias: familias(avaliadas), excecoes: { resumo: excecoes.resumo(empresaId), agrupadas }, mestres: mestres(), criado_em: new Date().toISOString() };
 }
 function registrarFotografia(empresaId, tipo = 'FASE_2A') { const dados = fotografia(empresaId); const r = db.prepare('INSERT INTO cobertura_fotografias (empresa_id,execucao_id,tipo,dados) VALUES (?,?,?,?)').run(empresaId, dados.execucao?.id || null, tipo, JSON.stringify(dados)); return { id: Number(r.lastInsertRowid), ...dados }; }
@@ -151,5 +222,5 @@ async function baixarMestresCompartilhados() {
   return resultado;
 }
 
-module.exports = { fotografia, registrarFotografia, listarFotografias, popularCadastrosMestre, familias, matriz, mestres,
+module.exports = { fotografia, registrarFotografia, listarFotografias, popularCadastrosMestre, familias, matriz, mestres, pendenciaPrincipal, pendenciasOperacionais,
   sincronizarMestresCompartilhados, baixarMestresCompartilhados };

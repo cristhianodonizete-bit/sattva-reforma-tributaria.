@@ -76,6 +76,21 @@ function avaliarLinha(linha) {
     valor: valorLinha(linha),
     natureza_projecao: String(linha.natureza || linha.detalhe?.natureza || 'SIMULADO').toUpperCase(),
     dimensoes,
+    // Contexto somente de leitura para que a camada de cobertura explique a
+    // pendência ao usuário. Não participa de qualquer decisão do motor.
+    linha: {
+      documento: linha.documento || linha.chave || null,
+      chave: linha.chave || null,
+      descricao: linha.descricao || null,
+      ncm: linha.ncm || null,
+      nbs: linha.nbs || null,
+      cnpj: linha.inscr_federal || null,
+      parceiro: linha.parceiro_cadastrado || linha.nome || null,
+      competencia: linha.competencia || null,
+      regime_emitente: linha.regime_cbs_emitente || null,
+      regime_adquirente: linha.regime_cbs_adquirente || null,
+      status_credito: linha.status_credito_determinacao || linha.status_credito || null,
+    },
   };
 }
 
