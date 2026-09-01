@@ -615,12 +615,10 @@ function textoApuracaoArquivo(arquivo, tipoDocumento) {
 async function extrairDocumentoApuracao(arquivo, tipoDocumento) {
   const textoEstruturado = textoApuracaoArquivo(arquivo, tipoDocumento);
   if (textoEstruturado) return { texto: textoEstruturado, metodo: 'LEITURA_ESTRUTURADA_LOCAL', modelo: 'XLSX_CSV' };
-  if (azureDocumentIntelligence.config().ativo) {
-    try { return await azureDocumentIntelligence.extrair(arquivo); }
-    catch (_) { /* preserva o fallback de IA já homologado */ }
+  if (!azureDocumentIntelligence.config().ativo) {
+    throw new Error('OCR Azure Document Intelligence não configurado para documentos não estruturados.');
   }
-  const fallback = await ia.extrairTexto(arquivo);
-  return { texto: fallback.texto, metodo: fallback.viaIA ? 'IA_EXISTENTE_OCR' : 'LEITURA_TEXTO', modelo: ia.config().modelo };
+  return azureDocumentIntelligence.extrair(arquivo);
 }
 function jsonIa(texto) {
   const limpo = String(texto || '').replace(/^```(?:json)?/m, '').replace(/```\s*$/m, '').trim();
@@ -630,11 +628,11 @@ function jsonIa(texto) {
 }
 function diagnosticoRuntimeIngestaoPisCofins() {
   const azure = azureDocumentIntelligence.diagnosticoSeguro();
-  const normalizacaoIa = ia.config();
   return {
     ...azure,
-    normalizacao_ia_configurada: Boolean(normalizacaoIa.ativo),
-    motivo_normalizacao_inativa: normalizacaoIa.ativo ? null : 'ANTHROPIC_API_KEY_OU_IA_CONFIG_AUSENTE',
+    provider_normalizacao: 'DETERMINISTICA_AZURE',
+    llm_normalizacao_configurado: false,
+    motivo_normalizacao_inativa: null,
   };
 }
 router.get('/empresas/:id/apuracoes-pis-cofins/diagnostico-runtime', (_req, res) => {
@@ -649,15 +647,13 @@ router.post('/empresas/:id/apuracoes-pis-cofins/ingestao', upload.single('arquiv
     const extracaoDocumento = await extrairDocumentoApuracao(req.file, tipoDocumento);
     const textoDocumento = extracaoDocumento.texto;
     if (!String(textoDocumento || '').trim()) throw new Error('Não foi possível obter texto do documento de apuração.');
-    if (!ia.config().ativo) throw new Error('A normalização requer ANTHROPIC_API_KEY ou uma chave válida em ia_config; o documento não foi persistido.');
-    const resposta = await ia.chamar([{ role: 'user', content: apuracoesPisCofinsIa.promptExtracao(textoDocumento) }], {
-      sistema: 'Você extrai fatos de apurações históricas. Nunca calcule, infira ou converta ausência em zero. Responda somente JSON válido.', maxTokens: 6000,
+    const extraido = apuracoesPisCofinsIa.normalizarTextoDeterministico(textoDocumento, {
+      localizacoes: extracaoDocumento.localizacoes, metodo: 'NORMALIZACAO_DETERMINISTICA_AZURE',
     });
-    const extraido = jsonIa(resposta.texto);
     const resultado = apuracoesPisCofinsIa.ingestao(db, Number(req.params.id), {
       nome_original: req.file.originalname, tipo_documento: tipoDocumento, mime_type: req.file.mimetype,
-      conteudo_original: req.file.buffer, versao_modelo_extracao: extracaoDocumento.modelo,
-    }, extraido.campos || extraido);
+      conteudo_original: req.file.buffer, versao_modelo_extracao: `${extracaoDocumento.modelo} + NORMALIZACAO_DETERMINISTICA_V1`,
+    }, extraido);
     ok(res, { ...resultado, campos_pendentes: resultado.campos.filter((x) => x.status_validacao !== 'VALIDADO_AUTOMATICAMENTE').map((x) => x.campo) });
   } catch (e) { erro(res, e); }
 });

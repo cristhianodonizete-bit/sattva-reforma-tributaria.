@@ -60,6 +60,63 @@ function validarConsistencia(campos) {
   return divergencias;
 }
 
+function valorNumericoDoTexto(valor) {
+  const textoBruto = texto(valor).replace(/R\$|\s/g, '').replace(/[^0-9,.-]/g, '');
+  if (!textoBruto) return null;
+  const normalizado = textoBruto.includes(',')
+    ? textoBruto.replace(/\./g, '').replace(',', '.')
+    : textoBruto;
+  const numero = Number(normalizado);
+  return Number.isFinite(numero) ? numero : null;
+}
+
+function competenciaDoTexto(valor) {
+  const encontrada = texto(valor).match(/(\d{2})\/(\d{4})|(\d{4})-(\d{2})/);
+  if (!encontrada) return null;
+  return encontrada[1] ? `${encontrada[2]}-${encontrada[1]}` : `${encontrada[3]}-${encontrada[4]}`;
+}
+
+// Normaliza somente rótulos e valores literalmente presentes no texto OCR.
+// Não calcula tributos, não completa ausências e deixa toda extração para revisão.
+function normalizarTextoDeterministico(textoDocumento, { localizacoes = [], metodo = 'NORMALIZACAO_DETERMINISTICA' } = {}) {
+  const linhas = String(textoDocumento || '').split(/\r?\n/).map((linha) => linha.trim()).filter(Boolean);
+  const saida = Object.fromEntries(CAMPOS.map((campo) => [campo, {
+    valor_extraido: null, origem_documento: 'OCR_AZURE', pagina_ou_localizacao: null,
+    rotulo_original: null, confianca: null, metodo_extracao: metodo, status_validacao: 'INDETERMINADO',
+  }]));
+  const regras = [
+    ['competencia', /^(compet[eê]ncia|per[ií]odo(?:\s+de\s+apura[cç][aã]o)?)\s*[:\-]\s*(.+)$/i, competenciaDoTexto],
+    ['regime_pis_cofins', /^(regime(?:\s+pis\/?cofins)?)\s*[:\-]\s*(.+)$/i, (v) => texto(v) || null],
+    ['receita_base', /^(receita\s+(?:base|bruta|tribut[aá]vel))\s*[:\-]\s*(.+)$/i, valorNumericoDoTexto],
+    ['pis_credito_utilizado', /^(pis\s+(?:cr[eé]dito\s+)?utilizado)\s*[:\-]\s*(.+)$/i, valorNumericoDoTexto],
+    ['cofins_credito_utilizado', /^(cofins\s+(?:cr[eé]dito\s+)?utilizad[ao])\s*[:\-]\s*(.+)$/i, valorNumericoDoTexto],
+    ['pis_credito', /^(pis\s+cr[eé]dito)\s*[:\-]\s*(.+)$/i, valorNumericoDoTexto],
+    ['cofins_credito', /^(cofins\s+cr[eé]dito)\s*[:\-]\s*(.+)$/i, valorNumericoDoTexto],
+    ['pis_debito', /^(pis\s+d[eé]bito)\s*[:\-]\s*(.+)$/i, valorNumericoDoTexto],
+    ['cofins_debito', /^(cofins\s+d[eé]bito)\s*[:\-]\s*(.+)$/i, valorNumericoDoTexto],
+    ['pis_recolhido', /^(pis\s+(?:a\s+)?recolher|pis\s+recolhido)\s*[:\-]\s*(.+)$/i, valorNumericoDoTexto],
+    ['cofins_recolhida', /^(cofins\s+(?:a\s+)?recolher|cofins\s+recolhid[ao])\s*[:\-]\s*(.+)$/i, valorNumericoDoTexto],
+    ['saldo_pis', /^(saldo\s+(?:de\s+)?pis)\s*[:\-]\s*(.+)$/i, valorNumericoDoTexto],
+    ['saldo_cofins', /^(saldo\s+(?:de\s+)?cofins)\s*[:\-]\s*(.+)$/i, valorNumericoDoTexto],
+  ];
+  for (const linha of linhas) {
+    for (const [campo, padrao, converter] of regras) {
+      if (saida[campo].valor_extraido !== null) continue;
+      const encontrada = linha.match(padrao);
+      if (!encontrada) continue;
+      const valor = converter(encontrada[2]);
+      if (valor === null || valor === '') continue;
+      const local = localizacoes.find((x) => String(x.texto || '').includes(linha));
+      saida[campo] = {
+        valor_extraido: valor, origem_documento: 'OCR_AZURE', pagina_ou_localizacao: local?.pagina ? `p. ${local.pagina}` : null,
+        rotulo_original: encontrada[1], confianca: local?.confianca ?? 0.9,
+        metodo_extracao: metodo, status_validacao: 'REQUER_VALIDACAO',
+      };
+    }
+  }
+  return saida;
+}
+
 function ingestao(db, empresaId, documento, camposBrutos) {
   validarEmpresa(db, empresaId);
   if (!Buffer.isBuffer(documento.conteudo_original)) throw new Error('Conteúdo original do documento é obrigatório.');
@@ -130,4 +187,4 @@ function promptExtracao(textoDocumento) {
   return `Extraia apenas valores expressos no documento de apuração PIS/Cofins. Não calcule, não infira e não substitua ausência por zero. Retorne JSON com a chave campos e, para cada campo abaixo, valor_extraido, origem_documento, pagina_ou_localizacao, rotulo_original, confianca (0 a 1), metodo_extracao e status_validacao. Campos: ${CAMPOS.join(', ')}. Se não existir, valor_extraido deve ser null e status_validacao INDETERMINADO. Documento:\n${String(textoDocumento).slice(0, 70000)}`;
 }
 
-module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, confirmarRevisao, promptExtracao, validarConsistencia };
+module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, confirmarRevisao, promptExtracao, validarConsistencia, normalizarTextoDeterministico };
