@@ -41,6 +41,7 @@ const COLUNAS_NOVAS = {
   },
   movimentos: {
     lc116: 'TEXT',
+    normalizacao_status: 'TEXT', normalizacao_pendencia: 'TEXT', normalizacao_evidencia: 'TEXT',
     cclasstrib: 'TEXT', classificacao_origem: 'TEXT',
     cst_declarado: 'TEXT', cclasstrib_declarado: 'TEXT',
     ibs_declarado: 'REAL', cbs_declarado: 'REAL',
@@ -425,7 +426,7 @@ CREATE TABLE IF NOT EXISTS movimentos (
   lote_id INTEGER,
   tipo TEXT NOT NULL,                   -- 'fornecedor' (entradas) | 'cliente' (saídas)
   nome TEXT, inscr_federal TEXT,
-  descricao TEXT, ncm TEXT, nbs TEXT, lc116 TEXT, cfop TEXT, cst TEXT,
+  descricao TEXT, ncm TEXT, nbs TEXT, lc116 TEXT, normalizacao_status TEXT, normalizacao_pendencia TEXT, normalizacao_evidencia TEXT, cfop TEXT, cst TEXT,
   competencia TEXT,
   valor REAL DEFAULT 0, base_calculo REAL DEFAULT 0,
   icms REAL DEFAULT 0, icms_st REAL DEFAULT 0, ipi REAL DEFAULT 0,
@@ -1742,6 +1743,23 @@ try {
     WHERE origem='xml' AND (lc116 IS NULL OR lc116='')
       AND COALESCE(ncm,'')='' AND COALESCE(iss,0)<>0
       AND length(COALESCE(cst,'')) >= 4`).run();
+  db.prepare(`UPDATE movimentos
+    SET normalizacao_status = CASE
+          WHEN COALESCE(lc116, '') = '' THEN 'PENDENTE'
+          WHEN COALESCE(nbs, '') = '' THEN 'PENDENTE'
+          ELSE 'VALIDADO'
+        END,
+        normalizacao_pendencia = CASE
+          WHEN COALESCE(lc116, '') = '' THEN 'LC116_NAO_IDENTIFICADO'
+          WHEN COALESCE(nbs, '') = '' THEN 'LC116_IDENTIFICADO_SEM_NBS'
+          ELSE ''
+        END,
+        normalizacao_evidencia = CASE
+          WHEN COALESCE(lc116, '') <> '' THEN 'Item LC116: ' || lc116 || CASE WHEN COALESCE(cst, '') <> '' THEN ' · Código fiscal bruto do XML: ' || cst ELSE '' END
+          WHEN COALESCE(cst, '') <> '' THEN 'Código fiscal bruto do XML: ' || cst
+          ELSE 'XML de serviço sem item LC116 identificado.'
+        END
+    WHERE origem='xml' AND COALESCE(ncm,'')='' AND COALESCE(iss,0)<>0`).run();
 } catch (_) { /* tabela ainda não existe durante uma inicialização incompleta */ }
 
 module.exports = db;

@@ -51,6 +51,7 @@ const perfilTributarioHistorico = require('../services/perfilTributarioHistorico
 const comparadorRegimes = require('../services/comparadorRegimes');
 const apuracoesPisCofinsIa = require('../services/apuracoesPisCofinsIa');
 const azureDocumentIntelligence = require('../services/azureDocumentIntelligence');
+const normalizacaoFiscalXml = require('../services/normalizacaoFiscalXml');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -1041,8 +1042,9 @@ router.put('/empresas/:id/movimentos/:movimentoId/classificacao', async (req, re
     if (!movimento) throw new Error('Lançamento não encontrado para a empresa selecionada.');
     db.prepare(`UPDATE movimentos SET ncm=?, nbs=?, lc116=?, classificacao_origem='REVISAO_USUARIO' WHERE empresa_id=? AND id=?`)
       .run(limpar(req.body?.ncm), limpar(req.body?.nbs), lc116(req.body?.lc116), req.params.id, req.params.movimentoId);
+    const normalizacao = normalizacaoFiscalXml.validarMovimento(Number(req.params.movimentoId));
     const classificacao = bases.classificarMovimento(Number(req.params.id), Number(req.params.movimentoId));
-    ok(res, { movimento_id: Number(req.params.movimentoId), classificacao });
+    ok(res, { movimento_id: Number(req.params.movimentoId), normalizacao, classificacao });
   } catch (e) { erro(res, e); }
 });
 
@@ -2834,7 +2836,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
             if (reg) relatorio.regimesSugeridos++;
           }
           for (const i of r.itens) {
-            insMov.run(req.params.id, lote.lastInsertRowid, tipoParceiro, i.sentido, i.nome, i.inscr_federal,
+            const movimento = insMov.run(req.params.id, lote.lastInsertRowid, tipoParceiro, i.sentido, i.nome, i.inscr_federal,
               i.descricao, i.ncm || '', i.nbs || '', i.lc116 || '', i.cfop || '', i.cst || '', i.csosn || '', i.competencia,
               i.documento, i.chave || '', i.item_numero, i.codigo_produto || '', i.quantidade || 0,
               i.unidade || '', i.data_emissao || '', i.emitente_cnpj, i.destinatario_cnpj,
@@ -2842,6 +2844,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
               i.pis || 0, i.cofins || 0, i.pis_cofins_documentado ? 1 : 0, i.iss || 0, i.frete || 0, i.seguro || 0, i.outras || 0, i.desconto || 0,
               (i.declarado && i.declarado.cst) || '', (i.declarado && i.declarado.cclasstrib) || '',
               (i.declarado && i.declarado.ibs) || 0, (i.declarado && i.declarado.cbs) || 0);
+            normalizacaoFiscalXml.validarMovimento(Number(movimento.lastInsertRowid));
             relatorio.itens++;
             if (i.sentido === 'entrada') relatorio.entradas++; else relatorio.saidas++;
           }

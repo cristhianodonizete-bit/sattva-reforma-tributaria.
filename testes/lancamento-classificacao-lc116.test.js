@@ -9,6 +9,7 @@ process.env.SATTVA_DADOS = dir;
 const xml = require('../src/services/importadorXml');
 const db = require('../src/db');
 const bases = require('../src/services/basesReforma');
+const normalizacao = require('../src/services/normalizacaoFiscalXml');
 
 // O item da lista de serviços não pode mais ser confundido com o código
 // municipal/nacional do XML. Ambos permanecem rastreáveis no lançamento.
@@ -37,12 +38,21 @@ const movimento = db.prepare(`INSERT INTO movimentos
   VALUES (?, 'fornecedor', 'entrada', 'xml', 'Licenciamento de software', '', '', '0105', '010501', '2026-02', 100, 100, 2)`).run(empresaId);
 
 const resultado = bases.classificarMovimento(empresaId, Number(movimento.lastInsertRowid));
+const pendencia = normalizacao.validarMovimento(Number(movimento.lastInsertRowid));
 const salvo = db.prepare('SELECT lc116, cst, cclasstrib, classificacao_origem FROM movimentos WHERE id=?').get(movimento.lastInsertRowid);
 assert.equal(resultado.status, 'CLASSIFICADO');
 assert.equal(salvo.lc116, '0105');
 assert.equal(salvo.cst, '010501', 'o código bruto do XML não pode ser sobrescrito');
 assert.equal(salvo.cclasstrib, '000001');
 assert.match(salvo.classificacao_origem, /^revisao:nbs:/);
+assert.deepEqual(pendencia, {
+  status: 'PENDENTE', pendencia: 'LC116_IDENTIFICADO_SEM_NBS',
+  evidencia: 'Item LC116: 0105 · Código fiscal bruto do XML: 010501',
+});
+
+const completa = normalizacao.avaliar({ origem: 'xml', ncm: '', iss: 2, lc116: '1.05', nbs: '1140100', cst: '010501' });
+assert.equal(completa.status, 'VALIDADO');
+assert.equal(completa.pendencia, '');
 
 console.log('lancamento-classificacao-lc116: item LC116 separado, editável e classificável: OK');
 try { db.close?.(); } catch (_) { /* noop */ }

@@ -60,6 +60,7 @@ function pendenciaPrincipal(item) {
   const evidencia = [
     contexto.documento && `Documento: ${contexto.documento}`,
     contexto.cnpj && `CNPJ/CPF: ${contexto.cnpj}`,
+    contexto.lc116 && `Item LC116: ${contexto.lc116}`,
     contexto.nbs && `NBS: ${contexto.nbs}`,
     contexto.ncm && `NCM: ${contexto.ncm}`,
     contexto.competencia && `Competência: ${contexto.competencia}`,
@@ -94,13 +95,24 @@ function pendenciaPrincipal(item) {
       natureza: 'EVIDENCIA_OU_VALIDACAO_FISCAL',
     },
   };
+  // Um XML pode ter trazido LC116, mas não NBS. Isso não é ausência de
+  // documento: é uma chave de serviço incompleta e deve orientar a revisão
+  // para o campo certo, sem esconder a evidência já disponível.
+  const normalizacaoLc116SemNbs = dimensao === 'classificacao'
+    && contexto.normalizacao_pendencia === 'LC116_IDENTIFICADO_SEM_NBS';
+  const orientacao = normalizacaoLc116SemNbs ? {
+    causa: 'Item LC116 identificado no XML, mas NBS não foi identificado; a chave do serviço está incompleta.',
+    fonte_minima: contexto.normalizacao_evidencia || `Item LC116: ${contexto.lc116 || 'não identificado'} · descrição do serviço e documento.`,
+    acao: 'Confirmar o NBS aplicável ao serviço e salvar a classificação neste lançamento.',
+    destino_central: 'TRATAMENTO_DE_DADOS', natureza: 'NORMALIZACAO_DOCUMENTAL',
+  } : porDimensao[dimensao];
   return {
     movimento_id: item.movimento_id,
     valor: r2(item.valor),
     sentido: item.sentido,
     dimensao: dimensao || 'resultado',
     status: status || item.dimensoes?.resultado || 'INDETERMINADO',
-    ...porDimensao[dimensao],
+    ...orientacao,
     evidencia_disponivel: evidencia.length ? evidencia : ['Sem identificadores suficientes na fotografia.'],
     parceiro: contexto.parceiro || 'Não identificado',
     documento: contexto.documento || contexto.chave || 'Não identificado',
@@ -155,7 +167,11 @@ function popularCadastrosMestre() {
 }
 function fotografia(empresaId, opcoes = {}) {
   const q = qualidade.obter(empresaId, opcoes);
-  const avaliadas = q.linhas.map((x) => ({ ...x, linha: (() => { try { return db.prepare('SELECT detalhe,regime_cbs_emitente,regime_cbs_adquirente FROM motor_resultados WHERE empresa_id=? AND movimento_id=? AND execucao_id=?').get(empresaId, x.movimento_id, q.execucao?.id) || {}; } catch (_) { return {}; } })() })).map((x) => ({ ...x, linha: { ...x.linha, detalhe: (() => { try { return JSON.parse(x.linha.detalhe || '{}'); } catch (_) { return {}; } })() } }));
+  const avaliadas = q.linhas.map((x) => ({ ...x, linha: (() => { try { return db.prepare(`SELECT r.detalhe,r.regime_cbs_emitente,r.regime_cbs_adquirente,
+      m.documento,m.chave,m.descricao,m.nome AS parceiro,m.inscr_federal AS cnpj,m.competencia,m.ncm,m.nbs,m.lc116,m.cst,
+      m.normalizacao_status,m.normalizacao_pendencia,m.normalizacao_evidencia
+      FROM motor_resultados r LEFT JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
+      WHERE r.empresa_id=? AND r.movimento_id=? AND r.execucao_id=?`).get(empresaId, x.movimento_id, q.execucao?.id) || {}; } catch (_) { return {}; } })() })).map((x) => ({ ...x, linha: { ...x.linha, detalhe: (() => { try { return JSON.parse(x.linha.detalhe || '{}'); } catch (_) { return {}; } })() } }));
   const dimensoes = Object.fromEntries(['classificacao','tratamento','reconstrucao','credito','resultado'].map((k) => [k, matriz(q.matrizes[k] || {})]));
   const abertas = excecoes.listar(empresaId, { limite: 1000 });
   const agrupadas = Object.values(abertas.reduce((m, x) => { const k = `${x.codigo}:${x.categoria}`; const a = m[k] || { causa: x.codigo, categoria: x.categoria, quantidade: 0, valor: 0, impacto: 0, status: x.status }; a.quantidade++; a.valor += n(x.valor_envolvido); a.impacto += n(x.impacto_cbs_estimado); m[k] = a; return m; }, {})).map((x) => ({ ...x, valor: r2(x.valor), impacto: r2(x.impacto) })).sort((a,b) => b.valor - a.valor);
