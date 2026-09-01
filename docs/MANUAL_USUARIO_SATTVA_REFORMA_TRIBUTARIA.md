@@ -217,7 +217,7 @@ Quando houver dado real de PGDAS já disponível para a empresa, ele pode ser ex
 
 ## 17. Diagnóstico e cadeias
 
-**Onde acessar.** Em **Dados → Bases, catálogo NCM/NBS e classificações**, consulte as bases importadas, o catálogo fiscal de NCM/NBS, classificações e conformidade. Em **Módulo 1 · Diagnóstico**, acesse Cobertura do diagnóstico, Cadeia de fornecedores, Cadeia de clientes, Impacto Final CBS e Projeção de cenários.
+**Onde acessar.** Em **Dados → Bases, catálogos e classificações**, consulte as bases importadas, o catálogo fiscal de NCM/NBS, as Bases da Receita (Real/Presumido), classificações e conformidade. Em **Módulo 1 · Diagnóstico**, acesse Cobertura do diagnóstico, Cadeia de fornecedores, Cadeia de clientes, Impacto Final CBS e Projeção de cenários.
 
 **O que conferir.** Resultados principais, origem da base econômica, débitos, créditos, tratamento, classificações e itens a validar. Use a rastreabilidade disponível para entender a origem, sem alterar o documento histórico.
 

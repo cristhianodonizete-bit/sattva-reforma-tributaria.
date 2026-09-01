@@ -12,9 +12,9 @@ assert.match(tela, /não representam ausência de dados fiscais/);
 assert.match(app, /Central de Dados/);
 const inicioDados = app.indexOf("{ id: 'dados', titulo: 'Dados'");
 const inicioDiagnostico = app.indexOf("{ id: 'diagnostico', titulo: 'Módulo 1 · Diagnóstico'");
-const basesNaCentral = app.indexOf("{ id: 'bases', t: 'Bases, catálogo NCM/NBS e classificações', i: '⌘' }");
+const basesNaCentral = app.indexOf("{ id: 'bases', t: 'Bases, catálogos e classificações', i: '⌘' }");
 assert.ok(basesNaCentral > inicioDados && basesNaCentral < inicioDiagnostico,
-  'Bases, catálogo NCM/NBS e classificações deve ficar no menu Dados.');
+  'Bases, catálogos e classificações deve ficar no menu Dados.');
 assert.match(tela, /DADOS · ENTRADA E TRATAMENTO/);
 assert.match(tela, /Ir para Central de Dados/);
 assert.match(tela, /Importar XML ou SPED/);
