@@ -168,6 +168,17 @@ function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], ta
   })();
   return { projetos: localPorRemoto.size, entregas: entregas.length, acompanhamentos: acompanhamentos.length, responsaveis: responsaveis.length, tarefas: tarefas.length, checklist: checklist.length };
 }
+
+// A fonte compartilhada preserva o histórico de exclusões. Um lote ou
+// movimento de empresa já removida não pode abortar a restauração das demais
+// empresas — nem reaparecer no cache como dado de outra carteira.
+function filtrarOrfaosOperacionais(tabela, linhas, empresasValidas, lotesValidos) {
+  if (tabela === 'lotes') return linhas.filter((x) => empresasValidas.has(Number(x.empresa_id)));
+  if (tabela === 'movimentos') return linhas.filter((x) =>
+    empresasValidas.has(Number(x.empresa_id)) && (x.lote_id == null || lotesValidos.has(Number(x.lote_id))));
+  if (CAMPOS[tabela]?.includes('empresa_id')) return linhas.filter((x) => empresasValidas.has(Number(x.empresa_id)));
+  return linhas;
+}
 async function baixar() {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {}, falhas = {};
@@ -175,9 +186,14 @@ async function baixar() {
   // das bases auxiliares: uma falha isolada nunca pode fazer a interface
   // parecer que todas as empresas foram excluídas.
   const tabelas = ['empresas', ...Object.keys(CAMPOS).filter((tabela) => tabela !== 'empresas')];
+  const empresasValidas = new Set(), lotesValidos = new Set();
   for (const tabela of tabelas) {
     try {
-      const linhas = await buscarTudo(remoto, tabela);
+      const origem = await buscarTudo(remoto, tabela);
+      const linhas = filtrarOrfaosOperacionais(tabela, origem, empresasValidas, lotesValidos);
+      if (tabela === 'empresas') origem.forEach((x) => empresasValidas.add(Number(x.id)));
+      if (tabela === 'lotes') linhas.forEach((x) => lotesValidos.add(Number(x.id)));
+      if (origem.length !== linhas.length) resultado[`ignorados_${tabela}_orfos`] = origem.length - linhas.length;
     // Exceções são um espelho operacional completo do Supabase e possuem duas
     // chaves únicas (id técnico e chave funcional). Limpar somente esse
     // espelho antes da reposição elimina colisões entre IDs legados sem tocar
@@ -407,4 +423,4 @@ async function publicarContratos(remoto, empresaId) {
   return { contratos: contratos.length };
 }
 module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar,
-  baixarResultadosMotor, publicarResultadosMotor };
+  baixarResultadosMotor, publicarResultadosMotor, filtrarOrfaosOperacionais };

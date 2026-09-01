@@ -161,8 +161,9 @@ Telas.dados = async (el) => {
   const referenciasVendas = aba === 'cliente' ? await A.api(`/empresas/${S.empresaId}/referencias-vendas`) : null;
   const rotulo = aba === 'cliente' ? 'clientes' : 'fornecedores';
 
-  el.innerHTML = cab('Módulo 1 · Diagnóstico', 'Cadastros e importação',
-    'A qualidade do diagnóstico depende de duas coisas: o regime tributário de cada parceiro e a movimentação com os impostos destacados.') +
+  el.innerHTML = cab('DADOS · ENTRADA E TRATAMENTO', 'Central de Dados',
+    'Cadastre, importe, complete e trate dados uma única vez. Os módulos de análise apenas consomem esta base com origem e rastreabilidade preservadas.') +
+    `<div class="aviso bom"><b>Fluxo de dados:</b> Central de Dados → tratamento e validações → módulos do produto → relatórios e entregáveis.</div>` +
     `<div class="abas">
       <button data-aba="fornecedor" class="${aba === 'fornecedor' ? 'ativo' : ''}">Fornecedores</button>
       <button data-aba="cliente" class="${aba === 'cliente' ? 'ativo' : ''}">Clientes</button>
@@ -202,7 +203,7 @@ Telas.dados = async (el) => {
       </div>
     </div>
     ${aba === 'fornecedor' ? `<div class="cartao" style="margin-top:16px">
-      <h2>Dados adicionais para análise tributária</h2>
+      <h2>Dados complementares</h2>
       <p class="desc">Informações complementares por empresa. Elas permanecem separadas da movimentação e não recalculam a CBS.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
         <button class="btn vazio pq" id="addFolha">Informar folha</button>
@@ -216,6 +217,7 @@ Telas.dados = async (el) => {
       </div>
       ${(dadosAdicionais.receitas_sem_dfe || []).some((x) => x.status_validacao === 'POSSIVEL_DUPLICIDADE') ? '<div class="aviso atencao" style="margin-top:12px"><b>Há receita(s) com possível duplicidade.</b> Elas não foram consolidadas automaticamente; revise a evidência antes de qualquer uso analítico.</div>' : ''}
     </div>` : ''}
+    ${aba === 'fornecedor' ? `<div class="cartao" style="margin-top:16px"><h2>Tratamento e revisão de dados</h2><p class="desc">Acompanhe apurações históricas, campos com baixa confiança, pendências de classificação e rastreabilidade antes de usar os dados nas análises.</p><button class="btn vazio pq" id="abrirRaioXDados">Abrir Raio-X e revisão de apurações</button></div>` : ''}
     ${aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
       <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
@@ -320,6 +322,7 @@ Telas.dados = async (el) => {
       `${A.campo('descricao','Descrição')}<div class="grade g2">${A.campo('valor','Valor','', 'number','step="0.01" min="0"')}${A.campo('evidencia','Evidência/referência (opcional)')}</div>`,
     aoConfirmar: async (d) => { const r = await A.api(`/empresas/${S.empresaId}/receitas-sem-dfe`, { metodo: 'POST', corpo: d }); A.toast(r.possivel_duplicidade ? 'Receita registrada com possível duplicidade; não consolidada automaticamente' : 'Receita complementar registrada', r.possivel_duplicidade ? '' : 'ok'); A.ir('dados'); },
   }));
+  document.getElementById('abrirRaioXDados')?.addEventListener('click', () => A.ir('perfil'));
 
   async function enviar(arquivo, destino) {
     const fd = new FormData();
@@ -437,7 +440,7 @@ Telas.perfil = async (el) => {
   ], campos || [], { vazio: 'Nenhum campo extraído.' });
   const especiais = atual ? ['receita_reducao_cbs','receita_aliquota_zero_cbs','receita_imunidade_cbs','receita_regime_especifico_cbs','receita_beneficio_governo_cbs'].reduce((s, k) => s + (+atual[k] || 0), 0) : 0;
   const indeterminadas = atual ? (+atual.receita_tratamento_indeterminado_cbs || 0) + (+atual.compras_credito_indeterminado || 0) : 0;
-  el.innerHTML = cab('Módulo 1.a', 'Perfil Tributário e Raio-X Histórico', 'Leitura consolidada dos fatos persistidos e da fotografia CBS já produzida pelo motor.', '<button class="btn vazio" id="enviarApuracao">Enviar apuração PIS/Cofins</button><button class="btn vazio" id="complementarCbs">Complementar dados</button><button class="btn" id="atualizarCbs">Atualizar Perfil CBS</button>') +
+  el.innerHTML = cab('Módulo 1.a', 'Perfil Tributário e Raio-X Histórico', 'Leitura consolidada dos fatos persistidos e da fotografia CBS já produzida pelo motor.', '<button class="btn vazio" id="centralDadosPerfil">Central de Dados</button><button class="btn vazio" id="complementarCbs">Completar informações</button><button class="btn" id="atualizarCbs">Atualizar Perfil CBS</button>') +
     `<div class="cartao"><h2>Perfil tributário consolidado</h2><div class="grade g4">
       ${A.kpi('Regime atual', A.esc(tributario.empresa?.regime_atual || 'INDETERMINADO'), 'cadastro da empresa')}
       ${A.kpi('Períodos analisados', historicoTributario.length, historicoTributario.length ? 'dados persistidos' : 'INDETERMINADO')}
@@ -452,7 +455,7 @@ Telas.perfil = async (el) => {
       {t:'CBS do motor',num:true,r:x=>x.cbs_motor_existente?.natureza === 'CALCULADO' ? A.moeda(x.cbs_motor_existente.liquida) : 'INDETERMINADO'},
       {t:'Completude',r:x=>`${A.esc(natureza(x.receita))} · ${A.esc(natureza(x.cbs_motor_existente))}`},
     ], historicoTributario) : A.vazio('Sem período histórico consolidado', 'Cadastre ou importe dados por competência; o sistema não estima a informação ausente.', '')}</div>
-    <div class="cartao" style="margin-top:16px"><h2>Apurações Históricas de PIS/Cofins</h2><p class="mini">O documento original é preservado. Campos sem evidência aparecem como “Não identificado”; baixa confiança exige revisão humana.</p>${apuracoes.length ? apuracoes.map((a) => `<div class="cartao" style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><b>${A.esc(a.nome_original)}</b><div class="mini">Competência: ${A.esc(a.competencia || 'Não identificada')} · processamento: ${A.esc(a.status_processamento || 'INDETERMINADO')}</div></div><div><button class="btn pq vazio" data-apuracao-revisar="${a.id}">Revisar</button>${a.status_processamento === 'ERRO' ? `<button class="btn pq vazio" data-apuracao-reprocessar="${a.id}">Reprocessar</button>` : ''}${a.status_validacao === 'VALIDADO_USUARIO' ? '<span class="mini"> Confirmado</span>' : `<button class="btn pq" data-apuracao-confirmar="${a.id}">Confirmar dados</button>`}</div></div>${a.campos_pendentes?.length ? `<div class="aviso atencao" style="margin-top:10px"><b>Pendências/baixa confiança:</b> ${a.campos_pendentes.map(A.esc).join(', ')}</div>` : ''}</div>`).join('') : A.vazio('Nenhuma apuração histórica enviada', 'Envie PDF, XLSX, CSV ou relatório ERP para extrair PIS/Cofins sem recalcular CBS.', '<button class="btn" id="enviarApuracaoVazio">Enviar documento</button>')}</div>
+    <div class="cartao" style="margin-top:16px"><h2>Apurações Históricas de PIS/Cofins</h2><p class="mini">O documento original é preservado. Campos sem evidência aparecem como “Não identificado”; baixa confiança exige revisão humana.</p>${apuracoes.length ? apuracoes.map((a) => `<div class="cartao" style="margin-top:12px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><b>${A.esc(a.nome_original)}</b><div class="mini">Competência: ${A.esc(a.competencia || 'Não identificada')} · processamento: ${A.esc(a.status_processamento || 'INDETERMINADO')}</div></div><div><button class="btn pq vazio" data-apuracao-revisar="${a.id}">Revisar</button>${a.status_processamento === 'ERRO' ? `<button class="btn pq vazio" data-apuracao-reprocessar="${a.id}">Reprocessar</button>` : ''}${a.status_validacao === 'VALIDADO_USUARIO' ? '<span class="mini"> Confirmado</span>' : `<button class="btn pq" data-apuracao-confirmar="${a.id}">Confirmar dados</button>`}</div></div>${a.campos_pendentes?.length ? `<div class="aviso atencao" style="margin-top:10px"><b>Pendências/baixa confiança:</b> ${a.campos_pendentes.map(A.esc).join(', ')}</div>` : ''}</div>`).join('') : A.vazio('Nenhuma apuração histórica enviada', 'Envie o documento pela Central de Dados para extrair PIS/Cofins sem recalcular CBS.', '<button class="btn" id="centralDadosApuracao">Ir para Central de Dados</button>')}</div>
     <div class="cartao" style="margin-top:16px"><h2>Composição, dados complementares e tratamentos</h2>${historicoTributario.length ? A.tabela([
       {t:'Competência',r:x=>A.esc(x.competencia)}, {t:'Mercadorias',num:true,r:x=>x.composicao_receitas?.natureza === 'INDETERMINADO' ? 'INDETERMINADO' : valorOuIndeterminado(x.composicao_receitas.mercadorias)},
       {t:'Serviços',num:true,r:x=>x.composicao_receitas?.natureza === 'INDETERMINADO' ? 'INDETERMINADO' : valorOuIndeterminado(x.composicao_receitas.servicos)}, {t:'Receitas sem DF-e',num:true,r:x=>valorOuIndeterminado(x.receitas_sem_dfe)},
@@ -473,12 +476,13 @@ Telas.perfil = async (el) => {
       <div class="grade g2" style="margin-top:16px"><div class="cartao"><h2>Receita por tratamento CBS</h2>${A.tabela([{t:'Tratamento',r:x=>x[0]},{t:'Receita',num:true,r:x=>A.moeda(x[1])}],[['Tributação integral',atual.receita_tributacao_integral],['Redução',atual.receita_reducao_cbs],['Alíquota zero',atual.receita_aliquota_zero_cbs],['Imunidade',atual.receita_imunidade_cbs],['Regime específico',atual.receita_regime_especifico_cbs],['Benefício governamental',atual.receita_beneficio_governo_cbs],['Indeterminado',atual.receita_tratamento_indeterminado_cbs]])}</div><div class="cartao"><h2>Compras por tratamento de crédito</h2>${A.tabela([{t:'Tratamento',r:x=>x[0]},{t:'Compras',num:true,r:x=>A.moeda(x[1])}],[['Normal',atual.compras_credito_normal],['Limitado',atual.compras_credito_limitado],['Simples',atual.compras_credito_simples],['Presumido',atual.compras_credito_presumido],['Sem crédito',atual.compras_sem_credito],['Indeterminado',atual.compras_credito_indeterminado]])}</div></div>
       <div class="cartao" style="margin-top:16px"><h2>Cobertura e natureza dos dados</h2><div class="grade g4">${A.kpi('Classificação CBS',na(atual.cobertura_classificacao_cbs))}${A.kpi('Base econômica',na(atual.cobertura_base_economica))}${A.kpi('Crédito CBS',na(atual.cobertura_credito_cbs))}${A.kpi('Indeterminado',na(atual.percentual_indeterminado),'não é distribuído')}</div><p class="mini">Natureza: REAL ${na(atual.percentual_real)} · CALCULADO ${na(atual.percentual_calculado)} · SIMULADO ${na(atual.percentual_simulado)} · INDETERMINADO ${na(atual.percentual_indeterminado)}.</p></div>` : A.vazio('Nenhuma competência CBS materializada', 'Importe XML, SPED ou planilha. Depois clique em “Atualizar Perfil CBS”; a competência será detectada automaticamente.', ''));
   el.querySelector('#atualizarCbs').onclick = async () => { await A.api(`/empresas/${S.empresaId}/perfil-cbs/atualizar`, { metodo: 'POST', corpo: {} }); A.ir('perfil'); };
+  el.querySelector('#centralDadosPerfil').onclick = () => A.ir('dados');
+  el.querySelector('#centralDadosApuracao')?.addEventListener('click', () => A.ir('dados'));
   el.querySelector('#complementarCbs').onclick = () => A.ir('dados');
   const enviarApuracao = (reprocessar = false) => A.modal({ titulo: reprocessar ? 'Reprocessar apuração histórica de PIS/Cofins' : 'Enviar apuração histórica de PIS/Cofins', descricao: 'Selecione novamente o arquivo original. A IA extrai somente valores presentes no documento; campos ausentes permanecem como “Não identificado”.', confirmar: reprocessar ? 'Reprocessar' : 'Enviar e processar', corpo: '<label class="campo"><span>Arquivo</span><input id="arquivoApuracao" type="file" accept=".pdf,.xlsx,.csv,.txt" required></label><label class="campo"><span>Tipo do documento</span><select id="tipoApuracao"><option value="PDF">PDF</option><option value="XLSX">XLSX</option><option value="CSV">CSV</option><option value="RELATORIO_ERP">Relatório ERP</option></select></label>', aoConfirmar: async (_dados, fundo) => { const arquivo = fundo.querySelector('#arquivoApuracao')?.files?.[0]; if (!arquivo) throw new Error('Selecione um documento.'); const fd = new FormData(); fd.append('arquivo', arquivo); fd.append('tipo_documento', fundo.querySelector('#tipoApuracao')?.value || ''); await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins/ingestao`, { metodo: 'POST', corpo: fd }); A.toast('Documento processado. Revise os campos antes de confirmar.', 'ok'); A.ir('perfil'); } });
   // O clique entrega um MouseEvent ao handler. Não o trate como a flag de
   // reprocessamento, pois isso abria o fluxo de reprocessar no envio novo.
-  el.querySelector('#enviarApuracao').onclick = () => enviarApuracao(false);
-  el.querySelector('#enviarApuracaoVazio')?.addEventListener('click', () => enviarApuracao(false));
+  el.querySelector('#enviarApuracao')?.addEventListener('click', () => enviarApuracao(false));
   el.querySelectorAll('[data-apuracao-reprocessar]').forEach((b) => { b.onclick = () => enviarApuracao(true); });
   el.querySelectorAll('[data-apuracao-revisar]').forEach((b) => { b.onclick = () => { const a = apuracoes.find((x) => Number(x.id) === Number(b.dataset.apuracaoRevisar)); if (a) A.modal({ titulo: `Revisar — ${a.nome_original}`, largura: 1200, corpo: tabelaCamposApuracao(a.campos_extraidos) }); }; });
   el.querySelectorAll('[data-apuracao-confirmar]').forEach((b) => { b.onclick = () => A.confirmar('Confirmar os valores identificados? Campos sem valor continuarão indeterminados.', async () => { await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins/${b.dataset.apuracaoConfirmar}/confirmar`, { metodo: 'POST', corpo: {} }); A.toast('Revisão confirmada pelo usuário.', 'ok'); A.ir('perfil'); }); });

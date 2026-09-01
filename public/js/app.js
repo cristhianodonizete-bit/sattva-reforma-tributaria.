@@ -146,11 +146,15 @@ const App = (() => {
   // ---------- NAVEGAÇÃO ----------
   const MENU = [
     { id: 'visao-geral', titulo: 'Visão geral', itens: [
-      { id: 'painel', t: 'Painel do projeto', i: '◈' }, { id: 'empresas', t: 'Empresas', i: '▦' },
+      { id: 'painel', t: 'Painel do projeto', i: '◈' },
       { id: 'dashboardOperacao', t: 'Acompanhamento geral', i: '◷' },
     ] },
+    { id: 'dados', titulo: 'Dados', itens: [
+      { id: 'dados', t: 'Central de Dados', i: '⇧' }, { id: 'empresas', t: 'Empresas e estabelecimentos', i: '▦' },
+      { id: 'cadastrosCnpj', t: 'Cadastros compartilhados', i: '⌘' },
+    ] },
     { id: 'diagnostico', titulo: 'Módulo 1 · Diagnóstico', itens: [
-      { id: 'dados', t: 'Cadastros e importação', i: '⇧' }, { id: 'bases', t: 'Bases de classificação', i: '⌘' },
+      { id: 'bases', t: 'Bases de classificação', i: '⌘' },
       { id: 'coberturaDiagnostico', t: 'Cobertura do diagnóstico', i: '◌' },
       { id: 'perfil', t: 'Perfil Tributário', i: '◉' }, { id: 'fornecedores', t: 'Cadeia de fornecedores', i: '↙' },
       { id: 'clientes', t: 'Cadeia de clientes', i: '↗' }, { id: 'impactoFinalCbs', t: 'Impacto Final CBS', i: '≋' }, { id: 'cenarios', t: 'Projeção de cenários', i: '⌁' },
@@ -171,7 +175,7 @@ const App = (() => {
     { id: 'gestao', titulo: 'Gestão do produto', itens: [
       { id: 'plano', t: 'Plano de adequação', i: '✓' }, { id: 'servicos', t: 'Escopos e combos', i: '⊞' },
       { id: 'gestaoProjetos', t: 'Escopo e entregas', i: '▣' }, { id: 'configComercial', t: 'Configurar combos', i: '⚙' },
-      { id: 'cadastrosCnpj', t: 'Cadastros compartilhados', i: '⌘' }, { id: 'conhecimento', t: 'Base de conhecimento', i: '◰' }, { id: 'configuracoes', t: 'Configurações e controle', i: '⚙' },
+      { id: 'conhecimento', t: 'Base de conhecimento', i: '◰' }, { id: 'configuracoes', t: 'Configurações e controle', i: '⚙' },
       { id: 'questor', t: 'Integração Questor', i: '↔' }, { id: 'acessos', t: 'Usuários e acessos', i: '♙' },
     ] },
   ];
