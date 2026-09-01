@@ -3,9 +3,28 @@
  * somente leitura/OCR; a normalização continua a cargo da camada LLM Sattva.
  */
 function config() {
-  const endpoint = String(process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT || '').replace(/\/$/, '');
-  const key = String(process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY || '');
+  const endpoint = String(process.env.AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT || '').trim().replace(/\/$/, '');
+  const key = String(process.env.AZURE_DOCUMENT_INTELLIGENCE_KEY || '').trim();
   return { endpoint, key, ativo: Boolean(endpoint && key), modelo: 'prebuilt-layout', versao: '2024-11-30' };
+}
+
+// Não retorna valores de configuração. Serve apenas para distinguir ausência
+// de ambiente de falha posterior de OCR/normalização.
+function diagnosticoSeguro() {
+  const cfg = config();
+  const endpointValido = /^https:\/\/[^\s/]+(?:\/.*)?$/i.test(cfg.endpoint);
+  const endpointConfigurado = Boolean(cfg.endpoint);
+  const keyConfigurada = Boolean(cfg.key);
+  return {
+    endpoint_configurado: endpointConfigurado,
+    key_configurada: keyConfigurada,
+    endpoint_valido: endpointValido,
+    azure_configurado: endpointConfigurado && keyConfigurada && endpointValido,
+    motivo_inativo: !endpointConfigurado ? 'AZURE_ENDPOINT_AUSENTE'
+      : !keyConfigurada ? 'AZURE_KEY_AUSENTE'
+        : !endpointValido ? 'AZURE_ENDPOINT_INVALIDO'
+          : null,
+  };
 }
 
 function espera(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
@@ -39,4 +58,4 @@ async function extrair(arquivo) {
   throw new Error('Tempo esgotado na análise Azure Document Intelligence.');
 }
 
-module.exports = { config, extrair };
+module.exports = { config, diagnosticoSeguro, extrair };

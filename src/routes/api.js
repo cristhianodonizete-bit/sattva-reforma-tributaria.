@@ -628,6 +628,19 @@ function jsonIa(texto) {
   if (inicio < 0 || fim < inicio) throw new Error('A IA não retornou JSON estruturado para a apuração.');
   return JSON.parse(limpo.slice(inicio, fim + 1));
 }
+function diagnosticoRuntimeIngestaoPisCofins() {
+  const azure = azureDocumentIntelligence.diagnosticoSeguro();
+  const normalizacaoIa = ia.config();
+  return {
+    ...azure,
+    normalizacao_ia_configurada: Boolean(normalizacaoIa.ativo),
+    motivo_normalizacao_inativa: normalizacaoIa.ativo ? null : 'ANTHROPIC_API_KEY_OU_IA_CONFIG_AUSENTE',
+  };
+}
+router.get('/empresas/:id/apuracoes-pis-cofins/diagnostico-runtime', (_req, res) => {
+  try { ok(res, diagnosticoRuntimeIngestaoPisCofins()); }
+  catch (e) { erro(res, e); }
+});
 router.post('/empresas/:id/apuracoes-pis-cofins/ingestao', upload.single('arquivo'), async (req, res) => {
   try {
     if (!req.file?.buffer) throw new Error('Envie o documento de apuração no campo "arquivo".');
@@ -636,7 +649,7 @@ router.post('/empresas/:id/apuracoes-pis-cofins/ingestao', upload.single('arquiv
     const extracaoDocumento = await extrairDocumentoApuracao(req.file, tipoDocumento);
     const textoDocumento = extracaoDocumento.texto;
     if (!String(textoDocumento || '').trim()) throw new Error('Não foi possível obter texto do documento de apuração.');
-    if (!ia.config().ativo) throw new Error('A extração IA requer configuração ativa; o documento não foi persistido.');
+    if (!ia.config().ativo) throw new Error('A normalização requer ANTHROPIC_API_KEY ou uma chave válida em ia_config; o documento não foi persistido.');
     const resposta = await ia.chamar([{ role: 'user', content: apuracoesPisCofinsIa.promptExtracao(textoDocumento) }], {
       sistema: 'Você extrai fatos de apurações históricas. Nunca calcule, infira ou converta ausência em zero. Responda somente JSON válido.', maxTokens: 6000,
     });
