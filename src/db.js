@@ -955,6 +955,29 @@ CREATE TABLE IF NOT EXISTS param_regimes (
   obs TEXT, ordem INTEGER DEFAULT 0
 );
 
+-- Parâmetros versionados para o comparador de regimes. Permanecem sem
+-- semente: nenhuma alíquota de IRPJ/CSLL pode nascer de código ou memória.
+CREATE TABLE IF NOT EXISTS param_irpj_csll_versionados (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  tributo TEXT NOT NULL CHECK (tributo IN ('IRPJ','CSLL')),
+  regime TEXT NOT NULL CHECK (regime IN ('lucro_real','lucro_presumido')),
+  natureza_receita TEXT NOT NULL DEFAULT 'GERAL',
+  tipo_base TEXT NOT NULL,
+  percentual_base REAL,
+  aliquota REAL,
+  adicional REAL,
+  limite_adicional REAL,
+  vigencia_inicio TEXT NOT NULL,
+  vigencia_fim TEXT,
+  fonte TEXT, fundamento TEXT,
+  versao TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'RASCUNHO',
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(tributo, regime, natureza_receita, versao, vigencia_inicio)
+);
+CREATE INDEX IF NOT EXISTS ix_param_irpj_csll_ativo ON param_irpj_csll_versionados(regime, status, vigencia_inicio, vigencia_fim);
+
 CREATE TABLE IF NOT EXISTS param_reducoes (
   chave TEXT PRIMARY KEY, label TEXT,
   reducao REAL DEFAULT 0, especifico INTEGER DEFAULT 0,

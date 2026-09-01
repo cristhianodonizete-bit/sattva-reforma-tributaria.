@@ -412,9 +412,10 @@ Telas.dados = async (el) => {
 // 1.a PERFIL TRIBUTÁRIO
 // ===========================================================================
 Telas.perfil = async (el) => {
-  const [dados, tributario, apuracoesResposta] = await Promise.all([
+  const [dados, tributario, comparador, apuracoesResposta] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/perfil-cbs`),
     A.api(`/empresas/${S.empresaId}/perfil-tributario-historico`),
+    A.api(`/empresas/${S.empresaId}/comparador-regimes`),
     A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`),
   ]);
   const competencias = dados.competencias || []; const atual = competencias[0];
@@ -454,6 +455,14 @@ Telas.perfil = async (el) => {
       {t:'Serviços',num:true,r:x=>x.composicao_receitas?.natureza === 'INDETERMINADO' ? 'INDETERMINADO' : valorOuIndeterminado(x.composicao_receitas.servicos)}, {t:'Receitas sem DF-e',num:true,r:x=>valorOuIndeterminado(x.receitas_sem_dfe)},
       {t:'Folha',num:true,r:x=>valorOuIndeterminado(x.folha)}, {t:'Margem operacional',num:true,r:x=>x.margem_operacional?.natureza === 'INDETERMINADO' ? 'INDETERMINADO' : `${Number(x.margem_operacional?.valor || 0).toFixed(2)}%`}, {t:'Tratamentos',r:x=>A.esc(x.tratamentos_identificados)},
     ], historicoTributario) : ''}</div>` +
+    `<div class="cartao" style="margin-top:16px"><h2>Comparador de regimes tributários</h2><p class="mini">A comparação consome a CBS já materializada pelo motor. Nenhuma carga total é inferida quando faltam componentes fiscais.</p>${A.tabela([
+      {t:'Regime',r:x=>A.esc(x.rotulo)}, {t:'Tributos estimados',num:true,r:x=>x.tributos_estimados === null ? 'INDETERMINADO' : A.moeda(x.tributos_estimados)},
+      {t:'Carga efetiva',num:true,r:x=>x.carga_efetiva_percentual === null ? 'INDETERMINADO' : A.pct(x.carga_efetiva_percentual)},
+      {t:'Diferença para menor',num:true,r:x=>x.diferenca_para_menor === null ? 'INDETERMINADO' : A.moeda(x.diferenca_para_menor)}, {t:'Status',r:x=>A.esc(x.status)},
+    ], comparador.cenarios || [])}
+      <div class="grade g3" style="margin-top:14px">${A.kpi('Melhor cenário estimado', A.esc(comparador.melhor_cenario_estimado || 'INDETERMINADO'), 'somente com comparabilidade completa')}${A.kpi('Economia estimada', comparador.economia_estimada === null ? 'INDETERMINADO' : A.moeda(comparador.economia_estimada), comparador.status_comparacao || 'INCOMPLETA')}${A.kpi('Pendências', (comparador.pendencias || []).length, 'impedem vencedor artificial')}</div>
+      ${(comparador.pendencias || []).length ? `<div class="aviso atencao" style="margin-top:12px"><b>Premissas e pendências</b><br>${comparador.pendencias.map((x)=>A.esc(x)).join('<br>')}</div>` : ''}
+    </div>` +
     (atual ? `<div class="aviso bom"><b>Competência selecionada: ${A.esc(atual.competencia)}</b> · ${competencias.length}/${dados.competencias_detectadas || competencias.length} competências materializadas · Cobertura de classificação CBS: ${na(atual.cobertura_classificacao_cbs)} · Última atualização: ${A.esc(atual.atualizado_em || '—')}</div>
       <div class="grade g4" style="margin-top:16px">${A.kpi('Base econômica das saídas', A.moeda(atual.base_economica_saidas), 'soma do motor')}${A.kpi('CBS débito', A.moeda(atual.cbs_debito), 'saídas projetadas', 'destaque')}${A.kpi('CBS crédito', A.moeda(atual.cbs_credito), 'crédito calculado nas entradas', 'destaque')}${A.kpi('CBS líquida', A.moeda(atual.cbs_liquida), 'débito − crédito', 'destaque')}</div>
       <div class="grade g4" style="margin-top:16px">${A.kpi('Alíquota efetiva CBS', na(atual.aliquota_efetiva_cbs_saida), 'CBS débito / base das saídas')}${A.kpi('Recuperação das compras', na(atual.taxa_recuperacao_cbs_entrada), 'CBS crédito / base das entradas')}${A.kpi('Operações com tratamento especial', A.moeda(especiais), 'receita associada')}${A.kpi('Operações indeterminadas', A.moeda(indeterminadas), 'não distribuídas entre grupos conhecidos', indeterminadas ? 'destaque' : '')}</div>

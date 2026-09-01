@@ -47,6 +47,7 @@ const { executar: sincronizarGestaoSupabase, excluirEmpresa: excluirEmpresaSupab
 const implantacaoEscopo = require('../services/implantacaoEscopo');
 const dadosAdicionaisAnalise = require('../services/dadosAdicionaisAnalise');
 const perfilTributarioHistorico = require('../services/perfilTributarioHistorico');
+const comparadorRegimes = require('../services/comparadorRegimes');
 const apuracoesPisCofinsIa = require('../services/apuracoesPisCofinsIa');
 const azureDocumentIntelligence = require('../services/azureDocumentIntelligence');
 
@@ -678,6 +679,11 @@ router.get('/empresas/:id/perfil/analise', (req, res) => {
 // Camada executiva de leitura: não materializa CBS nem executa o motor.
 router.get('/empresas/:id/perfil-tributario-historico', (req, res) => {
   try { ok(res, perfilTributarioHistorico.consolidar(db, Number(req.params.id))); }
+  catch (e) { erro(res, e); }
+});
+
+router.get('/empresas/:id/comparador-regimes', (req, res) => {
+  try { ok(res, comparadorRegimes.comparar(db, Number(req.params.id))); }
   catch (e) { erro(res, e); }
 });
 

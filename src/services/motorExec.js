@@ -121,8 +121,12 @@ function carregar(empresaId, sentido, movimentoIds = null) {
  * @param {object} opcoes { ano, anexoSimples, gravar }
  */
 function executar(empresaId, opcoes = {}) {
-  const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(empresaId);
-  if (!empresa) throw new Error('Empresa não encontrada.');
+  const empresaPersistida = db.prepare('SELECT * FROM empresas WHERE id = ?').get(empresaId);
+  if (!empresaPersistida) throw new Error('Empresa não encontrada.');
+  // Cenários podem alterar somente o contexto do regime durante uma execução
+  // não persistida. O cadastro da empresa e os resultados oficiais ficam
+  // intactos; a mesma implementação do motor continua sendo utilizada.
+  const empresa = opcoes.regimeEmpresa ? { ...empresaPersistida, regime: opcoes.regimeEmpresa } : empresaPersistida;
   const ano = Number(opcoes.ano) || 2027;
   const tabelas = motor.anexosSimples();
   const referenciasVenda = new Map(db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId)
