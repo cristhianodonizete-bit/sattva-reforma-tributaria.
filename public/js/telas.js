@@ -262,7 +262,7 @@ Telas.dados = async (el) => {
       { t:'Operação', r:p=>`#${A.esc(p.movimento_id)}<div class="mini">${A.esc(p.documento)}</div>` },
       { t:'Valor', num:true, r:p=>A.moeda(p.valor) },
       { t:'Pendência', r:p=>`<b>${A.esc(p.dimensao)}</b> · ${A.esc(p.status)}<div class="mini">${A.esc(p.causa)}</div>` },
-      { t:'Ação', r:p=>`${A.esc(p.acao)}<div class="mini">${A.esc(p.fonte_minima)}</div><button class="btn pq vazio" data-filtrar-pendencia="${A.esc(p.movimento_id)}">Filtrar linha</button>` },
+      { t:'Ação', r:p=>`${A.esc(p.acao)}<div class="mini">${A.esc(p.fonte_minima)}</div><button class="btn pq" data-abrir-pendencia="${A.esc(p.movimento_id)}">Abrir lançamento</button>` },
     ], pendenciasDaAba, { vazio:'Sem pendências para esta origem.' }) : A.vazio('Sem pendências nesta origem', 'Não há linhas pendentes de cobertura para fornecedores ou clientes nesta empresa.')}</div>
     ${aba === 'fornecedor' ? `<div class="cartao" style="margin-top:16px" id="tratamentoCentral"><h2>Tratamento e revisão de dados</h2><p class="desc">Acompanhe apurações históricas, campos com baixa confiança, pendências de classificação, inconsistências e rastreabilidade antes de usar os dados nas análises.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio pq" id="abrirRaioXDados">Revisar apurações e rastreabilidade</button><button class="btn vazio pq" id="centralPendenciasRegime">Ver pendências de regime</button><button class="btn vazio pq" id="centralPendenciasClassificacao">Ver pendências de classificação</button></div></div>` : ''}
     ${aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
@@ -326,9 +326,20 @@ Telas.dados = async (el) => {
 
     el.querySelectorAll('[data-aba]').forEach((b) => { b.onclick = () => { S.aba.dados = b.dataset.aba; S.aba.dadosPendencia = null; A.ir('dados'); }; });
     document.getElementById('limparFiltroPendencia')?.addEventListener('click', () => { S.aba.dadosPendencia = null; A.ir('dados'); });
-    el.querySelectorAll('[data-filtrar-pendencia]').forEach((botao) => botao.addEventListener('click', () => {
-      S.aba.dadosPendencia = pendenciasDaAba.find((p) => String(p.movimento_id) === String(botao.dataset.filtrarPendencia)) || null;
-      A.ir('dados');
+    el.querySelectorAll('[data-abrir-pendencia]').forEach((botao) => botao.addEventListener('click', async () => {
+      const pendencia = pendenciasDaAba.find((p) => String(p.movimento_id) === String(botao.dataset.abrirPendencia));
+      if (!pendencia) return;
+      const tipo = pendencia.sentido === 'saida' ? 'cliente' : 'fornecedor';
+      const { movimentos: lista } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${tipo}&limite=5000`);
+      const m = lista.find((x) => Number(x.id) === Number(pendencia.movimento_id));
+      if (!m) { A.toast('O lançamento não está disponível para a empresa selecionada.', 'erro'); return; }
+      A.modal({ titulo: `Lançamento #${m.id}`, descricao: 'Conferência do fato original. A pendência não altera os valores do lançamento.', confirmar: null,
+        corpo: `<div class="aviso atencao"><b>${A.esc(pendencia.dimensao)} · ${A.esc(pendencia.status)}</b><br>${A.esc(pendencia.causa)}<div class="mini" style="margin-top:6px"><b>Ação:</b> ${A.esc(pendencia.acao)}<br><b>Fonte mínima:</b> ${A.esc(pendencia.fonte_minima)}</div></div>` +
+          `<div class="grade g2" style="margin-top:12px">${A.kpi('Valor', A.moeda(m.valor))}${A.kpi('Competência', m.competencia || 'Não identificada')}${A.kpi('Documento', m.documento || m.chave || 'Não identificado')}${A.kpi('Origem', m.origem || 'Não identificada')}</div>` +
+          `<div class="cartao" style="margin-top:12px"><b>Parceiro</b><div>${A.esc(m.nome || 'Não identificado')}</div><div class="mini mono">${A.esc(m.inscr_federal || 'CNPJ/CPF não identificado')}</div></div>` +
+          `<div class="cartao" style="margin-top:12px"><b>Produto ou serviço</b><div>${A.esc(m.descricao || 'Não identificado')}</div><div class="mini">NBS: ${A.esc(m.nbs || 'Não identificado')} · NCM: ${A.esc(m.ncm || 'Não identificado')} · Regime: ${A.esc(m.regime || 'Não identificado')}</div></div>` +
+          `<div class="grade g4" style="margin-top:12px">${A.kpi('Base', A.moeda(m.base_calculo))}${A.kpi('PIS', A.moeda(m.pis))}${A.kpi('Cofins', A.moeda(m.cofins))}${A.kpi('ISS', A.moeda(m.iss))}</div>`,
+      });
     }));
     document.getElementById('centralXmlSped')?.addEventListener('click', () => {
       S.aba.dadosMotor = 'xml'; A.ir('dados');
