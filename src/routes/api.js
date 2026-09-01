@@ -2283,14 +2283,27 @@ router.get('/empresas/:id/relatorio/:tipo', async (req, res) => {
 // ===========================================================================
 // PAINEL
 // ===========================================================================
-router.get('/empresas/:id/painel', (req, res) => {
+router.get('/empresas/:id/painel', async (req, res) => {
   try {
     const id = req.params.id;
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(id);
     if (!empresa) throw new Error('Empresa não encontrada');
+    // A fotografia CBS pode chegar antes do espelho de movimentos após um
+    // reinício efêmero do Render. Nesse caso, refazemos a sincronização já
+    // existente antes de apresentar uma carteira artificialmente zerada.
+    const temFotografiaCbs = db.prepare('SELECT COUNT(*) c FROM perfil_cbs_competencias WHERE empresa_id=?').get(id).c > 0;
+    const temMovimentos = db.prepare('SELECT COUNT(*) c FROM movimentos WHERE empresa_id=?').get(id).c > 0;
+    let sincronizacaoPendente = false;
+    if (temFotografiaCbs && !temMovimentos) {
+      try { await require('../services/operacaoCompartilhada').baixar(); }
+      catch (_) { sincronizacaoPendente = true; }
+    }
     const conta = (sql, ...p) => db.prepare(sql).get(id, ...p);
+    const movimentosAposSincronizacao = conta('SELECT COUNT(*) c FROM movimentos WHERE empresa_id=?').c;
+    sincronizacaoPendente ||= temFotografiaCbs && !movimentosAposSincronizacao;
     ok(res, {
       empresa,
+      dados_operacionais_pendentes_sincronizacao: sincronizacaoPendente,
       contadores: {
         fornecedores: conta(`SELECT COUNT(*) c FROM parceiros WHERE empresa_id=? AND tipo='fornecedor'`).c,
         clientes: conta(`SELECT COUNT(*) c FROM parceiros WHERE empresa_id=? AND tipo='cliente'`).c,

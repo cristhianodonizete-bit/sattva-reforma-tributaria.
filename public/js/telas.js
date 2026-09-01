@@ -12,7 +12,7 @@ const cab = (olho, titulo, texto, acoes = '') =>
 // PAINEL
 // ===========================================================================
 Telas.painel = async (el) => {
-  const { empresa, contadores: c, contratacoes } = await A.api(`/empresas/${S.empresaId}/painel`);
+  const { empresa, contadores: c, contratacoes, dados_operacionais_pendentes_sincronizacao } = await A.api(`/empresas/${S.empresaId}/painel`);
   const passos = [
     { t: 'Cadastro de fornecedores e clientes', ok: c.fornecedores + c.clientes > 0, n: `${c.fornecedores + c.clientes} parceiros`, tela: 'dados' },
     { t: 'Movimentação importada', ok: c.movEntradas.c + c.movSaidas.c > 0, n: `${c.movEntradas.c + c.movSaidas.c} lançamentos`, tela: 'dados' },
@@ -38,6 +38,9 @@ Telas.painel = async (el) => {
       ${A.kpi('Compras analisadas', A.moeda(c.movEntradas.v), 'Base de crédito')}
       ${A.kpi('Faturamento analisado', A.moeda(c.movSaidas.v), 'Base de débito', 'destaque')}
     </div>
+    ${dados_operacionais_pendentes_sincronizacao ? `<div class="aviso atencao" style="margin-top:16px"><b>Dados operacionais aguardando sincronização</b>
+      A fotografia CBS desta empresa existe, mas parceiros e movimentações ainda não foram restaurados no cache operacional. Os zeros exibidos acima não representam ausência de dados fiscais.
+      <div class="acao">Aguarde a sincronização e recarregue esta tela.</div></div>` : ''}
     ${c.semRegime ? `<div class="aviso atencao" style="margin-top:16px"><b>${c.semRegime} lançamentos sem regime tributário identificado</b>
       Esses registros entram no cálculo como Lucro Real. Importe o cadastro de parceiros com a coluna de regime para corrigir.
       <div class="acao">Cadastros e importação → Importar clientes e fornecedores</div></div>` : ''}
