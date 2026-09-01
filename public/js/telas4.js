@@ -200,12 +200,19 @@ Telas.coberturaDiagnostico = async (el) => {
       { t:'Valor', num:true, r:x=>A.moeda(x.valor) },
       { t:'Pendência principal', r:x=>`<b>${A.esc(x.dimensao)}</b> · ${A.esc(x.status)}<div class="mini">${A.esc(x.causa)}</div>` },
       { t:'Evidência disponível', r:x=>`<div class="mini">${x.evidencia_disponivel.map(A.esc).join('<br>')}</div>` },
-      { t:'Ação necessária', r:x=>`${A.esc(x.acao)}<div class="mini">Fonte mínima: ${A.esc(x.fonte_minima)}</div><button class="btn pq vazio" data-ir-central="${A.esc(x.destino_central)}">Ir para Central de Dados</button>` },
+      { t:'Ação necessária', r:x=>`${A.esc(x.acao)}<div class="mini">Fonte mínima: ${A.esc(x.fonte_minima)}</div><button class="btn pq vazio" data-ir-central data-pendencia-id="${A.esc(x.movimento_id)}">Ir para Central de Dados</button>` },
     ], p.pendencias_operacionais, { vazio:'Não há pendências operacionais na fotografia.' }) : A.vazio('Sem pendências operacionais', 'A fotografia não possui operações fora da cobertura.')}</div>
     <div class="cartao"><h2>Matriz de suporte por família</h2><p class="desc">Identificado não significa motor completo. Somente “Suportado” percorreu classificação, cálculo, crédito, memória e fotografia oficial.</p><table class="compacta"><thead><tr><th>Família</th><th>Estado</th><th class="num">Operações</th><th class="num">Valor</th><th>Gap</th></tr></thead><tbody>${d.familias.filter((x) => x.identificado).map((x) => `<tr><td>${A.esc(x.familia)}</td><td><span class="tag ${x.suportado ? 'c' : 'a'}">${A.esc(x.nivel_suporte)}</span></td><td class="num mono">${x.quantidade}</td><td class="num mono">${A.moeda(x.valor)}</td><td class="mini">${A.esc(x.gap || '—')}</td></tr>`).join('') || '<tr><td colspan="5">Nenhuma família identificada.</td></tr>'}</tbody></table></div>
     <div class="cartao"><h2>Exceções agrupadas por causa</h2><table class="compacta"><thead><tr><th>Causa</th><th>Categoria</th><th class="num">Operações</th><th class="num">Valor</th><th class="num">Impacto CBS</th></tr></thead><tbody>${d.excecoes.agrupadas.map((x) => `<tr><td>${A.esc(x.causa)}</td><td>${A.esc(x.categoria)}</td><td class="num mono">${x.quantidade}</td><td class="num mono">${A.moeda(x.valor)}</td><td class="num mono">${A.moeda(x.impacto)}</td></tr>`).join('') || '<tr><td colspan="5">Sem exceções abertas.</td></tr>'}</tbody></table></div>
     <div class="cartao"><h2>Cadastros e regras reutilizáveis</h2><div class="grade g4">${A.kpi('Parceiros mestre', d.mestres.parceiros.registros, d.mestres.parceiros.operacional ? 'operacional' : 'sem registros')}${A.kpi('Produtos mestre', d.mestres.produtos.registros, `${d.mestres.produtos.catalogo} no catálogo`)}${A.kpi('Serviços mestre', d.mestres.servicos.registros, `${d.mestres.servicos.catalogo} no catálogo`)}${A.kpi('Regras ativas', d.mestres.regras_enquadramento.ativas, `${d.mestres.regras_enquadramento.registros} cadastradas`)}</div></div>`;
   document.getElementById('registrarFotografia').onclick = async () => { await A.api(`/empresas/${S.empresaId}/cobertura-diagnostico/fotografias`, { metodo: 'POST', corpo: { tipo: 'FASE_2A' } }); A.toast('Fotografia registrada sem alterar o motor.', 'ok'); };
-  el.querySelectorAll('[data-ir-central]').forEach((botao) => botao.addEventListener('click', () => A.ir('dados')));
+  el.querySelectorAll('[data-ir-central]').forEach((botao) => botao.addEventListener('click', () => {
+    const contexto = p.pendencias_operacionais.find((x) => String(x.movimento_id) === String(botao.dataset.pendenciaId));
+    if (contexto) {
+      S.aba.dados = contexto.sentido === 'saida' ? 'cliente' : 'fornecedor';
+      S.aba.dadosPendencia = contexto;
+    }
+    A.ir('dados');
+  }));
 };
 })();

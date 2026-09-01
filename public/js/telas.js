@@ -171,17 +171,21 @@ Telas.empresas = async (el) => {
 // ===========================================================================
 Telas.dados = async (el) => {
   const aba = S.aba.dados || 'fornecedor';
+  const filtroPendencia = S.aba.dadosPendencia || null;
   const regimeEmpresa = S.empresa?.regime || '';
   const simplesNacional = regimeEmpresa === 'simples_nacional';
   const exigeApuracaoPisCofins = ['lucro_presumido', 'lucro_real'].includes(regimeEmpresa);
-  const [{ parceiros }, { lotes }, dadosAdicionais] = await Promise.all([
+  const [{ parceiros }, { lotes }, dadosAdicionais, cobertura] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/parceiros?tipo=${aba}`),
     A.api(`/empresas/${S.empresaId}/lotes`),
     A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`),
+    A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`),
   ]);
-  const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=200`);
+  const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`);
   const referenciasVendas = aba === 'cliente' ? await A.api(`/empresas/${S.empresaId}/referencias-vendas`) : null;
   const rotulo = aba === 'cliente' ? 'clientes' : 'fornecedores';
+  const pendenciasDaAba = (cobertura.fotografia?.pendencias_operacionais || []).filter((p) => p.sentido === (aba === 'cliente' ? 'saida' : 'entrada'));
+  const movimentosVisiveis = filtroPendencia?.movimento_id ? movimentos.filter((m) => Number(m.id) === Number(filtroPendencia.movimento_id)) : movimentos;
 
   el.innerHTML = cab('DADOS · ENTRADA E TRATAMENTO', 'Central de Dados',
     'Cadastre, importe, complete e trate dados uma única vez. Os módulos de análise apenas consomem esta base com origem e rastreabilidade preservadas.') +
@@ -201,6 +205,7 @@ Telas.dados = async (el) => {
         <b>3</b><span><strong>Confira a base</strong><small>${lotes.length ? `${lotes.length} lotes registrados` : 'Acompanhe os arquivos enviados'}</small></span>
       </button>
     </section>
+    ${filtroPendencia ? `<div class="aviso atencao" style="margin-top:16px"><b>Filtro ativo: operação #${A.esc(filtroPendencia.movimento_id || '—')} · ${A.esc(filtroPendencia.dimensao || 'pendência')} · ${A.esc(filtroPendencia.status || '')}</b><br><span class="mini">${A.esc(filtroPendencia.acao || 'Revise a pendência selecionada.')} ${filtroPendencia.fonte_minima ? `Fonte mínima: ${A.esc(filtroPendencia.fonte_minima)}` : ''}</span><div style="margin-top:8px"><button class="btn pq vazio" id="limparFiltroPendencia">Limpar filtro</button></div></div>` : ''}
     <div class="cartao" style="margin-top:16px" id="importacoesCentral">
       <h2>Importações e documentos</h2>
       <p class="desc">Use esta Central como porta de entrada. Cada ação reutiliza o mesmo fluxo já tratado pelo sistema; nenhuma base ou processamento paralelo é criado.</p>
@@ -253,6 +258,12 @@ Telas.dados = async (el) => {
       </div>
       ${(dadosAdicionais.receitas_sem_dfe || []).some((x) => x.status_validacao === 'POSSIVEL_DUPLICIDADE') ? '<div class="aviso atencao" style="margin-top:12px"><b>Há receita(s) com possível duplicidade.</b> Elas não foram consolidadas automaticamente; revise a evidência antes de qualquer uso analítico.</div>' : ''}
     </div>` : ''}
+    <div class="cartao" style="margin-top:16px" id="pendenciasDiagnosticoCentral"><h2>Pendências do diagnóstico</h2><p class="desc">Localize a linha que bloqueia a cobertura, confira a evidência existente e siga a ação indicada. Cada operação aparece uma única vez pela pendência principal.</p>${pendenciasDaAba.length ? A.tabela([
+      { t:'Operação', r:p=>`#${A.esc(p.movimento_id)}<div class="mini">${A.esc(p.documento)}</div>` },
+      { t:'Valor', num:true, r:p=>A.moeda(p.valor) },
+      { t:'Pendência', r:p=>`<b>${A.esc(p.dimensao)}</b> · ${A.esc(p.status)}<div class="mini">${A.esc(p.causa)}</div>` },
+      { t:'Ação', r:p=>`${A.esc(p.acao)}<div class="mini">${A.esc(p.fonte_minima)}</div><button class="btn pq vazio" data-filtrar-pendencia="${A.esc(p.movimento_id)}">Filtrar linha</button>` },
+    ], pendenciasDaAba, { vazio:'Sem pendências para esta origem.' }) : A.vazio('Sem pendências nesta origem', 'Não há linhas pendentes de cobertura para fornecedores ou clientes nesta empresa.')}</div>
     ${aba === 'fornecedor' ? `<div class="cartao" style="margin-top:16px" id="tratamentoCentral"><h2>Tratamento e revisão de dados</h2><p class="desc">Acompanhe apurações históricas, campos com baixa confiança, pendências de classificação, inconsistências e rastreabilidade antes de usar os dados nas análises.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio pq" id="abrirRaioXDados">Revisar apurações e rastreabilidade</button><button class="btn vazio pq" id="centralPendenciasRegime">Ver pendências de regime</button><button class="btn vazio pq" id="centralPendenciasClassificacao">Ver pendências de classificação</button></div></div>` : ''}
     ${aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
@@ -286,8 +297,9 @@ Telas.dados = async (el) => {
       ], parceiros, { vazio: `Nenhum ${aba} cadastrado ainda.` })}
     </div>
     <div class="cartao">
-      <h2>Movimentação importada</h2><p class="desc">200 maiores lançamentos</p>
+      <h2>${filtroPendencia?.movimento_id ? `Movimentação filtrada · operação #${A.esc(filtroPendencia.movimento_id)}` : 'Movimentação importada'}</h2><p class="desc">${filtroPendencia?.movimento_id ? 'Linha relacionada à pendência selecionada.' : '200 maiores lançamentos'}</p>
       ${A.tabela([
+        { t:'ID', r: (m) => `<span class="mono">#${A.esc(m.id)}</span>` },
         { t: 'Parceiro', r: (m) => `${A.esc(m.nome)}<div class="mini mono">${A.cnpjFmt(m.inscr_federal)}</div>` },
         { t: 'Produto/serviço', r: (m) => A.esc(m.descricao || '—') },
         { t: 'NCM', r: (m) => `<span class="mono mini">${A.esc(m.ncm || '—')}</span>` },
@@ -297,7 +309,7 @@ Telas.dados = async (el) => {
         { t: 'ICMS', num: true, r: (m) => A.moeda(m.icms) },
         { t: 'PIS/COFINS', num: true, r: (m) => A.moeda(m.pis + m.cofins) },
         { t: 'ISS', num: true, r: (m) => A.moeda(m.iss) },
-      ], movimentos, { vazio: 'Importe a movimentação para liberar o diagnóstico.' })}
+      ], movimentosVisiveis, { vazio: filtroPendencia?.movimento_id ? 'A operação selecionada não está disponível nesta origem. Limpe o filtro e confira a empresa selecionada.' : 'Importe a movimentação para liberar o diagnóstico.' })}
     </div>
     <div class="cartao">
       <h2>Lotes importados</h2>
@@ -312,7 +324,12 @@ Telas.dados = async (el) => {
       ], lotes, { vazio: 'Nenhum lote importado.' })}
     </div>`;
 
-    el.querySelectorAll('[data-aba]').forEach((b) => { b.onclick = () => { S.aba.dados = b.dataset.aba; A.ir('dados'); }; });
+    el.querySelectorAll('[data-aba]').forEach((b) => { b.onclick = () => { S.aba.dados = b.dataset.aba; S.aba.dadosPendencia = null; A.ir('dados'); }; });
+    document.getElementById('limparFiltroPendencia')?.addEventListener('click', () => { S.aba.dadosPendencia = null; A.ir('dados'); });
+    el.querySelectorAll('[data-filtrar-pendencia]').forEach((botao) => botao.addEventListener('click', () => {
+      S.aba.dadosPendencia = pendenciasDaAba.find((p) => String(p.movimento_id) === String(botao.dataset.filtrarPendencia)) || null;
+      A.ir('dados');
+    }));
     document.getElementById('centralXmlSped')?.addEventListener('click', () => {
       S.aba.dadosMotor = 'xml'; A.ir('dados');
     });
