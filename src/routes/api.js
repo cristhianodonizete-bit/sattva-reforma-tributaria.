@@ -3689,7 +3689,9 @@ router.post('/empresas/:id/elegibilidade-anexo-xi/sanear', async (req, res) => {
     const empresaId = Number(req.params.id);
     const antes = db.prepare(`SELECT COUNT(*) total FROM motor_resultados_operacionais
       WHERE empresa_id=? AND ativo=1 AND status_classificacao='REQUER_VALIDACAO'`).get(empresaId).total;
-    const qsa = await cnpjReceita.enriquecerQsaEmpresa(empresaId, { forcar: true });
+    let qsa;
+    try { qsa = await cnpjReceita.enriquecerQsaEmpresa(empresaId, { forcar: true }); }
+    catch (e) { qsa = { socios_recuperados: 0, percentual_automatico: 0, pendentes_percentual: 0, erro: e.message }; }
     const parceiros = await cnpjReceita.enriquecerParceiros(empresaId, { sobrescrever: true, forcar: true, limite: 500 });
     const execucao = motorExec.executar(empresaId, { ano: Number(req.body.ano) || 2027 });
     const depois = db.prepare(`SELECT COUNT(*) total FROM motor_resultados_operacionais
