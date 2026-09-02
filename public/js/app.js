@@ -154,8 +154,10 @@ const App = (() => {
       { id: 'cadastrosCnpj', t: 'Cadastros compartilhados', i: '⌘' },
       { id: 'bases', t: 'Bases, catálogos e classificações', i: '⌘' },
     ] },
-    { id: 'diagnostico', titulo: 'Módulo 1 · Diagnóstico', itens: [
+    { id: 'motor', titulo: 'Motor tributário', itens: [
       { id: 'coberturaDiagnostico', t: 'Cobertura do diagnóstico', i: '◌' },
+    ] },
+    { id: 'diagnostico', titulo: 'Módulo 1 · Diagnóstico', itens: [
       { id: 'perfil', t: 'Perfil Tributário', i: '◉' }, { id: 'fornecedores', t: 'Cadeia de fornecedores', i: '↙' },
       { id: 'clientes', t: 'Cadeia de clientes', i: '↗' }, { id: 'impactoFinalCbs', t: 'Impacto Final CBS', i: '≋' }, { id: 'cenarios', t: 'Projeção de cenários', i: '⌁' },
       { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' }, { id: 'tarefasDiagnostico', t: 'Tarefas', i: '✓' },

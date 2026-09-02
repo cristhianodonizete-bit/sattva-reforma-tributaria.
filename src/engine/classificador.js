@@ -154,6 +154,19 @@ function classificar(item, ctx = {}) {
       { natureza, sentido, candidatos: [] });
   }
 
+  // 200044 é uma regra específica condicional do Anexo XI. Quando o QSA do
+  // emitente confirma a condição, ela prevalece sobre a regra geral 000001;
+  // antes esta confirmação apenas mantinha 200044 como candidato e o motor
+  // terminava em validação por haver dois códigos. Outra exceção material
+  // concorrente continua exigindo decisão humana.
+  const qsa = ctx.elegibilidadeAnexoXi?.qsa || {};
+  const candidato200044 = candidatos.find((c) => c.cclasstrib === '200044');
+  const outrosEspecificos = candidatos.filter((c) => !['000001', '200044'].includes(String(c.cclasstrib || '')));
+  if (qsa.status === 'SIM' && candidato200044 && !outrosEspecificos.length) {
+    candidatos = [candidato200044];
+    fundamentos.push(`200044 aplicado como regra específica vencedora: ${qsa.motivo || 'QSA confirmado.'}`);
+  }
+
   // --- 4. mais de um candidato: o motor não escolhe (item 7)
   if (candidatos.length > 1) {
     const equivalencia = avaliarEquivalenciaClassificatoria(candidatos, { tipo_operacao: natureza, destinacao: ctx.perfilDestinatario || '' });
@@ -194,7 +207,8 @@ function classificar(item, ctx = {}) {
   }
   if (c.fundamento) fundamentos.push(`Fundamento legal: ${c.fundamento}.`);
   if (c.anexo) fundamentos.push(`Anexo ${c.anexo} da LC 214.`);
-  return montar('CLASSIFICADO', c, origem, fundamentos, { natureza, sentido, candidatos, declarado: item.declarado || null });
+  return montar('CLASSIFICADO', c, origem, fundamentos, { natureza, sentido, candidatos, declarado: item.declarado || null,
+    elegibilidadeAnexoXi: candidato200044 ? { codigo: '200044', status_qsa: qsa.status || 'PENDENTE', socio: qsa.socio || null, motivo: qsa.motivo || null } : null });
 }
 
 function montar(status, c, origem, fundamentos, extra = {}) {
@@ -224,6 +238,7 @@ function montar(status, c, origem, fundamentos, extra = {}) {
     equivalenciaFiscal: extra.equivalenciaFiscal || null,
     impactoTributarioMaterial: extra.equivalenciaFiscal?.impacto_tributario_material ?? null,
     declarado: extra.declarado || null,
+    elegibilidadeAnexoXi: extra.elegibilidadeAnexoXi || null,
   };
 }
 

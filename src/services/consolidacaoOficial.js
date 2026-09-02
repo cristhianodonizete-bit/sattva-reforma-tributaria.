@@ -83,6 +83,23 @@ function grupoDaLinha(linha, lado) {
   }[regime] || 'Perfil desconhecido';
 }
 
+// A faixa vem da classificação já decidida pelo motor. Não inferimos alíquota
+// zero pelo valor da CBS: Simples/MEI podem ter CBS zerada por outro motivo.
+function faixaTributacao(linha) {
+  const classificacao = linha.detalhe?.classificacao || {};
+  const chave = String(classificacao.reducao || linha.tratamento || '').toLowerCase();
+  const percentual = Number(classificacao.reducaoCbs ?? classificacao.reducao_cbs ?? null);
+  if (chave === 'zero' || chave === 'reducao_100' || chave.includes('alíquota zero') || chave.includes('aliquota zero') || (Number.isFinite(percentual) && percentual >= 1)) {
+    return { chave: 'ALIQUOTA_ZERO', label: 'Alíquota zero' };
+  }
+  if (Number.isFinite(percentual) && percentual > 0) {
+    return { chave: `REDUCAO_${Math.round(percentual * 100)}`, label: `Redução de ${Math.round(percentual * 100)}%` };
+  }
+  const achado = chave.match(/reducao_(\d{1,3})/);
+  if (achado) return { chave: `REDUCAO_${achado[1]}`, label: `Redução de ${Number(achado[1])}%` };
+  return { chave: 'INTEGRAL', label: 'Base integral' };
+}
+
 function cadeia(empresaId, tipo, opcoes = {}) {
   const lado = tipo === 'cliente' ? 'cliente' : 'fornecedor';
   const sentido = lado === 'cliente' ? 'saida' : 'entrada';
@@ -118,8 +135,10 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     if (!porParceiro.has(chave)) porParceiro.set(chave, { chave, cnpj: x.inscr_federal || '', nome, regime: x.regime_parceiro || 'indeterminado', regimeLabel: grupoDaLinha(x, lado), parceiros: 1 });
     acumular(porParceiro.get(chave), x);
     const grupo = grupoDaLinha(x, lado);
-    if (!porGrupo.has(grupo)) porGrupo.set(grupo, { label: grupo, regime: x.regime_parceiro || 'indeterminado', parceirosSet: new Set() });
-    const g = porGrupo.get(grupo); g.parceirosSet.add(chave); acumular(g, x);
+    const faixa = faixaTributacao(x);
+    const chaveGrupo = `${grupo}::${faixa.chave}`;
+    if (!porGrupo.has(chaveGrupo)) porGrupo.set(chaveGrupo, { label: grupo, faixaTributacao: faixa.label, faixaOrdem: faixa.chave, regime: x.regime_parceiro || 'indeterminado', parceirosSet: new Set() });
+    const g = porGrupo.get(chaveGrupo); g.parceirosSet.add(chave); acumular(g, x);
     acumular(total, x);
   }
 
@@ -132,11 +151,13 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   });
   // A leitura é fixa por grupo/parceiro a partir da primeira operação apenas; status agregado segue visível no drill-down.
   for (const x of porParceiro.values()) x._linha = itens.find((i) => (i.inscr_federal || i.nome || `movimento:${i.movimento_id}`) === x.chave);
-  for (const x of porGrupo.values()) x._linha = itens.find((i) => grupoDaLinha(i, lado) === x.label);
+  for (const x of porGrupo.values()) x._linha = itens.find((i) => grupoDaLinha(i, lado) === x.label && faixaTributacao(i).chave === x.faixaOrdem);
   const parceiros = [...porParceiro.values()].map(finalizar).sort((a, b) => b.valor - a.valor);
   let acumulado = 0;
   for (const p of parceiros) { p.representatividade = total.valor ? r4(p.valor / total.valor) : 0; acumulado += p.representatividade; p.acumulado = r4(acumulado); p.classeAbc = acumulado <= .8 ? 'A' : acumulado <= .95 ? 'B' : 'C'; }
-  const regimes = [...porGrupo.values()].map((x) => ({ ...finalizar(x), parceiros: x.parceirosSet.size, representatividade: total.valor ? r4(x.valor / total.valor) : 0 })).sort((a, b) => b.valor - a.valor);
+  const ordemFaixa = { INTEGRAL: 0, REDUCAO_30: 1, REDUCAO_40: 2, REDUCAO_60: 3, ALIQUOTA_ZERO: 4 };
+  const regimes = [...porGrupo.values()].map((x) => ({ ...finalizar(x), parceiros: x.parceirosSet.size, representatividade: total.valor ? r4(x.valor / total.valor) : 0 }))
+    .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR') || (ordemFaixa[a.faixaOrdem] ?? 99) - (ordemFaixa[b.faixaOrdem] ?? 99) || b.valor - a.valor);
   const detalhes = itens.map((x) => ({
     movimento_id: x.movimento_id, documento: x.documento || x.chave || '', parceiro: x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || '', cnpj: x.inscr_federal || '',
     produto: x.descricao || '', ncm: x.ncm || '', nbs: x.nbs || '', cfop: x.cfop || '', competencia: x.competencia || null,
@@ -223,4 +244,4 @@ function impactoFinal(empresaId, opcoes = {}) {
     drill_down: { clientes: 'clientes', fornecedores: 'fornecedores', memoria_atual: 'perfil' } };
 }
 
-module.exports = { linhas, cadeia, impactoFinal, ultimaExecucao };
+module.exports = { linhas, cadeia, impactoFinal, ultimaExecucao, faixaTributacao };

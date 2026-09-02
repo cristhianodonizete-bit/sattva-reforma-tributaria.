@@ -203,30 +203,46 @@ Telas.empresas = async (el) => {
 // ===========================================================================
 Telas.dados = async (el) => {
   const aba = S.aba.dados || 'fornecedor';
+  const grupoCentral = S.aba.centralDados || 'documentos';
   const filtroPendencia = S.aba.dadosPendencia || null;
   const regimeEmpresa = S.empresa?.regime || '';
   const simplesNacional = regimeEmpresa === 'simples_nacional';
   const exigeApuracaoPisCofins = ['lucro_presumido', 'lucro_real'].includes(regimeEmpresa);
-  const [{ parceiros }, { lotes }, dadosAdicionais, cobertura] = await Promise.all([
+  const [{ parceiros }, { lotes }, dadosAdicionais, cobertura, apuracoesResposta] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/parceiros?tipo=${aba}`),
     A.api(`/empresas/${S.empresaId}/lotes`),
     A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`),
     A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`),
+    A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`),
   ]);
   const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`);
   const referenciasVendas = aba === 'cliente' ? await A.api(`/empresas/${S.empresaId}/referencias-vendas`) : null;
   const rotulo = aba === 'cliente' ? 'clientes' : 'fornecedores';
   const pendenciasDaAba = (cobertura.fotografia?.pendencias_operacionais || []).filter((p) => p.sentido === (aba === 'cliente' ? 'saida' : 'entrada'));
   const movimentosVisiveis = filtroPendencia?.movimento_id ? movimentos.filter((m) => Number(m.id) === Number(filtroPendencia.movimento_id)) : movimentos;
+  const pendenciasGrupo = {
+    documentos: pendenciasDaAba,
+    folha: (dadosAdicionais.folhas || []).filter((x) => !x.competencia || x.valor_folha === null || x.valor_folha === undefined),
+    receitas: (dadosAdicionais.receitas_sem_dfe || []).filter((x) => x.status_validacao === 'POSSIVEL_DUPLICIDADE' || !x.competencia || !x.tipo_receita || !x.valor),
+    apuracoes: (apuracoesResposta.apuracoes || []).filter((x) => x.status_processamento === 'ERRO' || x.status_validacao !== 'VALIDADO_USUARIO' || (x.campos_pendentes || []).length),
+    margem: (dadosAdicionais.margens || []).filter((x) => !x.periodo_inicio || !x.periodo_fim || x.margem_operacional_percentual === null || x.margem_operacional_percentual === undefined),
+  };
 
   el.innerHTML = cab('DADOS · ENTRADA E TRATAMENTO', 'Central de Dados',
     'Cadastre, importe, complete e trate dados uma única vez. Os módulos de análise apenas consomem esta base com origem e rastreabilidade preservadas.') +
     `<div class="aviso bom"><b>Fluxo de dados:</b> Central de Dados → tratamento e validações → módulos do produto → relatórios e entregáveis.</div>` +
     `<div class="abas">
+      <button data-central-grupo="documentos" class="${grupoCentral === 'documentos' ? 'ativo' : ''}">1. Documentos fiscais</button>
+      <button data-central-grupo="folha" class="${grupoCentral === 'folha' ? 'ativo' : ''}">2. Folha</button>
+      <button data-central-grupo="receitas" class="${grupoCentral === 'receitas' ? 'ativo' : ''}">3. Outras receitas</button>
+      <button data-central-grupo="apuracoes" class="${grupoCentral === 'apuracoes' ? 'ativo' : ''}">4. Apurações</button>
+      <button data-central-grupo="margem" class="${grupoCentral === 'margem' ? 'ativo' : ''}">5. Margem operacional</button>
+    </div>
+    ${grupoCentral === 'documentos' ? `<div class="abas" style="margin-top:8px">
       <button data-aba="fornecedor" class="${aba === 'fornecedor' ? 'ativo' : ''}">Fornecedores</button>
       <button data-aba="cliente" class="${aba === 'cliente' ? 'ativo' : ''}">Clientes</button>
-    </div>
-    <section class="fluxo-importacao" aria-label="Etapas da importação">
+    </div>` : ''}
+    ${grupoCentral === 'documentos' ? `<section class="fluxo-importacao" aria-label="Etapas da importação">
       <button type="button" class="${parceiros.length ? 'feito' : 'atual'}" data-ir-importacao="cadastro">
         <b>1</b><span><strong>Cadastre ${rotulo}</strong><small>${parceiros.length ? `${parceiros.length} registros disponíveis` : 'Importe ou inclua manualmente'}</small></span>
       </button><span class="fluxo-linha"></span>
@@ -236,9 +252,9 @@ Telas.dados = async (el) => {
       <button type="button" class="${total.c ? 'atual' : ''}" data-ir-importacao="historico">
         <b>3</b><span><strong>Confira a base</strong><small>${lotes.length ? `${lotes.length} lotes registrados` : 'Acompanhe os arquivos enviados'}</small></span>
       </button>
-    </section>
+    </section>` : ''}
     ${filtroPendencia ? `<div class="aviso atencao" style="margin-top:16px"><b>Filtro ativo: operação #${A.esc(filtroPendencia.movimento_id || '—')} · ${A.esc(filtroPendencia.dimensao || 'pendência')} · ${A.esc(filtroPendencia.status || '')}</b><br><span class="mini">${A.esc(filtroPendencia.acao || 'Revise a pendência selecionada.')} ${filtroPendencia.fonte_minima ? `Fonte mínima: ${A.esc(filtroPendencia.fonte_minima)}` : ''}</span><div style="margin-top:8px"><button class="btn pq vazio" id="limparFiltroPendencia">Limpar filtro</button></div></div>` : ''}
-    <div class="cartao" style="margin-top:16px" id="importacoesCentral">
+    ${grupoCentral === 'documentos' ? `<div class="cartao" style="margin-top:16px" id="importacoesCentral">
       <h2>Importações e documentos</h2>
       <p class="desc">Use esta Central como porta de entrada. Cada ação reutiliza o mesmo fluxo já tratado pelo sistema; nenhuma base ou processamento paralelo é criado.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
@@ -272,32 +288,20 @@ Telas.dados = async (el) => {
           <span class="mini" style="margin-left:auto;align-self:center">${total.c} lançamentos · ${A.moeda(total.v)}</span>
         </div>
       </div>
-    </div>
-    ${aba === 'fornecedor' ? `<div class="cartao" style="margin-top:16px">
-      <h2>Dados complementares</h2>
-      <p class="desc">Informações complementares por empresa. Elas permanecem separadas da movimentação e não recalculam a CBS.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px">
-        <button class="btn vazio pq" id="addFolha">Informar folha</button>
-        <button class="btn vazio pq" id="importarFolha">Importar folha</button>
-        <button class="btn vazio pq" id="addMargemOperacional">Informar margem operacional</button>
-        <button class="btn vazio pq" id="addReceitaSemDfe">Adicionar receita sem DF-e</button>
-        <button class="btn vazio pq" id="importarReceitaSemDfe">Importar receitas sem DF-e</button>
-      </div>
-      <div class="grade g3">
-        <div>${A.kpi('Folhas informadas', (dadosAdicionais.folhas || []).length, 'por competência')}</div>
-        <div>${A.kpi('Margens informadas', (dadosAdicionais.margens || []).length, 'premissas declaradas')}</div>
-        <div>${A.kpi('Receitas sem DF-e', (dadosAdicionais.receitas_sem_dfe || []).length, 'não consolidadas automaticamente')}</div>
-      </div>
-      ${(dadosAdicionais.receitas_sem_dfe || []).some((x) => x.status_validacao === 'POSSIVEL_DUPLICIDADE') ? '<div class="aviso atencao" style="margin-top:12px"><b>Há receita(s) com possível duplicidade.</b> Elas não foram consolidadas automaticamente; revise a evidência antes de qualquer uso analítico.</div>' : ''}
     </div>` : ''}
-    <div class="cartao" style="margin-top:16px" id="pendenciasDiagnosticoCentral"><h2>Pendências do diagnóstico</h2><p class="desc">Localize a linha que bloqueia a cobertura, confira a evidência existente e siga a ação indicada. Cada operação aparece uma única vez pela pendência principal.</p>${pendenciasDaAba.length ? A.tabela([
+    ${grupoCentral === 'folha' ? `<div class="cartao" style="margin-top:16px"><h2>Folha de pagamento</h2><p class="desc">Informe ou importe a folha agregada por competência. Não é necessário detalhar empregados individualmente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addFolha">Informar folha</button><button class="btn vazio" id="importarFolha">Importar planilha</button><button class="btn vazio" onclick="window.open('/api/modelos/folha')">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Folhas informadas',(dadosAdicionais.folhas || []).length,'por competência')}${A.kpi('Pendências',(pendenciasGrupo.folha || []).length,'campos a completar')}</div></div>` : ''}
+    ${grupoCentral === 'receitas' ? `<div class="cartao" style="margin-top:16px"><h2>Receitas sem DF-e</h2><p class="desc">Registre ou importe apenas receitas que ainda não estejam nos documentos fiscais. Possível duplicidade não é consolidada automaticamente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addReceitaSemDfe">Adicionar receita</button><button class="btn vazio" id="importarReceitaSemDfe">Importar planilha</button><button class="btn vazio" onclick="window.open('/api/modelos/receitas_sem_dfe')">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Receitas registradas',(dadosAdicionais.receitas_sem_dfe || []).length,'não consolidadas automaticamente')}${A.kpi('Possíveis duplicidades',(dadosAdicionais.receitas_sem_dfe || []).filter(x=>x.status_validacao==='POSSIVEL_DUPLICIDADE').length,'exigem revisão')}</div></div>` : ''}
+    ${grupoCentral === 'apuracoes' ? `<div class="cartao" style="margin-top:16px"><h2>Apurações tributárias</h2><p class="desc">Envie a apuração adequada ao regime da empresa. O documento é revisado antes de ser aproveitado no histórico.</p><div style="display:flex;gap:8px;flex-wrap:wrap">${simplesNacional ? '<button class="btn" id="centralPgdas">Importar PGDAS</button><button class="btn vazio" onclick="window.open(\'/api/modelos/pgdas\')">Baixar modelo PGDAS</button>' : `<button class="btn" id="centralApuracao">Enviar apuração PIS/Cofins</button>`}</div><div class="grade g2" style="margin-top:16px">${A.kpi('Documentos enviados',(apuracoesResposta.apuracoes || []).length,'histórico de apurações')}${A.kpi('Pendências',(pendenciasGrupo.apuracoes || []).length,'revisão ou confirmação')}</div><div class="aviso ${simplesNacional ? 'bom' : 'atencao'}" style="margin-top:14px">${simplesNacional ? 'Empresa do Simples Nacional: importe o PGDAS por competência em XLSX, XLS ou CSV.' : exigeApuracaoPisCofins ? 'Empresa no Lucro Presumido ou Lucro Real: envie a apuração histórica de PIS/Cofins.' : 'A apuração aplicável depende do regime cadastrado da empresa.'}</div></div>` : ''}
+    ${grupoCentral === 'margem' ? `<div class="cartao" style="margin-top:16px"><h2>Margem operacional</h2><p class="desc">Informe a margem por período como premissa para cenários. Ela não representa automaticamente o lucro fiscal da empresa.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addMargemOperacional">Informar margem operacional</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Margens informadas',(dadosAdicionais.margens || []).length,'premissas declaradas')}${A.kpi('Pendências',(pendenciasGrupo.margem || []).length,'período ou percentual')}</div></div>` : ''}
+    ${grupoCentral !== 'documentos' ? `<div class="cartao" style="margin-top:16px"><h2>Pendências deste grupo</h2>${pendenciasGrupo[grupoCentral].length ? A.tabela([{t:'Registro',r:x=>A.esc(x.competencia || x.periodo_inicio || 'Sem período')},{t:'Situação',r:x=>grupoCentral === 'receitas' ? 'Possível duplicidade ou campo obrigatório ausente' : 'Complete os campos obrigatórios antes da análise.'}],pendenciasGrupo[grupoCentral],{vazio:'Sem pendências.'}) : A.vazio('Sem pendências','Os dados disponíveis deste grupo não exigem ação adicional.')}</div>` : ''}
+    ${grupoCentral === 'documentos' ? `<div class="cartao" style="margin-top:16px" id="pendenciasDiagnosticoCentral"><h2>Pendências dos documentos fiscais</h2><p class="desc">Localize a linha que bloqueia a cobertura, confira a evidência existente e siga a ação indicada. Cada operação aparece uma única vez pela pendência principal.</p>${pendenciasDaAba.length ? A.tabela([
       { t:'Operação', r:p=>`#${A.esc(p.movimento_id)}<div class="mini">${A.esc(p.documento)}</div>` },
       { t:'Valor', num:true, r:p=>A.moeda(p.valor) },
       { t:'Pendência', r:p=>`<b>${A.esc(p.dimensao)}</b> · ${A.esc(p.status)}<div class="mini">${A.esc(p.causa)}</div>` },
       { t:'Ação', r:p=>`${A.esc(p.acao)}<div class="mini">${A.esc(p.fonte_minima)}</div><button class="btn pq" data-abrir-pendencia="${A.esc(p.movimento_id)}">Abrir lançamento</button>` },
-    ], pendenciasDaAba, { vazio:'Sem pendências para esta origem.' }) : A.vazio('Sem pendências nesta origem', 'Não há linhas pendentes de cobertura para fornecedores ou clientes nesta empresa.')}</div>
-    ${aba === 'fornecedor' ? `<div class="cartao" style="margin-top:16px" id="tratamentoCentral"><h2>Tratamento e revisão de dados</h2><p class="desc">Acompanhe apurações históricas, campos com baixa confiança, pendências de classificação, inconsistências e rastreabilidade antes de usar os dados nas análises.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio pq" id="abrirRaioXDados">Revisar apurações e rastreabilidade</button><button class="btn vazio pq" id="centralPendenciasRegime">Ver pendências de regime</button><button class="btn vazio pq" id="centralPendenciasClassificacao">Ver pendências de classificação</button></div></div>` : ''}
-    ${aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
+    ], pendenciasDaAba, { vazio:'Sem pendências para esta origem.' }) : A.vazio('Sem pendências nesta origem', 'Não há linhas pendentes de cobertura para fornecedores ou clientes nesta empresa.')}</div>` : ''}
+    ${grupoCentral === 'documentos' && aba === 'fornecedor' ? `<div class="cartao" style="margin-top:16px" id="tratamentoCentral"><h2>Tratamento e revisão de dados</h2><p class="desc">Acompanhe apurações históricas, campos com baixa confiança, pendências de classificação, inconsistências e rastreabilidade antes de usar os dados nas análises.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio pq" id="abrirRaioXDados">Revisar apurações e rastreabilidade</button><button class="btn vazio pq" id="centralPendenciasRegime">Ver pendências de regime</button><button class="btn vazio pq" id="centralPendenciasClassificacao">Ver pendências de classificação</button></div></div>` : ''}
+    ${grupoCentral === 'documentos' && aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
       <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn vazio pq" id="addReferenciaServico">Adicionar serviço ao cadastro</button><button class="btn vazio pq" id="importarReferenciasServico">Importar referências</button><button class="btn vazio pq" onclick="window.open('/api/modelos/referencias_servicos')">Baixar modelo</button></div>
@@ -318,7 +322,7 @@ Telas.dados = async (el) => {
         { t: '', r: (s) => `<button class="btn pq ${s.configurado ? 'vazio' : ''}" data-ref-servico="${A.esc(s.chave)}">${s.configurado ? 'Editar' : s.exigeReferencia ? 'Definir referência' : 'Cadastrar referência'}</button>` },
       ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}
-    <div class="cartao" id="historico">
+    ${grupoCentral === 'documentos' ? `<div class="cartao" id="historico">
       <h2>${rotulo[0].toUpperCase() + rotulo.slice(1)} cadastrados</h2>
       ${A.tabela([
         { t: 'CNPJ/CPF', r: (p) => `<span class="mono">${A.cnpjFmt(p.cnpj)}</span>` },
@@ -354,9 +358,10 @@ Telas.dados = async (el) => {
         { t: 'Data', r: (l) => `<span class="mini">${A.esc(l.criado_em)}</span>` },
         { t: '', r: (l) => `<button class="btn pq perigo" data-rl="${l.id}">Remover</button>` },
       ], lotes, { vazio: 'Nenhum lote importado.' })}
-    </div>`;
+    </div>` : ''}`;
 
     el.querySelectorAll('[data-aba]').forEach((b) => { b.onclick = () => { S.aba.dados = b.dataset.aba; S.aba.dadosPendencia = null; A.ir('dados'); }; });
+    el.querySelectorAll('[data-central-grupo]').forEach((b) => { b.onclick = () => { S.aba.centralDados = b.dataset.centralGrupo; S.aba.dadosPendencia = null; A.ir('dados'); }; });
     document.getElementById('limparFiltroPendencia')?.addEventListener('click', () => { S.aba.dadosPendencia = null; A.ir('dados'); });
     el.querySelectorAll('[data-abrir-pendencia]').forEach((botao) => botao.addEventListener('click', async () => {
       const pendencia = pendenciasDaAba.find((p) => String(p.movimento_id) === String(botao.dataset.abrirPendencia));
@@ -699,6 +704,7 @@ async function telaCadeia(el, tipo) {
         <p class="desc">${eForn ? 'O regime do fornecedor determina o crédito que a empresa toma' : 'O perfil do cliente indica a relevância econômica do crédito potencial; não altera o IBS/CBS da venda'}</p>
         ${A.tabela([
           { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}</div>` },
+          { t: 'Enquadramento CBS', r: (r) => `<span class="tag ${r.faixaOrdem === 'ALIQUOTA_ZERO' ? 'a' : r.faixaOrdem !== 'INTEGRAL' ? 'c' : 'n'}">${A.esc(r.faixaTributacao || 'Base integral')}</span>` },
           { t: 'Valor', num: true, r: (r) => A.moeda(r.valor) },
           { t: 'Part.', num: true, r: (r) => A.pct(r.representatividade, 1) },
           ...(!eForn ? [
