@@ -75,13 +75,23 @@ function versoesDaOperacao(movimento, parceiro) {
     credito_simples: regime === 'simples_nacional'
       ? ((p.regimes || []).find((x) => x.chave === 'simples_nacional')?.creditoCbsSimplesReferencia ?? null) : null,
   };
+  // O QSA é uma dependência material somente para saídas elegíveis ao 200044.
+  // Incluí-lo na assinatura evita que uma confirmação societária posterior
+  // permaneça fora do reprocessamento incremental.
+  const qsa = movimento.tipo === 'cliente'
+    ? elegibilidadeAnexoXi.qsaEmpresa(movimento.empresa_id)
+    : null;
+  const qsaVersion = qsa ? {
+    status: qsa.status,
+    socios: (qsa.socios || []).map((s) => ({ id: s.id, brasileiro: s.brasileiro, participacao: s.percentual_participacao, atualizado_em: s.atualizado_em })),
+  } : null;
   return {
     regra_version: hash(regra),
     parametro_version: hash(parametro),
     // A classificação efetiva (NCM/NBS/cClassTrib/redução) integra o hash do
     // movimento. Assim catálogo sem reflexo naquela classificação não invalida
     // a operação, enquanto uma reclassificação efetiva a invalida.
-    catalogo_version: hash({ ncm: movimento.ncm, nbs: movimento.nbs, cclasstrib: movimento.cclasstrib, reducao: movimento.reducao, origem: movimento.classificacao_origem }),
+    catalogo_version: hash({ ncm: movimento.ncm, nbs: movimento.nbs, cclasstrib: movimento.cclasstrib, reducao: movimento.reducao, origem: movimento.classificacao_origem, qsa: qsaVersion }),
     parceiro_version: hashParceiro(parceiro),
     motor_version: MOTOR_VERSION,
   };

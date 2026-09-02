@@ -574,6 +574,17 @@ router.get('/empresas/:id', (req, res) => {
 });
 
 // Quadro societário: evidência editável da condição específica do cClassTrib 200044.
+function reprocessarSaidasPorQsa(empresaId) {
+  // O QSA é dependência exclusiva das saídas da empresa (cClassTrib 200044).
+  // Passar os IDs explicitamente garante que uma confirmação societária seja
+  // materializada mesmo quando nenhum campo do movimento mudou.
+  const saidas = db.prepare("SELECT id FROM movimentos WHERE empresa_id=? AND tipo='cliente'")
+    .all(empresaId).map((x) => x.id);
+  return saidas.length
+    ? motorExec.reprocessarIncremental(empresaId, { movimentoIds: saidas, ano: 2027 })
+    : { empresa_id: empresaId, reprocessados: 0, status: 'SEM_SAIDAS' };
+}
+
 router.get('/empresas/:id/qsa', (req, res) => {
   try {
     const socios = db.prepare('SELECT * FROM empresa_qsa WHERE empresa_id=? ORDER BY nome').all(req.params.id);
@@ -582,7 +593,12 @@ router.get('/empresas/:id/qsa', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/qsa/enriquecer', async (req, res) => {
-  try { ok(res, await cnpjReceita.enriquecerQsaEmpresa(req.params.id, { forcar: !!req.body.forcar })); }
+  try {
+    const resultado = await cnpjReceita.enriquecerQsaEmpresa(req.params.id, { forcar: !!req.body.forcar });
+    const reprocessamento = motorExec.ultimaExecucao(Number(req.params.id))
+      ? reprocessarSaidasPorQsa(Number(req.params.id)) : null;
+    ok(res, { ...resultado, reprocessamento });
+  }
   catch (e) { erro(res, e); }
 });
 router.put('/empresas/:id/qsa/:qsaId', (req, res) => {
@@ -590,7 +606,9 @@ router.put('/empresas/:id/qsa/:qsaId', (req, res) => {
     const b = req.body || {};
     db.prepare(`UPDATE empresa_qsa SET nome=?,documento=?,qualificacao=?,pais=?,percentual_participacao=?,brasileiro=?,origem='confirmacao_manual',atualizado_em=datetime('now','localtime') WHERE id=? AND empresa_id=?`)
       .run(b.nome || '', String(b.documento || '').replace(/\D/g,''), b.qualificacao || '', b.pais || '', b.percentual_participacao === '' || b.percentual_participacao == null ? null : Number(b.percentual_participacao), b.brasileiro === false ? 0 : 1, req.params.qsaId, req.params.id);
-    ok(res, {});
+    const reprocessamento = motorExec.ultimaExecucao(Number(req.params.id))
+      ? reprocessarSaidasPorQsa(Number(req.params.id)) : null;
+    ok(res, { reprocessamento });
   } catch (e) { erro(res, e); }
 });
 

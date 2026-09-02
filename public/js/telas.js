@@ -655,6 +655,9 @@ async function telaCadeia(el, tipo) {
   const mostrarRiscos = eForn || abaCliente === 'riscos';
   const mostrarAbc = eForn || abaCliente === 'abc';
   const mostrarRastreabilidade = !eForn && abaCliente === 'rastreabilidade';
+  const mostrar200044 = !eForn && abaCliente === '200044';
+  const regra200044 = analise.condicao200044 || {};
+  const resumo200044 = analise.tratamento200044 || { operacoes: 0 };
 
   el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
     eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
@@ -696,6 +699,7 @@ async function telaCadeia(el, tipo) {
       <button class="${abaCliente === 'riscos' ? 'ativo' : ''}" data-aba-cliente="riscos">Riscos e oportunidades</button>
       <button class="${abaCliente === 'abc' ? 'ativo' : ''}" data-aba-cliente="abc">Curva ABC</button>
       <button class="${abaCliente === 'rastreabilidade' ? 'ativo' : ''}" data-aba-cliente="rastreabilidade">Rastreabilidade</button>
+      <button class="${abaCliente === '200044' ? 'ativo' : ''}" data-aba-cliente="200044">Redução 60% · 200044</button>
     </div>` : ''}
     ${mostrarRiscos ? `<div class="cartao" style="margin-top:16px"><h2>Riscos e oportunidades</h2><p class="desc">Leitura da carteira sob a ótica da empresa vendedora.</p>${A.avisos(analise.riscos)}
       ${!eForn && analise.riscos.some((r) => r.codigo === 'base_estimada_regime') ? '<button class="btn vazio" id="corrigirReferencias" style="margin-top:12px">Corrigir referências fiscais dos serviços</button>' : ''}
@@ -750,6 +754,26 @@ async function telaCadeia(el, tipo) {
         { t: 'Crédito potencial', num: true, r: (p) => A.moeda(p.creditoPotencial) },
         { t: 'Relevância do crédito', r: (p) => `<span class="tag ${String(p.relevanciaCreditoCliente || '').startsWith('Potencialmente') ? 'c' : 'n'}">${A.esc(p.relevanciaCreditoCliente)}</span>` },
       ], analise.parceiros.slice(0, 200))}
+    </div>` : ''}
+    ${mostrar200044 ? `<div class="cartao" style="margin-top:16px"><h2>Operações com redução de 60% — cClassTrib 200044</h2>
+      <p class="desc">Esta aba mostra somente vendas em que o motor já confirmou a condição societária e aplicou o enquadramento específico. A leitura não cria uma nova regra nem altera a CBS já calculada.</p>
+      ${resumo200044.operacoes ? `<div class="grade g4" style="margin-top:14px">
+        ${A.kpi('Operações enquadradas', resumo200044.operacoes, 'cClassTrib 200044 confirmado')}
+        ${A.kpi('Base econômica CBS', A.moeda(resumo200044.baseEconomica), 'base das vendas enquadradas')}
+        ${A.kpi('CBS projetada', A.moeda(resumo200044.cbs), 'após a redução cadastrada')}
+        ${A.kpi('Redução CBS', A.moeda(resumo200044.diferencaReducaoCbs), 'diferença para a alíquota CBS de referência')}
+      </div>
+      <div class="aviso bom" style="margin-top:14px"><b>Fundamento aplicado pelo motor</b><br>Catálogo fiscal versionado: Anexo XI / cClassTrib 200044. Condição confirmada: sócio brasileiro com participação igual ou superior a 20%. A redução de CBS é a parametrizada para esse enquadramento.</div>
+      ${A.tabela([
+        { t: 'Documento / cliente', r: (x) => `<b class="mono">${A.esc(x.documento || 'sem número')}</b><div class="mini">${A.esc(x.competencia || '')}</div><div>${A.esc(x.cliente || 'Não identificado')}</div><div class="mini mono">${A.cnpjFmt(x.cnpj)}</div>` },
+        { t: 'Item e referência', r: (x) => `${A.esc(x.descricao || 'Sem descrição')}<div class="mini">LC 116: ${A.esc(x.lc116 || 'não identificada')} · NBS: ${A.esc(x.nbs || 'não identificada')}</div>` },
+        { t: 'Base econômica', num: true, r: (x) => A.moeda(x.baseEconomica) },
+        { t: 'CBS', num: true, r: (x) => `${A.moeda(x.cbs)}<div class="mini">Referência: ${x.aliquotaCbsReferencia == null ? 'não identificada' : A.pct(x.aliquotaCbsReferencia)} · efetiva: ${x.aliquotaCbsEfetiva == null ? 'não identificada' : A.pct(x.aliquotaCbsEfetiva)}</div>` },
+        { t: 'Redução', r: (x) => `<span class="tag c">${A.pct(x.reducaoCbs, 0)}</span><div class="mini">${x.diferencaReducaoCbs == null ? '' : `CBS não aplicada: ${A.moeda(x.diferencaReducaoCbs)}`}</div>` },
+        { t: 'Evidência societária', r: (x) => `${A.esc(x.qsa?.socio || 'Sócio confirmado')}<div class="mini">Brasileiro: ${x.qsa?.brasileiro ? 'SIM' : 'NÃO'} · participação: ${x.qsa?.participacao == null ? 'não informada' : `${x.qsa.participacao}%`}</div><div class="mini">${A.esc(x.qsa?.fonte || 'Fonte não informada')}</div>` },
+        { t: 'Embasamento', r: (x) => `<b>Anexo ${A.esc(x.anexo || 'XI')} · cClassTrib 200044</b><div class="mini">${A.esc(x.fundamentoCatalogo)}</div><div class="mini">${A.esc(x.qsa?.motivo || '')}</div>` },
+      ], analise.operacoes200044, { vazio: 'Nenhuma operação recebeu o enquadramento 200044 nesta execução.' })}`
+      : `<div class="aviso atencao" style="margin-top:14px"><b>Nenhuma venda foi enquadrada no cClassTrib 200044 nesta execução.</b><br>${A.esc(regra200044.motivo || 'A condição societária ainda não está confirmada.')}${regra200044.status === 'PENDENTE' ? '<br>Informe ou confirme a participação societária na tela Quadro societário. Percentual ausente não é presumido pelo sistema.' : ''}</div>`}
     </div>` : ''}
     ${mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade da base econômica</h2>
       <p class="desc">Mostra, documento a documento, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. Não recalcula nada nesta tela: todos os dados vêm da memória persistida do motor.</p>
