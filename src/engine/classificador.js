@@ -206,18 +206,28 @@ function classificar(item, ctx = {}) {
   // A BASE é a recomendação do motor. O documento é preservado apenas para
   // comparação; nunca substitui a regra recomendada silenciosamente.
   c = { ...c, cst: cstDaBase(c) };
+  let divergenciaDocumental = false;
   if (item.declarado && (item.declarado.cst || item.declarado.cclasstrib)) {
     const divergente = (item.declarado.cst && c.cst && item.declarado.cst !== c.cst)
       || (item.declarado.cclasstrib && c.cclasstrib && item.declarado.cclasstrib !== c.cclasstrib);
     if (divergente) {
+      // O XML é fato histórico, não uma escolha fiscal que possa prevalecer
+      // sobre a condição objetiva já comprovada. Para 200044, NBS elegível +
+      // QSA confirmado determinam a regra; a divergência é preservada para
+      // rastreabilidade, mas não volta a bloquear o cálculo.
+      if (c.cclasstrib === '200044' && qsa.status === 'SIM') {
+        divergenciaDocumental = true;
+        fundamentos.push(`Documento: CST ${item.declarado.cst || '—'} / cClassTrib ${item.declarado.cclasstrib || '—'} preservado como divergência histórica. Base aplicável: CST ${c.cst || '—'} / cClassTrib 200044, com condição societária comprovada.`);
+      } else {
       return montar('REQUER_VALIDACAO', c, origem,
         fundamentos.concat([`Documento: CST ${item.declarado.cst || '—'} / cClassTrib ${item.declarado.cclasstrib || '—'}. Base recomendada: CST ${c.cst || '—'} / cClassTrib ${c.cclasstrib || '—'}. Confirmar a divergência antes da entrega fiscal.`]),
         { natureza, sentido, candidatos, divergencia: true, declarado: item.declarado });
+      }
     }
   }
   if (c.fundamento) fundamentos.push(`Fundamento legal: ${c.fundamento}.`);
   if (c.anexo) fundamentos.push(`Anexo ${c.anexo} da LC 214.`);
-  return montar('CLASSIFICADO', c, origem, fundamentos, { natureza, sentido, candidatos, declarado: item.declarado || null,
+  return montar('CLASSIFICADO', c, origem, fundamentos, { natureza, sentido, candidatos, divergencia: divergenciaDocumental, declarado: item.declarado || null,
     elegibilidadeAnexoXi: candidato200044 ? { codigo: '200044', status_qsa: qsa.status || 'PENDENTE', socio: qsa.socio || null, motivo: qsa.motivo || null } : null });
 }
 

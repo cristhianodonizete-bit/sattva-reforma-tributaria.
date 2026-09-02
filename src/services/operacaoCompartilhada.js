@@ -348,17 +348,18 @@ async function publicarResultadosMotor(empresaId = null) {
   }
   const telemetrias = db.prepare(`SELECT * FROM telemetria_autonomia_execucoes${filtro}`).all(...parametros);
   const excecoesExecucao = db.prepare(`SELECT * FROM excecoes_motor_execucoes${filtro}`).all(...parametros);
+  const avisos = [];
   if (telemetrias.length) {
     const { error } = await remoto.from('telemetria_autonomia_execucoes').upsert(telemetrias, { onConflict: 'execucao_id' });
-    if (error) throw new Error(`telemetria_autonomia_execucoes: ${error.message}`);
+    if (error) avisos.push(`telemetria_autonomia_execucoes: ${error.message}`);
   }
   if (excecoesExecucao.length) {
     for (let i = 0; i < excecoesExecucao.length; i += 500) {
       const { error } = await remoto.from('excecoes_motor_execucoes').upsert(excecoesExecucao.slice(i, i + 500), { onConflict: 'empresa_id,execucao_id,movimento_id,codigo' });
-      if (error) throw new Error(`excecoes_motor_execucoes: ${error.message}`);
+      if (error) { avisos.push(`excecoes_motor_execucoes: ${error.message}`); break; }
     }
   }
-  return { execucoes: execucoes.length, resultados: resultados.length, telemetrias: telemetrias.length, excecoes_execucao: excecoesExecucao.length };
+  return { execucoes: execucoes.length, resultados: resultados.length, telemetrias: telemetrias.length, excecoes_execucao: excecoesExecucao.length, avisos };
 }
 // Parâmetros fiscais e de cálculo podem ser restaurados isoladamente do resto
 // do cache. É usado antes de a aplicação entregar qualquer alíquota à tela ou
