@@ -208,17 +208,26 @@ async function enriquecerQsaEmpresa(empresaId, opcoes = {}) {
     Number(empresaId), textoBanco(s.nome), soDigitos(s.documento), textoBanco(s.qualificacao), textoBanco(s.pais),
     percentualBanco(s.percentual_participacao), s.brasileiro === false ? 0 : 1, textoBanco(r.fonte), new Date().toISOString(),
   )))();
-  if (supabase.configurado()) {
-    const remoto = supabase.admin();
-    const { data: empresaRemota, error: erroEmpresa } = await remoto.from('empresas').select('id').eq('origem_local_id', Number(empresaId)).maybeSingle();
-    if (erroEmpresa) throw erroEmpresa;
-    if (empresaRemota) {
-      const linhas = db().prepare('SELECT nome,documento,qualificacao,pais,percentual_participacao,brasileiro,fonte,consultado_em,origem,criado_em,atualizado_em FROM empresa_qsa WHERE empresa_id=?').all(empresaId)
-        .map((s) => ({ ...s, empresa_id: empresaRemota.id, brasileiro: Boolean(s.brasileiro) }));
-      if (linhas.length) { const { error } = await remoto.from('empresa_qsa').upsert(linhas, { onConflict: 'empresa_id,nome,documento,qualificacao' }); if (error) throw error; }
-    }
-  }
+  await publicarQsaEmpresa(empresaId);
   return { empresa_id: Number(empresaId), fonte: r.fonte || null, socios_recuperados: socios.filter((s) => s.nome).length, percentual_automatico: socios.filter((s) => s.percentual_participacao != null).length, pendentes_percentual: socios.filter((s) => s.percentual_participacao == null).length };
+}
+
+// A confirmação manual é evidência operacional e precisa sobreviver ao
+// cache efêmero do Render; por isso usa exatamente a mesma publicação do QSA
+// consultado automaticamente.
+async function publicarQsaEmpresa(empresaId) {
+  if (!supabase.configurado()) return { publicado: false, motivo: 'Supabase não configurado.' };
+  const remoto = supabase.admin();
+  const { data: empresaRemota, error: erroEmpresa } = await remoto.from('empresas').select('id').eq('origem_local_id', Number(empresaId)).maybeSingle();
+  if (erroEmpresa) throw erroEmpresa;
+  if (!empresaRemota) return { publicado: false, motivo: 'Empresa remota não localizada.' };
+  const linhas = db().prepare('SELECT nome,documento,qualificacao,pais,percentual_participacao,brasileiro,fonte,consultado_em,origem,criado_em,atualizado_em FROM empresa_qsa WHERE empresa_id=?').all(empresaId)
+    .map((s) => ({ ...s, empresa_id: empresaRemota.id, brasileiro: Boolean(s.brasileiro) }));
+  if (linhas.length) {
+    const { error } = await remoto.from('empresa_qsa').upsert(linhas, { onConflict: 'empresa_id,nome,documento,qualificacao' });
+    if (error) throw error;
+  }
+  return { publicado: true, socios: linhas.length };
 }
 
 // --------------------------------------------------------------------------
@@ -495,5 +504,5 @@ function estatisticasCache() {
     .map(([k, v]) => ({ chave: k, nome: v.nome, intervalo: v.intervalo, site: v.site, exigeChave: v.exigeChave })) };
 }
 
-module.exports = { consultar, enriquecerParceiros, enriquecerQsaEmpresa, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
+module.exports = { consultar, enriquecerParceiros, enriquecerQsaEmpresa, publicarQsaEmpresa, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
   config, salvarConfig, derivarRegime, classificarEnteGovernamental, PROVEDORES };

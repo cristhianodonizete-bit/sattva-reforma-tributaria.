@@ -142,6 +142,29 @@ function mapaEmpresasLocais(empresas = []) {
   ]).filter(([, id]) => Number.isInteger(id) && id > 0));
 }
 
+function normalizarEmpresaIdDoCache(tabela, linhas, empresaLocalPorRemota = new Map()) {
+  if (!CAMPOS[tabela]?.includes('empresa_id')) return linhas;
+  return (linhas || []).map((linha) => {
+    const empresaId = empresaLocalPorRemota.get(String(linha.empresa_id));
+    return empresaId ? { ...linha, empresa_id: empresaId } : linha;
+  });
+}
+
+function gravarEmpresaQsa(linhas) {
+  if (!linhas.length) return 0;
+  // IDs de sócios no Supabase podem ser UUIDs; o cache local usa chave
+  // numérica. A identidade estável é empresa + nome + documento +
+  // qualificação, a mesma chave usada ao publicar o QSA.
+  const colunas = ['empresa_id','nome','documento','qualificacao','pais','percentual_participacao','brasileiro','fonte','consultado_em','origem','criado_em','atualizado_em'];
+  const inserir = db.prepare(`INSERT INTO empresa_qsa (${colunas.join(',')}) VALUES (${colunas.map(() => '?').join(',')})
+    ON CONFLICT(empresa_id,nome,documento,qualificacao) DO UPDATE SET pais=excluded.pais,
+      percentual_participacao=excluded.percentual_participacao, brasileiro=excluded.brasileiro,
+      fonte=excluded.fonte, consultado_em=excluded.consultado_em, origem=excluded.origem,
+      atualizado_em=excluded.atualizado_em`);
+  db.transaction(() => linhas.forEach((linha) => inserir.run(...colunas.map((c) => linha[c] ?? null))))();
+  return linhas.length;
+}
+
 function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], tarefas = [], checklist = [], empresas = []) {
   const comboPorNome = new Map(db.prepare('SELECT id,nome FROM combos').all().map((x) => [x.nome, x.id]));
   const empresaLocalPorRemota = mapaEmpresasLocais(empresas);
@@ -205,11 +228,16 @@ async function baixar() {
   // parecer que todas as empresas foram excluídas.
   const tabelas = ['empresas', ...Object.keys(CAMPOS).filter((tabela) => tabela !== 'empresas')];
   const empresasValidas = new Set(), lotesValidos = new Set();
+  let empresaLocalPorRemota = new Map();
   for (const tabela of tabelas) {
     try {
       const origem = await buscarTudo(remoto, tabela);
-      const linhas = filtrarOrfaosOperacionais(tabela, origem, empresasValidas, lotesValidos);
-      if (tabela === 'empresas') origem.forEach((x) => empresasValidas.add(Number(x.id)));
+      if (tabela === 'empresas') {
+        empresaLocalPorRemota = mapaEmpresasLocais(origem);
+        origem.forEach((x) => empresasValidas.add(empresaLocalPorRemota.get(String(x.id))));
+      }
+      const normalizadas = normalizarEmpresaIdDoCache(tabela, origem, empresaLocalPorRemota);
+      const linhas = filtrarOrfaosOperacionais(tabela, normalizadas, empresasValidas, lotesValidos);
       if (tabela === 'lotes') linhas.forEach((x) => lotesValidos.add(Number(x.id)));
       if (origem.length !== linhas.length) resultado[`ignorados_${tabela}_orfos`] = origem.length - linhas.length;
     // Exceções são um espelho operacional completo do Supabase e possuem duas
@@ -221,7 +249,8 @@ async function baixar() {
     // tanto id técnico quanto unicidade funcional; limpar o espelho evita que
     // um ID local legado colida com uma regra remota de chave diferente.
       if (tabela === 'regras_governo') db.prepare('DELETE FROM regras_governo').run();
-      resultado[tabela] = tabela === 'empresas' ? gravarEmpresas(linhas) : gravar(tabela, linhas);
+      resultado[tabela] = tabela === 'empresas' ? gravarEmpresas(linhas)
+        : tabela === 'empresa_qsa' ? gravarEmpresaQsa(linhas) : gravar(tabela, linhas);
     } catch (e) {
       falhas[tabela] = e.message;
     }
@@ -445,5 +474,5 @@ async function publicarContratos(remoto, empresaId) {
   }
   return { contratos: contratos.length };
 }
-module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, mapaEmpresasLocais,
+module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
   baixarResultadosMotor, publicarResultadosMotor, filtrarOrfaosOperacionais };

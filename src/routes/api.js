@@ -601,11 +601,31 @@ router.post('/empresas/:id/qsa/enriquecer', async (req, res) => {
   }
   catch (e) { erro(res, e); }
 });
-router.put('/empresas/:id/qsa/:qsaId', (req, res) => {
+router.post('/empresas/:id/qsa', async (req, res) => {
+  try {
+    const b = req.body || {};
+    if (!String(b.nome || '').trim()) throw new Error('Informe o nome do sócio.');
+    const r = db.prepare(`INSERT INTO empresa_qsa
+      (empresa_id,nome,documento,qualificacao,pais,percentual_participacao,brasileiro,fonte,consultado_em,origem,atualizado_em)
+      VALUES (?,?,?,?,?,?,?,?,datetime('now','localtime'),'confirmacao_manual',datetime('now','localtime'))
+      ON CONFLICT(empresa_id,nome,documento,qualificacao) DO UPDATE SET pais=excluded.pais,
+        percentual_participacao=excluded.percentual_participacao, brasileiro=excluded.brasileiro,
+        fonte=excluded.fonte, origem='confirmacao_manual', atualizado_em=datetime('now','localtime')`)
+      .run(req.params.id, String(b.nome).trim(), String(b.documento || '').replace(/\D/g,''), b.qualificacao || '', b.pais || '',
+        b.percentual_participacao === '' || b.percentual_participacao == null ? null : Number(b.percentual_participacao),
+        b.brasileiro === false ? 0 : 1, b.fonte || 'confirmação manual');
+    await cnpjReceita.publicarQsaEmpresa(Number(req.params.id));
+    const reprocessamento = motorExec.ultimaExecucao(Number(req.params.id))
+      ? reprocessarSaidasPorQsa(Number(req.params.id)) : null;
+    ok(res, { id: r.lastInsertRowid, reprocessamento });
+  } catch (e) { erro(res, e); }
+});
+router.put('/empresas/:id/qsa/:qsaId', async (req, res) => {
   try {
     const b = req.body || {};
     db.prepare(`UPDATE empresa_qsa SET nome=?,documento=?,qualificacao=?,pais=?,percentual_participacao=?,brasileiro=?,origem='confirmacao_manual',atualizado_em=datetime('now','localtime') WHERE id=? AND empresa_id=?`)
       .run(b.nome || '', String(b.documento || '').replace(/\D/g,''), b.qualificacao || '', b.pais || '', b.percentual_participacao === '' || b.percentual_participacao == null ? null : Number(b.percentual_participacao), b.brasileiro === false ? 0 : 1, req.params.qsaId, req.params.id);
+    await cnpjReceita.publicarQsaEmpresa(Number(req.params.id));
     const reprocessamento = motorExec.ultimaExecucao(Number(req.params.id))
       ? reprocessarSaidasPorQsa(Number(req.params.id)) : null;
     ok(res, { reprocessamento });
