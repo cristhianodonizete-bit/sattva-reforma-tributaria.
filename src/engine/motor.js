@@ -243,7 +243,7 @@ function projetarItem(item, ctx) {
 
   // ---------- 1. CLASSIFICAÇÃO (sempre antes do cálculo) ----------
   const cls = classificar(item, { empresa: ctx.empresa, sentido, regimeContraparte: ctx.regimeContraparte,
-    perfilDestinatario: ctx.perfilDestinatario });
+    perfilDestinatario: ctx.perfilDestinatario, elegibilidadeAnexoXi: ctx.elegibilidadeAnexoXi });
   const contextoClassificatorio = contextoAposEquivalencia(item, cls, ctx.decisaoClassificatoria || null);
 
   // ---------- 2. BASE ECONÔMICA ----------

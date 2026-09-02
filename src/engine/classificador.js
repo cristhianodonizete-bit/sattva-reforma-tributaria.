@@ -20,6 +20,7 @@ const db = require('../db');
 const bases = require('../services/basesReforma');
 const regras = require('../services/regras');
 const { avaliarEquivalenciaClassificatoria } = require('../services/equivalenciaClassificatoria');
+const { filtrarCandidatos } = require('../services/elegibilidadeAnexoXi');
 
 const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
 // A base de serviços traz cClassTrib. Para o motor, o grupo do código define
@@ -141,6 +142,16 @@ function classificar(item, ctx = {}) {
         ? `Código ${item.ncm || item.nbs || item.lc116} sem exceção específica no catálogo; aplicada tributação regular parametrizada.`
         : 'Sem código de produto/serviço; aplicada tributação regular parametrizada, sem atribuir classificação documental.'],
       { natureza, sentido });
+  }
+
+  const elegibilidade = filtrarCandidatos(candidatos, ctx.elegibilidadeAnexoXi || {});
+  candidatos = elegibilidade.candidatos;
+  if (elegibilidade.excluidos.length) fundamentos.push(...elegibilidade.excluidos.map((x) => `${x.codigo} eliminado: ${x.motivo}`));
+  if (elegibilidade.pendentes.length) fundamentos.push(...elegibilidade.pendentes.map((x) => `${x.codigo} permanece pendente: ${x.motivo}`));
+  if (!candidatos.length) {
+    return montar('CLASSIFICADO', { cst: '000', cclasstrib: '000001', classificacao: 'Tributação integral — regra padrão', reducao: 'integral' },
+      'elegibilidade condicional Anexo XI', fundamentos.concat(['Nenhuma condição especial do Anexo XI foi atendida; aplicada a regra padrão CBS.']),
+      { natureza, sentido, candidatos: [] });
   }
 
   // --- 4. mais de um candidato: o motor não escolhe (item 7)

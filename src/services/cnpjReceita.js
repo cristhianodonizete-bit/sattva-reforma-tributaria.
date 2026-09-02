@@ -28,6 +28,7 @@
  */
 const db = require('./db_ref');
 const supabase = require('./supabase');
+const { naturezaAdquirente } = require('./elegibilidadeAnexoXi');
 const filasAutomaticas = new Map();
 
 const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
@@ -59,6 +60,7 @@ const PROVEDORES = {
       optante_mei: d.opcao_pelo_mei === true,
       data_opcao_mei: d.data_opcao_pelo_mei || null,
       data_exclusao_mei: d.data_exclusao_do_mei || null,
+      qsa: (d.qsa || []).map((s) => ({ nome: s.nome_socio || s.nome || '', documento: s.cnpj_cpf_do_socio || s.cnpj_cpf || '', qualificacao: s.qualificacao_socio || s.qualificacao || '', pais: s.pais || '', percentual_participacao: s.percentual_capital_social ?? s.percentual_participacao ?? null, brasileiro: s.pais ? /brasil/i.test(s.pais) : true })),
     }),
   },
   cnpja: {
@@ -81,6 +83,8 @@ const PROVEDORES = {
         data_opcao_simples: s.since || null, data_exclusao_simples: s.until || null,
         optante_mei: m.optant === true,
         data_opcao_mei: m.since || null, data_exclusao_mei: m.until || null,
+        natureza_juridica: (d.company && d.company.nature && d.company.nature.text) || '', codigo_natureza_juridica: String((d.company && d.company.nature && d.company.nature.id) || ''),
+        qsa: ((d.company && (d.company.members || d.company.partners)) || []).map((s) => ({ nome: s.person && s.person.name || s.name || '', documento: s.person && s.person.taxId || s.taxId || '', qualificacao: s.role && s.role.text || s.qualification || '', pais: s.person && s.person.country || s.country || '', percentual_participacao: s.percentage ?? s.percentual_participacao ?? null, brasileiro: s.person?.country ? /brasil/i.test(s.person.country) : true })),
       };
     },
   },
@@ -102,6 +106,8 @@ const PROVEDORES = {
       optante_simples: null, optante_mei: null,
       data_opcao_simples: null, data_exclusao_simples: null,
       data_opcao_mei: null, data_exclusao_mei: null,
+      natureza_juridica: d.natureza_juridica?.descricao || d.natureza_juridica || '', codigo_natureza_juridica: String(d.natureza_juridica?.codigo || d.codigo_natureza_juridica || ''),
+      qsa: (d.qsa || d.socios || []).map((s) => ({ nome: s.nome || s.nome_socio || '', documento: s.cpf_cnpj || s.documento || '', qualificacao: s.qualificacao || '', pais: s.pais || s.nacionalidade || '', percentual_participacao: s.percentual_participacao ?? s.percentual_capital_social ?? null, brasileiro: s.pais || s.nacionalidade ? /brasil/i.test(s.pais || s.nacionalidade) : true })),
     }),
   },
 };
@@ -157,20 +163,33 @@ function derivarRegime(d) {
 }
 
 function classificarEnteGovernamental(d, cnpj) {
-  const natureza = String(d.natureza_juridica || '').toLowerCase();
-  const efr = String(d.efr || '').toLowerCase();
-  const texto = `${natureza} ${efr} ${d.razao_social || ''}`.toLowerCase();
-  const tipo = /cons[oó]rcio p[uú]blico/.test(texto) ? ['Consórcio Público', 5]
-    : /comit[eê].*gestor.*ibs/.test(texto) ? ['Comitê Gestor do IBS', 6]
-      : /distrito federal/.test(texto) ? ['Distrito Federal', 3]
-        : /uni[aã]o|federal/.test(efr) ? ['União', 1]
-          : /estado/.test(efr) ? ['Estado', 2]
-            : /munic[ií]pio|prefeitura/.test(efr) ? ['Município', 4] : [null, null];
-  const publico = /administra[cç][aã]o p[uú]blica|autarquia|funda[cç][aã]o p[uú]blica/.test(natureza);
-  const privado = /empresa p[uú]blica|economia mista|sociedade empres/.test(natureza);
-  const confirmado = publico && !privado;
-  const validar = !confirmado && !privado && (!d.natureza_juridica || !d.efr);
-  return { cnpj, razao_social: d.razao_social || '', natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: d.codigo_natureza_juridica || '', efr: d.efr || '', situacao_cadastral: d.situacao || '', entidade_publica: confirmado ? 'SIM' : 'NÃO', enquadrado: confirmado ? 'SIM' : 'NÃO', tipo_ente_governamental: tipo?.[0] || '', tpEnteGov: tipo?.[1] || null, aplicar_regra_compra_governamental: confirmado && tipo?.[1] ? 'SIM' : validar ? 'A VALIDAR' : 'NÃO', justificativa: confirmado ? 'Natureza jurídica cadastral indica administração pública direta, autarquia ou fundação pública.' : validar ? 'Cadastro consultado não informa elementos suficientes (natureza jurídica e/ou EFR) para concluir o enquadramento.' : 'Não há enquadramento automático: empresa estatal, sociedade de economia mista ou pessoa jurídica privada não recebe a regra de compra governamental.', fonte_cadastral: d.fonte || '', data_consulta: d.consultado_em || new Date().toISOString() };
+  const e = naturezaAdquirente(d);
+  return { cnpj, razao_social: d.razao_social || '', natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: d.codigo_natureza_juridica || '', efr: d.efr || '', situacao_cadastral: d.situacao || '', entidade_publica: e.status === 'SIM' ? 'SIM' : 'NÃO', enquadrado: e.status === 'SIM' ? 'SIM' : 'NÃO', tipo_ente_governamental: e.categoria || '', tpEnteGov: null, aplicar_regra_compra_governamental: e.status === 'SIM' ? 'SIM' : e.status === 'PENDENTE' ? 'A VALIDAR' : 'NÃO', justificativa: e.motivo, fonte_cadastral: e.fonte || d.fonte || '', data_consulta: d.consultado_em || new Date().toISOString() };
+}
+
+async function enriquecerQsaEmpresa(empresaId, opcoes = {}) {
+  const empresa = db().prepare('SELECT * FROM empresas WHERE id=?').get(empresaId);
+  if (!empresa) throw new Error('Empresa não encontrada.');
+  const r = await consultar(empresa.cnpj, { forcar: !!opcoes.forcar });
+  const socios = r.qsa || [];
+  const inserir = db().prepare(`INSERT INTO empresa_qsa
+    (empresa_id,nome,documento,qualificacao,pais,percentual_participacao,brasileiro,fonte,consultado_em,origem,atualizado_em)
+    VALUES (?,?,?,?,?,?,?,?,?,'consulta_cadastral',datetime('now','localtime'))
+    ON CONFLICT(empresa_id,nome,documento,qualificacao) DO UPDATE SET pais=excluded.pais,
+      percentual_participacao=excluded.percentual_participacao, brasileiro=excluded.brasileiro,
+      fonte=excluded.fonte, consultado_em=excluded.consultado_em, atualizado_em=datetime('now','localtime')`);
+  db().transaction(() => socios.filter((s) => s.nome).forEach((s) => inserir.run(empresaId, s.nome, soDigitos(s.documento), s.qualificacao || '', s.pais || '', s.percentual_participacao == null ? null : Number(s.percentual_participacao), s.brasileiro === false ? 0 : 1, r.fonte || '', new Date().toISOString())))();
+  if (supabase.configurado()) {
+    const remoto = supabase.admin();
+    const { data: empresaRemota, error: erroEmpresa } = await remoto.from('empresas').select('id').eq('origem_local_id', Number(empresaId)).maybeSingle();
+    if (erroEmpresa) throw erroEmpresa;
+    if (empresaRemota) {
+      const linhas = db().prepare('SELECT nome,documento,qualificacao,pais,percentual_participacao,brasileiro,fonte,consultado_em,origem,criado_em,atualizado_em FROM empresa_qsa WHERE empresa_id=?').all(empresaId)
+        .map((s) => ({ ...s, empresa_id: empresaRemota.id, brasileiro: Boolean(s.brasileiro) }));
+      if (linhas.length) { const { error } = await remoto.from('empresa_qsa').upsert(linhas, { onConflict: 'empresa_id,nome,documento,qualificacao' }); if (error) throw error; }
+    }
+  }
+  return { empresa_id: Number(empresaId), fonte: r.fonte || null, socios_recuperados: socios.filter((s) => s.nome).length, percentual_automatico: socios.filter((s) => s.percentual_participacao != null).length, pendentes_percentual: socios.filter((s) => s.percentual_participacao == null).length };
 }
 
 // --------------------------------------------------------------------------
@@ -259,7 +278,7 @@ async function consultar(cnpj, opcoes = {}) {
     if (!resp.ok) throw new Error(`${provedor.nome} respondeu ${resp.status}.`);
     const bruto = await resp.json();
     const d = provedor.mapear(bruto);
-    return { ...gravarCache(c, d, provedor.nome), origem: 'consulta', intervaloUsado: provedor.intervalo };
+    return { ...gravarCache(c, d, provedor.nome), qsa: d.qsa || [], origem: 'consulta', intervaloUsado: provedor.intervalo };
     } catch (e) {
     if (e.name === 'AbortError') throw new Error(`Tempo esgotado na consulta ao ${provedor.nome}.`);
     if (e.cause && ['ENOTFOUND', 'ECONNREFUSED', 'EAI_AGAIN'].includes(e.cause.code)) {
@@ -418,5 +437,5 @@ function estatisticasCache() {
     .map(([k, v]) => ({ chave: k, nome: v.nome, intervalo: v.intervalo, site: v.site, exigeChave: v.exigeChave })) };
 }
 
-module.exports = { consultar, enriquecerParceiros, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
+module.exports = { consultar, enriquecerParceiros, enriquecerQsaEmpresa, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
   config, salvarConfig, derivarRegime, classificarEnteGovernamental, PROVEDORES };

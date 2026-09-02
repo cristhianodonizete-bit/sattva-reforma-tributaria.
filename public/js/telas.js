@@ -130,7 +130,7 @@ Telas.empresas = async (el) => {
       { t: 'Clientes', num: true, r: (e) => e.clientes },
       { t: 'Lançamentos', num: true, r: (e) => e.movimentos },
       { t: 'Código Questor', r: (e) => `<span class="mono mini">${A.esc(e.codigo_questor || '—')}</span>` },
-      { t: '', r: (e) => `<button class="btn pq" data-abrir="${e.id}">Abrir projeto</button><button class="btn pq vazio" data-ed="${e.id}">Editar</button>
+      { t: '', r: (e) => `<button class="btn pq" data-abrir="${e.id}">Abrir projeto</button><button class="btn pq vazio" data-qsa="${e.id}">Quadro societário</button><button class="btn pq vazio" data-ed="${e.id}">Editar</button>
         <button class="btn pq perigo" data-rm="${e.id}">Excluir</button>` },
     ], empresas, { vazio: 'Nenhuma empresa cadastrada. Comece cadastrando a primeira.' })}</div>
     <div class="cartao grupos-empresas"><div class="cabecalho-lista"><div><h2>Grupos de empresas para análise</h2><p class="desc">Organize empresas por carteira, segmento ou projeto para conduzir análises conjuntas.</p></div><span class="tag">${grupos.length} grupo${grupos.length === 1 ? '' : 's'}</span></div>
@@ -159,6 +159,17 @@ Telas.empresas = async (el) => {
     const e = empresas.find((x) => x.id === Number(b.dataset.ed));
     A.modal({ titulo: 'Editar empresa', corpo: form(e), aoConfirmar: async (d) => {
       await A.api(`/empresas/${e.id}`, { metodo: 'PUT', corpo: d }); A.toast('Alterações salvas', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); } });
+  }; });
+  el.querySelectorAll('[data-qsa]').forEach((b) => { b.onclick = async () => {
+    const e = empresas.find((x) => x.id === Number(b.dataset.qsa));
+    const abrir = async () => {
+      const d = await A.api(`/empresas/${e.id}/qsa`);
+      const linhas = (d.socios || []).map((s) => `<tr><td>${A.esc(s.nome)}</td><td>${A.esc(s.qualificacao || '—')}</td><td>${s.percentual_participacao == null ? '<b>Pendente</b>' : `${A.esc(s.percentual_participacao)}%`}</td><td>${Number(s.brasileiro) ? 'SIM' : 'NÃO'}</td><td><button class="btn pq vazio" data-qsa-ed="${s.id}">Confirmar</button></td></tr>`).join('');
+      A.modal({ titulo:`Quadro societário — ${e.razao_social}`, largura:900, confirmar:'Fechar', corpo:`<div class="aviso"><b>ATENDE_200044: ${A.esc(d.atende_200044)}</b><br>${A.esc(d.motivo)}</div><p class="mini">A condição exige sócio brasileiro com participação igual ou superior a 20%. Percentual ausente nunca é presumido.</p><button class="btn" id="enriquecerQsa">Consultar cadastro</button><table class="tabela" style="margin-top:12px"><thead><tr><th>Sócio</th><th>Qualificação</th><th>Participação</th><th>Brasileiro</th><th></th></tr></thead><tbody>${linhas || '<tr><td colspan="5">Nenhum sócio disponível.</td></tr>'}</tbody></table>`, aoConfirmar: async()=>{} });
+      document.getElementById('enriquecerQsa').onclick = async () => { await A.api(`/empresas/${e.id}/qsa/enriquecer`,{metodo:'POST',corpo:{forcar:true}}); A.toast('Quadro societário atualizado.','ok'); abrir(); };
+      document.querySelectorAll('[data-qsa-ed]').forEach((botao) => botao.onclick = () => { const s=d.socios.find((x)=>x.id===Number(botao.dataset.qsaEd)); A.modal({titulo:`Confirmar sócio — ${s.nome}`,corpo:`${A.campo('percentual_participacao','Participação no capital (%)',s.percentual_participacao ?? '','number')}<label class="check"><input type="checkbox" name="brasileiro" ${Number(s.brasileiro)?'checked':''}> Brasileiro</label>`,aoConfirmar:async f=>{await A.api(`/empresas/${e.id}/qsa/${s.id}`,{metodo:'PUT',corpo:{...s,percentual_participacao:f.percentual_participacao,brasileiro:!!f.brasileiro}});abrir();}}); });
+    };
+    abrir();
   }; });
   el.querySelectorAll('[data-rm]').forEach((b) => { b.onclick = () => A.confirmar('Excluir a empresa apaga também parceiros, movimentação, contratos e turmas. Confirma?', async () => {
     await A.api(`/empresas/${b.dataset.rm}`, { metodo: 'DELETE' }); A.toast('Empresa excluída', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); }); });

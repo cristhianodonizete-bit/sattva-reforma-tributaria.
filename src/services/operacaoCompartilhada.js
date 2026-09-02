@@ -6,6 +6,7 @@ const CAMPOS = {
   empresas: ['id','cnpj','razao_social','nome_fantasia','regime','uf','municipio','cnae','atividade','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes','criado_em'],
   empresa_servicos_fiscais: ['id','empresa_id','chave','nbs','descricao','pis_cofins','das_efetivo','iss_aliquota','ativo','origem','criado_em','atualizado_em'],
   parceiros: ['id','empresa_id','tipo','cnpj','descricao','regime','faturamento_anual','uf','municipio','origem','criado_em','regime_resolvido','perfil_economico','perfil_origem','sensibilidade_credito','sensibilidade_origem'],
+  empresa_qsa: ['id','empresa_id','nome','documento','qualificacao','pais','percentual_participacao','brasileiro','fonte','consultado_em','origem','criado_em','atualizado_em'],
   lotes: ['id','empresa_id','tipo','arquivo','registros','ignorados','valor_total','mensagens','origem','criado_em'],
   movimentos: ['id','empresa_id','lote_id','tipo','nome','inscr_federal','descricao','ncm','nbs','lc116','normalizacao_status','normalizacao_pendencia','normalizacao_evidencia','cfop','cst','competencia','valor','base_calculo','icms','icms_st','ipi','pis','cofins','pis_cofins_documentado','iss','regime','reducao','aliq_especifica','cclasstrib','classificacao_origem','cst_declarado','cclasstrib_declarado','ibs_declarado','cbs_declarado','documento','item_numero','chave','emitente_cnpj','destinatario_cnpj','codigo_produto','quantidade','unidade','csosn','data_emissao','frete','seguro','outras','desconto','sentido','origem','criado_em'],
   perfil_tributario: ['id','empresa_id','competencia','receita_bruta','receita_mercadorias','receita_servicos','receita_exportacao','icms','iss','ipi','pis','cofins','das','creditos_tomados','origem','criado_em'],
@@ -28,6 +29,7 @@ const CAMPOS = {
   turmas: ['id','empresa_id','trilha','titulo','formato','data','carga_horaria','instrutor','limite_participantes','status','observacoes'],
   participantes: ['id','turma_id','empresa_id','nome','area','email','presenca','nota_avaliacao'],
   regras_governo: ['id','tipo','chave','lc116','nbs','ncm','descricao','tratamento','cst','cclasstrib','indop','reducao','aliquota_zero','ente_elegivel','condicoes','fundamento','vigencia','fonte','origem_linha'],
+  param_naturezas_juridicas_anexo_xi: ['codigo_natureza_juridica','descricao','categoria','elegivel_200043','fonte','versao','vigencia_inicio','vigencia_fim','status','atualizado_em'],
   // Precificação é uma base própria, mas não pode ficar restrita ao disco
   // efêmero do Render. Estas tabelas são sincronizadas como fatos
   // operacionais; nenhum dado fiscal é inferido ou compartilhado por NCM/NBS.
@@ -56,7 +58,7 @@ const CAMPOS = {
   monitoring_alerts: ['id','empresa_id','desvio_id','titulo','mensagem','prioridade','impacto','evidencia','natureza','status','criado_em'],
   monitoring_actions: ['id','empresa_id','desvio_id','acao','responsavel','prazo','prioridade','status','evidencia','origem','criado_em','atualizado_em'],
 };
-const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','servicos','combos','combo_itens'];
+const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','param_naturezas_juridicas_anexo_xi','servicos','combos','combo_itens'];
 const TABELAS_PRECIFICACAO = ['pricing_products','pricing_services','pricing_components','pricing_import_batches'];
 const TABELAS_CONTRATOS = ['contratos','contrato_checklist','contrato_documentos','contrato_clausulas_extraidas','contrato_riscos_iniciais','contrato_precificacao_vinculos','contrato_recomendacoes','contrato_sugestoes_clausulas'];
 const TABELAS_ACOMPANHAMENTO = ['monitoring_baselines','monitoring_snapshots','monitoring_comparisons','monitoring_deviations','monitoring_alerts','monitoring_actions'];
@@ -79,9 +81,11 @@ function gravar(tabela, linhas) {
   // baixa antes da fotografia e deixava o cache local incompleto.
   const conflito = tabela === 'excecoes_motor' ? '(empresa_id,movimento_id,codigo)'
     : tabela === 'telemetria_autonomia_execucoes' ? '(execucao_id)'
+      : tabela === 'param_naturezas_juridicas_anexo_xi' ? '(codigo_natureza_juridica)'
       : tabela === 'regras_governo' ? '(tipo,chave,cclasstrib)' : '(id)';
   const excluirAtualizacao = tabela === 'excecoes_motor' ? ['id','empresa_id','movimento_id','codigo']
     : tabela === 'telemetria_autonomia_execucoes' ? ['execucao_id']
+      : tabela === 'param_naturezas_juridicas_anexo_xi' ? ['codigo_natureza_juridica']
       : tabela === 'regras_governo' ? ['id','tipo','chave','cclasstrib'] : ['id'];
   const sql = `INSERT INTO ${tabela} (${campos.join(',')}) VALUES (${campos.map(() => '?').join(',')})
     ON CONFLICT${conflito} DO UPDATE SET ${campos.filter((x) => !excluirAtualizacao.includes(x)).map((x) => `${x}=excluded.${x}`).join(',')}`;

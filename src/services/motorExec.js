@@ -10,6 +10,7 @@
  */
 const db = require('../db');
 const motor = require('../engine/motor');
+const elegibilidadeAnexoXi = require('./elegibilidadeAnexoXi');
 const { simplesEfetivo } = require('../engine/reconstrucao');
 const regras = require('./regras');
 const excecoesMotor = require('./excecoesMotor');
@@ -132,6 +133,9 @@ function executar(empresaId, opcoes = {}) {
   const tabelas = motor.anexosSimples();
   const referenciasVenda = new Map(db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId)
     .map((r) => [r.chave, r]));
+  const qsaEmitente = elegibilidadeAnexoXi.qsaEmpresa(empresaId);
+  const cadastroCnpj = db.prepare('SELECT * FROM cnpj_cache WHERE cnpj=?');
+  const elegibilidadeParaAdquirente = (cnpj) => elegibilidadeAnexoXi.naturezaAdquirente(cadastroCnpj.get(String(cnpj || '').replace(/\D/g, '')) || {});
   let movimentoIds = Array.isArray(opcoes.movimentoIds) ? opcoes.movimentoIds.map(Number).filter(Boolean) : null;
   const saidasOriginais = carregar(empresaId, 'saida', movimentoIds);
   // A referência da empresa continua disponível como terceira precedência,
@@ -161,6 +165,7 @@ function executar(empresaId, opcoes = {}) {
 
     const proj = motor.projetarItem(item, {
       empresa, sentido: 'entrada', ano, regimeContraparte: regime, simplesEmitente,
+      elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(empresa.cnpj), qsa: { status: 'PENDENTE', motivo: 'QSA do emitente fornecedor não disponível nesta versão.' } },
     });
 
     if (['simples_nacional', 'mei'].includes(regime) && !simplesEmitente) {
@@ -195,6 +200,7 @@ function executar(empresaId, opcoes = {}) {
     const proj = motor.projetarItem(item, {
       empresa, sentido: 'saida', ano, regimeContraparte: regime,
       perfilDestinatario: dest.perfil, simplesEmitente: empresaSimples,
+      elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(m.inscr_federal), qsa: qsaEmitente },
     });
     proj.destinatario = dest;
     proj.sensibilidade = motor.sensibilidadeCredito({

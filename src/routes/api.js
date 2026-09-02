@@ -572,6 +572,27 @@ router.get('/empresas/:id', (req, res) => {
   ok(res, { empresa: e, perfil: db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id = ? ORDER BY competencia').all(req.params.id) });
 });
 
+// Quadro societário: evidência editável da condição específica do cClassTrib 200044.
+router.get('/empresas/:id/qsa', (req, res) => {
+  try {
+    const socios = db.prepare('SELECT * FROM empresa_qsa WHERE empresa_id=? ORDER BY nome').all(req.params.id);
+    const elegibilidade = require('../services/elegibilidadeAnexoXi').qsaEmpresa(req.params.id);
+    ok(res, { socios, atende_200044: elegibilidade.status, motivo: elegibilidade.motivo });
+  } catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/qsa/enriquecer', async (req, res) => {
+  try { ok(res, await cnpjReceita.enriquecerQsaEmpresa(req.params.id, { forcar: !!req.body.forcar })); }
+  catch (e) { erro(res, e); }
+});
+router.put('/empresas/:id/qsa/:qsaId', (req, res) => {
+  try {
+    const b = req.body || {};
+    db.prepare(`UPDATE empresa_qsa SET nome=?,documento=?,qualificacao=?,pais=?,percentual_participacao=?,brasileiro=?,origem='confirmacao_manual',atualizado_em=datetime('now','localtime') WHERE id=? AND empresa_id=?`)
+      .run(b.nome || '', String(b.documento || '').replace(/\D/g,''), b.qualificacao || '', b.pais || '', b.percentual_participacao === '' || b.percentual_participacao == null ? null : Number(b.percentual_participacao), b.brasileiro === false ? 0 : 1, req.params.qsaId, req.params.id);
+    ok(res, {});
+  } catch (e) { erro(res, e); }
+});
+
 // ===========================================================================
 // 1.a PERFIL TRIBUTÁRIO
 // ===========================================================================
@@ -1946,11 +1967,29 @@ const tituloCompetencia = (competencia, ordem) => {
 };
 const modulosDaContratacao = (contratacao) => JSON.parse(contratacao.modulos_json || '[]');
 
-router.get('/empresas/:id/projeto', (req, res) => {
+// O SQLite do Render é somente cache. As telas de projeto não podem concluir
+// que não existe escopo aprovado apenas porque a instância acabou de iniciar
+// antes de carregar a gestão compartilhada.
+async function projetoAprovadoNoCache(empresaId) {
+  const buscar = () => db.prepare(`SELECT * FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL
+    ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(empresaId);
+  let projeto = buscar();
+  if (!projeto && supabase.configurado()) {
+    try {
+      await require('../services/operacaoCompartilhada').baixarGestao();
+      projeto = buscar();
+    } catch (e) {
+      console.error('[supabase] não foi possível restaurar gestão para projeto:', e.message);
+    }
+  }
+  return projeto;
+}
+
+router.get('/empresas/:id/projeto', async (req, res) => {
   try {
-    const projeto = db.prepare(`SELECT c.*, co.nome combo_nome FROM contratacoes c
-      LEFT JOIN combos co ON co.id=c.combo_id WHERE c.empresa_id=? AND c.aprovado_em IS NOT NULL
-      ORDER BY c.aprovado_em DESC, c.id DESC LIMIT 1`).get(req.params.id);
+    const projetoBase = await projetoAprovadoNoCache(req.params.id);
+    const projeto = projetoBase && db.prepare(`SELECT c.*, co.nome combo_nome FROM contratacoes c
+      LEFT JOIN combos co ON co.id=c.combo_id WHERE c.id=?`).get(projetoBase.id);
     if (!projeto) return ok(res, { projeto: null, entregas: [], acompanhamentos: [], checklist: [] });
     ok(res, { projeto: { ...projeto, modulos: modulosDaContratacao(projeto), servicos: JSON.parse(projeto.servicos_json || '[]') },
       entregas: db.prepare('SELECT * FROM projeto_entregas WHERE contratacao_id=? ORDER BY id').all(projeto.id),
@@ -1961,17 +2000,7 @@ router.get('/empresas/:id/projeto', (req, res) => {
 
 router.get('/empresas/:id/acesso', async (req, res) => {
   try {
-    let projeto = db.prepare(`SELECT * FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL
-      ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(req.params.id);
-    // O Render usa SQLite como cache. Se ele acabou de reiniciar, restaura a
-    // gestão da fonte compartilhada antes de decidir se um módulo será bloqueado.
-    if (!projeto && supabase.configurado()) {
-      try {
-        await require('../services/operacaoCompartilhada').baixarGestao();
-        projeto = db.prepare(`SELECT * FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL
-          ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(req.params.id);
-      } catch (e) { console.error('[supabase] não foi possível restaurar gestão para acesso:', e.message); }
-    }
+    const projeto = await projetoAprovadoNoCache(req.params.id);
     const modulos = projeto ? modulosDaContratacao(projeto) : [];
     ok(res, { aprovado: !!projeto, contratacao_id: projeto && projeto.id, modulos,
       telas: {
@@ -2113,7 +2142,7 @@ const chavesDeTarefaModulo = (chave) => (chave === 'capacitacao'
 
 router.get('/empresas/:id/projeto/tarefas/:chave', async (req, res) => {
   try {
-    const projeto = db.prepare(`SELECT id FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(req.params.id);
+    const projeto = await projetoAprovadoNoCache(req.params.id);
     if (!projeto) return ok(res, { entregas: [], tarefas: [], responsaveis: [] });
     const projetoPermitido = await contratacaoPermitida(req, projeto.id);
     const chaves = chavesDeTarefaModulo(req.params.chave);
@@ -2131,7 +2160,7 @@ router.get('/empresas/:id/projeto/tarefas/:chave', async (req, res) => {
 });
 router.post('/empresas/:id/projeto/tarefas/:chave', async (req, res) => {
   try {
-    const projetoBase = db.prepare(`SELECT id FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(req.params.id);
+    const projetoBase = await projetoAprovadoNoCache(req.params.id);
     if (!projetoBase) throw new Error('Não há um projeto aprovado para esta empresa.');
     const projeto = await contratacaoPermitida(req, projetoBase.id);
     const b = req.body;
@@ -2151,7 +2180,7 @@ router.post('/empresas/:id/projeto/tarefas/:chave', async (req, res) => {
 
 router.post('/empresas/:id/projeto/responsaveis/:chave', async (req, res) => {
   try {
-    const projetoBase = db.prepare(`SELECT id FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(req.params.id);
+    const projetoBase = await projetoAprovadoNoCache(req.params.id);
     if (!projetoBase) throw new Error('Não há um projeto aprovado para esta empresa.');
     const projeto = await contratacaoPermitida(req, projetoBase.id);
     const b = req.body, chaves = chavesDeTarefaModulo(req.params.chave), marcadores = chaves.map(() => '?').join(',');
@@ -3650,6 +3679,24 @@ router.post('/empresas/:id/parceiros/enriquecer', async (req, res) => {
       if (tem) classificacao = bases.classificarMovimentos(req.params.id);
     } catch (_) { /* segue */ }
     ok(res, { ...r, classificacao });
+  } catch (e) { erro(res, e); }
+});
+
+// Saneamento controlado do Anexo XI. A execução anterior permanece no histórico
+// do motor; a nova execução é outra fotografia, nunca uma edição retroativa.
+router.post('/empresas/:id/elegibilidade-anexo-xi/sanear', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    const antes = db.prepare(`SELECT COUNT(*) total FROM motor_resultados_operacionais
+      WHERE empresa_id=? AND ativo=1 AND status_classificacao='REQUER_VALIDACAO'`).get(empresaId).total;
+    const qsa = await cnpjReceita.enriquecerQsaEmpresa(empresaId, { forcar: true });
+    const parceiros = await cnpjReceita.enriquecerParceiros(empresaId, { sobrescrever: true, forcar: true, limite: 500 });
+    const execucao = motorExec.executar(empresaId, { ano: Number(req.body.ano) || 2027 });
+    const depois = db.prepare(`SELECT COUNT(*) total FROM motor_resultados_operacionais
+      WHERE empresa_id=? AND ativo=1 AND status_classificacao='REQUER_VALIDACAO'`).get(empresaId).total;
+    const distribuicao = db.prepare(`SELECT cclasstrib,COUNT(*) quantidade FROM motor_resultados_operacionais
+      WHERE empresa_id=? AND ativo=1 AND cclasstrib IN ('000001','200043','200044') GROUP BY cclasstrib`).all(empresaId);
+    ok(res, { antes_requer_validacao: antes, depois_requer_validacao: depois, resolvidas_automaticamente: Math.max(0, antes - depois), qsa, parceiros, execucao_id: execucao.execucaoId || null, distribuicao });
   } catch (e) { erro(res, e); }
 });
 

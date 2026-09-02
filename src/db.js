@@ -402,6 +402,20 @@ CREATE TABLE IF NOT EXISTS parceiros (
 );
 CREATE INDEX IF NOT EXISTS ix_parceiros ON parceiros(empresa_id, tipo);
 
+-- Quadro societário é evidência cadastral da empresa analisada. Percentual
+-- nunca recebe valor por inferência: NULL significa que a API/documento não o informou.
+CREATE TABLE IF NOT EXISTS empresa_qsa (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL, documento TEXT, qualificacao TEXT, pais TEXT,
+  percentual_participacao REAL, brasileiro INTEGER NOT NULL DEFAULT 1,
+  fonte TEXT, consultado_em TEXT, origem TEXT NOT NULL DEFAULT 'consulta_cadastral',
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, nome, documento, qualificacao)
+);
+CREATE INDEX IF NOT EXISTS ix_empresa_qsa_empresa ON empresa_qsa(empresa_id);
+
 -- Evidências não se sobrescrevem: uma fonte histórica (RFB 2024) nunca vira
 -- automaticamente uma afirmação sobre o regime atual da contraparte.
 CREATE TABLE IF NOT EXISTS contraparte_regime_evidencias (
@@ -919,6 +933,18 @@ CREATE TABLE IF NOT EXISTS cnpj_cache (
   regime_derivado TEXT, justificativa TEXT,
   natureza_juridica TEXT, codigo_natureza_juridica TEXT, efr TEXT,
   fonte TEXT, consultado_em TEXT
+);
+
+-- Matriz versionada, editável e auditável de naturezas jurídicas que atendem
+-- a condição do Anexo XI para o cClassTrib 200043.
+CREATE TABLE IF NOT EXISTS param_naturezas_juridicas_anexo_xi (
+  codigo_natureza_juridica TEXT PRIMARY KEY,
+  descricao TEXT NOT NULL,
+  categoria TEXT NOT NULL,
+  elegivel_200043 INTEGER NOT NULL DEFAULT 0,
+  fonte TEXT NOT NULL, versao TEXT NOT NULL DEFAULT '1',
+  vigencia_inicio TEXT NOT NULL DEFAULT '2026-01-01', vigencia_fim TEXT,
+  status TEXT NOT NULL DEFAULT 'ATIVO', atualizado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS cnpj_config (
