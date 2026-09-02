@@ -32,6 +32,16 @@ const { naturezaAdquirente } = require('./elegibilidadeAnexoXi');
 const filasAutomaticas = new Map();
 
 const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
+const textoBanco = (v) => {
+  if (v == null) return '';
+  if (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') return String(v);
+  return '';
+};
+const percentualBanco = (v) => {
+  if (v == null || v === '') return null;
+  const normalizado = typeof v === 'number' ? v : Number(String(v).replace('%', '').replace('.', '').replace(',', '.'));
+  return Number.isFinite(normalizado) ? normalizado : null;
+};
 
 // --------------------------------------------------------------------------
 // PROVEDORES
@@ -194,7 +204,10 @@ async function enriquecerQsaEmpresa(empresaId, opcoes = {}) {
     ON CONFLICT(empresa_id,nome,documento,qualificacao) DO UPDATE SET pais=excluded.pais,
       percentual_participacao=excluded.percentual_participacao, brasileiro=excluded.brasileiro,
       fonte=excluded.fonte, consultado_em=excluded.consultado_em, atualizado_em=datetime('now','localtime')`);
-  db().transaction(() => socios.filter((s) => s.nome).forEach((s) => inserir.run(empresaId, s.nome, soDigitos(s.documento), s.qualificacao || '', s.pais || '', s.percentual_participacao == null ? null : Number(s.percentual_participacao), s.brasileiro === false ? 0 : 1, r.fonte || '', new Date().toISOString())))();
+  db().transaction(() => socios.filter((s) => textoBanco(s.nome)).forEach((s) => inserir.run(
+    Number(empresaId), textoBanco(s.nome), soDigitos(s.documento), textoBanco(s.qualificacao), textoBanco(s.pais),
+    percentualBanco(s.percentual_participacao), s.brasileiro === false ? 0 : 1, textoBanco(r.fonte), new Date().toISOString(),
+  )))();
   if (supabase.configurado()) {
     const remoto = supabase.admin();
     const { data: empresaRemota, error: erroEmpresa } = await remoto.from('empresas').select('id').eq('origem_local_id', Number(empresaId)).maybeSingle();

@@ -3687,18 +3687,21 @@ router.post('/empresas/:id/parceiros/enriquecer', async (req, res) => {
 router.post('/empresas/:id/elegibilidade-anexo-xi/sanear', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
-    const antes = db.prepare(`SELECT COUNT(*) total FROM motor_resultados_operacionais
-      WHERE empresa_id=? AND ativo=1 AND status_classificacao='REQUER_VALIDACAO'`).get(empresaId).total;
+    // SQLite é o cache operacional da instância; a tabela materializada local
+    // é motor_resultados. A tabela *_operacionais pertence ao Supabase e não
+    // deve ser consultada diretamente nesta rota.
+    const contarRequerValidacao = () => db.prepare(`SELECT COUNT(*) total FROM motor_resultados
+      WHERE empresa_id=? AND status_classificacao='REQUER_VALIDACAO'`).get(empresaId).total;
+    const antes = contarRequerValidacao();
     let qsa;
     try { qsa = await cnpjReceita.enriquecerQsaEmpresa(empresaId, { forcar: true }); }
     catch (e) { qsa = { socios_recuperados: 0, percentual_automatico: 0, pendentes_percentual: 0, erro: e.message }; }
     const parceiros = await cnpjReceita.enriquecerParceiros(empresaId, { sobrescrever: true, forcar: true, limite: 500 });
     const execucao = motorExec.executar(empresaId, { ano: Number(req.body.ano) || 2027 });
-    const depois = db.prepare(`SELECT COUNT(*) total FROM motor_resultados_operacionais
-      WHERE empresa_id=? AND ativo=1 AND status_classificacao='REQUER_VALIDACAO'`).get(empresaId).total;
-    const distribuicao = db.prepare(`SELECT cclasstrib,COUNT(*) quantidade FROM motor_resultados_operacionais
-      WHERE empresa_id=? AND ativo=1 AND cclasstrib IN ('000001','200043','200044') GROUP BY cclasstrib`).all(empresaId);
-    ok(res, { antes_requer_validacao: antes, depois_requer_validacao: depois, resolvidas_automaticamente: Math.max(0, antes - depois), qsa, parceiros, execucao_id: execucao.execucaoId || null, distribuicao });
+    const depois = contarRequerValidacao();
+    const distribuicao = db.prepare(`SELECT cclasstrib,COUNT(*) quantidade FROM motor_resultados
+      WHERE empresa_id=? AND cclasstrib IN ('000001','200043','200044') GROUP BY cclasstrib`).all(empresaId);
+    ok(res, { antes_requer_validacao: antes, depois_requer_validacao: depois, resolvidas_automaticamente: Math.max(0, antes - depois), qsa, parceiros, execucao_id: motorExec.ultimaExecucao(empresaId)?.id || null, distribuicao });
   } catch (e) { erro(res, e); }
 });
 

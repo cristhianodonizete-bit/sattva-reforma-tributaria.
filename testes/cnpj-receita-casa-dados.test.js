@@ -15,11 +15,11 @@ global.fetch = async (url, opcoes = {}) => {
   return {
     ok: true,
     status: 200,
-    json: async () => ({ razao_social: 'Empresa de teste', qsa: [{ nome: 'Sócio', percentual_participacao: null }] }),
+    json: async () => ({ razao_social: 'Empresa de teste', qsa: [{ nome: 'Sócio', pais: { descricao: 'Brasil' }, percentual_participacao: '20,00%' }] }),
   };
 };
 
-const { consultar } = require('../src/services/cnpjReceita');
+const { consultar, enriquecerQsaEmpresa } = require('../src/services/cnpjReceita');
 const banco = require('../src/db');
 (async () => {
   const resultado = await consultar('12345678000195', { forcar: true, finalidade: 'qsa' });
@@ -28,6 +28,12 @@ const banco = require('../src/db');
   assert.equal(chamadas[0].headers['api-key'], 'chave-casa-exclusiva');
   assert.notEqual(chamadas[0].headers['api-key'], process.env.CNPJ_API_TOKEN);
   assert.equal(resultado.fonte, 'Casa dos Dados');
+  const empresa = banco.prepare("INSERT INTO empresas (cnpj,razao_social,regime) VALUES ('12345678000195','Empresa de teste','lucro_presumido')").run();
+  const qsa = await enriquecerQsaEmpresa(Number(empresa.lastInsertRowid), { forcar: true });
+  assert.equal(qsa.socios_recuperados, 1);
+  const socio = banco.prepare('SELECT pais, percentual_participacao FROM empresa_qsa WHERE empresa_id=?').get(Number(empresa.lastInsertRowid));
+  assert.equal(socio.pais, '');
+  assert.equal(socio.percentual_participacao, 20);
   console.log('cnpj-receita-casa-dados: credencial e prioridade QSA: OK');
 })().finally(() => {
   global.fetch = fetchOriginal;
