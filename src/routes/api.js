@@ -537,7 +537,8 @@ router.post('/empresas', async (req, res) => {
     if (supabase.configurado()) {
       await sincronizarGestaoSupabase();
     }
-    ok(res, { id: r.lastInsertRowid });
+    const qsa = agendarQsaAutomatico(Number(r.lastInsertRowid));
+    ok(res, { id: r.lastInsertRowid, enriquecimento_qsa: { status: qsa.status, mensagem: 'Consulta automática do quadro societário agendada.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -924,7 +925,9 @@ router.post('/empresas/:id/importar/parceiros', upload.single('arquivo'), (req, 
     db.transaction(() => { for (const p of r.registros) { ins.run(req.params.id, tipo, p.cnpj, p.descricao, p.regime, p.uf, p.municipio); n++; } })();
     // Vincula regimes à movimentação já importada
     vincularRegimes(req.params.id);
-    ok(res, { importados: n, ignorados: r.ignorados, mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas });
+    const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
+    ok(res, { importados: n, ignorados: r.ignorados, mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas,
+      enriquecimento: { status: enriquecimento.status, qsa: enriquecimento.qsa?.status, mensagem: 'Consulta cadastral automática agendada para CNPJs novos ou pendentes.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -954,8 +957,10 @@ router.post('/empresas/:id/importar/movimentos', upload.single('arquivo'), (req,
       const temBase = db.prepare('SELECT (SELECT COUNT(*) FROM base_ncm) + (SELECT COUNT(*) FROM base_servicos) c').get().c;
       if (temBase) classificacao = bases.classificarMovimentos(req.params.id);
     } catch (_) { /* bases ausentes: segue com tributação integral */ }
+    const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { importados: r.registros.length, ignorados: r.ignorados, valorTotal: calc.r2(total),
-      mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas, classificacao, ...vinc });
+      mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas, classificacao, ...vinc,
+      enriquecimento: { status: enriquecimento.status, qsa: enriquecimento.qsa?.status, mensagem: 'Consulta cadastral automática agendada para CNPJs novos ou pendentes.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -1013,6 +1018,7 @@ function vincularRegimes(empresaId) {
 
 function agendarEnriquecimentoAutomatico(empresaId) {
   const fila = cnpjReceita.agendarEnriquecimento(empresaId);
+  const qsa = agendarQsaAutomatico(empresaId);
   // O motor só é persistido após a fila concluir, para que Classificações
   // reflita automaticamente os cadastros encontrados.
   if (fila.status === 'agendado') {
@@ -1024,6 +1030,33 @@ function agendarEnriquecimentoAutomatico(empresaId) {
       }
     }, 1000);
   }
+  return { ...fila, qsa: { status: qsa.status } };
+}
+
+// O QSA é dado cadastral da empresa analisada, não um passo manual do
+// diagnóstico. Cadastro e importações o consultam em segundo plano; a falta
+// de percentual permanece PENDENTE e nunca é preenchida por inferência.
+const filasQsaAutomaticas = new Map();
+function agendarQsaAutomatico(empresaId) {
+  const chave = Number(empresaId);
+  const existente = filasQsaAutomaticas.get(chave);
+  if (existente && ['agendado', 'executando'].includes(existente.status)) return existente;
+  const fila = { status: 'agendado', empresa_id: chave, inicio: null, fim: null, resultado: null, erro: null };
+  filasQsaAutomaticas.set(chave, fila);
+  setImmediate(async () => {
+    fila.status = 'executando'; fila.inicio = new Date().toISOString();
+    try {
+      fila.resultado = await cnpjReceita.enriquecerQsaEmpresa(chave, { forcar: false });
+      // O QSA só pode afetar saídas (200044). Reprocessa-as de forma
+      // incremental se já houver fotografia, sem recriar ou tocar entradas.
+      if (motorExec.ultimaExecucao(chave)) {
+        const saidas = db.prepare("SELECT id FROM movimentos WHERE empresa_id=? AND tipo='cliente'").all(chave).map((x) => x.id);
+        if (saidas.length) fila.reprocessamento = motorExec.reprocessarIncremental(chave, { movimentoIds: saidas, ano: 2027 });
+      }
+      fila.status = 'concluido';
+    } catch (e) { fila.status = 'erro'; fila.erro = e.message; }
+    finally { fila.fim = new Date().toISOString(); }
+  });
   return fila;
 }
 

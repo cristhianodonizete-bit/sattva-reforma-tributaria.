@@ -369,7 +369,14 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
   const cfg = config();
   // "indeterminado" é ausência de conclusão, não um regime. Ele também deve
   // entrar no enriquecimento automático.
-  const filtro = opcoes.sobrescrever ? '' : "AND (regime IS NULL OR regime = '' OR regime = 'indeterminado')";
+  // A consulta cadastral serve tanto para regime quanto para natureza jurídica.
+  // Um parceiro com regime informado ainda precisa ser enriquecido se não há
+  // natureza jurídica disponível para avaliar a condição do 200043.
+  const filtro = opcoes.sobrescrever ? '' : `AND (
+    regime IS NULL OR regime = '' OR regime = 'indeterminado'
+    OR NOT EXISTS (SELECT 1 FROM cnpj_cache k WHERE k.cnpj=parceiros.cnpj
+      AND k.codigo_natureza_juridica IS NOT NULL AND k.codigo_natureza_juridica <> '')
+  )`;
   const tipoFiltro = opcoes.tipo ? 'AND tipo = ?' : '';
   const params = [empresaId];
   if (opcoes.tipo) params.push(opcoes.tipo);
@@ -395,7 +402,9 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
     const p = alvos[i];
     try {
       const antes = doCache(soDigitos(p.cnpj), cfg.validade_dias);
-      const r = await consultar(p.cnpj, { forcar: opcoes.forcar });
+      const cacheExistente = doCache(soDigitos(p.cnpj), cfg.validade_dias);
+      const semNatureza = !cacheExistente || !String(cacheExistente.codigo_natureza_juridica || '').trim();
+      const r = await consultar(p.cnpj, { forcar: Boolean(opcoes.forcar || semNatureza) });
       if (r.origem === 'cache') rel.cache++;
       else if (r.origem === 'consulta') rel.consultados++;
       else if (r.origem === 'nao_encontrado') { rel.naoEncontrados++; continue; }

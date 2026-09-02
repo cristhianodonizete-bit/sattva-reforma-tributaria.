@@ -15,11 +15,11 @@ global.fetch = async (url, opcoes = {}) => {
   return {
     ok: true,
     status: 200,
-    json: async () => ({ razao_social: 'Empresa de teste', qsa: [{ nome: 'Sócio', pais: { descricao: 'Brasil' }, percentual_participacao: '20,00%' }] }),
+    json: async () => ({ razao_social: 'Empresa de teste', codigo_natureza_juridica: '2062', natureza_juridica: 'Sociedade Empresária Limitada', qsa: [{ nome: 'Sócio', pais: { descricao: 'Brasil' }, percentual_participacao: '20,00%' }] }),
   };
 };
 
-const { consultar, enriquecerQsaEmpresa } = require('../src/services/cnpjReceita');
+const { consultar, enriquecerQsaEmpresa, enriquecerParceiros } = require('../src/services/cnpjReceita');
 const banco = require('../src/db');
 (async () => {
   const resultado = await consultar('12345678000195', { forcar: true, finalidade: 'qsa' });
@@ -34,6 +34,12 @@ const banco = require('../src/db');
   const socio = banco.prepare('SELECT pais, percentual_participacao FROM empresa_qsa WHERE empresa_id=?').get(Number(empresa.lastInsertRowid));
   assert.equal(socio.pais, '');
   assert.equal(socio.percentual_participacao, 20);
+  banco.prepare("INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime) VALUES (?,?,?,?,?)")
+    .run(Number(empresa.lastInsertRowid), 'cliente', '98765432000198', 'Cliente com regime informado', 'lucro_real');
+  const enriquecimento = await enriquecerParceiros(Number(empresa.lastInsertRowid));
+  assert.equal(enriquecimento.total, 1, 'Natureza jurídica ausente deve entrar na consulta mesmo com regime informado');
+  const natureza = banco.prepare('SELECT codigo_natureza_juridica FROM cnpj_cache WHERE cnpj=?').get('98765432000198');
+  assert.equal(natureza.codigo_natureza_juridica, '2062');
   console.log('cnpj-receita-casa-dados: credencial e prioridade QSA: OK');
 })().finally(() => {
   global.fetch = fetchOriginal;
