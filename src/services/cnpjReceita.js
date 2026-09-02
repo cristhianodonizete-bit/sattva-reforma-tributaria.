@@ -117,16 +117,29 @@ const PROVEDORES = {
 // --------------------------------------------------------------------------
 function config() {
   const r = db().prepare('SELECT * FROM cnpj_config WHERE id = 1').get() || {};
-  // Casa dos Dados é fallback pago: a existência da chave não altera a
-  // prioridade das fontes gratuitas.
   const chave = r.provedor && PROVEDORES[r.provedor] ? r.provedor : 'brasilapi';
   return {
     provedor: chave, ...PROVEDORES[chave],
-    token: r.token || (chave === 'casadosdados' ? process.env.CASA_DOS_DADOS_API_KEY : process.env.CNPJ_API_TOKEN) || '',
+    // O campo legado token pertence somente ao provedor selecionado. Credenciais
+    // de provedores alternativos devem ser lidas das respectivas variáveis.
+    token: String(r.token || (chave === 'casadosdados' ? process.env.CASA_DOS_DADOS_API_KEY : process.env.CNPJ_API_TOKEN) || '').trim(),
     validade_dias: r.validade_dias || 90,
     ativo: r.ativo === undefined ? 1 : r.ativo,
     intervalo: r.intervalo || PROVEDORES[chave].intervalo,
   };
+}
+
+function tokenDoProvedor(provedor, cfg) {
+  if (provedor.provedor === 'casadosdados') {
+    const tokenConfigurado = cfg.provedor === 'casadosdados' ? cfg.token : '';
+    return String(tokenConfigurado || process.env.CASA_DOS_DADOS_API_KEY || '').trim();
+  }
+  const tokenConfigurado = cfg.provedor === provedor.provedor ? cfg.token : '';
+  return String(tokenConfigurado || process.env.CNPJ_API_TOKEN || '').trim();
+}
+
+function provedorCasaDisponivel(cfg) {
+  return Boolean(tokenDoProvedor({ ...PROVEDORES.casadosdados, provedor: 'casadosdados' }, cfg));
 }
 
 function salvarConfig(d) {
@@ -170,7 +183,10 @@ function classificarEnteGovernamental(d, cnpj) {
 async function enriquecerQsaEmpresa(empresaId, opcoes = {}) {
   const empresa = db().prepare('SELECT * FROM empresas WHERE id=?').get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada.');
-  const r = await consultar(empresa.cnpj, { forcar: !!opcoes.forcar });
+  // O QSA é a evidência prioritária para a regra 200044. Casa dos Dados é
+  // consultada primeiro quando configurada; as demais fontes permanecem como
+  // fallback sem transformar ausência de percentual em dado presumido.
+  const r = await consultar(empresa.cnpj, { forcar: !!opcoes.forcar, finalidade: 'qsa' });
   const socios = r.qsa || [];
   const inserir = db().prepare(`INSERT INTO empresa_qsa
     (empresa_id,nome,documento,qualificacao,pais,percentual_participacao,brasileiro,fonte,consultado_em,origem,atualizado_em)
@@ -209,7 +225,7 @@ function gravarCache(cnpj, d, fonte) {
     uf, municipio, optante_simples, data_opcao_simples, data_exclusao_simples,
     optante_mei, data_opcao_mei, data_exclusao_mei, regime_derivado, justificativa,
     natureza_juridica, codigo_natureza_juridica, efr, fonte, consultado_em)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, datetime('now','localtime'))
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?, datetime('now','localtime'))
     ON CONFLICT(cnpj) DO UPDATE SET razao_social=excluded.razao_social, situacao=excluded.situacao,
       porte=excluded.porte, cnae=excluded.cnae, cnae_descricao=excluded.cnae_descricao,
       uf=excluded.uf, municipio=excluded.municipio,
@@ -267,8 +283,11 @@ async function consultar(cnpj, opcoes = {}) {
     const t = setTimeout(() => ctrl.abort(), 20000);
     try {
     const headers = { Accept: 'application/json' };
-    if (provedor.provedor === 'casadosdados') headers['api-key'] = cfg.token;
-    else if (cfg.token) headers.Authorization = cfg.token.startsWith('Bearer') ? cfg.token : `Bearer ${cfg.token}`;
+    const token = tokenDoProvedor(provedor, cfg);
+    if (provedor.provedor === 'casadosdados') {
+      if (!token) throw new Error('Casa dos Dados não está configurada: CASA_DOS_DADOS_API_KEY ausente.');
+      headers['api-key'] = token;
+    } else if (token) headers.Authorization = token.startsWith('Bearer') ? token : `Bearer ${token}`;
     const resp = await fetch(provedor.url(c), { headers, signal: ctrl.signal });
     if (resp.status === 404) {
       return { cnpj: c, regime_derivado: null, fonte: provedor.nome, origem: 'nao_encontrado',
@@ -288,6 +307,23 @@ async function consultar(cnpj, opcoes = {}) {
     } finally { clearTimeout(t); }
   };
 
+  const casa = { ...PROVEDORES.casadosdados, provedor: 'casadosdados' };
+  if (opcoes.finalidade === 'qsa' && provedorCasaDisponivel(cfg)) {
+    try { return await consultarProvedor(casa); }
+    catch (erroCasa) {
+      // A indisponibilidade da fonte prioritária não interrompe a coleta: os
+      // provedores públicos continuam como alternativas, sem ocultar a origem.
+      try {
+        const alternativo = await consultarProvedor(cfg);
+        return { ...alternativo, fallbackDe: PROVEDORES.casadosdados.nome };
+      } catch (_) {
+        if (cfg.provedor !== 'brasilapi') throw erroCasa;
+        try { return { ...(await consultarProvedor(PROVEDORES.cnpja)), fallbackDe: PROVEDORES.casadosdados.nome }; }
+        catch (_) { throw erroCasa; }
+      }
+    }
+  }
+
   try { return await consultarProvedor(cfg); }
   catch (e) {
     // Ordem deliberada de custo: fonte gratuita primária → fonte gratuita
@@ -297,13 +333,13 @@ async function consultar(cnpj, opcoes = {}) {
       const aberto = await consultarProvedor(PROVEDORES.cnpja);
       // Se a fonte aberta não localiza o CNPJ, a Casa dos Dados pode confirmar
       // a situação cadastral; só a chamamos quando há chave configurada.
-      if (aberto.origem !== 'nao_encontrado' || !process.env.CASA_DOS_DADOS_API_KEY) {
+      if (aberto.origem !== 'nao_encontrado' || !provedorCasaDisponivel(cfg)) {
         return { ...aberto, fallbackDe: cfg.nome };
       }
     } catch (_) { /* tenta a última fonte abaixo, se disponível */ }
-    if (!process.env.CASA_DOS_DADOS_API_KEY) throw e;
+    if (!provedorCasaDisponivel(cfg)) throw e;
     try {
-      return { ...(await consultarProvedor({ ...PROVEDORES.casadosdados, provedor: 'casadosdados' })),
+      return { ...(await consultarProvedor(casa)),
         fallbackDe: `${cfg.nome} → ${PROVEDORES.cnpja.nome}` };
     } catch (e3) { throw new Error(`${e.message} Fallback Casa dos Dados: ${e3.message}`); }
   }
