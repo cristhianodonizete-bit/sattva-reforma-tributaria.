@@ -2966,9 +2966,13 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
 });
 
 // ---- Execução do motor ----
-router.post('/empresas/:id/motor/executar', (req, res) => {
+router.post('/empresas/:id/motor/executar', async (req, res) => {
   try {
     const r = motorExec.executar(req.params.id, { ano: req.body.ano, anexoSimples: req.body.anexo });
+    // A confirmação ao usuário só pode ocorrer depois de a fotografia ativa
+    // estar disponível na fonte compartilhada, inclusive após reinício do
+    // cache operacional do Render.
+    await require('../services/operacaoCompartilhada').publicarResultadosMotor(Number(req.params.id));
     ok(res, { resumo: r.resumo, ano: r.ano });
   } catch (e) { erro(res, e); }
 });
@@ -3769,6 +3773,7 @@ router.post('/empresas/:id/elegibilidade-anexo-xi/sanear', async (req, res) => {
     catch (e) { qsa = { socios_recuperados: 0, percentual_automatico: 0, pendentes_percentual: 0, erro: e.message }; }
     const parceiros = await cnpjReceita.enriquecerParceiros(empresaId, { sobrescrever: true, forcar: true, limite: 500 });
     const execucao = motorExec.executar(empresaId, { ano: Number(req.body.ano) || 2027 });
+    await require('../services/operacaoCompartilhada').publicarResultadosMotor(empresaId);
     const depois = contarRequerValidacao();
     const distribuicao = db.prepare(`SELECT cclasstrib,COUNT(*) quantidade FROM motor_resultados
       WHERE empresa_id=? AND cclasstrib IN ('000001','200043','200044') GROUP BY cclasstrib`).all(empresaId);

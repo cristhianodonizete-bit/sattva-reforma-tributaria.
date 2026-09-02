@@ -20,4 +20,10 @@ assert.deepEqual(
   [{ id: 'socio-remoto', empresa_id: 1, nome: 'Sócio' }],
   'QSA remoto deve ser associado à empresa local antes de gravar o cache',
 );
-console.log('operacao-compartilhada-gestao: UUID remoto mapeado ao ID local: OK');
+const fonteOperacao = fs.readFileSync(path.join(__dirname, '../src/services/operacaoCompartilhada.js'), 'utf8');
+const fonteApi = fs.readFileSync(path.join(__dirname, '../src/routes/api.js'), 'utf8');
+assert.match(fonteOperacao, /ativo: true, execucao_id: x\.execucao_id/, 'nova fotografia deve ser publicada como ativa');
+assert.match(fonteOperacao, /update\(\{ ativo: false \}\)/, 'fotografias substituídas devem ser desativadas depois da publicação');
+assert.match(fonteApi, /await require\('\.\.\/services\/operacaoCompartilhada'\)\.publicarResultadosMotor\(Number\(req\.params\.id\)\)/,
+  'recalcular motor deve aguardar a publicação compartilhada');
+console.log('operacao-compartilhada-gestao: UUID remoto e fotografia ativa: OK');
