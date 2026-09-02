@@ -331,29 +331,19 @@ async function publicarResultadosMotor(empresaId = null) {
       parametro_version: x.parametro_version, motor_version: x.motor_version,
       estado_autonomia: x.estado_autonomia, codigo_causa: x.codigo_causa,
       origem_resolucao: x.origem_resolucao, requer_intervencao_humana: x.requer_intervencao_humana }));
+  // A restrição remota garante um único resultado ativo por movimento. A
+  // publicação sempre envia a fotografia local completa da empresa, portanto
+  // a fotografia anterior precisa ser encerrada antes de ativar a substituta.
+  const empresasDaFotografia = [...new Set(resultados.map((r) => Number(r.empresa_id)).filter(Boolean))];
+  for (const idEmpresa of empresasDaFotografia) {
+    const { error } = await remoto.from('motor_resultados_operacionais')
+      .update({ ativo: false }).eq('empresa_id', idEmpresa).eq('ativo', true);
+    if (error) throw new Error(`motor_resultados_operacionais preparação: ${error.message}`);
+  }
   for (const [tabela, linhas] of [['motor_execucoes_operacionais', execucoes], ['motor_resultados_operacionais', resultados]]) {
     for (let i = 0; i < linhas.length; i += 500) {
       const { error } = await remoto.from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: 'id' });
       if (error) throw new Error(`${tabela}: ${error.message}`);
-    }
-  }
-  // Somente depois de a fotografia inteira nova estar publicada desativamos
-  // os resultados antigos da mesma empresa. Isso mantém uma única fotografia
-  // operacional ativa sem abrir uma janela em que a tela fique sem dados.
-  const porEmpresa = new Map();
-  resultados.forEach((r) => {
-    if (!porEmpresa.has(r.empresa_id)) porEmpresa.set(r.empresa_id, new Set());
-    porEmpresa.get(r.empresa_id).add(Number(r.id));
-  });
-  for (const [idEmpresa, idsAtuais] of porEmpresa) {
-    const { data: ativos, error } = await remoto.from('motor_resultados_operacionais')
-      .select('id').eq('empresa_id', idEmpresa).eq('ativo', true);
-    if (error) throw new Error(`motor_resultados_operacionais ativos: ${error.message}`);
-    const obsoletos = (ativos || []).map((x) => Number(x.id)).filter((id) => !idsAtuais.has(id));
-    for (let i = 0; i < obsoletos.length; i += 500) {
-      const { error: erroDesativacao } = await remoto.from('motor_resultados_operacionais')
-        .update({ ativo: false }).eq('empresa_id', idEmpresa).in('id', obsoletos.slice(i, i + 500));
-      if (erroDesativacao) throw new Error(`motor_resultados_operacionais desativação: ${erroDesativacao.message}`);
     }
   }
   const telemetrias = db.prepare(`SELECT * FROM telemetria_autonomia_execucoes${filtro}`).all(...parametros);
