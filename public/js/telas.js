@@ -166,8 +166,28 @@ Telas.empresas = async (el) => {
       const d = await A.api(`/empresas/${e.id}/qsa`);
       const linhas = (d.socios || []).map((s) => `<tr><td>${A.esc(s.nome)}</td><td>${A.esc(s.qualificacao || '—')}</td><td>${s.percentual_participacao == null ? '<b>Pendente</b>' : `${A.esc(s.percentual_participacao)}%`}</td><td>${Number(s.brasileiro) ? 'SIM' : 'NÃO'}</td><td><button class="btn pq vazio" data-qsa-ed="${s.id}">Confirmar</button></td></tr>`).join('');
       A.modal({ titulo:`Quadro societário — ${e.razao_social}`, largura:900, confirmar:'Fechar', corpo:`<div class="aviso"><b>ATENDE_200044: ${A.esc(d.atende_200044)}</b><br>${A.esc(d.motivo)}</div><p class="mini">A condição exige sócio brasileiro com participação igual ou superior a 20%. Percentual ausente nunca é presumido.</p><button class="btn" id="enriquecerQsa">Consultar cadastro</button><button class="btn vazio" id="sanearAnexoXi">Enriquecer contrapartes e reprocessar Anexo XI</button><table class="tabela" style="margin-top:12px"><thead><tr><th>Sócio</th><th>Qualificação</th><th>Participação</th><th>Brasileiro</th><th></th></tr></thead><tbody>${linhas || '<tr><td colspan="5">Nenhum sócio disponível.</td></tr>'}</tbody></table>`, aoConfirmar: async()=>{} });
-      document.getElementById('enriquecerQsa').onclick = async () => { await A.api(`/empresas/${e.id}/qsa/enriquecer`,{metodo:'POST',corpo:{forcar:true}}); A.toast('Quadro societário atualizado.','ok'); abrir(); };
-      document.getElementById('sanearAnexoXi').onclick = async () => { const r=await A.api(`/empresas/${e.id}/elegibilidade-anexo-xi/sanear`,{metodo:'POST',corpo:{ano:2027}}); A.toast(`Saneamento concluído: ${r.resolvidas_automaticamente} operação(ões) resolvida(s).`,'ok'); abrir(); };
+      document.getElementById('enriquecerQsa').onclick = async (evento) => {
+        const botao = evento.currentTarget; const texto = botao.textContent;
+        botao.disabled = true; botao.textContent = 'Consultando cadastro…';
+        try {
+          const r = await A.api(`/empresas/${e.id}/qsa/enriquecer`, { metodo:'POST', corpo:{ forcar:true } });
+          A.toast(`Consulta concluída: ${r.socios_recuperados || 0} sócio(s) localizado(s).`, 'ok');
+          abrir();
+        } catch (erro) {
+          A.toast(`Não foi possível consultar o cadastro: ${erro.message}`, 'erro');
+        } finally { botao.disabled = false; botao.textContent = texto; }
+      };
+      document.getElementById('sanearAnexoXi').onclick = async (evento) => {
+        const botao = evento.currentTarget; const texto = botao.textContent;
+        botao.disabled = true; botao.textContent = 'Saneando dados…';
+        try {
+          const r = await A.api(`/empresas/${e.id}/elegibilidade-anexo-xi/sanear`, { metodo:'POST', corpo:{ ano:2027 } });
+          A.toast(`Saneamento concluído: ${r.resolvidas_automaticamente} operação(ões) resolvida(s).`, 'ok');
+          abrir();
+        } catch (erro) {
+          A.toast(`Não foi possível concluir o saneamento: ${erro.message}`, 'erro');
+        } finally { botao.disabled = false; botao.textContent = texto; }
+      };
       document.querySelectorAll('[data-qsa-ed]').forEach((botao) => botao.onclick = () => { const s=d.socios.find((x)=>x.id===Number(botao.dataset.qsaEd)); A.modal({titulo:`Confirmar sócio — ${s.nome}`,corpo:`${A.campo('percentual_participacao','Participação no capital (%)',s.percentual_participacao ?? '','number')}<label class="check"><input type="checkbox" name="brasileiro" ${Number(s.brasileiro)?'checked':''}> Brasileiro</label>`,aoConfirmar:async f=>{await A.api(`/empresas/${e.id}/qsa/${s.id}`,{metodo:'PUT',corpo:{...s,percentual_participacao:f.percentual_participacao,brasileiro:!!f.brasileiro}});abrir();}}); });
     };
     abrir();
