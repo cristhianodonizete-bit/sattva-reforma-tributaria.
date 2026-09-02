@@ -160,8 +160,18 @@ function classificar(item, ctx = {}) {
   // terminava em validação por haver dois códigos. Outra exceção material
   // concorrente continua exigindo decisão humana.
   const qsa = ctx.elegibilidadeAnexoXi?.qsa || {};
+  const adquirenteAnexoXi = ctx.elegibilidadeAnexoXi?.adquirente || {};
   const candidato200044 = candidatos.find((c) => c.cclasstrib === '200044');
-  const outrosEspecificos = candidatos.filter((c) => !['000001', '200044'].includes(String(c.cclasstrib || '')));
+  // A hipótese pública 200043 cuja natureza jurídica ainda está PENDENTE não
+  // pode bloquear a hipótese 200044 já demonstrada pelo QSA do emitente. Ela
+  // continua registrada como pendência, mas não é uma divergência material
+  // contra uma regra específica comprovada. Um 200043 confirmado (ou outra
+  // exceção material) preserva a necessidade de decisão.
+  const outrosEspecificos = candidatos.filter((c) => {
+    const codigo = String(c.cclasstrib || '');
+    if (['000001', '200044'].includes(codigo)) return false;
+    return !(codigo === '200043' && adquirenteAnexoXi.status !== 'SIM');
+  });
   if (qsa.status === 'SIM' && candidato200044 && !outrosEspecificos.length) {
     candidatos = [candidato200044];
     fundamentos.push(`200044 aplicado como regra específica vencedora: ${qsa.motivo || 'QSA confirmado.'}`);

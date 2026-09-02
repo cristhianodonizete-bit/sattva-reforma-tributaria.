@@ -87,6 +87,15 @@ const classificadoPorQsa = classificar({ nbs: '115012000', lc116: '0107', cst: '
 assert.equal(classificadoPorQsa.cclasstrib, '200044');
 assert.equal(classificadoPorQsa.status, 'CLASSIFICADO');
 assert.equal(classificadoPorQsa.reducao, 'reducao_60');
+const classificadoComPublicoPendente = classificar({ nbs: '115012000', lc116: '0107', cst: '010701', iss: 1 }, {
+  sentido: 'saida',
+  elegibilidadeAnexoXi: {
+    adquirente: { status: 'PENDENTE', motivo: 'Natureza jurídica não localizada.' },
+    qsa: { status: 'SIM', motivo: 'Sócio brasileiro com participação suficiente.' },
+  },
+});
+assert.equal(classificadoComPublicoPendente.cclasstrib, '200044', '200043 pendente não pode bloquear 200044 comprovado pelo QSA');
+assert.equal(classificadoComPublicoPendente.status, 'CLASSIFICADO');
 
 console.log('lancamento-classificacao-lc116: item LC116 separado, editável e classificável: OK');
 try { db.close?.(); } catch (_) { /* noop */ }
