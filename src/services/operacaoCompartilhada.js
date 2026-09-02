@@ -132,8 +132,19 @@ function gravarConfiguracao(tabela, linhas) {
     linhas.forEach((linha) => inserir.run(...colunas.map((c) => linha[c] ?? null)));
   })();
 }
-function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], tarefas = [], checklist = []) {
+function mapaEmpresasLocais(empresas = []) {
+  // Projetos no Supabase apontam para o UUID remoto da empresa, enquanto o
+  // cache SQLite trabalha com o ID local de origem. Nunca usar o UUID remoto
+  // como empresa_id de contratacoes: isso faz o plano aprovado desaparecer
+  // para a empresa selecionada após a restauração do cache.
+  return new Map((empresas || []).map((empresa) => [
+    String(empresa.id), Number(empresa.origem_local_id || empresa.id),
+  ]).filter(([, id]) => Number.isInteger(id) && id > 0));
+}
+
+function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], tarefas = [], checklist = [], empresas = []) {
   const comboPorNome = new Map(db.prepare('SELECT id,nome FROM combos').all().map((x) => [x.nome, x.id]));
+  const empresaLocalPorRemota = mapaEmpresasLocais(empresas);
   const localPorRemoto = new Map();
   const entregaLocalPorRemota = new Map();
   const insProjeto = db.prepare(`INSERT INTO contratacoes (id,empresa_id,combo_id,servicos_json,valor_bruto,desconto,valor_final,status,observacoes,criado_em,aprovado_em,competencia_referencia,acompanhamento_meses,modulos_json)
@@ -147,9 +158,12 @@ function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], ta
     for (const p of projetos) {
       const id = Number(p.origem_local_contratacao_id);
       if (!id) continue;
+      const empresaId = empresaLocalPorRemota.get(String(p.empresa_id))
+        || (Number.isInteger(Number(p.empresa_id)) ? Number(p.empresa_id) : null);
+      if (!empresaId) continue;
       localPorRemoto.set(p.id, id);
       const escopo = Array.isArray(p.escopo) ? p.escopo : [];
-      insProjeto.run(id, p.empresa_id, comboPorNome.get(p.nome_plano) || null, JSON.stringify(escopo), 0, 0, 0,
+      insProjeto.run(id, empresaId, comboPorNome.get(p.nome_plano) || null, JSON.stringify(escopo), 0, 0, 0,
         p.status || 'rascunho', '', p.criado_em || null, p.aprovado_em || null, p.competencia_referencia || null,
         Number(p.acompanhamento_meses) || 0, JSON.stringify(escopo));
     }
@@ -352,7 +366,12 @@ async function publicarConfiguracao(tabelas = CONFIG_TABELAS) {
 async function baixarGestao(remotoInformado = null) {
   if (!ativo()) return { ativo: false };
   const remoto = remotoInformado || supabase.admin();
-  return gravarGestao(await buscarTudo(remoto, 'projetos'), await buscarTudo(remoto, 'projeto_entregas'), await buscarTudo(remoto, 'projeto_acompanhamentos'), await buscarTudo(remoto, 'projeto_responsaveis'), await buscarTudo(remoto, 'projeto_tarefas'), await buscarTudo(remoto, 'projeto_checklist_implantacao'));
+  const [empresas, projetos, entregas, acompanhamentos, responsaveis, tarefas, checklist] = await Promise.all([
+    buscarTudo(remoto, 'empresas'), buscarTudo(remoto, 'projetos'), buscarTudo(remoto, 'projeto_entregas'),
+    buscarTudo(remoto, 'projeto_acompanhamentos'), buscarTudo(remoto, 'projeto_responsaveis'),
+    buscarTudo(remoto, 'projeto_tarefas'), buscarTudo(remoto, 'projeto_checklist_implantacao'),
+  ]);
+  return gravarGestao(projetos, entregas, acompanhamentos, responsaveis, tarefas, checklist, empresas);
 }
 async function publicar() {
   if (!ativo()) return { ativo: false };
@@ -426,5 +445,5 @@ async function publicarContratos(remoto, empresaId) {
   }
   return { contratos: contratos.length };
 }
-module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar,
+module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, mapaEmpresasLocais,
   baixarResultadosMotor, publicarResultadosMotor, filtrarOrfaosOperacionais };
