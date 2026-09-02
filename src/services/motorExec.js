@@ -22,7 +22,10 @@ const crypto = require('crypto');
 
 // A versão é gravada em cada resultado para permitir invalidar apenas as
 // operações afetadas. Não é usada como regra fiscal; apenas rastreabilidade.
-const MOTOR_VERSION = 'motor-cbs-2026-09-01-regra-padrao-cbs';
+// A classificação passa a preservar a evidência complementar do NBS quando
+// não houver chave LC116+NBS exata. A versão invalida resultados anteriores,
+// que poderiam ter descartado indevidamente a exceção 200044 antes do QSA.
+const MOTOR_VERSION = 'motor-cbs-2026-09-02-lc116-nbs-complementares';
 const hash = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 24);
 const versoesAtuais = () => {
   const params = regras.tudo();

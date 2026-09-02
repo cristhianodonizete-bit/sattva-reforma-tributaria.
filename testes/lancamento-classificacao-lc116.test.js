@@ -65,20 +65,28 @@ assert.equal(motorExec.normalizar({
   documento: 'x', origem: 'xml', ncm: '', nbs: '115013000', lc116: '', cst: '010701',
 }).lc116, '0107', 'o motor deve consumir o item LC116 já presente no código fiscal do XML');
 
-// Se LC116 + NBS não existir exatamente no catálogo, o item LC116 presente e
-// normalizado no XML tem precedência sobre um NBS solto que apontaria para
-// outro item e para exceções materiais distintas.
+// Sem chave composta exata, LC116 e NBS precisam continuar disponíveis como
+// evidências complementares. A regra genérica da LC116 não pode apagar uma
+// exceção específica que o NBS aponta; a decisão final permanece condicionada
+// ao resolvedor de elegibilidade.
 db.prepare(`INSERT INTO base_servicos (lc116, nbs, descricao_item, cclasstrib, reducao)
   VALUES ('0107', '115013000', 'Suporte técnico', '000001', 'integral'),
          ('0107', '115021000', 'Suporte técnico', '000001', 'integral'),
          ('0106', '115012000', 'Outro serviço', '200043', 'reduzida'),
-         ('0106', '115012000', 'Outro serviço', '200044', 'reduzida')`).run();
+         ('0106', '115012000', 'Outro serviço', '200044', 'reducao_60')`).run();
 const preferenciaLc116 = bases.consultarServico('0107', '115012000');
-assert.equal(preferenciaLc116.nivel, 'lc116');
-assert.equal(preferenciaLc116.candidatos.every((x) => x.lc116 === '0107'), true);
-const classificadoPorLc116 = classificar({ nbs: '115012000', lc116: '0107', cst: '010701', iss: 1 }, { sentido: 'entrada' });
-assert.equal(classificadoPorLc116.status, 'PARCIAL');
-assert.equal(classificadoPorLc116.equivalenciaFiscal.impacto_tributario_material, false);
+assert.equal(preferenciaLc116.nivel, 'lc116+nbs');
+assert.equal(preferenciaLc116.candidatos.some((x) => x.cclasstrib === '200044'), true);
+const classificadoPorQsa = classificar({ nbs: '115012000', lc116: '0107', cst: '010701', iss: 1 }, {
+  sentido: 'saida',
+  elegibilidadeAnexoXi: {
+    adquirente: { status: 'NAO', motivo: 'Cliente privado.' },
+    qsa: { status: 'SIM', motivo: 'Sócio brasileiro com participação suficiente.' },
+  },
+});
+assert.equal(classificadoPorQsa.cclasstrib, '200044');
+assert.equal(classificadoPorQsa.status, 'CLASSIFICADO');
+assert.equal(classificadoPorQsa.reducao, 'reducao_60');
 
 console.log('lancamento-classificacao-lc116: item LC116 separado, editável e classificável: OK');
 try { db.close?.(); } catch (_) { /* noop */ }
