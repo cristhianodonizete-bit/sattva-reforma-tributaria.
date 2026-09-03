@@ -224,20 +224,21 @@ Telas.conformidadeDocumental = async (el) => {
   const regras = [...new Set(itens.flatMap((x) => (x.candidatos || []).filter(temBeneficioFiscal).map((c) => c.regra_uso || 'Confirme a condição legal e a descrição efetiva do serviço.')))]
     .map((texto, indice) => ({ codigo: `R${String(indice + 1).padStart(2, '0')}`, texto }));
   const codigoRegra = (texto) => regras.find((x) => x.texto === (texto || 'Confirme a condição legal e a descrição efetiva do serviço.'))?.codigo || '—';
-  const candidatos = (x) => (x.candidatos || []).length
-    ? `<div style="margin-top:2px">${A.tabela([
-      { t:'LC 116', r:c=>A.esc(c.lc116 || '—') }, { t:'NBS', r:c=>`${A.esc(c.nbs || '—')}<div class="mini">${A.esc(c.descricao_nbs || '')}</div>` },
-      { t:'CST / cClassTrib', r:c=>`${A.esc(c.cst || 'CST não informado no catálogo')}<div class="mini">${A.esc(c.cclasstrib || '—')}</div>` },
-      { t:'Tratamento', r:c=>`${A.esc(c.tratamento || '—')}<div class="mini">${A.esc(c.reducao || '')}</div>` },
-      { t:'Regra de benefício', r:c=>temBeneficioFiscal(c) ? `<span class="tag n">${codigoRegra(c.regra_uso)}</span>` : '—' },
-    ], x.candidatos)}</div>`
-    : '<span class="mini">Nenhuma correlação cadastrada para sugerir.</span>';
   const abertos = new Set();
-  const tabelaItens = (linhas) => A.tabela([
-      { t:'Documento / item', r:x=>`<b class="mono">${A.esc(x.documento || 'sem número')}</b><div class="mini">Item ${A.esc(x.item_numero || '—')} · ${A.esc(x.competencia || x.data_emissao || '')}</div><div class="mini">${A.esc(x.contraparte)}</div>` },
-      { t:'Não conformidade', r:x=>`<span class="tag ${x.severidade === 'ALTA' ? 'a' : 'b'}">${A.esc(x.tipo)}</span><div style="margin-top:6px"><b>${A.esc(x.titulo)}</b></div><div class="mini">LC 116: ${A.esc(x.lc116 || 'não informado')} · NBS: ${A.esc(x.nbs || 'não informado')}</div>` },
-      { t:'NBS e enquadramentos compatíveis', r:candidatos },
+  const tabelaItens = (itensDaAmostra) => {
+    const linhas = itensDaAmostra.flatMap((item) => (item.candidatos || []).length
+      ? item.candidatos.map((candidato) => ({ item, candidato }))
+      : [{ item, candidato: null }]);
+    return A.tabela([
+      { t:'Documento / item', r:x=>`<b class="mono">${A.esc(x.item.documento || 'sem número')}</b><div class="mini">Item ${A.esc(x.item.item_numero || '—')} · ${A.esc(x.item.competencia || x.item.data_emissao || '')}</div><div class="mini">${A.esc(x.item.contraparte)}</div>` },
+      { t:'Não conformidade', r:x=>`<span class="tag ${x.item.severidade === 'ALTA' ? 'a' : 'b'}">${A.esc(x.item.tipo)}</span><div style="margin-top:6px"><b>${A.esc(x.item.titulo)}</b></div><div class="mini">LC 116 informado: ${A.esc(x.item.lc116 || 'não informado')} · NBS informado: ${A.esc(x.item.nbs || 'não informado')}</div>` },
+      { t:'LC 116 compatível', r:x=>A.esc(x.candidato?.lc116 || '—') },
+      { t:'NBS compatível', r:x=>x.candidato ? `${A.esc(x.candidato.nbs || '—')}<div class="mini">${A.esc(x.candidato.descricao_nbs || '')}</div>` : 'Nenhuma correlação cadastrada' },
+      { t:'CST / cClassTrib', r:x=>x.candidato ? `${A.esc(x.candidato.cst || 'CST não informado no catálogo')}<div class="mini">${A.esc(x.candidato.cclasstrib || '—')}</div>` : '—' },
+      { t:'Tratamento', r:x=>x.candidato ? `${A.esc(x.candidato.tratamento || '—')}<div class="mini">${A.esc(x.candidato.reducao || '')}</div>` : '—' },
+      { t:'Regra de benefício', r:x=>x.candidato && temBeneficioFiscal(x.candidato) ? `<span class="tag n">${codigoRegra(x.candidato.regra_uso)}</span>` : '—' },
     ], linhas, { vazio:'Nenhum item neste grupo.' });
+  };
   const render = (filtro = '') => {
     const visiveis = !filtro ? itens : itens.filter((x) => x.tipo === filtro);
     const grupos = [...new Map(visiveis.map((x) => [x.tipo, visiveis.filter((i) => i.tipo === x.tipo)])).entries()];
