@@ -245,16 +245,20 @@ Telas.conformidadeDocumental = async (el) => {
   };
   const render = (filtro = '') => {
     const visiveis = !filtro ? itens : itens.filter((x) => x.tipo === filtro);
-    const grupos = [...new Map(visiveis.map((x) => [x.tipo, visiveis.filter((i) => i.tipo === x.tipo)])).entries()];
-    el.querySelector('#listaConformidade').innerHTML = grupos.length ? grupos.map(([tipo, grupo]) => {
-      const errosDistintos = new Set(grupo.map((x) => [x.tipo, x.lc116 || '', x.nbs || ''].join('|'))).size;
-      return `<section class="cartao" style="margin-top:16px;box-shadow:none"><div><h3 style="margin:0">${A.esc(tipo.replaceAll('_',' '))}</h3><p class="mini" style="margin:4px 0 0">${grupo.length} ocorrência(s) em ${errosDistintos} erro(s) distinto(s) · até dois documentos de exemplo por erro</p></div><div style="margin-top:10px">${tabelaItens(grupo)}</div></section>`;
-    }).join('') : A.vazio('Nenhuma não conformidade documental encontrada.', 'Os documentos com LC 116 ou NBS possuem chave compatível com o catálogo atual.');
+    el.querySelector('#listaConformidade').innerHTML = visiveis.length
+      ? tabelaItens(visiveis)
+      : A.vazio('Nenhuma não conformidade documental encontrada.', 'Os documentos com LC 116 ou NBS possuem chave compatível com o catálogo atual.');
   };
+  const resumoTipos = tipos.map((tipo) => {
+    const grupo = itens.filter((x) => x.tipo === tipo);
+    const erros = new Set(grupo.map((x) => [x.tipo, x.lc116 || '', x.nbs || ''].join('|'))).size;
+    return A.kpi(tipo.replaceAll('_', ' '), grupo.length, `${erros} erro(s) distinto(s)`);
+  }).join('');
   el.innerHTML = cab('DIAGNÓSTICO · QUALIDADE DA EMISSÃO', 'Conformidade documental',
     'Confira erros de emissão e as alternativas compatíveis antes de corrigir o documento ou orientar a contraparte. Esta tela é somente de leitura: não executa o motor e não altera cálculos.') +
-    `<div class="grade g3">${A.kpi('Não conformidades', d.resumo?.total || 0, 'documentos que exigem correção')}${A.kpi('Valor relacionado', A.moeda(d.resumo?.valor || 0), 'sem alterar o diagnóstico')}${A.kpi('Tipos encontrados', tipos.length, tipos.map((x)=>A.esc(x)).join(' · ') || 'nenhum')}</div>
-    <div class="cartao" style="margin-top:16px"><div class="filtros-carteira"><label>Tipo de não conformidade<select id="filtroConformidade"><option value="">Todas</option>${tipos.map((x)=>`<option value="${A.esc(x)}">${A.esc(x).replaceAll('_',' ')}</option>`).join('')}</select></label></div><p class="desc">As alternativas compatíveis estão abertas em cada documento. Escolha somente após conferir a descrição real do serviço.</p><div id="listaConformidade"></div>${regras.length ? `<div class="cartao" style="margin-top:16px;box-shadow:none"><h3>Regras de uso</h3>${A.tabela([{t:'Código',r:r=>`<span class="tag n">${r.codigo}</span>`},{t:'Quando usar',r:r=>A.esc(r.texto)}],regras)}</div>` : ''}</div>`;
+    `<div class="grade g3">${A.kpi('Não conformidades', d.resumo?.total || 0, 'documentos que exigem correção')}${A.kpi('Valor relacionado', A.moeda(d.resumo?.valor || 0), 'sem alterar o diagnóstico')}${A.kpi('Tipos encontrados', tipos.length, 'resumo detalhado abaixo')}</div>
+    ${tipos.length ? `<div class="cartao" style="margin-top:16px"><h2>Resumo por tipo</h2><div class="grade g3">${resumoTipos}</div></div>` : ''}
+    <div class="cartao" style="margin-top:16px"><div class="filtros-carteira"><label>Tipo de não conformidade<select id="filtroConformidade"><option value="">Todas</option>${tipos.map((x)=>`<option value="${A.esc(x)}">${A.esc(x).replaceAll('_',' ')}</option>`).join('')}</select></label></div><p class="desc">Tabela consolidada por erro. Cada linha traz até dois documentos de exemplo e as alternativas compatíveis.</p><div id="listaConformidade"></div>${regras.length ? `<div class="cartao" style="margin-top:16px;box-shadow:none"><h3>Regras de uso</h3>${A.tabela([{t:'Código',r:r=>`<span class="tag n">${r.codigo}</span>`},{t:'Quando usar',r:r=>A.esc(r.texto)}],regras)}</div>` : ''}</div>`;
   render();
   el.querySelector('#filtroConformidade').addEventListener('change', (evento) => render(evento.target.value));
 };
