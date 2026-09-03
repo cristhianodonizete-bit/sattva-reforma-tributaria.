@@ -289,13 +289,23 @@ const App = (() => {
       sel.value = S.empresaId;
       S.empresa = empresas.find((e) => e.id === S.empresaId);
     } else { S.empresaId = null; S.empresa = null; }
-    if (selHeader) { selHeader.innerHTML = sel.innerHTML; selHeader.value = sel.value; selHeader.onchange = () => { sel.value = selHeader.value; sel.onchange(); }; }
-    sel.onchange = () => {
-      S.empresaId = Number(sel.value) || null;
+    const selecionarEmpresa = (valor) => {
+      S.empresaId = Number(valor) || null;
       S.empresa = S.empresas.find((e) => e.id === S.empresaId) || null;
       localStorage.setItem('sattva_empresa', S.empresaId);
+      // Os dois controles representam a mesma empresa em análise. Atualizá-
+      // los antes da navegação impede que uma tela seja aberta com contexto
+      // diferente daquele exibido no cabeçalho ou na lateral.
+      sel.value = S.empresaId == null ? '' : String(S.empresaId);
+      if (selHeader) selHeader.value = sel.value;
       ir(S.tela);
     };
+    sel.onchange = () => selecionarEmpresa(sel.value);
+    if (selHeader) {
+      selHeader.innerHTML = sel.innerHTML;
+      selHeader.value = sel.value;
+      selHeader.onchange = () => selecionarEmpresa(selHeader.value);
+    }
   }
 
   async function carregarParametros() {
