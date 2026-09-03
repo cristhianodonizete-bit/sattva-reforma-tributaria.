@@ -38,10 +38,10 @@ async function iniciar(opcoes = {}) {
     VALUES (?,?,?,?,?,?, 'PENDENTE',?,?)`);
   const jobs = empresas.filter((empresaId) => !ativo.some((j) => Number(j.empresa_id) === Number(empresaId))).map((empresaId) => ({ id: id(), processamento_id: processamentoId, empresa_id: empresaId,
     competencia, tipo_job: tipo, prioridade: Number(opcoes.prioridade) || 0,
-    status: 'PENDENTE', tentativas: 0, max_tentativas: 3, payload: JSON.stringify({ incremental: true }), criado_em: agora() }));
+    status: 'PENDENTE', tentativas: 0, max_tentativas: 3, payload: JSON.stringify(opcoes.payload || { incremental: true }), criado_em: agora() }));
   db.transaction(() => jobs.forEach((j) => { inserirItem.run(processamentoId, j.empresa_id); inserirJob.run(j.id, j.processamento_id, j.empresa_id, j.competencia, j.tipo_job, j.prioridade, j.payload, j.criado_em); }))();
   for (const job of jobs) await espelharJob(job);
-  executar(processamentoId).catch((e) => console.error('[fila carteira]', e.message));
+  if (opcoes.iniciarWorker !== false) executar(processamentoId).catch((e) => console.error('[fila carteira]', e.message));
   return consultar(processamentoId);
 }
 
