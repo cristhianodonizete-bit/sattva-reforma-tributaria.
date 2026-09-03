@@ -62,7 +62,7 @@ const App = (() => {
   }
 
   // ---------- MODAL ----------
-  function modal({ titulo, descricao, corpo, confirmar = 'Salvar', aoConfirmar, largura }) {
+  function modal({ titulo, descricao, corpo, confirmar = 'Salvar', aoConfirmar, largura, podeFechar = () => true }) {
     const fundo = document.createElement('div');
     fundo.className = 'modal-fundo';
     fundo.innerHTML = `<div class="modal" ${largura ? `style="max-width:${largura}px"` : ''}>
@@ -73,10 +73,16 @@ const App = (() => {
         ${aoConfirmar ? `<button class="btn" data-ok>${esc(confirmar)}</button>` : ''}
       </div></div>`;
     document.getElementById('modais').appendChild(fundo);
-    const fechar = () => fundo.remove();
-    fundo.querySelector('[data-x]').onclick = fechar;
-    fundo.onclick = (e) => { if (e.target === fundo) fechar(); };
-    document.addEventListener('keydown', function esc2(e) { if (e.key === 'Escape') { fechar(); document.removeEventListener('keydown', esc2); } });
+    let esc2;
+    const fechar = () => { fundo.remove(); document.removeEventListener('keydown', esc2); };
+    const tentarFechar = () => {
+      const permitido = podeFechar();
+      if (permitido !== false) fechar();
+    };
+    fundo.querySelector('[data-x]').onclick = tentarFechar;
+    fundo.onclick = (e) => { if (e.target === fundo) tentarFechar(); };
+    esc2 = (e) => { if (e.key === 'Escape') tentarFechar(); };
+    document.addEventListener('keydown', esc2);
     const okBtn = fundo.querySelector('[data-ok]');
     if (okBtn) okBtn.onclick = async () => {
       const dados = {};

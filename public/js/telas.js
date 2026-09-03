@@ -165,12 +165,30 @@ Telas.empresas = async (el) => {
     let modalQsa = null;
     const abrir = async () => {
       const d = await A.api(`/empresas/${e.id}/qsa`);
-      const linhas = (d.socios || []).map((s) => `<tr><td>${A.esc(s.nome)}</td><td>${A.esc(s.qualificacao || '—')}</td><td>${s.percentual_participacao == null ? '<b>Pendente</b>' : `${A.esc(s.percentual_participacao)}%`}</td><td>${Number(s.brasileiro) ? 'SIM' : 'NÃO'}</td><td><button class="btn pq vazio" data-qsa-ed="${s.id}">Confirmar</button></td></tr>`).join('');
+      const socios = d.socios || [];
+      const participacaoPreenchida = (s) => s.percentual_participacao != null && s.percentual_participacao !== '' && Number.isFinite(Number(s.percentual_participacao));
+      const brasileiroPreenchido = (s) => Number(s.brasileiro) === 0 || Number(s.brasileiro) === 1;
+      const pendentesParticipacao = socios.filter((s) => !participacaoPreenchida(s)).length;
+      const pendentesBrasileiro = socios.filter((s) => !brasileiroPreenchido(s)).length;
+      const totalParticipacao = socios.reduce((total, s) => total + (participacaoPreenchida(s) ? Number(s.percentual_participacao) : 0), 0);
+      const totalCem = socios.length > 0 && pendentesParticipacao === 0 && Math.abs(totalParticipacao - 100) < 0.005;
+      const quadroConcluido = totalCem && pendentesBrasileiro === 0;
+      const percentualTela = totalParticipacao.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+      const linhas = socios.map((s) => `<tr><td>${A.esc(s.nome)}</td><td>${A.esc(s.qualificacao || '—')}</td><td>${participacaoPreenchida(s) ? `${A.esc(s.percentual_participacao)}%` : '<b>Pendente</b>'}</td><td>${brasileiroPreenchido(s) ? (Number(s.brasileiro) ? 'SIM' : 'NÃO') : '<b>Pendente</b>'}</td><td><button class="btn pq vazio" data-qsa-ed="${s.id}">Confirmar</button></td></tr>`).join('');
+      const resumoQuadro = quadroConcluido
+        ? `<div class="aviso"><b>QUADRO SOCIETÁRIO: PREENCHIDO E CONCLUÍDO</b><br>Participação total: ${percentualTela}% de 100% · Opção “Brasileiro” preenchida para ${socios.length} de ${socios.length} sócio(s).</div>`
+        : `<div class="aviso"><b>QUADRO SOCIETÁRIO: PENDENTE DE CONCLUSÃO</b><br>Participação total informada: ${percentualTela}% de 100% · ${pendentesParticipacao} participação(ões) pendente(s) · ${pendentesBrasileiro} opção(ões) “Brasileiro” pendente(s). Complete os dados até totalizar exatamente 100% para fechar.</div>`;
       // Nunca empilhar modais: após salvar um sócio, o modal anterior precisa
       // ser substituído pela leitura atual. Empilhar revelava a fotografia
       // antiga ao clicar em “Fechar”, parecendo que a confirmação se perdeu.
       modalQsa?.fechar();
-      modalQsa = A.modal({ titulo:`Quadro societário — ${e.razao_social}`, largura:900, confirmar:'Fechar', corpo:`<div class="aviso"><b>ATENDE_200044: ${A.esc(d.atende_200044)}</b><br>${A.esc(d.motivo)}</div><p class="mini">A condição exige sócio brasileiro com participação igual ou superior a 20%. Percentual ausente nunca é presumido.</p><button class="btn" id="enriquecerQsa">Consultar cadastro</button><button class="btn vazio" id="adicionarQsa">Adicionar sócio</button><button class="btn vazio" id="historicoQsa">Histórico de alterações</button><button class="btn vazio" id="sanearAnexoXi">Enriquecer contrapartes e reprocessar Anexo XI</button><table class="tabela" style="margin-top:12px"><thead><tr><th>Sócio</th><th>Qualificação</th><th>Participação</th><th>Brasileiro</th><th></th></tr></thead><tbody>${linhas || '<tr><td colspan="5">Nenhum sócio disponível.</td></tr>'}</tbody></table>`, aoConfirmar: async()=>{} });
+      modalQsa = A.modal({ titulo:`Quadro societário — ${e.razao_social}`, largura:900, confirmar:'Concluir quadro', corpo:`${resumoQuadro}<div class="aviso"><b>ATENDE_200044: ${A.esc(d.atende_200044)}</b><br>${A.esc(d.motivo)}</div><p class="mini">A condição exige sócio brasileiro com participação igual ou superior a 20%. Percentual ausente nunca é presumido.</p><button class="btn" id="enriquecerQsa">Consultar cadastro</button><button class="btn vazio" id="adicionarQsa">Adicionar sócio</button><button class="btn vazio" id="historicoQsa">Histórico de alterações</button><button class="btn vazio" id="sanearAnexoXi">Enriquecer contrapartes e reprocessar Anexo XI</button><table class="tabela" style="margin-top:12px"><thead><tr><th>Sócio</th><th>Qualificação</th><th>Participação</th><th>Brasileiro</th><th></th></tr></thead><tbody>${linhas || '<tr><td colspan="5">Nenhum sócio disponível.</td></tr>'}</tbody></table>`, aoConfirmar: async()=>{
+        if (!quadroConcluido) { A.toast('O quadro societário só pode ser concluído quando todas as participações e opções “Brasileiro” estiverem preenchidas e o total for exatamente 100%.', 'aviso'); return false; }
+      }, podeFechar: () => {
+        if (quadroConcluido) return true;
+        A.toast('Complete o quadro societário até totalizar exatamente 100% antes de fechá-lo.', 'aviso');
+        return false;
+      } });
       document.getElementById('enriquecerQsa').onclick = async (evento) => {
         const botao = evento.currentTarget; const texto = botao.textContent;
         botao.disabled = true; botao.textContent = 'Consultando cadastro…';
