@@ -220,24 +220,23 @@ Telas.conformidadeDocumental = async (el) => {
   const tipos = [...new Set(itens.map((x) => x.tipo))];
   // A regra repetida deixa de ocupar cada linha. Ela recebe um código curto
   // e aparece uma única vez no rodapé da lista.
-  const regras = [...new Set(itens.flatMap((x) => (x.candidatos || []).map((c) => c.regra_uso || 'Confirme a descrição efetiva do serviço e o catálogo fiscal.')))]
+  const temBeneficioFiscal = (c) => !['', 'integral', 'tributação integral', 'tributacao integral'].includes(String(c.reducao || c.tratamento || '').trim().toLowerCase());
+  const regras = [...new Set(itens.flatMap((x) => (x.candidatos || []).filter(temBeneficioFiscal).map((c) => c.regra_uso || 'Confirme a condição legal e a descrição efetiva do serviço.')))]
     .map((texto, indice) => ({ codigo: `R${String(indice + 1).padStart(2, '0')}`, texto }));
-  const codigoRegra = (texto) => regras.find((x) => x.texto === (texto || 'Confirme a descrição efetiva do serviço e o catálogo fiscal.'))?.codigo || 'R—';
+  const codigoRegra = (texto) => regras.find((x) => x.texto === (texto || 'Confirme a condição legal e a descrição efetiva do serviço.'))?.codigo || '—';
   const candidatos = (x) => (x.candidatos || []).length
     ? `<div style="margin-top:2px">${A.tabela([
       { t:'LC 116', r:c=>A.esc(c.lc116 || '—') }, { t:'NBS', r:c=>`${A.esc(c.nbs || '—')}<div class="mini">${A.esc(c.descricao_nbs || '')}</div>` },
       { t:'CST / cClassTrib', r:c=>`${A.esc(c.cst || 'CST não informado no catálogo')}<div class="mini">${A.esc(c.cclasstrib || '—')}</div>` },
       { t:'Tratamento', r:c=>`${A.esc(c.tratamento || '—')}<div class="mini">${A.esc(c.reducao || '')}</div>` },
-      { t:'Uso', r:c=>`<span class="tag n">${codigoRegra(c.regra_uso)}</span>` },
+      { t:'Regra de benefício', r:c=>temBeneficioFiscal(c) ? `<span class="tag n">${codigoRegra(c.regra_uso)}</span>` : '—' },
     ], x.candidatos)}</div>`
     : '<span class="mini">Nenhuma correlação cadastrada para sugerir.</span>';
   const abertos = new Set();
   const tabelaItens = (linhas) => A.tabela([
       { t:'Documento / item', r:x=>`<b class="mono">${A.esc(x.documento || 'sem número')}</b><div class="mini">Item ${A.esc(x.item_numero || '—')} · ${A.esc(x.competencia || x.data_emissao || '')}</div><div class="mini">${A.esc(x.contraparte)}</div>` },
       { t:'Não conformidade', r:x=>`<span class="tag ${x.severidade === 'ALTA' ? 'a' : 'b'}">${A.esc(x.tipo)}</span><div style="margin-top:6px"><b>${A.esc(x.titulo)}</b></div><div class="mini">LC 116: ${A.esc(x.lc116 || 'não informado')} · NBS: ${A.esc(x.nbs || 'não informado')}</div>` },
-      { t:'Ação', r:x=>A.esc(x.solucao) },
       { t:'NBS e enquadramentos compatíveis', r:candidatos },
-      { t:'Valor', num:true, r:x=>A.moeda(x.valor) },
     ], linhas, { vazio:'Nenhum item neste grupo.' });
   const render = (filtro = '') => {
     const visiveis = !filtro ? itens : itens.filter((x) => x.tipo === filtro);
@@ -246,8 +245,7 @@ Telas.conformidadeDocumental = async (el) => {
       const ordenados = [...grupo].sort((a, b) => Number(b.valor || 0) - Number(a.valor || 0));
       const todos = abertos.has(tipo);
       const amostra = todos ? ordenados : ordenados.slice(0, 10);
-      const valor = grupo.reduce((s, x) => s + Number(x.valor || 0), 0);
-      return `<section class="cartao" style="margin-top:16px;box-shadow:none"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h3 style="margin:0">${A.esc(tipo.replaceAll('_',' '))}</h3><p class="mini" style="margin:4px 0 0">${grupo.length} ocorrência(s) · ${A.moeda(valor)} · ${todos ? 'todos os itens' : `amostra dos 10 maiores valores`}</p></div>${grupo.length > 10 ? `<button class="btn pq vazio" data-conformidade-grupo="${A.esc(tipo)}">${todos ? 'Mostrar amostra' : 'Ver todos'}</button>` : ''}</div><div style="margin-top:10px">${tabelaItens(amostra)}</div></section>`;
+      return `<section class="cartao" style="margin-top:16px;box-shadow:none"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h3 style="margin:0">${A.esc(tipo.replaceAll('_',' '))}</h3><p class="mini" style="margin:4px 0 0">${grupo.length} ocorrência(s) · ${todos ? 'todos os itens' : 'amostra dos 10 maiores itens'}</p></div>${grupo.length > 10 ? `<button class="btn pq vazio" data-conformidade-grupo="${A.esc(tipo)}">${todos ? 'Mostrar amostra' : 'Ver todos'}</button>` : ''}</div><div style="margin-top:10px">${tabelaItens(amostra)}</div></section>`;
     }).join('') : A.vazio('Nenhuma não conformidade documental encontrada.', 'Os documentos com LC 116 ou NBS possuem chave compatível com o catálogo atual.');
     el.querySelectorAll('[data-conformidade-grupo]').forEach((botao) => { botao.onclick = () => {
       const tipo = botao.dataset.conformidadeGrupo; if (abertos.has(tipo)) abertos.delete(tipo); else abertos.add(tipo); render(filtro);
