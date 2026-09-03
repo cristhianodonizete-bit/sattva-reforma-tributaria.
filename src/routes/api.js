@@ -316,6 +316,8 @@ router.get('/operacao/dashboard', async (req, res) => {
       const pendenciasCliente = ts.filter((x) => x.status !== 'concluida' && x.envolve_cliente && String(x.pendencia_cliente || '').trim()).length;
       const responsaveisPorEntrega = es.map((entrega) => ({ id: entrega.id, chave: entrega.chave, titulo: entrega.titulo,
         responsavel: responsavelDaEntrega(p.id, entrega.id), usuario_id: rs.find((x) => x.lado === 'sattva' && x.entrega_id === entrega.id)?.usuario_id || null }));
+      if (Number(p.acompanhamento_meses) > 0 || as.length) responsaveisPorEntrega.push({ id: null, chave: 'acompanhamento', titulo: 'Acompanhamento',
+        responsavel: responsavelDaEntrega(p.id, null), usuario_id: rs.find((x) => x.lado === 'sattva' && !x.entrega_id)?.usuario_id || null });
       return { ...p, empresa: empresaPorId.get(p.empresa_id)?.razao_social || 'Cliente não identificado', entregas: es.length,
         entregasConcluidas: feitas, progresso: es.length ? Math.round((feitas / es.length) * 100) : 0,
         acompanhamentos: as.length, acompanhamentosConcluidos: as.filter((x) => x.status === 'concluido').length,
@@ -2435,17 +2437,20 @@ router.post('/empresas/:id/projeto/responsaveis/:chave/atribuir-me', async (req,
     const projetoBase = await projetoAprovadoNoCache(req.params.id);
     if (!projetoBase) throw new Error('Não há um projeto aprovado para esta empresa.');
     const projeto = await contratacaoPermitida(req, projetoBase.id);
+    const ehAcompanhamento = req.params.chave === 'acompanhamento';
     const chaves = chavesDeTarefaModulo(req.params.chave), marcadores = chaves.map(() => '?').join(',');
-    const entregas = db.prepare(`SELECT * FROM projeto_entregas WHERE contratacao_id=? AND chave IN (${marcadores}) ORDER BY id`).all(projeto.id, ...chaves);
-    const entrega = entregas.length === 1 ? entregas[0] : entregas.find((e) => String(e.id) === String(req.body?.entrega_id));
-    if (!entrega) throw new Error(entregas.length > 1 ? 'Selecione a entrega de capacitação.' : 'Este módulo não está liberado no escopo aprovado.');
-    const anterior = db.prepare("SELECT * FROM projeto_responsaveis WHERE contratacao_id=? AND entrega_id=? AND lado='sattva' ORDER BY id LIMIT 1").get(projeto.id, entrega.id);
+    const entregas = ehAcompanhamento ? [] : db.prepare(`SELECT * FROM projeto_entregas WHERE contratacao_id=? AND chave IN (${marcadores}) ORDER BY id`).all(projeto.id, ...chaves);
+    const entrega = ehAcompanhamento ? { id: null, chave: 'acompanhamento', titulo: 'Acompanhamento' } : (entregas.length === 1 ? entregas[0] : entregas.find((e) => String(e.id) === String(req.body?.entrega_id)));
+    if (!entrega || (ehAcompanhamento && Number(projeto.acompanhamento_meses || 0) <= 0)) throw new Error(entregas.length > 1 ? 'Selecione a entrega de capacitação.' : 'Este módulo não está liberado no escopo aprovado.');
+    const anterior = entrega.id === null
+      ? db.prepare("SELECT * FROM projeto_responsaveis WHERE contratacao_id=? AND entrega_id IS NULL AND lado='sattva' ORDER BY id LIMIT 1").get(projeto.id)
+      : db.prepare("SELECT * FROM projeto_responsaveis WHERE contratacao_id=? AND entrega_id=? AND lado='sattva' ORDER BY id LIMIT 1").get(projeto.id, entrega.id);
     const nome = String(req.usuario.nome || req.usuario.email || 'Usuário cadastrado').trim();
     const email = String(req.usuario.email || '').trim();
     if (anterior) db.prepare('UPDATE projeto_responsaveis SET usuario_id=?,nome=?,email=? WHERE id=?').run(req.usuario.id, nome, email, anterior.id);
     else db.prepare("INSERT INTO projeto_responsaveis (contratacao_id,entrega_id,lado,usuario_id,nome,email,funcao) VALUES (?,?,'sattva',?,?,?,?)")
       .run(projeto.id, entrega.id, req.usuario.id, nome, email, req.usuario.papel || '');
-    auditar(req, { empresaId: projeto.empresa_id, acao: 'Atribuiu entrega para si', entidade: 'entrega', entidadeId: entrega.id,
+    auditar(req, { empresaId: projeto.empresa_id, acao: 'Atribuiu entrega para si', entidade: ehAcompanhamento ? 'acompanhamento' : 'entrega', entidadeId: entrega.id || projeto.id,
       antes: anterior ? { usuario_id: anterior.usuario_id || null, nome: anterior.nome } : null,
       depois: { usuario_id: req.usuario.id, nome, chave: entrega.chave } });
     ok(res, { entrega_id: entrega.id, responsavel: { usuario_id: req.usuario.id, nome, email } });

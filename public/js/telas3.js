@@ -596,7 +596,11 @@ Telas.dashboardOperacao = async (el) => {
   const agenda = d.agenda || [];
   let agendaCompleta = false;
   const responsaveis = [...new Set(d.projetos.map((p) => p.responsavelSattva).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-  const entregasDaCarteira = d.projetos.flatMap((p) => (p.responsaveisPorEntrega || []).map((e) => ({ ...e, cliente: p.empresa, empresaId: p.empresa_id, status: p.status })));
+  const colunasEscopo = [
+    ['diagnostico', 'Diagnóstico'], ['precificacao', 'Precificação'], ['contratos', 'Revisão de contratos'],
+    ['capacitacao_operacional', 'Capacitação operacional'], ['treinamento_boas_praticas', 'Workshop prático'], ['acompanhamento', 'Acompanhamento'],
+  ];
+  const matrizEscopos = d.projetos.map((p) => ({ ...p, porChave: new Map((p.responsaveisPorEntrega || []).map((e) => [e.chave, e])) }));
   const cartaoProjeto = (p) => `<article class="projeto-operacao-card">
     <div class="projeto-operacao-cabecalho"><div><h3>${A.esc(p.empresa)}</h3><p>${A.esc(p.nome_plano || 'Escopo personalizado')}</p></div><span class="tag ${p.status === 'em_execucao' ? 'b' : p.status === 'concluido' ? 'c' : 'n'}">${A.esc(p.status)}</span></div>
     <div class="projeto-operacao-progresso"><div><span>Evolução das entregas</span><b>${p.entregasConcluidas}/${p.entregas} · ${p.progresso}%</b></div><div class="barra-prog"><i style="width:${p.progresso}%"></i></div></div>
@@ -612,15 +616,17 @@ Telas.dashboardOperacao = async (el) => {
       ${A.kpi('Pendências do cliente', d.resumo.pendenciasCliente || 0, 'interações a acompanhar', d.resumo.pendenciasCliente ? 'destaque' : '')}
       ${A.kpi('Sem responsável', d.resumo.projetosSemResponsavel || 0, 'projetos ativos sem dono', d.resumo.projetosSemResponsavel ? 'destaque' : '')}
       ${A.kpi('Projetos concluídos', concluidos, 'entregas finalizadas')}</div>
-     <div class="cartao matriz-responsaveis"><div class="cabecalho-lista"><div><h2>Responsáveis por escopo</h2><p class="desc">Cada linha representa uma entrega contratada. Capacitação Operacional e Workshop Prático permanecem separados.</p></div><span class="tag">${entregasDaCarteira.length} entregas</span></div>${A.tabela([
-       { t: 'Cliente', r: (r) => `<b>${A.esc(r.cliente)}</b>` },
-       { t: 'Escopo', r: (r) => `<span class="escopo-entrega">${A.esc(r.titulo)}</span>` },
-       { t: 'Responsável', r: (r) => r.responsavel ? `<span class="responsavel-pill">${A.esc(r.responsavel)}</span>` : '<span class="tag a">Não atribuído</span>' },
-       { t: 'Situação', r: (r) => `<span class="tag ${r.status === 'em_execucao' ? 'b' : r.status === 'concluido' ? 'c' : 'n'}">${A.esc(r.status)}</span>` },
-       { t: '', r: (r) => r.usuario_id === d.usuario_atual_id
-         ? '<span class="tag c">Você é responsável</span>'
-         : `<button class="btn pq" data-assumir-entrega="${r.id}" data-assumir-empresa="${r.empresaId || ''}" data-assumir-chave="${A.esc(r.chave)}">Atribuir para mim</button>` },
-     ], entregasDaCarteira, { vazio: 'Nenhuma entrega contratada na carteira.' })}</div>
+     <div class="cartao matriz-responsaveis"><div class="cabecalho-lista"><div><h2>Responsáveis por escopo</h2><p class="desc">Uma linha por cliente e uma coluna por escopo, como na visão de operação da carteira.</p></div><span class="tag">${matrizEscopos.length} clientes</span></div>${A.tabela([
+       { t: 'Cliente', r: (r) => `<b>${A.esc(r.empresa)}</b>` },
+       ...colunasEscopo.map(([chave, titulo]) => ({ t: titulo, r: (r) => {
+         const entrega = r.porChave.get(chave);
+         if (!entrega) return '<span class="escopo-nao-contratado">Não contratado</span>';
+         if (entrega.usuario_id === d.usuario_atual_id) return '<span class="tag c">Você é responsável</span>';
+         return entrega.responsavel
+           ? `<button class="responsavel-pill responsavel-acao" data-assumir-entrega="${entrega.id || ''}" data-assumir-empresa="${r.empresa_id || ''}" data-assumir-chave="${A.esc(entrega.chave)}">${A.esc(entrega.responsavel)}</button>`
+           : `<button class="btn pq" data-assumir-entrega="${entrega.id || ''}" data-assumir-empresa="${r.empresa_id || ''}" data-assumir-chave="${A.esc(entrega.chave)}">Atribuir para mim</button>`;
+       }})),
+     ], matrizEscopos, { vazio: 'Nenhuma entrega contratada na carteira.' })}</div>
      <div class="cartao"><div class="cabecalho-lista"><div><h2>Distribuição da operação</h2><p class="desc">Carga atual por responsável, considerando projetos ativos e pendências operacionais.</p></div><span class="tag">${(d.cargaResponsaveis || []).length} responsável${(d.cargaResponsaveis || []).length === 1 ? '' : 'is'}</span></div>${A.tabela([
        { t: 'Responsável', r: (r) => `<b>${A.esc(r.nome)}</b>` },
        { t: 'Projetos em execução', num: true, r: (r) => r.projetos },
