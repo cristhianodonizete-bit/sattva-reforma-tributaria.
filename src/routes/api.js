@@ -66,9 +66,34 @@ const DASHBOARD_CACHE_MS = 5000;
 const dashboardCache = new Map();
 const chaveDashboard = (req) => String(req.usuario?.id || 'publico');
 const invalidarDashboardCache = () => dashboardCache.clear();
+// Bases de classificação são catálogos globais de leitura. Este cache não
+// contém cadastro de empresa, QSA, regimes, cálculo ou resultado do motor.
+// A duração curta reduz leituras repetidas da mesma página sem criar uma
+// segunda fonte de verdade; qualquer escrita bem-sucedida o invalida.
+const CACHE_BASES_MS = 30000;
+const cacheBases = new Map();
+const invalidarCacheBases = () => cacheBases.clear();
+const responderBasesEmCache = (req, res, carregar) => {
+  const chave = req.originalUrl;
+  const atual = cacheBases.get(chave);
+  if (atual && (Date.now() - atual.geradoEm) < CACHE_BASES_MS) {
+    res.set('Cache-Control', 'private, no-store');
+    res.set('X-Sattva-Bases-Cache', 'HIT');
+    return ok(res, { ...atual.dados, atualizado_em: new Date(atual.geradoEm).toISOString(), cache: 'leitura_curta' });
+  }
+  const dados = carregar();
+  const geradoEm = Date.now();
+  cacheBases.set(chave, { geradoEm, dados });
+  res.set('Cache-Control', 'private, no-store');
+  res.set('X-Sattva-Bases-Cache', 'MISS');
+  return ok(res, { ...dados, atualizado_em: new Date(geradoEm).toISOString(), cache: 'leitura_curta' });
+};
 router.use((req, res, next) => {
   res.on('finish', () => {
-    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && res.statusCode < 400) invalidarDashboardCache();
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && res.statusCode < 400) {
+      invalidarDashboardCache();
+      invalidarCacheBases();
+    }
   });
   next();
 });
@@ -2941,7 +2966,7 @@ router.post('/analises/:id/aplicar', (req, res) => {
 // ===========================================================================
 // BASES DE CLASSIFICAÇÃO TRIBUTÁRIA (NCM e NBS/LC116)
 // ===========================================================================
-router.get('/bases', (_req, res) => ok(res, { estatisticas: bases.estatisticas() }));
+router.get('/bases', (req, res) => responderBasesEmCache(req, res, () => ({ estatisticas: bases.estatisticas() })));
 
 router.get('/bases/modelo/:tipo', (req, res) => {
   try {
@@ -2989,14 +3014,14 @@ router.post('/bases/importar/:tipo', upload.single('arquivo'), (req, res) => {
 
 router.get('/bases/consultar', (req, res) => {
   try {
-    if (req.query.ncm) return ok(res, { resultado: bases.consultarNcm(req.query.ncm) });
-    if (req.query.nbs || req.query.lc116) return ok(res, { resultado: bases.consultarServico(req.query.lc116, req.query.nbs) });
+    if (req.query.ncm) return responderBasesEmCache(req, res, () => ({ resultado: bases.consultarNcm(req.query.ncm) }));
+    if (req.query.nbs || req.query.lc116) return responderBasesEmCache(req, res, () => ({ resultado: bases.consultarServico(req.query.lc116, req.query.nbs) }));
     throw new Error('Informe ncm, nbs ou lc116.');
   } catch (e) { erro(res, e); }
 });
 
 router.get('/bases/buscar', (req, res) => {
-  try { ok(res, bases.buscar(req.query.q || '', Number(req.query.limite) || 60)); }
+  try { responderBasesEmCache(req, res, () => bases.buscar(req.query.q || '', Number(req.query.limite) || 60)); }
   catch (e) { erro(res, e); }
 });
 
@@ -3005,33 +3030,35 @@ router.get('/bases/buscar', (req, res) => {
 // aplicando-a somente quando o destinatário estiver confirmado como ente público.
 router.get('/bases/catalogo', (req, res) => {
   try {
-    const tipo = req.query.tipo === 'servicos' ? 'servicos' : 'ncm';
-    const pagina = Math.max(1, Number(req.query.pagina) || 1);
-    const tamanho = Math.min(100, Math.max(10, Number(req.query.tamanho) || 50));
-    const busca = String(req.query.busca || '').trim();
-    const digitos = busca.replace(/\D/g, '');
-    const termo = `%${busca}%`;
-    const condicao = tipo === 'ncm'
-      ? (busca ? 'WHERE ncm LIKE ? OR descricao LIKE ? OR classificacao LIKE ? OR cclasstrib LIKE ?' : '')
-      : (busca ? 'WHERE nbs LIKE ? OR lc116 LIKE ? OR descricao_item LIKE ? OR descricao_nbs LIKE ? OR cclasstrib LIKE ?' : '');
-    const parametros = tipo === 'ncm'
-      ? (busca ? [`${digitos}%`, termo, termo, termo] : [])
-      : (busca ? [`${digitos}%`, `${digitos}%`, termo, termo, termo] : []);
-    const tabela = tipo === 'ncm' ? 'base_ncm' : 'base_servicos';
-    const ordem = tipo === 'ncm' ? 'ncm, cclasstrib' : 'nbs, lc116, cclasstrib';
-    const total = db.prepare(`SELECT COUNT(*) c FROM ${tabela} ${condicao}`).get(...parametros).c;
-    const itens = db.prepare(`SELECT * FROM ${tabela} ${condicao} ORDER BY ${ordem} LIMIT ? OFFSET ?`)
-      .all(...parametros, tamanho, (pagina - 1) * tamanho);
-    const regras = db.prepare('SELECT * FROM regras_governo').all();
-    const codigo = (v) => String(v || '').replace(/\D/g, '');
-    const beneficios = (item) => regras.filter((r) => {
-      const chaves = tipo === 'ncm' ? [item.ncm] : [item.nbs, item.lc116];
-      const candidatos = [r.chave, r.ncm, r.nbs, r.lc116].map(codigo).filter(Boolean);
-      return chaves.map(codigo).filter(Boolean).some((chave) => candidatos.includes(chave));
-    }).map((r) => ({ tratamento: r.tratamento || '', reducao: r.reducao, aliquota_zero: Boolean(r.aliquota_zero),
-      cst: r.cst || '', cclasstrib: r.cclasstrib || '', ente_elegivel: r.ente_elegivel || '',
-      condicoes: r.condicoes || '', fundamento: r.fundamento || '', fonte: r.fonte || '' }));
-    ok(res, { tipo, pagina, tamanho, total, itens: itens.map((item) => ({ ...item, beneficios: beneficios(item) })) });
+    responderBasesEmCache(req, res, () => {
+      const tipo = req.query.tipo === 'servicos' ? 'servicos' : 'ncm';
+      const pagina = Math.max(1, Number(req.query.pagina) || 1);
+      const tamanho = Math.min(100, Math.max(10, Number(req.query.tamanho) || 50));
+      const busca = String(req.query.busca || '').trim();
+      const digitos = busca.replace(/\D/g, '');
+      const termo = `%${busca}%`;
+      const condicao = tipo === 'ncm'
+        ? (busca ? 'WHERE ncm LIKE ? OR descricao LIKE ? OR classificacao LIKE ? OR cclasstrib LIKE ?' : '')
+        : (busca ? 'WHERE nbs LIKE ? OR lc116 LIKE ? OR descricao_item LIKE ? OR descricao_nbs LIKE ? OR cclasstrib LIKE ?' : '');
+      const parametros = tipo === 'ncm'
+        ? (busca ? [`${digitos}%`, termo, termo, termo] : [])
+        : (busca ? [`${digitos}%`, `${digitos}%`, termo, termo, termo] : []);
+      const tabela = tipo === 'ncm' ? 'base_ncm' : 'base_servicos';
+      const ordem = tipo === 'ncm' ? 'ncm, cclasstrib' : 'nbs, lc116, cclasstrib';
+      const total = db.prepare(`SELECT COUNT(*) c FROM ${tabela} ${condicao}`).get(...parametros).c;
+      const itens = db.prepare(`SELECT * FROM ${tabela} ${condicao} ORDER BY ${ordem} LIMIT ? OFFSET ?`)
+        .all(...parametros, tamanho, (pagina - 1) * tamanho);
+      const regras = db.prepare('SELECT * FROM regras_governo').all();
+      const codigo = (v) => String(v || '').replace(/\D/g, '');
+      const beneficios = (item) => regras.filter((r) => {
+        const chaves = tipo === 'ncm' ? [item.ncm] : [item.nbs, item.lc116];
+        const candidatos = [r.chave, r.ncm, r.nbs, r.lc116].map(codigo).filter(Boolean);
+        return chaves.map(codigo).filter(Boolean).some((chave) => candidatos.includes(chave));
+      }).map((r) => ({ tratamento: r.tratamento || '', reducao: r.reducao, aliquota_zero: Boolean(r.aliquota_zero),
+        cst: r.cst || '', cclasstrib: r.cclasstrib || '', ente_elegivel: r.ente_elegivel || '',
+        condicoes: r.condicoes || '', fundamento: r.fundamento || '', fonte: r.fonte || '' }));
+      return { tipo, pagina, tamanho, total, itens: itens.map((item) => ({ ...item, beneficios: beneficios(item) })) };
+    });
   } catch (e) { erro(res, e); }
 });
 
