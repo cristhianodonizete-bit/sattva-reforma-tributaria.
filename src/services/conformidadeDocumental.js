@@ -43,7 +43,15 @@ function avaliar(movimento) {
   const nbs = bases.normNbs(movimento.nbs);
   if (!lc116 && !nbs) return null;
   const consulta = bases.consultarServico(lc116, nbs);
-  const candidatos = (consulta.candidatos || []).map(candidato).map((x) => ({ ...x, regra_uso: regraDeUso(x) }));
+  // O catálogo pode conter linhas técnicas repetidas pela origem da carga.
+  // Na conformidade, a alternativa é a combinação fiscal distinta; não faz
+  // sentido repetir a mesma opção para quem revisa o documento.
+  const vistos = new Set();
+  const candidatos = (consulta.candidatos || []).map(candidato).filter((x) => {
+    const chave = [x.lc116, x.nbs, x.cst, x.cclasstrib, x.reducao].map((v) => String(v || '')).join('|');
+    if (vistos.has(chave)) return false;
+    vistos.add(chave); return true;
+  }).map((x) => ({ ...x, regra_uso: regraDeUso(x) }));
 
   if (lc116 && !nbs) return {
     tipo: 'LC116_SEM_NBS', severidade: 'ATENCAO',
