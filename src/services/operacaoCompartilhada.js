@@ -203,12 +203,12 @@ function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], ta
       const contratacaoId = localPorRemoto.get(a.projeto_id); const id = Number(a.origem_local_id);
       if (contratacaoId && id) insAcomp.run(id, contratacaoId, a.competencia, a.nome || '', a.status, a.observacoes || '', a.criado_em || null);
     }
-    const insResp = db.prepare('INSERT OR REPLACE INTO projeto_responsaveis (id,contratacao_id,entrega_id,lado,nome,telefone,email,funcao,criado_em) VALUES (?,?,?,?,?,?,?,?,?)');
+    const insResp = db.prepare('INSERT OR REPLACE INTO projeto_responsaveis (id,contratacao_id,entrega_id,lado,usuario_id,nome,telefone,email,funcao,criado_em) VALUES (?,?,?,?,?,?,?,?,?,?)');
     const insTarefa = db.prepare('INSERT OR REPLACE INTO projeto_tarefas (id,contratacao_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente,interacoes_cliente,criado_em,atualizado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
     const insChecklist = db.prepare(`INSERT OR REPLACE INTO projeto_checklist_implantacao
       (id,contratacao_id,entrega_id,escopo,chave,titulo,tipo_evidencia,status,responsavel_id,origem_tipo,origem_id,observacoes,ordem,origem,criado_em,atualizado_em)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
-    for (const r of responsaveis) { const entregaId=entregaLocalPorRemota.get(r.entrega_id); const contratacaoId=localPorRemoto.get(r.projeto_id); const id=Number(r.origem_local_id); if(contratacaoId&&id) insResp.run(id,contratacaoId,entregaId||null,r.lado,r.nome,r.telefone||'',r.email||'',r.funcao||'',r.criado_em||null); }
+    for (const r of responsaveis) { const entregaId=entregaLocalPorRemota.get(r.entrega_id); const contratacaoId=localPorRemoto.get(r.projeto_id); const id=Number(r.origem_local_id); if(contratacaoId&&id) insResp.run(id,contratacaoId,entregaId||null,r.lado,r.usuario_id||null,r.nome,r.telefone||'',r.email||'',r.funcao||'',r.criado_em||null); }
     for (const t of tarefas) { const entregaId=entregaLocalPorRemota.get(t.entrega_id); const contratacaoId=localPorRemoto.get(t.projeto_id); const id=Number(t.origem_local_id); if(contratacaoId&&entregaId&&id) insTarefa.run(id,contratacaoId,entregaId,t.titulo,t.descricao||'',t.status,t.data_abertura||null,t.data_conclusao||null,t.envolve_cliente?1:0,t.pendencia_cliente||'',t.interacoes_cliente||'',t.criado_em||null,t.atualizado_em||null); }
     for (const i of checklist) { const contratacaoId=localPorRemoto.get(i.projeto_id); const entregaId=i.entrega_id ? entregaLocalPorRemota.get(i.entrega_id) : null; const id=Number(i.origem_local_id); if(contratacaoId&&id) insChecklist.run(id,contratacaoId,entregaId||null,i.escopo,i.chave,i.titulo,i.tipo_evidencia||null,i.status,null,i.origem_tipo||null,i.origem_id||null,i.observacoes||'',Number(i.ordem)||0,i.origem||'AUTOMATICO',i.criado_em||null,i.atualizado_em||null); }
   })();

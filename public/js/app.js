@@ -437,7 +437,8 @@ const App = (() => {
       const contatos = entregas.map((e) => {
         const sattva = responsaveisDaEntrega(e.id, 'sattva'), cliente = responsaveisDaEntrega(e.id, 'cliente');
         const pessoa = (r, rotulo) => r ? `<span><b>${rotulo}:</b> ${esc(r.nome)}${r.telefone ? ` · ${esc(r.telefone)}` : ''}${r.email ? ` · ${esc(r.email)}` : ''}</span>` : `<span><b>${rotulo}:</b> não definido</span>`;
-        return `<div class="responsavel-modulo-item"><div>${entregas.length > 1 ? `<strong>${esc(e.titulo)}</strong>` : ''}${pessoa(sattva, 'Sattva')}${pessoa(cliente, 'Cliente')}</div>${podeExecutar ? `<button class="btn pq vazio" data-responsaveis="${e.id}">Editar</button>` : ''}</div>`;
+        const assumir = !sattva || sattva.usuario_id !== S.usuario?.id;
+        return `<div class="responsavel-modulo-item"><div>${entregas.length > 1 ? `<strong>${esc(e.titulo)}</strong>` : ''}${pessoa(sattva, 'Sattva')}${pessoa(cliente, 'Cliente')}</div>${podeExecutar ? `<div class="responsavel-acoes">${assumir ? `<button class="btn pq" data-atribuir-me="${e.id}">Atribuir para mim</button>` : '<span class="tag c">Você é responsável</span>'}<button class="btn pq vazio" data-responsaveis="${e.id}">Editar</button></div>` : ''}</div>`;
       }).join('');
       host.innerHTML = `<section class="cartao tarefas-modulo"><div class="cabecalho-lista"><div><h2>Tarefas do módulo</h2><p class="desc">Execução de ${esc(tituloModulo)}. As tarefas também aparecem consolidadas no Acompanhamento geral.</p></div>${podeExecutar ? '<button class="btn pq" data-nova-tarefa>Nova tarefa</button>' : `<span class="tag">${tarefas.length} tarefas</span>`}</div><div class="responsaveis-modulo"><div class="mini">RESPONSÁVEIS DO MÓDULO</div>${contatos}</div>${tarefas.length ? tabela([
         { t: 'Situação', r: (t) => `<span class="tag ${t.status === 'concluida' ? 'c' : t.status === 'em_andamento' ? 'b' : 'n'}">${esc(t.status.replace('_', ' '))}</span>` },
@@ -456,6 +457,10 @@ const App = (() => {
         modal({ titulo: `Responsáveis — ${entrega.titulo}`, largura: 720,
           corpo: `<h3 class="subtitulo-modal">Responsável pela Sattva</h3><div class="grade g2">${campo('responsavel_sattva', 'Nome', sattva.nome || '')}${campo('funcao_sattva', 'Função / papel', sattva.funcao || '')}${campo('telefone_sattva', 'Telefone', sattva.telefone || '')}${campo('email_sattva', 'E-mail', sattva.email || '', 'email')}</div><h3 class="subtitulo-modal">Responsável pelo cliente</h3><div class="grade g2">${campo('responsavel_cliente', 'Nome', cliente.nome || '')}${campo('funcao_cliente', 'Função / área', cliente.funcao || '')}${campo('telefone_cliente', 'Telefone', cliente.telefone || '')}${campo('email_cliente', 'E-mail', cliente.email || '', 'email')}</div>`,
           aoConfirmar: async (form) => { await api(`/empresas/${S.empresaId}/projeto/responsaveis/${chave}`, { metodo: 'POST', corpo: { ...form, entrega_id: entrega.id } }); await carregar(); } });
+      }));
+      host.querySelectorAll('[data-atribuir-me]').forEach((b) => b.addEventListener('click', async () => {
+        await api(`/empresas/${S.empresaId}/projeto/responsaveis/${chave}/atribuir-me`, { metodo: 'POST', corpo: { entrega_id: Number(b.dataset.atribuirMe) } });
+        toast('Entrega atribuída a você.', 'ok'); await carregar();
       }));
     };
     await carregar();

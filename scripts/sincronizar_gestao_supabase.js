@@ -92,7 +92,7 @@ async function executar() {
   const responsaveis = db.prepare('SELECT * FROM projeto_responsaveis').all().map((r) => {
     const entrega = r.entrega_id ? mapaEntrega.get(Number(r.entrega_id)) : null;
     const projeto = entrega?.projeto_id || mapaProjeto.get(r.contratacao_id);
-    return { origem_local_id:r.id, projeto_id:projeto, entrega_id:entrega?.id || null, lado:r.lado, nome:r.nome, telefone:r.telefone||null, email:r.email||null, funcao:r.funcao||null, criado_em:r.criado_em||null };
+    return { origem_local_id:r.id, projeto_id:projeto, entrega_id:entrega?.id || null, lado:r.lado, usuario_id:r.usuario_id||null, nome:r.nome, telefone:r.telefone||null, email:r.email||null, funcao:r.funcao||null, criado_em:r.criado_em||null };
   }).filter((r) => r.projeto_id);
   const tarefas = db.prepare('SELECT * FROM projeto_tarefas').all().map((t) => {
     const entrega = mapaEntrega.get(Number(t.entrega_id)); const projeto = entrega?.projeto_id || mapaProjeto.get(t.contratacao_id);

@@ -86,6 +86,7 @@ const COLUNAS_NOVAS = {
     aprovado_em: 'TEXT', competencia_referencia: 'TEXT',
     acompanhamento_meses: 'INTEGER DEFAULT 0', modulos_json: 'TEXT',
   },
+  projeto_responsaveis: { usuario_id: 'TEXT' },
   turmas: { limite_participantes: 'INTEGER DEFAULT 30' },
   participantes: { empresa_id: 'INTEGER' },
   empresa_servicos_fiscais: {
@@ -877,6 +878,7 @@ CREATE TABLE IF NOT EXISTS projeto_responsaveis (
   contratacao_id INTEGER NOT NULL REFERENCES contratacoes(id) ON DELETE CASCADE,
   entrega_id INTEGER REFERENCES projeto_entregas(id) ON DELETE CASCADE,
   lado TEXT NOT NULL, -- sattva | cliente
+  usuario_id TEXT,
   nome TEXT NOT NULL, telefone TEXT, email TEXT, funcao TEXT,
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );

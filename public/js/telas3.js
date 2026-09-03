@@ -596,6 +596,7 @@ Telas.dashboardOperacao = async (el) => {
   const agenda = d.agenda || [];
   let agendaCompleta = false;
   const responsaveis = [...new Set(d.projetos.map((p) => p.responsavelSattva).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const entregasDaCarteira = d.projetos.flatMap((p) => (p.responsaveisPorEntrega || []).map((e) => ({ ...e, cliente: p.empresa, empresaId: p.empresa_id, status: p.status })));
   const cartaoProjeto = (p) => `<article class="projeto-operacao-card">
     <div class="projeto-operacao-cabecalho"><div><h3>${A.esc(p.empresa)}</h3><p>${A.esc(p.nome_plano || 'Escopo personalizado')}</p></div><span class="tag ${p.status === 'em_execucao' ? 'b' : p.status === 'concluido' ? 'c' : 'n'}">${A.esc(p.status)}</span></div>
     <div class="projeto-operacao-progresso"><div><span>Evolução das entregas</span><b>${p.entregasConcluidas}/${p.entregas} · ${p.progresso}%</b></div><div class="barra-prog"><i style="width:${p.progresso}%"></i></div></div>
@@ -611,6 +612,15 @@ Telas.dashboardOperacao = async (el) => {
       ${A.kpi('Pendências do cliente', d.resumo.pendenciasCliente || 0, 'interações a acompanhar', d.resumo.pendenciasCliente ? 'destaque' : '')}
       ${A.kpi('Sem responsável', d.resumo.projetosSemResponsavel || 0, 'projetos ativos sem dono', d.resumo.projetosSemResponsavel ? 'destaque' : '')}
       ${A.kpi('Projetos concluídos', concluidos, 'entregas finalizadas')}</div>
+     <div class="cartao matriz-responsaveis"><div class="cabecalho-lista"><div><h2>Responsáveis por escopo</h2><p class="desc">Cada linha representa uma entrega contratada. Capacitação Operacional e Workshop Prático permanecem separados.</p></div><span class="tag">${entregasDaCarteira.length} entregas</span></div>${A.tabela([
+       { t: 'Cliente', r: (r) => `<b>${A.esc(r.cliente)}</b>` },
+       { t: 'Escopo', r: (r) => `<span class="escopo-entrega">${A.esc(r.titulo)}</span>` },
+       { t: 'Responsável', r: (r) => r.responsavel ? `<span class="responsavel-pill">${A.esc(r.responsavel)}</span>` : '<span class="tag a">Não atribuído</span>' },
+       { t: 'Situação', r: (r) => `<span class="tag ${r.status === 'em_execucao' ? 'b' : r.status === 'concluido' ? 'c' : 'n'}">${A.esc(r.status)}</span>` },
+       { t: '', r: (r) => r.usuario_id === d.usuario_atual_id
+         ? '<span class="tag c">Você é responsável</span>'
+         : `<button class="btn pq" data-assumir-entrega="${r.id}" data-assumir-empresa="${r.empresaId || ''}" data-assumir-chave="${A.esc(r.chave)}">Atribuir para mim</button>` },
+     ], entregasDaCarteira, { vazio: 'Nenhuma entrega contratada na carteira.' })}</div>
      <div class="cartao"><div class="cabecalho-lista"><div><h2>Distribuição da operação</h2><p class="desc">Carga atual por responsável, considerando projetos ativos e pendências operacionais.</p></div><span class="tag">${(d.cargaResponsaveis || []).length} responsável${(d.cargaResponsaveis || []).length === 1 ? '' : 'is'}</span></div>${A.tabela([
        { t: 'Responsável', r: (r) => `<b>${A.esc(r.nome)}</b>` },
        { t: 'Projetos em execução', num: true, r: (r) => r.projetos },
@@ -662,6 +672,13 @@ Telas.dashboardOperacao = async (el) => {
     el.querySelectorAll('[data-ir-modulo]').forEach((botao) => { botao.onclick = () => abrirModulo(botao.dataset.empresaModulo, botao.dataset.irModulo); });
   };
   el.querySelectorAll('#filtroStatus,#filtroResponsavel,#filtroPendencia,#filtroPrazo').forEach((campo) => { campo.onchange = () => { agendaCompleta = false; renderAgenda(); renderCarteira(); }; });
+  el.querySelectorAll('[data-assumir-entrega]').forEach((botao) => { botao.onclick = async () => {
+    botao.disabled = true;
+    try {
+      await A.api(`/empresas/${botao.dataset.assumirEmpresa}/projeto/responsaveis/${botao.dataset.assumirChave}/atribuir-me`, { metodo: 'POST', corpo: { entrega_id: Number(botao.dataset.assumirEntrega) } });
+      A.toast('Entrega atribuída a você.', 'ok'); A.ir('dashboardOperacao');
+    } catch (e) { botao.disabled = false; A.toast(e.message || 'Não foi possível atribuir a entrega.', 'erro'); }
+  }; });
   renderAgenda();
   renderCarteira();
 };
