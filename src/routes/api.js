@@ -227,10 +227,11 @@ router.get('/documentacao-uso/:tipo', (req, res) => {
 });
 
 async function empresasPermitidasUsuario(usuario) {
-  if (!usuario || ['administrador', 'gestor'].includes(usuario.papel)) return null;
-  const { data, error } = await supabase.admin().from('empresas_usuarios').select('empresa_id').eq('usuario_id', usuario.id);
-  if (error) throw error;
-  return new Set((data || []).map((x) => String(x.empresa_id)));
+  // Política de carteira global: todo usuário autenticado pode visualizar e
+  // atender todas as empresas. Os papéis/perfis continuam controlando quais
+  // ações cada pessoa pode executar; vínculos legados são preservados apenas
+  // como histórico e não restringem o escopo da carteira.
+  return null;
 }
 async function garantirEmpresaPermitida(req, empresaId) {
   const permitidas = await empresasPermitidasUsuario(req.usuario);
@@ -416,8 +417,6 @@ router.post('/acessos/usuarios', async (req, res) => {
     if (erroCriar) throw erroCriar;
     const { error } = await remoto.from('perfis').upsert({ id: criado.user.id, nome: String(b.nome || '').trim(), papel: 'consultor', ativo: true, perfil_acesso_id: b.perfil_acesso_id || null });
     if (error) throw error;
-    const empresas = Array.isArray(b.empresa_ids) ? b.empresa_ids.filter(Boolean).map((empresa_id) => ({ empresa_id, usuario_id: criado.user.id, papel: 'consultor' })) : [];
-    if (empresas.length) { const { error: erroVinculos } = await remoto.from('empresas_usuarios').upsert(empresas); if (erroVinculos) throw erroVinculos; }
     auditar(req, { acao: 'Criou usuário', entidade: 'usuario', entidadeId: criado.user.id, depois: { email, perfil_acesso_id: b.perfil_acesso_id || null } });
     ok(res, { usuario: { id: criado.user.id, email } });
   } catch (e) { erro(res, e); }
@@ -429,12 +428,6 @@ router.put('/acessos/usuarios/:id', async (req, res) => {
     if (erroAntes) throw erroAntes;
     const { error } = await remoto.from('perfis').upsert({ id: req.params.id, nome: String(b.nome ?? antes?.nome ?? '').trim(), papel: antes?.papel || 'consultor', ativo: b.ativo !== false, perfil_acesso_id: b.perfil_acesso_id || null, atualizado_em: new Date().toISOString() });
     if (error) throw error;
-    if (Array.isArray(b.empresa_ids)) {
-      const { error: erroRemover } = await remoto.from('empresas_usuarios').delete().eq('usuario_id', req.params.id);
-      if (erroRemover) throw erroRemover;
-      const empresas = b.empresa_ids.filter(Boolean).map((empresa_id) => ({ empresa_id, usuario_id: req.params.id, papel: 'consultor' }));
-      if (empresas.length) { const { error: erroVinculos } = await remoto.from('empresas_usuarios').upsert(empresas); if (erroVinculos) throw erroVinculos; }
-    }
     auditar(req, { acao: 'Atualizou usuário', entidade: 'usuario', entidadeId: req.params.id, antes: { perfil_acesso_id: antes?.perfil_acesso_id || null, ativo: antes?.ativo ?? true }, depois: { perfil_acesso_id: b.perfil_acesso_id || null, ativo: b.ativo !== false } });
     ok(res, {});
   } catch (e) { erro(res, e); }
@@ -490,12 +483,6 @@ router.get('/parametros', async (_req, res) => {
 // ===========================================================================
 router.get('/empresas', async (req, res) => {
   try {
-    let ids = null;
-    if (req.usuario && !['administrador', 'gestor'].includes(req.usuario.papel)) {
-      const { data, error } = await supabase.admin().from('empresas_usuarios').select('empresa_id').eq('usuario_id', req.usuario.id);
-      if (error) throw error;
-      ids = (data || []).map((x) => Number(x.empresa_id)).filter(Number.isFinite);
-    }
     const sql = `SELECT e.*,
     (SELECT COUNT(*) FROM parceiros p WHERE p.empresa_id = e.id AND p.tipo='fornecedor') fornecedores,
     (SELECT COUNT(*) FROM parceiros p WHERE p.empresa_id = e.id AND p.tipo='cliente') clientes,
@@ -504,8 +491,8 @@ router.get('/empresas', async (req, res) => {
     (SELECT COUNT(*) FROM empresa_qsa q WHERE q.empresa_id=e.id AND (q.percentual_participacao IS NULL OR q.percentual_participacao='')) qsa_participacoes_pendentes,
     COALESCE((SELECT SUM(q.percentual_participacao) FROM empresa_qsa q WHERE q.empresa_id=e.id),0) qsa_percentual_total,
     (SELECT COUNT(*) FROM empresa_qsa q WHERE q.empresa_id=e.id AND q.brasileiro IN (0,1)) qsa_brasileiro_preenchido
-    FROM empresas e ${ids === null ? '' : ids.length ? `WHERE e.id IN (${ids.map(() => '?').join(',')})` : 'WHERE 1=0'} ORDER BY e.razao_social`;
-    const empresas = db.prepare(sql).all(...(ids || []));
+    FROM empresas e ORDER BY e.razao_social`;
+    const empresas = db.prepare(sql).all();
     // A carteira é uma tela de consulta. Para o resumo do QSA, a confirmação
     // manual compartilhada é a fonte de verdade: um novo processo do Render
     // não pode fazer a tela parecer vazia enquanto o cache SQLite é refeito.
