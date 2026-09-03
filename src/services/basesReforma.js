@@ -276,7 +276,11 @@ function consultarServico(lc116, nbs) {
     });
   }
   if (!linhas.length) return { encontrado: false, lc116: l, nbs: n };
-  const chave = l && n && linhas.length === 1 && linhas[0].lc116 === l && linhas[0].nbs === n;
+  // A chave documental está correta quando LC116 + NBS existe no catálogo,
+  // mesmo que existam vários tratamentos fiscais para a mesma combinação.
+  // Essa segunda situação é uma decisão de enquadramento, não uma
+  // incompatibilidade de emissão do documento.
+  const chave = l && n && linhas.some((x) => x.lc116 === l && x.nbs === n);
   const temLc116 = linhas.some((x) => x.lc116 === l), temNbs = linhas.some((x) => x.nbs === n);
   const nivel = chave ? 'exato' : (temLc116 && temNbs ? 'lc116+nbs' : temLc116 ? 'lc116' : 'nbs');
   return {

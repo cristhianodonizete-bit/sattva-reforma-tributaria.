@@ -29,4 +29,12 @@ assert.ok(incompatibilidade);
 assert.match(incompatibilidade.evidencia, /não existe como chave composta/);
 assert.equal(resultado.itens.some((x) => x.documento === 'NF-3'), false, 'chave composta exata não é erro documental');
 
+// Mais de um cClassTrib para a mesma chave exige enquadramento no motor, mas
+// não transforma LC116/NBS corretamente emitidos em erro documental.
+db.prepare(`INSERT INTO base_servicos (lc116,nbs,descricao_item,descricao_nbs,cclasstrib,nome_cclasstrib,reducao)
+  VALUES ('0106','115012000','Serviços técnicos','Serviços técnicos especializados','200044','Redução 60%','reducao_60')`).run();
+inserir.run(empresaId, 'cliente', 'Cliente D', 'Serviço técnico', 4000, '0106', '115012000', 'NF-4', 'xml');
+const comTratamentosAlternativos = conformidade.listar(empresaId);
+assert.equal(comTratamentosAlternativos.itens.some((x) => x.documento === 'NF-3' || x.documento === 'NF-4'), false, 'tratamentos alternativos não tornam a chave LC116/NBS incompatível');
+
 console.log('conformidade-documental: evidência, candidatos e somente leitura: OK');
