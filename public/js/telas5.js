@@ -572,6 +572,7 @@ async function projImportacaoXml(el) {
     box.innerHTML = '<div class="carregando">Classificando e projetando…</div>';
     try {
       const r = await A.api(`/empresas/${S.empresaId}/motor/executar`, { metodo: 'POST', corpo: { ano } });
+      if (r.assincro) { box.innerHTML = `<div class="aviso bom"><b>Motor em processamento</b><br>O resultado atual permanece visível até a nova fotografia ser concluída.</div>`; return; }
       const s = r.resumo;
       box.innerHTML = `<div class="grade g2" style="margin-bottom:10px">
           ${A.kpi('Itens processados', s.itens, `${s.entradas} entradas · ${s.saidas} saídas`)}

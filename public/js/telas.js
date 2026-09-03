@@ -605,7 +605,7 @@ Telas.dados = async (el) => {
     botao.disabled = true; botao.textContent = 'Executando motor…';
     try {
       const r = await A.api(`/empresas/${S.empresaId}/motor/executar`, { metodo: 'POST', corpo: { ano: S.params?.modoAnalise?.ibsAtivo ? 2033 : 2033 } });
-      A.toast(`${r.resumo?.itens || 0} item(ns) processado(s) pelo motor.`, 'ok');
+      A.toast(r.deduplicado ? 'Motor já está em processamento.' : 'Motor enviado para processamento.', 'ok');
       A.ir('dados');
     } catch (e) {
       A.toast(e.message, 'erro'); botao.disabled = false; botao.textContent = texto;
