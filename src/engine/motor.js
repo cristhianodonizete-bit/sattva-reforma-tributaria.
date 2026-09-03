@@ -182,6 +182,13 @@ function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simp
   if (rAdq && !rAdq.creditaNovo) {
     return credito('SEM_DIREITO', 'SEM_CREDITO', null, 'DETERMINADO', `Adquirente em ${regimeAdquirente} não apura IBS/CBS pelo regime regular — sem apropriação de crédito.`);
   }
+  // O regime MEI resolve o crédito ordinário como zero. Uma classificação
+  // documental incompleta não pode abrir pendência quando ela não altera esse
+  // resultado; só uma hipótese explícita de crédito presumido exige analisar
+  // a classificação material da operação.
+  if (regimeFornecedor === 'mei' && cls.creditoPresumido !== true) {
+    return credito('SEM_DIREITO', 'SEM_CREDITO', null, 'DETERMINADO', 'Fornecedor MEI: não há crédito CBS ordinário; não foi identificada hipótese legal específica de crédito presumido.');
+  }
   if (cls.vedacaoPossivel) {
     return credito('SUJEITO_VALIDACAO', null, null, 'SUJEITO_VALIDACAO', 'Aquisição possivelmente de uso e consumo ou ativo — confirmar se há vedação ao crédito.');
   }

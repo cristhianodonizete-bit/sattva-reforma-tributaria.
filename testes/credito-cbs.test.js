@@ -19,6 +19,9 @@ const meiPresumido = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeForn
 assert.deepEqual([meiPresumido.tipoCredito, meiPresumido.statusDeterminacao], ['PRESUMIDO', 'DETERMINADO']);
 const meiSemHipotese = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeFornecedor: 'mei', cls });
 assert.deepEqual([meiSemHipotese.tipoCredito, meiSemHipotese.statusDeterminacao], ['SEM_CREDITO', 'DETERMINADO']);
+const meiComClassificacaoPendente = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeFornecedor: 'mei', cls: { status: 'REQUER_VALIDACAO' } });
+assert.deepEqual([meiComClassificacaoPendente.tipoCredito, meiComClassificacaoPendente.statusDeterminacao], ['SEM_CREDITO', 'DETERMINADO'],
+  'classificação pendente que não altera crédito de MEI não abre pendência operacional');
 const insuficiente = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeFornecedor: null, cls });
 assert.equal(insuficiente.statusDeterminacao, 'INDETERMINADO');
 assert.notEqual(insuficiente.tipoCredito, 'SEM_CREDITO');

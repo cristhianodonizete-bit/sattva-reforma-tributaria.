@@ -67,13 +67,16 @@ function statusCbs(linha, classificacao, tratamento) {
 }
 function statusIbs() { return STATUS.NA; } // IBS deliberadamente fora desta visão CBS.
 function statusResultado(dimensoes, sentido) {
+  // Em compras, a conclusão operacional é a possibilidade de apropriar (ou
+  // não) o crédito. Classificação e tratamento permanecem visíveis para
+  // rastreabilidade, mas não formam pendência se não modificam o crédito.
+  if (sentido === 'entrada') return dimensoes.credito;
   // Reconstrução da carga histórica é uma informação de qualidade e
   // rastreabilidade. Ela não pode reabrir uma pendência quando o motor já
   // determinou o débito CBS da saída ou o crédito da entrada por regra
   // aplicável. Só uma ambiguidade material que impeça o cálculo entra na fila
   // operacional do diagnóstico.
   const relevantes = ['classificacao', 'tratamento'];
-  if (sentido === 'entrada') relevantes.push('credito');
   const valores = relevantes.map((campo) => dimensoes[campo]);
   if (valores.includes(STATUS.INDETERMINADO)) return STATUS.INDETERMINADO;
   if (valores.includes(STATUS.VALIDACAO)) return STATUS.VALIDACAO;

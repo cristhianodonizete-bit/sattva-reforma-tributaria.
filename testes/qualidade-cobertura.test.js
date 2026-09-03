@@ -25,6 +25,13 @@ avaliada = qualidade.avaliarLinha(linha({ sentido: 'entrada', cbs: 0, status_cre
 assert.equal(avaliada.dimensoes.credito, qualidade.STATUS.VALIDACAO);
 assert.equal(avaliada.dimensoes.resultado, qualidade.STATUS.VALIDACAO);
 
+avaliada = qualidade.avaliarLinha(linha({
+  sentido: 'entrada', status_classificacao: 'REQUER_VALIDACAO', tratamento: null,
+  status_credito_determinacao: 'DETERMINADO', detalhe: { reconstrucao: { status: 'insuficiente' } },
+}));
+assert.equal(avaliada.dimensoes.resultado, qualidade.STATUS.DETERMINADO,
+  'compra com crédito determinado não permanece pendente por classificação sem efeito no crédito');
+
 avaliada = qualidade.avaliarLinha(linha({ detalhe: { reconstrucao: { status: 'insuficiente' } } }));
 assert.equal(avaliada.dimensoes.reconstrucao, qualidade.STATUS.INDETERMINADO);
 assert.equal(avaliada.dimensoes.resultado, qualidade.STATUS.DETERMINADO,
