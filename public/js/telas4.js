@@ -236,11 +236,21 @@ Telas.conformidadeDocumental = async (el) => {
       }
       gruposDeErro.set(chave, grupo);
     }
-    const linhas = [...gruposDeErro.values()];
+    // Uma correspondência fiscal por linha. As informações do erro são
+    // repetidas intencionalmente nas duas primeiras colunas para permitir
+    // comparar opções como em uma tabela de base de dados.
+    const linhas = [...gruposDeErro.values()].flatMap((erro) => {
+      const opcoes = [...erro.candidatos.values()];
+      return (opcoes.length ? opcoes : [null]).map((candidato) => ({ ...erro, candidato }));
+    });
     return A.tabela([
       { t:'Não conformidade', r:x=>`<span class="tag ${x.item.severidade === 'ALTA' ? 'a' : 'b'}">${A.esc(x.item.tipo)}</span><div style="margin-top:6px"><b>${A.esc(x.item.titulo)}</b></div><div class="mini">LC 116: ${A.esc(x.item.lc116 || 'não informado')} · NBS: ${A.esc(x.item.nbs || 'não informado')}</div>` },
       { t:'Ocorrências e exemplos', r:x=>`${x.ocorrencias.length} ocorrência(s)<div class="mini" style="margin-top:6px">${x.ocorrencias.slice(0, 2).map((i) => `${A.esc(i.documento || 'sem número')} · item ${A.esc(i.item_numero || '—')} · ${A.esc(i.contraparte)}`).join('<br>')}</div>${x.ocorrencias.length > 2 ? '<div class="mini">+ outros documentos com o mesmo erro</div>' : ''}` },
-      { t:'Opções compatíveis', r:x=>x.candidatos.size ? [...x.candidatos.values()].map((c) => `<div style="margin-bottom:6px"><b>LC ${A.esc(c.lc116 || '—')} · NBS ${A.esc(c.nbs || '—')}</b><br><span class="mini">${A.esc(c.descricao_nbs || '')} · ${A.esc(c.cst || 'CST não informado')} / ${A.esc(c.cclasstrib || '—')} · ${A.esc(c.tratamento || '—')}${temBeneficioFiscal(c) ? ` · ${codigoRegra(c.regra_uso)}` : ''}</span></div>`).join('') : '<span class="mini">Nenhuma correlação cadastrada</span>' },
+      { t:'LC 116 compatível', r:x=>A.esc(x.candidato?.lc116 || '—') },
+      { t:'NBS compatível', r:x=>x.candidato ? `${A.esc(x.candidato.nbs || '—')}<div class="mini">${A.esc(x.candidato.descricao_nbs || '')}</div>` : 'Nenhuma correlação cadastrada' },
+      { t:'CST / cClassTrib', r:x=>x.candidato ? `${A.esc(x.candidato.cst || 'CST não informado no catálogo')}<div class="mini">${A.esc(x.candidato.cclasstrib || '—')}</div>` : '—' },
+      { t:'Tratamento', r:x=>x.candidato ? `${A.esc(x.candidato.tratamento || '—')}<div class="mini">${A.esc(x.candidato.reducao || '')}</div>` : '—' },
+      { t:'Regra de benefício', r:x=>x.candidato && temBeneficioFiscal(x.candidato) ? `<span class="tag n">${codigoRegra(x.candidato.regra_uso)}</span>` : '—' },
     ], linhas, { vazio:'Nenhum item neste grupo.' });
   };
   const render = (filtro = '') => {
