@@ -1,6 +1,7 @@
 require('dotenv').config();
 const path = require('path');
 const express = require('express');
+const compression = require('compression');
 const autenticacao = require('./src/services/autenticacao');
 
 const app = express();
@@ -8,6 +9,10 @@ const app = express();
 // local compatível com a configuração já usada no Windows.
 const PORTA = process.env.PORT || process.env.PORTA || 3200;
 
+// Respostas de leitura com muitos itens (cadeias e auditorias) são JSON e
+// podem ultrapassar alguns megabytes. A compressão é transparente: não muda
+// o conteúdo, os cálculos nem qualquer dado persistido.
+app.use(compression());
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
@@ -51,12 +56,8 @@ async function iniciar() {
       let dados = {};
       try { dados = await operacao.baixar(); }
       catch (e) { console.error('  carga operacional parcial falhou:', e.message); }
-      try { dados.parametros = await operacao.baixarConfiguracao(['param_aliquotas']); }
-      catch (e) { console.error('  parâmetros compartilhados não carregados:', e.message); }
-      // Gestão de escopo/entregas é carregada independentemente das bases do
-      // motor: um erro em qualquer base não pode apagar contratos aprovados.
-      try { dados.gestao = await operacao.baixarGestao(); }
-      catch (e) { console.error('  gestão compartilhada não carregada:', e.message); }
+      // `baixar()` já inclui parâmetros e gestão. Repetir essas leituras antes
+      // de iniciar o servidor aumentava o cold start sem trazer informação nova.
       console.log(`  operação compartilhada carregada: ${JSON.stringify(dados)}`);
       const db = require('./src/db');
       const bases = require('./src/services/basesReforma');

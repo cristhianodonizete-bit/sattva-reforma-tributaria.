@@ -1118,6 +1118,10 @@ CREATE TABLE IF NOT EXISTS motor_resultados (
 );
 CREATE INDEX IF NOT EXISTS ix_motor ON motor_resultados(empresa_id, execucao_id, sentido);
 CREATE INDEX IF NOT EXISTS ix_motor_autonomia ON motor_resultados(empresa_id, execucao_id, estado_autonomia, requer_intervencao_humana);
+-- A consolidação das cadeias ordena por empresa, valor e id. Este índice é
+-- estritamente aditivo e evita a ordenação em árvore temporária observada no
+-- plano de consulta; não modifica nenhuma linha do motor.
+CREATE INDEX IF NOT EXISTS ix_motor_cadeia_ordenacao ON motor_resultados(empresa_id, preco_atual DESC, id);
 
 -- Telemetria operacional: estados de autonomia não substituem natureza fiscal.
 CREATE TABLE IF NOT EXISTS telemetria_autonomia_execucoes (
