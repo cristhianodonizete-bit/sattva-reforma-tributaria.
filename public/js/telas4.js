@@ -231,15 +231,27 @@ Telas.conformidadeDocumental = async (el) => {
       { t:'Uso', r:c=>`<span class="tag n">${codigoRegra(c.regra_uso)}</span>` },
     ], x.candidatos)}</div>`
     : '<span class="mini">Nenhuma correlação cadastrada para sugerir.</span>';
-  const render = (filtro = '') => {
-    const visiveis = !filtro ? itens : itens.filter((x) => x.tipo === filtro);
-    el.querySelector('#listaConformidade').innerHTML = visiveis.length ? A.tabela([
+  const abertos = new Set();
+  const tabelaItens = (linhas) => A.tabela([
       { t:'Documento / item', r:x=>`<b class="mono">${A.esc(x.documento || 'sem número')}</b><div class="mini">Item ${A.esc(x.item_numero || '—')} · ${A.esc(x.competencia || x.data_emissao || '')}</div><div class="mini">${A.esc(x.contraparte)}</div>` },
       { t:'Não conformidade', r:x=>`<span class="tag ${x.severidade === 'ALTA' ? 'a' : 'b'}">${A.esc(x.tipo)}</span><div style="margin-top:6px"><b>${A.esc(x.titulo)}</b></div><div class="mini">LC 116: ${A.esc(x.lc116 || 'não informado')} · NBS: ${A.esc(x.nbs || 'não informado')}</div>` },
       { t:'Ação', r:x=>A.esc(x.solucao) },
       { t:'NBS e enquadramentos compatíveis', r:candidatos },
       { t:'Valor', num:true, r:x=>A.moeda(x.valor) },
-    ], visiveis, { vazio:'Nenhuma não conformidade documental encontrada para este filtro.' }) : A.vazio('Nenhuma não conformidade documental encontrada.', 'Os documentos com LC 116 ou NBS possuem chave compatível com o catálogo atual.');
+    ], linhas, { vazio:'Nenhum item neste grupo.' });
+  const render = (filtro = '') => {
+    const visiveis = !filtro ? itens : itens.filter((x) => x.tipo === filtro);
+    const grupos = [...new Map(visiveis.map((x) => [x.tipo, visiveis.filter((i) => i.tipo === x.tipo)])).entries()];
+    el.querySelector('#listaConformidade').innerHTML = grupos.length ? grupos.map(([tipo, grupo]) => {
+      const ordenados = [...grupo].sort((a, b) => Number(b.valor || 0) - Number(a.valor || 0));
+      const todos = abertos.has(tipo);
+      const amostra = todos ? ordenados : ordenados.slice(0, 10);
+      const valor = grupo.reduce((s, x) => s + Number(x.valor || 0), 0);
+      return `<section class="cartao" style="margin-top:16px;box-shadow:none"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h3 style="margin:0">${A.esc(tipo.replaceAll('_',' '))}</h3><p class="mini" style="margin:4px 0 0">${grupo.length} ocorrência(s) · ${A.moeda(valor)} · ${todos ? 'todos os itens' : `amostra dos 10 maiores valores`}</p></div>${grupo.length > 10 ? `<button class="btn pq vazio" data-conformidade-grupo="${A.esc(tipo)}">${todos ? 'Mostrar amostra' : 'Ver todos'}</button>` : ''}</div><div style="margin-top:10px">${tabelaItens(amostra)}</div></section>`;
+    }).join('') : A.vazio('Nenhuma não conformidade documental encontrada.', 'Os documentos com LC 116 ou NBS possuem chave compatível com o catálogo atual.');
+    el.querySelectorAll('[data-conformidade-grupo]').forEach((botao) => { botao.onclick = () => {
+      const tipo = botao.dataset.conformidadeGrupo; if (abertos.has(tipo)) abertos.delete(tipo); else abertos.add(tipo); render(filtro);
+    }; });
   };
   el.innerHTML = cab('DIAGNÓSTICO · QUALIDADE DA EMISSÃO', 'Conformidade documental',
     'Confira erros de emissão e as alternativas compatíveis antes de corrigir o documento ou orientar a contraparte. Esta tela é somente de leitura: não executa o motor e não altera cálculos.') +
