@@ -51,7 +51,6 @@ function pendenciaPrincipal(item) {
   const d = item.dimensoes || {};
   const candidatos = [
     ['classificacao', d.classificacao],
-    ['reconstrucao', d.reconstrucao],
     ['tratamento', d.tratamento],
     ['credito', d.credito],
   ];

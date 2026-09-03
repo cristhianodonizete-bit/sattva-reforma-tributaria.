@@ -27,7 +27,8 @@ assert.equal(avaliada.dimensoes.resultado, qualidade.STATUS.VALIDACAO);
 
 avaliada = qualidade.avaliarLinha(linha({ detalhe: { reconstrucao: { status: 'insuficiente' } } }));
 assert.equal(avaliada.dimensoes.reconstrucao, qualidade.STATUS.INDETERMINADO);
-assert.equal(avaliada.dimensoes.resultado, qualidade.STATUS.INDETERMINADO);
+assert.equal(avaliada.dimensoes.resultado, qualidade.STATUS.DETERMINADO,
+  'ausência de evidência histórica não reabre pendência quando o débito foi determinado pelo motor');
 
 // Classificação parcial só deixa de bloquear quando o motor preservou a
 // equivalência fiscal e demonstrou que o efeito tributário é não material.
@@ -61,7 +62,9 @@ const consolidado = qualidade.consolidar([
 ]);
 assert.equal(consolidado.natureza_projecao.SIMULADO.quantidade, 5);
 assert.equal(consolidado.matrizes.ibs[qualidade.STATUS.NA].quantidade, 5);
-assert.equal(consolidado.cobertura.automacao.cobertas.quantidade, 3);
-assert.equal(consolidado.pendencias.operacoes_unicas, 2);
+assert.equal(consolidado.cobertura.automacao.cobertas.quantidade, 4);
+assert.equal(consolidado.pendencias.operacoes_unicas, 1);
 assert.equal(consolidado.pendencias.ocorrencias.some((x) => x.codigo === 'credito:SUJEITO_VALIDACAO'), true);
+assert.equal(consolidado.pendencias.ocorrencias.some((x) => x.codigo.startsWith('reconstrucao:')), false,
+  'reconstrução isolada não entra na fila de pendências operacionais');
 console.log('qualidade-cobertura: OK');

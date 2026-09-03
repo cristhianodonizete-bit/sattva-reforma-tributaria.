@@ -15,9 +15,9 @@ const fila = cobertura.pendenciasOperacionais([base, { ...base, movimento_id: 11
 
 assert.equal(fila.length, 2, 'cada operação pendente deve aparecer uma única vez');
 assert.equal(fila[0].movimento_id, 10);
-assert.equal(fila[0].dimensao, 'reconstrucao', 'reconstrução indeterminada é a causa principal quando impede o resultado');
-assert.equal(fila[0].natureza, 'EVIDENCIA_EXTERNA');
-assert.match(fila[0].fonte_minima, /XML, EFD-Contribuições, planilha\/ERP/);
+assert.equal(fila[0].dimensao, 'credito', 'crédito não determinado é a causa principal; reconstrução isolada não abre pendência');
+assert.equal(fila[0].natureza, 'EVIDENCIA_OU_VALIDACAO_FISCAL');
+assert.match(fila[0].fonte_minima, /Regime da contraparte/);
 assert.equal(fila[1].dimensao, 'classificacao');
 assert.match(fila[1].acao, /classificação/i);
 assert.equal(fila[0].valor + fila[1].valor, 1800, 'a fila não pode duplicar o valor por dimensão');

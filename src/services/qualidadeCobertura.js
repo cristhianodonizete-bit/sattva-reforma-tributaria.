@@ -67,12 +67,21 @@ function statusCbs(linha, classificacao, tratamento) {
 }
 function statusIbs() { return STATUS.NA; } // IBS deliberadamente fora desta visão CBS.
 function statusResultado(dimensoes, sentido) {
-  const relevantes = ['classificacao', 'reconstrucao', 'tratamento'];
+  // Reconstrução da carga histórica é uma informação de qualidade e
+  // rastreabilidade. Ela não pode reabrir uma pendência quando o motor já
+  // determinou o débito CBS da saída ou o crédito da entrada por regra
+  // aplicável. Só uma ambiguidade material que impeça o cálculo entra na fila
+  // operacional do diagnóstico.
+  const relevantes = ['classificacao', 'tratamento'];
   if (sentido === 'entrada') relevantes.push('credito');
   const valores = relevantes.map((campo) => dimensoes[campo]);
   if (valores.includes(STATUS.INDETERMINADO)) return STATUS.INDETERMINADO;
   if (valores.includes(STATUS.VALIDACAO)) return STATUS.VALIDACAO;
   if (valores.includes(STATUS.PREMISSA)) return STATUS.PREMISSA;
+  // Uma estimativa explícita permanece marcada como premissa para o usuário,
+  // sem virar pendência. Já a falta isolada de reconstrução é somente um
+  // dado histórico incompleto e não bloqueia o resultado calculado.
+  if (dimensoes.reconstrucao === STATUS.PREMISSA) return STATUS.PREMISSA;
   return STATUS.DETERMINADO;
 }
 
@@ -131,6 +140,10 @@ function pendencias(avaliadas) {
   const mapa = new Map();
   for (const item of avaliadas) {
     for (const [dimensao, status] of Object.entries(item.dimensoes)) {
+      // A ausência de documento suficiente para reconstruir a carga atual
+      // continua visível na memória da operação, mas não é pendência quando
+      // não impediu o débito/crédito calculado pelo motor.
+      if (dimensao === 'reconstrucao') continue;
       if (resolvido(status)) continue;
       const codigo = `${dimensao}:${status}`;
       const atual = mapa.get(codigo) || { codigo, dimensao, status, ocorrencias: 0, operacoes: new Set(), valor: 0 };
