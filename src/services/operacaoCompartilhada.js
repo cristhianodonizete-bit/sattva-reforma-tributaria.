@@ -315,7 +315,7 @@ async function baixarResultadosMotor(remotoInformado = null) {
     resultados: quantidadeResultados,
   };
 }
-async function publicarResultadosMotor(empresaId = null) {
+async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin();
   const filtro = empresaId == null ? '' : ' WHERE empresa_id=?';
@@ -327,7 +327,7 @@ async function publicarResultadosMotor(empresaId = null) {
       // A tabela compartilhada usa "ativo=false" como padrão. Sem marcar a
       // nova fotografia explicitamente, o cálculo correto ficava gravado no
       // histórico, mas as telas continuavam lendo a fotografia antiga.
-      ativo: true, execucao_id: x.execucao_id,
+      ativo: opcoes.ativar !== false, execucao_id: x.execucao_id,
       tipo_credito: x.tipo_credito, modalidade_credito: x.modalidade_credito,
       status_credito_determinacao: x.status_credito_determinacao,
       regime_cbs_emitente: x.regime_cbs_emitente, regime_cbs_adquirente: x.regime_cbs_adquirente,
@@ -341,6 +341,7 @@ async function publicarResultadosMotor(empresaId = null) {
   // a fotografia anterior precisa ser encerrada antes de ativar a substituta.
   const empresasDaFotografia = [...new Set(resultados.map((r) => Number(r.empresa_id)).filter(Boolean))];
   for (const idEmpresa of empresasDaFotografia) {
+    if (opcoes.ativar === false) continue;
     const { error } = await remoto.from('motor_resultados_operacionais')
       .update({ ativo: false }).eq('empresa_id', idEmpresa).eq('ativo', true);
     if (error) throw new Error(`motor_resultados_operacionais preparação: ${error.message}`);
@@ -365,6 +366,14 @@ async function publicarResultadosMotor(empresaId = null) {
     }
   }
   return { execucoes: execucoes.length, resultados: resultados.length, telemetrias: telemetrias.length, excecoes_execucao: excecoesExecucao.length, avisos };
+}
+async function promoverFotografiaMotor(empresaId, execucaoId, quantidadeEsperada) {
+  if (!ativo()) return { ativo: false };
+  const { error } = await supabase.admin().rpc('promover_fotografia_motor', {
+    p_empresa_id: Number(empresaId), p_execucao_id: Number(execucaoId), p_quantidade_esperada: Number(quantidadeEsperada),
+  });
+  if (error) throw new Error(`Promoção atômica da fotografia: ${error.message}`);
+  return { promovida: true, empresa_id: Number(empresaId), execucao_id: Number(execucaoId), quantidade: Number(quantidadeEsperada) };
 }
 // Parâmetros fiscais e de cálculo podem ser restaurados isoladamente do resto
 // do cache. É usado antes de a aplicação entregar qualquer alíquota à tela ou
@@ -503,4 +512,4 @@ async function publicarContratos(remoto, empresaId) {
   return { contratos: contratos.length };
 }
 module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
-  baixarResultadosMotor, publicarResultadosMotor, filtrarOrfaosOperacionais };
+  baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, filtrarOrfaosOperacionais };

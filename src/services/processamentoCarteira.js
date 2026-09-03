@@ -5,6 +5,7 @@ const supabase = require('./supabase');
 const bases = require('./basesReforma');
 const motorExec = require('./motorExec');
 const excecoesMotor = require('./excecoesMotor');
+const motorStaging = require('./motorStaging');
 
 const workerId = `${process.env.RENDER_INSTANCE_ID || process.env.HOSTNAME || 'local'}-${process.pid}`;
 const id = () => crypto.randomUUID();
@@ -91,11 +92,29 @@ async function processarUm() {
     if (!job) break;
     try {
       db.prepare('UPDATE jobs_carteira SET heartbeat=? WHERE id=?').run(agora(), job.id);
+      if (job.tipo_job === 'MOTOR_COMPLETO') {
+        const payload = JSON.parse(job.payload || '{}');
+        motorStaging.criar(job.id, job.empresa_id);
+        motorStaging.atualizar(job.id, 'PROCESSANDO');
+        const cnpj = require('./cnpjReceita');
+        const operacao = require('./operacaoCompartilhada');
+        await cnpj.sincronizarConfirmacoesManuaisQsa(Number(job.empresa_id));
+        const resultado = motorExec.executar(job.empresa_id, { ano: Number(payload.ano) || Number(job.competencia) || 2027, anexoSimples: payload.anexo, publicarAssincrona: false });
+        const execucao = motorExec.ultimaExecucao(job.empresa_id);
+        const quantidade = resultado.resumo.itens;
+        motorStaging.atualizar(job.id, 'PUBLICANDO', { execucao_id: execucao.id, quantidade_esperada: quantidade, resumo: resultado.resumo });
+        await operacao.publicarResultadosMotor(job.empresa_id, { ativar: false });
+        await operacao.promoverFotografiaMotor(job.empresa_id, execucao.id, quantidade);
+        motorStaging.atualizar(job.id, 'CONCLUIDO');
+        await finalizar(job, 'CONCLUIDO', null, { itens: quantidade, execucao_id: execucao.id, excecoes: excecoesMotor.resumo(job.empresa_id) });
+        continue;
+      }
       bases.classificarMovimentos(job.empresa_id);
       const resultado = motorExec.reprocessarIncremental(job.empresa_id, { ano: Number(job.competencia) || 2027 });
       const excecoes = excecoesMotor.resumo(job.empresa_id);
       await finalizar(job, 'CONCLUIDO', null, { itens: resultado.reprocessados, excecoes });
     } catch (e) {
+      if (job.tipo_job === 'MOTOR_COMPLETO') motorStaging.atualizar(job.id, 'FALHOU', { erro: e.message });
       const atual = db.prepare('SELECT tentativas,max_tentativas FROM jobs_carteira WHERE id=?').get(job.id) || job;
       const status = Number(atual.tentativas) < Number(atual.max_tentativas) ? 'PENDENTE' : 'FALHOU';
       const proxima = status === 'PENDENTE' ? proximaTentativa(atual.tentativas) : null;
