@@ -158,7 +158,7 @@ Telas.empresas = async (el) => {
   el.querySelectorAll('[data-ed]').forEach((b) => { b.onclick = () => {
     const e = empresas.find((x) => x.id === Number(b.dataset.ed));
     A.modal({ titulo: 'Editar empresa', corpo: form(e), aoConfirmar: async (d) => {
-      await A.api(`/empresas/${e.id}`, { metodo: 'PUT', corpo: d }); A.toast('Alterações salvas', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); } });
+      await A.api(`/empresas/${e.id}`, { metodo: 'PUT', corpo: { ...d, origem_alteracao: 'edicao_manual_empresa' } }); A.toast('Alterações salvas', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); } });
   }; });
   el.querySelectorAll('[data-qsa]').forEach((b) => { b.onclick = async () => {
     const e = empresas.find((x) => x.id === Number(b.dataset.qsa));

@@ -573,15 +573,33 @@ router.post('/empresas', async (req, res) => {
 router.put('/empresas/:id', async (req, res) => {
   try {
     const b = req.body;
-    const antes = db.prepare('SELECT regime,razao_social,nome_fantasia,uf,municipio FROM empresas WHERE id=?').get(req.params.id);
-    db.prepare(`UPDATE empresas SET razao_social=?, nome_fantasia=?, regime=?, uf=?, municipio=?,
-      cnae=?, atividade=?, faturamento_anual=?, setor=?, reducao_padrao=?, codigo_questor=?, observacoes=?
-      WHERE id=?`).run(b.razao_social, b.nome_fantasia || '', b.regime || 'lucro_real', b.uf || '',
-      b.municipio || '', b.cnae || '', b.atividade || '', Number(b.faturamento_anual) || 0,
-      b.setor || '', b.reducao_padrao || 'integral', b.codigo_questor || '', b.observacoes || '', req.params.id);
+    // Cadastro da empresa é dado mestre. Consultas de QSA, enriquecimentos e
+    // qualquer chamada automática são terminantemente impedidos de passar por
+    // esta rota. A edição exige a marca explícita da tela de cadastro.
+    if (b.origem_alteracao !== 'edicao_manual_empresa') {
+      throw new Error('Atualização de cadastro bloqueada: use a tela “Editar empresa”. Consultas e rotinas automáticas não podem alterar o cadastro mestre.');
+    }
+    const antes = db.prepare('SELECT * FROM empresas WHERE id=?').get(req.params.id);
+    if (!antes) throw new Error('Empresa não encontrada.');
+    // Não use defaults em um UPDATE. Campo não enviado permanece exatamente
+    // como estava, especialmente regime tributário e enquadramento padrão.
+    const campos = ['razao_social','nome_fantasia','regime','uf','municipio','cnae','atividade','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes'];
+    const alteracoes = campos.filter((campo) => Object.prototype.hasOwnProperty.call(b, campo));
+    if (!alteracoes.length) throw new Error('Nenhum campo de cadastro foi informado para atualização.');
+    const depoisPretendido = { ...antes };
+    for (const campo of alteracoes) {
+      depoisPretendido[campo] = campo === 'faturamento_anual' ? Number(b[campo]) || 0 : (b[campo] ?? antes[campo]);
+    }
+    if (!String(depoisPretendido.razao_social || '').trim()) throw new Error('Razão social é obrigatória.');
+    const houveAlteracao = alteracoes.some((campo) => String(antes[campo] ?? '') !== String(depoisPretendido[campo] ?? ''));
+    if (!houveAlteracao) return ok(res, { sem_alteracoes: true });
+    db.prepare(`UPDATE empresas SET ${alteracoes.map((campo) => `${campo}=?`).join(', ')} WHERE id=?`)
+      .run(...alteracoes.map((campo) => depoisPretendido[campo]), req.params.id);
     await publicarCadastroEmpresa(Number(req.params.id));
-    const depois = db.prepare('SELECT regime,razao_social,nome_fantasia,uf,municipio FROM empresas WHERE id=?').get(req.params.id);
-    auditar(req, { empresaId: Number(req.params.id), acao: 'Atualizou cadastro da empresa', entidade: 'empresa', entidadeId: req.params.id, antes, depois });
+    const depois = db.prepare('SELECT * FROM empresas WHERE id=?').get(req.params.id);
+    auditar(req, { empresaId: Number(req.params.id), acao: 'Atualizou cadastro da empresa', entidade: 'empresa', entidadeId: req.params.id,
+      antes: Object.fromEntries(alteracoes.map((campo) => [campo, antes[campo]])),
+      depois: { origem: 'edicao_manual_empresa', campos_alterados: alteracoes, valores: Object.fromEntries(alteracoes.map((campo) => [campo, depois[campo]])) } });
     ok(res, {});
   } catch (e) { erro(res, e); }
 });
