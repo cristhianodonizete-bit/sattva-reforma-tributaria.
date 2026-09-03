@@ -276,7 +276,11 @@ async function sincronizarConfirmacoesManuaisQsa(empresaId) {
       s.brasileiro ? 1 : 0, textoBanco(s.fonte) || 'confirmação manual', s.consultado_em || null,
       s.atualizado_em || new Date().toISOString()];
     if (existente) atualizar.run(...valores, existente.id);
-    else inserir.run(Number(empresaId), ...valores, s.criado_em || new Date().toISOString(), s.atualizado_em || new Date().toISOString());
+    // O INSERT possui consultado_em antes do literal de origem e apenas
+    // criado_em/atualizado_em depois dele. O valor de atualização pertence à
+    // última coluna; passá-lo antes deslocava os parâmetros e fazia a
+    // restauração da confirmação manual falhar silenciosamente.
+    else inserir.run(Number(empresaId), ...valores.slice(0, 8), s.criado_em || new Date().toISOString(), valores[8]);
   }))();
   return { sincronizado: true, socios: socios.length };
 }
