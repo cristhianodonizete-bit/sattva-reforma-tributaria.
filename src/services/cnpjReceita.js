@@ -216,7 +216,7 @@ async function enriquecerQsaEmpresa(empresaId, opcoes = {}) {
     percentualBanco(s.percentual_participacao), s.brasileiro === false ? 0 : 1, textoBanco(r.fonte), new Date().toISOString(),
   )))();
   await publicarQsaEmpresa(empresaId);
-  return { empresa_id: Number(empresaId), fonte: r.fonte || null, socios_recuperados: socios.filter((s) => s.nome).length, percentual_automatico: socios.filter((s) => s.percentual_participacao != null).length, pendentes_percentual: socios.filter((s) => s.percentual_participacao == null).length };
+  return { empresa_id: Number(empresaId), fonte: r.fonte || null, situacao_qsa: r.situacao_qsa || (socios.some((s) => textoBanco(s.nome)) ? 'QSA_LOCALIZADO' : 'SEM_QSA_NA_FONTE'), socios_recuperados: socios.filter((s) => s.nome).length, percentual_automatico: socios.filter((s) => s.percentual_participacao != null).length, pendentes_percentual: socios.filter((s) => s.percentual_participacao == null).length };
 }
 
 // A confirmação manual é evidência operacional e precisa sobreviver ao
@@ -338,7 +338,25 @@ async function consultar(cnpj, opcoes = {}) {
 
   const casa = { ...PROVEDORES.casadosdados, provedor: 'casadosdados' };
   if (opcoes.finalidade === 'qsa' && provedorCasaDisponivel(cfg)) {
-    try { return await consultarProvedor(casa); }
+    try {
+      const resultadoCasa = await consultarProvedor(casa);
+      // Uma resposta válida sem QSA não encerra a busca. Alguns cadastros
+      // retornam primeiro dados cadastrais; então tentamos os fallbacks sem
+      // criar sócio ou participação por inferência.
+      if ((resultadoCasa.qsa || []).some((s) => textoBanco(s.nome))) return resultadoCasa;
+      const alternativas = [cfg, PROVEDORES.cnpja]
+        .filter((p, i, lista) => p && p.provedor !== 'casadosdados'
+          && lista.findIndex((x) => x.provedor === p.provedor) === i);
+      for (const alternativa of alternativas) {
+        try {
+          const resultadoAlternativo = await consultarProvedor(alternativa);
+          if ((resultadoAlternativo.qsa || []).some((s) => textoBanco(s.nome))) {
+            return { ...resultadoAlternativo, fallbackDe: PROVEDORES.casadosdados.nome };
+          }
+        } catch (_) { /* preserva a resposta válida da fonte prioritária */ }
+      }
+      return { ...resultadoCasa, situacao_qsa: 'SEM_QSA_NA_FONTE' };
+    }
     catch (erroCasa) {
       // A indisponibilidade da fonte prioritária não interrompe a coleta: os
       // provedores públicos continuam como alternativas, sem ocultar a origem.

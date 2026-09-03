@@ -171,7 +171,11 @@ Telas.empresas = async (el) => {
         botao.disabled = true; botao.textContent = 'Consultando cadastro…';
         try {
           const r = await A.api(`/empresas/${e.id}/qsa/enriquecer`, { metodo:'POST', corpo:{ forcar:true } });
-          A.toast(`Consulta concluída: ${r.socios_recuperados || 0} sócio(s) localizado(s).`, 'ok');
+          if (r.situacao_qsa === 'SEM_QSA_NA_FONTE') {
+            A.toast(`Nenhum sócio foi retornado pela fonte cadastral (${r.fonte || 'fonte não identificada'}). Nenhum dado existente foi alterado.`, 'aviso');
+          } else {
+            A.toast(`Consulta concluída: ${r.socios_recuperados || 0} sócio(s) localizado(s).`, 'ok');
+          }
           abrir();
         } catch (erro) {
           A.toast(`Não foi possível consultar o cadastro: ${erro.message}`, 'erro');

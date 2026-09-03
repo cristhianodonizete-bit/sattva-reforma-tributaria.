@@ -28,6 +28,30 @@ const banco = require('../src/db');
   assert.equal(chamadas[0].headers['api-key'], 'chave-casa-exclusiva');
   assert.notEqual(chamadas[0].headers['api-key'], process.env.CNPJ_API_TOKEN);
   assert.equal(resultado.fonte, 'Casa dos Dados');
+  chamadas.length = 0;
+  global.fetch = async (url, opcoes = {}) => {
+    chamadas.push({ url: String(url), headers: opcoes.headers || {} });
+    const eCasa = /api\.casadosdados\.com\.br/.test(String(url));
+    return {
+      ok: true,
+      status: 200,
+      json: async () => eCasa
+        ? { razao_social: 'Empresa sem QSA na fonte prioritária', qsa: [] }
+        : { razao_social: 'Empresa com QSA no fallback', qsa: [{ nome_socio: 'Sócio do fallback', pais: 'Brasil' }] },
+    };
+  };
+  const fallbackQsa = await consultar('12345678000195', { forcar: true, finalidade: 'qsa' });
+  assert.equal(fallbackQsa.fonte, 'BrasilAPI', 'QSA vazio na Casa deve acionar fonte alternativa');
+  assert.equal(fallbackQsa.qsa.length, 1);
+  assert.equal(chamadas.length, 2, 'a busca deve consultar alternativa quando a fonte prioritária vier sem QSA');
+  global.fetch = async (url, opcoes = {}) => {
+    chamadas.push({ url: String(url), headers: opcoes.headers || {} });
+    return {
+      ok: true,
+      status: 200,
+      json: async () => ({ razao_social: 'Empresa de teste', codigo_natureza_juridica: '2062', natureza_juridica: 'Sociedade Empresária Limitada', qsa: [{ nome: 'Sócio', pais: { descricao: 'Brasil' }, percentual_participacao: '20,00%' }] }),
+    };
+  };
   const empresa = banco.prepare("INSERT INTO empresas (cnpj,razao_social,regime) VALUES ('12345678000195','Empresa de teste','lucro_presumido')").run();
   const qsa = await enriquecerQsaEmpresa(Number(empresa.lastInsertRowid), { forcar: true });
   assert.equal(qsa.socios_recuperados, 1);
