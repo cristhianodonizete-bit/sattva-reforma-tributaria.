@@ -505,7 +505,49 @@ router.get('/empresas', async (req, res) => {
     COALESCE((SELECT SUM(q.percentual_participacao) FROM empresa_qsa q WHERE q.empresa_id=e.id),0) qsa_percentual_total,
     (SELECT COUNT(*) FROM empresa_qsa q WHERE q.empresa_id=e.id AND q.brasileiro IN (0,1)) qsa_brasileiro_preenchido
     FROM empresas e ${ids === null ? '' : ids.length ? `WHERE e.id IN (${ids.map(() => '?').join(',')})` : 'WHERE 1=0'} ORDER BY e.razao_social`;
-    ok(res, { empresas: db.prepare(sql).all(...(ids || [])) });
+    const empresas = db.prepare(sql).all(...(ids || []));
+    // A carteira é uma tela de consulta. Para o resumo do QSA, a confirmação
+    // manual compartilhada é a fonte de verdade: um novo processo do Render
+    // não pode fazer a tela parecer vazia enquanto o cache SQLite é refeito.
+    // Esta leitura não chama API cadastral, não grava no SQLite e não altera
+    // QSA, regime ou qualquer outro campo da empresa.
+    if (supabase.configurado() && empresas.length) {
+      try {
+        const remoto = supabase.admin();
+        const [{ data: empresasRemotas, error: erroEmpresas }, { data: qsaManual, error: erroQsa }] = await Promise.all([
+          remoto.from('empresas').select('id,origem_local_id'),
+          remoto.from('empresa_qsa').select('empresa_id,percentual_participacao,brasileiro').eq('origem', 'confirmacao_manual'),
+        ]);
+        if (erroEmpresas) throw erroEmpresas;
+        if (erroQsa) throw erroQsa;
+        const localPorRemota = new Map((empresasRemotas || []).map((x) => [String(x.id), Number(x.origem_local_id || x.id)]));
+        const resumoManual = new Map();
+        for (const socio of qsaManual || []) {
+          const empresaId = localPorRemota.get(String(socio.empresa_id));
+          if (!empresaId) continue;
+          const resumo = resumoManual.get(empresaId) || { socios: 0, participacoes_pendentes: 0, percentual_total: 0, brasileiro_preenchido: 0 };
+          resumo.socios += 1;
+          if (socio.percentual_participacao == null || socio.percentual_participacao === '') resumo.participacoes_pendentes += 1;
+          else resumo.percentual_total += Number(socio.percentual_participacao) || 0;
+          if (socio.brasileiro === true || socio.brasileiro === false || socio.brasileiro === 0 || socio.brasileiro === 1) resumo.brasileiro_preenchido += 1;
+          resumoManual.set(empresaId, resumo);
+        }
+        for (const empresa of empresas) {
+          const resumo = resumoManual.get(Number(empresa.id));
+          if (!resumo) continue;
+          empresa.qsa_socios = resumo.socios;
+          empresa.qsa_participacoes_pendentes = resumo.participacoes_pendentes;
+          empresa.qsa_percentual_total = resumo.percentual_total;
+          empresa.qsa_brasileiro_preenchido = resumo.brasileiro_preenchido;
+          empresa.qsa_origem_resumo = 'CONFIRMACAO_MANUAL_COMPARTILHADA';
+        }
+      } catch (resumoQsaErro) {
+        // A indisponibilidade da fonte compartilhada mantém a leitura local,
+        // mas nunca pode interromper o carregamento da carteira.
+        console.error('[qsa] não foi possível consultar resumo manual compartilhado:', resumoQsaErro.message);
+      }
+    }
+    ok(res, { empresas });
   } catch (e) { erro(res, e); }
 });
 

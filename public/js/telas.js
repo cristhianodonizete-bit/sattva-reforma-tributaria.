@@ -120,10 +120,11 @@ Telas.empresas = async (el) => {
     const brasileiros = Number(empresa.qsa_brasileiro_preenchido || 0);
     const total = Number(empresa.qsa_percentual_total || 0);
     const totalTela = total.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+    const fonte = empresa.qsa_origem_resumo === 'CONFIRMACAO_MANUAL_COMPARTILHADA' ? ' · confirmação manual' : '';
     if (!socios) return `<span class="tag n">QSA não preenchido</span><div class="mini">Brasileiro: —</div>`;
     if (pendentes || brasileiros !== socios) return `<span class="tag n">QSA pendente</span><div class="mini">${totalTela}% informado · Brasileiro: ${brasileiros}/${socios}</div>`;
     if (Math.abs(total - 100) >= 0.005) return `<span class="tag n">QSA ${totalTela}%</span><div class="mini">Faltam ${(100 - total).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% · Brasileiro: ${brasileiros}/${socios}</div>`;
-    return `<span class="tag c">QSA 100% preenchido</span><div class="mini">Brasileiro: ${brasileiros}/${socios} informado</div>`;
+    return `<span class="tag c">QSA 100% preenchido</span><div class="mini">Brasileiro: ${brasileiros}/${socios} informado${fonte}</div>`;
   };
   el.innerHTML = cab('Cadastro', 'Empresas atendidas', 'Cada empresa é um projeto de implementação independente.',
     '<button class="btn vazio" id="novoGrupo">Criar grupo de análise</button><button class="btn" id="novaEmpresa">Cadastrar empresa</button>') +
