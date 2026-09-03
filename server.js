@@ -38,18 +38,9 @@ function prepararMotor() {
       const r = motorExec.executar(e.id, { ano: 2027 });
       console.log(`  motor executado: ${r.resumo.itens} itens projetados para 2033`);
     }
-    // Cadastro novo ou pendente é enriquecido em segundo plano: não bloqueia
-    // a abertura do sistema nem exige que o consultor lembre de uma ação.
-    const empresas = db.prepare('SELECT id FROM empresas').all();
-    const receita = require('./src/services/cnpjReceita');
-    for (const empresa of empresas) {
-      const pendentes = db.prepare(`SELECT COUNT(*) c FROM parceiros
-        WHERE empresa_id = ? AND cnpj <> '' AND (regime IS NULL OR regime = '' OR regime = 'indeterminado')`).get(empresa.id).c;
-      if (pendentes) {
-        receita.agendarEnriquecimento(empresa.id);
-        console.log(`  ${pendentes} CNPJ(s) pendentes enviados ao enriquecimento automático`);
-      }
-    }
+    // Nenhuma consulta cadastral é disparada na inicialização. Consultas de
+    // CNPJ/QSA são decisões explícitas do operador, nunca efeito colateral de
+    // reinício, importação ou reprocessamento.
   } catch (e) { console.error('  motor não pôde ser executado na inicialização:', e.message); }
 }
 

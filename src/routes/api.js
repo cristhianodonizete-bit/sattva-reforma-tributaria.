@@ -565,8 +565,7 @@ router.post('/empresas', async (req, res) => {
     if (supabase.configurado()) await publicarCadastroEmpresa(Number(r.lastInsertRowid));
     auditar(req, { empresaId: Number(r.lastInsertRowid), acao: 'Criou cadastro da empresa', entidade: 'empresa', entidadeId: r.lastInsertRowid,
       depois: { cnpj, razao_social: b.razao_social, regime: b.regime || 'lucro_real' } });
-    const qsa = agendarQsaAutomatico(Number(r.lastInsertRowid));
-    ok(res, { id: r.lastInsertRowid, enriquecimento_qsa: { status: qsa.status, mensagem: 'Consulta automática do quadro societário agendada.' } });
+    ok(res, { id: r.lastInsertRowid, enriquecimento_qsa: { status: 'NAO_CONSULTADO', mensagem: 'O QSA é consultado somente pelo botão “Consultar cadastro” da empresa.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -1035,7 +1034,7 @@ router.post('/empresas/:id/importar/parceiros', upload.single('arquivo'), (req, 
     vincularRegimes(req.params.id);
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { importados: n, ignorados: r.ignorados, mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas,
-      enriquecimento: { status: enriquecimento.status, qsa: enriquecimento.qsa?.status, mensagem: 'Consulta cadastral automática agendada para CNPJs novos ou pendentes.' } });
+      enriquecimento: { status: enriquecimento.status, qsa: enriquecimento.qsa?.status, mensagem: 'Nenhuma consulta cadastral foi iniciada automaticamente.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -1068,7 +1067,7 @@ router.post('/empresas/:id/importar/movimentos', upload.single('arquivo'), (req,
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { importados: r.registros.length, ignorados: r.ignorados, valorTotal: calc.r2(total),
       mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas, classificacao, ...vinc,
-      enriquecimento: { status: enriquecimento.status, qsa: enriquecimento.qsa?.status, mensagem: 'Consulta cadastral automática agendada para CNPJs novos ou pendentes.' } });
+      enriquecimento: { status: enriquecimento.status, qsa: enriquecimento.qsa?.status, mensagem: 'Nenhuma consulta cadastral foi iniciada automaticamente.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -1153,52 +1152,11 @@ function vincularRegimes(empresaId) {
 }
 
 function agendarEnriquecimentoAutomatico(empresaId) {
-  const fila = cnpjReceita.agendarEnriquecimento(empresaId);
-  const qsa = agendarQsaAutomatico(empresaId);
-  // O motor só é persistido após a fila concluir, para que Classificações
-  // reflita automaticamente os cadastros encontrados.
-  if (fila.status === 'agendado') {
-    const aguardar = setInterval(() => {
-      if (fila.status === 'agendado' || fila.status === 'executando') return;
-      clearInterval(aguardar);
-      if (fila.status === 'concluido' && fila.resultado && fila.resultado.atualizados) {
-        try { motorExec.reprocessarIncremental(empresaId, { ano: 2027 }); } catch (_) { /* a fila retomará no próximo ciclo */ }
-      }
-    }, 1000);
-  }
-  return { ...fila, qsa: { status: qsa.status } };
+  // Importar e cadastrar não podem disparar consulta externa nem modificar
+  // cadastros. Enriquecimento só ocorre por comando explícito do operador.
+  return { status: 'NAO_EXECUTADO_AUTOMATICAMENTE', empresa_id: Number(empresaId), qsa: { status: 'NAO_CONSULTADO_AUTOMATICAMENTE' } };
 }
 
-// O QSA é dado cadastral da empresa analisada, não um passo manual do
-// diagnóstico. Cadastro e importações o consultam em segundo plano; a falta
-// de percentual permanece PENDENTE e nunca é preenchida por inferência.
-const filasQsaAutomaticas = new Map();
-function agendarQsaAutomatico(empresaId) {
-  const chave = Number(empresaId);
-  const existente = filasQsaAutomaticas.get(chave);
-  if (existente && ['agendado', 'executando'].includes(existente.status)) return existente;
-  const fila = { status: 'agendado', empresa_id: chave, inicio: null, fim: null, resultado: null, erro: null };
-  filasQsaAutomaticas.set(chave, fila);
-  setImmediate(async () => {
-    fila.status = 'executando'; fila.inicio = new Date().toISOString();
-    try {
-      const antes = db.prepare('SELECT nome,documento,qualificacao,percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE empresa_id=? ORDER BY nome').all(chave);
-      fila.resultado = await cnpjReceita.enriquecerQsaEmpresa(chave, { forcar: false });
-      const depois = db.prepare('SELECT nome,documento,qualificacao,percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE empresa_id=? ORDER BY nome').all(chave);
-      auditarSistema({ empresaId: chave, acao: 'Consulta automática de QSA concluída', entidade: 'empresa_qsa', entidadeId: chave,
-        antes, depois: { origem: 'IMPORTACAO_OU_ENRIQUECIMENTO_AUTOMATICO', fonte: fila.resultado.fonte, socios_recuperados: fila.resultado.socios_recuperados, qsa: depois } });
-      // O QSA só pode afetar saídas (200044). Reprocessa-as de forma
-      // incremental se já houver fotografia, sem recriar ou tocar entradas.
-      if (motorExec.ultimaExecucao(chave)) {
-        const saidas = db.prepare("SELECT id FROM movimentos WHERE empresa_id=? AND tipo='cliente'").all(chave).map((x) => x.id);
-        if (saidas.length) fila.reprocessamento = motorExec.reprocessarIncremental(chave, { movimentoIds: saidas, ano: 2027 });
-      }
-      fila.status = 'concluido';
-    } catch (e) { fila.status = 'erro'; fila.erro = e.message; }
-    finally { fila.fim = new Date().toISOString(); }
-  });
-  return fila;
-}
 
 router.post('/empresas/:id/vincular-regimes', (req, res) => ok(res, vincularRegimes(req.params.id)));
 
@@ -3114,7 +3072,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
     } catch (_) { /* segue sem classificar */ }
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { ...relatorio, classificacao, semRegime: vinculo.semRegime,
-      enriquecimento: { status: enriquecimento.status, mensagem: 'CNPJs pendentes foram enviados para enriquecimento automático.' } });
+      enriquecimento: { status: enriquecimento.status, mensagem: 'Nenhuma consulta cadastral foi iniciada automaticamente.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -3304,7 +3262,7 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
     const semRegime = db.prepare(`SELECT COUNT(*) c FROM parceiros WHERE empresa_id = ? AND (regime IS NULL OR regime = '')`).get(req.params.id).c;
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { ...rel, classificacao, parceirosSemRegime: semRegime,
-      enriquecimento: { status: enriquecimento.status, mensagem: 'CNPJs pendentes foram enviados para enriquecimento automático.' } });
+      enriquecimento: { status: enriquecimento.status, mensagem: 'Nenhuma consulta cadastral foi iniciada automaticamente.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -3921,9 +3879,9 @@ router.post('/empresas/:id/elegibilidade-anexo-xi/sanear', async (req, res) => {
     const contarRequerValidacao = () => db.prepare(`SELECT COUNT(*) total FROM motor_resultados
       WHERE empresa_id=? AND status_classificacao='REQUER_VALIDACAO'`).get(empresaId).total;
     const antes = contarRequerValidacao();
-    let qsa;
-    try { qsa = await cnpjReceita.enriquecerQsaEmpresa(empresaId, { forcar: true }); }
-    catch (e) { qsa = { socios_recuperados: 0, percentual_automatico: 0, pendentes_percentual: 0, erro: e.message }; }
+    // O saneamento não consulta nem substitui QSA. A condição 200044 usa
+    // exclusivamente o quadro já confirmado; consulta só pelo botão próprio.
+    const qsa = { status: 'NAO_CONSULTADO_AUTOMATICAMENTE', mensagem: 'Use “Consultar cadastro” no Quadro societário caso queira buscar dados externos.' };
     const parceiros = await cnpjReceita.enriquecerParceiros(empresaId, { sobrescrever: true, forcar: true, limite: 500 });
     const execucao = motorExec.executar(empresaId, { ano: Number(req.body.ano) || 2027 });
     await require('../services/operacaoCompartilhada').publicarResultadosMotor(empresaId);
