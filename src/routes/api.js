@@ -348,7 +348,10 @@ router.get('/operacao/dashboard', async (req, res) => {
       pendenciasCliente: carteira.filter((p) => p.responsavelSattva === nome).reduce((n, p) => n + p.pendenciasCliente, 0),
       tarefasAtrasadas: agenda.filter((m) => m.tipo === 'tarefa' && m.atrasado && m.responsavelSattva === nome).length,
     }));
+    const escoposDaCarteira = carteira.flatMap((p) => p.responsaveisPorEntrega || []);
     ok(res, { usuario_atual_id: req.usuario?.id || null, empresas: empresasVisiveis.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
+      escoposContratados: escoposDaCarteira.length,
+      escoposSemResponsavel: escoposDaCarteira.filter((e) => !e.usuario_id).length,
       aguardando: carteira.filter((p) => p.status === 'aguardando_aprovacao').length,
       entregasPendentes: carteira.reduce((n, p) => n + p.entregas - p.entregasConcluidas, 0),
       tarefasAtrasadas: agenda.filter((m) => m.tipo === 'tarefa' && m.atrasado).length,

@@ -240,9 +240,8 @@ const App = (() => {
     menu.innerHTML = MENU.map((grupo) => {
       const itens = grupo.itens.filter((item) => item.tipo === 'titulo' || pode(item.id));
       if (!itens.length) return '';
-      const contemAtiva = grupo.itens.some((item) => item.id === S.tela);
       const chave = `sattva_menu_grupo_${grupo.id}`;
-      const aberto = contemAtiva || localStorage.getItem(chave) !== 'fechado';
+      const aberto = localStorage.getItem(chave) === 'aberto';
       return `<section class="nav-grupo ${aberto ? 'aberto' : ''}" data-grupo="${grupo.id}">
         <button class="grupo-titulo" type="button" aria-expanded="${aberto}">${grupo.titulo}<span>${aberto ? '⌃' : '⌄'}</span></button>
         <div class="grupo-itens">${itens.map((item) => item.tipo === 'titulo'
@@ -367,12 +366,15 @@ const App = (() => {
     try {
       await carregarParametros();
     } catch (e) { document.getElementById('tela').innerHTML = `<div class="aviso alto">Servidor indisponível: ${esc(e.message)}</div>`; return; }
+    // A navegação começa recolhida a cada acesso; cada pessoa abre apenas a
+    // área necessária para não transformar a lateral numa lista extensa.
+    MENU.forEach((grupo) => localStorage.removeItem(`sattva_menu_grupo_${grupo.id}`));
     const toggleMenu = document.getElementById('menuToggle');
     if (localStorage.getItem('sattva_menu_colapsado') === 'sim') document.body.classList.add('menu-colapsado');
     if (toggleMenu) toggleMenu.onclick = () => { const ativo = document.body.classList.toggle('menu-colapsado'); localStorage.setItem('sattva_menu_colapsado', ativo ? 'sim' : 'nao'); };
     await carregarEmpresas();
-    const inicial = (location.hash || '').replace('#', '') || 'painel';
-    ir(TELAS_MENU.some((m) => m.id === inicial) ? inicial : 'painel');
+    const inicial = (location.hash || '').replace('#', '') || 'dashboardOperacao';
+    ir(TELAS_MENU.some((m) => m.id === inicial) ? inicial : 'dashboardOperacao');
   }
 
   function telaLogin() {
