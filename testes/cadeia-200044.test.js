@@ -5,7 +5,7 @@ const os = require('node:os');
 const path = require('node:path');
 
 process.env.SATTVA_DADOS = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-cadeia-200044-'));
-const { leitura200044 } = require('../src/services/consolidacaoOficial');
+const { leitura200044, leituraBeneficio } = require('../src/services/consolidacaoOficial');
 
 const linhaConfirmada = {
   movimento_id: 13,
@@ -43,4 +43,20 @@ assert.equal(leitura.lc116, '1.06');
 assert.equal(leitura200044({ ...linhaConfirmada, detalhe: { ...linhaConfirmada.detalhe, classificacao: { ...linhaConfirmada.detalhe.classificacao, elegibilidadeAnexoXi: { status_qsa: 'PENDENTE' } } } }), null,
   'QSA pendente nunca deve ser exibido como redução confirmada');
 
-console.log('cadeia-200044: leitura confirmada e pendência separadas: OK');
+const aliquotaZero = leituraBeneficio({
+  ...linhaConfirmada,
+  movimento_id: 14,
+  cbs: 0,
+  detalhe: {
+    ...linhaConfirmada.detalhe,
+    aliquotas: { cbs: 0, aliquotaReferencia: { cbs: 0.0921 } },
+    classificacao: { cclasstrib: '100001', reducaoCbs: 1, fundamentoLegal: 'Alíquota zero versionada' },
+  },
+});
+assert.ok(aliquotaZero, 'alíquota zero efetivamente aplicada deve aparecer como benefício');
+assert.equal(aliquotaZero.beneficio, 'Alíquota zero');
+assert.equal(aliquotaZero.cclasstrib, '100001');
+assert.equal(leituraBeneficio({ ...linhaConfirmada, status_classificacao: 'REQUER_VALIDACAO' }), null,
+  'candidato pendente nunca deve aparecer como benefício aplicado');
+
+console.log('cadeia-beneficios: leitura confirmada, alíquota zero e pendência separadas: OK');

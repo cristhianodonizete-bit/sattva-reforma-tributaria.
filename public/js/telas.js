@@ -233,18 +233,8 @@ Telas.dados = async (el) => {
   el.innerHTML = cab('DADOS · ENTRADA E TRATAMENTO', 'Central de Dados',
     'Cadastre, importe, complete e trate dados uma única vez. Os módulos de análise apenas consomem esta base com origem e rastreabilidade preservadas.') +
     `<div class="aviso bom"><b>Fluxo de dados:</b> Central de Dados → tratamento e validações → módulos do produto → relatórios e entregáveis.</div>` +
-    `<div class="menu-subtitulo" style="color:var(--tinta-2);padding:14px 0 4px">Importações</div><div class="abas">
-      <button data-central-grupo="documentos" class="${grupoCentral === 'documentos' ? 'ativo' : ''}">1. Documentos fiscais</button>
-      <button data-central-grupo="folha" class="${grupoCentral === 'folha' ? 'ativo' : ''}">2. Folha</button>
-      <button data-central-grupo="receitas" class="${grupoCentral === 'receitas' ? 'ativo' : ''}">3. Outras receitas</button>
-      <button data-central-grupo="apuracoes" class="${grupoCentral === 'apuracoes' ? 'ativo' : ''}">4. Apurações</button>
-      <button data-central-grupo="margem" class="${grupoCentral === 'margem' ? 'ativo' : ''}">5. Margem operacional</button>
-    </div>
-    ${grupoCentral === 'documentos' ? `<div class="abas" style="margin-top:8px">
-      <button data-aba="fornecedor" class="${aba === 'fornecedor' ? 'ativo' : ''}">Fornecedores</button>
-      <button data-aba="cliente" class="${aba === 'cliente' ? 'ativo' : ''}">Clientes</button>
-    </div>` : ''}
-    ${grupoCentral === 'documentos' ? `<section class="fluxo-importacao" aria-label="Etapas da importação">
+    `${grupoCentral === 'documentos' ? `<div class="cartao" style="margin-top:16px"><label style="max-width:300px">Tipo de documento fiscal<select id="tipoDocumentoFiscal"><option value="fornecedor" ${aba === 'fornecedor' ? 'selected' : ''}>Entradas / fornecedores</option><option value="cliente" ${aba === 'cliente' ? 'selected' : ''}>Saídas / clientes</option></select></label><p class="mini" style="margin-top:8px">A escolha define a origem dos registros da aba Planilhas. As únicas abas de Documentos fiscais são Planilhas e XML/SPED.</p></div>
+    <section class="fluxo-importacao" aria-label="Etapas da importação">
       <button type="button" class="${parceiros.length ? 'feito' : 'atual'}" data-ir-importacao="cadastro">
         <b>1</b><span><strong>Cadastre ${rotulo}</strong><small>${parceiros.length ? `${parceiros.length} registros disponíveis` : 'Importe ou inclua manualmente'}</small></span>
       </button><span class="fluxo-linha"></span>
@@ -256,19 +246,7 @@ Telas.dados = async (el) => {
       </button>
     </section>` : ''}
     ${filtroPendencia ? `<div class="aviso atencao" style="margin-top:16px"><b>Filtro ativo: operação #${A.esc(filtroPendencia.movimento_id || '—')} · ${A.esc(filtroPendencia.dimensao || 'pendência')} · ${A.esc(filtroPendencia.status || '')}</b><br><span class="mini">${A.esc(filtroPendencia.acao || 'Revise a pendência selecionada.')} ${filtroPendencia.fonte_minima ? `Fonte mínima: ${A.esc(filtroPendencia.fonte_minima)}` : ''}</span><div style="margin-top:8px"><button class="btn pq vazio" id="limparFiltroPendencia">Limpar filtro</button></div></div>` : ''}
-    ${grupoCentral === 'documentos' ? `<div class="cartao" style="margin-top:16px" id="importacoesCentral">
-      <h2>Importações e documentos</h2>
-      <p class="desc">Use esta Central como porta de entrada. Cada ação reutiliza o mesmo fluxo já tratado pelo sistema; nenhuma base ou processamento paralelo é criado.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn vazio pq" id="centralXmlSped">Abrir aba XML / SPED</button>
-        <button class="btn vazio pq" id="centralPlanilhas">Abrir aba Planilhas</button>
-        ${simplesNacional ? '<button class="btn vazio pq" id="centralPgdas">Importar PGDAS</button>' : ''}
-        <button class="btn vazio pq" id="centralApuracao">${exigeApuracaoPisCofins ? 'Enviar apuração PIS/Cofins obrigatória' : 'Enviar apuração PIS/Cofins'}</button>
-        <button class="btn vazio pq" id="centralReferencias">Importar referências de serviços</button>
-      </div>
-      <div class="mini" style="margin-top:10px">${simplesNacional ? '<b>Empresa do Simples Nacional:</b> importe o PGDAS por competência em XLSX, XLS ou CSV para completar a evidência histórica.' : exigeApuracaoPisCofins ? '<b>Empresa no Lucro Presumido ou Lucro Real:</b> envie a apuração histórica de PIS/Cofins para completar a evidência do período.' : '<b>PGDAS:</b> a importação fica disponível para empresas enquadradas no Simples Nacional.'}</div>
-    </div>
-    <div class="grade g2">
+    ${grupoCentral === 'documentos' ? `<div class="grade g2" style="margin-top:16px">
       <div class="cartao" id="cadastro">
         <h2>1. Cadastro de ${rotulo}</h2>
         <p class="desc">Planilha com CNPJ, descrição e regime tributário. A ordem das colunas não importa.</p>
@@ -363,7 +341,7 @@ Telas.dados = async (el) => {
       ], lotes, { vazio: 'Nenhum lote importado.' })}
     </div>` : ''}`;
 
-    el.querySelectorAll('[data-aba]').forEach((b) => { b.onclick = () => { S.aba.dados = b.dataset.aba; S.aba.dadosPendencia = null; A.ir('dados'); }; });
+    document.getElementById('tipoDocumentoFiscal')?.addEventListener('change', (evento) => { S.aba.dados = evento.target.value; S.aba.dadosPendencia = null; A.ir('dados'); });
     el.querySelectorAll('[data-central-grupo]').forEach((b) => { b.onclick = () => { S.aba.centralDados = b.dataset.centralGrupo; S.aba.dadosMotor = 'atual'; S.aba.dadosPendencia = null; A.ir('dados'); }; });
     document.getElementById('limparFiltroPendencia')?.addEventListener('click', () => { S.aba.dadosPendencia = null; A.ir('dados'); });
     el.querySelectorAll('[data-abrir-pendencia]').forEach((botao) => botao.addEventListener('click', async () => {
@@ -669,9 +647,8 @@ async function telaCadeia(el, tipo) {
   const mostrarRiscos = eForn || abaCliente === 'riscos';
   const mostrarAbc = eForn || abaCliente === 'abc';
   const mostrarRastreabilidade = !eForn && abaCliente === 'rastreabilidade';
-  const mostrar200044 = !eForn && abaCliente === '200044';
-  const regra200044 = analise.condicao200044 || {};
-  const resumo200044 = analise.tratamento200044 || { operacoes: 0 };
+  const mostrarBeneficios = !eForn && abaCliente === 'beneficios';
+  const resumoBeneficios = analise.tratamentoBeneficios || { operacoes: 0 };
 
   el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
     eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
@@ -713,7 +690,7 @@ async function telaCadeia(el, tipo) {
       <button class="${abaCliente === 'riscos' ? 'ativo' : ''}" data-aba-cliente="riscos">Riscos e oportunidades</button>
       <button class="${abaCliente === 'abc' ? 'ativo' : ''}" data-aba-cliente="abc">Curva ABC</button>
       <button class="${abaCliente === 'rastreabilidade' ? 'ativo' : ''}" data-aba-cliente="rastreabilidade">Rastreabilidade</button>
-      <button class="${abaCliente === '200044' ? 'ativo' : ''}" data-aba-cliente="200044">Redução 60% · 200044</button>
+      <button class="${abaCliente === 'beneficios' ? 'ativo' : ''}" data-aba-cliente="beneficios">Benefícios fiscais aplicados</button>
     </div>` : ''}
     ${mostrarRiscos ? `<div class="cartao" style="margin-top:16px"><h2>Riscos e oportunidades</h2><p class="desc">Leitura da carteira sob a ótica da empresa vendedora.</p>${A.avisos(analise.riscos)}
       ${!eForn && analise.riscos.some((r) => r.codigo === 'base_estimada_regime') ? '<button class="btn vazio" id="corrigirReferencias" style="margin-top:12px">Corrigir referências fiscais dos serviços</button>' : ''}
@@ -769,25 +746,24 @@ async function telaCadeia(el, tipo) {
         { t: 'Relevância do crédito', r: (p) => `<span class="tag ${String(p.relevanciaCreditoCliente || '').startsWith('Potencialmente') ? 'c' : 'n'}">${A.esc(p.relevanciaCreditoCliente)}</span>` },
       ], analise.parceiros.slice(0, 200))}
     </div>` : ''}
-    ${mostrar200044 ? `<div class="cartao" style="margin-top:16px"><h2>Operações com redução de 60% — cClassTrib 200044</h2>
-      <p class="desc">Esta aba mostra somente vendas em que o motor já confirmou a condição societária e aplicou o enquadramento específico. A leitura não cria uma nova regra nem altera a CBS já calculada.</p>
-      ${resumo200044.operacoes ? `<div class="grade g4" style="margin-top:14px">
-        ${A.kpi('Operações enquadradas', resumo200044.operacoes, 'cClassTrib 200044 confirmado')}
-        ${A.kpi('Base econômica CBS', A.moeda(resumo200044.baseEconomica), 'base das vendas enquadradas')}
-        ${A.kpi('CBS projetada', A.moeda(resumo200044.cbs), 'após a redução cadastrada')}
-        ${A.kpi('Redução CBS', A.moeda(resumo200044.diferencaReducaoCbs), 'diferença para a alíquota CBS de referência')}
+    ${mostrarBeneficios ? `<div class="cartao" style="margin-top:16px"><h2>Benefícios fiscais aplicados</h2>
+      <p class="desc">Lista todas as vendas em que a execução oficial do motor aplicou redução de CBS ou alíquota zero. Esta leitura não cria benefício, não inclui candidatos pendentes e não altera o cálculo já materializado.</p>
+      ${resumoBeneficios.operacoes ? `<div class="grade g4" style="margin-top:14px">
+        ${A.kpi('Operações beneficiadas', resumoBeneficios.operacoes, 'benefício aplicado pelo motor')}
+        ${A.kpi('Base econômica CBS', A.moeda(resumoBeneficios.baseEconomica), 'base das vendas beneficiadas')}
+        ${A.kpi('CBS projetada', A.moeda(resumoBeneficios.cbs), 'após o tratamento aplicável')}
+        ${A.kpi('Redução CBS', A.moeda(resumoBeneficios.diferencaReducaoCbs), 'diferença para a alíquota CBS de referência')}
       </div>
-      <div class="aviso bom" style="margin-top:14px"><b>Fundamento aplicado pelo motor</b><br>Catálogo fiscal versionado: Anexo XI / cClassTrib 200044. Condição confirmada: sócio brasileiro com participação igual ou superior a 20%. A redução de CBS é a parametrizada para esse enquadramento.</div>
       ${A.tabela([
         { t: 'Documento / cliente', r: (x) => `<b class="mono">${A.esc(x.documento || 'sem número')}</b><div class="mini">${A.esc(x.competencia || '')}</div><div>${A.esc(x.cliente || 'Não identificado')}</div><div class="mini mono">${A.cnpjFmt(x.cnpj)}</div>` },
         { t: 'Item e referência', r: (x) => `${A.esc(x.descricao || 'Sem descrição')}<div class="mini">LC 116: ${A.esc(x.lc116 || 'não identificada')} · NBS: ${A.esc(x.nbs || 'não identificada')}</div>` },
+        { t: 'Benefício aplicado', r: (x) => `<span class="tag c">${A.esc(x.beneficio || 'Tratamento específico')}</span><div class="mini">CST ${A.esc(x.cst || '—')} · cClassTrib ${A.esc(x.cclasstrib || '—')}</div>` },
         { t: 'Base econômica', num: true, r: (x) => A.moeda(x.baseEconomica) },
         { t: 'CBS', num: true, r: (x) => `${A.moeda(x.cbs)}<div class="mini">Referência: ${x.aliquotaCbsReferencia == null ? 'não identificada' : A.pct(x.aliquotaCbsReferencia)} · efetiva: ${x.aliquotaCbsEfetiva == null ? 'não identificada' : A.pct(x.aliquotaCbsEfetiva)}</div>` },
         { t: 'Redução', r: (x) => `<span class="tag c">${A.pct(x.reducaoCbs, 0)}</span><div class="mini">${x.diferencaReducaoCbs == null ? '' : `CBS não aplicada: ${A.moeda(x.diferencaReducaoCbs)}`}</div>` },
-        { t: 'Evidência societária', r: (x) => `${A.esc(x.qsa?.socio || 'Sócio confirmado')}<div class="mini">Brasileiro: ${x.qsa?.brasileiro ? 'SIM' : 'NÃO'} · participação: ${x.qsa?.participacao == null ? 'não informada' : `${x.qsa.participacao}%`}</div><div class="mini">${A.esc(x.qsa?.fonte || 'Fonte não informada')}</div>` },
-        { t: 'Embasamento', r: (x) => `<b>Anexo ${A.esc(x.anexo || 'XI')} · cClassTrib 200044</b><div class="mini">${A.esc(x.fundamentoCatalogo)}</div><div class="mini">${A.esc(x.qsa?.motivo || '')}</div>` },
-      ], analise.operacoes200044, { vazio: 'Nenhuma operação recebeu o enquadramento 200044 nesta execução.' })}`
-      : `<div class="aviso atencao" style="margin-top:14px"><b>Nenhuma venda foi enquadrada no cClassTrib 200044 nesta execução.</b><br>${A.esc(regra200044.motivo || 'A condição societária ainda não está confirmada.')}${regra200044.status === 'PENDENTE' ? '<br>Informe ou confirme a participação societária na tela Quadro societário. Percentual ausente não é presumido pelo sistema.' : ''}</div>`}
+        { t: 'Embasamento', r: (x) => `${x.anexo ? `<b>Anexo ${A.esc(x.anexo)}</b><br>` : ''}<div class="mini">${A.esc(x.fundamentoCatalogo || 'Fundamento não informado pelo catálogo.')}</div>${x.qsa?.motivo ? `<div class="mini">${A.esc(x.qsa.motivo)}</div>` : ''}` },
+      ], analise.operacoesBeneficios, { vazio: 'Nenhum benefício foi aplicado pelo motor nesta execução.' })}`
+      : `<div class="aviso neutro" style="margin-top:14px"><b>Nenhuma venda com benefício fiscal aplicado nesta execução.</b><br>Quando o motor aplicar redução de CBS ou alíquota zero a uma operação, ela aparecerá nesta lista com o respectivo fundamento.</div>`}
     </div>` : ''}
     ${mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade da base econômica</h2>
       <p class="desc">Mostra, documento a documento, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. Não recalcula nada nesta tela: todos os dados vêm da memória persistida do motor.</p>

@@ -186,6 +186,33 @@ Telas.bases = async (el) => {
   }; });
 };
 
+// Pendências que ainda requerem uma decisão ou evidência humana. Ficam
+// deliberadamente no menu Diagnóstico para não parecerem um detalhe escondido
+// dentro da cobertura do motor.
+Telas.pendenciasDiagnostico = async (el) => {
+  const d = await A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`);
+  const pendencias = d.fotografia?.pendencias_operacionais || [];
+  const valor = pendencias.reduce((s, x) => s + (Number(x.valor) || 0), 0);
+  el.innerHTML = cab('DIAGNÓSTICO · AÇÃO NECESSÁRIA', 'Pendências do diagnóstico',
+    'Estas são somente operações em que o motor não conseguiu concluir classificação, tratamento, reconstrução ou crédito com segurança. Resultados já determinados ou tratados pelo motor não aparecem nesta lista.') +
+    `<div class="aviso atencao" style="margin-top:16px"><b>${pendencias.length} pendência(s) requerem atuação humana.</b><br>Abra a operação, confira a evidência existente e execute a ação indicada. A pendência deixa de aparecer quando o motor conseguir determinar o resultado com segurança.</div>
+    <div class="grade g3" style="margin-top:16px">${A.kpi('Operações pendentes', pendencias.length, 'uma causa principal por operação')}${A.kpi('Valor sujeito a validação', A.moeda(valor), 'sem dupla contagem')}${A.kpi('Exceções abertas', d.excecoes?.resumo?.abertas || 0, 'fotografia oficial')}</div>
+    <div class="cartao" style="margin-top:16px"><h2>Fila de atuação humana</h2>${pendencias.length ? A.tabela([
+      { t:'Operação', r:x=>`<b>#${A.esc(x.movimento_id)}</b><div class="mini">${A.esc(x.documento)}</div><div class="mini">${A.esc(x.parceiro)}</div>` },
+      { t:'Valor', num:true, r:x=>A.moeda(x.valor) },
+      { t:'Por que requer ação', r:x=>`<b>${A.esc(x.dimensao)}</b> · ${A.esc(x.status)}<div class="mini">${A.esc(x.causa)}</div>` },
+      { t:'Ação necessária', r:x=>`${A.esc(x.acao)}<div class="mini">Fonte mínima: ${A.esc(x.fonte_minima)}</div><button class="btn pq vazio" data-abrir-pendencia="${A.esc(x.movimento_id)}">Abrir lançamento</button>` },
+    ], pendencias) : A.vazio('Não há pendências que exijam atuação humana.', 'A execução oficial atual está determinada ou tratada pelo motor.')}</div>`;
+  el.querySelectorAll('[data-abrir-pendencia]').forEach((botao) => botao.addEventListener('click', () => {
+    const contexto = pendencias.find((x) => String(x.movimento_id) === String(botao.dataset.abrirPendencia));
+    if (!contexto) return;
+    S.aba.dados = contexto.sentido === 'saida' ? 'cliente' : 'fornecedor';
+    S.aba.dadosPendencia = contexto;
+    S.aba.centralDados = 'documentos';
+    A.ir('dados');
+  }));
+};
+
 // Fase 2A: leitura da fotografia oficial, sem criar novo cálculo tributário.
 Telas.coberturaDiagnostico = async (el) => {
   const d = await A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`);

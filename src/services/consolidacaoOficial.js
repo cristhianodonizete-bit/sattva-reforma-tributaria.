@@ -102,20 +102,22 @@ function faixaTributacao(linha) {
 }
 
 // Leitura da regra já decidida e persistida pelo motor. Esta função não
-// reclassifica nem recalcula CBS: apenas torna auditável o enquadramento
-// específico 200044 na cadeia de clientes.
-function leitura200044(linha) {
+// reclassifica nem recalcula CBS: torna auditável qualquer benefício que o
+// motor efetivamente aplicou (reduções e alíquota zero), sem limitar a tela a
+// um cClassTrib específico.
+function leituraBeneficio(linha) {
   const detalhe = linha.detalhe || {};
   const classificacao = detalhe.classificacao || {};
   const elegibilidade = classificacao.elegibilidadeAnexoXi || {};
-  if (String(classificacao.cclasstrib || '') !== '200044' || elegibilidade.status_qsa !== 'SIM') return null;
+  const faixa = faixaTributacao(linha);
+  if (faixa.chave === 'INTEGRAL' || ['REQUER_VALIDACAO', 'SEM_CORRESPONDENCIA'].includes(linha.status_classificacao)) return null;
 
-  const reducao = Number(classificacao.reducaoCbs ?? classificacao.reducao_cbs ?? 0.6);
+  const reducao = faixa.chave === 'ALIQUOTA_ZERO' ? 1 : Number(classificacao.reducaoCbs ?? classificacao.reducao_cbs ?? 0);
   const aliquota = detalhe.aliquotas || {};
   const aliquotaReferencia = Number(aliquota.aliquotaReferencia?.cbs);
   const base = n(linha.base_economica);
   const cbsSemReducao = Number.isFinite(aliquotaReferencia) ? base * aliquotaReferencia : null;
-  const candidato = (classificacao.candidatos || []).find((x) => String(x.cclasstrib) === '200044') || {};
+  const candidato = (classificacao.candidatos || []).find((x) => String(x.cclasstrib) === String(classificacao.cclasstrib || '')) || {};
   const socio = elegibilidade.socio || {};
 
   return {
@@ -135,8 +137,11 @@ function leitura200044(linha) {
     aliquotaCbsEfetiva: Number.isFinite(Number(aliquota.cbs)) ? Number(aliquota.cbs) : null,
     cbsSemReducao: cbsSemReducao === null ? null : r2(cbsSemReducao),
     diferencaReducaoCbs: cbsSemReducao === null ? null : r2(cbsSemReducao - n(linha.cbs)),
-    fundamentoCatalogo: classificacao.fundamentoLegal || candidato.fundamento || classificacao.anexo || 'Anexo XI / cClassTrib 200044, conforme catálogo fiscal versionado.',
-    anexo: classificacao.anexo || candidato.anexo || 'XI',
+    cclasstrib: classificacao.cclasstrib || candidato.cclasstrib || '',
+    cst: classificacao.cst || candidato.cst || '',
+    beneficio: faixa.label,
+    fundamentoCatalogo: classificacao.fundamentoLegal || candidato.fundamento || classificacao.anexo || 'Fundamento registrado no catálogo fiscal versionado.',
+    anexo: classificacao.anexo || candidato.anexo || '',
     fundamentosMotor: classificacao.fundamentos || [],
     qsa: {
       status: elegibilidade.status_qsa,
@@ -148,6 +153,14 @@ function leitura200044(linha) {
       motivo: elegibilidade.motivo || '',
     },
   };
+}
+
+// Mantida para compatibilidade com consumidores e testes anteriores. A regra
+// específica continua exigindo a evidência societária confirmada.
+function leitura200044(linha) {
+  const classificacao = linha.detalhe?.classificacao || {};
+  if (String(classificacao.cclasstrib || '') !== '200044' || classificacao.elegibilidadeAnexoXi?.status_qsa !== 'SIM') return null;
+  return leituraBeneficio(linha);
 }
 
 function cadeia(empresaId, tipo, opcoes = {}) {
@@ -238,8 +251,8 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     tipoCredito: x.tipo_credito, modalidadeCredito: x.modalidade_credito, statusCredito: x.status_credito_determinacao || x.status_credito,
     natureza: natureza(x), detalhe: x.detalhe,
   }));
-  const operacoes200044 = lado === 'cliente' ? itens.map(leitura200044).filter(Boolean) : [];
-  const tratamento200044 = operacoes200044.reduce((s, x) => ({
+  const operacoesBeneficios = lado === 'cliente' ? itens.map(leituraBeneficio).filter(Boolean) : [];
+  const tratamentoBeneficios = operacoesBeneficios.reduce((s, x) => ({
     operacoes: s.operacoes + 1,
     valor: r2(s.valor + n(x.valor)),
     baseEconomica: r2(s.baseEconomica + n(x.baseEconomica)),
@@ -249,7 +262,11 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const t = finalizar(total); t.parceiros = parceiros.length;
   return { execucao: base.execucao, lado, totais: t, parceiros, regimes, detalhes,
     condicao200044: lado === 'cliente' ? elegibilidadeAnexoXi.qsaEmpresa(empresaId) : { status: 'NAO_APLICAVEL' },
-    operacoes200044, tratamento200044,
+    operacoesBeneficios, tratamentoBeneficios,
+    // Compatibilidade transitória para clientes que ainda consumam o contrato
+    // anterior; a interface usa exclusivamente os campos genéricos acima.
+    operacoes200044: operacoesBeneficios.filter((x) => String(x.cclasstrib) === '200044'),
+    tratamento200044: tratamentoBeneficios,
     cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, precoFinal: t.precoFinal, credito: t.creditoFinal, creditoPotencial: t.creditoPotencial, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
     riscos: [], fonte: 'motor_resultados' };
 }
@@ -304,4 +321,4 @@ function impactoFinal(empresaId, opcoes = {}) {
     drill_down: { clientes: 'clientes', fornecedores: 'fornecedores', memoria_atual: 'perfil' } };
 }
 
-module.exports = { linhas, cadeia, impactoFinal, ultimaExecucao, faixaTributacao, leitura200044 };
+module.exports = { linhas, cadeia, impactoFinal, ultimaExecucao, faixaTributacao, leituraBeneficio, leitura200044 };
