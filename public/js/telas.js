@@ -114,6 +114,17 @@ Telas.empresas = async (el) => {
     clientes: acc.clientes + Number(empresa.clientes || 0),
     movimentos: acc.movimentos + Number(empresa.movimentos || 0),
   }), { fornecedores: 0, clientes: 0, movimentos: 0 });
+  const situacaoQsa = (empresa) => {
+    const socios = Number(empresa.qsa_socios || 0);
+    const pendentes = Number(empresa.qsa_participacoes_pendentes || 0);
+    const brasileiros = Number(empresa.qsa_brasileiro_preenchido || 0);
+    const total = Number(empresa.qsa_percentual_total || 0);
+    const totalTela = total.toLocaleString('pt-BR', { maximumFractionDigits: 2 });
+    if (!socios) return `<span class="tag n">QSA não preenchido</span><div class="mini">Brasileiro: —</div>`;
+    if (pendentes || brasileiros !== socios) return `<span class="tag n">QSA pendente</span><div class="mini">${totalTela}% informado · Brasileiro: ${brasileiros}/${socios}</div>`;
+    if (Math.abs(total - 100) >= 0.005) return `<span class="tag n">QSA ${totalTela}%</span><div class="mini">Faltam ${(100 - total).toLocaleString('pt-BR', { maximumFractionDigits: 2 })}% · Brasileiro: ${brasileiros}/${socios}</div>`;
+    return `<span class="tag c">QSA 100% preenchido</span><div class="mini">Brasileiro: ${brasileiros}/${socios} informado</div>`;
+  };
   el.innerHTML = cab('Cadastro', 'Empresas atendidas', 'Cada empresa é um projeto de implementação independente.',
     '<button class="btn vazio" id="novoGrupo">Criar grupo de análise</button><button class="btn" id="novaEmpresa">Cadastrar empresa</button>') +
     `<div class="grade g4 resumo-carteira">
@@ -129,6 +140,7 @@ Telas.empresas = async (el) => {
       { t: 'Fornecedores', num: true, r: (e) => e.fornecedores },
       { t: 'Clientes', num: true, r: (e) => e.clientes },
       { t: 'Lançamentos', num: true, r: (e) => e.movimentos },
+      { t: 'QSA', r: (e) => situacaoQsa(e) },
       { t: 'Código Questor', r: (e) => `<span class="mono mini">${A.esc(e.codigo_questor || '—')}</span>` },
       { t: '', r: (e) => `<button class="btn pq" data-abrir="${e.id}">Abrir projeto</button><button class="btn pq vazio" data-qsa="${e.id}">Quadro societário</button><button class="btn pq vazio" data-ed="${e.id}">Editar</button>
         <button class="btn pq perigo" data-rm="${e.id}">Excluir</button>` },

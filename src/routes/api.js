@@ -499,7 +499,11 @@ router.get('/empresas', async (req, res) => {
     const sql = `SELECT e.*,
     (SELECT COUNT(*) FROM parceiros p WHERE p.empresa_id = e.id AND p.tipo='fornecedor') fornecedores,
     (SELECT COUNT(*) FROM parceiros p WHERE p.empresa_id = e.id AND p.tipo='cliente') clientes,
-    (SELECT COUNT(*) FROM movimentos m WHERE m.empresa_id = e.id) movimentos
+    (SELECT COUNT(*) FROM movimentos m WHERE m.empresa_id = e.id) movimentos,
+    (SELECT COUNT(*) FROM empresa_qsa q WHERE q.empresa_id=e.id) qsa_socios,
+    (SELECT COUNT(*) FROM empresa_qsa q WHERE q.empresa_id=e.id AND (q.percentual_participacao IS NULL OR q.percentual_participacao='')) qsa_participacoes_pendentes,
+    COALESCE((SELECT SUM(q.percentual_participacao) FROM empresa_qsa q WHERE q.empresa_id=e.id),0) qsa_percentual_total,
+    (SELECT COUNT(*) FROM empresa_qsa q WHERE q.empresa_id=e.id AND q.brasileiro IN (0,1)) qsa_brasileiro_preenchido
     FROM empresas e ${ids === null ? '' : ids.length ? `WHERE e.id IN (${ids.map(() => '?').join(',')})` : 'WHERE 1=0'} ORDER BY e.razao_social`;
     ok(res, { empresas: db.prepare(sql).all(...(ids || [])) });
   } catch (e) { erro(res, e); }
