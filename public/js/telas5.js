@@ -21,9 +21,16 @@ const perfil = (p) => ({ b2b: 'B2B', b2c_pf: 'B2C — pessoa física', b2c_pj: '
 const anoAtual = () => S.cache.motorAno || 2033;
 
 /** Barra de abas que envolve uma tela existente sem alterá-la */
-function comAbas(nome, abas, padrao, chaveEstado = nome) {
+function comAbas(nome, abas, padrao, chaveEstado = nome, opcoes = {}) {
   const orig = Telas[nome];
   Telas[nome] = async (el) => {
+    // A Central de Dados tem grupos próprios. As abas Planilhas/XML-SPED só
+    // pertencem a Documentos fiscais; Folha, Receitas, Apurações e Margem não
+    // podem ficar presas na última aba documental aberta.
+    if (opcoes.mostrarQuando && !opcoes.mostrarQuando()) {
+      await orig(el);
+      return;
+    }
     const solicitada = S.aba[chaveEstado] || padrao;
     // Uma tela pode ter abas internas próprias. Se uma chave antiga ou uma
     // aba interna chegar aqui, voltamos com segurança para a aba padrão em vez
@@ -609,5 +616,5 @@ window.MotorUI.abasBases = [
 comAbas('dados', [
   { id: 'atual', t: 'Planilhas' },
   { id: 'xml', t: 'XML, SPED e motor', render: projImportacaoXml },
-], 'atual', 'dadosMotor');
+], 'atual', 'dadosMotor', { mostrarQuando: () => (S.aba.centralDados || 'documentos') === 'documentos' });
 })();

@@ -149,9 +149,17 @@ const App = (() => {
       { id: 'painel', t: 'Painel do projeto', i: '◈' },
       { id: 'dashboardOperacao', t: 'Acompanhamento geral', i: '◷' },
     ] },
-    { id: 'dados', titulo: 'Dados', itens: [
-      { id: 'dados', t: 'Central de Dados', i: '⇧' }, { id: 'empresas', t: 'Empresas e estabelecimentos', i: '▦' },
+    { id: 'dados', titulo: 'Central de Dados', itens: [
+      { tipo: 'titulo', t: 'Importações' },
+      { id: 'dados', t: 'Documentos fiscais', i: '⇧', centralGrupo: 'documentos' },
+      { id: 'dados', t: 'Folha', i: '⇧', centralGrupo: 'folha' },
+      { id: 'dados', t: 'Outras receitas', i: '⇧', centralGrupo: 'receitas' },
+      { id: 'dados', t: 'Apurações', i: '⇧', centralGrupo: 'apuracoes' },
+      { id: 'dados', t: 'Margem operacional', i: '⇧', centralGrupo: 'margem' },
+      { tipo: 'titulo', t: 'Cadastros' },
+      { id: 'empresas', t: 'Empresas e estabelecimentos', i: '▦' },
       { id: 'cadastrosCnpj', t: 'Cadastros compartilhados', i: '⌘' },
+      { tipo: 'titulo', t: 'Bases e classificações' },
       { id: 'bases', t: 'Bases, catálogos e classificações', i: '⌘' },
     ] },
     { id: 'motor', titulo: 'Motor tributário', itens: [
@@ -182,7 +190,7 @@ const App = (() => {
       { id: 'questor', t: 'Integração Questor', i: '↔' }, { id: 'acessos', t: 'Usuários e acessos', i: '♙' },
     ] },
   ];
-  const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens);
+  const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens.filter((item) => item.id));
   const PERMISSAO_TELA = {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
     dados: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
@@ -208,17 +216,25 @@ const App = (() => {
   function desenharMenu() {
     const menu = document.getElementById('menu');
     menu.innerHTML = MENU.map((grupo) => {
-      const itens = grupo.itens.filter((item) => pode(item.id));
+      const itens = grupo.itens.filter((item) => item.tipo === 'titulo' || pode(item.id));
       if (!itens.length) return '';
       const contemAtiva = grupo.itens.some((item) => item.id === S.tela);
       const chave = `sattva_menu_grupo_${grupo.id}`;
       const aberto = contemAtiva || localStorage.getItem(chave) !== 'fechado';
       return `<section class="nav-grupo ${aberto ? 'aberto' : ''}" data-grupo="${grupo.id}">
         <button class="grupo-titulo" type="button" aria-expanded="${aberto}">${grupo.titulo}<span>${aberto ? '⌃' : '⌄'}</span></button>
-        <div class="grupo-itens">${itens.map((item) => `<a data-tela="${item.id}" title="${item.t}" class="${S.tela === item.id ? 'ativo' : ''}"><i aria-hidden="true">${item.i}</i><span>${item.t}</span></a>`).join('')}</div>
+        <div class="grupo-itens">${itens.map((item) => item.tipo === 'titulo'
+          ? `<div class="menu-subtitulo">${item.t}</div>`
+          : `<a data-tela="${item.id}" ${item.centralGrupo ? `data-central-grupo="${item.centralGrupo}"` : ''} title="${item.t}" class="${S.tela === item.id && (!item.centralGrupo || (S.aba.centralDados || 'documentos') === item.centralGrupo) ? 'ativo' : ''}"><i aria-hidden="true">${item.i}</i><span>${item.t}</span></a>`).join('')}</div>
       </section>`;
     }).join('') + (S.usuario ? `<section class="nav-grupo sessao aberto"><div class="grupo-titulo">${esc(S.usuario.nome || S.usuario.email)}</div><div class="grupo-itens"><a data-sair title="Sair"><i aria-hidden="true">↪</i><span>Sair</span></a></div></section>` : '');
-    menu.querySelectorAll('[data-tela]').forEach((a) => { a.onclick = () => ir(a.dataset.tela); });
+    menu.querySelectorAll('[data-tela]').forEach((a) => { a.onclick = () => {
+      if (a.dataset.centralGrupo) {
+        S.aba.centralDados = a.dataset.centralGrupo;
+        S.aba.dadosMotor = 'atual';
+      }
+      ir(a.dataset.tela);
+    }; });
     const sair = menu.querySelector('[data-sair]');
     if (sair) sair.onclick = () => { localStorage.removeItem('sattva_token'); location.reload(); };
     menu.querySelectorAll('.grupo-titulo[type="button"]').forEach((botao) => {

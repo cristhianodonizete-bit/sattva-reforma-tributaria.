@@ -233,7 +233,7 @@ Telas.dados = async (el) => {
   el.innerHTML = cab('DADOS · ENTRADA E TRATAMENTO', 'Central de Dados',
     'Cadastre, importe, complete e trate dados uma única vez. Os módulos de análise apenas consomem esta base com origem e rastreabilidade preservadas.') +
     `<div class="aviso bom"><b>Fluxo de dados:</b> Central de Dados → tratamento e validações → módulos do produto → relatórios e entregáveis.</div>` +
-    `<div class="abas">
+    `<div class="menu-subtitulo" style="color:var(--tinta-2);padding:14px 0 4px">Importações</div><div class="abas">
       <button data-central-grupo="documentos" class="${grupoCentral === 'documentos' ? 'ativo' : ''}">1. Documentos fiscais</button>
       <button data-central-grupo="folha" class="${grupoCentral === 'folha' ? 'ativo' : ''}">2. Folha</button>
       <button data-central-grupo="receitas" class="${grupoCentral === 'receitas' ? 'ativo' : ''}">3. Outras receitas</button>
@@ -260,8 +260,8 @@ Telas.dados = async (el) => {
       <h2>Importações e documentos</h2>
       <p class="desc">Use esta Central como porta de entrada. Cada ação reutiliza o mesmo fluxo já tratado pelo sistema; nenhuma base ou processamento paralelo é criado.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn vazio pq" id="centralXmlSped">Importar XML ou SPED</button>
-        <button class="btn vazio pq" id="centralPlanilhas">Importar planilhas</button>
+        <button class="btn vazio pq" id="centralXmlSped">Abrir aba XML / SPED</button>
+        <button class="btn vazio pq" id="centralPlanilhas">Abrir aba Planilhas</button>
         ${simplesNacional ? '<button class="btn vazio pq" id="centralPgdas">Importar PGDAS</button>' : ''}
         <button class="btn vazio pq" id="centralApuracao">${exigeApuracaoPisCofins ? 'Enviar apuração PIS/Cofins obrigatória' : 'Enviar apuração PIS/Cofins'}</button>
         <button class="btn vazio pq" id="centralReferencias">Importar referências de serviços</button>
@@ -287,6 +287,7 @@ Telas.dados = async (el) => {
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
           <button class="btn vazio pq" onclick="window.open('/api/modelos/movimento_${aba}')">Baixar modelo</button>
           <button class="btn vazio pq" id="revincular">Revincular regimes</button>
+          <button class="btn ouro pq" id="executarMotorPlanilha">Executar motor</button>
           <span class="mini" style="margin-left:auto;align-self:center">${total.c} lançamentos · ${A.moeda(total.v)}</span>
         </div>
       </div>
@@ -363,7 +364,7 @@ Telas.dados = async (el) => {
     </div>` : ''}`;
 
     el.querySelectorAll('[data-aba]').forEach((b) => { b.onclick = () => { S.aba.dados = b.dataset.aba; S.aba.dadosPendencia = null; A.ir('dados'); }; });
-    el.querySelectorAll('[data-central-grupo]').forEach((b) => { b.onclick = () => { S.aba.centralDados = b.dataset.centralGrupo; S.aba.dadosPendencia = null; A.ir('dados'); }; });
+    el.querySelectorAll('[data-central-grupo]').forEach((b) => { b.onclick = () => { S.aba.centralDados = b.dataset.centralGrupo; S.aba.dadosMotor = 'atual'; S.aba.dadosPendencia = null; A.ir('dados'); }; });
     document.getElementById('limparFiltroPendencia')?.addEventListener('click', () => { S.aba.dadosPendencia = null; A.ir('dados'); });
     el.querySelectorAll('[data-abrir-pendencia]').forEach((botao) => botao.addEventListener('click', async () => {
       const pendencia = pendenciasDaAba.find((p) => String(p.movimento_id) === String(botao.dataset.abrirPendencia));
@@ -398,7 +399,7 @@ Telas.dados = async (el) => {
       A.modal({ titulo: 'Importar PGDAS', descricao: 'Envie a exportação do PGDAS por competência. Competência e valor do DAS são obrigatórios; os demais campos são aproveitados somente quando existirem no arquivo.', confirmar: null,
         corpo: `${A.dropzone('zonaPgdas', '<b>Solte a exportação do PGDAS aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>', async (arquivo) => {
           const dados = new FormData(); dados.append('arquivo', arquivo);
-          const r = await A.api(`/empresas/${S.empresaId}/importar/pgdas`, { method: 'POST', body: dados });
+          const r = await A.api(`/empresas/${S.empresaId}/importar/pgdas`, { metodo: 'POST', corpo: dados });
           A.toast(`${r.importados || 0} competência(s) importada(s) e ${r.atualizados || 0} atualizada(s).`, 'ok');
           A.ir('dados');
         })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="window.open('/api/modelos/pgdas')">Baixar modelo</button></div>` });
@@ -492,12 +493,12 @@ Telas.dados = async (el) => {
     } catch (e) { A.toast(e.message, 'erro'); }
   }
 
-  document.getElementById('addParceiro').onclick = () => A.modal({
+  document.getElementById('addParceiro')?.addEventListener('click', () => A.modal({
     titulo: `Incluir ${aba}`,
     corpo: A.campo('cnpj', 'CNPJ/CPF') + A.campo('descricao', 'Descrição') + A.selecao('regime', 'Regime tributário', A.opcoesRegime(), 'lucro_real') +
       `<div class="grade g2">${A.campo('uf', 'UF')}${A.campo('municipio', 'Município')}</div>`,
     aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/parceiros`, { metodo: 'POST', corpo: { ...d, tipo: aba } }); A.ir('dados'); },
-  });
+  }));
 
   el.querySelectorAll('[data-ep]').forEach((b) => { b.onclick = () => {
     const p = parceiros.find((x) => x.id === Number(b.dataset.ep));
@@ -510,7 +511,7 @@ Telas.dados = async (el) => {
   el.querySelectorAll('[data-rl]').forEach((b) => { b.onclick = () => A.confirmar('Remover o lote apaga os lançamentos importados nele. Confirma?', async () => {
     await A.api(`/lotes/${b.dataset.rl}`, { metodo: 'DELETE' }); A.ir('dados'); }); });
 
-  document.getElementById('consultarReceita').onclick = async () => {
+  document.getElementById('consultarReceita')?.addEventListener('click', async () => {
     const p = await A.api(`/empresas/${S.empresaId}/parceiros/pendencias-regime`);
     const cfg = await A.api('/cnpj/config');
     const min = Math.ceil(p.tempoEstimadoSegundos / 60);
@@ -555,13 +556,24 @@ Telas.dados = async (el) => {
         return false;
       },
     });
-  };
+  });
 
-  document.getElementById('revincular').onclick = async () => {
+  document.getElementById('revincular')?.addEventListener('click', async () => {
     const r = await A.api(`/empresas/${S.empresaId}/vincular-regimes`, { metodo: 'POST' });
     A.toast(r.semRegime ? `${r.semRegime} lançamentos ainda sem regime` : 'Todos os lançamentos vinculados', r.semRegime ? '' : 'ok');
     A.ir('dados');
-  };
+  });
+  document.getElementById('executarMotorPlanilha')?.addEventListener('click', async (evento) => {
+    const botao = evento.currentTarget; const texto = botao.textContent;
+    botao.disabled = true; botao.textContent = 'Executando motor…';
+    try {
+      const r = await A.api(`/empresas/${S.empresaId}/motor/executar`, { metodo: 'POST', corpo: { ano: S.params?.modoAnalise?.ibsAtivo ? 2033 : 2033 } });
+      A.toast(`${r.resumo?.itens || 0} item(ns) processado(s) pelo motor.`, 'ok');
+      A.ir('dados');
+    } catch (e) {
+      A.toast(e.message, 'erro'); botao.disabled = false; botao.textContent = texto;
+    }
+  });
 };
 
 // ===========================================================================
