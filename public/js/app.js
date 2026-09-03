@@ -364,7 +364,9 @@ const App = (() => {
     const usuarioHeader = document.getElementById('usuarioHeader'); if (usuarioHeader) usuarioHeader.textContent = S.usuario?.nome || S.usuario?.email || '';
     const toggle = document.getElementById('menuToggle'); if (toggle) toggle.onclick = () => document.body.classList.toggle('menu-colapsado');
     try {
-      await carregarParametros();
+      // Leituras independentes: não altera contexto da empresa, parâmetros ou
+      // motor; somente elimina uma espera de rede antes da primeira tela.
+      await Promise.all([carregarParametros(), carregarEmpresas()]);
     } catch (e) { document.getElementById('tela').innerHTML = `<div class="aviso alto">Servidor indisponível: ${esc(e.message)}</div>`; return; }
     // A navegação começa recolhida a cada acesso; cada pessoa abre apenas a
     // área necessária para não transformar a lateral numa lista extensa.
@@ -372,7 +374,6 @@ const App = (() => {
     const toggleMenu = document.getElementById('menuToggle');
     if (localStorage.getItem('sattva_menu_colapsado') === 'sim') document.body.classList.add('menu-colapsado');
     if (toggleMenu) toggleMenu.onclick = () => { const ativo = document.body.classList.toggle('menu-colapsado'); localStorage.setItem('sattva_menu_colapsado', ativo ? 'sim' : 'nao'); };
-    await carregarEmpresas();
     const inicial = (location.hash || '').replace('#', '') || 'dashboardOperacao';
     ir(TELAS_MENU.some((m) => m.id === inicial) ? inicial : 'dashboardOperacao');
   }

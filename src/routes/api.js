@@ -59,6 +59,20 @@ const revisaoBeneficiosFiscais = require('../services/revisaoBeneficiosFiscais')
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 
+// Cache exclusivamente de leitura para a visão de gestão. Não participa de
+// cálculos, regras, parâmetros, QSA, regimes ou decisões de acesso. A chave
+// é do usuário e toda escrita bem-sucedida invalida imediatamente o conteúdo.
+const DASHBOARD_CACHE_MS = 5000;
+const dashboardCache = new Map();
+const chaveDashboard = (req) => String(req.usuario?.id || 'publico');
+const invalidarDashboardCache = () => dashboardCache.clear();
+router.use((req, res, next) => {
+  res.on('finish', () => {
+    if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && res.statusCode < 400) invalidarDashboardCache();
+  });
+  next();
+});
+
 // Os manuais são a fonte publicada no próprio repositório. A tela sempre os
 // lê no momento da consulta, evitando uma cópia paralela ou desatualizada.
 const DOCUMENTOS_USO = {
@@ -286,6 +300,13 @@ router.use(async (req, res, next) => {
 // ===========================================================================
 router.get('/operacao/dashboard', async (req, res) => {
   try {
+    const chaveCache = chaveDashboard(req);
+    const emCache = dashboardCache.get(chaveCache);
+    if (emCache && (Date.now() - emCache.geradoEm) < DASHBOARD_CACHE_MS) {
+      res.set('Cache-Control', 'private, no-store');
+      res.set('X-Sattva-Dashboard-Cache', 'HIT');
+      return ok(res, { ...emCache.dados, atualizado_em: new Date(emCache.geradoEm).toISOString(), cache: 'leitura_curta' });
+    }
     const remoto = supabase.admin();
     const [{ data: empresas, error: erroEmpresas }, { data: projetos, error: erroProjetos }, { data: entregas, error: erroEntregas }, { data: acompanhamentos, error: erroAcomp }, { data: responsaveis, error: erroResponsaveis }, { data: tarefas, error: erroTarefas }] = await Promise.all([
       remoto.from('empresas').select('id,razao_social,ativo'), remoto.from('projetos').select('*'),
@@ -349,14 +370,19 @@ router.get('/operacao/dashboard', async (req, res) => {
       tarefasAtrasadas: agenda.filter((m) => m.tipo === 'tarefa' && m.atrasado && m.responsavelSattva === nome).length,
     }));
     const escoposDaCarteira = carteira.flatMap((p) => p.responsaveisPorEntrega || []);
-    ok(res, { usuario_atual_id: req.usuario?.id || null, empresas: empresasVisiveis.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
+    const dados = { usuario_atual_id: req.usuario?.id || null, empresas: empresasVisiveis.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
       escoposContratados: escoposDaCarteira.length,
       escoposSemResponsavel: escoposDaCarteira.filter((e) => !e.usuario_id).length,
       aguardando: carteira.filter((p) => p.status === 'aguardando_aprovacao').length,
       entregasPendentes: carteira.reduce((n, p) => n + p.entregas - p.entregasConcluidas, 0),
       tarefasAtrasadas: agenda.filter((m) => m.tipo === 'tarefa' && m.atrasado).length,
       pendenciasCliente: carteira.reduce((n, p) => n + p.pendenciasCliente, 0),
-      projetosSemResponsavel: carteira.filter((p) => p.status !== 'concluido' && !p.responsavelSattva).length }, cargaResponsaveis });
+      projetosSemResponsavel: carteira.filter((p) => p.status !== 'concluido' && !p.responsavelSattva).length }, cargaResponsaveis };
+    const geradoEm = Date.now();
+    dashboardCache.set(chaveCache, { geradoEm, dados });
+    res.set('Cache-Control', 'private, no-store');
+    res.set('X-Sattva-Dashboard-Cache', 'MISS');
+    ok(res, { ...dados, atualizado_em: new Date(geradoEm).toISOString(), cache: 'leitura_curta' });
   } catch (e) { erro(res, e); }
 });
 

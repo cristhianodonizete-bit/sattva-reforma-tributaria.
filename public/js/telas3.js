@@ -591,6 +591,7 @@ Telas.gestaoProjetos = async (el) => {
 
 Telas.dashboardOperacao = async (el) => {
   const d = await A.api('/operacao/dashboard');
+  const atualizadoEm = d.atualizado_em ? new Date(d.atualizado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
   const concluidos = d.projetos.filter((p) => p.status === 'concluido').length;
   const emAndamento = d.projetos.filter((p) => p.status === 'em_execucao').length;
   const agenda = d.agenda || [];
@@ -608,7 +609,7 @@ Telas.dashboardOperacao = async (el) => {
     <div class="projeto-operacao-rodape"><span><b>Próximo marco</b>${p.proximoMarco ? `<span class="marco-titulo">${A.esc(p.proximoMarco.titulo)} · ${A.esc(p.proximoMarco.data)}${p.proximoMarco.atrasado ? '<em class="marco-atrasado">Atrasado</em>' : ''}</span>` : A.esc(p.proximoAcompanhamento ? `Acompanhamento · ${p.proximoAcompanhamento}` : 'A definir')}</span><button class="btn pq vazio" data-ir-projeto="${p.empresa_id || ''}">Abrir projeto</button></div>
   </article>`;
   el.innerHTML = cab('Operação compartilhada', 'Acompanhamento geral',
-    'Visão única da carteira: escopo aprovado, avanço das entregas e próximos acompanhamentos.') +
+    `Visão única da carteira: escopo aprovado, avanço das entregas e próximos acompanhamentos.${atualizadoEm ? ` Atualizado às ${atualizadoEm}.` : ''}`) +
     `<div class="grade g4">${A.kpi('Clientes na base', d.empresas, 'base compartilhada')}
       ${A.kpi('Escopos contratados', d.resumo.escoposContratados || 0, 'entregas e acompanhamentos liberados')}
       ${A.kpi('Entregas pendentes', d.resumo.entregasPendentes, 'prioridade da operação', d.resumo.entregasPendentes ? 'destaque' : '')}
