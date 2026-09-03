@@ -304,7 +304,9 @@ router.get('/operacao/dashboard', async (req, res) => {
     const tarefasPorProjeto = new Map((tarefas || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const responsavelDaEntrega = (projetoId, entregaId, lado = 'sattva') => {
       const lista = responsaveisPorProjeto.get(projetoId) || [];
-      return lista.find((x) => x.lado === lado && x.entrega_id === entregaId)?.nome || lista.find((x) => x.lado === lado && !x.entrega_id)?.nome || lista.find((x) => x.lado === lado)?.nome || null;
+      // Responsabilidade é da entrega, nunca da empresa inteira. Um contato
+      // legado sem entrega só representa o acompanhamento (entregaId null).
+      return lista.find((x) => x.lado === lado && x.entrega_id === entregaId)?.nome || null;
     };
     const hoje = new Date().toISOString().slice(0, 10);
     const carteira = (projetos || []).filter((p) => empresaPorId.has(p.empresa_id)).map((p) => {
