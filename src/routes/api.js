@@ -55,6 +55,7 @@ const azureDocumentIntelligence = require('../services/azureDocumentIntelligence
 const normalizacaoFiscalXml = require('../services/normalizacaoFiscalXml');
 const conformidadeDocumental = require('../services/conformidadeDocumental');
 const revisaoBeneficiosFiscais = require('../services/revisaoBeneficiosFiscais');
+const performanceTelemetry = require('../services/performanceTelemetry');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -95,6 +96,22 @@ router.use((req, res, next) => {
       invalidarCacheBases();
     }
   });
+  next();
+});
+
+// Mede apenas o tempo de atendimento da API e o uso agregado de memória.
+// A rota de consulta da própria telemetria fica fora da medição para não
+// contaminar a leitura. IDs são normalizados pelo serviço antes do registro.
+router.use((req, res, next) => {
+  if (req.path === '/operacao/performance') return next();
+  const inicio = process.hrtime.bigint();
+  res.on('finish', () => performanceTelemetry.registrar({
+    metodo: req.method,
+    rota: req.path,
+    status: res.statusCode,
+    tempoMs: Number(process.hrtime.bigint() - inicio) / 1e6,
+    memoria: process.memoryUsage(),
+  }));
   next();
 });
 
@@ -323,6 +340,8 @@ router.use(async (req, res, next) => {
 // ===========================================================================
 // OPERAÇÃO COMPARTILHADA — dashboard lido da base Supabase
 // ===========================================================================
+router.get('/operacao/performance', (_req, res) => ok(res, performanceTelemetry.resumo()));
+
 router.get('/operacao/dashboard', async (req, res) => {
   try {
     const chaveCache = chaveDashboard(req);
