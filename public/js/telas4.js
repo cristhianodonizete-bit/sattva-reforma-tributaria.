@@ -224,33 +224,32 @@ Telas.conformidadeDocumental = async (el) => {
   const regras = [...new Set(itens.flatMap((x) => (x.candidatos || []).filter(temBeneficioFiscal).map((c) => c.regra_uso || 'Confirme a condição legal e a descrição efetiva do serviço.')))]
     .map((texto, indice) => ({ codigo: `R${String(indice + 1).padStart(2, '0')}`, texto }));
   const codigoRegra = (texto) => regras.find((x) => x.texto === (texto || 'Confirme a condição legal e a descrição efetiva do serviço.'))?.codigo || '—';
-  const abertos = new Set();
   const tabelaItens = (itensDaAmostra) => {
-    const linhas = itensDaAmostra.flatMap((item) => (item.candidatos || []).length
-      ? item.candidatos.map((candidato) => ({ item, candidato }))
-      : [{ item, candidato: null }]);
+    const gruposDeErro = new Map();
+    for (const item of itensDaAmostra) {
+      const chave = [item.tipo, item.lc116 || '', item.nbs || ''].join('|');
+      const grupo = gruposDeErro.get(chave) || { item, ocorrencias: [], candidatos: new Map() };
+      grupo.ocorrencias.push(item);
+      for (const candidato of item.candidatos || []) {
+        const chaveCandidato = [candidato.lc116 || '', candidato.nbs || '', candidato.cst || '', candidato.cclasstrib || '', candidato.reducao || ''].join('|');
+        if (!grupo.candidatos.has(chaveCandidato)) grupo.candidatos.set(chaveCandidato, candidato);
+      }
+      gruposDeErro.set(chave, grupo);
+    }
+    const linhas = [...gruposDeErro.values()];
     return A.tabela([
-      { t:'Documento / item', r:x=>`<b class="mono">${A.esc(x.item.documento || 'sem número')}</b><div class="mini">Item ${A.esc(x.item.item_numero || '—')} · ${A.esc(x.item.competencia || x.item.data_emissao || '')}</div><div class="mini">${A.esc(x.item.contraparte)}</div>` },
-      { t:'Não conformidade', r:x=>`<span class="tag ${x.item.severidade === 'ALTA' ? 'a' : 'b'}">${A.esc(x.item.tipo)}</span><div style="margin-top:6px"><b>${A.esc(x.item.titulo)}</b></div><div class="mini">LC 116 informado: ${A.esc(x.item.lc116 || 'não informado')} · NBS informado: ${A.esc(x.item.nbs || 'não informado')}</div>` },
-      { t:'LC 116 compatível', r:x=>A.esc(x.candidato?.lc116 || '—') },
-      { t:'NBS compatível', r:x=>x.candidato ? `${A.esc(x.candidato.nbs || '—')}<div class="mini">${A.esc(x.candidato.descricao_nbs || '')}</div>` : 'Nenhuma correlação cadastrada' },
-      { t:'CST / cClassTrib', r:x=>x.candidato ? `${A.esc(x.candidato.cst || 'CST não informado no catálogo')}<div class="mini">${A.esc(x.candidato.cclasstrib || '—')}</div>` : '—' },
-      { t:'Tratamento', r:x=>x.candidato ? `${A.esc(x.candidato.tratamento || '—')}<div class="mini">${A.esc(x.candidato.reducao || '')}</div>` : '—' },
-      { t:'Regra de benefício', r:x=>x.candidato && temBeneficioFiscal(x.candidato) ? `<span class="tag n">${codigoRegra(x.candidato.regra_uso)}</span>` : '—' },
+      { t:'Não conformidade', r:x=>`<span class="tag ${x.item.severidade === 'ALTA' ? 'a' : 'b'}">${A.esc(x.item.tipo)}</span><div style="margin-top:6px"><b>${A.esc(x.item.titulo)}</b></div><div class="mini">LC 116: ${A.esc(x.item.lc116 || 'não informado')} · NBS: ${A.esc(x.item.nbs || 'não informado')}</div>` },
+      { t:'Ocorrências e exemplos', r:x=>`${x.ocorrencias.length} ocorrência(s)<div class="mini" style="margin-top:6px">${x.ocorrencias.slice(0, 2).map((i) => `${A.esc(i.documento || 'sem número')} · item ${A.esc(i.item_numero || '—')} · ${A.esc(i.contraparte)}`).join('<br>')}</div>${x.ocorrencias.length > 2 ? '<div class="mini">+ outros documentos com o mesmo erro</div>' : ''}` },
+      { t:'Opções compatíveis', r:x=>x.candidatos.size ? [...x.candidatos.values()].map((c) => `<div style="margin-bottom:6px"><b>LC ${A.esc(c.lc116 || '—')} · NBS ${A.esc(c.nbs || '—')}</b><br><span class="mini">${A.esc(c.descricao_nbs || '')} · ${A.esc(c.cst || 'CST não informado')} / ${A.esc(c.cclasstrib || '—')} · ${A.esc(c.tratamento || '—')}${temBeneficioFiscal(c) ? ` · ${codigoRegra(c.regra_uso)}` : ''}</span></div>`).join('') : '<span class="mini">Nenhuma correlação cadastrada</span>' },
     ], linhas, { vazio:'Nenhum item neste grupo.' });
   };
   const render = (filtro = '') => {
     const visiveis = !filtro ? itens : itens.filter((x) => x.tipo === filtro);
     const grupos = [...new Map(visiveis.map((x) => [x.tipo, visiveis.filter((i) => i.tipo === x.tipo)])).entries()];
     el.querySelector('#listaConformidade').innerHTML = grupos.length ? grupos.map(([tipo, grupo]) => {
-      const ordenados = [...grupo].sort((a, b) => Number(b.valor || 0) - Number(a.valor || 0));
-      const todos = abertos.has(tipo);
-      const amostra = todos ? ordenados : ordenados.slice(0, 10);
-      return `<section class="cartao" style="margin-top:16px;box-shadow:none"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap"><div><h3 style="margin:0">${A.esc(tipo.replaceAll('_',' '))}</h3><p class="mini" style="margin:4px 0 0">${grupo.length} ocorrência(s) · ${todos ? 'todos os itens' : 'amostra dos 10 maiores itens'}</p></div>${grupo.length > 10 ? `<button class="btn pq vazio" data-conformidade-grupo="${A.esc(tipo)}">${todos ? 'Mostrar amostra' : 'Ver todos'}</button>` : ''}</div><div style="margin-top:10px">${tabelaItens(amostra)}</div></section>`;
+      const errosDistintos = new Set(grupo.map((x) => [x.tipo, x.lc116 || '', x.nbs || ''].join('|'))).size;
+      return `<section class="cartao" style="margin-top:16px;box-shadow:none"><div><h3 style="margin:0">${A.esc(tipo.replaceAll('_',' '))}</h3><p class="mini" style="margin:4px 0 0">${grupo.length} ocorrência(s) em ${errosDistintos} erro(s) distinto(s) · até dois documentos de exemplo por erro</p></div><div style="margin-top:10px">${tabelaItens(grupo)}</div></section>`;
     }).join('') : A.vazio('Nenhuma não conformidade documental encontrada.', 'Os documentos com LC 116 ou NBS possuem chave compatível com o catálogo atual.');
-    el.querySelectorAll('[data-conformidade-grupo]').forEach((botao) => { botao.onclick = () => {
-      const tipo = botao.dataset.conformidadeGrupo; if (abertos.has(tipo)) abertos.delete(tipo); else abertos.add(tipo); render(filtro);
-    }; });
   };
   el.innerHTML = cab('DIAGNÓSTICO · QUALIDADE DA EMISSÃO', 'Conformidade documental',
     'Confira erros de emissão e as alternativas compatíveis antes de corrigir o documento ou orientar a contraparte. Esta tela é somente de leitura: não executa o motor e não altera cálculos.') +
