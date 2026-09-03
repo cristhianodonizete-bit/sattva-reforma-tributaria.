@@ -201,9 +201,16 @@ async function enriquecerQsaEmpresa(empresaId, opcoes = {}) {
   const inserir = db().prepare(`INSERT INTO empresa_qsa
     (empresa_id,nome,documento,qualificacao,pais,percentual_participacao,brasileiro,fonte,consultado_em,origem,atualizado_em)
     VALUES (?,?,?,?,?,?,?,?,?,'consulta_cadastral',datetime('now','localtime'))
-    ON CONFLICT(empresa_id,nome,documento,qualificacao) DO UPDATE SET pais=excluded.pais,
-      percentual_participacao=excluded.percentual_participacao, brasileiro=excluded.brasileiro,
-      fonte=excluded.fonte, consultado_em=excluded.consultado_em, atualizado_em=datetime('now','localtime')`);
+    ON CONFLICT(empresa_id,nome,documento,qualificacao) DO UPDATE SET
+      -- A consulta cadastral complementa o QSA; nunca pode substituir uma
+      -- confirmação humana, sobretudo por percentual ausente na API.
+      pais=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.pais ELSE excluded.pais END,
+      percentual_participacao=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.percentual_participacao ELSE COALESCE(excluded.percentual_participacao, empresa_qsa.percentual_participacao) END,
+      brasileiro=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.brasileiro ELSE excluded.brasileiro END,
+      fonte=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.fonte ELSE excluded.fonte END,
+      consultado_em=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.consultado_em ELSE excluded.consultado_em END,
+      origem=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.origem ELSE excluded.origem END,
+      atualizado_em=datetime('now','localtime')`);
   db().transaction(() => socios.filter((s) => textoBanco(s.nome)).forEach((s) => inserir.run(
     Number(empresaId), textoBanco(s.nome), soDigitos(s.documento), textoBanco(s.qualificacao), textoBanco(s.pais),
     percentualBanco(s.percentual_participacao), s.brasileiro === false ? 0 : 1, textoBanco(r.fonte), new Date().toISOString(),

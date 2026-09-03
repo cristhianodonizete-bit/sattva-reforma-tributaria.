@@ -34,6 +34,13 @@ const banco = require('../src/db');
   const socio = banco.prepare('SELECT pais, percentual_participacao FROM empresa_qsa WHERE empresa_id=?').get(Number(empresa.lastInsertRowid));
   assert.equal(socio.pais, '');
   assert.equal(socio.percentual_participacao, 20);
+  // Uma confirmação humana é a fonte prioritária. Nova consulta automática
+  // sem percentual não pode apagar nem alterar os campos validados.
+  banco.prepare("UPDATE empresa_qsa SET percentual_participacao=35, brasileiro=1, fonte='confirmação manual', origem='confirmacao_manual' WHERE empresa_id=?")
+    .run(Number(empresa.lastInsertRowid));
+  await enriquecerQsaEmpresa(Number(empresa.lastInsertRowid), { forcar: true });
+  const confirmado = banco.prepare('SELECT percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE empresa_id=?').get(Number(empresa.lastInsertRowid));
+  assert.deepEqual([confirmado.percentual_participacao, confirmado.brasileiro, confirmado.origem], [35, 1, 'confirmacao_manual']);
   banco.prepare("INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime) VALUES (?,?,?,?,?)")
     .run(Number(empresa.lastInsertRowid), 'cliente', '98765432000198', 'Cliente com regime informado', 'lucro_real');
   const enriquecimento = await enriquecerParceiros(Number(empresa.lastInsertRowid));

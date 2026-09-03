@@ -141,6 +141,15 @@ const auditar = (req, { empresaId, acao, entidade, entidadeId, antes = null, dep
     .then(({ error }) => { if (error) console.error('[supabase] auditoria:', error.message); })
     .catch((e) => console.error('[supabase] auditoria:', e.message));
 };
+// Processos em segundo plano não possuem sessão de usuário, mas precisam ser
+// rastreáveis. O histórico deixa explícito que a origem foi automática e qual
+// fluxo a disparou, sem se passar por uma confirmação manual.
+const auditarSistema = ({ empresaId, acao, entidade, entidadeId, antes = null, depois = null }) => {
+  if (!supabase.configurado()) return;
+  supabase.admin().from('auditoria').insert({ empresa_id: empresaId || null, usuario_id: null, acao, entidade, entidade_id: String(entidadeId || ''), antes, depois })
+    .then(({ error }) => { if (error) console.error('[supabase] auditoria:', error.message); })
+    .catch((e) => console.error('[supabase] auditoria:', e.message));
+};
 const areaDaTarefaModulo = (chave) => ({
   diagnostico: 'diagnostico', precificacao: 'precificacao', contratos: 'contratos', capacitacao: 'capacitacao',
   treinamento_boas_praticas: 'capacitacao', capacitacao_operacional: 'capacitacao',
@@ -545,11 +554,14 @@ router.post('/empresas', async (req, res) => {
 router.put('/empresas/:id', (req, res) => {
   try {
     const b = req.body;
+    const antes = db.prepare('SELECT regime,razao_social,nome_fantasia,uf,municipio FROM empresas WHERE id=?').get(req.params.id);
     db.prepare(`UPDATE empresas SET razao_social=?, nome_fantasia=?, regime=?, uf=?, municipio=?,
       cnae=?, atividade=?, faturamento_anual=?, setor=?, reducao_padrao=?, codigo_questor=?, observacoes=?
       WHERE id=?`).run(b.razao_social, b.nome_fantasia || '', b.regime || 'lucro_real', b.uf || '',
       b.municipio || '', b.cnae || '', b.atividade || '', Number(b.faturamento_anual) || 0,
       b.setor || '', b.reducao_padrao || 'integral', b.codigo_questor || '', b.observacoes || '', req.params.id);
+    const depois = db.prepare('SELECT regime,razao_social,nome_fantasia,uf,municipio FROM empresas WHERE id=?').get(req.params.id);
+    auditar(req, { empresaId: Number(req.params.id), acao: 'Atualizou cadastro da empresa', entidade: 'empresa', entidadeId: req.params.id, antes, depois });
     ok(res, {});
   } catch (e) { erro(res, e); }
 });
@@ -592,9 +604,24 @@ router.get('/empresas/:id/qsa', (req, res) => {
     ok(res, { socios, atende_200044: elegibilidade.status, motivo: elegibilidade.motivo });
   } catch (e) { erro(res, e); }
 });
+router.get('/empresas/:id/qsa/historico', async (req, res) => {
+  try {
+    if (!supabase.configurado()) return ok(res, { registros: [] });
+    const { data, error } = await supabase.admin().from('auditoria')
+      .select('id,usuario_id,acao,entidade,entidade_id,antes,depois,criado_em')
+      .eq('empresa_id', Number(req.params.id)).in('entidade', ['empresa_qsa', 'empresa'])
+      .order('criado_em', { ascending: false }).limit(100);
+    if (error) throw error;
+    ok(res, { registros: data || [] });
+  } catch (e) { erro(res, e); }
+});
 router.post('/empresas/:id/qsa/enriquecer', async (req, res) => {
   try {
+    const antes = db.prepare('SELECT nome,documento,qualificacao,percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE empresa_id=? ORDER BY nome').all(req.params.id);
     const resultado = await cnpjReceita.enriquecerQsaEmpresa(req.params.id, { forcar: !!req.body.forcar });
+    const depois = db.prepare('SELECT nome,documento,qualificacao,percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE empresa_id=? ORDER BY nome').all(req.params.id);
+    auditar(req, { empresaId: Number(req.params.id), acao: 'Consultou QSA manualmente', entidade: 'empresa_qsa', entidadeId: req.params.id,
+      antes, depois: { fonte: resultado.fonte, socios_recuperados: resultado.socios_recuperados, qsa: depois } });
     const reprocessamento = motorExec.ultimaExecucao(Number(req.params.id))
       ? reprocessarSaidasPorQsa(Number(req.params.id)) : null;
     ok(res, { ...resultado, reprocessamento });
@@ -615,6 +642,8 @@ router.post('/empresas/:id/qsa', async (req, res) => {
         b.percentual_participacao === '' || b.percentual_participacao == null ? null : Number(b.percentual_participacao),
         b.brasileiro === false ? 0 : 1, b.fonte || 'confirmação manual');
     await cnpjReceita.publicarQsaEmpresa(Number(req.params.id));
+    const depois = db.prepare('SELECT nome,documento,qualificacao,percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE id=? AND empresa_id=?').get(r.lastInsertRowid, req.params.id);
+    auditar(req, { empresaId: Number(req.params.id), acao: 'Incluiu sócio manualmente', entidade: 'empresa_qsa', entidadeId: r.lastInsertRowid, depois });
     const reprocessamento = motorExec.ultimaExecucao(Number(req.params.id))
       ? reprocessarSaidasPorQsa(Number(req.params.id)) : null;
     ok(res, { id: r.lastInsertRowid, reprocessamento });
@@ -623,9 +652,12 @@ router.post('/empresas/:id/qsa', async (req, res) => {
 router.put('/empresas/:id/qsa/:qsaId', async (req, res) => {
   try {
     const b = req.body || {};
+    const antes = db.prepare('SELECT nome,documento,qualificacao,percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE id=? AND empresa_id=?').get(req.params.qsaId, req.params.id);
     db.prepare(`UPDATE empresa_qsa SET nome=?,documento=?,qualificacao=?,pais=?,percentual_participacao=?,brasileiro=?,origem='confirmacao_manual',atualizado_em=datetime('now','localtime') WHERE id=? AND empresa_id=?`)
       .run(b.nome || '', String(b.documento || '').replace(/\D/g,''), b.qualificacao || '', b.pais || '', b.percentual_participacao === '' || b.percentual_participacao == null ? null : Number(b.percentual_participacao), b.brasileiro === false ? 0 : 1, req.params.qsaId, req.params.id);
     await cnpjReceita.publicarQsaEmpresa(Number(req.params.id));
+    const depois = db.prepare('SELECT nome,documento,qualificacao,percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE id=? AND empresa_id=?').get(req.params.qsaId, req.params.id);
+    auditar(req, { empresaId: Number(req.params.id), acao: 'Confirmou dados societários manualmente', entidade: 'empresa_qsa', entidadeId: req.params.qsaId, antes, depois });
     const reprocessamento = motorExec.ultimaExecucao(Number(req.params.id))
       ? reprocessarSaidasPorQsa(Number(req.params.id)) : null;
     ok(res, { reprocessamento });
@@ -1084,7 +1116,11 @@ function agendarQsaAutomatico(empresaId) {
   setImmediate(async () => {
     fila.status = 'executando'; fila.inicio = new Date().toISOString();
     try {
+      const antes = db.prepare('SELECT nome,documento,qualificacao,percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE empresa_id=? ORDER BY nome').all(chave);
       fila.resultado = await cnpjReceita.enriquecerQsaEmpresa(chave, { forcar: false });
+      const depois = db.prepare('SELECT nome,documento,qualificacao,percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE empresa_id=? ORDER BY nome').all(chave);
+      auditarSistema({ empresaId: chave, acao: 'Consulta automática de QSA concluída', entidade: 'empresa_qsa', entidadeId: chave,
+        antes, depois: { origem: 'IMPORTACAO_OU_ENRIQUECIMENTO_AUTOMATICO', fonte: fila.resultado.fonte, socios_recuperados: fila.resultado.socios_recuperados, qsa: depois } });
       // O QSA só pode afetar saídas (200044). Reprocessa-as de forma
       // incremental se já houver fotografia, sem recriar ou tocar entradas.
       if (motorExec.ultimaExecucao(chave)) {

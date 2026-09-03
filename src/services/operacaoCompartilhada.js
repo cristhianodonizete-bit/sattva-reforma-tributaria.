@@ -110,14 +110,15 @@ function gravarEmpresas(linhas) {
     (id,cnpj,razao_social,nome_fantasia,regime,uf,municipio,cnae,atividade,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes,criado_em)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET cnpj=excluded.cnpj,razao_social=excluded.razao_social,nome_fantasia=excluded.nome_fantasia,
-      regime=excluded.regime,uf=excluded.uf,municipio=excluded.municipio,cnae=excluded.cnae,atividade=excluded.atividade,
+      regime=CASE WHEN excluded.regime IS NULL OR excluded.regime='' THEN empresas.regime ELSE excluded.regime END,
+      uf=excluded.uf,municipio=excluded.municipio,cnae=excluded.cnae,atividade=excluded.atividade,
       faturamento_anual=excluded.faturamento_anual,setor=excluded.setor,reducao_padrao=excluded.reducao_padrao,
       codigo_questor=excluded.codigo_questor,observacoes=excluded.observacoes,criado_em=excluded.criado_em`);
   db.transaction(() => linhas.forEach((empresa) => {
     const id = Number(empresa.origem_local_id || empresa.id);
     if (!id) return;
     inserir.run(id, String(empresa.cnpj || '').replace(/\D/g, ''), empresa.razao_social || 'Empresa sem razão social',
-      empresa.nome_fantasia || '', empresa.regime || 'lucro_real', empresa.uf || '', empresa.municipio || '', empresa.cnae || '',
+      empresa.nome_fantasia || '', empresa.regime || '', empresa.uf || '', empresa.municipio || '', empresa.cnae || '',
       empresa.atividade || '', Number(empresa.faturamento_anual) || 0, empresa.setor || '', empresa.reducao_padrao || 'integral',
       empresa.codigo_questor || '', empresa.observacoes || '', empresa.criado_em || null);
   }))();
@@ -157,9 +158,13 @@ function gravarEmpresaQsa(linhas) {
   // qualificação, a mesma chave usada ao publicar o QSA.
   const colunas = ['empresa_id','nome','documento','qualificacao','pais','percentual_participacao','brasileiro','fonte','consultado_em','origem','criado_em','atualizado_em'];
   const inserir = db.prepare(`INSERT INTO empresa_qsa (${colunas.join(',')}) VALUES (${colunas.map(() => '?').join(',')})
-    ON CONFLICT(empresa_id,nome,documento,qualificacao) DO UPDATE SET pais=excluded.pais,
-      percentual_participacao=excluded.percentual_participacao, brasileiro=excluded.brasileiro,
-      fonte=excluded.fonte, consultado_em=excluded.consultado_em, origem=excluded.origem,
+    ON CONFLICT(empresa_id,nome,documento,qualificacao) DO UPDATE SET
+      pais=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.pais ELSE excluded.pais END,
+      percentual_participacao=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.percentual_participacao ELSE COALESCE(excluded.percentual_participacao, empresa_qsa.percentual_participacao) END,
+      brasileiro=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.brasileiro ELSE excluded.brasileiro END,
+      fonte=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.fonte ELSE excluded.fonte END,
+      consultado_em=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.consultado_em ELSE excluded.consultado_em END,
+      origem=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.origem ELSE excluded.origem,
       atualizado_em=excluded.atualizado_em`);
   db.transaction(() => linhas.forEach((linha) => inserir.run(...colunas.map((c) => linha[c] ?? null))))();
   return linhas.length;
