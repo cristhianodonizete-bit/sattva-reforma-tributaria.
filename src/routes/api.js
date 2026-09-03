@@ -634,8 +634,18 @@ function reprocessarSaidasPorQsa(empresaId) {
     : { empresa_id: empresaId, reprocessados: 0, status: 'SEM_SAIDAS' };
 }
 
-router.get('/empresas/:id/qsa', (req, res) => {
+router.get('/empresas/:id/qsa', async (req, res) => {
   try {
+    // O processo local pode ter sido renovado. Restaura apenas confirmações
+    // manuais já persistidas no cadastro compartilhado; nunca consulta API
+    // externa nem substitui uma confirmação humana por retorno cadastral.
+    try {
+      await cnpjReceita.sincronizarConfirmacoesManuaisQsa(Number(req.params.id));
+    } catch (sincronizacaoErro) {
+      // Falha de disponibilidade da base compartilhada não impede a leitura
+      // do que já estiver no SQLite local.
+      console.error('[qsa] não foi possível restaurar confirmação manual:', sincronizacaoErro.message);
+    }
     const socios = db.prepare('SELECT * FROM empresa_qsa WHERE empresa_id=? ORDER BY nome').all(req.params.id);
     const elegibilidade = require('../services/elegibilidadeAnexoXi').qsaEmpresa(req.params.id);
     ok(res, { socios, atende_200044: elegibilidade.status, motivo: elegibilidade.motivo });

@@ -237,6 +237,50 @@ async function publicarQsaEmpresa(empresaId) {
   return { publicado: true, socios: linhas.length };
 }
 
+// O SQLite do processo pode ser recriado no deploy ou em uma nova instância.
+// Antes de exibir o QSA, recuperamos exclusivamente confirmações humanas já
+// publicadas na base compartilhada. Isto não chama provedores de CNPJ nem
+// altera dados confirmados: apenas restaura a evidência que o usuário salvou.
+async function sincronizarConfirmacoesManuaisQsa(empresaId) {
+  if (!supabase.configurado()) return { sincronizado: false, motivo: 'Supabase não configurado.' };
+
+  const remoto = supabase.admin();
+  const { data: empresaRemota, error: erroEmpresa } = await remoto.from('empresas')
+    .select('id').eq('origem_local_id', Number(empresaId)).maybeSingle();
+  if (erroEmpresa) throw erroEmpresa;
+  if (!empresaRemota) return { sincronizado: false, motivo: 'Empresa remota não localizada.' };
+
+  const { data, error } = await remoto.from('empresa_qsa')
+    .select('nome,documento,qualificacao,pais,percentual_participacao,brasileiro,fonte,consultado_em,origem,criado_em,atualizado_em')
+    .eq('empresa_id', empresaRemota.id)
+    .eq('origem', 'confirmacao_manual');
+  if (error) throw error;
+  const socios = (data || []).filter((s) => textoBanco(s.nome));
+  if (!socios.length) return { sincronizado: false, socios: 0, motivo: 'Sem confirmação manual compartilhada.' };
+
+  const localizar = db().prepare(`SELECT id FROM empresa_qsa
+    WHERE empresa_id=? AND nome=? AND qualificacao=?
+    ORDER BY CASE WHEN origem='confirmacao_manual' THEN 0 ELSE 1 END, id LIMIT 1`);
+  const atualizar = db().prepare(`UPDATE empresa_qsa SET
+    nome=?, documento=?, qualificacao=?, pais=?, percentual_participacao=?, brasileiro=?,
+    fonte=?, consultado_em=?, origem='confirmacao_manual', atualizado_em=? WHERE id=?`);
+  const inserir = db().prepare(`INSERT INTO empresa_qsa
+    (empresa_id,nome,documento,qualificacao,pais,percentual_participacao,brasileiro,fonte,consultado_em,origem,criado_em,atualizado_em)
+    VALUES (?,?,?,?,?,?,?,?,?,'confirmacao_manual',?,?)`);
+
+  db().transaction(() => socios.forEach((s) => {
+    const nome = textoBanco(s.nome);
+    const qualificacao = textoBanco(s.qualificacao);
+    const existente = localizar.get(Number(empresaId), nome, qualificacao);
+    const valores = [nome, soDigitos(s.documento), qualificacao, textoBanco(s.pais), percentualBanco(s.percentual_participacao),
+      s.brasileiro ? 1 : 0, textoBanco(s.fonte) || 'confirmação manual', s.consultado_em || null,
+      s.atualizado_em || new Date().toISOString()];
+    if (existente) atualizar.run(...valores, existente.id);
+    else inserir.run(Number(empresaId), ...valores, s.criado_em || new Date().toISOString(), s.atualizado_em || new Date().toISOString());
+  }))();
+  return { sincronizado: true, socios: socios.length };
+}
+
 // --------------------------------------------------------------------------
 // CONSULTA
 // --------------------------------------------------------------------------
@@ -529,5 +573,5 @@ function estatisticasCache() {
     .map(([k, v]) => ({ chave: k, nome: v.nome, intervalo: v.intervalo, site: v.site, exigeChave: v.exigeChave })) };
 }
 
-module.exports = { consultar, enriquecerParceiros, enriquecerQsaEmpresa, publicarQsaEmpresa, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
+module.exports = { consultar, enriquecerParceiros, enriquecerQsaEmpresa, publicarQsaEmpresa, sincronizarConfirmacoesManuaisQsa, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
   config, salvarConfig, derivarRegime, classificarEnteGovernamental, PROVEDORES };
