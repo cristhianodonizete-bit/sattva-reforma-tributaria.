@@ -691,15 +691,21 @@ router.get('/empresas/:id', (req, res) => {
 });
 
 // Quadro societário: evidência editável da condição específica do cClassTrib 200044.
-function reprocessarSaidasPorQsa(empresaId) {
+async function reprocessarSaidasPorQsa(empresaId) {
   // O QSA é dependência exclusiva das saídas da empresa (cClassTrib 200044).
   // Passar os IDs explicitamente garante que uma confirmação societária seja
   // materializada mesmo quando nenhum campo do movimento mudou.
   const saidas = db.prepare("SELECT id FROM movimentos WHERE empresa_id=? AND tipo='cliente'")
     .all(empresaId).map((x) => x.id);
-  return saidas.length
-    ? motorExec.reprocessarIncremental(empresaId, { movimentoIds: saidas, ano: 2027 })
-    : { empresa_id: empresaId, reprocessados: 0, status: 'SEM_SAIDAS' };
+  if (!saidas.length) return { empresa_id: empresaId, reprocessados: 0, status: 'SEM_SAIDAS', publicacao: { ativo: false } };
+  // A confirmação do QSA só é concluída após a fotografia calculada estar na
+  // fonte compartilhada. Assim um reinício não pode restaurar o cálculo
+  // anterior à confirmação societária.
+  const reprocessamento = motorExec.reprocessarIncremental(empresaId, {
+    movimentoIds: saidas, ano: 2027, publicarAssincrona: false,
+  });
+  const publicacao = await require('../services/operacaoCompartilhada').publicarResultadosMotor(empresaId);
+  return { ...reprocessamento, publicacao };
 }
 
 router.get('/empresas/:id/qsa', async (req, res) => {
@@ -738,7 +744,7 @@ router.post('/empresas/:id/qsa/enriquecer', async (req, res) => {
     auditar(req, { empresaId: Number(req.params.id), acao: 'Consultou QSA manualmente', entidade: 'empresa_qsa', entidadeId: req.params.id,
       antes, depois: { fonte: resultado.fonte, socios_recuperados: resultado.socios_recuperados, qsa: depois } });
     const reprocessamento = motorExec.ultimaExecucao(Number(req.params.id))
-      ? reprocessarSaidasPorQsa(Number(req.params.id)) : null;
+      ? await reprocessarSaidasPorQsa(Number(req.params.id)) : null;
     ok(res, { ...resultado, reprocessamento });
   }
   catch (e) { erro(res, e); }
@@ -760,7 +766,7 @@ router.post('/empresas/:id/qsa', async (req, res) => {
     const depois = db.prepare('SELECT nome,documento,qualificacao,percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE id=? AND empresa_id=?').get(r.lastInsertRowid, req.params.id);
     auditar(req, { empresaId: Number(req.params.id), acao: 'Incluiu sócio manualmente', entidade: 'empresa_qsa', entidadeId: r.lastInsertRowid, depois });
     const reprocessamento = motorExec.ultimaExecucao(Number(req.params.id))
-      ? reprocessarSaidasPorQsa(Number(req.params.id)) : null;
+      ? await reprocessarSaidasPorQsa(Number(req.params.id)) : null;
     ok(res, { id: r.lastInsertRowid, reprocessamento });
   } catch (e) { erro(res, e); }
 });
@@ -774,7 +780,7 @@ router.put('/empresas/:id/qsa/:qsaId', async (req, res) => {
     const depois = db.prepare('SELECT nome,documento,qualificacao,percentual_participacao,brasileiro,origem FROM empresa_qsa WHERE id=? AND empresa_id=?').get(req.params.qsaId, req.params.id);
     auditar(req, { empresaId: Number(req.params.id), acao: 'Confirmou dados societários manualmente', entidade: 'empresa_qsa', entidadeId: req.params.qsaId, antes, depois });
     const reprocessamento = motorExec.ultimaExecucao(Number(req.params.id))
-      ? reprocessarSaidasPorQsa(Number(req.params.id)) : null;
+      ? await reprocessarSaidasPorQsa(Number(req.params.id)) : null;
     ok(res, { reprocessamento });
   } catch (e) { erro(res, e); }
 });
@@ -3186,7 +3192,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
 // ---- Execução do motor ----
 router.post('/empresas/:id/motor/executar', async (req, res) => {
   try {
-    const r = motorExec.executar(req.params.id, { ano: req.body.ano, anexoSimples: req.body.anexo });
+    const r = motorExec.executar(req.params.id, { ano: req.body.ano, anexoSimples: req.body.anexo, publicarAssincrona: false });
     // A confirmação ao usuário só pode ocorrer depois de a fotografia ativa
     // estar disponível na fonte compartilhada, inclusive após reinício do
     // cache operacional do Render.

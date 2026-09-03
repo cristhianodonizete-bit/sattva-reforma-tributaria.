@@ -278,7 +278,10 @@ function executar(empresaId, opcoes = {}) {
     })(),
   };
 
-  if (opcoes.gravar !== false) gravar(empresaId, ano, resumo, entradas, saidas, { incremental: Boolean(movimentoIds) });
+  if (opcoes.gravar !== false) gravar(empresaId, ano, resumo, entradas, saidas, {
+    incremental: Boolean(movimentoIds),
+    publicarAssincrona: opcoes.publicarAssincrona !== false,
+  });
   return { empresa, ano, resumo, entradas, saidas, apuracao,
     cenariosSimples: [...cenariosPorFornecedor.entries()].map(([k, v]) => ({ fornecedor: k, ...v })) };
 }
@@ -486,13 +489,16 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
   // persistimos o que realmente ficou pendente, priorizado por materialidade.
   // Isso permite operar por exceção, sem revisão manual de toda a carteira.
   excecoesMotor.sincronizar(empresaId, id);
-  // A publicação é assíncrona para não prender a importação. Falhas não
-  // descartam a fotografia local; a próxima execução pode publicar de novo.
-  try {
-    const operacao = require('./operacaoCompartilhada');
-    if (operacao.ativo()) operacao.publicarResultadosMotor(empresaId)
-      .catch((e) => console.error('[supabase] resultados do motor:', e.message));
-  } catch (_) { /* ambiente sem operação compartilhada */ }
+  // Importações podem publicar em segundo plano. Fluxos que confirmam uma
+  // condição determinante ou são acionados pelo operador desabilitam este
+  // caminho e aguardam uma publicação explícita antes de responder.
+  if (opcoes.publicarAssincrona !== false) {
+    try {
+      const operacao = require('./operacaoCompartilhada');
+      if (operacao.ativo()) operacao.publicarResultadosMotor(empresaId)
+        .catch((e) => console.error('[supabase] resultados do motor:', e.message));
+    } catch (_) { /* ambiente sem operação compartilhada */ }
+  }
   return id;
 }
 
