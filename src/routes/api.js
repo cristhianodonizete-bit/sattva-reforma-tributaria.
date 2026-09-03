@@ -3192,6 +3192,9 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
 // ---- Execução do motor ----
 router.post('/empresas/:id/motor/executar', async (req, res) => {
   try {
+    // Não consulta provedor externo. Apenas restaura a confirmação manual já
+    // persistida para que uma instância nova nunca execute o 200044 sem QSA.
+    await cnpjReceita.sincronizarConfirmacoesManuaisQsa(Number(req.params.id));
     const r = motorExec.executar(req.params.id, { ano: req.body.ano, anexoSimples: req.body.anexo, publicarAssincrona: false });
     // A confirmação ao usuário só pode ocorrer depois de a fotografia ativa
     // estar disponível na fonte compartilhada, inclusive após reinício do
