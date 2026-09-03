@@ -572,7 +572,18 @@ async function projImportacaoXml(el) {
     box.innerHTML = '<div class="carregando">Classificando e projetando…</div>';
     try {
       const r = await A.api(`/empresas/${S.empresaId}/motor/executar`, { metodo: 'POST', corpo: { ano } });
-      if (r.assincro) { box.innerHTML = `<div class="aviso bom"><b>Motor em processamento</b><br>O resultado atual permanece visível até a nova fotografia ser concluída.</div>`; return; }
+      if (r.assincro) {
+        const acompanhar = async () => {
+          if (!document.body.contains(box) || S.empresaId == null) return;
+          try {
+            const x = await A.api(`/empresas/${S.empresaId}/motor/status`); const j = x.job;
+            if (!j) return;
+            const ativo = ['PENDENTE','PROCESSANDO','AGUARDANDO','PUBLICANDO'].includes(j.estado || j.status);
+            box.innerHTML = `<div class="aviso ${j.status === 'FALHOU' ? 'alto' : ativo ? 'atencao' : 'bom'}"><b>Motor: ${A.esc(j.estado || j.status)}</b><br>${j.erro ? A.esc(j.erro) : ativo ? 'A fotografia anterior permanece vigente até a conclusão.' : 'Nova fotografia promovida.'}${j.tentativas ? `<br>Tentativa ${j.tentativas}/${j.max_tentativas}` : ''}</div>`;
+            if (ativo) setTimeout(acompanhar, 2000); else if (j.status === 'CONCLUIDO') setTimeout(() => A.ir('fornecedores'), 800);
+          } catch (e) { box.innerHTML = `<div class="aviso alto">${A.esc(e.message)}</div>`; }
+        }; acompanhar(); return;
+      }
       const s = r.resumo;
       box.innerHTML = `<div class="grade g2" style="margin-bottom:10px">
           ${A.kpi('Itens processados', s.itens, `${s.entradas} entradas · ${s.saidas} saídas`)}
