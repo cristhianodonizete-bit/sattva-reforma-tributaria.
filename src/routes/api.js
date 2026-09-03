@@ -50,6 +50,7 @@ const dadosAdicionaisAnalise = require('../services/dadosAdicionaisAnalise');
 const perfilTributarioHistorico = require('../services/perfilTributarioHistorico');
 const comparadorRegimes = require('../services/comparadorRegimes');
 const apuracoesPisCofinsIa = require('../services/apuracoesPisCofinsIa');
+const pgdasDocumentoIa = require('../services/pgdasDocumentoIa');
 const azureDocumentIntelligence = require('../services/azureDocumentIntelligence');
 const normalizacaoFiscalXml = require('../services/normalizacaoFiscalXml');
 const conformidadeDocumental = require('../services/conformidadeDocumental');
@@ -1089,6 +1090,34 @@ router.post('/empresas/:id/importar/pgdas', upload.single('arquivo'), (req, res)
     ok(res, { importados, atualizados, ignorados: r.ignorados, mensagens: r.mensagens,
       colunasDetectadas: r.mapa, colunasArquivo: r.colunas });
   } catch (e) { erro(res, e); }
+});
+
+// PGDAS em PDF/imagem: Azure torna o documento legível e a normalização só
+// aproveita rótulos explicitamente presentes. O perfil não é alterado antes
+// de o usuário revisar e confirmar competência e DAS.
+router.post('/empresas/:id/pgdas/ingestao', upload.single('arquivo'), async (req, res) => {
+  try {
+    if (!req.file?.buffer) throw new Error('Envie o documento PGDAS no campo "arquivo".');
+    const tipoDocumento = String(req.body?.tipo_documento || '').toUpperCase();
+    if (!['PDF', 'IMAGEM'].includes(tipoDocumento)) throw new Error('Para leitura Azure do PGDAS, informe PDF ou IMAGEM. Planilhas XLSX, XLS e CSV usam a importação estruturada.');
+    if (!azureDocumentIntelligence.config().ativo) throw new Error('Azure Document Intelligence não configurado para leitura de PGDAS em PDF ou imagem.');
+    const extraido = await azureDocumentIntelligence.extrair(req.file);
+    if (!String(extraido.texto || '').trim()) throw new Error('Não foi possível obter texto do documento PGDAS.');
+    const campos = pgdasDocumentoIa.normalizarTexto(extraido.texto, { localizacoes: extraido.localizacoes, metodo: 'NORMALIZACAO_DETERMINISTICA_AZURE' });
+    const resultado = pgdasDocumentoIa.ingerir(db, Number(req.params.id), {
+      nome_original: req.file.originalname, tipo_documento: tipoDocumento, mime_type: req.file.mimetype,
+      conteudo_original: req.file.buffer, metodo_extracao: `${extraido.modelo} + NORMALIZACAO_DETERMINISTICA_V1`,
+    }, campos);
+    ok(res, { ...resultado, campos_pendentes: campos.filter((x) => x.status_validacao !== 'VALIDADO_USUARIO').map((x) => x.campo) });
+  } catch (e) { erro(res, e); }
+});
+router.get('/empresas/:id/pgdas/documentos', (req, res) => {
+  try { ok(res, { documentos: pgdasDocumentoIa.listar(db, Number(req.params.id)) }); }
+  catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/pgdas/documentos/:documentoId/confirmar', (req, res) => {
+  try { ok(res, { documento: pgdasDocumentoIa.confirmar(db, Number(req.params.id), Number(req.params.documentoId)) }); }
+  catch (e) { erro(res, e); }
 });
 
 /** Cruza a movimentação com o cadastro de parceiros para resolver o regime */

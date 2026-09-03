@@ -214,12 +214,13 @@ Telas.dados = async (el) => {
   const regimeEmpresa = S.empresa?.regime || '';
   const simplesNacional = regimeEmpresa === 'simples_nacional';
   const exigeApuracaoPisCofins = ['lucro_presumido', 'lucro_real'].includes(regimeEmpresa);
-  const [{ parceiros }, { lotes }, dadosAdicionais, cobertura, apuracoesResposta] = await Promise.all([
+  const [{ parceiros }, { lotes }, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/parceiros?tipo=${aba}`),
     A.api(`/empresas/${S.empresaId}/lotes`),
     A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`),
     A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`),
     A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`),
+    simplesNacional ? A.api(`/empresas/${S.empresaId}/pgdas/documentos`) : Promise.resolve({ documentos: [] }),
   ]);
   const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`);
   const referenciasVendas = aba === 'cliente' ? await A.api(`/empresas/${S.empresaId}/referencias-vendas`) : null;
@@ -230,7 +231,7 @@ Telas.dados = async (el) => {
     documentos: pendenciasDaAba,
     folha: (dadosAdicionais.folhas || []).filter((x) => !x.competencia || x.valor_folha === null || x.valor_folha === undefined),
     receitas: (dadosAdicionais.receitas_sem_dfe || []).filter((x) => x.status_validacao === 'POSSIVEL_DUPLICIDADE' || !x.competencia || !x.tipo_receita || !x.valor),
-    apuracoes: (apuracoesResposta.apuracoes || []).filter((x) => x.status_processamento === 'ERRO' || x.status_validacao !== 'VALIDADO_USUARIO' || (x.campos_pendentes || []).length),
+    apuracoes: (simplesNacional ? (pgdasResposta.documentos || []) : (apuracoesResposta.apuracoes || []) ).filter((x) => x.status_processamento === 'ERRO' || x.status_validacao !== 'VALIDADO_USUARIO' || (x.campos_pendentes || []).length),
     margem: (dadosAdicionais.margens || []).filter((x) => !x.periodo_inicio || !x.periodo_fim || x.margem_operacional_percentual === null || x.margem_operacional_percentual === undefined),
   };
 
@@ -276,7 +277,7 @@ Telas.dados = async (el) => {
     </div>` : ''}
     ${grupoCentral === 'folha' ? `<div class="cartao" style="margin-top:16px"><h2>Folha de pagamento</h2><p class="desc">Informe ou importe a folha agregada por competência. Não é necessário detalhar empregados individualmente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addFolha">Informar folha</button><button class="btn vazio" id="importarFolha">Importar planilha</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/folha').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Folhas informadas',(dadosAdicionais.folhas || []).length,'por competência')}${A.kpi('Pendências',(pendenciasGrupo.folha || []).length,'campos a completar')}</div></div>` : ''}
     ${grupoCentral === 'receitas' ? `<div class="cartao" style="margin-top:16px"><h2>Receitas sem DF-e</h2><p class="desc">Registre ou importe apenas receitas que ainda não estejam nos documentos fiscais. Possível duplicidade não é consolidada automaticamente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addReceitaSemDfe">Adicionar receita</button><button class="btn vazio" id="importarReceitaSemDfe">Importar planilha</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/receitas_sem_dfe').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Receitas registradas',(dadosAdicionais.receitas_sem_dfe || []).length,'não consolidadas automaticamente')}${A.kpi('Possíveis duplicidades',(dadosAdicionais.receitas_sem_dfe || []).filter(x=>x.status_validacao==='POSSIVEL_DUPLICIDADE').length,'exigem revisão')}</div></div>` : ''}
-    ${grupoCentral === 'apuracoes' ? `<div class="cartao" style="margin-top:16px"><h2>Apurações tributárias</h2><p class="desc">Envie a apuração adequada ao regime da empresa. O documento é revisado antes de ser aproveitado no histórico.</p><div style="display:flex;gap:8px;flex-wrap:wrap">${simplesNacional ? '<button class="btn" id="centralPgdas">Importar PGDAS</button><button class="btn vazio" onclick="App.baixarArquivo(\'/modelos/pgdas\').catch(e=>App.toast(e.message,\'erro\'))">Baixar modelo PGDAS</button>' : `<button class="btn" id="centralApuracao">Enviar apuração PIS/Cofins</button>`}</div><div class="grade g2" style="margin-top:16px">${A.kpi('Documentos enviados',(apuracoesResposta.apuracoes || []).length,'histórico de apurações')}${A.kpi('Pendências',(pendenciasGrupo.apuracoes || []).length,'revisão ou confirmação')}</div><div class="aviso ${simplesNacional ? 'bom' : 'atencao'}" style="margin-top:14px">${simplesNacional ? 'Empresa do Simples Nacional: importe o PGDAS por competência em XLSX, XLS ou CSV.' : exigeApuracaoPisCofins ? 'Empresa no Lucro Presumido ou Lucro Real: envie a apuração histórica de PIS/Cofins.' : 'A apuração aplicável depende do regime cadastrado da empresa.'}</div></div>` : ''}
+    ${grupoCentral === 'apuracoes' ? `<div class="cartao" style="margin-top:16px"><h2>Apurações tributárias</h2><p class="desc">Envie a apuração adequada ao regime da empresa. O documento é revisado antes de ser aproveitado no histórico.</p><div style="display:flex;gap:8px;flex-wrap:wrap">${simplesNacional ? '<button class="btn" id="centralPgdas">Importar PGDAS</button><button class="btn vazio" onclick="App.baixarArquivo(\'/modelos/pgdas\').catch(e=>App.toast(e.message,\'erro\'))">Baixar modelo PGDAS</button>' : `<button class="btn" id="centralApuracao">Enviar apuração PIS/Cofins</button>`}</div><div class="grade g2" style="margin-top:16px">${A.kpi('Documentos enviados',simplesNacional ? (pgdasResposta.documentos || []).length : (apuracoesResposta.apuracoes || []).length,'histórico de apurações')}${A.kpi('Pendências',(pendenciasGrupo.apuracoes || []).length,'revisão ou confirmação')}</div><div class="aviso ${simplesNacional ? 'bom' : 'atencao'}" style="margin-top:14px">${simplesNacional ? 'Empresa do Simples Nacional: planilha XLSX, XLS ou CSV é lida de forma estruturada. PDF ou imagem do PGDAS é lido pelo Azure e exige revisão antes de entrar no histórico.' : exigeApuracaoPisCofins ? 'Empresa no Lucro Presumido ou Lucro Real: envie a apuração histórica de PIS/Cofins.' : 'A apuração aplicável depende do regime cadastrado da empresa.'}</div>${simplesNacional && (pgdasResposta.documentos || []).length ? `<div style="margin-top:14px"><h3>Documentos PGDAS em revisão</h3>${A.tabela([{t:'Arquivo',r:x=>A.esc(x.nome_original)},{t:'Competência',r:x=>A.esc(x.competencia_detectada || 'Não identificada')},{t:'Situação',r:x=>A.esc(x.status_processamento)},{t:'',r:x=>`<button class="btn pq vazio" data-pgdas-revisar="${x.id}">Revisar</button>${x.status_processamento === 'VALIDADO_USUARIO' ? '<span class="mini"> Confirmado</span>' : `<button class="btn pq" data-pgdas-confirmar="${x.id}">Confirmar dados</button>`}`}],pgdasResposta.documentos)}</div>` : ''}</div>` : ''}
     ${grupoCentral === 'margem' ? `<div class="cartao" style="margin-top:16px"><h2>Margem operacional</h2><p class="desc">Informe a margem por período como premissa para cenários. Ela não representa automaticamente o lucro fiscal da empresa.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addMargemOperacional">Informar margem operacional</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Margens informadas',(dadosAdicionais.margens || []).length,'premissas declaradas')}${A.kpi('Pendências',(pendenciasGrupo.margem || []).length,'período ou percentual')}</div></div>` : ''}
     ${grupoCentral !== 'documentos' ? `<div class="cartao" style="margin-top:16px"><h2>Pendências deste grupo</h2>${pendenciasGrupo[grupoCentral].length ? A.tabela([{t:'Registro',r:x=>A.esc(x.competencia || x.periodo_inicio || 'Sem período')},{t:'Situação',r:x=>grupoCentral === 'receitas' ? 'Possível duplicidade ou campo obrigatório ausente' : 'Complete os campos obrigatórios antes da análise.'}],pendenciasGrupo[grupoCentral],{vazio:'Sem pendências.'}) : A.vazio('Sem pendências','Os dados disponíveis deste grupo não exigem ação adicional.')}</div>` : ''}
     ${grupoCentral === 'documentos' ? `<div class="cartao" style="margin-top:16px" id="pendenciasDiagnosticoCentral"><h2>Pendências dos documentos fiscais</h2><p class="desc">Localize a linha que bloqueia a cobertura, confira a evidência existente e siga a ação indicada. Cada operação aparece uma única vez pela pendência principal.</p>${pendenciasDaAba.length ? A.tabela([
@@ -378,14 +379,32 @@ Telas.dados = async (el) => {
       S.aba.dadosMotor = 'atual'; A.ir('dados');
     });
     document.getElementById('centralPgdas')?.addEventListener('click', () => {
-      A.modal({ titulo: 'Importar PGDAS', descricao: 'Envie a exportação do PGDAS por competência. Competência e valor do DAS são obrigatórios; os demais campos são aproveitados somente quando existirem no arquivo.', confirmar: null,
-        corpo: `${A.dropzone('zonaPgdas', '<b>Solte a exportação do PGDAS aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>', async (arquivo) => {
+      A.modal({ titulo: 'Importar PGDAS', descricao: 'Planilhas são lidas por colunas. PDF ou imagem passa pela leitura do documento e só é aproveitado depois da sua confirmação.', confirmar: null,
+        corpo: `${A.dropzone('zonaPgdas', '<b>Solte o PGDAS aqui</b><div class="mini">Planilha: .xlsx, .xls, .csv · Documento: .pdf, .png, .jpg</div>', async (arquivo) => {
           const dados = new FormData(); dados.append('arquivo', arquivo);
-          const r = await A.api(`/empresas/${S.empresaId}/importar/pgdas`, { metodo: 'POST', corpo: dados });
-          A.toast(`${r.importados || 0} competência(s) importada(s) e ${r.atualizados || 0} atualizada(s).`, 'ok');
+          const extensao = (arquivo.name.split('.').pop() || '').toLowerCase();
+          if (['xlsx', 'xls', 'csv'].includes(extensao)) {
+            const r = await A.api(`/empresas/${S.empresaId}/importar/pgdas`, { metodo: 'POST', corpo: dados });
+            A.toast(`${r.importados || 0} competência(s) importada(s) e ${r.atualizados || 0} atualizada(s).`, 'ok');
+          } else if (['pdf', 'png', 'jpg', 'jpeg'].includes(extensao)) {
+            dados.append('tipo_documento', extensao === 'pdf' ? 'PDF' : 'IMAGEM');
+            await A.api(`/empresas/${S.empresaId}/pgdas/ingestao`, { metodo: 'POST', corpo: dados });
+            A.toast('Documento lido. Revise os campos e confirme antes de aproveitar o PGDAS.', 'ok');
+          } else throw new Error('Use XLSX, XLS, CSV, PDF, PNG ou JPG.');
           A.ir('dados');
         })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/pgdas').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>` });
     });
+    el.querySelectorAll('[data-pgdas-revisar]').forEach((b) => { b.onclick = () => {
+      const doc = (pgdasResposta.documentos || []).find((x) => Number(x.id) === Number(b.dataset.pgdasRevisar));
+      if (!doc) return;
+      A.modal({ titulo: `Revisar PGDAS — ${doc.nome_original}`, largura: 1050, confirmar: 'Fechar', corpo: A.tabela([
+        {t:'Campo',r:x=>A.esc(x.campo)}, {t:'Valor',r:x=>x.valor_extraido === null ? 'Não identificado' : A.esc(x.valor_extraido)},
+        {t:'Confiança',r:x=>x.confianca === null ? 'Não identificada' : `${Math.round(Number(x.confianca) * 100)}%`}, {t:'Origem',r:x=>`${A.esc(x.rotulo_original || 'Não identificado')} · ${A.esc(x.pagina_ou_localizacao || 'sem página')}`}, {t:'Validação',r:x=>A.esc(x.status_validacao)}
+      ], doc.campos_extraidos || [], {vazio:'Nenhum campo identificado.'}), aoConfirmar: async () => {} });
+    }; });
+    el.querySelectorAll('[data-pgdas-confirmar]').forEach((b) => { b.onclick = () => A.confirmar('Confirmar os valores identificados? A confirmação grava somente os campos encontrados no documento.', async () => {
+      await A.api(`/empresas/${S.empresaId}/pgdas/documentos/${b.dataset.pgdasConfirmar}/confirmar`, {metodo:'POST',corpo:{}}); A.toast('PGDAS confirmado e incluído no histórico.', 'ok'); A.ir('dados');
+    }); });
     document.getElementById('centralApuracao')?.addEventListener('click', () => abrirIngestaoApuracao(() => A.ir('dados')));
     document.getElementById('centralReferencias')?.addEventListener('click', () => {
       S.aba.dados = 'cliente'; S.aba.dadosMotor = 'atual'; A.ir('dados');

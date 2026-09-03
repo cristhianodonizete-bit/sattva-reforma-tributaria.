@@ -240,6 +240,39 @@ CREATE TABLE IF NOT EXISTS pis_cofins_apuracao_campos (
   UNIQUE(apuracao_id, campo)
 );
 
+-- PGDAS enviado como documento (PDF/imagem) é mantido separado da planilha
+-- estruturada. Só alimenta o perfil depois de revisão humana.
+CREATE TABLE IF NOT EXISTS pgdas_documentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  nome_original TEXT NOT NULL,
+  tipo_documento TEXT NOT NULL,
+  mime_type TEXT,
+  conteudo_original BLOB NOT NULL,
+  hash_sha256 TEXT NOT NULL,
+  competencia_detectada TEXT,
+  data_processamento TEXT NOT NULL,
+  metodo_extracao TEXT NOT NULL,
+  status_processamento TEXT NOT NULL,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, hash_sha256)
+);
+CREATE INDEX IF NOT EXISTS ix_pgdas_documentos_empresa_competencia
+  ON pgdas_documentos(empresa_id, competencia_detectada DESC);
+CREATE TABLE IF NOT EXISTS pgdas_documento_campos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  documento_id INTEGER NOT NULL REFERENCES pgdas_documentos(id) ON DELETE CASCADE,
+  campo TEXT NOT NULL,
+  valor_extraido TEXT,
+  rotulo_original TEXT,
+  pagina_ou_localizacao TEXT,
+  confianca REAL,
+  metodo_extracao TEXT NOT NULL,
+  status_validacao TEXT NOT NULL,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(documento_id, campo)
+);
+
 -- ============ DADOS COMPLEMENTARES DE DIAGNÓSTICO ============
 -- Fatos e premissas informados. Não são lidos pelo motor fiscal nem
 -- substituem documento fiscal já importado.
