@@ -250,7 +250,7 @@ Telas.conformidadeDocumental = async (el) => {
       { t:'NBS compatível', r:x=>x.candidato ? `${A.esc(x.candidato.nbs || '—')}<div class="mini">${A.esc(x.candidato.descricao_nbs || '')}</div>` : 'Nenhuma correlação cadastrada' },
       { t:'CST / cClassTrib', r:x=>x.candidato ? `${A.esc(x.candidato.cst || 'CST não informado no catálogo')}<div class="mini">${A.esc(x.candidato.cclasstrib || '—')}</div>` : '—' },
       { t:'Tratamento', r:x=>x.candidato ? `${A.esc(x.candidato.tratamento || '—')}<div class="mini">${A.esc(x.candidato.reducao || '')}</div>` : '—' },
-      { t:'Regra de benefício', r:x=>x.candidato && temBeneficioFiscal(x.candidato) ? `<span class="tag n">${codigoRegra(x.candidato.regra_uso)}</span>` : '—' },
+      { t:'Quando usar', r:x=>x.candidato && temBeneficioFiscal(x.candidato) ? `<span class="tag n">${codigoRegra(x.candidato.regra_uso)}</span><div class="mini">Ver regra no rodapé</div>` : '—' },
     ], linhas, { vazio:'Nenhum item neste grupo.' });
   };
   const render = (filtro = '') => {
