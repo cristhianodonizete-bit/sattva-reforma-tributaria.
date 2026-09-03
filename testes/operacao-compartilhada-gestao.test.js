@@ -1,8 +1,11 @@
 #!/usr/bin/env node
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
-const os = require('node:os');
 const path = require('node:path');
+const os = require('node:os');
+const operacaoFonte = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'operacaoCompartilhada.js'), 'utf8');
+assert.match(operacaoFonte, /\['empresas', 'empresa_qsa'\]\.includes\(tabela\)/,
+  'empresa e QSA não podem voltar a ser publicados pelo espelho genérico do cache');
 
 process.env.SATTVA_DADOS = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-gestao-cache-'));
 const { mapaEmpresasLocais, normalizarEmpresaIdDoCache } = require('../src/services/operacaoCompartilhada');

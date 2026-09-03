@@ -135,6 +135,22 @@ router.use((req, res, next) => {
 const ok = (res, dados) => res.json({ ok: true, ...dados });
 const erro = (res, e, status = 400) => res.status(status).json({ ok: false, erro: e.message || String(e) });
 const sincronizarGestao = () => sincronizarGestaoSupabase().catch((e) => console.error('[supabase] sincronização de gestão:', e.message));
+async function publicarCadastroEmpresa(empresaId) {
+  if (!supabase.configurado()) return { publicado: false, motivo: 'Supabase não configurado.' };
+  // A gestão cria/localiza a empresa pelo origem_local_id. A atualização do
+  // cadastro usa então a identidade remota estável, nunca o id efêmero do
+  // cache operacional.
+  await sincronizarGestaoSupabase();
+  const empresa = db.prepare('SELECT cnpj,razao_social,nome_fantasia,regime,uf,municipio,cnae,atividade,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes FROM empresas WHERE id=?').get(empresaId);
+  if (!empresa) throw new Error('Empresa não encontrada para publicação.');
+  const remoto = supabase.admin();
+  const { data, error: consultaErro } = await remoto.from('empresas').select('id').eq('origem_local_id', Number(empresaId)).maybeSingle();
+  if (consultaErro) throw consultaErro;
+  if (!data) throw new Error('Empresa remota não localizada para publicação.');
+  const { error } = await remoto.from('empresas').update(empresa).eq('id', data.id);
+  if (error) throw error;
+  return { publicado: true, empresa_remota_id: data.id };
+}
 const auditar = (req, { empresaId, acao, entidade, entidadeId, antes = null, depois = null }) => {
   if (!req.usuario?.id || !supabase.configurado()) return;
   supabase.admin().from('auditoria').insert({ empresa_id: empresaId || null, usuario_id: req.usuario.id, acao, entidade, entidade_id: String(entidadeId || ''), antes, depois })
@@ -543,15 +559,15 @@ router.post('/empresas', async (req, res) => {
     // A empresa precisa existir primeiro na fonte compartilhada. Isso evita
     // que dados complementares recém-informados fiquem apenas no cache local
     // de uma instância efêmera do Render.
-    if (supabase.configurado()) {
-      await sincronizarGestaoSupabase();
-    }
+    if (supabase.configurado()) await publicarCadastroEmpresa(Number(r.lastInsertRowid));
+    auditar(req, { empresaId: Number(r.lastInsertRowid), acao: 'Criou cadastro da empresa', entidade: 'empresa', entidadeId: r.lastInsertRowid,
+      depois: { cnpj, razao_social: b.razao_social, regime: b.regime || 'lucro_real' } });
     const qsa = agendarQsaAutomatico(Number(r.lastInsertRowid));
     ok(res, { id: r.lastInsertRowid, enriquecimento_qsa: { status: qsa.status, mensagem: 'Consulta automática do quadro societário agendada.' } });
   } catch (e) { erro(res, e); }
 });
 
-router.put('/empresas/:id', (req, res) => {
+router.put('/empresas/:id', async (req, res) => {
   try {
     const b = req.body;
     const antes = db.prepare('SELECT regime,razao_social,nome_fantasia,uf,municipio FROM empresas WHERE id=?').get(req.params.id);
@@ -560,6 +576,7 @@ router.put('/empresas/:id', (req, res) => {
       WHERE id=?`).run(b.razao_social, b.nome_fantasia || '', b.regime || 'lucro_real', b.uf || '',
       b.municipio || '', b.cnae || '', b.atividade || '', Number(b.faturamento_anual) || 0,
       b.setor || '', b.reducao_padrao || 'integral', b.codigo_questor || '', b.observacoes || '', req.params.id);
+    await publicarCadastroEmpresa(Number(req.params.id));
     const depois = db.prepare('SELECT regime,razao_social,nome_fantasia,uf,municipio FROM empresas WHERE id=?').get(req.params.id);
     auditar(req, { empresaId: Number(req.params.id), acao: 'Atualizou cadastro da empresa', entidade: 'empresa', entidadeId: req.params.id, antes, depois });
     ok(res, {});

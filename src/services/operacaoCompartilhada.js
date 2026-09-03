@@ -428,6 +428,12 @@ async function publicar() {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {};
   for (const [tabela, campos] of Object.entries(CAMPOS)) {
+    // Empresa e QSA têm identidade composta/remota e confirmação humana.
+    // Publicá-los pelo espelho genérico do SQLite (por id local) causava uma
+    // corrida com a sincronização explícita e podia reaplicar uma fotografia
+    // antiga após o usuário salvar. Ambos são publicados somente pelos fluxos
+    // específicos, com origem_local_id/chave societária estável.
+    if (['empresas', 'empresa_qsa'].includes(tabela)) continue;
     if (TABELAS_PRECIFICACAO.includes(tabela) || TABELAS_CONTRATOS.includes(tabela)) continue;
     const linhas = db.prepare(`SELECT ${campos.join(',')} FROM ${tabela}`).all();
     for (let i = 0; i < linhas.length; i += 500) {
