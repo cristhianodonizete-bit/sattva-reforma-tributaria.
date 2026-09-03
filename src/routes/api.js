@@ -54,6 +54,7 @@ const pgdasDocumentoIa = require('../services/pgdasDocumentoIa');
 const azureDocumentIntelligence = require('../services/azureDocumentIntelligence');
 const normalizacaoFiscalXml = require('../services/normalizacaoFiscalXml');
 const conformidadeDocumental = require('../services/conformidadeDocumental');
+const revisaoBeneficiosFiscais = require('../services/revisaoBeneficiosFiscais');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -1434,6 +1435,50 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     const cfg = prepararCadeia(empresa, tipo, req.query);
     const resultado = consolidacaoOficial.cadeia(empresa.id, tipo, { executarSeAusente: false });
     ok(res, { empresa, analise: resultado, pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', valor: Number(m.valor) || 0 })) });
+  } catch (e) { erro(res, e); }
+});
+
+// Validação humana de benefício fiscal. A rota expõe somente benefícios já
+// aplicados pelo motor; não cria candidatos nem altera o documento fiscal.
+router.get('/empresas/:id/beneficios-fiscais/revisao', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa) throw new Error('Empresa não encontrada.');
+    motorExec.reprocessarIncremental(empresaId, { ano: 2027 });
+    const operacoes = consolidacaoOficial.cadeia(empresaId, 'cliente', { executarSeAusente: false }).operacoesBeneficios
+      .map((x) => ({ ...x, alternativas: revisaoBeneficiosFiscais.candidatos(x.lc116, x.nbs).map((c) => ({
+        cclasstrib: c.cclasstrib, cst: c.cst || String(c.cclasstrib || '').slice(0, 3),
+        descricao: c.classificacao || c.nome_cclasstrib || '', reducao: c.reducao || 'integral',
+      })) }))
+      .filter((x) => !req.query.cliente || String(x.cliente || '').toLowerCase().includes(String(req.query.cliente).toLowerCase()))
+      .filter((x) => !req.query.lc116 || String(x.lc116) === String(req.query.lc116))
+      .filter((x) => !req.query.nbs || String(x.nbs) === String(req.query.nbs))
+      .filter((x) => !req.query.cclasstrib || String(x.cclasstrib) === String(req.query.cclasstrib));
+    ok(res, { operacoes, revisoes: revisaoBeneficiosFiscais.listar(empresaId) });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/beneficios-fiscais/revisao', (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    const criado = revisaoBeneficiosFiscais.criar(empresaId, req.body || {});
+    const reprocessamento = motorExec.reprocessarIncremental(empresaId, { ano: 2027, movimentoIds: criado.movimento_ids });
+    revisaoBeneficiosFiscais.registrarExecucaoPosterior(criado.id, motorExec.ultimaExecucao(empresaId)?.id || null);
+    auditar(req, { empresaId, acao: 'Registrou revisão de benefício fiscal', entidade: 'revisao_beneficio_fiscal', entidadeId: criado.id,
+      depois: { escopo: criado.escopo, itens: criado.movimento_ids.length, origem: criado.assinatura.cclasstrib_origem, nova_cclasstrib: criado.novo.cclasstrib, motivo: req.body?.motivo } });
+    ok(res, { revisao: criado, reprocessamento });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/beneficios-fiscais/revisoes/:revisaoId/reverter', (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    const revertida = revisaoBeneficiosFiscais.reverter(empresaId, Number(req.params.revisaoId), req.body?.motivo);
+    const reprocessamento = motorExec.reprocessarIncremental(empresaId, { ano: 2027, movimentoIds: revertida.movimento_ids });
+    auditar(req, { empresaId, acao: 'Reverteu revisão de benefício fiscal', entidade: 'revisao_beneficio_fiscal', entidadeId: req.params.revisaoId,
+      antes: { nova_cclasstrib: revertida.revisao.nova_cclasstrib }, depois: { motivo: req.body?.motivo || 'Reversão registrada pelo usuário.' } });
+    ok(res, { reprocessamento });
   } catch (e) { erro(res, e); }
 });
 

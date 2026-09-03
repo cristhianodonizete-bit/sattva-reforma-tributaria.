@@ -769,7 +769,7 @@ async function telaCadeia(el, tipo) {
         { t: 'Relevância do crédito', r: (p) => `<span class="tag ${String(p.relevanciaCreditoCliente || '').startsWith('Potencialmente') ? 'c' : 'n'}">${A.esc(p.relevanciaCreditoCliente)}</span>` },
       ], analise.parceiros.slice(0, 200))}
     </div>` : ''}
-    ${mostrarBeneficios ? `<div class="cartao" style="margin-top:16px"><h2>Benefícios fiscais aplicados</h2>
+    ${mostrarBeneficios ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><h2>Benefícios fiscais aplicados</h2><button class="btn vazio" id="revisarBeneficiosFiscais">Revisar benefício fiscal</button></div>
       <p class="desc">Lista todas as vendas em que a execução oficial do motor aplicou redução de CBS ou alíquota zero. Esta leitura não cria benefício, não inclui candidatos pendentes e não altera o cálculo já materializado.</p>
       ${resumoBeneficios.operacoes ? `<div class="grade g4" style="margin-top:14px">
         ${A.kpi('Operações beneficiadas', resumoBeneficios.operacoes, 'benefício aplicado pelo motor')}
@@ -831,6 +831,43 @@ async function telaCadeia(el, tipo) {
     S.aba.dados = 'cliente'; S.aba.dadosMotor = 'atual'; A.ir('dados');
   });
   document.getElementById('corrigirReferencias')?.addEventListener('click', () => { S.aba.dados = 'cliente'; A.ir('dados'); });
+  document.getElementById('revisarBeneficiosFiscais')?.addEventListener('click', async () => {
+    const dados = await A.api(`/empresas/${S.empresaId}/beneficios-fiscais/revisao`);
+    const operacoes = dados.operacoes || [];
+    const montar = (lista) => A.tabela([
+      { t: '', r: (x) => `<input type="checkbox" data-revisao-item value="${x.movimento_id}">` },
+      { t: 'Documento / cliente', r: (x) => `<b class="mono">${A.esc(x.documento || 'sem número')}</b><div class="mini">${A.esc(x.cliente || 'Não identificado')} · ${A.cnpjFmt(x.cnpj)}</div>` },
+      { t: 'Referência atual', r: (x) => `LC 116 ${A.esc(x.lc116)} · NBS ${A.esc(x.nbs)}<div class="mini">CST ${A.esc(x.cst || '—')} · cClassTrib ${A.esc(x.cclasstrib || '—')} · ${A.esc(x.beneficio)}</div>` },
+      { t: 'Opções compatíveis', r: (x) => (x.alternativas || []).map((a) => `<div class="mini">${A.esc(a.cst || '—')} / <b>${A.esc(a.cclasstrib)}</b> · ${A.esc(a.descricao || 'Tratamento catalogado')}</div>`).join('') || 'Sem alternativa catalogada' },
+    ], lista, { vazio: 'Não há benefícios fiscais aplicados para revisar.' });
+    const modal = A.modal({ titulo: 'Revisar benefício fiscal', largura: 1250,
+      descricao: 'A revisão preserva o XML e exige uma nova cClassTrib compatível. Escolha itens com a mesma LC 116, NBS e classificação atual; para aplicar à empresa, a assinatura será expandida somente aos itens atuais iguais.',
+      confirmar: 'Registrar revisão e recalcular itens',
+      corpo: `<div class="grade g4"><label class="campo"><span>Cliente</span><input id="revFiltroCliente"></label><label class="campo"><span>LC 116</span><input id="revFiltroLc"></label><label class="campo"><span>NBS</span><input id="revFiltroNbs"></label><label class="campo"><span>cClassTrib atual</span><input id="revFiltroClass"></label></div><div id="revTabela" style="margin-top:12px;max-height:390px;overflow:auto">${montar(operacoes)}</div><hr class="sep"><div class="grade g2"><label class="campo"><span>Escopo</span><select name="escopo"><option value="ITENS_SELECIONADOS">Somente documentos/itens selecionados</option><option value="COMBINACAO_EMPRESA">Todos os itens atuais da empresa com a mesma LC 116 + NBS + cClassTrib</option></select></label><label class="campo"><span>Nova cClassTrib compatível</span><select name="nova_cclasstrib" id="revNovaClass"><option value="">Selecione os itens primeiro</option></select></label></div><div class="grade g2"><label class="campo"><span>Motivo da revisão</span><select name="motivo"><option value="benefício não aplicável à empresa">Benefício não aplicável à empresa</option><option value="classificação incorreta no documento">Classificação incorreta no documento</option><option value="interpretação incorreta da contraparte">Interpretação incorreta da contraparte</option><option value="subjetividade que exige posição técnica">Subjetividade que exige posição técnica</option><option value="outro">Outro</option></select></label>${A.campo('evidencia','Evidência ou referência (opcional)')}</div><label class="campo"><span>Justificativa técnica</span><textarea name="justificativa" required></textarea></label>${(dados.revisoes || []).filter((x) => x.status === 'ATIVA').length ? `<div class="aviso neutro"><b>Revisões ativas:</b> ${(dados.revisoes || []).filter((x) => x.status === 'ATIVA').map((x) => `#${x.id} (${x.itens} item(ns), ${A.esc(x.nova_cclasstrib)}) <button class="btn pq vazio" data-reverter-revisao="${x.id}">Reverter</button>`).join(' · ')}</div>` : ''}`,
+      aoConfirmar: async (f) => {
+        const ids = [...modal.fundo.querySelectorAll('[data-revisao-item]:checked')].map((x) => Number(x.value));
+        await A.api(`/empresas/${S.empresaId}/beneficios-fiscais/revisao`, { metodo: 'POST', corpo: { ...f, movimento_ids: ids } });
+        A.toast('Revisão registrada. Somente os itens afetados foram recalculados.', 'ok'); A.ir('clientes');
+      } });
+    const atualizarOpcoes = () => {
+      const ids = new Set([...modal.fundo.querySelectorAll('[data-revisao-item]:checked')].map((x) => Number(x.value)));
+      const selecionadas = operacoes.filter((x) => ids.has(Number(x.movimento_id)));
+      const comuns = selecionadas.reduce((acc, x) => acc === null ? (x.alternativas || []) : acc.filter((a) => (x.alternativas || []).some((b) => b.cclasstrib === a.cclasstrib)), null) || [];
+      modal.fundo.querySelector('#revNovaClass').innerHTML = `<option value="">Selecione uma nova classificação</option>${comuns.map((a) => `<option value="${A.esc(a.cclasstrib)}">${A.esc(a.cst || '—')} / ${A.esc(a.cclasstrib)} — ${A.esc(a.descricao || 'Tratamento catalogado')}</option>`).join('')}`;
+    };
+    const filtrar = () => {
+      const v = (id) => modal.fundo.querySelector(id).value.trim().toLowerCase();
+      const lista = operacoes.filter((x) => (!v('#revFiltroCliente') || String(x.cliente || '').toLowerCase().includes(v('#revFiltroCliente')))
+        && (!v('#revFiltroLc') || String(x.lc116).toLowerCase().includes(v('#revFiltroLc')))
+        && (!v('#revFiltroNbs') || String(x.nbs).toLowerCase().includes(v('#revFiltroNbs')))
+        && (!v('#revFiltroClass') || String(x.cclasstrib).toLowerCase().includes(v('#revFiltroClass'))));
+      modal.fundo.querySelector('#revTabela').innerHTML = montar(lista);
+      modal.fundo.querySelectorAll('[data-revisao-item]').forEach((b) => b.onchange = atualizarOpcoes);
+    };
+    modal.fundo.querySelectorAll('#revFiltroCliente,#revFiltroLc,#revFiltroNbs,#revFiltroClass').forEach((i) => i.oninput = filtrar);
+    modal.fundo.querySelectorAll('[data-revisao-item]').forEach((b) => b.onchange = atualizarOpcoes);
+    modal.fundo.querySelectorAll('[data-reverter-revisao]').forEach((b) => b.onclick = async () => { await A.api(`/empresas/${S.empresaId}/beneficios-fiscais/revisoes/${b.dataset.reverterRevisao}/reverter`, { metodo: 'POST', corpo: { motivo: 'Reversão solicitada na tela de benefícios.' } }); A.toast('Revisão revertida e itens recalculados.', 'ok'); modal.fechar(); A.ir('clientes'); });
+  });
 }
 Telas.fornecedores = (el) => telaCadeia(el, 'fornecedor');
 Telas.clientes = (el) => telaCadeia(el, 'cliente');

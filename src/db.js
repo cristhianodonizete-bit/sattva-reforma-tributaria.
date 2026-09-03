@@ -1339,6 +1339,27 @@ CREATE TABLE IF NOT EXISTS base_decisoes (
   PRIMARY KEY (empresa_id, chave, tipo)
 );
 
+-- Revisões humanas de benefícios não substituem o documento importado nem o
+-- catálogo. Elas registram uma decisão operacional auditável, aplicada apenas
+-- aos itens explicitamente vinculados abaixo.
+CREATE TABLE IF NOT EXISTS revisoes_beneficios_fiscais (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  escopo TEXT NOT NULL, motivo TEXT NOT NULL, justificativa TEXT NOT NULL,
+  evidencia TEXT, cclasstrib_origem TEXT NOT NULL, nova_cclasstrib TEXT NOT NULL,
+  lc116 TEXT, nbs TEXT, status TEXT NOT NULL DEFAULT 'ATIVA',
+  resultado_anterior_json TEXT, execucao_anterior_id INTEGER,
+  execucao_posterior_id INTEGER, criado_em TEXT DEFAULT (datetime('now','localtime')),
+  revertido_em TEXT, motivo_reversao TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_revisoes_beneficios_empresa ON revisoes_beneficios_fiscais(empresa_id, status);
+CREATE TABLE IF NOT EXISTS revisoes_beneficios_itens (
+  revisao_id INTEGER NOT NULL REFERENCES revisoes_beneficios_fiscais(id) ON DELETE CASCADE,
+  movimento_id INTEGER NOT NULL REFERENCES movimentos(id) ON DELETE CASCADE,
+  PRIMARY KEY (revisao_id, movimento_id)
+);
+CREATE INDEX IF NOT EXISTS ix_revisoes_beneficios_item ON revisoes_beneficios_itens(movimento_id);
+
 CREATE TABLE IF NOT EXISTS base_importacoes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   tipo TEXT, arquivo TEXT, aba TEXT, registros INTEGER DEFAULT 0,

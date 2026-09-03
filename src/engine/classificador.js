@@ -62,6 +62,18 @@ function classificar(item, ctx = {}) {
   let candidatos = [];
   let origem = '';
 
+  // Revisão humana registrada na tela de benefícios. Não altera o XML nem o
+  // catálogo: apenas aplica ao item vinculado uma classificação já validada
+  // contra a mesma chave LC 116 + NBS, com rastreabilidade fora do motor.
+  if (item.revisaoBeneficio?.candidato) {
+    const c = item.revisaoBeneficio.candidato;
+    return montar('CLASSIFICADO', c, 'revisão de benefício fiscal', [
+      `Revisão de benefício fiscal #${item.revisaoBeneficio.revisao_id}: ${item.revisaoBeneficio.motivo}.`,
+      `Classificação substituída para CST ${c.cst || '—'} / cClassTrib ${c.cclasstrib}.`,
+      item.revisaoBeneficio.justificativa || 'Justificativa técnica registrada pelo usuário.',
+    ], { natureza, sentido, candidatos: [c] });
+  }
+
   // --- 1. decisão já tomada pelo consultor para esta empresa tem precedência
   if (ctx.empresa && item.ncm) {
     const d = db.prepare('SELECT * FROM base_decisoes WHERE empresa_id = ? AND chave = ? AND tipo = ?')

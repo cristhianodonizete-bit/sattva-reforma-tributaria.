@@ -18,6 +18,7 @@ const autonomiaTelemetry = require('./autonomiaTelemetry');
 const { avaliarDimensoes } = require('./autonomiaDimensoes');
 const pendenciasEnriquecimento = require('./pendenciasEnriquecimento');
 const normalizacaoFiscalXml = require('./normalizacaoFiscalXml');
+const revisaoBeneficiosFiscais = require('./revisaoBeneficiosFiscais');
 const crypto = require('crypto');
 
 // A versão é gravada em cada resultado para permitir invalidar apenas as
@@ -40,6 +41,8 @@ const hashMovimento = (m) => hash({
   // no hash faz com que uma reclassificação efetivamente invalide apenas os
   // movimentos afetados, sem depender de um recálculo integral.
   reducao: m.reducao, cclasstrib: m.cclasstrib, classificacao_origem: m.classificacao_origem,
+  revisao_beneficio_id: m.revisaoBeneficio?.revisao_id || null,
+  revisao_beneficio_cclasstrib: m.revisaoBeneficio?.nova_cclasstrib || null,
 });
 const hashParceiro = (p) => hash({
   // Nos joins de movimento os aliases evitam colidir com descricao/regime
@@ -151,6 +154,7 @@ function executar(empresaId, opcoes = {}) {
   const elegibilidadeParaAdquirente = (cnpj) => elegibilidadeAnexoXi.naturezaAdquirente(cadastroCnpj.get(String(cnpj || '').replace(/\D/g, '')) || {});
   let movimentoIds = Array.isArray(opcoes.movimentoIds) ? opcoes.movimentoIds.map(Number).filter(Boolean) : null;
   const saidasOriginais = carregar(empresaId, 'saida', movimentoIds);
+  const revisoesPorMovimento = revisaoBeneficiosFiscais.porMovimento(empresaId, saidasOriginais.map((m) => m.id));
   // A referência da empresa continua disponível como terceira precedência,
   // mas serviços sem valor no XML não são mais bloqueados: o catálogo fiscal
   // pode trazer cumulatividade obrigatória, alíquota zero ou indeterminação
@@ -205,7 +209,7 @@ function executar(empresaId, opcoes = {}) {
 
   for (const m of saidasOriginais) {
     const regime = m.regime_cadastro || m.regime || null;
-    const item = normalizar({ ...m, referenciaFiscal: encontrarReferenciaServico(m, referenciasVenda) });
+    const item = normalizar({ ...m, referenciaFiscal: encontrarReferenciaServico(m, referenciasVenda), revisaoBeneficio: revisoesPorMovimento.get(m.id) || null });
     const dest = m.perfil_cadastro === 'governo'
       ? { perfil: 'governo', detalhe: 'Ente governamental confirmado por cadastro oficial', credita: false }
       : motor.classificarDestinatario({ regime, cnpj: m.inscr_federal });
@@ -237,7 +241,7 @@ function executar(empresaId, opcoes = {}) {
     }
 
     proj.conferencia = conferirDeclarado(proj, { ...m, declarado: item.declarado }, ano);
-    saidas.push({ ...proj, movimento_id: m.id, regimeParceiro: regime });
+    saidas.push({ ...proj, movimento_id: m.id, regimeParceiro: regime, revisaoBeneficio: item.revisaoBeneficio });
     coletarConformidade(conformidade, proj, m, 'saida', regime);
   }
 
@@ -295,6 +299,7 @@ function normalizar(m) {
     pis_cofins_referencia: m.referenciaFiscal?.pis_cofins,
     frete: m.frete, seguro: m.seguro, outras: m.outras, desconto: m.desconto,
     data_emissao: m.data_emissao,
+    revisaoBeneficio: m.revisaoBeneficio || null,
     declarado: (m.cst_declarado || m.cclasstrib_declarado || m.ibs_declarado || m.cbs_declarado) ? {
       cst: m.cst_declarado, cclasstrib: m.cclasstrib_declarado,
       ibs: m.ibs_declarado, cbs: m.cbs_declarado,
@@ -442,7 +447,8 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
     for (const x of linhas) {
       const movimento = db.prepare('SELECT * FROM movimentos WHERE id=?').get(x.movimento_id) || {};
       const parceiro = db.prepare('SELECT * FROM parceiros WHERE empresa_id=? AND cnpj=? AND tipo=?').get(empresaId, movimento.inscr_federal || '', movimento.tipo || '');
-      const versoes = versoesDaOperacao(movimento, parceiro);
+      const movimentoComRevisao = { ...movimento, revisaoBeneficio: x.revisaoBeneficio || null };
+      const versoes = versoesDaOperacao(movimentoComRevisao, parceiro);
       const telemetria = autonomiaTelemetry.avaliar({
         ...x, detalhe: x, status_classificacao: x.classificacao?.status,
         status_credito_determinacao: x.credito?.statusDeterminacao,
@@ -454,7 +460,7 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
       ins.run(empresaId, x.movimento_id, id, x.sentido, ano,
         x.classificacao.status, x.credito.status, x.natureza,
         x.precoAtual, x.baseEconomica, x.ibs, x.cbs, x.creditoIbs, x.creditoCbs, x.credito.tipoCredito || null, x.credito.modalidadeCredito || null, x.credito.statusDeterminacao || null,
-        hashMovimento(movimento), versoes.regra_version, versoes.catalogo_version, hashParceiro(parceiro), versoes.parametro_version, versoes.motor_version, x.regimeCbsEmitente || null, x.regimeCbsAdquirente || null,
+        hashMovimento(movimentoComRevisao), versoes.regra_version, versoes.catalogo_version, hashParceiro(parceiro), versoes.parametro_version, versoes.motor_version, x.regimeCbsEmitente || null, x.regimeCbsAdquirente || null,
         x.precoProjetado, x.custoLiquido, x.classificacao.cst, x.classificacao.cclasstrib,
         x.classificacao.tratamento, x.destinatario ? x.destinatario.perfil : null,
         x.sensibilidade ? x.sensibilidade.nivel : null,
@@ -584,12 +590,14 @@ function pendentesIncrementais(empresaId, opcoes = {}) {
     WHERE m.empresa_id=?`).all(empresaId);
   const atuais = new Map(db.prepare(`SELECT movimento_id,movimento_hash,regra_version,catalogo_version,parceiro_version,parametro_version,motor_version
     FROM motor_resultados WHERE empresa_id=?`).all(empresaId).map((x) => [x.movimento_id, x]));
+  const revisoesAtivas = revisaoBeneficiosFiscais.porMovimento(empresaId, todos.filter((m) => m.tipo === 'cliente').map((m) => m.id));
   return todos.filter((m) => {
     const anterior = atuais.get(m.id);
-    const versoes = versoesDaOperacao(m, m);
+    const movimentoComRevisao = { ...m, revisaoBeneficio: revisoesAtivas.get(m.id) || null };
+    const versoes = versoesDaOperacao(movimentoComRevisao, m);
     if (!anterior) return true;
     if (opcoes.forcar) return true;
-    return anterior.movimento_hash !== hashMovimento(m)
+    return anterior.movimento_hash !== hashMovimento(movimentoComRevisao)
       || anterior.regra_version !== versoes.regra_version
       || anterior.catalogo_version !== versoes.catalogo_version
       || anterior.parceiro_version !== versoes.parceiro_version
