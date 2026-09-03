@@ -14,8 +14,12 @@ assert.strictEqual(insertBaseline[1].split(',').length, 14, 'INSERT do baseline 
 
 const operacaoCompartilhada = fs.readFileSync(path.join(__dirname, '../src/services/operacaoCompartilhada.js'), 'utf8');
 assert.match(operacaoCompartilhada, /TABELAS_ACOMPANHAMENTO/, 'acompanhamento deve ter espelho operacional identificado');
-assert.match(operacaoCompartilhada, /const acompanhamentoRemoto = \{\}/, 'dados remotos devem ser lidos antes de limpar o cache');
-assert.match(operacaoCompartilhada, /monitoring_actions','monitoring_alerts','monitoring_deviations','monitoring_comparisons','monitoring_snapshots','monitoring_baselines/, 'espelho de acompanhamento deve limpar dependências antes das referências');
+// A sincronização atual é genérica e faz UPSERT: a fonte remota é lida antes
+// de qualquer persistência e não apaga as fotografias de acompanhamento.
+const inicioBaixar = operacaoCompartilhada.indexOf('async function baixar()');
+const blocoBaixar = operacaoCompartilhada.slice(inicioBaixar, operacaoCompartilhada.indexOf('async function baixarResultadosMotor', inicioBaixar));
+assert.ok(blocoBaixar.indexOf('const origem = await buscarTudo(remoto, tabela);') < blocoBaixar.indexOf('resultado[tabela] = tabela === \'empresas\''), 'dados remotos devem ser lidos antes de persistir o espelho local');
+assert.doesNotMatch(blocoBaixar, /DELETE FROM monitoring_/, 'sincronização não pode apagar fotografias de acompanhamento');
 
 const baseline = { id: 10, versao: 1, origem: 'OFICIAL', natureza: 'CALCULADO', indicadores_aprovados: JSON.stringify({ receita: 1000, compras: 600, cbs: 92.1, credito_cbs: 30, margem: 250, classificacao_pendente: 0 }) };
 const semDesvio = { id: 20, periodo: '2027-01', origem: 'XML', natureza: 'REAL', indicadores_realizados: JSON.stringify({ receita: 1000, compras: 600, cbs: 92.1, credito_cbs: 30, margem: 250, classificacao_pendente: 0 }) };
