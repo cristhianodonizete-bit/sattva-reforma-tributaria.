@@ -741,7 +741,7 @@ async function basesReceita(el) {
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <label style="display:flex;gap:6px;align-items:center;font-size:12.5px">
           <input type="checkbox" id="brSubst" checked> substituir o que já existe deste regime e ano</label>
-        <button class="btn vazio" type="button" onclick="window.open('/api/base-regime/modelo')">Baixar modelo CSV</button>
+        <button class="btn vazio" type="button" onclick="App.baixarArquivo('/base-regime/modelo','modelo-regime.csv').catch(e=>App.toast(e.message,'erro'))">Baixar modelo CSV</button>
         <button class="btn ouro" id="brImportar">Importar</button>
       </div>
       <div id="brStatus" style="margin-top:12px"></div>

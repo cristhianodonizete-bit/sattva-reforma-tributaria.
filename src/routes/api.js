@@ -52,6 +52,7 @@ const comparadorRegimes = require('../services/comparadorRegimes');
 const apuracoesPisCofinsIa = require('../services/apuracoesPisCofinsIa');
 const azureDocumentIntelligence = require('../services/azureDocumentIntelligence');
 const normalizacaoFiscalXml = require('../services/normalizacaoFiscalXml');
+const conformidadeDocumental = require('../services/conformidadeDocumental');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -1170,6 +1171,13 @@ router.get('/empresas/:id/movimentos', (req, res) => {
     movimentos: db.prepare('SELECT * FROM movimentos WHERE empresa_id = ? AND tipo = ? ORDER BY valor DESC LIMIT ?').all(req.params.id, tipo, limite),
     total: db.prepare('SELECT COUNT(*) c, COALESCE(SUM(valor),0) v FROM movimentos WHERE empresa_id = ? AND tipo = ?').get(req.params.id, tipo),
   });
+});
+
+// Leitura isolada da qualidade dos documentos. Não grava, não reclassifica e
+// não chama o motor: a finalidade é orientar a correção na origem.
+router.get('/empresas/:id/conformidade-documental', (req, res) => {
+  try { ok(res, conformidadeDocumental.listar(Number(req.params.id))); }
+  catch (e) { erro(res, e); }
 });
 
 // Correção pontual da classificação do fato original. O campo do XML é

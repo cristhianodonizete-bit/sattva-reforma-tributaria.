@@ -27,6 +27,22 @@ const App = (() => {
     return j;
   }
 
+  // Downloads protegidos não podem usar window.open: a nova aba não recebe o
+  // bearer token da sessão. Esta função baixa o arquivo pela sessão ativa.
+  async function baixarArquivo(caminho, nomePadrao = 'modelo.xlsx') {
+    const token = localStorage.getItem('sattva_token');
+    const r = await fetch('/api' + caminho, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+    if (!r.ok) {
+      const erro = await r.json().catch(() => ({}));
+      throw new Error(erro.erro || 'Não foi possível baixar o arquivo.');
+    }
+    const cabecalho = r.headers.get('content-disposition') || '';
+    const nome = cabecalho.match(/filename[^;=\n]*=(?:UTF-8''|\")?([^;\n\"]+)/i)?.[1] || nomePadrao;
+    const url = URL.createObjectURL(await r.blob());
+    const link = document.createElement('a'); link.href = url; link.download = decodeURIComponent(nome.trim());
+    document.body.appendChild(link); link.click(); link.remove(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   // ---------- FORMATAÇÃO ----------
   const moeda = (n) => (Number(n) || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
   const num = (n, d = 2) => (Number(n) || 0).toLocaleString('pt-BR', { minimumFractionDigits: d, maximumFractionDigits: d });
@@ -168,7 +184,7 @@ const App = (() => {
     { id: 'diagnostico', titulo: 'Módulo 1 · Diagnóstico', itens: [
       { id: 'perfil', t: 'Perfil Tributário', i: '◉' }, { id: 'fornecedores', t: 'Cadeia de fornecedores', i: '↙' },
       { id: 'clientes', t: 'Cadeia de clientes', i: '↗' }, { id: 'impactoFinalCbs', t: 'Impacto Final CBS', i: '≋' }, { id: 'cenarios', t: 'Projeção de cenários', i: '⌁' },
-      { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' }, { id: 'pendenciasDiagnostico', t: 'Pendências do diagnóstico', i: '!' }, { id: 'tarefasDiagnostico', t: 'Tarefas', i: '✓' },
+      { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' }, { id: 'conformidadeDocumental', t: 'Conformidade documental', i: '▤' }, { id: 'pendenciasDiagnostico', t: 'Pendências do diagnóstico', i: '!' }, { id: 'tarefasDiagnostico', t: 'Tarefas', i: '✓' },
     ] },
     { id: 'precificacao', titulo: 'Módulo 2 · Precificação', itens: [
       { id: 'precificacao', t: 'Precificação e margem', i: '◫' }, { id: 'formacaoCusto', t: 'Base de formação de custo', i: '⊕' }, { id: 'tarefasPrecificacao', t: 'Tarefas', i: '✓' },
@@ -193,7 +209,7 @@ const App = (() => {
   const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens.filter((item) => item.id));
   const PERMISSAO_TELA = {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
-    dados: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', pendenciasDiagnostico: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
+    dados: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     servicos: 'gestao_projetos', gestaoProjetos: 'gestao_projetos', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', conhecimento: 'configuracoes', documentacaoSistema: 'configuracoes', configuracoes: 'configuracoes', questor: 'configuracoes', acessos: 'acessos',
   };
@@ -400,9 +416,16 @@ const App = (() => {
     const carregar = async () => {
       let d;
       try { d = await api(`/empresas/${S.empresaId}/projeto/tarefas/${chave}`); }
-      catch (e) { host.innerHTML = ''; return; }
+      catch (e) {
+        host.innerHTML = `<section class="cartao tarefas-modulo"><h2>Tarefas do módulo</h2><p class="desc">Não foi possível abrir as tarefas agora.</p><p class="mini">${esc(e.message || 'Atualize a página e tente novamente. Se o problema persistir, confira o escopo do projeto.')}</p></section>`;
+        return;
+      }
       const entregas = d.entregas || [];
-      if (!entregas.length) { host.innerHTML = ''; return; }
+      if (!entregas.length) {
+        host.innerHTML = `<section class="cartao tarefas-modulo"><h2>Tarefas do módulo</h2><p class="desc">Este módulo ainda não está liberado no escopo aprovado desta empresa.</p><p class="mini">Acesse Escopo e entregas para incluir o módulo no projeto e aprovar a atualização.</p><button class="btn pq vazio" data-ver-escopo>Ver escopo e entregas</button></section>`;
+        host.querySelector('[data-ver-escopo]')?.addEventListener('click', () => ir('gestaoProjetos'));
+        return;
+      }
       const tarefas = d.tarefas || [];
       const responsaveisDaEntrega = (entregaId, lado) => (d.responsaveis || []).find((r) => r.entrega_id === entregaId && r.lado === lado);
       const contatos = entregas.map((e) => {
@@ -434,5 +457,5 @@ const App = (() => {
 
   return { S, api, ir, iniciar, carregarEmpresas, carregarParametros, moeda, num, pct, esc, cnpjFmt, sinal, setaPct, setaR$,
     toast, modal, confirmar, campo, area, selecao, opcoesRegime, opcoesReducao, opcoesAno, regimeLabel,
-    kpi, avisos, vazio, regua, tabela, dropzone, tarefasModulo };
+    kpi, avisos, vazio, regua, tabela, dropzone, tarefasModulo, baixarArquivo };
 })();

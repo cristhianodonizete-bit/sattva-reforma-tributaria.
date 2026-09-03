@@ -24,7 +24,7 @@ Telas.bases = async (el) => {
       <h2>Catálogo fiscal completo — PIS/COFINS</h2>
       <p class="desc">Importe uma única vez a planilha com as abas <span class="mono">Produtos NCM</span> e <span class="mono">Serviços NBS</span>. Ela atualiza as duas bases e alimenta a reconstrução da carga atual sem depender do Excel depois da importação.</p>
       <div class="dropzone" id="zonaCatalogo"><b>Solte o catálogo fiscal completo aqui</b><div class="mini">.xlsx · produtos, serviços, cumulatividade e regras de reconstrução</div></div>
-      <div style="margin-top:10px"><button class="btn vazio pq" onclick="window.open('/api/bases/modelo/catalogo-fiscal')">Baixar modelo</button></div>
+      <div style="margin-top:10px"><button class="btn vazio pq" onclick="App.baixarArquivo('/bases/modelo/catalogo-fiscal').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>
       <div id="statusCatalogo" style="margin-top:12px"></div>
     </div>
     <div class="grade g2" style="margin-top:16px">
@@ -32,14 +32,14 @@ Telas.bases = async (el) => {
         <h2>Base de mercadorias — NCM</h2>
         <p class="desc">Planilha com NCM, CST, cClassTrib, anexo da LC 214, fundamento e percentuais de redução de IBS e CBS. Aba esperada: <span class="mono">Detalhamento candidatos</span>.</p>
         <div class="dropzone" id="zonaNcm"><b>Solte a planilha de NCM aqui</b><div class="mini">substitui a base atual · .xlsx</div></div>
-        <div style="margin-top:10px"><button class="btn vazio pq" onclick="window.open('/api/bases/modelo/ncm')">Baixar modelo</button></div>
+        <div style="margin-top:10px"><button class="btn vazio pq" onclick="App.baixarArquivo('/bases/modelo/ncm').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>
         <div id="statusNcm" style="margin-top:12px"></div>
       </div>
       <div class="cartao">
         <h2>Base de serviços — LC 116 + NBS</h2>
         <p class="desc">Planilha de correlação com Item LC 116, NBS, INDOP, local de incidência do IBS e cClassTrib. Aba esperada: <span class="mono">tabela geral</span>.</p>
         <div class="dropzone" id="zonaServ"><b>Solte a planilha de correlação aqui</b><div class="mini">substitui a base atual · .xlsx</div></div>
-        <div style="margin-top:10px"><button class="btn vazio pq" onclick="window.open('/api/bases/modelo/servicos')">Baixar modelo</button></div>
+        <div style="margin-top:10px"><button class="btn vazio pq" onclick="App.baixarArquivo('/bases/modelo/servicos').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>
         <div id="statusServ" style="margin-top:12px"></div>
       </div>
     </div>
@@ -211,6 +211,37 @@ Telas.pendenciasDiagnostico = async (el) => {
     S.aba.centralDados = 'documentos';
     A.ir('dados');
   }));
+};
+
+// Leitura documental independente: não executa motor nem modifica lançamento.
+Telas.conformidadeDocumental = async (el) => {
+  const d = await A.api(`/empresas/${S.empresaId}/conformidade-documental`);
+  const itens = d.itens || [];
+  const tipos = [...new Set(itens.map((x) => x.tipo))];
+  const candidatos = (x) => (x.candidatos || []).length
+    ? `<details><summary>${x.candidatos.length} opção(ões) compatível(is)</summary><div style="margin-top:8px">${A.tabela([
+      { t:'LC 116', r:c=>A.esc(c.lc116 || '—') }, { t:'NBS', r:c=>`${A.esc(c.nbs || '—')}<div class="mini">${A.esc(c.descricao_nbs || '')}</div>` },
+      { t:'CST / cClassTrib', r:c=>`${A.esc(c.cst || 'CST não informado no catálogo')}<div class="mini">${A.esc(c.cclasstrib || '—')}</div>` },
+      { t:'Tratamento', r:c=>`${A.esc(c.tratamento || '—')}<div class="mini">${A.esc(c.reducao || '')}</div>` },
+      { t:'Quando usar', r:c=>`<span class="mini">${A.esc(c.regra_uso || 'Confirme pela descrição do serviço e pelo catálogo fiscal.')}</span>` },
+    ], x.candidatos)}</div></details>`
+    : '<span class="mini">Nenhuma correlação cadastrada para sugerir.</span>';
+  const render = (filtro = '') => {
+    const visiveis = !filtro ? itens : itens.filter((x) => x.tipo === filtro);
+    el.querySelector('#listaConformidade').innerHTML = visiveis.length ? A.tabela([
+      { t:'Documento / item', r:x=>`<b class="mono">${A.esc(x.documento || 'sem número')}</b><div class="mini">Item ${A.esc(x.item_numero || '—')} · ${A.esc(x.competencia || x.data_emissao || '')}</div><div class="mini">${A.esc(x.contraparte)}</div>` },
+      { t:'Evidência da emissão', r:x=>`<span class="tag ${x.severidade === 'ALTA' ? 'a' : 'b'}">${A.esc(x.tipo)}</span><div style="margin-top:6px"><b>${A.esc(x.titulo)}</b></div><div class="mini">${A.esc(x.evidencia)}</div><div class="mini">LC 116: ${A.esc(x.lc116 || 'não informado')} · NBS: ${A.esc(x.nbs || 'não informado')}</div>` },
+      { t:'Solução sugerida', r:x=>`${A.esc(x.solucao)}<div class="mini" style="margin-top:6px">${A.esc(x.descricao || 'Descrição não informada no documento.')}</div>` },
+      { t:'NBS e enquadramentos compatíveis', r:candidatos },
+      { t:'Valor', num:true, r:x=>A.moeda(x.valor) },
+    ], visiveis, { vazio:'Nenhuma não conformidade documental encontrada para este filtro.' }) : A.vazio('Nenhuma não conformidade documental encontrada.', 'Os documentos com LC 116 ou NBS possuem chave compatível com o catálogo atual.');
+  };
+  el.innerHTML = cab('DIAGNÓSTICO · QUALIDADE DA EMISSÃO', 'Conformidade documental',
+    'Confira erros de emissão e as alternativas compatíveis antes de corrigir o documento ou orientar a contraparte. Esta tela é somente de leitura: não executa o motor e não altera cálculos.') +
+    `<div class="grade g3">${A.kpi('Não conformidades', d.resumo?.total || 0, 'documentos que exigem correção')}${A.kpi('Valor relacionado', A.moeda(d.resumo?.valor || 0), 'sem alterar o diagnóstico')}${A.kpi('Tipos encontrados', tipos.length, tipos.map((x)=>A.esc(x)).join(' · ') || 'nenhum')}</div>
+    <div class="cartao" style="margin-top:16px"><div class="filtros-carteira"><label>Tipo de não conformidade<select id="filtroConformidade"><option value="">Todas</option>${tipos.map((x)=>`<option value="${A.esc(x)}">${A.esc(x).replaceAll('_',' ')}</option>`).join('')}</select></label></div><p class="desc">Para cada ocorrência, compare a evidência do documento com as combinações existentes no catálogo. As opções são referências para revisão humana; o sistema não escolhe uma delas automaticamente.</p><div id="listaConformidade"></div></div>`;
+  render();
+  el.querySelector('#filtroConformidade').addEventListener('change', (evento) => render(evento.target.value));
 };
 
 // Fase 2A: leitura da fotografia oficial, sem criar novo cálculo tributário.

@@ -14,7 +14,7 @@ const abrirIngestaoApuracao = (aoConcluir, reprocessar = false) => A.modal({
   titulo: reprocessar ? 'Reprocessar apuração histórica de PIS/Cofins' : 'Enviar apuração histórica de PIS/Cofins',
   descricao: 'Selecione o arquivo original. A extração preserva ausência como “Não identificado” e exige revisão humana quando houver baixa confiança.',
   confirmar: reprocessar ? 'Reprocessar' : 'Enviar e processar',
-  corpo: '<label class="campo"><span>Arquivo</span><input id="arquivoApuracao" type="file" accept=".pdf,.xlsx,.csv,.txt" required></label><label class="campo"><span>Tipo do documento</span><select id="tipoApuracao"><option value="PDF">PDF</option><option value="XLSX">XLSX</option><option value="CSV">CSV</option><option value="RELATORIO_ERP">Relatório ERP</option></select></label><div><button type="button" class="btn vazio pq" onclick="window.open(\'/api/modelos/apuracao_pis_cofins\')">Baixar modelo de planilha</button></div>',
+  corpo: '<label class="campo"><span>Arquivo</span><input id="arquivoApuracao" type="file" accept=".pdf,.xlsx,.csv,.txt" required></label><label class="campo"><span>Tipo do documento</span><select id="tipoApuracao"><option value="PDF">PDF</option><option value="XLSX">XLSX</option><option value="CSV">CSV</option><option value="RELATORIO_ERP">Relatório ERP</option></select></label><div><button type="button" class="btn vazio pq" onclick="App.baixarArquivo(\'/modelos/apuracao_pis_cofins\').catch(e=>App.toast(e.message,\'erro\'))">Baixar modelo de planilha</button></div>',
   aoConfirmar: async (_dados, fundo) => {
     const arquivo = fundo.querySelector('#arquivoApuracao')?.files?.[0];
     if (!arquivo) throw new Error('Selecione um documento.');
@@ -256,7 +256,7 @@ Telas.dados = async (el) => {
         <p class="desc">Planilha com CNPJ, descrição e regime tributário. A ordem das colunas não importa.</p>
         ${A.dropzone('zonaParceiros', `<b>Solte a planilha de ${rotulo} aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>`, (f) => enviar(f, 'parceiros'))}
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-          <button class="btn vazio pq" onclick="window.open('/api/modelos/parceiros')">Baixar modelo</button>
+          <button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/parceiros').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button>
           <button class="btn vazio pq" id="addParceiro">Incluir manualmente</button>
           <button class="btn ouro pq" id="consultarReceita">Consultar regime na Receita</button>
           <span class="mini" style="margin-left:auto;align-self:center">${parceiros.length} cadastrados</span>
@@ -267,16 +267,16 @@ Telas.dados = async (el) => {
         <p class="desc">Nome, inscrição federal, descrição do produto, NCM, valor, base de cálculo e impostos.</p>
         ${A.dropzone('zonaMov', `<b>Solte a movimentação aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>`, (f) => enviar(f, 'movimentos'))}
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
-          <button class="btn vazio pq" onclick="window.open('/api/modelos/movimento_${aba}')">Baixar modelo</button>
+          <button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/movimento_${aba}').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button>
           <button class="btn vazio pq" id="revincular">Revincular regimes</button>
           <button class="btn ouro pq" id="executarMotorPlanilha">Executar motor</button>
           <span class="mini" style="margin-left:auto;align-self:center">${total.c} lançamentos · ${A.moeda(total.v)}</span>
         </div>
       </div>
     </div>` : ''}
-    ${grupoCentral === 'folha' ? `<div class="cartao" style="margin-top:16px"><h2>Folha de pagamento</h2><p class="desc">Informe ou importe a folha agregada por competência. Não é necessário detalhar empregados individualmente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addFolha">Informar folha</button><button class="btn vazio" id="importarFolha">Importar planilha</button><button class="btn vazio" onclick="window.open('/api/modelos/folha')">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Folhas informadas',(dadosAdicionais.folhas || []).length,'por competência')}${A.kpi('Pendências',(pendenciasGrupo.folha || []).length,'campos a completar')}</div></div>` : ''}
-    ${grupoCentral === 'receitas' ? `<div class="cartao" style="margin-top:16px"><h2>Receitas sem DF-e</h2><p class="desc">Registre ou importe apenas receitas que ainda não estejam nos documentos fiscais. Possível duplicidade não é consolidada automaticamente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addReceitaSemDfe">Adicionar receita</button><button class="btn vazio" id="importarReceitaSemDfe">Importar planilha</button><button class="btn vazio" onclick="window.open('/api/modelos/receitas_sem_dfe')">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Receitas registradas',(dadosAdicionais.receitas_sem_dfe || []).length,'não consolidadas automaticamente')}${A.kpi('Possíveis duplicidades',(dadosAdicionais.receitas_sem_dfe || []).filter(x=>x.status_validacao==='POSSIVEL_DUPLICIDADE').length,'exigem revisão')}</div></div>` : ''}
-    ${grupoCentral === 'apuracoes' ? `<div class="cartao" style="margin-top:16px"><h2>Apurações tributárias</h2><p class="desc">Envie a apuração adequada ao regime da empresa. O documento é revisado antes de ser aproveitado no histórico.</p><div style="display:flex;gap:8px;flex-wrap:wrap">${simplesNacional ? '<button class="btn" id="centralPgdas">Importar PGDAS</button><button class="btn vazio" onclick="window.open(\'/api/modelos/pgdas\')">Baixar modelo PGDAS</button>' : `<button class="btn" id="centralApuracao">Enviar apuração PIS/Cofins</button>`}</div><div class="grade g2" style="margin-top:16px">${A.kpi('Documentos enviados',(apuracoesResposta.apuracoes || []).length,'histórico de apurações')}${A.kpi('Pendências',(pendenciasGrupo.apuracoes || []).length,'revisão ou confirmação')}</div><div class="aviso ${simplesNacional ? 'bom' : 'atencao'}" style="margin-top:14px">${simplesNacional ? 'Empresa do Simples Nacional: importe o PGDAS por competência em XLSX, XLS ou CSV.' : exigeApuracaoPisCofins ? 'Empresa no Lucro Presumido ou Lucro Real: envie a apuração histórica de PIS/Cofins.' : 'A apuração aplicável depende do regime cadastrado da empresa.'}</div></div>` : ''}
+    ${grupoCentral === 'folha' ? `<div class="cartao" style="margin-top:16px"><h2>Folha de pagamento</h2><p class="desc">Informe ou importe a folha agregada por competência. Não é necessário detalhar empregados individualmente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addFolha">Informar folha</button><button class="btn vazio" id="importarFolha">Importar planilha</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/folha').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Folhas informadas',(dadosAdicionais.folhas || []).length,'por competência')}${A.kpi('Pendências',(pendenciasGrupo.folha || []).length,'campos a completar')}</div></div>` : ''}
+    ${grupoCentral === 'receitas' ? `<div class="cartao" style="margin-top:16px"><h2>Receitas sem DF-e</h2><p class="desc">Registre ou importe apenas receitas que ainda não estejam nos documentos fiscais. Possível duplicidade não é consolidada automaticamente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addReceitaSemDfe">Adicionar receita</button><button class="btn vazio" id="importarReceitaSemDfe">Importar planilha</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/receitas_sem_dfe').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Receitas registradas',(dadosAdicionais.receitas_sem_dfe || []).length,'não consolidadas automaticamente')}${A.kpi('Possíveis duplicidades',(dadosAdicionais.receitas_sem_dfe || []).filter(x=>x.status_validacao==='POSSIVEL_DUPLICIDADE').length,'exigem revisão')}</div></div>` : ''}
+    ${grupoCentral === 'apuracoes' ? `<div class="cartao" style="margin-top:16px"><h2>Apurações tributárias</h2><p class="desc">Envie a apuração adequada ao regime da empresa. O documento é revisado antes de ser aproveitado no histórico.</p><div style="display:flex;gap:8px;flex-wrap:wrap">${simplesNacional ? '<button class="btn" id="centralPgdas">Importar PGDAS</button><button class="btn vazio" onclick="App.baixarArquivo(\'/modelos/pgdas\').catch(e=>App.toast(e.message,\'erro\'))">Baixar modelo PGDAS</button>' : `<button class="btn" id="centralApuracao">Enviar apuração PIS/Cofins</button>`}</div><div class="grade g2" style="margin-top:16px">${A.kpi('Documentos enviados',(apuracoesResposta.apuracoes || []).length,'histórico de apurações')}${A.kpi('Pendências',(pendenciasGrupo.apuracoes || []).length,'revisão ou confirmação')}</div><div class="aviso ${simplesNacional ? 'bom' : 'atencao'}" style="margin-top:14px">${simplesNacional ? 'Empresa do Simples Nacional: importe o PGDAS por competência em XLSX, XLS ou CSV.' : exigeApuracaoPisCofins ? 'Empresa no Lucro Presumido ou Lucro Real: envie a apuração histórica de PIS/Cofins.' : 'A apuração aplicável depende do regime cadastrado da empresa.'}</div></div>` : ''}
     ${grupoCentral === 'margem' ? `<div class="cartao" style="margin-top:16px"><h2>Margem operacional</h2><p class="desc">Informe a margem por período como premissa para cenários. Ela não representa automaticamente o lucro fiscal da empresa.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addMargemOperacional">Informar margem operacional</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Margens informadas',(dadosAdicionais.margens || []).length,'premissas declaradas')}${A.kpi('Pendências',(pendenciasGrupo.margem || []).length,'período ou percentual')}</div></div>` : ''}
     ${grupoCentral !== 'documentos' ? `<div class="cartao" style="margin-top:16px"><h2>Pendências deste grupo</h2>${pendenciasGrupo[grupoCentral].length ? A.tabela([{t:'Registro',r:x=>A.esc(x.competencia || x.periodo_inicio || 'Sem período')},{t:'Situação',r:x=>grupoCentral === 'receitas' ? 'Possível duplicidade ou campo obrigatório ausente' : 'Complete os campos obrigatórios antes da análise.'}],pendenciasGrupo[grupoCentral],{vazio:'Sem pendências.'}) : A.vazio('Sem pendências','Os dados disponíveis deste grupo não exigem ação adicional.')}</div>` : ''}
     ${grupoCentral === 'documentos' ? `<div class="cartao" style="margin-top:16px" id="pendenciasDiagnosticoCentral"><h2>Pendências dos documentos fiscais</h2><p class="desc">Localize a linha que bloqueia a cobertura, confira a evidência existente e siga a ação indicada. Cada operação aparece uma única vez pela pendência principal.</p>${pendenciasDaAba.length ? A.tabela([
@@ -289,7 +289,7 @@ Telas.dados = async (el) => {
     ${grupoCentral === 'documentos' && aba === 'cliente' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
       <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn vazio pq" id="addReferenciaServico">Adicionar serviço ao cadastro</button><button class="btn vazio pq" id="importarReferenciasServico">Importar referências</button><button class="btn vazio pq" onclick="window.open('/api/modelos/referencias_servicos')">Baixar modelo</button></div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn vazio pq" id="addReferenciaServico">Adicionar serviço ao cadastro</button><button class="btn vazio pq" id="importarReferenciasServico">Importar referências</button><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/referencias_servicos').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>
       ${referenciasVendas.pendentes.length ? `<div class="aviso atencao"><b>${referenciasVendas.pendentes.length} serviço(s) exigem referência fiscal.</b> Defina PIS/COFINS ou DAS efetivo antes de usar uma estimativa para a venda.</div>` : '<div class="aviso bom"><b>Serviços identificados com referência cadastrada.</b></div>'}
       ${A.tabela([
         { t: 'NBS / serviço', r: (s) => `<b class="mono">${A.esc(s.nbs || 'sem NBS')}</b><div class="mini">${A.esc(s.descricao || '')}</div>` },
@@ -384,7 +384,7 @@ Telas.dados = async (el) => {
           const r = await A.api(`/empresas/${S.empresaId}/importar/pgdas`, { metodo: 'POST', corpo: dados });
           A.toast(`${r.importados || 0} competência(s) importada(s) e ${r.atualizados || 0} atualizada(s).`, 'ok');
           A.ir('dados');
-        })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="window.open('/api/modelos/pgdas')">Baixar modelo</button></div>` });
+        })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/pgdas').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>` });
     });
     document.getElementById('centralApuracao')?.addEventListener('click', () => abrirIngestaoApuracao(() => A.ir('dados')));
     document.getElementById('centralReferencias')?.addEventListener('click', () => {
@@ -417,7 +417,7 @@ Telas.dados = async (el) => {
           const fd = new FormData(); fd.append('arquivo', arquivo);
           try { const r = await A.api(`/empresas/${S.empresaId}/referencias-vendas/importar`, { metodo: 'POST', corpo: fd }); A.toast(`${r.importados} referência(s) importada(s)${r.ignorados ? ` · ${r.ignorados} ignorada(s)` : ''}`, 'ok'); A.ir('dados'); }
           catch (e) { A.toast(e.message, 'erro'); }
-        })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="window.open('/api/modelos/referencias_servicos')">Baixar modelo</button></div>`,
+        })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/referencias_servicos').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>`,
       });
     });
     el.querySelectorAll('[data-ir-importacao]').forEach((b) => { b.onclick = () => document.getElementById(b.dataset.irImportacao)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
@@ -434,7 +434,7 @@ Telas.dados = async (el) => {
       const fd = new FormData(); fd.append('arquivo', arquivo);
       const r = await A.api(`/empresas/${S.empresaId}/importar/folhas-pagamento`, { metodo: 'POST', corpo: fd });
       A.toast(`${r.importados || 0} folha(s) importada(s)${r.ignorados ? ` · ${r.ignorados} ignorada(s)` : ''}`, 'ok'); A.ir('dados');
-    })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="window.open('/api/modelos/folha')">Baixar modelo</button></div>`,
+    })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/folha').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>`,
   }));
   document.getElementById('addMargemOperacional')?.addEventListener('click', () => A.modal({
     titulo: 'Informar margem operacional', descricao: 'Premissa informada: lucro antes do IR dividido pela receita total. Não representa lucro tributável definitivo.',
@@ -453,7 +453,7 @@ Telas.dados = async (el) => {
       const fd = new FormData(); fd.append('arquivo', arquivo);
       const r = await A.api(`/empresas/${S.empresaId}/importar/receitas-sem-dfe`, { metodo: 'POST', corpo: fd });
       A.toast(`${r.importados || 0} receita(s) importada(s)${r.possiveisDuplicidades ? ` · ${r.possiveisDuplicidades} com possível duplicidade` : ''}${r.ignorados ? ` · ${r.ignorados} ignorada(s)` : ''}`, 'ok'); A.ir('dados');
-    })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="window.open('/api/modelos/receitas_sem_dfe')">Baixar modelo</button></div>`,
+    })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/receitas_sem_dfe').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>`,
   }));
   document.getElementById('abrirRaioXDados')?.addEventListener('click', () => A.ir('perfil'));
 
