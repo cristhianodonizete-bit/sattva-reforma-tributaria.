@@ -162,10 +162,15 @@ Telas.empresas = async (el) => {
   }; });
   el.querySelectorAll('[data-qsa]').forEach((b) => { b.onclick = async () => {
     const e = empresas.find((x) => x.id === Number(b.dataset.qsa));
+    let modalQsa = null;
     const abrir = async () => {
       const d = await A.api(`/empresas/${e.id}/qsa`);
       const linhas = (d.socios || []).map((s) => `<tr><td>${A.esc(s.nome)}</td><td>${A.esc(s.qualificacao || '—')}</td><td>${s.percentual_participacao == null ? '<b>Pendente</b>' : `${A.esc(s.percentual_participacao)}%`}</td><td>${Number(s.brasileiro) ? 'SIM' : 'NÃO'}</td><td><button class="btn pq vazio" data-qsa-ed="${s.id}">Confirmar</button></td></tr>`).join('');
-      A.modal({ titulo:`Quadro societário — ${e.razao_social}`, largura:900, confirmar:'Fechar', corpo:`<div class="aviso"><b>ATENDE_200044: ${A.esc(d.atende_200044)}</b><br>${A.esc(d.motivo)}</div><p class="mini">A condição exige sócio brasileiro com participação igual ou superior a 20%. Percentual ausente nunca é presumido.</p><button class="btn" id="enriquecerQsa">Consultar cadastro</button><button class="btn vazio" id="adicionarQsa">Adicionar sócio</button><button class="btn vazio" id="historicoQsa">Histórico de alterações</button><button class="btn vazio" id="sanearAnexoXi">Enriquecer contrapartes e reprocessar Anexo XI</button><table class="tabela" style="margin-top:12px"><thead><tr><th>Sócio</th><th>Qualificação</th><th>Participação</th><th>Brasileiro</th><th></th></tr></thead><tbody>${linhas || '<tr><td colspan="5">Nenhum sócio disponível.</td></tr>'}</tbody></table>`, aoConfirmar: async()=>{} });
+      // Nunca empilhar modais: após salvar um sócio, o modal anterior precisa
+      // ser substituído pela leitura atual. Empilhar revelava a fotografia
+      // antiga ao clicar em “Fechar”, parecendo que a confirmação se perdeu.
+      modalQsa?.fechar();
+      modalQsa = A.modal({ titulo:`Quadro societário — ${e.razao_social}`, largura:900, confirmar:'Fechar', corpo:`<div class="aviso"><b>ATENDE_200044: ${A.esc(d.atende_200044)}</b><br>${A.esc(d.motivo)}</div><p class="mini">A condição exige sócio brasileiro com participação igual ou superior a 20%. Percentual ausente nunca é presumido.</p><button class="btn" id="enriquecerQsa">Consultar cadastro</button><button class="btn vazio" id="adicionarQsa">Adicionar sócio</button><button class="btn vazio" id="historicoQsa">Histórico de alterações</button><button class="btn vazio" id="sanearAnexoXi">Enriquecer contrapartes e reprocessar Anexo XI</button><table class="tabela" style="margin-top:12px"><thead><tr><th>Sócio</th><th>Qualificação</th><th>Participação</th><th>Brasileiro</th><th></th></tr></thead><tbody>${linhas || '<tr><td colspan="5">Nenhum sócio disponível.</td></tr>'}</tbody></table>`, aoConfirmar: async()=>{} });
       document.getElementById('enriquecerQsa').onclick = async (evento) => {
         const botao = evento.currentTarget; const texto = botao.textContent;
         botao.disabled = true; botao.textContent = 'Consultando cadastro…';
