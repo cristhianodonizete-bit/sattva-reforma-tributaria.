@@ -1309,6 +1309,19 @@ CREATE TABLE IF NOT EXISTS motor_execucoes (
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- Staging durável: uma execução em fila nunca toca a fotografia ativa.
+CREATE TABLE IF NOT EXISTS motor_fotografias_staging (
+  job_id TEXT PRIMARY KEY,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  execucao_id INTEGER,
+  status TEXT NOT NULL DEFAULT 'AGUARDANDO',
+  quantidade_esperada INTEGER DEFAULT 0,
+  resumo TEXT, erro TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_motor_staging_empresa_status ON motor_fotografias_staging(empresa_id,status);
+
 -- ============ BASES DE CLASSIFICAÇÃO TRIBUTÁRIA ============
 CREATE TABLE IF NOT EXISTS base_servicos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
