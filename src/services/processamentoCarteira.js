@@ -105,6 +105,7 @@ async function processarUm() {
         motorStaging.atualizar(job.id, 'PUBLICANDO', { execucao_id: execucao.id, quantidade_esperada: quantidade, resumo: resultado.resumo });
         await operacao.publicarResultadosMotor(job.empresa_id, { ativar: false });
         await operacao.promoverFotografiaMotor(job.empresa_id, execucao.id, quantidade);
+        await operacao.validarFotografiaAtivaMotor(job.empresa_id, execucao.id, quantidade);
         motorStaging.atualizar(job.id, 'CONCLUIDO');
         await finalizar(job, 'CONCLUIDO', null, { itens: quantidade, execucao_id: execucao.id, excecoes: excecoesMotor.resumo(job.empresa_id) });
         continue;

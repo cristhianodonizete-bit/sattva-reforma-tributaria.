@@ -375,6 +375,18 @@ async function promoverFotografiaMotor(empresaId, execucaoId, quantidadeEsperada
   if (error) throw new Error(`Promoção atômica da fotografia: ${error.message}`);
   return { promovida: true, empresa_id: Number(empresaId), execucao_id: Number(execucaoId), quantidade: Number(quantidadeEsperada) };
 }
+async function validarFotografiaAtivaMotor(empresaId, execucaoId, quantidadeEsperada) {
+  if (!ativo()) return { ativo: false };
+  const { data, error } = await supabase.admin().from('motor_resultados_operacionais')
+    .select('execucao_id').eq('empresa_id', Number(empresaId)).eq('ativo', true);
+  if (error) throw new Error(`Validação da fotografia ativa: ${error.message}`);
+  const linhas = data || [];
+  const execucoes = [...new Set(linhas.map((x) => Number(x.execucao_id)))];
+  if (linhas.length !== Number(quantidadeEsperada) || execucoes.length !== 1 || execucoes[0] !== Number(execucaoId)) {
+    throw new Error(`Promoção não confirmada: esperado execução ${execucaoId} com ${quantidadeEsperada} item(ns); ativo ${execucoes.join(',') || '—'} com ${linhas.length}.`);
+  }
+  return { confirmada: true, execucao_id: Number(execucaoId), quantidade: linhas.length };
+}
 // Parâmetros fiscais e de cálculo podem ser restaurados isoladamente do resto
 // do cache. É usado antes de a aplicação entregar qualquer alíquota à tela ou
 // ao motor, evitando que uma instância recém-iniciada use valor antigo.
@@ -512,4 +524,4 @@ async function publicarContratos(remoto, empresaId) {
   return { contratos: contratos.length };
 }
 module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
-  baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, filtrarOrfaosOperacionais };
+  baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais };
