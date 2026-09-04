@@ -565,7 +565,14 @@ async function projImportacaoXml(el) {
     } catch (e) { box.innerHTML = `<div class="aviso alto">${A.esc(e.message)}</div>`; }
   }
 
-  document.getElementById('rodarMotor').onclick = async () => {
+  const botaoMotor = document.getElementById('rodarMotor');
+  const ativoMotor = (j) => ['PENDENTE','PROCESSANDO','AGUARDANDO','PUBLICANDO'].includes(j?.estado || j?.status);
+  const atualizarBotaoMotor = async () => {
+    try { const x = await A.api(`/empresas/${S.empresaId}/motor/status`); botaoMotor.disabled = ativoMotor(x.job); if (x.job?.status === 'FALHOU') botaoMotor.textContent = 'Tentar novamente'; }
+    catch (_) { /* indisponibilidade de status não impede execução manual */ }
+  };
+  atualizarBotaoMotor();
+  botaoMotor.onclick = async () => {
     const box = document.getElementById('statusMotor');
     const ano = Number(document.querySelector('[name="anoMotor"]').value);
     S.cache.motorAno = ano;
@@ -579,7 +586,12 @@ async function projImportacaoXml(el) {
             const x = await A.api(`/empresas/${S.empresaId}/motor/status`); const j = x.job;
             if (!j) return;
             const ativo = ['PENDENTE','PROCESSANDO','AGUARDANDO','PUBLICANDO'].includes(j.estado || j.status);
-            box.innerHTML = `<div class="aviso ${j.status === 'FALHOU' ? 'alto' : ativo ? 'atencao' : 'bom'}"><b>Motor: ${A.esc(j.estado || j.status)}</b><br>${j.erro ? A.esc(j.erro) : ativo ? 'A fotografia anterior permanece vigente até a conclusão.' : 'Nova fotografia promovida.'}${j.tentativas ? `<br>Tentativa ${j.tentativas}/${j.max_tentativas}` : ''}</div>`;
+            const inicio = j.iniciado_em || j.criado_em; const fim = j.finalizado_em || null;
+            const duracao = inicio ? Math.max(0, new Date(fim || Date.now()) - new Date(inicio)) : 0;
+            const tempo = `${Math.floor(duracao / 60000)}m ${Math.floor((duracao % 60000) / 1000)}s`;
+            box.innerHTML = `<div class="aviso ${j.status === 'FALHOU' ? 'alto' : ativo ? 'atencao' : 'bom'}"><b>Motor: ${A.esc(j.estado || j.status)}</b><br>${j.erro ? A.esc(j.erro) : ativo ? 'A fotografia anterior permanece vigente até a conclusão.' : 'Nova fotografia promovida.'}${j.tentativas ? `<br>Tentativa ${j.tentativas}/${j.max_tentativas}` : ''}<br>Duração: ${tempo}${fim ? ` · Concluído às ${A.esc(new Date(fim).toLocaleTimeString('pt-BR'))}` : ''}${j.status === 'FALHOU' ? '<br><button class="btn pq" id="retentarMotor">Tentar novamente</button>' : ''}</div>`;
+            botaoMotor.disabled = ativo;
+            if (j.status === 'FALHOU') document.getElementById('retentarMotor')?.addEventListener('click', () => botaoMotor.click());
             if (ativo) setTimeout(acompanhar, 2000); else if (j.status === 'CONCLUIDO') setTimeout(() => A.ir('fornecedores'), 800);
           } catch (e) { box.innerHTML = `<div class="aviso alto">${A.esc(e.message)}</div>`; }
         }; acompanhar(); return;
