@@ -1,0 +1,13 @@
+const assert = require('node:assert/strict'); const fs = require('node:fs'); const path = require('node:path');
+const fila = fs.readFileSync(path.join(__dirname, '../src/services/processamentoCarteira.js'), 'utf8');
+const op = fs.readFileSync(path.join(__dirname, '../src/services/operacaoCompartilhada.js'), 'utf8');
+const migration = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20260903_promocao_atomica_fotografia_motor.sql'), 'utf8');
+assert.match(fila, /job\.tipo_job === 'MOTOR_COMPLETO'/, 'worker deve reconhecer o job completo');
+assert.match(fila, /sincronizarConfirmacoesManuaisQsa/, 'worker deve restaurar somente QSA manual');
+assert.match(fila, /publicarResultadosMotor\(job\.empresa_id, \{ ativar: false \}\)/, 'fotografia nova deve ser publicada inativa');
+assert.match(fila, /promoverFotografiaMotor\(job\.empresa_id, execucao\.id, quantidade\)/, 'promoção só ocorre após a publicação');
+assert.match(fila, /motorStaging\.atualizar\(job\.id, 'FALHOU'/, 'falha deve ser registrada no staging');
+assert.match(op, /opcoes\.ativar !== false/, 'publicação inativa não pode marcar resultado como ativo');
+assert.match(migration, /v_quantidade <> p_quantidade_esperada/, 'promoção deve rejeitar fotografia incompleta');
+assert.match(migration, /pg_advisory_xact_lock/, 'promoção deve serializar por empresa');
+console.log('motor-assincrono-protecao: deduplicação, staging e promoção atômica validados.');
