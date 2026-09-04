@@ -1322,6 +1322,12 @@ CREATE TABLE IF NOT EXISTS motor_fotografias_staging (
 );
 CREATE INDEX IF NOT EXISTS ix_motor_staging_empresa_status ON motor_fotografias_staging(empresa_id,status);
 
+-- Marco local da última sincronização compartilhada. A carga atual só é
+-- substituída após a próxima sincronização ser validada integralmente.
+CREATE TABLE IF NOT EXISTS sincronizacao_operacional_estado (
+  chave TEXT PRIMARY KEY, valor TEXT, atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+
 -- ============ BASES DE CLASSIFICAÇÃO TRIBUTÁRIA ============
 CREATE TABLE IF NOT EXISTS base_servicos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
