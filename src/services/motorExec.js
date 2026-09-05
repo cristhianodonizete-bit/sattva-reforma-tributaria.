@@ -38,7 +38,11 @@ const versoesAtuais = () => {
   return { regra_version: hash(params), parametro_version: hash(params.regimes || params), catalogo_version: 'catalogo-local-v1', motor_version: MOTOR_VERSION };
 };
 const CHAVE_CONTROLE_PENDENCIAS = 'motor_pendencias_versao';
-const versaoFilaIncremental = () => hash({ motor: MOTOR_VERSION, regras: regras.tudo() });
+// Alterações de parâmetros são rastreadas por gatilhos com a dependência da
+// operação (regime, redução, CFOP etc.). A sentinela global fica reservada à
+// troca explícita da implementação do motor; incluir regras.tudo() aqui
+// transformaria uma alteração do Simples em recálculo da carteira inteira.
+const versaoFilaIncremental = () => hash({ motor: MOTOR_VERSION });
 
 // Em uma mudança de versão de regra/parâmetro, a invalidação é propositalmente
 // ampla e acontece uma única vez. No uso normal, os gatilhos locais preenchem
@@ -524,7 +528,16 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
   if (opcoes.incremental) {
     const idsProcessados = linhas.map((x) => x.movimento_id).filter(Boolean);
     if (idsProcessados.length) db.prepare(`DELETE FROM motor_pendencias WHERE empresa_id=? AND movimento_id IN (${idsProcessados.map(() => '?').join(',')})`).run(empresaId, ...idsProcessados);
-  } else db.prepare('DELETE FROM motor_pendencias WHERE empresa_id=?').run(empresaId);
+  } else {
+    // Uma execução completa acabou de materializar a versão vigente para
+    // todos os movimentos da empresa. Registrar esse marco antes de limpar a
+    // fila evita que a primeira consulta incremental reencaminhe a carteira
+    // inteira apenas porque o controle ainda não existia.
+    db.prepare(`INSERT INTO motor_pendencias_controle(chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))
+      ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor,atualizado_em=excluded.atualizado_em`)
+      .run(CHAVE_CONTROLE_PENDENCIAS, versaoFilaIncremental());
+    db.prepare('DELETE FROM motor_pendencias WHERE empresa_id=?').run(empresaId);
+  }
   // Importações podem publicar em segundo plano. Fluxos que confirmam uma
   // condição determinante ou são acionados pelo operador desabilitam este
   // caminho e aguardam uma publicação explícita antes de responder.
@@ -637,9 +650,11 @@ function pendentesIncrementais(empresaId, opcoes = {}) {
  * lendo todas as linhas vigentes de motor_resultados, inclusive as intactas.
  */
 function reprocessarIncremental(empresaId, opcoes = {}) {
-  // Exclusões são removidas pelo gatilho da própria tabela movimentos. Isso
-  // elimina a varredura NOT IN sobre toda a carteira a cada leitura.
-  const removidos = 0;
+  // Exclusões são removidas pelo gatilho da própria tabela movimentos. O
+  // contador derivado mantém a telemetria do resultado sem a varredura NOT IN
+  // sobre toda a carteira a cada leitura.
+  const removidos = Number(db.prepare('SELECT quantidade FROM motor_pendencias_removidos WHERE empresa_id=?').get(empresaId)?.quantidade || 0);
+  if (removidos) db.prepare('DELETE FROM motor_pendencias_removidos WHERE empresa_id=?').run(empresaId);
   const movimentoIds = opcoes.movimentoIds || pendentesIncrementais(empresaId, opcoes);
   if (!movimentoIds.length) return { empresa_id: empresaId, reprocessados: 0, removidos, status: removidos ? 'CONCLUIDO' : 'SEM_ALTERACOES' };
   const resultado = executar(empresaId, { ...opcoes, movimentoIds, ano: Number(opcoes.ano) || 2027 });

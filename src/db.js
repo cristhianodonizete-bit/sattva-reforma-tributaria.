@@ -98,13 +98,23 @@ const COLUNAS_NOVAS = {
   conflitos_fatos_fiscais: { produto_empresa_id: 'INTEGER' },
   formacao_custo_itens: { movimento_saida_id: 'INTEGER', despesas_variaveis: 'REAL DEFAULT 0' },
   regras_governo: { origem_linha: 'TEXT' },
-  regras_enquadramento: { regime_pis_cofins: 'TEXT', cst_pis: 'TEXT', cst_cofins: 'TEXT', pis_percentual: 'REAL', cofins_percentual: 'REAL' },
+  regras_enquadramento: {
+    // A tabela já existia antes da chave de serviço. Acrescentar essas
+    // colunas antes dos índices evita que uma base SQLite antiga impeça o
+    // servidor de iniciar após a atualização.
+    ncm: 'TEXT', nbs: 'TEXT', lc116: 'TEXT',
+    regime_pis_cofins: 'TEXT', cst_pis: 'TEXT', cst_cofins: 'TEXT', pis_percentual: 'REAL', cofins_percentual: 'REAL',
+  },
   base_ncm: {
     operacao_pis_cofins: 'TEXT', cst_pis_atual: 'TEXT', cst_cofins_atual: 'TEXT', pis_percentual: 'REAL', cofins_percentual: 'REAL',
     regime_pis_cofins_receita: 'TEXT', tratamento_pis_cofins: 'TEXT', papel_na_cadeia_necessario: 'TEXT', papel_na_cadeia: 'TEXT',
     tratamento_efetivo_saida: 'TEXT', natureza_reconstrucao: 'TEXT', percentual_reconstrucao_sugerido: 'REAL', regra_precedencia: 'TEXT',
   },
   base_servicos: {
+    // Bancos legados anteriores ao catálogo LC 116 continuam válidos. Os
+    // gatilhos incrementais usam a chave composta, portanto a coluna precisa
+    // existir antes de criar índices e triggers que a referenciam.
+    lc116: 'TEXT',
     operacao_pis_cofins: 'TEXT', cst_pis_atual: 'TEXT', cst_cofins_atual: 'TEXT', pis_percentual: 'REAL', cofins_percentual: 'REAL',
     cumulatividade_obrigatoria: 'TEXT', grau_determinacao: 'TEXT', hipotese_legal_cumulativa: 'TEXT', pis_cumulativo_percentual: 'REAL', cofins_cumulativo_percentual: 'REAL', total_cumulativo_percentual: 'REAL', fundamento_cumulatividade: 'TEXT', condicao_cumulatividade: 'TEXT',
     regime_pis_cofins_receita: 'TEXT', tratamento_pis_cofins: 'TEXT', papel_na_cadeia_necessario: 'TEXT', tratamento_efetivo_saida: 'TEXT', natureza_reconstrucao: 'TEXT', percentual_reconstrucao_sugerido: 'REAL', regra_precedencia: 'TEXT',
@@ -1144,6 +1154,14 @@ CREATE TABLE IF NOT EXISTS motor_pendencias_controle (
   valor TEXT NOT NULL,
   atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+-- Exclusões não possuem mais uma linha em movimentos para entrar na fila.
+-- Este contador derivado preserva a informação operacional de remoção sem
+-- precisar comparar motor_resultados com toda a carteira a cada execução.
+CREATE TABLE IF NOT EXISTS motor_pendencias_removidos (
+  empresa_id INTEGER PRIMARY KEY REFERENCES empresas(id) ON DELETE CASCADE,
+  quantidade INTEGER NOT NULL DEFAULT 0,
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
 
 CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_movimento_insert AFTER INSERT ON movimentos BEGIN
   INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em) VALUES (NEW.empresa_id,NEW.id,'MOVIMENTO_INSERIDO',datetime('now','localtime'))
@@ -1156,6 +1174,8 @@ END;
 CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_movimento_delete AFTER DELETE ON movimentos BEGIN
   DELETE FROM motor_pendencias WHERE empresa_id=OLD.empresa_id AND movimento_id=OLD.id;
   DELETE FROM motor_resultados WHERE empresa_id=OLD.empresa_id AND movimento_id=OLD.id;
+  INSERT INTO motor_pendencias_removidos(empresa_id,quantidade,atualizado_em) VALUES (OLD.empresa_id,1,datetime('now','localtime'))
+  ON CONFLICT(empresa_id) DO UPDATE SET quantidade=quantidade+1,atualizado_em=excluded.atualizado_em;
 END;
 CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_parceiro_update AFTER UPDATE ON parceiros BEGIN
   INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
@@ -1188,6 +1208,18 @@ END;
 CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_qsa_delete AFTER DELETE ON empresa_qsa BEGIN
   INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
   SELECT empresa_id,id,'QSA_ALTERADO',datetime('now','localtime') FROM movimentos WHERE empresa_id=OLD.empresa_id AND tipo='cliente'
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+
+-- Parâmetros de regime não são globais para cada operação: uma mudança no
+-- Simples, por exemplo, só pode reprocessar as linhas cuja contraparte usa
+-- esse regime. A fila preserva esse vínculo sem comparar a carteira inteira.
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_param_regime_update AFTER UPDATE ON param_regimes BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT m.empresa_id,m.id,'PARAMETRO_REGIME_ALTERADO',datetime('now','localtime')
+  FROM movimentos m
+  LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo AND p.cnpj=m.inscr_federal
+  WHERE COALESCE(p.regime,m.regime,'indeterminado') IN (OLD.chave,NEW.chave)
   ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
 END;
 
