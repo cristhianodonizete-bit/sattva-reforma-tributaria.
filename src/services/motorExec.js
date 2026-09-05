@@ -185,6 +185,9 @@ function executar(empresaId, opcoes = {}) {
       }
     }
 
+    const condicionalPis = motorCondicionalPisCofins.resolverTratamentoAtivo(m, { regime: regime || empresa.regime });
+    if (condicionalPis.status === 'APLICAVEL') item.catalogo_fiscal = condicionalPis.catalogo_fiscal;
+    else if (condicionalPis.status === 'INDETERMINADA') item.condicao_material_pendente = true;
     const proj = motor.projetarItem(item, {
       empresa, sentido: 'entrada', ano, regimeContraparte: regime, simplesEmitente,
       elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(empresa.cnpj), qsa: { status: 'PENDENTE', motivo: 'QSA do emitente fornecedor não disponível nesta versão.' } },
@@ -220,6 +223,9 @@ function executar(empresaId, opcoes = {}) {
       ? { perfil: 'governo', detalhe: 'Ente governamental confirmado por cadastro oficial', credita: false }
       : motor.classificarDestinatario({ regime, cnpj: m.inscr_federal });
 
+    const condicionalPis = motorCondicionalPisCofins.resolverTratamentoAtivo(m, { regime: empresa.regime });
+    if (condicionalPis.status === 'APLICAVEL') item.catalogo_fiscal = condicionalPis.catalogo_fiscal;
+    else if (condicionalPis.status === 'INDETERMINADA') item.condicao_material_pendente = true;
     const proj = motor.projetarItem(item, {
       empresa, sentido: 'saida', ano, regimeContraparte: regime,
       perfilDestinatario: dest.perfil, simplesEmitente: empresaSimples,

@@ -26,6 +26,7 @@ const CAMPOS = {
   perfil_cbs_competencias: ['id','empresa_id','competencia','receita_bruta','compras_brutas','base_economica_saidas','base_economica_entradas','cbs_debito','cbs_credito','cbs_liquida','aliquota_efetiva_cbs_saida','taxa_recuperacao_cbs_entrada','receita_tributacao_integral','receita_reducao_cbs','receita_aliquota_zero_cbs','receita_imunidade_cbs','receita_regime_especifico_cbs','receita_beneficio_governo_cbs','receita_tratamento_indeterminado_cbs','compras_credito_normal','compras_credito_limitado','compras_credito_simples','compras_credito_presumido','compras_sem_credito','compras_credito_indeterminado','cobertura_classificacao_cbs','cobertura_base_economica','cobertura_credito_cbs','percentual_real','percentual_calculado','percentual_simulado','percentual_indeterminado','quantidade_documentos','quantidade_operacoes','motor_execucao_id','atualizado_em'],
   base_ncm: ['id','ncm','descricao','cst','cclasstrib','classificacao','anexo','fundamento','reducao_ibs','reducao_cbs','regra','fonte','candidatos','reducao','operacao_pis_cofins','cst_pis_atual','cst_cofins_atual','pis_percentual','cofins_percentual','regime_pis_cofins_receita','tratamento_pis_cofins','papel_na_cadeia_necessario','papel_na_cadeia','tratamento_efetivo_saida','natureza_reconstrucao','percentual_reconstrucao_sugerido','regra_precedencia'],
   base_servicos: ['id','lc116','nbs','descricao_item','descricao_nbs','onerosa','exterior','indop','local_incidencia','cclasstrib','nome_cclasstrib','reducao','operacao_pis_cofins','cst_pis_atual','cst_cofins_atual','pis_percentual','cofins_percentual','cumulatividade_obrigatoria','grau_determinacao','hipotese_legal_cumulativa','pis_cumulativo_percentual','cofins_cumulativo_percentual','total_cumulativo_percentual','fundamento_cumulatividade','condicao_cumulatividade','regime_pis_cofins_receita','tratamento_pis_cofins','papel_na_cadeia_necessario','tratamento_efetivo_saida','natureza_reconstrucao','percentual_reconstrucao_sugerido','regra_precedencia'],
+  regras_enquadramento: ['id','familia','subfamilia','tipo_operacao','direcao','perfil_fornecedor','perfil_adquirente','regime_fornecedor','regime_adquirente','regime_pis_cofins','ncm','nbs','lc116','cclasstrib','cst','cfop','papel_cadeia','unidade','condicoes_obrigatorias','condicoes_excludentes','tratamento_resultante','formula_id','fundamento_legal','vigencia_inicio','vigencia_fim','prioridade','versao','status','fonte','evidencia','cst_pis','cst_cofins','pis_percentual','cofins_percentual'],
   turmas: ['id','empresa_id','trilha','titulo','formato','data','carga_horaria','instrutor','limite_participantes','status','observacoes'],
   participantes: ['id','turma_id','empresa_id','nome','area','email','presenca','nota_avaliacao'],
   regras_governo: ['id','tipo','chave','lc116','nbs','ncm','descricao','tratamento','cst','cclasstrib','indop','reducao','aliquota_zero','ente_elegivel','condicoes','fundamento','vigencia','fonte','origem_linha'],
@@ -289,6 +290,11 @@ async function baixar() {
   catch (e) { falhas.gestao = e.message; }
   if (Object.keys(falhas).length) resultado.falhas = falhas;
   return resultado;
+}
+async function baixarRegrasEnquadramento(remotoInformado = null) {
+  if (!supabase.configurado()) return { ativo: false };
+  const linhas = await buscarTudo(remotoInformado || supabase.admin(), 'regras_enquadramento');
+  return { regras_enquadramento: gravar('regras_enquadramento', linhas) };
 }
 
 // A trilha remota é a fonte de verdade para o delta. O marco só é avançado
@@ -635,7 +641,7 @@ async function publicar() {
     // corrida com a sincronização explícita e podia reaplicar uma fotografia
     // antiga após o usuário salvar. Ambos são publicados somente pelos fluxos
     // específicos, com origem_local_id/chave societária estável.
-    if (['empresas', 'empresa_qsa'].includes(tabela)) continue;
+    if (['empresas', 'empresa_qsa', 'regras_enquadramento'].includes(tabela)) continue;
     if (TABELAS_PRECIFICACAO.includes(tabela) || TABELAS_CONTRATOS.includes(tabela)) continue;
     const linhas = db.prepare(`SELECT ${campos.join(',')} FROM ${tabela}`).all();
     for (let i = 0; i < linhas.length; i += 500) {
@@ -704,6 +710,6 @@ async function publicarContratos(remoto, empresaId) {
   }
   return { contratos: contratos.length };
 }
-module.exports = { ativo, baixar, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };

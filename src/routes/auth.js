@@ -10,9 +10,9 @@ function publico() {
 }
 
 router.get('/status', (_req, res) => {
-  let cache = null;
+  let cache = null, db = null;
   try {
-    const db = require('../db');
+    db = require('../db');
     cache = {
       empresas: db.prepare('SELECT COUNT(*) c FROM empresas').get().c,
       parceiros: db.prepare('SELECT COUNT(*) c FROM parceiros').get().c,
@@ -21,8 +21,11 @@ router.get('/status', (_req, res) => {
   } catch (_) { /* diagnóstico não impede a autenticação */ }
   // Diagnóstico de implantação: permite confirmar que a instância pública
   // executa o commit esperado sem expor configuração, dados fiscais ou sessão.
+  const regrasCondicionais = cache
+    ? db.prepare("SELECT status,COUNT(*) c FROM regras_enquadramento WHERE id LIKE 'RASCUNHO_FINAL_%' GROUP BY status ORDER BY status").all()
+    : [];
   res.json({ ok: true, configurado: supabase.configurado(), exigido: autenticacao.exigida(),
-    commit_render: process.env.RENDER_GIT_COMMIT || null, cache });
+    commit_render: process.env.RENDER_GIT_COMMIT || null, regras_condicionais: regrasCondicionais, cache });
 });
 
 router.post('/login', async (req, res) => {

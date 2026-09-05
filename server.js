@@ -56,6 +56,11 @@ async function iniciar() {
       let dados = {};
       try { dados = await operacao.sincronizarIncremental(); }
       catch (e) { console.error('  sincronização operacional incremental falhou:', e.message); }
+      try { await operacao.baixarRegrasEnquadramento(); }
+      catch (e) { console.error('  sincronização de regras condicionais falhou:', e.message); }
+      const intervaloRegras = setInterval(() => operacao.baixarRegrasEnquadramento()
+        .catch((e) => console.error('  atualização de regras condicionais falhou:', e.message)), 60_000);
+      intervaloRegras.unref?.();
       // Na primeira instalação há uma carga-base completa; nos reinícios
       // seguintes, somente eventos posteriores ao marco local são aplicados.
       console.log(`  operação compartilhada carregada: ${JSON.stringify(dados)}`);
