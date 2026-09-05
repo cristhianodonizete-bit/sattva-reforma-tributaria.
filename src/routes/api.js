@@ -78,6 +78,75 @@ const invalidarDashboardCache = () => dashboardCache.clear();
 const CACHE_BASES_MS = 30000;
 const cacheBases = new Map();
 const invalidarCacheBases = () => cacheBases.clear();
+// O resumo societário compartilhado é somente um complemento da carteira.
+// A tela sempre tem o SQLite local como leitura imediata; a fonte remota
+// atualiza o cache curto em segundo plano para não transformar a abertura da
+// carteira em uma espera de rede.
+const CACHE_QSA_CARTEIRA_MS = 30000;
+const RETENTATIVA_QSA_CARTEIRA_MS = 10000;
+let resumoQsaCompartilhado = { geradoEm: 0, porEmpresa: null, atualizando: null, proximaTentativaEm: 0 };
+const resumoQsaAindaValido = () => resumoQsaCompartilhado.porEmpresa
+  && (Date.now() - resumoQsaCompartilhado.geradoEm) < CACHE_QSA_CARTEIRA_MS;
+async function atualizarResumoQsaCompartilhado() {
+  if (!supabase.configurado() || resumoQsaAindaValido()) return resumoQsaCompartilhado.porEmpresa;
+  if (resumoQsaCompartilhado.atualizando) return resumoQsaCompartilhado.atualizando;
+  resumoQsaCompartilhado.atualizando = (async () => {
+    const remoto = supabase.admin();
+    const [{ data: empresasRemotas, error: erroEmpresas }, { data: qsaManual, error: erroQsa }] = await Promise.all([
+      remoto.from('empresas').select('id,origem_local_id'),
+      remoto.from('empresa_qsa').select('empresa_id,percentual_participacao,brasileiro').eq('origem', 'confirmacao_manual'),
+    ]);
+    if (erroEmpresas) throw erroEmpresas;
+    if (erroQsa) throw erroQsa;
+    const localPorRemota = new Map((empresasRemotas || []).map((x) => [String(x.id), Number(x.origem_local_id || x.id)]));
+    const porEmpresa = new Map();
+    for (const socio of qsaManual || []) {
+      const empresaId = localPorRemota.get(String(socio.empresa_id));
+      if (!empresaId) continue;
+      const resumo = porEmpresa.get(empresaId) || { socios: 0, participacoes_pendentes: 0, percentual_total: 0, brasileiro_preenchido: 0 };
+      resumo.socios += 1;
+      if (socio.percentual_participacao == null || socio.percentual_participacao === '') resumo.participacoes_pendentes += 1;
+      else resumo.percentual_total += Number(socio.percentual_participacao) || 0;
+      if (socio.brasileiro === true || socio.brasileiro === false || socio.brasileiro === 0 || socio.brasileiro === 1) resumo.brasileiro_preenchido += 1;
+      porEmpresa.set(empresaId, resumo);
+    }
+    resumoQsaCompartilhado.geradoEm = Date.now();
+    resumoQsaCompartilhado.proximaTentativaEm = 0;
+    resumoQsaCompartilhado.porEmpresa = porEmpresa;
+    return porEmpresa;
+  })();
+  try { return await resumoQsaCompartilhado.atualizando; }
+  catch (e) {
+    // Se o remoto estiver indisponível, evita uma nova tentativa por cada
+    // abertura da carteira. A leitura local continua sendo a fonte segura.
+    resumoQsaCompartilhado.proximaTentativaEm = Date.now() + RETENTATIVA_QSA_CARTEIRA_MS;
+    throw e;
+  }
+  finally { resumoQsaCompartilhado.atualizando = null; }
+}
+const aplicarResumoQsaCompartilhado = (empresas) => {
+  const resumos = resumoQsaCompartilhado.porEmpresa;
+  if (!resumos) return false;
+  for (const empresa of empresas) {
+    const resumo = resumos.get(Number(empresa.id));
+    if (!resumo) continue;
+    empresa.qsa_socios = resumo.socios;
+    empresa.qsa_participacoes_pendentes = resumo.participacoes_pendentes;
+    empresa.qsa_percentual_total = resumo.percentual_total;
+    empresa.qsa_brasileiro_preenchido = resumo.brasileiro_preenchido;
+    empresa.qsa_origem_resumo = 'CONFIRMACAO_MANUAL_COMPARTILHADA';
+  }
+  return true;
+};
+const CACHE_CONFIGURACAO_CALCULO_MS = 30000;
+const RETENTATIVA_CONFIGURACAO_CALCULO_MS = 10000;
+let configuracaoCalculo = { atualizadaEm: 0, carregando: null, proximaTentativaEm: 0 };
+const configuracaoCalculoValida = () => configuracaoCalculo.atualizadaEm
+  && (Date.now() - configuracaoCalculo.atualizadaEm) < CACHE_CONFIGURACAO_CALCULO_MS;
+const invalidarConfiguracaoDeCalculo = () => {
+  configuracaoCalculo.atualizadaEm = 0;
+  configuracaoCalculo.proximaTentativaEm = 0;
+};
 const responderBasesEmCache = (req, res, carregar) => {
   const chave = req.originalUrl;
   const atual = cacheBases.get(chave);
@@ -141,10 +210,25 @@ const metadadosDocumentoUso = (tipo) => {
 // do Render nunca decide com um SQLite vazio ou com cache anterior à alteração.
 async function atualizarConfiguracaoDeCalculo() {
   if (!supabase.configurado()) return;
-  await require('../services/operacaoCompartilhada').baixarConfiguracao([
-    'param_regimes', 'param_aliquotas', 'param_regras', 'param_reducoes', 'param_simples', 'param_tributos', 'param_cfop',
-  ]);
-  regras.invalidar();
+  if (configuracaoCalculoValida()) return;
+  if (configuracaoCalculo.atualizadaEm && Date.now() < configuracaoCalculo.proximaTentativaEm) return;
+  if (!configuracaoCalculo.carregando) {
+    configuracaoCalculo.carregando = require('../services/operacaoCompartilhada').baixarConfiguracao([
+      'param_regimes', 'param_aliquotas', 'param_regras', 'param_reducoes', 'param_simples', 'param_tributos', 'param_cfop',
+    ]).then(() => {
+      regras.invalidar();
+      configuracaoCalculo.atualizadaEm = Date.now();
+      configuracaoCalculo.proximaTentativaEm = 0;
+    }).catch((e) => {
+      configuracaoCalculo.proximaTentativaEm = Date.now() + RETENTATIVA_CONFIGURACAO_CALCULO_MS;
+      throw e;
+    }).finally(() => { configuracaoCalculo.carregando = null; });
+  }
+  // Na primeira leitura aguardamos a configuração vigente. Após isso, a
+  // renovação expirada segue em segundo plano e a fotografia já certificada
+  // continua disponível sem uma nova espera de rede.
+  if (!configuracaoCalculo.atualizadaEm) await configuracaoCalculo.carregando;
+  else configuracaoCalculo.carregando.catch((e) => console.error('[supabase] atualização de configuração:', e.message));
 }
 router.get('/cnpj/:cnpj/governo', async (req, res) => { try { const d = await cnpjReceita.consultar(req.params.cnpj); ok(res, { resultado: cnpjReceita.classificarEnteGovernamental(d, String(req.params.cnpj).replace(/\D/g, '')) }); } catch (e) { erro(res, e); } });
 // Cadastro central: não pertence a uma empresa específica. Os vínculos de
@@ -588,42 +672,16 @@ router.get('/empresas', async (req, res) => {
     // não pode fazer a tela parecer vazia enquanto o cache SQLite é refeito.
     // Esta leitura não chama API cadastral, não grava no SQLite e não altera
     // QSA, regime ou qualquer outro campo da empresa.
-    if (supabase.configurado() && empresas.length) {
-      try {
-        const remoto = supabase.admin();
-        const [{ data: empresasRemotas, error: erroEmpresas }, { data: qsaManual, error: erroQsa }] = await Promise.all([
-          remoto.from('empresas').select('id,origem_local_id'),
-          remoto.from('empresa_qsa').select('empresa_id,percentual_participacao,brasileiro').eq('origem', 'confirmacao_manual'),
-        ]);
-        if (erroEmpresas) throw erroEmpresas;
-        if (erroQsa) throw erroQsa;
-        const localPorRemota = new Map((empresasRemotas || []).map((x) => [String(x.id), Number(x.origem_local_id || x.id)]));
-        const resumoManual = new Map();
-        for (const socio of qsaManual || []) {
-          const empresaId = localPorRemota.get(String(socio.empresa_id));
-          if (!empresaId) continue;
-          const resumo = resumoManual.get(empresaId) || { socios: 0, participacoes_pendentes: 0, percentual_total: 0, brasileiro_preenchido: 0 };
-          resumo.socios += 1;
-          if (socio.percentual_participacao == null || socio.percentual_participacao === '') resumo.participacoes_pendentes += 1;
-          else resumo.percentual_total += Number(socio.percentual_participacao) || 0;
-          if (socio.brasileiro === true || socio.brasileiro === false || socio.brasileiro === 0 || socio.brasileiro === 1) resumo.brasileiro_preenchido += 1;
-          resumoManual.set(empresaId, resumo);
-        }
-        for (const empresa of empresas) {
-          const resumo = resumoManual.get(Number(empresa.id));
-          if (!resumo) continue;
-          empresa.qsa_socios = resumo.socios;
-          empresa.qsa_participacoes_pendentes = resumo.participacoes_pendentes;
-          empresa.qsa_percentual_total = resumo.percentual_total;
-          empresa.qsa_brasileiro_preenchido = resumo.brasileiro_preenchido;
-          empresa.qsa_origem_resumo = 'CONFIRMACAO_MANUAL_COMPARTILHADA';
-        }
-      } catch (resumoQsaErro) {
-        // A indisponibilidade da fonte compartilhada mantém a leitura local,
-        // mas nunca pode interromper o carregamento da carteira.
-        console.error('[qsa] não foi possível consultar resumo manual compartilhado:', resumoQsaErro.message);
-      }
+    const qsaEmCache = aplicarResumoQsaCompartilhado(empresas);
+    if (supabase.configurado() && empresas.length && !resumoQsaAindaValido()
+      && Date.now() >= resumoQsaCompartilhado.proximaTentativaEm) {
+      // Não aguarda a rede: confirmação manual já cacheada continua visível;
+      // no primeiro acesso, a leitura local é honesta e a próxima abertura
+      // incorpora o complemento compartilhado caso ele exista.
+      atualizarResumoQsaCompartilhado().catch((resumoQsaErro) =>
+        console.error('[qsa] não foi possível atualizar resumo manual compartilhado:', resumoQsaErro.message));
     }
+    res.set('X-Sattva-Qsa-Resumo', qsaEmCache ? 'CACHE_COMPARTILHADO' : 'LOCAL');
     ok(res, { empresas });
   } catch (e) { erro(res, e); }
 });
@@ -3416,6 +3474,7 @@ router.put('/motor/parametros/:ano', (req, res) => {
       .run(Number(b.ibs) || 0, Number(b.cbs) || 0, b.calcular_ibs ? 1 : 0, Number(b.fator_icms_iss) || 0,
         Number(b.fator_pis_cofins) || 0, Number(b.fator_ipi) || 0,
         b.compensavel ? 1 : 0, b.simulacao ? 1 : 0, b.fonte || '', b.nota || '', req.params.ano);
+    invalidarConfiguracaoDeCalculo();
     ok(res, {});
   } catch (e) { erro(res, e); }
 });
@@ -3721,6 +3780,7 @@ router.post('/config/recalcular', async (_req, res) => {
 async function confirmarParametrosCompartilhados() {
   const operacao = require('../services/operacaoCompartilhada');
   await operacao.publicarConfiguracao();
+  invalidarConfiguracaoDeCalculo();
 }
 router.put('/config/regras/:grupo/:chave', async (req, res) => {
   try { regras.salvarRegra(req.params.grupo, req.params.chave, req.body.valor, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }

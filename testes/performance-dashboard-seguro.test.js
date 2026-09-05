@@ -18,5 +18,12 @@ assert.doesNotMatch(api, /router\.get\('\/empresas\/[^\n]*responderBasesEmCache/
 assert.match(api, /from\('projetos'\)\.select\('id,empresa_id,status,nome_plano,acompanhamento_meses'\)/, 'dashboard deve projetar somente os campos de projetos exibidos');
 assert.doesNotMatch(api, /from\('projetos'\)\.select\('\*'\)/, 'dashboard não deve transferir a linha completa de projetos');
 assert.match(api, /from\('projeto_tarefas'\)\.select\('origem_local_id,projeto_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente'\)/, 'dashboard deve projetar somente os campos de tarefas usados');
+assert.match(api, /const CACHE_QSA_CARTEIRA_MS = 30000;/, 'resumo QSA compartilhado deve ter cache curto');
+assert.match(api, /const RETENTATIVA_QSA_CARTEIRA_MS = 10000;/, 'falha remota de QSA deve ter contenção de retentativas');
+assert.match(api, /atualizarResumoQsaCompartilhado\(\)\.catch/, 'carteira não deve aguardar leitura remota de QSA');
+assert.match(api, /X-Sattva-Qsa-Resumo/, 'resposta da carteira deve expor a origem do resumo QSA');
+assert.match(api, /const CACHE_CONFIGURACAO_CALCULO_MS = 30000;/, 'configuração de cálculo deve reutilizar cache curto');
+assert.match(api, /const RETENTATIVA_CONFIGURACAO_CALCULO_MS = 10000;/, 'falha de atualização de configuração deve ter contenção');
+assert.match(api, /if \(!configuracaoCalculo\.atualizadaEm\) await configuracaoCalculo\.carregando;/, 'primeira leitura deve aguardar configuração certificada');
 
 console.log('Performance segura: cache isolado, invalidação e carga paralela validados.');
