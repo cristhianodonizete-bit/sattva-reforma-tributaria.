@@ -1,0 +1,16 @@
+{
+  "executado_em": "2026-09-05T17:41:57.181Z",
+  "modo": "SOMBRA_TEMPORARIA_SEM_ESCRITA_PRODUTIVA",
+  "regras_remotas": 364,
+  "operacoes": 823,
+  "sem_alteracao": 756,
+  "alteracoes_esperadas": 0,
+  "indeterminadas_esperadas": 67,
+  "indeterminadas_indevidas": 0,
+  "erros": 0,
+  "por_tipo": {
+    "NBS_LC116": 782,
+    "SEM_CHAVE": 41
+  },
+  "shadow_aprovado": true
+}

@@ -1,0 +1,48 @@
+{
+  "executado_em": "2026-09-05T17:46:23.335Z",
+  "regras_carregadas": 364,
+  "divergencias_arquivo_banco": 0,
+  "exemplos_divergencias": [],
+  "exemplo_comparacao": {
+    "esperado": {
+      "familia": "PISCOFINS_CAFE",
+      "ncm": "09011110",
+      "nbs": null,
+      "lc116": null,
+      "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+      "cst_pis": "06",
+      "cst_cofins": "06",
+      "pis": 0,
+      "cofins": 0
+    },
+    "remoto": {
+      "familia": "PISCOFINS_CAFE",
+      "ncm": "09011110",
+      "nbs": null,
+      "lc116": null,
+      "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+      "cst_pis": "06",
+      "cst_cofins": "06",
+      "pis": "0",
+      "cofins": "0"
+    }
+  },
+  "fatos_esperados": 21,
+  "fatos_reconhecidos": 21,
+  "fatos_orfaos": [],
+  "regras_obsoletas_carregadas": 0,
+  "status_antes": [
+    {
+      "status": "ATIVA",
+      "quantidade": 364
+    }
+  ],
+  "ativacao_solicitada": true,
+  "status_depois": [
+    {
+      "status": "ATIVA",
+      "quantidade": 364
+    }
+  ],
+  "gate_ativacao": "APROVADO"
+}
