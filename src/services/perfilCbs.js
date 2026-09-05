@@ -7,6 +7,22 @@ const r2 = (v) => Math.round(n(v) * 100) / 100;
 const r6 = (v) => Math.round(n(v) * 1e6) / 1e6;
 const soma = (o, k, v) => { o[k] = r2(n(o[k]) + n(v)); };
 
+// Perfil CBS é derivado exclusivamente da fotografia materializada do motor.
+// Reutilizar o perfil por execução evita nova leitura, desserialização e escrita
+// em perfil_cbs_competencias a cada abertura da visão de impacto. Execução nova
+// recebe chave nova, portanto um resultado fiscal atualizado nunca é reutilizado.
+const LIMITE_PERFIS_EM_MEMORIA = 12;
+const perfisPorExecucao = new Map();
+function guardarPerfil(empresaId, execucaoId, competencias) {
+  const chave = `${empresaId}:${execucaoId}`;
+  perfisPorExecucao.set(chave, competencias);
+  for (const chaveExistente of [...perfisPorExecucao.keys()]) {
+    if (chaveExistente !== chave && chaveExistente.startsWith(`${empresaId}:`)) perfisPorExecucao.delete(chaveExistente);
+  }
+  while (perfisPorExecucao.size > LIMITE_PERFIS_EM_MEMORIA) perfisPorExecucao.delete(perfisPorExecucao.keys().next().value);
+  return competencias;
+}
+
 function naturezaApresentacao(linha, detalhe) {
   if (['REQUER_VALIDACAO', 'SEM_CORRESPONDENCIA', 'DADOS_INSUFICIENTES'].includes(linha.status_classificacao)
     || ['SUJEITO_VALIDACAO', 'DADOS_INSUFICIENTES'].includes(linha.status_credito)) return 'INDETERMINADO';
@@ -60,6 +76,9 @@ function materializar(empresaId, opcoes = {}) {
   // esta leitura nunca pode recalcular a situação-base por conta própria.
   const motorExecutado = false;
   if (!execucao) return { execucao: null, competencias: [] };
+  const chave = `${empresaId}:${execucao.id}`;
+  const emMemoria = perfisPorExecucao.get(chave);
+  if (emMemoria) return { execucao, competencias: emMemoria, motorExecutado };
 
   const grupos = new Map();
   for (const linha of dadosPorCompetencia(empresaId, execucao.id)) {
@@ -103,7 +122,7 @@ function materializar(empresaId, opcoes = {}) {
     g.quantidade_documentos = g._documentos.size; g.motor_execucao_id = execucao.id;
     ins.run(...colunas.map((c) => g[c] ?? null)); saida.push(g);
   }} )();
-  return { execucao, competencias: saida, motorExecutado };
+  return { execucao, competencias: guardarPerfil(empresaId, execucao.id, saida), motorExecutado };
 }
 
 function listar(empresaId) { return db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=? ORDER BY competencia DESC').all(empresaId); }

@@ -15,6 +15,23 @@ const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
 const r2 = (v) => Math.round(n(v) * 100) / 100;
 const r4 = (v) => Math.round(n(v) * 10000) / 10000;
 
+// A fotografia do motor é imutável depois de gravada. Reaproveitar suas linhas
+// já desserializadas evita que cada aba (cadeia, cenário e impacto) releia e
+// faça JSON.parse de todos os detalhes. A chave contém a execução: qualquer
+// reprocessamento produz nova execução e, portanto, nunca reutiliza resultado
+// fiscal anterior. Mantemos poucas fotografias para limitar memória da instância.
+const LIMITE_FOTOGRAFIAS_EM_MEMORIA = 12;
+const linhasPorExecucao = new Map();
+function guardarLinhas(empresaId, execucaoId, dados) {
+  const chave = `${empresaId}:${execucaoId}`;
+  linhasPorExecucao.set(chave, dados);
+  for (const chaveExistente of [...linhasPorExecucao.keys()]) {
+    if (chaveExistente !== chave && chaveExistente.startsWith(`${empresaId}:`)) linhasPorExecucao.delete(chaveExistente);
+  }
+  while (linhasPorExecucao.size > LIMITE_FOTOGRAFIAS_EM_MEMORIA) linhasPorExecucao.delete(linhasPorExecucao.keys().next().value);
+  return dados;
+}
+
 function ultimaExecucao(empresaId, opcoes = {}) {
   let execucao = motorExec.ultimaExecucao(empresaId);
   if (!execucao && opcoes.executarSeAusente !== false) {
@@ -27,6 +44,9 @@ function ultimaExecucao(empresaId, opcoes = {}) {
 function linhas(empresaId, opcoes = {}) {
   const execucao = ultimaExecucao(empresaId, opcoes);
   if (!execucao) return { execucao: null, linhas: [] };
+  const chave = `${empresaId}:${execucao.id}`;
+  const emMemoria = linhasPorExecucao.get(chave);
+  if (emMemoria) return { execucao, linhas: emMemoria };
   const dados = db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento, m.origem AS origem_movimento,
       COALESCE(NULLIF(p.regime,''), r.regime_cbs_emitente, 'indeterminado') AS regime_parceiro,
@@ -39,7 +59,7 @@ function linhas(empresaId, opcoes = {}) {
     let detalhe = {}; try { detalhe = JSON.parse(x.detalhe || '{}'); } catch (_) { /* detalhe inválido vira pendência */ }
     return { ...x, detalhe };
   });
-  return { execucao, linhas: dados };
+  return { execucao, linhas: guardarLinhas(empresaId, execucao.id, dados) };
 }
 
 function natureza(linha) {

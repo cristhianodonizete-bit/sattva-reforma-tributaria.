@@ -7,18 +7,23 @@ const assert = require('node:assert/strict');
 const db = require('../src/db');
 const motorExec = require('../src/services/motorExec');
 const oficial = require('../src/services/consolidacaoOficial');
+const perfilCbs = require('../src/services/perfilCbs');
 
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
 const empresa = db.prepare('SELECT id FROM empresas ORDER BY id LIMIT 1').get();
 if (!empresa) throw new Error('Fixture ausente: é necessária uma empresa para a reconciliação oficial.');
 
 motorExec.executar(empresa.id, { ano: 2027 });
+const execucaoInicial = oficial.ultimaExecucao(empresa.id).id;
 const clientes = oficial.cadeia(empresa.id, 'cliente', { executarSeAusente: false });
 const fornecedores = oficial.cadeia(empresa.id, 'fornecedor', { executarSeAusente: false });
 const empresaCompleta = db.prepare('SELECT * FROM empresas WHERE id=?').get(empresa.id);
 const fotografia = motorExec.resultadoMaterializado(empresaCompleta);
 const impacto = oficial.impactoFinal(empresa.id, { executarSeAusente: false });
+const perfil = perfilCbs.materializar(empresa.id);
+const perfilReutilizado = perfilCbs.materializar(empresa.id);
 const linhas = oficial.linhas(empresa.id, { executarSeAusente: false }).linhas;
+const linhasReutilizadas = oficial.linhas(empresa.id, { executarSeAusente: false }).linhas;
 const soma = (xs, campo) => r2(xs.reduce((s, x) => s + (Number(x[campo]) || 0), 0));
 const debito = soma(linhas.filter((x) => x.sentido === 'saida'), 'cbs');
 const credito = soma(linhas.filter((x) => x.sentido === 'entrada'), 'credito_cbs');
@@ -34,6 +39,13 @@ assert.equal(fotografia.resumo.materializado, true, 'leitura de projeção não 
 assert.equal(r2(motorExec.porCliente(fotografia).reduce((s, x) => s + x.faturamento, 0)), r2(clientes.totais.valor), 'cliente materializado deve reconciliar com a cadeia oficial');
 assert.equal(clientes.parceiros.some((x) => Object.hasOwn(x, '_linha')), false, 'referência interna da linha não pode vazar no payload');
 assert.equal(Object.hasOwn(clientes, 'operacoes200044'), false, 'benefícios não podem ser duplicados pelo contrato legado');
+assert.strictEqual(linhasReutilizadas, linhas, 'a mesma fotografia materializada deve reutilizar linhas já desserializadas');
+assert.strictEqual(perfilReutilizado.competencias, perfil.competencias, 'o perfil CBS deve reutilizar a mesma fotografia materializada');
+motorExec.executar(empresa.id, { ano: 2027 });
+const execucaoNova = oficial.ultimaExecucao(empresa.id).id;
+const linhasNovaExecucao = oficial.linhas(empresa.id, { executarSeAusente: false }).linhas;
+assert.ok(execucaoNova > execucaoInicial, 'nova execução deve receber fotografia distinta');
+assert.notStrictEqual(linhasNovaExecucao, linhas, 'nova execução não pode reutilizar linhas de fotografia anterior');
 const rastreabilidade = clientes.detalhes[0];
 assert.ok(rastreabilidade?.tributosRetirados, 'detalhe deve expor os tributos retirados da base');
 assert.equal(typeof rastreabilidade.tributosRetirados.total, 'number');
