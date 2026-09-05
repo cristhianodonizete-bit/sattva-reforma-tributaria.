@@ -356,10 +356,14 @@ router.get('/operacao/dashboard', async (req, res) => {
     }
     const remoto = supabase.admin();
     const [{ data: empresas, error: erroEmpresas }, { data: projetos, error: erroProjetos }, { data: entregas, error: erroEntregas }, { data: acompanhamentos, error: erroAcomp }, { data: responsaveis, error: erroResponsaveis }, { data: tarefas, error: erroTarefas }] = await Promise.all([
-      remoto.from('empresas').select('id,razao_social,ativo'), remoto.from('projetos').select('*'),
-      remoto.from('projeto_entregas').select('*'), remoto.from('projeto_acompanhamentos').select('*'),
-      remoto.from('projeto_responsaveis').select('*'),
-      remoto.from('projeto_tarefas').select('*'),
+      // A visão geral não é um editor. Projetar as colunas evita transferir
+      // observações, históricos e demais campos grandes seis vezes por carga.
+      remoto.from('empresas').select('id,razao_social,ativo'),
+      remoto.from('projetos').select('id,empresa_id,status,nome_plano,acompanhamento_meses'),
+      remoto.from('projeto_entregas').select('id,projeto_id,chave,titulo,status'),
+      remoto.from('projeto_acompanhamentos').select('projeto_id,competencia,status'),
+      remoto.from('projeto_responsaveis').select('projeto_id,entrega_id,lado,nome,usuario_id'),
+      remoto.from('projeto_tarefas').select('origem_local_id,projeto_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente'),
     ]);
     for (const e of [erroEmpresas, erroProjetos, erroEntregas, erroAcomp, erroResponsaveis, erroTarefas]) if (e) throw e;
     const permitidas = await empresasPermitidasUsuario(req.usuario);
