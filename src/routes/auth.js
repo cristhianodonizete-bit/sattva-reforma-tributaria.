@@ -19,7 +19,10 @@ router.get('/status', (_req, res) => {
       movimentos: db.prepare('SELECT COUNT(*) c FROM movimentos').get().c,
     };
   } catch (_) { /* diagnóstico não impede a autenticação */ }
-  res.json({ ok: true, configurado: supabase.configurado(), exigido: autenticacao.exigida(), cache });
+  // Diagnóstico de implantação: permite confirmar que a instância pública
+  // executa o commit esperado sem expor configuração, dados fiscais ou sessão.
+  res.json({ ok: true, configurado: supabase.configurado(), exigido: autenticacao.exigida(),
+    commit_render: process.env.RENDER_GIT_COMMIT || null, cache });
 });
 
 router.post('/login', async (req, res) => {
