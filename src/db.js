@@ -1451,7 +1451,7 @@ CREATE TABLE IF NOT EXISTS regras_enquadramento (
   id TEXT PRIMARY KEY,
   familia TEXT NOT NULL, subfamilia TEXT, tipo_operacao TEXT, direcao TEXT,
   perfil_fornecedor TEXT, perfil_adquirente TEXT, regime_fornecedor TEXT,
-  regime_adquirente TEXT, ncm TEXT, nbs TEXT, cclasstrib TEXT, cst TEXT, regime_pis_cofins TEXT, cst_pis TEXT, cst_cofins TEXT, pis_percentual REAL, cofins_percentual REAL,
+  regime_adquirente TEXT, ncm TEXT, nbs TEXT, lc116 TEXT, cclasstrib TEXT, cst TEXT, regime_pis_cofins TEXT, cst_pis TEXT, cst_cofins TEXT, pis_percentual REAL, cofins_percentual REAL,
   cfop TEXT, papel_cadeia TEXT, unidade TEXT, condicoes_obrigatorias TEXT,
   condicoes_excludentes TEXT, tratamento_resultante TEXT, formula_id TEXT,
   fundamento_legal TEXT, vigencia_inicio TEXT, vigencia_fim TEXT,
@@ -1460,6 +1460,7 @@ CREATE TABLE IF NOT EXISTS regras_enquadramento (
   criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_regras_enquadramento_busca ON regras_enquadramento(status, familia, ncm, nbs, prioridade DESC);
+CREATE INDEX IF NOT EXISTS ix_regras_enquadramento_lc116_nbs ON regras_enquadramento(status, lc116, nbs, prioridade DESC);
 
 -- Cadastro complementar: fatos materiais por empresa e produto. Não contém
 -- CST, alíquota, regra legal ou resultado de motor; somente evidências que o
