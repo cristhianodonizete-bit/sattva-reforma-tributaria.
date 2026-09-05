@@ -1128,6 +1128,69 @@ CREATE INDEX IF NOT EXISTS ix_motor_autonomia ON motor_resultados(empresa_id, ex
 -- plano de consulta; não modifica nenhuma linha do motor.
 CREATE INDEX IF NOT EXISTS ix_motor_cadeia_ordenacao ON motor_resultados(empresa_id, preco_atual DESC, id);
 
+-- Fila local e derivada do motor incremental. Não é dado fiscal, não é
+-- publicada no Supabase e não substitui motor_resultados: apenas evita ler a
+-- carteira inteira a cada abertura de tela para descobrir o que mudou.
+CREATE TABLE IF NOT EXISTS motor_pendencias (
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  movimento_id INTEGER NOT NULL REFERENCES movimentos(id) ON DELETE CASCADE,
+  motivo TEXT NOT NULL,
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  PRIMARY KEY (empresa_id, movimento_id)
+);
+CREATE INDEX IF NOT EXISTS ix_motor_pendencias_empresa ON motor_pendencias(empresa_id, atualizado_em, movimento_id);
+CREATE TABLE IF NOT EXISTS motor_pendencias_controle (
+  chave TEXT PRIMARY KEY,
+  valor TEXT NOT NULL,
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_movimento_insert AFTER INSERT ON movimentos BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em) VALUES (NEW.empresa_id,NEW.id,'MOVIMENTO_INSERIDO',datetime('now','localtime'))
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_movimento_update AFTER UPDATE ON movimentos BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em) VALUES (NEW.empresa_id,NEW.id,'MOVIMENTO_ALTERADO',datetime('now','localtime'))
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_movimento_delete AFTER DELETE ON movimentos BEGIN
+  DELETE FROM motor_pendencias WHERE empresa_id=OLD.empresa_id AND movimento_id=OLD.id;
+  DELETE FROM motor_resultados WHERE empresa_id=OLD.empresa_id AND movimento_id=OLD.id;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_parceiro_update AFTER UPDATE ON parceiros BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT m.empresa_id,m.id,'PARCEIRO_ALTERADO',datetime('now','localtime') FROM movimentos m
+  WHERE m.empresa_id=NEW.empresa_id AND m.tipo=NEW.tipo AND m.inscr_federal IN (OLD.cnpj,NEW.cnpj)
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_parceiro_insert AFTER INSERT ON parceiros BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT m.empresa_id,m.id,'PARCEIRO_ALTERADO',datetime('now','localtime') FROM movimentos m
+  WHERE m.empresa_id=NEW.empresa_id AND m.tipo=NEW.tipo AND m.inscr_federal=NEW.cnpj
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_parceiro_delete AFTER DELETE ON parceiros BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT m.empresa_id,m.id,'PARCEIRO_ALTERADO',datetime('now','localtime') FROM movimentos m
+  WHERE m.empresa_id=OLD.empresa_id AND m.tipo=OLD.tipo AND m.inscr_federal=OLD.cnpj
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_qsa_insert AFTER INSERT ON empresa_qsa BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT empresa_id,id,'QSA_ALTERADO',datetime('now','localtime') FROM movimentos WHERE empresa_id=NEW.empresa_id AND tipo='cliente'
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_qsa_update AFTER UPDATE ON empresa_qsa BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT empresa_id,id,'QSA_ALTERADO',datetime('now','localtime') FROM movimentos WHERE empresa_id=NEW.empresa_id AND tipo='cliente'
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_qsa_delete AFTER DELETE ON empresa_qsa BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT empresa_id,id,'QSA_ALTERADO',datetime('now','localtime') FROM movimentos WHERE empresa_id=OLD.empresa_id AND tipo='cliente'
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+
 -- Telemetria operacional: estados de autonomia não substituem natureza fiscal.
 CREATE TABLE IF NOT EXISTS telemetria_autonomia_execucoes (
   execucao_id INTEGER PRIMARY KEY REFERENCES motor_execucoes(id) ON DELETE CASCADE,
@@ -1360,6 +1423,39 @@ CREATE TABLE IF NOT EXISTS base_ncm (
   tratamento_efetivo_saida TEXT, natureza_reconstrucao TEXT, percentual_reconstrucao_sugerido REAL, regra_precedencia TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_bncm ON base_ncm(ncm);
+
+-- Os catálogos são criados neste ponto; os gatilhos precisam vir depois para
+-- que uma instalação nova não tente referenciar tabelas ainda inexistentes.
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_base_ncm_update AFTER UPDATE ON base_ncm BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT empresa_id,id,'CATALOGO_NCM_ALTERADO',datetime('now','localtime') FROM movimentos WHERE ncm IN (OLD.ncm,NEW.ncm)
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_base_ncm_insert AFTER INSERT ON base_ncm BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT empresa_id,id,'CATALOGO_NCM_ALTERADO',datetime('now','localtime') FROM movimentos WHERE ncm=NEW.ncm
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_base_ncm_delete AFTER DELETE ON base_ncm BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT empresa_id,id,'CATALOGO_NCM_ALTERADO',datetime('now','localtime') FROM movimentos WHERE ncm=OLD.ncm
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_base_servicos_update AFTER UPDATE ON base_servicos BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT empresa_id,id,'CATALOGO_SERVICO_ALTERADO',datetime('now','localtime') FROM movimentos WHERE nbs IN (OLD.nbs,NEW.nbs)
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_base_servicos_insert AFTER INSERT ON base_servicos BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT empresa_id,id,'CATALOGO_SERVICO_ALTERADO',datetime('now','localtime') FROM movimentos WHERE nbs=NEW.nbs
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
+CREATE TRIGGER IF NOT EXISTS tg_motor_pendente_base_servicos_delete AFTER DELETE ON base_servicos BEGIN
+  INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+  SELECT empresa_id,id,'CATALOGO_SERVICO_ALTERADO',datetime('now','localtime') FROM movimentos WHERE nbs=OLD.nbs
+  ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em;
+END;
 
 CREATE TABLE IF NOT EXISTS base_decisoes (
   empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,

@@ -37,6 +37,23 @@ const versoesAtuais = () => {
   const params = regras.tudo();
   return { regra_version: hash(params), parametro_version: hash(params.regimes || params), catalogo_version: 'catalogo-local-v1', motor_version: MOTOR_VERSION };
 };
+const CHAVE_CONTROLE_PENDENCIAS = 'motor_pendencias_versao';
+const versaoFilaIncremental = () => hash({ motor: MOTOR_VERSION, regras: regras.tudo() });
+
+// Em uma mudança de versão de regra/parâmetro, a invalidação é propositalmente
+// ampla e acontece uma única vez. No uso normal, os gatilhos locais preenchem
+// motor_pendencias somente com movimentos afetados.
+function prepararFilaIncremental() {
+  const versao = versaoFilaIncremental();
+  const anterior = db.prepare('SELECT valor FROM motor_pendencias_controle WHERE chave=?').get(CHAVE_CONTROLE_PENDENCIAS)?.valor;
+  if (anterior === versao) return;
+  db.transaction(() => {
+    db.prepare(`INSERT OR REPLACE INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+      SELECT empresa_id,id,'VERSAO_CALCULO_ALTERADA',datetime('now','localtime') FROM movimentos`).run();
+    db.prepare(`INSERT INTO motor_pendencias_controle(chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))
+      ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor,atualizado_em=excluded.atualizado_em`).run(CHAVE_CONTROLE_PENDENCIAS, versao);
+  })();
+}
 const hashMovimento = (m) => hash({
   id: m.id, valor: m.valor, base_calculo: m.base_calculo, icms: m.icms, icms_st: m.icms_st, ipi: m.ipi,
   pis: m.pis, cofins: m.cofins, iss: m.iss, ncm: m.ncm, nbs: m.nbs, lc116: m.lc116, cfop: m.cfop, cst: m.cst,
@@ -502,6 +519,12 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
   // persistimos o que realmente ficou pendente, priorizado por materialidade.
   // Isso permite operar por exceção, sem revisão manual de toda a carteira.
   excecoesMotor.sincronizar(empresaId, id);
+  // Só remove a pendência depois de materializar e sincronizar todas as
+  // consequências da execução. Em qualquer falha anterior, ela permanece.
+  if (opcoes.incremental) {
+    const idsProcessados = linhas.map((x) => x.movimento_id).filter(Boolean);
+    if (idsProcessados.length) db.prepare(`DELETE FROM motor_pendencias WHERE empresa_id=? AND movimento_id IN (${idsProcessados.map(() => '?').join(',')})`).run(empresaId, ...idsProcessados);
+  } else db.prepare('DELETE FROM motor_pendencias WHERE empresa_id=?').run(empresaId);
   // Importações podem publicar em segundo plano. Fluxos que confirmam uma
   // condição determinante ou são acionados pelo operador desabilitam este
   // caminho e aguardam uma publicação explícita antes de responder.
@@ -603,26 +626,10 @@ function resultadoMaterializado(empresa, ano) {
 
 /** Identifica apenas operações cuja entrada ou dependência mudou. */
 function pendentesIncrementais(empresaId, opcoes = {}) {
-  const todos = db.prepare(`SELECT m.*, p.regime AS regime_cadastro, p.perfil_economico AS perfil_cadastro,
-    p.descricao AS nome_cadastro, p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro
-    FROM movimentos m LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo AND p.cnpj=m.inscr_federal
-    WHERE m.empresa_id=?`).all(empresaId);
-  const atuais = new Map(db.prepare(`SELECT movimento_id,movimento_hash,regra_version,catalogo_version,parceiro_version,parametro_version,motor_version
-    FROM motor_resultados WHERE empresa_id=?`).all(empresaId).map((x) => [x.movimento_id, x]));
-  const revisoesAtivas = revisaoBeneficiosFiscais.porMovimento(empresaId, todos.filter((m) => m.tipo === 'cliente').map((m) => m.id));
-  return todos.filter((m) => {
-    const anterior = atuais.get(m.id);
-    const movimentoComRevisao = { ...m, revisaoBeneficio: revisoesAtivas.get(m.id) || null };
-    const versoes = versoesDaOperacao(movimentoComRevisao, m);
-    if (!anterior) return true;
-    if (opcoes.forcar) return true;
-    return anterior.movimento_hash !== hashMovimento(movimentoComRevisao)
-      || anterior.regra_version !== versoes.regra_version
-      || anterior.catalogo_version !== versoes.catalogo_version
-      || anterior.parceiro_version !== versoes.parceiro_version
-      || anterior.parametro_version !== versoes.parametro_version
-      || anterior.motor_version !== versoes.motor_version;
-  }).map((m) => m.id);
+  prepararFilaIncremental();
+  if (opcoes.forcar) return db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(empresaId).map((m) => m.id);
+  return db.prepare('SELECT movimento_id FROM motor_pendencias WHERE empresa_id=? ORDER BY atualizado_em,movimento_id').all(empresaId)
+    .map((x) => Number(x.movimento_id)).filter(Boolean);
 }
 
 /**
@@ -630,12 +637,9 @@ function pendentesIncrementais(empresaId, opcoes = {}) {
  * lendo todas as linhas vigentes de motor_resultados, inclusive as intactas.
  */
 function reprocessarIncremental(empresaId, opcoes = {}) {
-  // Movimentos removidos não podem permanecer na fotografia materializada.
-  // Isso é uma invalidação incremental também: remove somente órfãos desta
-  // empresa e preserva todos os resultados ainda vigentes.
-  const removidos = db.prepare(`DELETE FROM motor_resultados
-    WHERE empresa_id=? AND movimento_id NOT IN (SELECT id FROM movimentos WHERE empresa_id=?)`)
-    .run(empresaId, empresaId).changes;
+  // Exclusões são removidas pelo gatilho da própria tabela movimentos. Isso
+  // elimina a varredura NOT IN sobre toda a carteira a cada leitura.
+  const removidos = 0;
   const movimentoIds = opcoes.movimentoIds || pendentesIncrementais(empresaId, opcoes);
   if (!movimentoIds.length) return { empresa_id: empresaId, reprocessados: 0, removidos, status: removidos ? 'CONCLUIDO' : 'SEM_ALTERACOES' };
   const resultado = executar(empresaId, { ...opcoes, movimentoIds, ano: Number(opcoes.ano) || 2027 });
