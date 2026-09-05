@@ -1,0 +1,11 @@
+const assert=require('assert'),fs=require('fs'),os=require('os'),path=require('path');
+process.env.SATTVA_DADOS=fs.mkdtempSync(path.join(os.tmpdir(),'sattva-e2e-sombra-'));process.env.PIS_COFINS_CONDICIONAL_SHADOW='true';
+const db=require('../src/db'),id=require('../src/services/identidadeProduto'),cfc=require('../src/services/cadastroFiscalComplementar'),sombra=require('../src/services/motorCondicionalPisCofins');
+const e=db.prepare("insert into empresas(cnpj,razao_social) values('33333333000133','E2E sombra')").run().lastInsertRowid;
+const p=id.resolver({empresa_id:Number(e),tipo_origem:'XML_CPROD',codigo_origem:'TESTE',ncm:'99999999',descricao:'Teste'}).produto_empresa_id;
+db.prepare("insert into regras_enquadramento(id,familia,ncm,condicoes_obrigatorias,tratamento_resultante,status,prioridade) values(?,?,?,?,?,?,?)").run('T-REV','TESTE','99999999',JSON.stringify([{fato:'revendedor',operador:'VERDADEIRO'}]),'TESTE_APLICADO','ATIVA',9);
+const mov={id:1,empresa_id:Number(e),produto_empresa_id:p,codigo_produto:'DIVERGENTE',ncm:'99999999',data_emissao:'2026-05-15'};const oficial={ibs:10,cbs:5};
+let r=sombra.executarSombraAposOficial({movimento:mov,resultado_oficial:oficial});assert.equal(r.avaliacao.status,'INDETERMINADA');let pend=db.prepare('select * from pendencias_fiscais_produtos').get();assert.equal(pend.produto_empresa_id,p);assert.equal(db.prepare('select count(*) c from pendencias_fiscais_produtos').get().c,1);
+r=sombra.executarSombraAposOficial({movimento:mov,resultado_oficial:oficial});assert.equal(db.prepare('select count(*) c from pendencias_fiscais_produtos').get().c,1);assert.deepEqual(r.resultado_oficial,oficial);
+cfc.responderPendencia(pend.id,'SIM',{usuario_id:'e2e'});r=sombra.executarSombraAposOficial({movimento:mov,resultado_oficial:oficial});assert.equal(r.avaliacao.status,'APLICAVEL');assert.deepEqual(r.resultado_oficial,oficial);assert.equal(db.prepare('select count(*) c from motor_condicional_sombra').get().c,3);
+console.log('e2e-motor-condicional-sombra: regra, pendência, deduplicação, resposta e oficial preservado: OK');db.close();fs.rmSync(process.env.SATTVA_DADOS,{recursive:true,force:true});

@@ -1,0 +1,31 @@
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
+const { execFileSync } = require('child_process');
+
+const raiz = path.resolve(__dirname, '..');
+execFileSync(process.execPath, [path.join(raiz, 'scripts', 'processar_nbs_lc116.js')], { stdio: 'inherit' });
+const ler = (nome) => JSON.parse(fs.readFileSync(path.join(raiz, 'outputs', nome), 'utf8'));
+const status = ler('nbs_lc116_status_final.json');
+const regras = ler('nbs_lc116_regras_modeladas.json');
+const fatos = ler('nbs_lc116_catalogo_fatos.json');
+const reconciliacao = ler('nbs_lc116_reconciliacao_existentes.json');
+const saneamento = ler('nbs_lc116_saneamento_120_rascunhos.json');
+
+assert.equal(status.fonte.linhas_originais, 2635);
+assert.equal(status.pares_lc116_nbs_distintos, 899);
+assert.equal(status.regra_condicional, 188);
+assert.equal(status.regra_condicional_reconciliada, 188);
+assert.equal(status.lacunas_indevidas, 0);
+assert.equal(regras.length, 302);
+assert.equal(reconciliacao.length, 899);
+assert.equal(saneamento.length, 120);
+assert.equal(saneamento.filter((item) => item.decisao === 'RASCUNHO_OBSOLETO').length, 6);
+assert.equal(saneamento.filter((item) => item.decisao === 'RASCUNHO_VALIDO_APENAS_COM_CONDICAO').length, 114);
+assert.ok(saneamento.every((item) => item.status_final === 'OBSOLETO_INATIVO_NAO_PUBLICAVEL' || item.status_final === 'RASCUNHO_LOCAL_CONDICIONAL_NAO_PUBLICADO'));
+assert.equal(status.regra_geral_residual_final + status.regra_especifica_direta_final + status.regra_condicional_final, 899);
+assert.equal(status.rascunhos_sem_destino, 0);
+assert.ok(fatos.length > 0);
+assert.ok(fatos.every((fato) => fato.existente_no_catalogo));
+assert.ok(regras.every((regra) => regra.estado_publicacao === 'RASCUNHO_LOCAL_NAO_PUBLICADO' || regra.estado_publicacao === 'RASCUNHO_LOCAL_CONDICIONAL_NAO_PUBLICADO'));
+console.log('nbs-lc116-modelagem: reconciliação local aprovada');

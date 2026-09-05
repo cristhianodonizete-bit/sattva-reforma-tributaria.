@@ -1,0 +1,19 @@
+{
+  "total_condicionais": 370,
+  "total_inicialmente_modelados": 269,
+  "total_inicialmente_bloqueados": 101,
+  "registros_resolvidos_nesta_execucao": 101,
+  "registros_ainda_bloqueados": 0,
+  "total_modelados_final": 370,
+  "total_bloqueados_final": 0,
+  "percentual_universo_resolvido": "100%",
+  "familias_juridicas_finais": 20,
+  "novas_familias_criadas": 9,
+  "regras_tecnicas_total": 370,
+  "bloqueios_juridicos_reais": [],
+  "regras_ativas_producao": 0,
+  "alteracoes_banco_produtivo": "NENHUMA",
+  "alteracoes_supabase": "NENHUMA",
+  "migration_aplicada_producao": "NAO",
+  "deploy_producao_liberado": "NAO"
+}

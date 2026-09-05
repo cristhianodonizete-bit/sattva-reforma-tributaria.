@@ -117,7 +117,7 @@ function comparar(db, empresaId, opcoes = {}) {
   const cenarios = REGIMES.map((regime) => {
     const p = parametros.get(regime.chave), componentes = {}, pendencias = [];
     if (receita === null) pendencias.push('Receita fiscal por período não disponível.');
-    if (regime.chave !== 'simples_regime_regular' && p?.pis_cofins !== null && p?.pis_cofins !== undefined && receita !== null) componentes.pis_cofins = { valor: receita * n(p.pis_cofins), natureza: 'CALCULADO', regra: `param_regimes.${regime.chave}` };
+    if (regime.chave !== 'simples_regime_regular' && p?.pis_cofins !== null && p?.pis_cofins !== undefined && receita !== null) componentes.pis_cofins = { valor: require('./percentual').aplicarPercentual(receita, p.pis_cofins), natureza: 'CALCULADO', regra: `param_regimes.${regime.chave}` };
     else if (!['simples_nacional', 'simples_regime_regular'].includes(regime.chave)) pendencias.push('Regra parametrizada de PIS/Cofins não disponível para este regime.');
     const irpjCsll = ['lucro_real', 'lucro_presumido'].includes(regime.chave) ? calcularIrpjCsll(parametrosIrpjCsll, regime.chave, { receita, margem, receitasPorNatureza: segregacao.valores, receitaIndeterminada: segregacao.indeterminada, meses }) : null;
     if (irpjCsll?.valor !== null && irpjCsll?.valor !== undefined) componentes.irpj_csll = { valor: irpjCsll.valor, natureza: irpjCsll.natureza, regras: irpjCsll.regras.map((x) => ({ tributo: x.tributo, natureza_receita: x.natureza_receita, versao: x.versao, fonte: x.fonte, fundamento: x.fundamento })), detalhes: irpjCsll.detalhes || null };

@@ -77,10 +77,18 @@ r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', catalo
 assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 0);
 assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'ALIQUOTA_ZERO');
 
+// cClassTrib 200003 e redução CBS são regras da reforma. Sozinhos, não
+// comprovam alíquota zero de PIS/COFINS vigente: a carga atual continua a
+// seguir a regra atual versionada do regime.
+r = reconstruir({ valor: 100, tipo: 'mercadoria', regime: 'lucro_presumido', regra_geral_regime_confirmada: true,
+  catalogo_fiscal: { cst: '200', cclasstrib: '200003', reducao_cbs: 1, tratamento_efetivo_saida: 'ALÍQUOTA ZERO' } });
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 3.65);
+assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'REGRA_GERAL_REGIME');
+
 // Tratamento monofásico do catálogo permanece superior à regra de regime e
 // ao valor informado pelo XML.
 r = reconstruir({ valor: 100, tipo: 'mercadoria', regime: 'lucro_real', pis: 1.65, cofins: 7.6,
-  catalogo_fiscal: { tratamento_pis_cofins: 'MONOFÁSICO', percentual_reconstrucao_sugerido: 0.125 } });
+  catalogo_fiscal: { tratamento_pis_cofins: 'MONOFÁSICO', percentual_reconstrucao_sugerido: 12.5 } });
 assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 12.5);
 assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'MONOFASICO_PREMISSA');
 

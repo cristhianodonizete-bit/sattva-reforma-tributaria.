@@ -20,14 +20,18 @@
  */
 const XLSX = require('xlsx');
 const db = require('../db');
+const { numeroPontosPercentuais } = require('./percentual');
 
 const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
 const txt = (v) => String(v == null ? '' : v).trim();
-const perc = (v) => {
+// PIS/Cofins usa pontos percentuais. Reduções IBS/CBS pertencem ao contrato
+// anterior de fatores e não participam desta migração.
+const percPisCofins = (v) => numeroPontosPercentuais(v);
+const percFatorLegado = (v) => {
   if (v == null || v === '') return null;
   const n = Number(String(v).replace(',', '.'));
   if (!Number.isFinite(n)) return null;
-  return n > 1 ? n / 100 : n;   // aceita 60 ou 0,60
+  return n > 1 ? n / 100 : n;
 };
 
 /** LC 116 sempre em 4 dígitos sem separador: "01.01" e "010101" viram "0101" */
@@ -109,14 +113,14 @@ function importarServicos(buffer, opcoes = {}) {
       nome_cclasstrib: txt(acha(l, ['nome cClassTrib', 'nome classtrib', 'classificacao'])),
       operacao_pis_cofins: txt(acha(l, ['Operação atual PIS/COFINS'])),
       cst_pis_atual: txt(acha(l, ['CST PIS atual'])), cst_cofins_atual: txt(acha(l, ['CST COFINS atual'])),
-      pis_percentual: perc(acha(l, ['PIS % atual'])), cofins_percentual: perc(acha(l, ['COFINS % atual'])),
+      pis_percentual: percPisCofins(acha(l, ['PIS % atual'])), cofins_percentual: percPisCofins(acha(l, ['COFINS % atual'])),
       cumulatividade_obrigatoria: txt(acha(l, ['Cumulatividade obrigatória?'])), grau_determinacao: txt(acha(l, ['Grau de determinação'])),
       hipotese_legal_cumulativa: txt(acha(l, ['Hipótese legal cumulativa'])),
-      pis_cumulativo_percentual: perc(acha(l, ['PIS cumulativo %'])), cofins_cumulativo_percentual: perc(acha(l, ['COFINS cumulativa %'])), total_cumulativo_percentual: perc(acha(l, ['Total cumulativo %'])),
+      pis_cumulativo_percentual: percPisCofins(acha(l, ['PIS cumulativo %'])), cofins_cumulativo_percentual: percPisCofins(acha(l, ['COFINS cumulativa %'])), total_cumulativo_percentual: percPisCofins(acha(l, ['Total cumulativo %'])),
       fundamento_cumulatividade: txt(acha(l, ['Fundamento legal cumulatividade'])), condicao_cumulatividade: txt(acha(l, ['Condição / observação'])),
       regime_pis_cofins_receita: txt(acha(l, ['Regime PIS/COFINS da receita'])), tratamento_pis_cofins: txt(acha(l, ['Tratamento específico do serviço'])),
       papel_na_cadeia_necessario: txt(acha(l, ['Papel na cadeia necessário?'])), tratamento_efetivo_saida: txt(acha(l, ['Tratamento efetivo da saída'])),
-      natureza_reconstrucao: txt(acha(l, ['Natureza para reconstrução'])), percentual_reconstrucao_sugerido: perc(acha(l, ['Percentual reconstrução sugerido'])), regra_precedencia: txt(acha(l, ['Regra de precedência / observação'])),
+      natureza_reconstrucao: txt(acha(l, ['Natureza para reconstrução'])), percentual_reconstrucao_sugerido: percPisCofins(acha(l, ['Percentual reconstrução sugerido'])), regra_precedencia: txt(acha(l, ['Regra de precedência / observação'])),
     });
   }
   if (!registros.length) throw new Error(`Nenhum registro reconhecido na aba "${aba}". Confira se ela tem as colunas Item LC 116 e NBS.`);
@@ -148,8 +152,8 @@ function importarNcm(buffer, opcoes = {}) {
   for (const l of linhas) {
     const ncm = normNcm(acha(l, ['NCM', 'codigo ncm', 'ncm normalizado']));
     if (!ncm || ncm === '00000000') { ignorados++; continue; }
-    const rIbs = perc(acha(l, ['Redução IBS (%)', 'reducao ibs']));
-    const rCbs = perc(acha(l, ['Redução CBS (%)', 'reducao cbs']));
+    const rIbs = percFatorLegado(acha(l, ['Redução IBS (%)', 'reducao ibs']));
+    const rCbs = percFatorLegado(acha(l, ['Redução CBS (%)', 'reducao cbs']));
     registros.push({
       ncm,
       descricao: txt(acha(l, ['Descrição NCM', 'descricao ncm', 'descricao'])),
@@ -163,11 +167,11 @@ function importarNcm(buffer, opcoes = {}) {
       fonte: txt(acha(l, ['Fonte'])),
       operacao_pis_cofins: txt(acha(l, ['Operação atual PIS/COFINS'])),
       cst_pis_atual: txt(acha(l, ['CST PIS atual'])), cst_cofins_atual: txt(acha(l, ['CST COFINS atual'])),
-      pis_percentual: perc(acha(l, ['PIS % atual'])), cofins_percentual: perc(acha(l, ['COFINS % atual'])),
+      pis_percentual: percPisCofins(acha(l, ['PIS % atual'])), cofins_percentual: percPisCofins(acha(l, ['COFINS % atual'])),
       regime_pis_cofins_receita: txt(acha(l, ['Regime PIS/COFINS da receita'])), tratamento_pis_cofins: txt(acha(l, ['Tratamento específico do produto'])),
       papel_na_cadeia_necessario: txt(acha(l, ['Papel na cadeia necessário?'])), papel_na_cadeia: txt(acha(l, ['Papel na cadeia'])),
       tratamento_efetivo_saida: txt(acha(l, ['Tratamento efetivo da saída'])), natureza_reconstrucao: txt(acha(l, ['Natureza para reconstrução'])),
-      percentual_reconstrucao_sugerido: perc(acha(l, ['Percentual reconstrução sugerido'])), regra_precedencia: txt(acha(l, ['Regra de precedência / observação'])),
+      percentual_reconstrucao_sugerido: percPisCofins(acha(l, ['Percentual reconstrução sugerido'])), regra_precedencia: txt(acha(l, ['Regra de precedência / observação'])),
     });
   }
   if (!registros.length) throw new Error(`Nenhum NCM válido reconhecido na aba "${aba}".`);

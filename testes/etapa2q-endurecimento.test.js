@@ -16,7 +16,7 @@ assert.ok(['SEM_CATALOGO', 'MULTIPLOS_CANDIDATOS'].includes(rec.memoriaPisCofins
 assert.equal(rec.status, 'parcialmente_determinada');
 
 // Documento continua tendo precedência e não é bloqueado pelo catálogo.
-const documento = reconstruir({ valor: 1000, tipo: 'mercadoria', regime: 'lucro_presumido', pis: 6.5, cofins: 30, pis_cofins_documentado: true });
+const documento = reconstruir({ valor: 1000, tipo: 'mercadoria', regime: 'lucro_presumido', pis: 6.5, cofins: 30, pis_cofins_documentado: true, usar_documento_pis_cofins: true });
 assert.equal(documento.memoriaPisCofins.carga_atual_pis_cofins_origem, 'DOCUMENTO');
 assert.equal(documento.memoriaPisCofins.carga_atual_pis_cofins_valor, 36.5);
 

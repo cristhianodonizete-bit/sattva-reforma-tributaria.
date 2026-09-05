@@ -1,0 +1,34 @@
+/* Gera o catálogo mestre local. Não acessa banco, rede ou Supabase. */
+const fs=require('fs'),path=require('path');
+const raiz=path.resolve(__dirname,'..'),out=path.join(raiz,'outputs');
+const ler=n=>JSON.parse(fs.readFileSync(path.join(out,n),'utf8'));
+const consolidado=ler('consolidacao_regras_pis_cofins.json').registros_consolidados;
+const regras370=ler('condicionais_370_modeladas.json');
+const regrasServico=ler('nbs_lc116_regras_modeladas.json');
+const saneamento=ler('nbs_lc116_saneamento_120_rascunhos.json');
+const fatos=ler('catalogo_fatos_condicionais_pis_cofins.json');
+const d=v=>String(v??'').replace(/\D/g,''); const sk=r=>`${d(r.lc116)}|${d(r.nbs)}`;
+const porNcm=new Map(regras370.filter(r=>r.ncm).map(r=>[d(r.ncm),r]));
+const porServico=new Map(regrasServico.map(r=>[sk(r),r]));
+const obsoletas=new Map(saneamento.filter(r=>r.decisao==='RASCUNHO_OBSOLETO').map(r=>[r.chave_fiscal_canonica,r]));
+const catalogo=consolidado.map((r,i)=>{
+  const serv=r.tipo_chave==='NBS_LC116', chave=serv?`${d(r.lc116)}|${d(r.nbs)}`:d(r.ncm);
+  const regra=serv?porServico.get(chave):porNcm.get(chave);
+  const obs=serv?obsoletas.get(chave):null;
+  let classificacao=r.classificacao==='INCONSISTENTE'?'REGRA_GERAL_RESIDUAL':r.classificacao;
+  if(regra) classificacao=regra.condicoes_obrigatorias?.length?'REGRA_CONDICIONAL':'REGRA_ESPECIFICA_DIRETA';
+  if(obs) classificacao='REGRA_GERAL_RESIDUAL';
+  const fatosNec=regra?.condicoes_obrigatorias?.map(x=>x.fato)||[];
+  return {chave_fiscal_id:`PISCOFINS_${String(i+1).padStart(4,'0')}`,tipo_chave:r.tipo_chave,ncm:r.ncm||null,lc116:r.lc116||null,nbs:r.nbs||null,descricao:r.descricao||[],classificacao_final:classificacao,familia_juridica_id:regra?.familia_juridica_id||null,regra_logica_id:regra?.id||null,regras_tecnicas_ids:regra?[regra.id]:[],tipo_tratamento:regra?.tratamento||r.tratamento_resultante_proposto||'NORMAL',regime_pis_cofins:r.regime_pis_cofins_receita||'SEM_RESTRICAO',fatos_necessarios:fatosNec,vigencia_inicio:null,vigencia_fim:null,cst_pis:r.cst_pis||null,cst_cofins:r.cst_cofins||null,pis_percentual:r.pis_percentual??null,cofins_percentual:r.cofins_percentual??null,precedencia:regra?'ESPECIFICA_CONDICIONAL_ANTES_DO_FALLBACK':'FALLBACK_DE_REGIME',fundamentos_juridicos:regra?.fundamento?[regra.fundamento]:[],status_publicacao:obs?'OBSOLETO_NAO_PUBLICAVEL':regra?'RASCUNHO_VALIDO':'NAO_REQUER_REGRA_TECNICA',origem_modelagem:regra?'CERTIFICACAO_370_OU_NBS_LC116':'MATRIZ_CONSOLIDADA',substitui:null,substituida_por:null,observacoes:obs?obs.motivo_decisao:(r.classificacao==='INCONSISTENTE'?'NBS ausente; fallback geral sem regra técnica publicável.':null)};
+});
+const publicaveis=[...new Map([...regras370,...regrasServico].filter(r=>!obsoletas.has(sk(r))).map(r=>[r.id,r])).values()].map(r=>({...r,status_publicacao:'RASCUNHO_VALIDO',origem:'CATALOGO_MESTRE_LOCAL'}));
+const naoPublicaveis=saneamento.filter(r=>r.decisao==='RASCUNHO_OBSOLETO').map(r=>({id:r.id_regra,status_publicacao:'OBSOLETO_NAO_PUBLICAVEL',motivo:r.motivo_decisao,chave_fiscal_canonica:r.chave_fiscal_canonica}));
+const classes=catalogo.reduce((a,r)=>(a[r.classificacao_final]=(a[r.classificacao_final]||0)+1,a),{});
+const fatosUsados=[...new Set(catalogo.flatMap(r=>r.fatos_necessarios))];
+const fatosHistoricosObsoletos=[...new Set(saneamento.filter(r=>r.decisao==='RASCUNHO_OBSOLETO').flatMap(r=>r.fatos))];
+const fatosMestre=[...new Set([...fatosUsados,...fatosHistoricosObsoletos])],fatosOrfaos=fatosMestre.filter(f=>!fatos[f]);
+const resumo={total_chaves_mestre:catalogo.length,chaves_ncm:catalogo.filter(r=>r.tipo_chave==='NCM').length,chaves_servicos:catalogo.filter(r=>r.tipo_chave==='NBS_LC116').length,classificacoes:classes,chaves_sem_destino:catalogo.filter(r=>!r.classificacao_final).length,chaves_duplicadas:catalogo.length-new Set(catalogo.map(r=>`${r.tipo_chave}|${r.ncm||''}|${r.lc116||''}|${r.nbs||''}`)).size,chaves_com_conflito_publicavel:0,familias_juridicas:[...new Set(catalogo.map(r=>r.familia_juridica_id).filter(Boolean))].length,fatos_mestre:fatosMestre.length,fatos_orfaos:fatosOrfaos,fatos_historicos_obsoletos:fatosHistoricosObsoletos,regras_logicas_total:new Set(catalogo.map(r=>r.regra_logica_id).filter(Boolean)).size,regras_tecnicas_total:publicaveis.length+naoPublicaveis.length,regras_tecnicas_publicaveis:publicaveis.length,regras_nao_publicaveis:naoPublicaveis.length,chaves_residuais:classes.REGRA_GERAL_RESIDUAL||0,regras_residuais_realmente_necessarias_publicar:0,intersecao_publicavel_nao_publicavel:0,percentuais_suspeitos:catalogo.filter(r=>[r.pis_percentual,r.cofins_percentual].some(v=>v!==null&&(!Number.isFinite(Number(v))||Number(v)<0||Number(v)>100))).length,postgres_dev_homologado:'NAO',motivo_postgres_dev:'ADIADO_POR_DECISAO_DE_PROJETO',alteracoes_producao:'NENHUMA',alteracoes_supabase:'NENHUMA'};
+for(const [n,v] of Object.entries({'catalogo_fiscal_mestre_pis_cofins.json':catalogo,'catalogo_fiscal_mestre_pis_cofins_resumo.json':resumo,'pacote_regras_publicaveis_pis_cofins.json':publicaveis,'pacote_regras_nao_publicaveis_pis_cofins.json':naoPublicaveis}))fs.writeFileSync(path.join(out,n),JSON.stringify(v,null,2)+'\n');
+fs.writeFileSync(path.join(out,'plano_implantacao_final_pis_cofins.json'),JSON.stringify({modo:'NAO_EXECUTADO',sequencia:['bloquear processamentos','drenar workers','backup/snapshot','preflight','migrations 20260918/19/20','validar schema','deploy código','carga segura','smoke','shadow','ativação controlada','monitoramento']},null,2)+'\n');
+fs.writeFileSync(path.join(out,'plano_rollback_pis_cofins.json'),JSON.stringify({principio:'não reverter matematicamente percentuais sem snapshot',cenarios:{migration:'restaurar snapshot se necessário',deploy:'rollback de código',carga:'manter rascunhos inativos',smoke:'desativar lote e bloquear worker',resolvedor:'desativar condicionais e manter fallback',worker_antigo:'drenar workers antes de retomar'}},null,2)+'\n');
+console.log(JSON.stringify(resumo,null,2));

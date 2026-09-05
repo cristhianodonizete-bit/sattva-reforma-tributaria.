@@ -1,0 +1,125 @@
+[
+  {
+    "id_proposto": "RASCUNHO_NCM_DRAXLC",
+    "ncm": "84701000",
+    "descricao": [
+      "Calculadoras eletrônicas capazes de funcionar sem fonte externa de energia elétrica e máquinas de bolso com função de cálculo incorporada que permitam gravar, reproduzir e visualizar informações"
+    ],
+    "familia_legal": "FAMILIA_LEI_10865_ART28_ACESSIBILIDADE",
+    "fundamento_legal_original": "Lei 10.865/2004, art. 28, inciso XXIII",
+    "lei": "Lei 10.865/2004",
+    "artigo": "28",
+    "inciso": "XXIII",
+    "alinea": null,
+    "tipo_correspondencia": "CODIGO_EXATO",
+    "texto_legal_resumido": "Benefício de PIS/Cofins previsto para produto de acessibilidade listado no art. 28.",
+    "consta_anexo_I_lc214": false,
+    "item_anexo_I": null,
+    "consta_anexo_XV_lc214": false,
+    "item_anexo_XV": null,
+    "requisito_material": "produto_possui_sintetizador_voz",
+    "condicoes_obrigatorias": [
+      "produto_possui_sintetizador_voz"
+    ],
+    "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO; CST PIS 06; CST Cofins 06; PIS 0%; Cofins 0%.",
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-214-16-janeiro-2025-796905-normaatualizada-pl.html",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+    ],
+    "impacto_lc224": "INDETERMINADO",
+    "fundamento_lc224": "Lei 10.865/2004, art. 28, XXIII — Ex 01; NCM isolado não prova o requisito material.",
+    "tratamento_desde_2026_04_01": "CONDICIONAL — depende do fato estruturado.",
+    "cst_pis": null,
+    "cst_cofins": null,
+    "pis_cumulativo": null,
+    "cofins_cumulativo": null,
+    "pis_nao_cumulativo": null,
+    "cofins_nao_cumulativo": null,
+    "exige_inf_ad_fisco_lc224": null,
+    "status_validacao": "RECLASSIFICADA_COMO_CONDICIONAL"
+  },
+  {
+    "id_proposto": "RASCUNHO_NCM_1CHXJO8",
+    "ncm": "84716053",
+    "descricao": [
+      "Indicadores ou apontadores (mouse e track-ball, por exemplo)"
+    ],
+    "familia_legal": "FAMILIA_LEI_10865_ART28_ACESSIBILIDADE",
+    "fundamento_legal_original": "Lei 10.865/2004, art. 28, inciso XXV ou XXXI",
+    "lei": "Lei 10.865/2004",
+    "artigo": "28",
+    "inciso": "XXV ou XXXI",
+    "alinea": null,
+    "tipo_correspondencia": "CODIGO_EXATO",
+    "texto_legal_resumido": "Benefício de PIS/Cofins previsto para produto de acessibilidade listado no art. 28.",
+    "consta_anexo_I_lc214": false,
+    "item_anexo_I": null,
+    "consta_anexo_XV_lc214": false,
+    "item_anexo_XV": null,
+    "requisito_material": "adaptado_para_pessoa_com_deficiencia",
+    "condicoes_obrigatorias": [
+      "adaptado_para_pessoa_com_deficiencia"
+    ],
+    "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO; CST PIS 06; CST Cofins 06; PIS 0%; Cofins 0%.",
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-214-16-janeiro-2025-796905-normaatualizada-pl.html",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+    ],
+    "impacto_lc224": "INDETERMINADO",
+    "fundamento_lc224": "Lei 10.865/2004, art. 28, XXV ou XXXI — hipóteses materiais distintas; NCM isolado não prova o requisito material.",
+    "tratamento_desde_2026_04_01": "CONDICIONAL — depende do fato estruturado.",
+    "cst_pis": null,
+    "cst_cofins": null,
+    "pis_cumulativo": null,
+    "cofins_cumulativo": null,
+    "pis_nao_cumulativo": null,
+    "cofins_nao_cumulativo": null,
+    "exige_inf_ad_fisco_lc224": null,
+    "status_validacao": "RECLASSIFICADA_COMO_CONDICIONAL"
+  },
+  {
+    "id_proposto": "RASCUNHO_NCM_KCAZ2I",
+    "ncm": "84719014",
+    "descricao": [
+      "Digitalizadores de imagens (scanners)"
+    ],
+    "familia_legal": "FAMILIA_LEI_10865_ART28_ACESSIBILIDADE",
+    "fundamento_legal_original": "Lei 10.865/2004, art. 28, inciso XXVII",
+    "lei": "Lei 10.865/2004",
+    "artigo": "28",
+    "inciso": "XXVII",
+    "alinea": null,
+    "tipo_correspondencia": "CODIGO_EXATO",
+    "texto_legal_resumido": "Benefício de PIS/Cofins previsto para produto de acessibilidade listado no art. 28.",
+    "consta_anexo_I_lc214": false,
+    "item_anexo_I": null,
+    "consta_anexo_XV_lc214": false,
+    "item_anexo_XV": null,
+    "requisito_material": "produto_possui_sintetizador_voz",
+    "condicoes_obrigatorias": [
+      "produto_possui_sintetizador_voz"
+    ],
+    "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO; CST PIS 06; CST Cofins 06; PIS 0%; Cofins 0%.",
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-214-16-janeiro-2025-796905-normaatualizada-pl.html",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+    ],
+    "impacto_lc224": "INDETERMINADO",
+    "fundamento_lc224": "Lei 10.865/2004, art. 28, XXVII — Ex 01; NCM isolado não prova o requisito material.",
+    "tratamento_desde_2026_04_01": "CONDICIONAL — depende do fato estruturado.",
+    "cst_pis": null,
+    "cst_cofins": null,
+    "pis_cumulativo": null,
+    "cofins_cumulativo": null,
+    "pis_nao_cumulativo": null,
+    "cofins_nao_cumulativo": null,
+    "exige_inf_ad_fisco_lc224": null,
+    "status_validacao": "RECLASSIFICADA_COMO_CONDICIONAL"
+  }
+]

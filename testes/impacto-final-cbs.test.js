@@ -8,7 +8,7 @@ const cfg = { anos: [2027], parametrosIVA: {
 const r2 = (n) => Math.round(n * 100) / 100;
 
 const vendas = analisarCadeia([
-  { valor: 1000, nome: 'Cliente regular', regime: 'lucro_real', referenciaFiscal: { pis_cofins: 0.0365 } },
+  { valor: 1000, nome: 'Cliente regular', regime: 'lucro_real', referenciaFiscal: { pis_cofins: 3.65 } },
 ], { ...cfg, lado: 'cliente', regimeEmpresa: 'lucro_real' });
 const compras = analisarCadeia([
   { valor: 500, nome: 'Fornecedor regular', regime: 'lucro_real', pis: 0, cofins: 0, iss: 0 },

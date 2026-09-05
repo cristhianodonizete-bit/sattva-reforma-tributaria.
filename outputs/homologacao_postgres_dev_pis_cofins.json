@@ -1,0 +1,48 @@
+{
+  "ambiente_postgres_dev_identificado": "NAO",
+  "migrations_pendentes": [
+    "20260918_percentuais_pontos_percentuais_pis_cofins.sql",
+    "20260919_regime_pis_cofins_regras_enquadramento.sql",
+    "20260920_fatos_assistivos_cadastro_fiscal.sql"
+  ],
+  "ordem_migrations_valida": "SIM",
+  "snapshot_dev_realizado": "NAO",
+  "migrations_aplicadas_dev": [],
+  "migrations_falharam_dev": [],
+  "migration_percentuais_postgres_validada": "NAO",
+  "resultado_economico_preservado": "NAO",
+  "risco_conversao_dupla": "NAO",
+  "tipos_percentuais_postgres_ok": "NAO",
+  "regras_esperadas": 370,
+  "regras_carregadas_dev": 0,
+  "divergencias_arquivo_banco": "NAO_EXECUTADO",
+  "carga_idempotente": "NAO_EXECUTADA",
+  "fatos_esperados": 21,
+  "fatos_validos_dev": 0,
+  "fatos_orfaos": "NAO_EXECUTADO",
+  "regras_com_fato_orfao": "NAO_EXECUTADO",
+  "e2e_postgres_executados": 0,
+  "e2e_postgres_aprovados": 0,
+  "e2e_postgres_falharam": 0,
+  "rls_validada": "NAO",
+  "indices_criticos_ok": "NAO_EXECUTADO",
+  "workers_podem_ser_drenados": "SIM",
+  "worker_antigo_pos_migration_possivel": "SIM",
+  "janela_codigo_antigo_banco_novo": "POSSIVEL",
+  "smoke_pos_deploy_pronto": "SIM",
+  "plano_rollback_pronto": "SIM",
+  "shadow_postgres_dev": "NAO_EXECUTADO",
+  "regressao_completa_dev": "NAO_EXECUTADA",
+  "postgres_dev_homologado": "NAO",
+  "deploy_producao_tecnicamente_liberavel": "NAO",
+  "alteracoes_producao": "NENHUMA",
+  "regras_ativas_producao": 0,
+  "migration_aplicada_producao": "NAO",
+  "bloqueios_restantes": [
+    {
+      "tipo": "AMBIENTE_DEV_NAO_COMPROVADO",
+      "motivo": "Não há POSTGRES_ENV=dev nem POSTGRES_DEV_PROJECT_REF configurados; conexão remota e escrita foram bloqueadas."
+    }
+  ],
+  "decisao": "AGUARDA_HOMOLOGACAO_POSTGRES_DEV"
+}

@@ -634,6 +634,7 @@ function executarCenario(cenarioId) {
   const entradas = recalcular(base, 'compras', expCompras.itens, premissas);
   const saidas = recalcular(base, 'vendas', expVendas.itens, premissas);
 
+
   const apuracao = motor.apurar(saidas, entradas);
   const composicao = {
     compras: dimensoes.compor(entradas, 'compras'),
@@ -647,7 +648,7 @@ function executarCenario(cenarioId) {
     base: {
       composicao: base.composicao, indicadores: base.indicadores, apuracao: base.apuracao,
     },
-    efeitos: decomporEfeitos(base, { entradas, saidas, apuracao }),
+    efeitos: decomporEfeitos(base, { entradas, saidas, apuracao }, expCompras.itens),
     indiceMudanca: indiceMudanca(base, { entradas, saidas }),
   };
   gravarComposicao(cen.id, composicao);
@@ -669,7 +670,7 @@ function marcarCalculado(cenarioId, resultado) {
  * o efeito comercial é medido pela diferença do preço bruto e o tributário
  * pelo que sobra.
  */
-function decomporEfeitos(base, cen) {
+function decomporEfeitos(base, cen, itensExpandidosCompras = []) {
   const somaC = (l, c) => l.reduce((s, x) => s + num(x[c]), 0);
   const compraBase = somaC(base.entradas, 'precoAtual');
   const compraCen = somaC(cen.entradas, 'precoAtual');
@@ -683,7 +684,15 @@ function decomporEfeitos(base, cen) {
   const projBase = somaC(base.entradas, 'precoProjetado');
   const projCen = somaC(cen.entradas, 'precoProjetado');
 
-  const efeitoComercial = baseEconCen - baseEconBase;  // variação da BASE ECONÔMICA negociada
+  // A variação comercial da migração incide sobre a base econômica ORIGINAL
+  // da parcela transferida. A reconstrução no novo regime é efeito tributário,
+  // não pode inflar nem reduzir o preço negociado informado pelo consultor.
+  const variacoesMigradas = (itensExpandidosCompras || []).filter((item) =>
+    item.migracao && Math.abs(num(item.migracao.variacaoPreco)) > 0.0000001);
+  const efeitoComercialMigracao = variacoesMigradas.reduce((soma, item) =>
+    soma + num(item.baseEconomica) * num(item.fracao === undefined ? 1 : item.fracao) * num(item.migracao.variacaoPreco), 0);
+  const efeitoComercial = variacoesMigradas.length
+    ? efeitoComercialMigracao : baseEconCen - baseEconBase;
   const efeitoTributario = (projCen - projBase) - efeitoComercial; // IBS/CBS que passa a incidir por fora
   const efeitoCredito = credCen - credBase;            // variação do crédito recuperável
   const efeitoLiquido = custoCen - custoBase;          // variação do custo efetivo

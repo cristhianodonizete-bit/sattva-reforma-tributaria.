@@ -5,6 +5,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const { DatabaseSync } = require('node:sqlite');
 
 const raiz = path.join(__dirname, '..');
 const origem = path.join(raiz, 'dados', 'reforma.db');
@@ -13,14 +14,32 @@ const testes = [
 ];
 if (!fs.existsSync(origem)) throw new Error(`Fixture SQLite ausente: ${origem}`);
 const dados = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-suite-'));
+function migrarFixturePercentualPisCofins(caminho) {
+  const db = new DatabaseSync(caminho);
+  const existe = (tabela) => !!db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(tabela);
+  if (existe('param_regimes')) db.exec('UPDATE param_regimes SET pis_cofins=pis_cofins*100 WHERE pis_cofins IS NOT NULL');
+  if (existe('base_ncm')) db.exec('UPDATE base_ncm SET pis_percentual=pis_percentual*100,cofins_percentual=cofins_percentual*100,percentual_reconstrucao_sugerido=percentual_reconstrucao_sugerido*100');
+  if (existe('base_servicos')) db.exec('UPDATE base_servicos SET pis_percentual=pis_percentual*100,cofins_percentual=cofins_percentual*100,pis_cumulativo_percentual=pis_cumulativo_percentual*100,cofins_cumulativo_percentual=cofins_cumulativo_percentual*100,total_cumulativo_percentual=total_cumulativo_percentual*100,percentual_reconstrucao_sugerido=percentual_reconstrucao_sugerido*100');
+  if (existe('empresa_servicos_fiscais')) db.exec('UPDATE empresa_servicos_fiscais SET pis_cofins=pis_cofins*100 WHERE pis_cofins IS NOT NULL');
+  if (existe('enriquecimento_pis_cofins_evidencias')) db.exec('UPDATE enriquecimento_pis_cofins_evidencias SET aliquota_pis=aliquota_pis*100,aliquota_cofins=aliquota_cofins*100');
+  db.close();
+}
 try {
-  fs.copyFileSync(origem, path.join(dados, 'reforma.db'));
+  const fixture = path.join(dados, 'reforma.db');
+  fs.copyFileSync(origem, fixture);
+  // A suíte valida o código V2 sobre uma cópia já convertida do contrato V1.
+  // O banco de trabalho jamais é alterado por este passo.
+  migrarFixturePercentualPisCofins(fixture);
   const env = { ...process.env, SATTVA_DADOS: dados, SATTVA_SQLITE_JOURNAL_MODE: 'MEMORY' };
+  let executados = 0;
   for (const teste of testes) {
+    console.log(`TESTE_ISOLADO: ${teste}`);
     const resultado = spawnSync(process.execPath, [path.join(raiz, 'testes', teste)], { cwd: raiz, env, stdio: 'inherit' });
+    executados++;
     if (resultado.status !== 0) process.exitCode = resultado.status || 1;
     if (process.exitCode) break;
   }
+  if (!process.exitCode) console.log(`SUITE_ISOLADA_APROVADA: ${executados}/${testes.length} testes.`);
 } finally {
   fs.rmSync(dados, { recursive: true, force: true, maxRetries: 3, retryDelay: 150 });
 }

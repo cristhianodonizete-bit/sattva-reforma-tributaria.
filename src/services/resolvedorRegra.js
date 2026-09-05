@@ -9,7 +9,7 @@ function dentroVigencia(regra, data) {
   return (!regra.vigencia_inicio || regra.vigencia_inicio <= d) && (!regra.vigencia_fim || regra.vigencia_fim >= d);
 }
 function casa(regra, c) {
-  const campos = ['tipo_operacao','direcao','perfil_fornecedor','perfil_adquirente','regime_fornecedor','regime_adquirente','ncm','nbs','cclasstrib','cst','cfop','papel_cadeia','unidade'];
+  const campos = ['tipo_operacao','direcao','perfil_fornecedor','perfil_adquirente','regime_fornecedor','regime_adquirente','regime_pis_cofins','ncm','nbs','cclasstrib','cst','cfop','papel_cadeia','unidade'];
   for (const campo of campos) if (txt(regra[campo]) && txt(regra[campo]) !== txt(c[campo])) return false;
   return dentroVigencia(regra, c.data);
 }
@@ -26,10 +26,11 @@ function excluida(regra, c) {
 function resolverComRegras(contexto = {}, regrasDisponiveis = []) {
   const fornecedor = resolverPerfil({ ...contexto, cnpj: contexto.cnpj_fornecedor, parceiro: contexto.fornecedor });
   const adquirente = resolverPerfil({ ...contexto, cnpj: contexto.cnpj_adquirente, parceiro: contexto.adquirente });
+  const regimePis = txt(contexto.regime_pis_cofins) || ({ lucro_presumido:'CUMULATIVO', lucro_real:'NAO_CUMULATIVO' }[txt(contexto.regime)] || '');
   const c = {
     tipo_operacao: contexto.tipo_operacao || '', direcao: contexto.direcao || '', ncm: txt(contexto.ncm), nbs: txt(contexto.nbs),
     cclasstrib: txt(contexto.cclasstrib), cst: txt(contexto.cst), cfop: txt(contexto.cfop), papel_cadeia: txt(contexto.papel_cadeia), unidade: txt(contexto.unidade), data: contexto.data,
-    perfil_fornecedor: fornecedor.perfil, perfil_adquirente: adquirente.perfil, regime_fornecedor: fornecedor.regime_cbs, regime_adquirente: adquirente.regime_cbs,
+    perfil_fornecedor: fornecedor.perfil, perfil_adquirente: adquirente.perfil, regime_fornecedor: fornecedor.regime_cbs, regime_adquirente: adquirente.regime_cbs, regime_pis_cofins: regimePis,
   };
   // Documento conclusivo prevalece; esta camada apenas torna a precedência visível.
   if (contexto.documento_conclusivo && (c.cclasstrib || c.cst)) return { status: 'DETERMINADO', origem: 'DOCUMENTO', contexto: c, regra: null, tratamento: contexto.tratamento_documento || null, pendencias: [] };

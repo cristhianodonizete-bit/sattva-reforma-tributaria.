@@ -34,7 +34,7 @@ function verificar(nome, encontrado, esperado) {
 
 // Referência fiscal de serviço: 3,65% atual e CBS configurada em 9,25%.
 {
-  const r = cadeia({ valor: 1000, nome: 'Cliente PF', regime: 'pessoa_fisica', referenciaFiscal: { pis_cofins: 0.0365 } });
+  const r = cadeia({ valor: 1000, nome: 'Cliente PF', regime: 'pessoa_fisica', referenciaFiscal: { pis_cofins: 3.65 } });
   const linha = r.regimes[0], detalhe = r.detalhes[0];
   verificar('base econômica pela referência', linha.baseEconomica, 963.5);
   verificar('PIS/COFINS atual', linha.pisCofinsAtual, 36.5);
@@ -49,7 +49,7 @@ function verificar(nome, encontrado, esperado) {
 
 // Documento fiscal sempre prevalece à premissa cadastrada no serviço.
 {
-  const r = cadeia({ valor: 1000, nome: 'Cliente regular', regime: 'lucro_real', pis: 10, cofins: 20, referenciaFiscal: { pis_cofins: 0.0365 } });
+  const r = cadeia({ valor: 1000, nome: 'Cliente regular', regime: 'lucro_real', pis: 10, cofins: 20, referenciaFiscal: { pis_cofins: 3.65 } });
   const linha = r.regimes[0], detalhe = r.detalhes[0];
   verificar('PIS/COFINS do documento prevalece', linha.pisCofinsAtual, 30);
   verificar('base econômica pelo documento', linha.baseEconomica, 970);
@@ -59,7 +59,7 @@ function verificar(nome, encontrado, esperado) {
 
 // Simples não apaga o imposto gerado na venda; altera só a relevância comercial.
 {
-  const r = cadeia({ valor: 500, nome: 'Cliente Simples', regime: 'simples_nacional', referenciaFiscal: { pis_cofins: 0.0365 } });
+  const r = cadeia({ valor: 500, nome: 'Cliente Simples', regime: 'simples_nacional', referenciaFiscal: { pis_cofins: 3.65 } });
   const linha = r.regimes[0];
   verificar('CBS gerada na venda ao Simples', linha.cbs, r2(481.75 * 0.0925));
   verificar('Simples não recebe crédito potencial automático', linha.creditoPotencial, 0);

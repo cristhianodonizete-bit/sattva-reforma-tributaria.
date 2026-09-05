@@ -1,0 +1,32 @@
+{
+  "total_chaves_mestre": 3680,
+  "chaves_ncm": 2781,
+  "chaves_servicos": 899,
+  "classificacoes": {
+    "REGRA_GERAL_RESIDUAL": 2441,
+    "REGRA_ESPECIFICA_DIRETA": 666,
+    "PAPEL_CADEIA": 214,
+    "REGRA_CONDICIONAL": 359
+  },
+  "chaves_sem_destino": 0,
+  "chaves_duplicadas": 0,
+  "chaves_com_conflito_publicavel": 0,
+  "familias_juridicas": 19,
+  "fatos_mestre": 21,
+  "fatos_orfaos": [],
+  "fatos_historicos_obsoletos": [
+    "receita_telecomunicacoes"
+  ],
+  "regras_logicas_total": 364,
+  "regras_tecnicas_total": 370,
+  "regras_tecnicas_publicaveis": 364,
+  "regras_nao_publicaveis": 6,
+  "chaves_residuais": 2441,
+  "regras_residuais_realmente_necessarias_publicar": 0,
+  "intersecao_publicavel_nao_publicavel": 0,
+  "percentuais_suspeitos": 0,
+  "postgres_dev_homologado": "NAO",
+  "motivo_postgres_dev": "ADIADO_POR_DECISAO_DE_PROJETO",
+  "alteracoes_producao": "NENHUMA",
+  "alteracoes_supabase": "NENHUMA"
+}

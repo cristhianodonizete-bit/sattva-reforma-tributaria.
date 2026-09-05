@@ -52,7 +52,7 @@ const COLUNAS_NOVAS = {
     frete: 'REAL DEFAULT 0', seguro: 'REAL DEFAULT 0',
     outras: 'REAL DEFAULT 0', desconto: 'REAL DEFAULT 0',
     sentido: 'TEXT',
-    pis_cofins_documentado: 'INTEGER DEFAULT 0',
+    pis_cofins_documentado: 'INTEGER DEFAULT 0', produto_empresa_id: 'INTEGER',
   },
   motor_resultados: {
     cenario_id: 'INTEGER', grupo_origem: 'TEXT', fracao: 'REAL DEFAULT 1',
@@ -92,8 +92,13 @@ const COLUNAS_NOVAS = {
   empresa_servicos_fiscais: {
     pis_cofins: 'REAL', das_efetivo: 'REAL', iss_aliquota: 'REAL', ativo: 'INTEGER DEFAULT 1', origem: "TEXT DEFAULT 'manual'",
   },
+  empresa_produto_fiscal: { produto_empresa_id: 'INTEGER', possui_sintetizador_voz: 'INTEGER', adaptado_para_pessoa_com_deficiencia: 'INTEGER', acionador_pressao: 'INTEGER' },
+  empresa_produto_fiscal_historico: { produto_empresa_id: 'INTEGER' },
+  pendencias_fiscais_produtos: { produto_empresa_id: 'INTEGER', regra_id: 'TEXT' },
+  conflitos_fatos_fiscais: { produto_empresa_id: 'INTEGER' },
   formacao_custo_itens: { movimento_saida_id: 'INTEGER', despesas_variaveis: 'REAL DEFAULT 0' },
   regras_governo: { origem_linha: 'TEXT' },
+  regras_enquadramento: { regime_pis_cofins: 'TEXT', cst_pis: 'TEXT', cst_cofins: 'TEXT', pis_percentual: 'REAL', cofins_percentual: 'REAL' },
   base_ncm: {
     operacao_pis_cofins: 'TEXT', cst_pis_atual: 'TEXT', cst_cofins_atual: 'TEXT', pis_percentual: 'REAL', cofins_percentual: 'REAL',
     regime_pis_cofins_receita: 'TEXT', tratamento_pis_cofins: 'TEXT', papel_na_cadeia_necessario: 'TEXT', papel_na_cadeia: 'TEXT',
@@ -1405,6 +1410,24 @@ CREATE TABLE IF NOT EXISTS cadastro_produtos_mestre (
 );
 CREATE INDEX IF NOT EXISTS ix_cadastro_produtos_ncm ON cadastro_produtos_mestre(ncm);
 
+-- Identidade interna imutável por empresa. Códigos trazidos por XML, SPED ou
+-- planilha são aliases; nunca são, por si só, a identidade fiscal do produto.
+CREATE TABLE IF NOT EXISTS produtos_empresa (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  codigo_produto_atual TEXT, ncm_atual TEXT, descricao_atual TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')), updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, codigo_produto_atual)
+);
+CREATE INDEX IF NOT EXISTS ix_produtos_empresa_ncm ON produtos_empresa(empresa_id,ncm_atual);
+CREATE TABLE IF NOT EXISTS produto_aliases (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, produto_empresa_id INTEGER NOT NULL REFERENCES produtos_empresa(id) ON DELETE CASCADE,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE, tipo_origem TEXT NOT NULL CHECK(tipo_origem IN ('XML_CPROD','SPED_COD_ITEM','CADASTRO','PLANILHA','OUTRO')),
+  codigo_origem TEXT NOT NULL, vigencia_inicio TEXT, vigencia_fim TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id,tipo_origem,codigo_origem,vigencia_inicio)
+);
+CREATE INDEX IF NOT EXISTS ix_produto_aliases_resolver ON produto_aliases(empresa_id,tipo_origem,codigo_origem,vigencia_inicio,vigencia_fim);
+
 CREATE TABLE IF NOT EXISTS cadastro_parceiros_mestre (
   cnpj TEXT PRIMARY KEY, razao_social TEXT, tipo TEXT, regime_atual TEXT, regime_cbs TEXT,
   simples INTEGER, mei INTEGER, governo INTEGER, esfera TEXT, produtor_rural INTEGER,
@@ -1428,7 +1451,7 @@ CREATE TABLE IF NOT EXISTS regras_enquadramento (
   id TEXT PRIMARY KEY,
   familia TEXT NOT NULL, subfamilia TEXT, tipo_operacao TEXT, direcao TEXT,
   perfil_fornecedor TEXT, perfil_adquirente TEXT, regime_fornecedor TEXT,
-  regime_adquirente TEXT, ncm TEXT, nbs TEXT, cclasstrib TEXT, cst TEXT,
+  regime_adquirente TEXT, ncm TEXT, nbs TEXT, cclasstrib TEXT, cst TEXT, regime_pis_cofins TEXT, cst_pis TEXT, cst_cofins TEXT, pis_percentual REAL, cofins_percentual REAL,
   cfop TEXT, papel_cadeia TEXT, unidade TEXT, condicoes_obrigatorias TEXT,
   condicoes_excludentes TEXT, tratamento_resultante TEXT, formula_id TEXT,
   fundamento_legal TEXT, vigencia_inicio TEXT, vigencia_fim TEXT,
@@ -1437,6 +1460,84 @@ CREATE TABLE IF NOT EXISTS regras_enquadramento (
   criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_regras_enquadramento_busca ON regras_enquadramento(status, familia, ncm, nbs, prioridade DESC);
+
+-- Cadastro complementar: fatos materiais por empresa e produto. Não contém
+-- CST, alíquota, regra legal ou resultado de motor; somente evidências que o
+-- resolvedor poderá usar quando uma regra condicional vier a ser ativada.
+CREATE TABLE IF NOT EXISTS empresa_produto_fiscal (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  produto_empresa_id INTEGER REFERENCES produtos_empresa(id) ON DELETE RESTRICT,
+  codigo_produto TEXT,
+  produto_id INTEGER REFERENCES cadastro_produtos_mestre(id) ON DELETE SET NULL,
+  chave_produto TEXT, ncm TEXT,
+  papel_padrao TEXT NOT NULL DEFAULT 'INDETERMINADO' CHECK(papel_padrao IN ('INDETERMINADO','FABRICANTE','PRODUTOR','IMPORTADOR','REVENDEDOR','ATACADISTA','DISTRIBUIDOR','VAREJISTA')),
+  fabricacao_propria INTEGER CHECK(fabricacao_propria IN (0,1)), importador INTEGER CHECK(importador IN (0,1)), revendedor INTEGER CHECK(revendedor IN (0,1)),
+  defensivo_agropecuario INTEGER CHECK(defensivo_agropecuario IN (0,1)), fertilizante INTEGER CHECK(fertilizante IN (0,1)), uso_veterinario INTEGER CHECK(uso_veterinario IN (0,1)), possui_sintetizador_voz INTEGER CHECK(possui_sintetizador_voz IN (0,1)), adaptado_para_pessoa_com_deficiencia INTEGER CHECK(adaptado_para_pessoa_com_deficiencia IN (0,1)), acionador_pressao INTEGER CHECK(acionador_pressao IN (0,1)),
+  corretivo_solo INTEGER CHECK(corretivo_solo IN (0,1)), origem_mineral INTEGER CHECK(origem_mineral IN (0,1)), fatos_extras_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(fatos_extras_json)),
+  fonte_dado TEXT NOT NULL DEFAULT 'USUARIO', origem_evidencia TEXT,
+  observacao TEXT, validado_por TEXT, validado_em TEXT,
+  vigencia_inicio TEXT, vigencia_fim TEXT, ativo INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  CHECK(produto_empresa_id IS NOT NULL OR NULLIF(TRIM(codigo_produto), '') IS NOT NULL),
+  UNIQUE(empresa_id, produto_empresa_id, vigencia_inicio)
+);
+CREATE INDEX IF NOT EXISTS ix_empresa_produto_fiscal_busca ON empresa_produto_fiscal(empresa_id, codigo_produto, ativo, vigencia_inicio, vigencia_fim);
+CREATE INDEX IF NOT EXISTS ix_empresa_produto_fiscal_ncm ON empresa_produto_fiscal(empresa_id, ncm, ativo);
+CREATE INDEX IF NOT EXISTS ix_empresa_produto_fiscal_produto_empresa ON empresa_produto_fiscal(empresa_id, produto_empresa_id, ativo);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_empresa_produto_fiscal_legado_vigencia ON empresa_produto_fiscal(empresa_id, codigo_produto, vigencia_inicio) WHERE produto_empresa_id IS NULL;
+CREATE TABLE IF NOT EXISTS motor_condicional_sombra (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, movimento_id INTEGER, empresa_id INTEGER NOT NULL, produto_empresa_id INTEGER,
+  ncm TEXT, regra_candidata TEXT, regra_selecionada TEXT, familia_regra TEXT, condicoes TEXT, fatos_resolvidos TEXT,
+  status_avaliacao TEXT, resultado_oficial TEXT, resultado_sombra TEXT, diferenca TEXT, motivo TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_motor_condicional_sombra_movimento ON motor_condicional_sombra(empresa_id,movimento_id,criado_em DESC);
+
+CREATE TABLE IF NOT EXISTS empresa_produto_fiscal_historico (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cadastro_id INTEGER NOT NULL REFERENCES empresa_produto_fiscal(id) ON DELETE CASCADE,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  produto_empresa_id INTEGER REFERENCES produtos_empresa(id) ON DELETE RESTRICT,
+  codigo_produto TEXT, fato TEXT NOT NULL,
+  valor_anterior TEXT, valor_novo TEXT, fonte TEXT, observacao TEXT,
+  usuario_id TEXT, criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_empresa_produto_fiscal_historico ON empresa_produto_fiscal_historico(empresa_id, codigo_produto, fato, criado_em DESC);
+CREATE INDEX IF NOT EXISTS ix_empresa_produto_fiscal_historico_produto_empresa ON empresa_produto_fiscal_historico(empresa_id, produto_empresa_id, criado_em DESC);
+CREATE TRIGGER IF NOT EXISTS bloquear_update_historico_empresa_produto_fiscal
+BEFORE UPDATE ON empresa_produto_fiscal_historico BEGIN SELECT RAISE(ABORT, 'Histórico fiscal é append-only'); END;
+CREATE TRIGGER IF NOT EXISTS bloquear_delete_historico_empresa_produto_fiscal
+BEFORE DELETE ON empresa_produto_fiscal_historico BEGIN SELECT RAISE(ABORT, 'Histórico fiscal é append-only'); END;
+
+CREATE TABLE IF NOT EXISTS pendencias_fiscais_produtos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  produto_empresa_id INTEGER REFERENCES produtos_empresa(id) ON DELETE RESTRICT,
+  codigo_produto TEXT, produto_descricao TEXT, ncm TEXT,
+  regra_id TEXT, familia_regra TEXT, regra_candidata TEXT, fato_faltante TEXT NOT NULL,
+  pergunta TEXT NOT NULL, origem_dados_existentes TEXT, status TEXT NOT NULL DEFAULT 'PENDENTE',
+  movimento_id INTEGER REFERENCES movimentos(id) ON DELETE SET NULL,
+  respondida_por TEXT, respondida_em TEXT, resolvida_em TEXT, observacao TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  CHECK(produto_empresa_id IS NOT NULL OR NULLIF(TRIM(codigo_produto), '') IS NOT NULL)
+);
+CREATE INDEX IF NOT EXISTS ix_pendencias_fiscais_produtos_fila ON pendencias_fiscais_produtos(empresa_id, status, fato_faltante, codigo_produto, criado_em DESC);
+CREATE INDEX IF NOT EXISTS ix_pendencias_fiscais_produtos_produto_empresa ON pendencias_fiscais_produtos(empresa_id, produto_empresa_id, status, fato_faltante, criado_em DESC);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_pendencias_fiscais_produtos_abertas_identidade ON pendencias_fiscais_produtos(empresa_id,produto_empresa_id,fato_faltante,COALESCE(regra_id,COALESCE(regra_candidata,'')),COALESCE(familia_regra,'')) WHERE produto_empresa_id IS NOT NULL AND status='PENDENTE';
+CREATE UNIQUE INDEX IF NOT EXISTS ux_pendencias_fiscais_produtos_abertas_legado ON pendencias_fiscais_produtos(empresa_id,codigo_produto,fato_faltante,COALESCE(regra_id,COALESCE(regra_candidata,'')),COALESCE(familia_regra,'')) WHERE produto_empresa_id IS NULL AND status='PENDENTE';
+
+CREATE TABLE IF NOT EXISTS conflitos_fatos_fiscais (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  codigo_produto TEXT, movimento_id INTEGER REFERENCES movimentos(id) ON DELETE SET NULL,
+  fato TEXT NOT NULL, valor_precedente TEXT, origem_precedente TEXT,
+  valor_menor_precedencia TEXT, origem_menor_precedencia TEXT,
+  status TEXT NOT NULL DEFAULT 'ABERTO', criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_conflitos_fatos_fiscais ON conflitos_fatos_fiscais(empresa_id, status, fato, criado_em DESC);
 
 CREATE TABLE IF NOT EXISTS hipoteses_credito_presumido (
   hipotese_id TEXT PRIMARY KEY, familia TEXT, tipo_operacao TEXT,
@@ -1724,7 +1825,7 @@ if (db.prepare('SELECT COUNT(*) c FROM param_regimes').get().c === 0) {
 // Simples deve usar a premissa versionada de 2,5%, sem afetar percentuais
 // distintos que tenham sido configurados manualmente pelo usuário.
 db.prepare(`UPDATE param_regimes
-  SET pis_cofins = 0.025,
+  SET pis_cofins = 2.5,
       obs = 'Premissa versionada de 2,5% para reconstrução econômica de PIS/COFINS quando não houver regra específica; não é alíquota legal fixa do DAS.'
   WHERE chave = 'simples_nacional' AND (pis_cofins IS NULL OR ABS(pis_cofins) < 0.0000001)`).run();
 

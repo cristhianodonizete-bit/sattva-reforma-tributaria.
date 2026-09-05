@@ -1,0 +1,102 @@
+{
+  "dgt_loa2026_comprovado": "SIM",
+  "evidencia_dgt": [
+    "PLOA 2026, Informações Complementares, Quadro III: Cadeira de Rodas e Aparelhos Assistivos",
+    "RFB STR: Lei 10.865/2004, arts. 8º e 28, com calculadoras, mouse, scanners, acionadores e 8714.20.00",
+    "LC 224/2025, art. 4º, §2º, I: benefícios no DGT de 2026; §8º sem exceção aplicável à categoria"
+  ],
+  "alteracao_ploa_loa_afetou_beneficio": "NAO",
+  "lc224": {
+    "84701000": "ALCANCADO",
+    "84716053": "ALCANCADO",
+    "84719014": "ALCANCADO",
+    "87142000": "ALCANCADO"
+  },
+  "itens": [
+    {
+      "ncm": "84701000",
+      "descricao": "Calculadora com sintetizador de voz",
+      "fundamento_original": "Lei 10.865/2004, art. 28, inciso XXV",
+      "requisito_material": "possui_sintetizador_voz",
+      "fatos_obrigatorios": [
+        "possui_sintetizador_voz"
+      ],
+      "impacto_lc224": "ALCANCADO",
+      "status_final": "CONDICIONAL_VALIDADA",
+      "fontes_oficiais": [
+        "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+        "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+        "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+      ]
+    },
+    {
+      "ncm": "84716053",
+      "descricao": "Mouse adaptado ou acionador de pressão",
+      "fundamento_original": "Lei 10.865/2004, art. 28, inciso XXVII e XXXI",
+      "requisito_material": [
+        "adaptado_para_pessoa_com_deficiencia",
+        "acionador_pressao"
+      ],
+      "fatos_obrigatorios": [
+        "adaptado_para_pessoa_com_deficiencia",
+        "acionador_pressao"
+      ],
+      "impacto_lc224": "ALCANCADO",
+      "status_final": "CONDICIONAL_VALIDADA",
+      "fontes_oficiais": [
+        "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+        "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+        "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+      ]
+    },
+    {
+      "ncm": "84719014",
+      "descricao": "Scanner com sintetizador de voz",
+      "fundamento_original": "Lei 10.865/2004, art. 28, inciso XXIX",
+      "requisito_material": "possui_sintetizador_voz",
+      "fatos_obrigatorios": [
+        "possui_sintetizador_voz"
+      ],
+      "impacto_lc224": "ALCANCADO",
+      "status_final": "CONDICIONAL_VALIDADA",
+      "fontes_oficiais": [
+        "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+        "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+        "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+      ]
+    },
+    {
+      "ncm": "87142000",
+      "descricao": "Partes e acessórios de cadeiras de rodas",
+      "fundamento_original": "Lei 10.865/2004, art. 28, inciso XXIV",
+      "requisito_material": "NCM suficiente",
+      "fatos_obrigatorios": [],
+      "impacto_lc224": "ALCANCADO",
+      "status_final": "DIRETA_VALIDADA",
+      "fontes_oficiais": [
+        "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+        "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+        "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+        "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+      ]
+    }
+  ],
+  "condicionais_modeladas": 3,
+  "regras_tecnicas_condicionais": 12,
+  "diretas_modeladas": 1,
+  "regras_tecnicas_diretas": 3,
+  "regras_ativas_producao": 0,
+  "alteracoes_banco_produtivo": "NENHUMA",
+  "alteracoes_supabase": "NENHUMA"
+}

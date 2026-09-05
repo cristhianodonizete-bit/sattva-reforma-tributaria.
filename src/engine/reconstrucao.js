@@ -42,8 +42,9 @@
 
 const regras = require('../services/regras');
 const catalogoFiscal = require('../services/catalogoFiscal');
+const { aplicarPercentual, percentualDeValor, arredondarMoeda } = require('../services/percentual');
 
-const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const r2 = arredondarMoeda;
 const r6 = (n) => Math.round((Number(n) || 0) * 1e6) / 1e6;
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
 const tem = (v) => v !== undefined && v !== null && v !== '' && Number.isFinite(Number(v));
@@ -57,8 +58,8 @@ const ESTIMATIVA_PIS_COFINS = {
   // Não optante pelo Simples sem distinção entre Real e Presumido: não dá para
   // estimar PIS/COFINS sem escolher um dos dois. Só se usa o valor destacado.
   regime_regular: null,
-  lucro_real: 0.0925,          // não cumulativo: PIS 1,65% + COFINS 7,6%
-  lucro_presumido: 0.0365,     // cumulativo: PIS 0,65% + COFINS 3%
+  lucro_real: 9.25,            // não cumulativo: PIS 1,65% + COFINS 7,6%
+  lucro_presumido: 3.65,       // cumulativo: PIS 0,65% + COFINS 3%
   simples_nacional: null,      // vem da tabela do Simples, não daqui
   simples_regime_regular: null,
   mei: null,
@@ -74,8 +75,8 @@ const proporcaoPis = () => regras.padrao('proporcao_pis', 0.1757);
 /** Mantém as alíquotas legais conhecidas separadas do percentual agregado. */
 function repartirPisCofins(total, percentualTotal) {
   const p = num(percentualTotal);
-  if (Math.abs(p - 0.0365) < 1e-9) return { pis: total * (0.0065 / 0.0365), cofins: total * (0.03 / 0.0365), aliquotaPis: 0.0065, aliquotaCofins: 0.03 };
-  if (Math.abs(p - 0.0925) < 1e-9) return { pis: total * (0.0165 / 0.0925), cofins: total * (0.076 / 0.0925), aliquotaPis: 0.0165, aliquotaCofins: 0.076 };
+  if (Math.abs(p - 3.65) < 1e-9) return { pis: total * (0.65 / 3.65), cofins: total * (3 / 3.65), aliquotaPis: 0.65, aliquotaCofins: 3 };
+  if (Math.abs(p - 9.25) < 1e-9) return { pis: total * (1.65 / 9.25), cofins: total * (7.6 / 9.25), aliquotaPis: 1.65, aliquotaCofins: 7.6 };
   const aliquotaPis = p * proporcaoPis();
   return { pis: total * proporcaoPis(), cofins: total - total * proporcaoPis(), aliquotaPis, aliquotaCofins: p - aliquotaPis };
 }
@@ -153,7 +154,7 @@ function reconstruir(item, contexto = {}) {
     estimado = estimado || resolucao.natureza === 'SIMULADO';
     pisCofinsResolvido = true;
     passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: resolucao.origem,
-      formula: `valor × ${(num(resolucao.percentual) * 100).toFixed(2)}% (${resolucao.metodo})`, valor: r2(bloco) });
+      formula: `valor × ${num(resolucao.percentual).toFixed(3)}% (${resolucao.metodo})`, valor: r2(bloco) });
     memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(bloco), carga_atual_pis_cofins_percentual: r6(resolucao.percentual), carga_atual_pis_cofins_origem: resolucao.origem, carga_atual_pis_cofins_natureza: resolucao.natureza, modo_reconstrucao_monofasia: resolucao.modoMonofasia || null, regime_receita: resolucao.catalogo?.regime_pis_cofins_receita || regime, tratamento_especifico: resolucao.catalogo?.tratamento_pis_cofins || 'NORMAL', papel_na_cadeia: resolucao.catalogo?.papel_na_cadeia || 'NÃO APLICÁVEL', fundamento: resolucao.catalogo?.regra_precedencia || '', base_reconstrucao_metodo: resolucao.metodo, base_reconstrucao_percentual: r6(resolucao.percentual), base_reconstrucao_valor_excluido: r2(bloco), base_reconstrucao_fonte: resolucao.catalogo ? 'CATÁLOGO FISCAL' : resolucao.origem, base_reconstrucao_natureza: resolucao.natureza };
     memoriaTributos.pis = memoriaTributo({ valor: pis, base: valor, aliquota: partes.aliquotaPis, origem: resolucao.origem, regra: resolucao.metodo, evidencia: resolucao.catalogo ? 'Catálogo fiscal e parâmetros centrais' : 'Parâmetro central de regime', natureza: resolucao.natureza, status: 'DETERMINADO', justificativa: resolucao.justificativa || resolucao.metodo });
     memoriaTributos.cofins = memoriaTributo({ valor: cofins, base: valor, aliquota: partes.aliquotaCofins, origem: resolucao.origem, regra: resolucao.metodo, evidencia: resolucao.catalogo ? 'Catálogo fiscal e parâmetros centrais' : 'Parâmetro central de regime', natureza: resolucao.natureza, status: 'DETERMINADO', justificativa: resolucao.justificativa || resolucao.metodo });
@@ -161,9 +162,9 @@ function reconstruir(item, contexto = {}) {
   if (temPisCofins) {
     pis = num(item.pis); cofins = num(item.cofins);
     passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: 'documento', valor: r2(pis + cofins) });
-    memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(pis + cofins), carga_atual_pis_cofins_percentual: valor ? r6((pis + cofins) / valor) : 0, carga_atual_pis_cofins_origem: 'DOCUMENTO', carga_atual_pis_cofins_natureza: 'REAL', modo_reconstrucao_monofasia: 'VALOR_REAL_DOCUMENTO', base_reconstrucao_metodo: 'DOCUMENTO', base_reconstrucao_percentual: valor ? r6((pis + cofins) / valor) : 0, base_reconstrucao_valor_excluido: r2(pis + cofins), base_reconstrucao_fonte: 'DOCUMENTO', base_reconstrucao_natureza: 'REAL' };
-    memoriaTributos.pis = memoriaTributo({ valor: pis, base: valor, aliquota: valor ? pis / valor : 0, origem: 'DOCUMENTO', regra: 'VALOR_DESTACADO_DOCUMENTO', evidencia: 'Campo PIS do documento fiscal', natureza: 'REAL', status: 'DETERMINADO', justificativa: 'PIS documentado.' });
-    memoriaTributos.cofins = memoriaTributo({ valor: cofins, base: valor, aliquota: valor ? cofins / valor : 0, origem: 'DOCUMENTO', regra: 'VALOR_DESTACADO_DOCUMENTO', evidencia: 'Campo COFINS do documento fiscal', natureza: 'REAL', status: 'DETERMINADO', justificativa: 'COFINS documentado.' });
+    memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(pis + cofins), carga_atual_pis_cofins_percentual: valor ? r6(percentualDeValor(pis + cofins, valor)) : 0, carga_atual_pis_cofins_origem: 'DOCUMENTO', carga_atual_pis_cofins_natureza: 'REAL', modo_reconstrucao_monofasia: 'VALOR_REAL_DOCUMENTO', base_reconstrucao_metodo: 'DOCUMENTO', base_reconstrucao_percentual: valor ? r6(percentualDeValor(pis + cofins, valor)) : 0, base_reconstrucao_valor_excluido: r2(pis + cofins), base_reconstrucao_fonte: 'DOCUMENTO', base_reconstrucao_natureza: 'REAL' };
+    memoriaTributos.pis = memoriaTributo({ valor: pis, base: valor, aliquota: percentualDeValor(pis, valor), origem: 'DOCUMENTO', regra: 'VALOR_DESTACADO_DOCUMENTO', evidencia: 'Campo PIS do documento fiscal', natureza: 'REAL', status: 'DETERMINADO', justificativa: 'PIS documentado.' });
+    memoriaTributos.cofins = memoriaTributo({ valor: cofins, base: valor, aliquota: percentualDeValor(cofins, valor), origem: 'DOCUMENTO', regra: 'VALOR_DESTACADO_DOCUMENTO', evidencia: 'Campo COFINS do documento fiscal', natureza: 'REAL', status: 'DETERMINADO', justificativa: 'COFINS documentado.' });
   } else if (regime === 'mei') {
     // MEI não carrega PIS/COFINS separadamente para esta reconstrução.
     registrarCargaResolvida({ percentual: 0, valor: 0, origem: 'REGRA_REGIME', natureza: 'CALCULADO', metodo: 'MEI_SEM_PIS_COFINS', justificativa: 'MEI: carga de PIS/COFINS reconstruída como zero pela regra de regime.' });
@@ -176,14 +177,14 @@ function reconstruir(item, contexto = {}) {
     } else if (!['simples_nacional'].includes(regime)) {
     if (resolucao.percentual === null && resolucao.continuar && item.pis_cofins_referencia !== null && item.pis_cofins_referencia !== undefined) {
       const p = num(item.pis_cofins_referencia);
-      resolucao = { percentual: p, valor: valor * p, origem: 'REFERENCIA_EMPRESA', natureza: 'CALCULADO', metodo: 'REFERENCIA_EMPRESA', catalogo: resolucao.catalogo };
+      resolucao = { percentual: p, valor: aplicarPercentual(valor, p), origem: 'REFERENCIA_EMPRESA', natureza: 'CALCULADO', metodo: 'REFERENCIA_EMPRESA', catalogo: resolucao.catalogo };
     }
     // A regra geral do regime é permitida somente quando o contexto a declarou
     // como regra versionada aplicável. Isso evita que a mera ausência de um
     // catálogo conclusivo vire, silenciosamente, uma alíquota automática.
     if (resolucao.percentual === null && resolucao.continuar && item.regra_geral_regime_confirmada === true) {
       const p = regras.estimativaPisCofins(regime);
-      if (p !== null && p !== undefined) resolucao = { percentual: p, valor: valor * p, origem: 'REGRA_REGIME', natureza: 'CALCULADO', metodo: 'REGRA_GERAL_REGIME', catalogo: resolucao.catalogo, justificativa: 'Fallback parametrizado em Regimes e crédito; aplicado após ausência de documento e regra específica conclusiva.' };
+      if (p !== null && p !== undefined) resolucao = { percentual: p, valor: aplicarPercentual(valor, p), origem: 'REGRA_REGIME', natureza: 'CALCULADO', metodo: 'REGRA_GERAL_REGIME', catalogo: resolucao.catalogo, justificativa: 'Fallback parametrizado em Regimes e crédito; aplicado após ausência de documento e regra específica conclusiva.' };
     }
     if (resolucao.percentual !== null) {
       registrarCargaResolvida(resolucao);
@@ -199,7 +200,7 @@ function reconstruir(item, contexto = {}) {
     // No Simples não há destaque: a parcela vem da repartição do DAS.
       const fallback = regras.estimativaPisCofins(regime);
       if (fallback !== null && fallback > 0) {
-        registrarCargaResolvida({ percentual: fallback, valor: valor * fallback, origem: 'PREMISSA_REGIME_SIMPLES', natureza: 'SIMULADO', metodo: 'PREMISSA_SIMPLES_25', justificativa: 'Premissa versionada para reconstrução econômica do Simples; não é alíquota legal fixa do DAS.' });
+        registrarCargaResolvida({ percentual: fallback, valor: aplicarPercentual(valor, fallback), origem: 'PREMISSA_REGIME_SIMPLES', natureza: 'SIMULADO', metodo: 'PREMISSA_SIMPLES_25', justificativa: 'Premissa versionada para reconstrução econômica do Simples; não é alíquota legal fixa do DAS.' });
       } else pendencias.push('Fornecedor do Simples sem faixa determinada — parcela de PIS/COFINS embutida no DAS não pôde ser calculada.');
     } else {
       pendencias.push(`PIS/COFINS não determinado: ${resolucao.metodo}.`);

@@ -53,7 +53,7 @@ const ANOS = Object.keys(CRONOGRAMA).map(Number).sort();
 const REGIMES = {
   lucro_real: {
     label: 'Lucro Real',
-    pisCofins: 0.0925, cumulativo: false,
+    pisCofins: 9.25, cumulativo: false,
     creditaAtual: { pisCofins: true, icms: true, ipi: true, iss: false },
     geraCreditoAtual: { pisCofins: true, icms: true, ipi: true },
     creditaNovo: true, geraCreditoNovo: true,
@@ -69,7 +69,7 @@ const REGIMES = {
   },
   lucro_presumido: {
     label: 'Lucro Presumido',
-    pisCofins: 0.0365, cumulativo: true,
+    pisCofins: 3.65, cumulativo: true,
     creditaAtual: { pisCofins: false, icms: true, ipi: true, iss: false },
     geraCreditoAtual: { pisCofins: false, icms: true, ipi: true },
     creditaNovo: true, geraCreditoNovo: true,
@@ -78,7 +78,7 @@ const REGIMES = {
   simples_nacional: {
     label: 'Simples Nacional',
     // Premissa econômica de reconstrução. Não é alíquota legal fixa do DAS.
-    pisCofins: 0.025, cumulativo: true,
+    pisCofins: 2.5, cumulativo: true,
     creditaAtual: { pisCofins: false, icms: false, ipi: false, iss: false },
     geraCreditoAtual: { pisCofins: false, icms: false, ipi: false },
     creditaNovo: false, geraCreditoNovo: false,

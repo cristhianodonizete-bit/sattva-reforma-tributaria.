@@ -57,6 +57,8 @@ const normalizacaoFiscalXml = require('../services/normalizacaoFiscalXml');
 const conformidadeDocumental = require('../services/conformidadeDocumental');
 const revisaoBeneficiosFiscais = require('../services/revisaoBeneficiosFiscais');
 const performanceTelemetry = require('../services/performanceTelemetry');
+const identidadeProduto = require('../services/identidadeProduto');
+const cadastroFiscalComplementar = require('../services/cadastroFiscalComplementar');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -1315,6 +1317,58 @@ router.get('/empresas/:id/conformidade-documental', (req, res) => {
   catch (e) { erro(res, e); }
 });
 
+// Cadastro Fiscal Complementar: esta API registra somente fatos materiais.
+// Ela não aciona motor, não reprocessa documentos e não aceita CST/alíquota.
+const CAMPOS_TRIBUTARIOS_PROIBIDOS_CFC = ['cst','cst_pis','cst_cofins','pis_percentual','cofins_percentual','tratamento_pis_cofins','aliquota','aliquota_pis','aliquota_cofins','monofasico','aliquota_zero','regra_id_tributaria','resultado_fiscal'];
+function validarPayloadSomenteFatos(payload = {}) {
+  const proibido=CAMPOS_TRIBUTARIOS_PROIBIDOS_CFC.find((campo)=>Object.prototype.hasOwnProperty.call(payload,campo));
+  if (proibido) throw new Error(`O campo ${proibido} não pode ser alterado pelo Cadastro Fiscal Complementar.`);
+}
+router.get('/empresas/:id/classificacao-fiscal-complementar', async (req, res) => {
+  try { await garantirEmpresaPermitida(req, req.params.id); ok(res, { fatos: cadastroFiscalComplementar.FATOS, pendencias: cadastroFiscalComplementar.listarPendencias(Number(req.params.id), req.query) }); }
+  catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/classificacao-fiscal-complementar/pendencias', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    validarPayloadSomenteFatos(req.body);
+    const pendencia = cadastroFiscalComplementar.criarPendencia({ ...req.body, empresa_id: Number(req.params.id) });
+    auditar(req, { empresaId:Number(req.params.id), acao:'CRIAR_PENDENCIA_FISCAL_PRODUTO', entidade:'pendencias_fiscais_produtos', entidadeId:pendencia.id, depois:pendencia });
+    ok(res, { pendencia });
+  } catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/classificacao-fiscal-complementar/fatos', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    validarPayloadSomenteFatos(req.body);
+    const cadastro = cadastroFiscalComplementar.salvarFato({ ...req.body, empresa_id:Number(req.params.id), usuario_id:req.usuario?.id || null });
+    auditar(req, { empresaId:Number(req.params.id), acao:'REGISTRAR_FATO_FISCAL_PRODUTO', entidade:'empresa_produto_fiscal', entidadeId:cadastro.id, depois:cadastro });
+    ok(res, { cadastro });
+  } catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/classificacao-fiscal-complementar/pendencias/:pendenciaId/responder', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    validarPayloadSomenteFatos(req.body);
+    const resultado = cadastroFiscalComplementar.responderPendencia(Number(req.params.pendenciaId), req.body?.resposta, { ...req.body, usuario_id:req.usuario?.id || null });
+    auditar(req, { empresaId:Number(req.params.id), acao:'RESPONDER_PENDENCIA_FISCAL_PRODUTO', entidade:'pendencias_fiscais_produtos', entidadeId:req.params.pendenciaId, depois:resultado });
+    ok(res, resultado);
+  } catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/classificacao-fiscal-complementar/lote', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    validarPayloadSomenteFatos(req.body);
+    const produtosEmpresaId = Array.isArray(req.body?.produtos_empresa_id) ? req.body.produtos_empresa_id : [];
+    const itensLegados = produtosEmpresaId.length ? [] : (Array.isArray(req.body?.itens) ? req.body.itens : []);
+    if ((!produtosEmpresaId.length && !itensLegados.length) || (produtosEmpresaId.length || itensLegados.length) > 500) throw new Error('Selecione entre 1 e 500 produtos para classificação em lote.');
+    const fato = req.body?.fato; const valor = req.body?.valor;
+    const cadastros = cadastroFiscalComplementar.salvarLote({ empresa_id:Number(req.params.id), produtos_empresa_id:produtosEmpresaId, itens:itensLegados, fato, valor, observacao:req.body?.observacao, vigencia_inicio:req.body?.vigencia_inicio, vigencia_fim:req.body?.vigencia_fim, usuario_id:req.usuario?.id || null });
+    auditar(req, { empresaId:Number(req.params.id), acao:'CLASSIFICAR_FATO_FISCAL_PRODUTO_EM_LOTE', entidade:'empresa_produto_fiscal', entidadeId:'LOTE', depois:{ fato, valor, quantidade:cadastros.length } });
+    ok(res, { quantidade:cadastros.length, cadastros });
+  } catch (e) { erro(res, e); }
+});
+
 // Correção pontual da classificação do fato original. O campo do XML é
 // preservado; a revisão do usuário fica explícita no próprio lançamento e
 // não aciona o motor nem reprocessa a empresa inteira.
@@ -1420,7 +1474,12 @@ function referenciaFiscalPrecificacao(empresaId, item, exigir = true) {
 }
 
 const temAliquotaInformada = (valor) => valor !== '' && valor !== null && valor !== undefined;
-const normalizarAliquota = (valor) => {
+const normalizarAliquotaPisCofins = (valor) => {
+  return require('../services/percentual').numeroPontosPercentuais(valor, { nulo: 0 });
+};
+// Campos que ainda pertencem ao contrato histórico de IVA/DAS continuam fora
+// desta mudança exclusiva de PIS/Cofins. Não há inferência por magnitude.
+const normalizarAliquotaLegada = (valor) => {
   const texto = String(valor == null ? '' : valor).trim();
   const percentual = texto.includes('%');
   const n = imp.numeroBR(texto.replace(/%/g, ''));
@@ -1466,8 +1525,8 @@ router.put('/empresas/:id/referencias-vendas/:chave', (req, res) => {
       VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
       ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
       pis_cofins=excluded.pis_cofins,das_efetivo=excluded.das_efetivo,iss_aliquota=excluded.iss_aliquota,ativo=excluded.ativo,origem=excluded.origem,atualizado_em=excluded.atualizado_em`)
-      .run(req.params.id, req.params.chave, b.nbs || '', b.descricao || 'Serviço', temAliquotaInformada(b.pis_cofins) ? normalizarAliquota(b.pis_cofins) : null, temAliquotaInformada(b.das_efetivo) ? normalizarAliquota(b.das_efetivo) : null, temAliquotaInformada(b.iss_aliquota) ? normalizarAliquota(b.iss_aliquota) : null, 1, 'manual');
-    auditar(req, { empresaId: req.params.id, acao: antes ? 'Atualizou referência fiscal de serviço' : 'Criou referência fiscal de serviço', entidade: 'referencia_fiscal_servico', entidadeId: req.params.chave, antes, depois: { nbs: b.nbs || '', descricao: b.descricao || 'Serviço', pis_cofins: temAliquotaInformada(b.pis_cofins) ? normalizarAliquota(b.pis_cofins) : null, das_efetivo: temAliquotaInformada(b.das_efetivo) ? normalizarAliquota(b.das_efetivo) : null, iss_aliquota: temAliquotaInformada(b.iss_aliquota) ? normalizarAliquota(b.iss_aliquota) : null } });
+      .run(req.params.id, req.params.chave, b.nbs || '', b.descricao || 'Serviço', temAliquotaInformada(b.pis_cofins) ? normalizarAliquotaPisCofins(b.pis_cofins) : null, temAliquotaInformada(b.das_efetivo) ? normalizarAliquotaLegada(b.das_efetivo) : null, temAliquotaInformada(b.iss_aliquota) ? normalizarAliquotaLegada(b.iss_aliquota) : null, 1, 'manual');
+    auditar(req, { empresaId: req.params.id, acao: antes ? 'Atualizou referência fiscal de serviço' : 'Criou referência fiscal de serviço', entidade: 'referencia_fiscal_servico', entidadeId: req.params.chave, antes, depois: { nbs: b.nbs || '', descricao: b.descricao || 'Serviço', pis_cofins: temAliquotaInformada(b.pis_cofins) ? normalizarAliquotaPisCofins(b.pis_cofins) : null, das_efetivo: temAliquotaInformada(b.das_efetivo) ? normalizarAliquotaLegada(b.das_efetivo) : null, iss_aliquota: temAliquotaInformada(b.iss_aliquota) ? normalizarAliquotaLegada(b.iss_aliquota) : null } });
     ok(res, {});
   } catch (e) { erro(res, e); }
 });
@@ -1483,8 +1542,8 @@ router.post('/empresas/:id/referencias-vendas', (req, res) => {
       VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
       ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
       pis_cofins=excluded.pis_cofins,das_efetivo=excluded.das_efetivo,iss_aliquota=excluded.iss_aliquota,ativo=excluded.ativo,origem=excluded.origem,atualizado_em=excluded.atualizado_em`)
-      .run(req.params.id, chave, b.nbs || '', descricao, temAliquotaInformada(b.pis_cofins) ? normalizarAliquota(b.pis_cofins) : null, temAliquotaInformada(b.das_efetivo) ? normalizarAliquota(b.das_efetivo) : null, temAliquotaInformada(b.iss_aliquota) ? normalizarAliquota(b.iss_aliquota) : null, 1, 'manual');
-    auditar(req, { empresaId: req.params.id, acao: 'Criou referência fiscal de serviço', entidade: 'referencia_fiscal_servico', entidadeId: chave, depois: { nbs: b.nbs || '', descricao, pis_cofins: temAliquotaInformada(b.pis_cofins) ? normalizarAliquota(b.pis_cofins) : null, das_efetivo: temAliquotaInformada(b.das_efetivo) ? normalizarAliquota(b.das_efetivo) : null, iss_aliquota: temAliquotaInformada(b.iss_aliquota) ? normalizarAliquota(b.iss_aliquota) : null } });
+      .run(req.params.id, chave, b.nbs || '', descricao, temAliquotaInformada(b.pis_cofins) ? normalizarAliquotaPisCofins(b.pis_cofins) : null, temAliquotaInformada(b.das_efetivo) ? normalizarAliquotaLegada(b.das_efetivo) : null, temAliquotaInformada(b.iss_aliquota) ? normalizarAliquotaLegada(b.iss_aliquota) : null, 1, 'manual');
+    auditar(req, { empresaId: req.params.id, acao: 'Criou referência fiscal de serviço', entidade: 'referencia_fiscal_servico', entidadeId: chave, depois: { nbs: b.nbs || '', descricao, pis_cofins: temAliquotaInformada(b.pis_cofins) ? normalizarAliquotaPisCofins(b.pis_cofins) : null, das_efetivo: temAliquotaInformada(b.das_efetivo) ? normalizarAliquotaLegada(b.das_efetivo) : null, iss_aliquota: temAliquotaInformada(b.iss_aliquota) ? normalizarAliquotaLegada(b.iss_aliquota) : null } });
     ok(res, { chave });
   } catch (e) { erro(res, e); }
 });
@@ -1516,8 +1575,8 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
         if (!temPis && !temDas) throw new Error(`O serviço “${descricao}” não informa PIS/COFINS nem DAS efetivo.`);
         const chave = chaveReferenciaServico({ nbs, descricao });
         gravar.run(req.params.id, chave, nbs, descricao,
-          temPis ? normalizarAliquota(brutoPis) : null, temDas ? normalizarAliquota(brutoDas) : null,
-          brutoIss === '' || brutoIss === null || brutoIss === undefined ? null : normalizarAliquota(brutoIss), 1, 'importacao');
+          temPis ? normalizarAliquotaPisCofins(brutoPis) : null, temDas ? normalizarAliquotaLegada(brutoDas) : null,
+          brutoIss === '' || brutoIss === null || brutoIss === undefined ? null : normalizarAliquotaLegada(brutoIss), 1, 'importacao');
         importados++;
       }
     })();
@@ -3181,7 +3240,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
       quantidade, unidade, data_emissao, emitente_cnpj, destinatario_cnpj,
       valor, base_calculo, icms, icms_st, ipi, pis, cofins, pis_cofins_documentado, iss, frete, seguro, outras, desconto,
       cst_declarado, cclasstrib_declarado, ibs_declarado, cbs_declarado, origem)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'xml')`);
+      VALUES (${Array.from({ length: 40 }, () => '?').join(',')},'xml')`);
     const insPar = db.prepare(`INSERT INTO parceiros (empresa_id, tipo, cnpj, descricao, regime, uf, origem)
       VALUES (?,?,?,?,?,?, 'xml')
       ON CONFLICT(empresa_id, tipo, cnpj) DO UPDATE SET descricao = excluded.descricao`);
@@ -3207,6 +3266,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
             if (reg) relatorio.regimesSugeridos++;
           }
           for (const i of r.itens) {
+            const identidade = i.codigo_produto ? identidadeProduto.resolver({ empresa_id:Number(req.params.id), tipo_origem:'XML_CPROD', codigo_origem:i.codigo_produto, ncm:i.ncm, descricao:i.descricao, data:i.data_emissao }) : null;
             const movimento = insMov.run(req.params.id, lote.lastInsertRowid, tipoParceiro, i.sentido, i.nome, i.inscr_federal,
               i.descricao, i.ncm || '', i.nbs || '', i.lc116 || '', i.cfop || '', i.cst || '', i.csosn || '', i.competencia,
               i.documento, i.chave || '', i.item_numero, i.codigo_produto || '', i.quantidade || 0,
@@ -3215,6 +3275,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
               i.pis || 0, i.cofins || 0, i.pis_cofins_documentado ? 1 : 0, i.iss || 0, i.frete || 0, i.seguro || 0, i.outras || 0, i.desconto || 0,
               (i.declarado && i.declarado.cst) || '', (i.declarado && i.declarado.cclasstrib) || '',
               (i.declarado && i.declarado.ibs) || 0, (i.declarado && i.declarado.cbs) || 0);
+            if (identidade?.produto_empresa_id) db.prepare('UPDATE movimentos SET produto_empresa_id=? WHERE id=?').run(identidade.produto_empresa_id, movimento.lastInsertRowid);
             normalizacaoFiscalXml.validarMovimento(Number(movimento.lastInsertRowid));
             relatorio.itens++;
             if (i.sentido === 'entrada') relatorio.entradas++; else relatorio.saidas++;
@@ -3405,12 +3466,14 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
           }
 
           for (const i of r.itens) {
+            const identidade = i.codigo_produto ? identidadeProduto.resolver({ empresa_id:Number(req.params.id), tipo_origem:'SPED_COD_ITEM', codigo_origem:i.codigo_produto, ncm:i.ncm, descricao:i.descricao, data:i.data_emissao }) : null;
             insMov.run(req.params.id, lote.lastInsertRowid, i.tipo, i.sentido, i.nome, i.inscr_federal,
               i.descricao, i.ncm || '', i.nbs || '', i.lc116 || '', i.cfop || '', i.cst || '', '', i.competencia,
               i.documento, i.chave || '', i.item_numero, i.codigo_produto || '', i.quantidade || 0,
               i.unidade || '', i.data_emissao || '', i.emitente_cnpj || '', i.destinatario_cnpj || '',
               i.valor, i.base_calculo || i.valor, i.icms || 0, i.icms_st || 0, i.ipi || 0,
               i.pis || 0, i.cofins || 0, i.iss || 0, i.frete || 0, i.seguro || 0, i.outras || 0, i.desconto || 0);
+            if (identidade?.produto_empresa_id) db.prepare('UPDATE movimentos SET produto_empresa_id=? WHERE id=last_insert_rowid()').run(identidade.produto_empresa_id);
             rel.itens++;
             if (i.sentido === 'entrada') rel.entradas++; else rel.saidas++;
           }

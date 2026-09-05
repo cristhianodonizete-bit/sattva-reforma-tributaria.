@@ -1,0 +1,6002 @@
+[
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_7K43D0",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CAFE",
+    "ncm": "09011110",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º e legislação complementar de cesta básica"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1DLNMAA",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CAFE",
+    "ncm": "09012100",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º e legislação complementar de cesta básica"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_12EYAV2",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CAFE",
+    "ncm": "21011110",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º e legislação complementar de cesta básica"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_UMJF12",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CAFE",
+    "ncm": "21011190",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º e legislação complementar de cesta básica"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_M3NSTI",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CAFE",
+    "ncm": "21011200",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º e legislação complementar de cesta básica"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_VDQTBP",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25010011",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_104HPB1",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25010019",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_V97PF5",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25010020",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_D7G78G",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25010090",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1EZ7FCM",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25030010",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_145DKTA",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25030090",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1QHHFHP",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25041000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_BC0PWL",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25049000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_10JMJXO",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25051000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_XDTJ1G",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25059000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1DW6MEA",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25070010",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_H0VRAX",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25081000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_Q7EKRF",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25083000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1G6XKST",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25084090",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_PBVG1T",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25131000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_V45EGT",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25171000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1A9RIEE",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25181000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1PUUYBN",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25182000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1LGX02P",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25202090",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_8Q7E4D",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25210000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1LSBMX1",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25221000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1NR7QB8",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25222000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1SF3P74",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25232100",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_178MHNN",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25232910",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1A1LB6W",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25262000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_W71A0Z",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CORRETIVOS_SOLO",
+    "ncm": "25309090",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "corretivo_solo",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "origem_mineral",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_I6LEY4",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FERTILIZANTES",
+    "ncm": "31010000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "uso_veterinario",
+        "operador": "FALSO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1TKOBLN",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FERTILIZANTES",
+    "ncm": "31021010",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "uso_veterinario",
+        "operador": "FALSO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1KOL69V",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FERTILIZANTES",
+    "ncm": "31021090",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "uso_veterinario",
+        "operador": "FALSO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_X12WYZ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FERTILIZANTES",
+    "ncm": "31028000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "uso_veterinario",
+        "operador": "FALSO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_J9CZUL",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FERTILIZANTES",
+    "ncm": "31049090",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "uso_veterinario",
+        "operador": "FALSO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_S8DPOU",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FERTILIZANTES",
+    "ncm": "31052000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "uso_veterinario",
+        "operador": "FALSO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_LP9HA8",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FERTILIZANTES",
+    "ncm": "31059090",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "uso_veterinario",
+        "operador": "FALSO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1BEJB15",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38085910",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_A2XZJP",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38085929",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1MXYC57",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38086100",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_N4K7M7",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38086290",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1IHHN88",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089119",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_41MP3J",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089192",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1I3GE9F",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089196",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_8EO0NQ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089197",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1L05SG",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089199",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_HEIUEM",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089294",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_YTV8PR",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089299",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1KK39YA",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089324",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_KIK62J",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089329",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_189CNCP",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089349",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1LYOX9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089419",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_UU66ZW",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089429",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_464B4W",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089919",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1BAW68G",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089991",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1MYF9U2",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089993",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_T6GYWR",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089996",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NCM_1BPZLK8",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_DEFENSIVOS",
+    "ncm": "38089999",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "defensivo_agropecuario",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "ALIQUOTA_ZERO_PIS_COFINS",
+    "fundamento": "Lei 10.925/2004, art. 1º, I a IV"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_QIUD0N",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115021000",
+    "lc116": "0101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_JO1QP8",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115022000",
+    "lc116": "0101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_MX7MO6",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115024000",
+    "lc116": "0101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_HCK7NV",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115025000",
+    "lc116": "0101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_NDRYN3",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115029000",
+    "lc116": "0101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_195V845",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115030000",
+    "lc116": "0101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_FQZIVK",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115040000",
+    "lc116": "0101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_10KY023",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115050000",
+    "lc116": "0101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_IGD70S",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115071000",
+    "lc116": "0101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_5357WN",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115072000",
+    "lc116": "0101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_10YMI84",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115079000",
+    "lc116": "0101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_19A9AA6",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115021000",
+    "lc116": "0102",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_T5B25T",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115022000",
+    "lc116": "0102",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_18B4E92",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115029000",
+    "lc116": "0102",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_KCSIFO",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115021000",
+    "lc116": "0104",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1D9TMKF",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115022000",
+    "lc116": "0104",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1IZD3BG",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115029000",
+    "lc116": "0104",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1A7A5C0",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "111032100",
+    "lc116": "0105",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_16Q0XK1",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "111032200",
+    "lc116": "0105",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_CRMFRY",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "111032300",
+    "lc116": "0105",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_IOBLX4",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "111032900",
+    "lc116": "0105",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1NRDYYW",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "111062000",
+    "lc116": "0105",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1KKTK4N",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "111072000",
+    "lc116": "0105",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_14W8Z2N",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115011000",
+    "lc116": "0106",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1PAEBRK",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115012000",
+    "lc116": "0106",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_ROVXWT",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115071000",
+    "lc116": "0106",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1FYSU2Q",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115072000",
+    "lc116": "0106",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_MK7UN9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115079000",
+    "lc116": "0106",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_PRCHSO",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115100000",
+    "lc116": "0106",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_BUWW4U",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115013000",
+    "lc116": "0107",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1IFGBW9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115021000",
+    "lc116": "0107",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1MPDU9Y",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115022000",
+    "lc116": "0107",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1PEQLOM",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115080000",
+    "lc116": "0107",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_ON4PU",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "ncm": null,
+    "nbs": "115023000",
+    "lc116": "0108",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_informatica_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_11HFG20",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "118066100",
+    "lc116": "0303",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_TA592J",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "118066200",
+    "lc116": "0303",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1SY095I",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "118066300",
+    "lc116": "0303",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_IRWW8Z",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "123019300",
+    "lc116": "0402",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1EDBHIS",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "123019400",
+    "lc116": "0402",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_55LYJ8",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "123011900",
+    "lc116": "0403",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_5G2NSL",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "123012100",
+    "lc116": "0403",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1NUXFD4",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "123019200",
+    "lc116": "0408",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1YSW1ZN",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "123019900",
+    "lc116": "0408",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_IUQID9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "123012100",
+    "lc116": "0418",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_UPATXW",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "109101000",
+    "lc116": "0422",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_CDBVCC",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "109109000",
+    "lc116": "0422",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1J2LKCQ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "114051100",
+    "lc116": "0502",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1FGM5VJ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "114052100",
+    "lc116": "0502",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_17FDHM3",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TELECOM",
+    "ncm": null,
+    "nbs": "114032500",
+    "lc116": "0701",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_telecomunicacoes",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_EFUT4X",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101011100",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1QGGC7K",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101011200",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1JO676Q",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101012100",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_NDMJP3",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101012200",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_27SSVE",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101012900",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1A22HOC",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101013000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_3LPFG8",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101021100",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_K77GEH",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101021200",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_2A9TKI",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101021300",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1120TW4",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101022000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_10ZR8UY",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023100",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_4PRQ8F",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023200",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_16UDMF4",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023300",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_ZJ4MFH",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023400",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1QAREOZ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023510",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_FIMOUW",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023520",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_11N35X9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023530",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_8O303C",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101024110",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_6JVTZ7",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101024120",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_HHN1OW",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101024190",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1A4YX0H",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101024210",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_RQ7NTM",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101024220",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1KQV3OS",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101025100",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1GVTC94",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101025210",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_7JXRBN",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101025220",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1U5OYF7",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101025310",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_M3LBSO",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101025320",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_RY8IV",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101026100",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_J2CLOV",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101026900",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_7IFZX1",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101027000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_ON23JU",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101028000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_XZR70F",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101029000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_YPP55J",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101032000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_EI6JAQ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101033000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_AQ3J72",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101034100",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_N9U99F",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101034200",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_JT5M2S",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101040000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_M9PLI5",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101051100",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_F5WV4S",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101051200",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_19DFPZY",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101052100",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_TKFO5V",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101052200",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1PBV8BC",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101053000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1YOA3PJ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101054000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_18D8CDE",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101055000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_IYPBOX",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101056000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1ACA1BY",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101059000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_162YVVO",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101061100",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_13WX7M4",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101061900",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1DC5MQN",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101062100",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1CXRFHM",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101062200",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_IOLHXN",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101063200",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1VO1LFE",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101064000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_VLA7WS",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101066000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_7YAUQ6",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101073000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_EE6G0P",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101074000",
+    "lc116": "0702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1R0H3SG",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101011100",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1KL9UU9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101011200",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1SSKV4F",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101012100",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_4E0TAI",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101012200",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1EURQ8N",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101012900",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_48Z0AT",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101013000",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1GFL66H",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101021100",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_STHJ20",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101021200",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_ESXJXB",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101021300",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_N8DLEL",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101022000",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1GOGH53",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023100",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1UMH49U",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023200",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_19C3YA9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023300",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_C3J6IS",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023400",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_F8KUZI",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023510",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1TVZ3D",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023520",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_5SZOC4",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101023530",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1SXFT",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101024110",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1NKF70E",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101024120",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_BMGKBL",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101024190",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_B3OM4W",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101024210",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_9Y379J",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101024220",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1CRMEUT",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101025100",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_E7BCUX",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101025210",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_MOVDHQ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101025220",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_10J93WE",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101025310",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1YXH2IX",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101025320",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_U2D796",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101026100",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1U4F8YQ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101026900",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_12XBXOS",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101027000",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1UDR6SN",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101028000",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_FPDRTE",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101029000",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1RUHAJ7",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "ncm": null,
+    "nbs": "101073000",
+    "lc116": "0705",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_construcao_civil_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_LQQURI",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122011100",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_14QKSXX",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122011200",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_14Y7XBQ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122011900",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_S1E186",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122012000",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1S7VI6L",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122013000",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_TMU0SB",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122020000",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_P3QNE9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122031000",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1QOMG90",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122032000",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1JFHMC6",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122041000",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1SSURMF",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122042000",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_HZGY0G",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122043000",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1176X9T",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "ncm": null,
+    "nbs": "122044000",
+    "lc116": "0801",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_educacao_nivel_legal",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_163P9W2",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_HOTELARIA",
+    "ncm": null,
+    "nbs": "103031100",
+    "lc116": "0901",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_hotelaria_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Portaria Interministerial MF/MTur 33/2005"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_H83JPT",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_HOTELARIA",
+    "ncm": null,
+    "nbs": "103031200",
+    "lc116": "0901",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_hotelaria_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Portaria Interministerial MF/MTur 33/2005"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_V81B0K",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_HOTELARIA",
+    "ncm": null,
+    "nbs": "103031300",
+    "lc116": "0901",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_hotelaria_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Portaria Interministerial MF/MTur 33/2005"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_VZ924B",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_HOTELARIA",
+    "ncm": null,
+    "nbs": "103031400",
+    "lc116": "0901",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_hotelaria_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Portaria Interministerial MF/MTur 33/2005"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_N4G4H6",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_HOTELARIA",
+    "ncm": null,
+    "nbs": "103032000",
+    "lc116": "0901",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_hotelaria_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Portaria Interministerial MF/MTur 33/2005"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1Q3J7B3",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_HOTELARIA",
+    "ncm": null,
+    "nbs": "103039000",
+    "lc116": "0901",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_hotelaria_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Portaria Interministerial MF/MTur 33/2005"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_TN0RO0",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_HOTELARIA",
+    "ncm": null,
+    "nbs": "103041000",
+    "lc116": "0901",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_hotelaria_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Portaria Interministerial MF/MTur 33/2005"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_13R5GSX",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_HOTELARIA",
+    "ncm": null,
+    "nbs": "103042000",
+    "lc116": "0901",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_hotelaria_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Portaria Interministerial MF/MTur 33/2005"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_APND94",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_HOTELARIA",
+    "ncm": null,
+    "nbs": "103049000",
+    "lc116": "0901",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_hotelaria_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Portaria Interministerial MF/MTur 33/2005"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_4WJ8K5",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "104011710",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1LEMMRQ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "104011720",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_11T3ZP9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "104011790",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_P1634B",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "104012300",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_KS60D9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "104014300",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_NOV7F",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "104021320",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1GNDNGJ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118051100",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1I1O1LA",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "118051200",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_14BQPT1",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118051300",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1SGCZY8",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118051400",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_KY51DN",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118051900",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_6MA194",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118052100",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_4Y92IX",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118052200",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_19L3KE2",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118052300",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_HOL00R",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118052400",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_CXIE1",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118053100",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1BHD2H8",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "118053200",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_VWA9B5",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118053900",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_4QGG71",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118054000",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_K3P09G",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118056100",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1XPLVR9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "ncm": null,
+    "nbs": "118056200",
+    "lc116": "0902",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_agencia_viagem_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_NBCDYC",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SEGURANCA_PRIVADA",
+    "ncm": null,
+    "nbs": "118022000",
+    "lc116": "1102",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "prestadora_seguranca_privada_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1N747RV",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SEGURANCA_PRIVADA",
+    "ncm": null,
+    "nbs": "118023000",
+    "lc116": "1102",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "prestadora_seguranca_privada_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1LA4V99",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SEGURANCA_PRIVADA",
+    "ncm": null,
+    "nbs": "118025000",
+    "lc116": "1102",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "prestadora_seguranca_privada_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_9T9ZC9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SEGURANCA_PRIVADA",
+    "ncm": null,
+    "nbs": "118029000",
+    "lc116": "1102",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "prestadora_seguranca_privada_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_A35BH",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "118066100",
+    "lc116": "1208",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1UGODEE",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "118066200",
+    "lc116": "1208",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_SGC3UN",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "118066300",
+    "lc116": "1208",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1FYNF8P",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "125051000",
+    "lc116": "1210",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_81UFIG",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "125051000",
+    "lc116": "1211",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_128YRRQ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "ncm": null,
+    "nbs": "125012100",
+    "lc116": "1213",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "empresa_jornalistica_ou_radiodifusao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1V8PKJ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "ncm": null,
+    "nbs": "125012200",
+    "lc116": "1213",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "empresa_jornalistica_ou_radiodifusao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_2DRBVJ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "ncm": null,
+    "nbs": "125021000",
+    "lc116": "1213",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "empresa_jornalistica_ou_radiodifusao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1HRJ5LO",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "ncm": null,
+    "nbs": "125022000",
+    "lc116": "1213",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "empresa_jornalistica_ou_radiodifusao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_RSP3QT",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "ncm": null,
+    "nbs": "125023000",
+    "lc116": "1213",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "empresa_jornalistica_ou_radiodifusao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1SHYDFQ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "ncm": null,
+    "nbs": "125051000",
+    "lc116": "1213",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "empresa_jornalistica_ou_radiodifusao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_65COGZ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "125051000",
+    "lc116": "1216",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1UDKQ4A",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TELECOM",
+    "ncm": null,
+    "nbs": "120017000",
+    "lc116": "1401",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_telecomunicacoes",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1G71WBY",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "120018200",
+    "lc116": "1401",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1F7ELLX",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TELECOM",
+    "ncm": null,
+    "nbs": "120017000",
+    "lc116": "1402",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_telecomunicacoes",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_8XR6DT",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "120018200",
+    "lc116": "1402",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1LD1FUB",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "120032400",
+    "lc116": "1406",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1OMSE0K",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109014000",
+    "lc116": "1501",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_UN2RJ3",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109052100",
+    "lc116": "1501",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_XG7SZ8",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109052200",
+    "lc116": "1501",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_KA5I41",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109052300",
+    "lc116": "1501",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_HPO71K",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109054000",
+    "lc116": "1501",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_P97JAZ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109064000",
+    "lc116": "1501",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_18QWGNW",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109012100",
+    "lc116": "1502",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_14ROT8V",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109012200",
+    "lc116": "1502",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1MXH6MC",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109012900",
+    "lc116": "1502",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1T8EDCI",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111019000",
+    "lc116": "1503",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1IYFR8K",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "120018900",
+    "lc116": "1503",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1G1JN5H",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "113013000",
+    "lc116": "1504",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_O2DP7Z",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "118061000",
+    "lc116": "1504",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_OYLEQY",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "118061000",
+    "lc116": "1505",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1QIKUTM",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "107020000",
+    "lc116": "1506",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_QQSJHZ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "113013000",
+    "lc116": "1506",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1LZ6BET",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1507",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_11YIEB",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CALL_CENTER",
+    "ncm": null,
+    "nbs": "118063100",
+    "lc116": "1507",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "empresa_call_center",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente art. 10, XIX"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_ROTZR3",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109013300",
+    "lc116": "1508",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_10WWPAO",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109013400",
+    "lc116": "1508",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_4M3Y25",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109013500",
+    "lc116": "1508",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_Z7K0B2",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109013600",
+    "lc116": "1508",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1SM7HKH",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109013900",
+    "lc116": "1508",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_GQ1QKM",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109055000",
+    "lc116": "1508",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_FHWLGG",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015111",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1MIC7R7",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015112",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_LDRTP2",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015113",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_15MV89D",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015114",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_150PY70",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015115",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_UBE4TB",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015116",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1A91COI",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015117",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1X9JL7D",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015121",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_164OBGA",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015122",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_B1FW07",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015123",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_14AXINC",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015124",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_17XPT0G",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TELECOM",
+    "ncm": null,
+    "nbs": "109015125",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_telecomunicacoes",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_VSHK4X",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015129",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_WKTN5Y",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015210",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1B57G0R",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015220",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_H3NGQW",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015230",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_BAC8RH",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015240",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_14IEYFE",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015250",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1DLJPN2",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109015290",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_R2EJ59",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111011100",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1JPLD1I",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111011200",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1Q6DVNV",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111011300",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_AG12XO",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111011400",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1E3PW4P",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111011500",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1X9KBJ6",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111011600",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1K76PHJ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111011700",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_GUKPIX",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111012000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_16OSY9A",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111013000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1E3OB27",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111014000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_WDO2JO",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111015000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_13Y2Z80",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TELECOM",
+    "ncm": null,
+    "nbs": "111016000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_telecomunicacoes",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_8WRHMW",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111019000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1CRCDK3",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111021000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1RHV9SM",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111022000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_S4PIU9",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111023000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_LF36TO",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111024000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_BK69IF",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111025000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_BB72XM",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111026000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_15OVO6Z",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "111029000",
+    "lc116": "1509",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_ZPXD05",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1510",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1QJ2VAD",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "118062000",
+    "lc116": "1510",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_10C722O",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1511",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_810Y0L",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109053000",
+    "lc116": "1512",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1M847BV",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109056000",
+    "lc116": "1513",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_16M8Z2",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109014000",
+    "lc116": "1514",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_NVJS9T",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1514",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_15D75D8",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109012100",
+    "lc116": "1515",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_16HPA4F",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109012200",
+    "lc116": "1515",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_13HNO9G",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109012900",
+    "lc116": "1515",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_81OJ4R",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109051300",
+    "lc116": "1515",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1Q2SRYB",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1516",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1WP4SCU",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1517",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_H1MNK2",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109013100",
+    "lc116": "1518",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_I04CHT",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "109013200",
+    "lc116": "1518",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_ORNAX1",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "ncm": null,
+    "nbs": "110013000",
+    "lc116": "1518",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "pj_financeira_ou_equiparada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_7T00GS",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104011119",
+    "lc116": "1601",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1XDC3AY",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104011610",
+    "lc116": "1601",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_SSLCNV",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104011620",
+    "lc116": "1601",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_GI4S4I",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104011690",
+    "lc116": "1601",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1GMCEBK",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104012110",
+    "lc116": "1601",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1OMA2D4",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104012190",
+    "lc116": "1601",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1MPM9GL",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104013000",
+    "lc116": "1601",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_B1FFCF",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104012120",
+    "lc116": "1602",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_B8V6J0",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104012190",
+    "lc116": "1602",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_6YA2O0",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104012200",
+    "lc116": "1602",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1MBIM4P",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104012900",
+    "lc116": "1602",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_Z2EM4X",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "114011800",
+    "lc116": "1701",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_11MMGDK",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_CALL_CENTER",
+    "ncm": null,
+    "nbs": "118063100",
+    "lc116": "1702",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "empresa_call_center",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente art. 10, XIX"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_14CI9N",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "118066100",
+    "lc116": "1710",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1M26Q6W",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "118066200",
+    "lc116": "1710",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1R0WSRH",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "118066300",
+    "lc116": "1710",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_NFHBDA",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "103013100",
+    "lc116": "1711",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_117B3TO",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "ncm": null,
+    "nbs": "118066300",
+    "lc116": "1711",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_organizacao_eventos_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_PHGHU",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "ncm": null,
+    "nbs": "114012200",
+    "lc116": "1712",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_servico_saude_listado",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_1A4OKEM",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "ncm": null,
+    "nbs": "114063300",
+    "lc116": "1725",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "empresa_jornalistica_ou_radiodifusao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_RUFYLF",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "ncm": null,
+    "nbs": "114063400",
+    "lc116": "1725",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "empresa_jornalistica_ou_radiodifusao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_QAMCSK",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "ncm": null,
+    "nbs": "114063900",
+    "lc116": "1725",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "empresa_jornalistica_ou_radiodifusao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_JQ1YIR",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "104012120",
+    "lc116": "2001",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_OHQKCZ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "106059000",
+    "lc116": "2001",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_156ETQ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "106030000",
+    "lc116": "2003",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_JIQYJQ",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "ncm": null,
+    "nbs": "106049000",
+    "lc116": "2003",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_transporte_turismo_apoio_enquadrada",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_8CA6JP",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_RODOVIAS",
+    "ncm": null,
+    "nbs": "106042100",
+    "lc116": "2201",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_concessionaria_rodovia",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_VE3J6I",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_RODOVIAS",
+    "ncm": null,
+    "nbs": "106042200",
+    "lc116": "2201",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_concessionaria_rodovia",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_RASCUNHO_NBS_LC116_ATTSAU",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_TELECOM",
+    "ncm": null,
+    "nbs": "114150000",
+    "lc116": "3101",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "receita_telecomunicacoes",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO",
+    "fundamento": "Lei 10.833/2003, art. 10, redação vigente"
+  },
+  {
+    "id": "RASCUNHO_FINAL_84701000",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_ASSISTIVOS_SINTETIZADOR_VOZ",
+    "ncm": "84701000",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "possui_sintetizador_voz",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO"
+  },
+  {
+    "id": "RASCUNHO_FINAL_84716053",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_ASSISTIVOS_MOUSE_ACIONADOR",
+    "ncm": "84716053",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "adaptado_para_pessoa_com_deficiencia",
+        "operador": "VERDADEIRO"
+      },
+      {
+        "fato": "acionador_pressao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO"
+  },
+  {
+    "id": "RASCUNHO_FINAL_84719014",
+    "status": "RASCUNHO",
+    "familia_juridica_id": "PISCOFINS_ASSISTIVOS_SINTETIZADOR_VOZ",
+    "ncm": "84719014",
+    "nbs": null,
+    "lc116": null,
+    "condicoes_obrigatorias": [
+      {
+        "fato": "possui_sintetizador_voz",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "tratamento": "CUMULATIVO_OBRIGATORIO"
+  }
+]

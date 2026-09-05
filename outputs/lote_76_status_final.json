@@ -1,0 +1,311 @@
+{
+  "registros_lote_original": 76,
+  "registros_fechados": 76,
+  "lote_original_76_fechado": "SIM",
+  "itens": [
+    {
+      "ncm": "02011000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02012020",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02012090",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02013000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02022090",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02023000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02031100",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02031200",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02031900",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02032200",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02032900",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02043000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02044200",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02044300",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02062100",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02062200",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02062910",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02062990",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02063000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02064900",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071100",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071210",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071220",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071300",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071400",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071412",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071413",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071419",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071422",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071423",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071429",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071432",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02071433",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02072400",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02091029",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02101200",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02101900",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "02102000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "03024300",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "03024990",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "03036300",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "03043100",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "03044100",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "03046100",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "03048100",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "03049212",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "04051000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "07133319",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "07133399",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "10063021",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "10063029",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "11022000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "11062000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15071000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15079011",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15079019",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15079090",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15092000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15099090",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15121110",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15121911",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15121919",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15122910",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15131100",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "15131900",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "17011400",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "17019900",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "30023010",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "30023070",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "30023080",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "30023090",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "48181000",
+      "status_final": "VALIDADA_LOTE_72"
+    },
+    {
+      "ncm": "84701000",
+      "status_final": "CONDICIONAL_VALIDADA"
+    },
+    {
+      "ncm": "84716053",
+      "status_final": "CONDICIONAL_VALIDADA"
+    },
+    {
+      "ncm": "84719014",
+      "status_final": "CONDICIONAL_VALIDADA"
+    },
+    {
+      "ncm": "87142000",
+      "status_final": "DIRETA_VALIDADA"
+    }
+  ]
+}

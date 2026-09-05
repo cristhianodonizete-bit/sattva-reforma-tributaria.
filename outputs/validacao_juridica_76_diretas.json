@@ -1,0 +1,3203 @@
+{
+  "resumo": {
+    "registros_analisados": 76,
+    "zero_mantido_2026": 0,
+    "alcancados_lc224": 0,
+    "outro_tratamento": 0,
+    "precisa_revisao_juridica": 76,
+    "com_vigencia_dividida_2026": 0,
+    "cst06_com_percentual_nao_zero": 0,
+    "exigem_infadfisco_lc224": 0,
+    "fundamento_legal_identificado": 0,
+    "fundamento_legal_nao_identificado": 76,
+    "registros_prontos_para_modelagem": 0,
+    "registros_nao_prontos": 76,
+    "alteracoes_banco": "NENHUMA",
+    "alteracoes_supabase": "NENHUMA",
+    "alteracoes_motor": "NENHUMA"
+  },
+  "registros": [
+    {
+      "id_proposto": "RASCUNHO_NCM_1AWTUZM",
+      "ncm": "02011000",
+      "descricao": [
+        "Carcaças e meias-carcaças"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_W8E6Y3",
+      "ncm": "02012020",
+      "descricao": [
+        "Quartos traseiros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1CQ145C",
+      "ncm": "02012090",
+      "descricao": [
+        "Outras"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_15EZKR4",
+      "ncm": "02013000",
+      "descricao": [
+        "Desossadas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_10AGVE1",
+      "ncm": "02022090",
+      "descricao": [
+        "Outras"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_X2L17T",
+      "ncm": "02023000",
+      "descricao": [
+        "Desossadas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_150RRG7",
+      "ncm": "02031100",
+      "descricao": [
+        "Carcaças e meias-carcaças"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_Q6BZXQ",
+      "ncm": "02031200",
+      "descricao": [
+        "Pernas, pás e respectivos pedaços, não desossados"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_FEE3XR",
+      "ncm": "02031900",
+      "descricao": [
+        "Outras"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1ET5WG9",
+      "ncm": "02032200",
+      "descricao": [
+        "Pernas, pás e respectivos pedaços, não desossados"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_8R1JN8",
+      "ncm": "02032900",
+      "descricao": [
+        "Outras"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1H4DJBB",
+      "ncm": "02043000",
+      "descricao": [
+        "Carcaças e meias-carcaças de cordeiro, congeladas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1N3K8Z6",
+      "ncm": "02044200",
+      "descricao": [
+        "Outras peças não desossadas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1HTMT91",
+      "ncm": "02044300",
+      "descricao": [
+        "Desossadas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_BL2E8N",
+      "ncm": "02062100",
+      "descricao": [
+        "Línguas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1TWPF2M",
+      "ncm": "02062200",
+      "descricao": [
+        "Fígados"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_21R526",
+      "ncm": "02062910",
+      "descricao": [
+        "Rabos"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1118YW6",
+      "ncm": "02062990",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_UY70BP",
+      "ncm": "02063000",
+      "descricao": [
+        "Da espécie suína, frescas ou refrigeradas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_794E59",
+      "ncm": "02064900",
+      "descricao": [
+        "Outras"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1YF87HF",
+      "ncm": "02071100",
+      "descricao": [
+        "Não cortadas em pedaços, frescas ou refrigeradas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_R5QJQJ",
+      "ncm": "02071210",
+      "descricao": [
+        "Com miudezas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1JKSNSO",
+      "ncm": "02071220",
+      "descricao": [
+        "Sem miudezas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_P4CKFX",
+      "ncm": "02071300",
+      "descricao": [
+        "Pedaços e miudezas, frescos ou refrigerados"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1PFYZSC",
+      "ncm": "02071400",
+      "descricao": [],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_HOFA6Z",
+      "ncm": "02071412",
+      "descricao": [
+        "Coxas com sobrecoxas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_17ZKE1C",
+      "ncm": "02071413",
+      "descricao": [
+        "Asas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_I0K576",
+      "ncm": "02071419",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_129OO84",
+      "ncm": "02071422",
+      "descricao": [
+        "Peitos"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1X6B6TB",
+      "ncm": "02071423",
+      "descricao": [
+        "Coxas com sobrecoxas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1IVEHK1",
+      "ncm": "02071429",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_195PTM1",
+      "ncm": "02071432",
+      "descricao": [
+        "Moelas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_NB9USU",
+      "ncm": "02071433",
+      "descricao": [
+        "Corações"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_XEIFQF",
+      "ncm": "02072400",
+      "descricao": [
+        "Não cortadas em pedaços, frescas ou refrigeradas"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_8RDD2J",
+      "ncm": "02091029",
+      "descricao": [
+        "Outras"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_GI6OOY",
+      "ncm": "02101200",
+      "descricao": [
+        "Toucinhos entremeados (Barrigas (entremeadas)*) e seus pedaços"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_OMHW0Z",
+      "ncm": "02101900",
+      "descricao": [
+        "Outras"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_19IVT1V",
+      "ncm": "02102000",
+      "descricao": [
+        "Carnes da espécie bovina"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1MPYSAK",
+      "ncm": "03024300",
+      "descricao": [
+        "Sardinhas (Sardina pilchardus, Sardinops spp., Sardinella spp.) (Sardinha (Sardina pilchardus) e sardinelas (Sardinops spp., Sardinella spp.)*), anchoveta (espadilha*) (Sprattus sprattus)"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_13CJXDZ",
+      "ncm": "03024990",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_17EDZ29",
+      "ncm": "03036300",
+      "descricao": [
+        "Bacalhau-do-atlântico (Gadus morhua), bacalhau-da-groelândia (Gadus ogac) e bacalhau-do-pacífico (Gadus macrocephalus)"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_ZR72W7",
+      "ncm": "03043100",
+      "descricao": [
+        "Tilápias (Oreochromis spp.)"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1SMQP8O",
+      "ncm": "03044100",
+      "descricao": [
+        "Salmões-do-pacífico (Oncorhynchus nerka, Oncorhynchus gorbuscha, Oncorhynchus keta, Oncorhynchus tschawytscha, Oncorhynchus kisutch, Oncorhynchus masou e Oncorhynchus rhodurus), salmão-do-atlântico (Salmo salar) e salmão-do-danúbio (Hucho hucho)"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1MSV08U",
+      "ncm": "03046100",
+      "descricao": [
+        "Tilápias (Oreochromis spp.)"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_14PQGP0",
+      "ncm": "03048100",
+      "descricao": [
+        "Salmões-do-pacífico (Oncorhynchus nerka, Oncorhynchus gorbuscha, Oncorhynchus keta, Oncorhynchus tschawytscha, Oncorhynchus kisutch, Oncorhynchus masou e Oncorhynchus rhodurus), salmão-do-atlântico (Salmo salar) e salmão-do-danúbio (Hucho hucho)"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1SV2SZN",
+      "ncm": "03049212",
+      "descricao": [
+        "Colares (collars)"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1T7HA2C",
+      "ncm": "04051000",
+      "descricao": [
+        "Manteiga"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_UQR5D7",
+      "ncm": "07133319",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1Q00TS3",
+      "ncm": "07133399",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1A76QYR",
+      "ncm": "10063021",
+      "descricao": [
+        "Polido ou brunido"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1P5TAQ3",
+      "ncm": "10063029",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_PSC694",
+      "ncm": "11022000",
+      "descricao": [
+        "Farinha de milho"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1EDTFLG",
+      "ncm": "11062000",
+      "descricao": [
+        "De sagu ou das raízes ou tubérculos, da posição 07.14"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1MBANW4",
+      "ncm": "15071000",
+      "descricao": [
+        "Óleo em bruto, mesmo degomado"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_W0CLHM",
+      "ncm": "15079011",
+      "descricao": [
+        "Em recipientes com capacidade inferior ou igual a 5 l"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1SHD1GI",
+      "ncm": "15079019",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_18BTF31",
+      "ncm": "15079090",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_OFLGMD",
+      "ncm": "15092000",
+      "descricao": [
+        "Azeite de oliva (oliveira) extra virgem"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_185VXK7",
+      "ncm": "15099090",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_RNWRZG",
+      "ncm": "15121110",
+      "descricao": [
+        "De girassol"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_B9D2WV",
+      "ncm": "15121911",
+      "descricao": [
+        "Refinado, em recipientes com capacidade inferior ou igual a 5 l"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_72UFT3",
+      "ncm": "15121919",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_VE3BH3",
+      "ncm": "15122910",
+      "descricao": [
+        "Refinado"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_6OMMAM",
+      "ncm": "15131100",
+      "descricao": [
+        "Óleo em bruto"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_18C5VA",
+      "ncm": "15131900",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1EYC6I4",
+      "ncm": "17011400",
+      "descricao": [
+        "Outros açúcares de cana"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_M9ZQBN",
+      "ncm": "17019900",
+      "descricao": [
+        "Outros"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1KD5KY5",
+      "ncm": "30023010",
+      "descricao": [],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_9ERUDV",
+      "ncm": "30023070",
+      "descricao": [],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_16FXJ1O",
+      "ncm": "30023080",
+      "descricao": [],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_19PZVUT",
+      "ncm": "30023090",
+      "descricao": [],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_136INIU",
+      "ncm": "48181000",
+      "descricao": [
+        "Papel higiênico"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_DRAXLC",
+      "ncm": "84701000",
+      "descricao": [
+        "Calculadoras eletrônicas capazes de funcionar sem fonte externa de energia elétrica e máquinas de bolso com função de cálculo incorporada que permitam gravar, reproduzir e visualizar informações"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1CHXJO8",
+      "ncm": "84716053",
+      "descricao": [
+        "Indicadores ou apontadores (mouse e track-ball, por exemplo)"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_KCAZ2I",
+      "ncm": "84719014",
+      "descricao": [
+        "Digitalizadores de imagens (scanners)"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    },
+    {
+      "id_proposto": "RASCUNHO_NCM_1JOJ3O8",
+      "ncm": "87142000",
+      "descricao": [
+        "De cadeiras de rodas ou de outros veículos para pessoas com incapacidade"
+      ],
+      "tratamento_matriz": "ALÍQUOTA ZERO",
+      "fundamento_legal_original": null,
+      "lei": null,
+      "artigo": null,
+      "inciso": null,
+      "alinea_item": null,
+      "vigencia_original_inicio": null,
+      "vigencia_original_fim": "2026-03-31",
+      "impacto_lc224": "INDETERMINADO",
+      "fundamento_impacto_lc224": "LC 224/2025, art. 4º, § 4º, I, e § 8º — aplicação e exceção dependem do fundamento original e do cruzamento oficial do NCM.",
+      "tratamento_ate_2026_03_31": "ALÍQUOTA ZERO — informação histórica da matriz; fundamento legal original pendente de identificação.",
+      "tratamento_desde_2026_04_01": "INDETERMINADO — não calcular nem presumir sem fundamento legal original e verificação de exceção expressa.",
+      "cst_pis_desde_2026_04_01": null,
+      "cst_cofins_desde_2026_04_01": null,
+      "pis_cumulativo_desde_2026_04_01": null,
+      "cofins_cumulativo_desde_2026_04_01": null,
+      "pis_nao_cumulativo_desde_2026_04_01": null,
+      "cofins_nao_cumulativo_desde_2026_04_01": null,
+      "exige_inf_ad_fisco_lc224": null,
+      "status_validacao_juridica": "PRECISA_REVISAO_JURIDICA",
+      "fontes": [
+        {
+          "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+          "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+        },
+        {
+          "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+          "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+        },
+        {
+          "titulo": "Lei 10.925/2004, art. 1º",
+          "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+        }
+      ],
+      "observacoes": "A LC 224/2025 prevê 10% das alíquotas-padrão para isenção/alíquota zero alcançada (art. 4º, §4º, I), preservando as exceções do §8º. A fonte da matriz não contém o dispositivo originário por NCM nem o cruzamento oficial com Anexo I/XV da LC 214/2025; por segurança, não se conclui alcance, exceção, CST ou percentual efetivo."
+    }
+  ]
+}

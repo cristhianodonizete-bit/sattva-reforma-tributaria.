@@ -1,0 +1,11 @@
+{
+  "principio": "não reverter matematicamente percentuais sem snapshot",
+  "cenarios": {
+    "migration": "restaurar snapshot se necessário",
+    "deploy": "rollback de código",
+    "carga": "manter rascunhos inativos",
+    "smoke": "desativar lote e bloquear worker",
+    "resolvedor": "desativar condicionais e manter fallback",
+    "worker_antigo": "drenar workers antes de retomar"
+  }
+}

@@ -1,5 +1,6 @@
 /* Resolução única da carga atual de PIS/COFINS a partir do catálogo importado. */
 const bases = require('./basesReforma');
+const { aplicarPercentual, percentualDeValor } = require('./percentual');
 
 const num = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
 const texto = (v) => String(v || '').trim();
@@ -38,13 +39,21 @@ function motivoSemCatalogo(item) {
   return 'SEM_CATALOGO';
 }
 
+// O catálogo atende a dois tempos tributários distintos. cClassTrib/CST e
+// reduções são a classificação projetada para IBS/CBS; já a reconstrução da
+// carga atual só pode usar campos explicitamente identificados como
+// PIS/COFINS vigente. Nunca derive a carga atual do enquadramento CBS.
+function tratamentoPisCofinsVigente(c) {
+  return texto(c?.tratamento_pis_cofins).toUpperCase();
+}
+
 function resolver(item, opcoes = {}) {
   const documento = num(item.pis) + num(item.cofins);
   // Flag de bloco XML não comprova valor: zero somente vem do documento quando
   // houver evidência fiscal explícita para a alíquota zero.
   // Zero só é aceito quando foi comprovado; não é o mesmo que o valor positivo
   // destacado em XML, que a projeção pode substituir pela matriz saneada.
-  if (item.pis_cofins_zero_comprovado === true || (!opcoes.ignorarDocumento && documento > 0)) return { percentual: item.valor ? documento / num(item.valor) : 0, valor: documento, origem: 'DOCUMENTO', natureza: 'REAL', metodo: 'DOCUMENTO', modoMonofasia: 'VALOR_REAL_DOCUMENTO', catalogo: null };
+  if (item.pis_cofins_zero_comprovado === true || (!opcoes.ignorarDocumento && documento > 0)) return { percentual: percentualDeValor(documento, item.valor), valor: documento, origem: 'DOCUMENTO', natureza: 'REAL', metodo: 'DOCUMENTO', modoMonofasia: 'VALOR_REAL_DOCUMENTO', catalogo: null };
   const c = localizar(item);
   // Ausência de catálogo não é autorização para escolher uma carga por
   // conveniência. A regra geral de regime continua sendo uma regra válida
@@ -57,14 +66,12 @@ function resolver(item, opcoes = {}) {
     catalogo: null, continuar: item.regra_geral_regime_confirmada === true,
     justificativa: 'Não foi localizada regra fiscal conclusiva para a operação.',
   };
-  const tratamento = texto(c.tratamento_pis_cofins).toUpperCase();
-  const efetivo = texto(c.tratamento_efetivo_saida).toUpperCase();
+  const tratamento = tratamentoPisCofinsVigente(c);
   const condicional = texto(c.grau_determinacao).toUpperCase().includes('CONDICIONADO');
-  if (tratamento.includes('ALÍQUOTA ZERO') || efetivo.includes('ALÍQUOTA ZERO')) return { percentual: 0, valor: 0, origem: 'CATALOGO_REGRA_ESPECIFICA', natureza: 'CALCULADO', metodo: 'ALIQUOTA_ZERO', modoMonofasia: 'ALIQUOTA_ZERO_REVENDA', catalogo: c };
+  if (tratamento.includes('ALÍQUOTA ZERO')) return { percentual: 0, valor: 0, origem: 'CATALOGO_REGRA_ESPECIFICA', natureza: 'CALCULADO', metodo: 'ALIQUOTA_ZERO', modoMonofasia: 'ALIQUOTA_ZERO_REVENDA', catalogo: c };
   if (tratamento.includes('MONOF')) {
-    if (efetivo.includes('ALÍQUOTA ZERO')) return { percentual: 0, valor: 0, origem: 'CATALOGO_REGRA_ESPECIFICA', natureza: 'CALCULADO', metodo: 'MONOFASICO_REVENDA_ZERO', modoMonofasia: 'ALIQUOTA_ZERO_REVENDA', catalogo: c };
     const p = num(c.percentual_reconstrucao_sugerido);
-    return p ? { percentual: p, valor: num(item.valor) * p, origem: 'PREMISSA_SIMULADA', natureza: 'SIMULADO', metodo: 'MONOFASICO_PREMISSA', modoMonofasia: 'PREMISSA_PERCENTUAL', catalogo: c } : { percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO', metodo: 'MONOFASICO_SEM_PAPEL', modoMonofasia: 'INDETERMINADO', catalogo: c, continuar: false, condicaoMaterial: true };
+    return p ? { percentual: p, valor: aplicarPercentual(num(item.valor), p), origem: 'PREMISSA_SIMULADA', natureza: 'SIMULADO', metodo: 'MONOFASICO_PREMISSA', modoMonofasia: 'PREMISSA_PERCENTUAL', catalogo: c } : { percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO', metodo: 'MONOFASICO_SEM_PAPEL', modoMonofasia: 'INDETERMINADO', catalogo: c, continuar: false, condicaoMaterial: true };
   }
   if (texto(c.cumulatividade_obrigatoria).toUpperCase() === 'SIM') {
     const p = num(c.total_cumulativo_percentual) || (num(c.pis_cumulativo_percentual) + num(c.cofins_cumulativo_percentual));
@@ -78,7 +85,7 @@ function resolver(item, opcoes = {}) {
       return { percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO', metodo: 'CUMULATIVIDADE_CONDICIONADA', motivoIndeterminacao: condicaoMaterial ? 'REGRA_INCONCLUSIVA' : 'SEM_REGRA_APLICAVEL', catalogo: c, continuar: !condicaoMaterial, condicaoMaterial,
         justificativa: condicaoMaterial ? `Condição material pendente: ${c.condicao_cumulatividade || c.regra_precedencia || 'não informada'}.` : 'Catálogo condicional sem impedimento material explícito; seguir para a regra validada da empresa/regime.' };
     }
-    return { percentual: p, valor: num(item.valor) * p, origem: 'CATALOGO_REGRA_ESPECIFICA', natureza: 'CALCULADO', metodo: 'CUMULATIVIDADE_OBRIGATORIA', catalogo: c };
+    return { percentual: p, valor: aplicarPercentual(num(item.valor), p), origem: 'CATALOGO_REGRA_ESPECIFICA', natureza: 'CALCULADO', metodo: 'CUMULATIVIDADE_OBRIGATORIA', catalogo: c };
   }
   // Referência da empresa e regra do regime são deliberadamente resolvidas no
   // motor, após o catálogo: assim permanecem versionadas no cadastro central.
@@ -93,4 +100,4 @@ function resolver(item, opcoes = {}) {
   };
 }
 
-module.exports = { localizar, resolver, motivoSemCatalogo, candidatosDoItem };
+module.exports = { localizar, resolver, motivoSemCatalogo, candidatosDoItem, tratamentoPisCofinsVigente };

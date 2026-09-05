@@ -73,7 +73,7 @@ async function buscarTudo(remoto, tabela) {
     if (!data || data.length < tamanho) return linhas;
   }
 }
-function gravar(tabela, linhas) {
+function gravar(tabela, linhas, dentroDaTransacao = false) {
   if (!linhas.length) return 0;
   const campos = CAMPOS[tabela];
   // Exceções têm unicidade funcional por empresa + movimento + código; o ID
@@ -101,11 +101,12 @@ function gravar(tabela, linhas) {
     if (v && typeof v === 'object' && !Buffer.isBuffer(v) && !(v instanceof Date)) return JSON.stringify(v);
     return v ?? null;
   };
-  db.transaction(() => linhas.forEach((x) => inserir.run(...campos.map((c) => valorLocal(x, c)))))();
+  const persistir = () => linhas.forEach((x) => inserir.run(...campos.map((c) => valorLocal(x, c))));
+  if (dentroDaTransacao) persistir(); else db.transaction(persistir)();
   return linhas.length;
 }
 
-function gravarEmpresas(linhas) {
+function gravarEmpresas(linhas, dentroDaTransacao = false) {
   const inserir = db.prepare(`INSERT INTO empresas
     (id,cnpj,razao_social,nome_fantasia,regime,uf,municipio,cnae,atividade,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes,criado_em)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -114,14 +115,15 @@ function gravarEmpresas(linhas) {
       uf=excluded.uf,municipio=excluded.municipio,cnae=excluded.cnae,atividade=excluded.atividade,
       faturamento_anual=excluded.faturamento_anual,setor=excluded.setor,reducao_padrao=excluded.reducao_padrao,
       codigo_questor=excluded.codigo_questor,observacoes=excluded.observacoes,criado_em=excluded.criado_em`);
-  db.transaction(() => linhas.forEach((empresa) => {
+  const persistir = () => linhas.forEach((empresa) => {
     const id = Number(empresa.origem_local_id || empresa.id);
     if (!id) return;
     inserir.run(id, String(empresa.cnpj || '').replace(/\D/g, ''), empresa.razao_social || 'Empresa sem razão social',
       empresa.nome_fantasia || '', empresa.regime || '', empresa.uf || '', empresa.municipio || '', empresa.cnae || '',
       empresa.atividade || '', Number(empresa.faturamento_anual) || 0, empresa.setor || '', empresa.reducao_padrao || 'integral',
       empresa.codigo_questor || '', empresa.observacoes || '', empresa.criado_em || null);
-  }))();
+  });
+  if (dentroDaTransacao) persistir(); else db.transaction(persistir)();
   return linhas.length;
 }
 function gravarConfiguracao(tabela, linhas) {
@@ -151,7 +153,7 @@ function normalizarEmpresaIdDoCache(tabela, linhas, empresaLocalPorRemota = new 
   });
 }
 
-function gravarEmpresaQsa(linhas) {
+function gravarEmpresaQsa(linhas, dentroDaTransacao = false) {
   if (!linhas.length) return 0;
   // IDs de sócios no Supabase podem ser UUIDs; o cache local usa chave
   // numérica. A identidade estável é empresa + nome + documento +
@@ -166,7 +168,8 @@ function gravarEmpresaQsa(linhas) {
       consultado_em=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.consultado_em ELSE excluded.consultado_em END,
       origem=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.origem ELSE excluded.origem END,
       atualizado_em=excluded.atualizado_em`);
-  db.transaction(() => linhas.forEach((linha) => inserir.run(...colunas.map((c) => linha[c] ?? null))))();
+  const persistir = () => linhas.forEach((linha) => inserir.run(...colunas.map((c) => linha[c] ?? null)));
+  if (dentroDaTransacao) persistir(); else db.transaction(persistir)();
   return linhas.length;
 }
 
@@ -231,7 +234,11 @@ async function baixar() {
   // A carteira é a âncora do cache efêmero. Ela precisa ser carregada antes
   // das bases auxiliares: uma falha isolada nunca pode fazer a interface
   // parecer que todas as empresas foram excluídas.
-  const tabelas = ['empresas', ...Object.keys(CAMPOS).filter((tabela) => tabela !== 'empresas')];
+  // Estas duas tabelas referenciam a execução do motor. Carregá-las antes da
+  // fotografia ativa viola FK em uma instância nova e deixava a carga-base
+  // artificialmente parcial. Elas são restauradas logo após o motor.
+  const dependentesDoMotor = ['excecoes_motor_execucoes', 'telemetria_autonomia_execucoes'];
+  const tabelas = ['empresas', ...Object.keys(CAMPOS).filter((tabela) => tabela !== 'empresas' && !dependentesDoMotor.includes(tabela))];
   const empresasValidas = new Set(), lotesValidos = new Set();
   let empresaLocalPorRemota = new Map();
   for (const tabela of tabelas) {
@@ -260,8 +267,20 @@ async function baixar() {
       falhas[tabela] = e.message;
     }
   }
-  try { resultado.motor = await baixarResultadosMotor(remoto); }
+  let motorCarregado = false;
+  try { resultado.motor = await baixarResultadosMotor(remoto); motorCarregado = true; }
   catch (e) { falhas.motor = e.message; }
+  if (motorCarregado) {
+    for (const tabela of dependentesDoMotor) {
+      try {
+        const origem = await buscarTudo(remoto, tabela);
+        const linhas = normalizarEmpresaIdDoCache(tabela, origem, empresaLocalPorRemota);
+        resultado[tabela] = gravar(tabela, linhas);
+      } catch (e) { falhas[tabela] = e.message; }
+    }
+  } else {
+    for (const tabela of dependentesDoMotor) falhas[tabela] = 'Fotografia do motor indisponível; tabela dependente não foi carregada.';
+  }
   try { Object.assign(resultado, await baixarConfiguracao(CONFIG_TABELAS, remoto)); }
   catch (e) { falhas.configuracao = e.message; }
   try { Object.assign(resultado, await baixarParametrosIrpjCsll(remoto)); }
@@ -270,6 +289,168 @@ async function baixar() {
   catch (e) { falhas.gestao = e.message; }
   if (Object.keys(falhas).length) resultado.falhas = falhas;
   return resultado;
+}
+
+// A trilha remota é a fonte de verdade para o delta. O marco só é avançado
+// dentro da mesma transação SQLite que aplica todas as linhas do lote.
+const CHAVE_SEQUENCIA_INCREMENTAL = 'operacao_compartilhada_sequencia';
+const TABELAS_INCREMENTAIS_SEGURAS = new Set([
+  'empresas', 'empresa_servicos_fiscais', 'parceiros', 'empresa_qsa', 'lotes',
+  'movimentos', 'perfil_tributario', 'folhas_pagamento_competencias',
+  'margens_operacionais_premissas', 'receitas_sem_dfe', 'formacao_custo_itens',
+  'formacao_custo_componentes', 'excecoes_motor', 'excecoes_motor_execucoes',
+  'telemetria_autonomia_execucoes', 'enriquecimento_servicos_evidencias',
+  'enriquecimento_pis_cofins_evidencias', 'pendencias_enriquecimento_fiscal',
+  'perfil_cbs_competencias', 'pricing_products', 'pricing_services',
+  'pricing_components', 'pricing_import_batches', 'pricing_simulacoes',
+]);
+const PRIORIDADE_INCREMENTAL = [
+  'empresas', 'lotes', 'parceiros', 'empresa_qsa', 'empresa_servicos_fiscais',
+  'perfil_tributario', 'folhas_pagamento_competencias', 'margens_operacionais_premissas',
+  'receitas_sem_dfe', 'movimentos', 'formacao_custo_itens', 'formacao_custo_componentes',
+  'enriquecimento_servicos_evidencias', 'enriquecimento_pis_cofins_evidencias',
+  'pendencias_enriquecimento_fiscal', 'excecoes_motor', 'excecoes_motor_execucoes',
+  'telemetria_autonomia_execucoes', 'perfil_cbs_competencias', 'pricing_products',
+  'pricing_services', 'pricing_components', 'pricing_import_batches', 'pricing_simulacoes',
+];
+
+function lerSequenciaIncremental() {
+  const linha = db.prepare('SELECT valor FROM sincronizacao_operacional_estado WHERE chave=?').get(CHAVE_SEQUENCIA_INCREMENTAL);
+  const sequencia = Number(linha?.valor || 0);
+  return Number.isSafeInteger(sequencia) && sequencia >= 0 ? sequencia : 0;
+}
+function temSequenciaIncremental() {
+  return Boolean(db.prepare('SELECT 1 FROM sincronizacao_operacional_estado WHERE chave=?').get(CHAVE_SEQUENCIA_INCREMENTAL));
+}
+function salvarSequenciaIncremental(sequencia) {
+  db.prepare(`INSERT INTO sincronizacao_operacional_estado(chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))
+    ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor, atualizado_em=excluded.atualizado_em`).run(CHAVE_SEQUENCIA_INCREMENTAL, String(sequencia));
+}
+function chaveEvento(evento) {
+  const chave = evento.chave && typeof evento.chave === 'object' ? evento.chave : JSON.parse(evento.chave || '{}');
+  return Object.keys(chave).sort().map((campo) => `${campo}:${JSON.stringify(chave[campo])}`).join('|');
+}
+function reduzirEventosIncrementais(eventos = []) {
+  const ultimos = new Map();
+  for (const evento of eventos) ultimos.set(`${evento.tabela}|${chaveEvento(evento)}`, evento);
+  return [...ultimos.values()].sort((a, b) => Number(a.sequencia) - Number(b.sequencia));
+}
+async function buscarEventosIncrementais(remoto, sequencia) {
+  const eventos = []; const tamanho = 1000;
+  for (let de = 0;; de += tamanho) {
+    const { data, error } = await remoto.from('sincronizacao_operacional_eventos')
+      .select('sequencia,tabela,operacao,chave,empresa_id,ocorrido_em')
+      .gt('sequencia', sequencia).order('sequencia', { ascending: true }).range(de, de + tamanho - 1);
+    if (error) throw new Error(`Trilha incremental: ${error.message}`);
+    eventos.push(...(data || []));
+    if (!data || data.length < tamanho) return eventos;
+  }
+}
+async function maiorSequenciaIncremental(remoto) {
+  const { data, error } = await remoto.from('sincronizacao_operacional_eventos')
+    .select('sequencia').order('sequencia', { ascending: false }).limit(1);
+  if (error) throw new Error(`Marco incremental: ${error.message}`);
+  return Number(data?.[0]?.sequencia || 0);
+}
+async function buscarLinhaPorChave(remoto, tabela, chave) {
+  let consulta = remoto.from(tabela).select('*');
+  for (const [campo, valor] of Object.entries(chave)) consulta = consulta.eq(campo, valor);
+  const { data, error } = await consulta.limit(2);
+  if (error) throw new Error(`${tabela} por chave: ${error.message}`);
+  if (!data || data.length !== 1) throw new Error(`${tabela}: esperada uma linha para a chave do evento; encontrado ${data?.length || 0}.`);
+  return data[0];
+}
+function prioridadeIncremental(tabela) {
+  const indice = PRIORIDADE_INCREMENTAL.indexOf(tabela);
+  return indice >= 0 ? indice : PRIORIDADE_INCREMENTAL.length;
+}
+function validarEventoIncremental(evento) {
+  if (!TABELAS_INCREMENTAIS_SEGURAS.has(evento.tabela)) return `tabela ${evento.tabela} ainda não possui aplicador incremental seguro`;
+  const chave = evento.chave && typeof evento.chave === 'object' ? evento.chave : JSON.parse(evento.chave || '{}');
+  const colunas = db.prepare(`PRAGMA table_info(${evento.tabela})`).all().map((x) => x.name);
+  if (!Object.keys(chave).length || Object.keys(chave).some((campo) => !colunas.includes(campo))) return `chave incompatível para ${evento.tabela}`;
+  // Uma exclusão de empresa ou de QSA pode remover relações locais que foram
+  // confirmadas manualmente. A carga completa existente preserva essas
+  // confirmações; portanto, o delta recusa o lote e faz fallback seguro.
+  if (evento.operacao === 'DELETE' && ['empresas', 'empresa_qsa', 'contratos'].includes(evento.tabela)) return `exclusão sensível em ${evento.tabela}`;
+  return null;
+}
+function apagarLinhaIncremental(evento) {
+  const chave = evento.chave && typeof evento.chave === 'object' ? evento.chave : JSON.parse(evento.chave || '{}');
+  const campos = Object.keys(chave);
+  const sql = `DELETE FROM ${evento.tabela} WHERE ${campos.map((campo) => `${campo}=?`).join(' AND ')}`;
+  return db.prepare(sql).run(...campos.map((campo) => chave[campo])).changes;
+}
+
+async function aplicarEventosIncrementais(remoto, eventos) {
+  const reduzidos = reduzirEventosIncrementais(eventos);
+  for (const evento of reduzidos) {
+    const motivo = validarEventoIncremental(evento);
+    if (motivo) return { fallback: true, motivo };
+  }
+  const precisaMapaEmpresas = reduzidos.some((evento) => evento.tabela !== 'empresas' && CAMPOS[evento.tabela]?.includes('empresa_id'));
+  const empresasRemotas = precisaMapaEmpresas ? await buscarTudo(remoto, 'empresas') : [];
+  const empresaLocalPorRemota = mapaEmpresasLocais(empresasRemotas);
+  const inclusoes = [], exclusoes = [];
+  for (const evento of reduzidos) {
+    if (evento.operacao === 'DELETE') exclusoes.push(evento);
+    else inclusoes.push({ evento, linha: await buscarLinhaPorChave(remoto, evento.tabela, evento.chave) });
+  }
+  inclusoes.sort((a, b) => prioridadeIncremental(a.evento.tabela) - prioridadeIncremental(b.evento.tabela));
+  exclusoes.sort((a, b) => prioridadeIncremental(b.tabela) - prioridadeIncremental(a.tabela));
+  let aplicadas = 0, removidas = 0;
+  db.transaction(() => {
+    for (const { evento, linha } of inclusoes) {
+      if (CAMPOS[evento.tabela]?.includes('empresa_id') && !empresaLocalPorRemota.has(String(linha.empresa_id))) {
+        throw new Error(`Empresa remota ausente para ${evento.tabela}; fotografia incremental recusada.`);
+      }
+      const normalizada = normalizarEmpresaIdDoCache(evento.tabela, [linha], empresaLocalPorRemota);
+      if (evento.tabela === 'empresas') gravarEmpresas(normalizada, true);
+      else if (evento.tabela === 'empresa_qsa') gravarEmpresaQsa(normalizada, true);
+      else gravar(evento.tabela, normalizada, true);
+      aplicadas += normalizada.length;
+    }
+    for (const evento of exclusoes) removidas += apagarLinhaIncremental(evento);
+    salvarSequenciaIncremental(Math.max(...reduzidos.map((evento) => Number(evento.sequencia))));
+  })();
+  return { fallback: false, eventos: reduzidos.length, aplicadas, removidas };
+}
+
+async function sincronizarIncremental() {
+  if (!ativo()) return { ativo: false };
+  const remoto = supabase.admin();
+  const sequencia = lerSequenciaIncremental();
+  // A primeira instalação cria uma base íntegra e somente depois habilita o
+  // delta. Eventos ocorridos durante a carga são reaplicados idempotentemente.
+  if (!temSequenciaIncremental()) {
+    const inicio = await maiorSequenciaIncremental(remoto);
+    const completo = await baixar();
+    if (completo.falhas) throw new Error(`Carga-base incremental incompleta: ${Object.entries(completo.falhas).map(([tabela, causa]) => `${tabela}: ${causa}`).join(' | ')}.`);
+    const pendentes = await buscarEventosIncrementais(remoto, inicio);
+    const aplicado = pendentes.length ? await aplicarEventosIncrementais(remoto, pendentes) : { fallback: false, eventos: 0, aplicadas: 0, removidas: 0 };
+    let marcoAplicado = pendentes.at(-1)?.sequencia || inicio;
+    if (aplicado.fallback) {
+      const marcoCobertoPeloFallback = await maiorSequenciaIncremental(remoto);
+      const recuperacao = await baixar();
+      if (recuperacao.falhas) throw new Error(`Recuperação incremental incompleta: ${Object.entries(recuperacao.falhas).map(([tabela, causa]) => `${tabela}: ${causa}`).join(' | ')}.`);
+      marcoAplicado = marcoCobertoPeloFallback;
+    }
+    // O marco não pode avançar além de um evento efetivamente aplicado. Eventos
+    // que chegarem após esta leitura serão buscados no próximo ciclo.
+    db.transaction(() => salvarSequenciaIncremental(marcoAplicado))();
+    return { modo: 'carga_base', sequencia: Number(marcoAplicado), ...aplicado };
+  }
+  const eventos = await buscarEventosIncrementais(remoto, sequencia);
+  if (!eventos.length) return { modo: 'incremental', eventos: 0, aplicadas: 0, removidas: 0, sequencia };
+  const aplicado = await aplicarEventosIncrementais(remoto, eventos);
+  if (!aplicado.fallback) return { modo: 'incremental', sequencia: lerSequenciaIncremental(), ...aplicado };
+  // Fallback intencional: a tabela ainda não possui semântica incremental ou
+  // o evento é sensível. Nada do lote foi aplicado antes desta decisão.
+  const marcoCobertoPeloFallback = await maiorSequenciaIncremental(remoto);
+  const completo = await baixar();
+  if (completo.falhas) throw new Error(`Fallback incremental incompleto: ${Object.entries(completo.falhas).map(([tabela, causa]) => `${tabela}: ${causa}`).join(' | ')}.`);
+  db.transaction(() => salvarSequenciaIncremental(marcoCobertoPeloFallback))();
+  return { modo: 'fallback_completo', sequencia: Number(marcoCobertoPeloFallback), eventos: eventos.length, ...aplicado };
 }
 
 // Fotografia técnica compartilhada: reiniciar uma instância não pode significar
@@ -523,5 +704,6 @@ async function publicarContratos(remoto, empresaId) {
   }
   return { contratos: contratos.length };
 }
-module.exports = { ativo, baixar, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
-  baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais };
+module.exports = { ativo, baixar, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
+  baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
+  reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };

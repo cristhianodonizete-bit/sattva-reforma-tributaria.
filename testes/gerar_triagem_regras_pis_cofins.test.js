@@ -1,0 +1,10 @@
+const assert = require('assert');
+const { classificar, prontidao } = require('../scripts/gerar_triagem_regras_pis_cofins');
+const base = { bloqueios_para_ativacao: [], ncm: '02011000', nbs: null, lc116: null, cst_pis: '06', cst_cofins: '06', pis_percentual: 0, cofins_percentual: 0, papel_cadeia_necessario: 'NÃO', condicao_textual_fonte: null, marcador_condicional: false, classificacao: 'REGRA_ESPECIFICA_DIRETA', tratamento_resultante_proposto: 'ALÍQUOTA ZERO', operacao_pis_cofins_fonte: 'Alíquota zero', regime_pis_cofins_receita: 'Conforme cadastro da empresa/receita' };
+assert.strictEqual(classificar(base), 'REGRA_ESPECIFICA_DIRETA_EXECUTAVEL');
+assert.strictEqual(prontidao(classificar(base)), 'PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA');
+assert.strictEqual(classificar({ ...base, tratamento_resultante_proposto: 'NORMAL', operacao_pis_cofins_fonte: 'Tributado - regra geral da receita' }), 'REGRA_GERAL_RESIDUAL');
+assert.strictEqual(classificar({ ...base, tratamento_resultante_proposto: 'NORMAL', operacao_pis_cofins_fonte: 'Tributado - regra geral da receita', condicao_textual_fonte: 'Aplicar o regime geral da receita, sem prejuízo de outras exceções legais específicas.' }), 'REGRA_GERAL_RESIDUAL');
+assert.strictEqual(classificar({ ...base, bloqueios_para_ativacao: ['CONDICAO_TEXTO_EXIGE_ESTRUTURACAO'], operacao_pis_cofins_fonte: 'Tributado - cumulativo obrigatório' }), 'REGRA_ESPECIFICA_PENDENTE_ESTRUTURACAO');
+assert.strictEqual(classificar({ ...base, papel_cadeia_necessario: 'SIM' }), 'PAPEL_CADEIA');
+console.log('gerar_triagem_regras_pis_cofins.test.js: PASSOU');

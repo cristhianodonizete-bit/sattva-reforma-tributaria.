@@ -1,0 +1,21 @@
+{
+  "modo": "SOMENTE_LEITURA_LOCAL",
+  "gerado_em": "2026-09-04T18:59:15.151Z",
+  "registros_juridicos_prontos": 72,
+  "registros_modelados": 72,
+  "regras_modeladas": 114,
+  "zero_mantido_modelados": 51,
+  "lc224_modelados": 21,
+  "regras_historicas_ate_20260331": 21,
+  "regras_desde_20260401": 42,
+  "registros_prontos_esperados": 72,
+  "condicionais_indevidamente_incluidos": [],
+  "revisao_juridica_indevidamente_incluida": [],
+  "regras_ativas": 0,
+  "vigencias_sobrepostas": [],
+  "percentuais_fora_do_contrato": [],
+  "lc224_incompletos": [],
+  "alteracoes_banco": "NENHUMA",
+  "alteracoes_supabase": "NENHUMA",
+  "migration_aplicada_producao": "NAO"
+}

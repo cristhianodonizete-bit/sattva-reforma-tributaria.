@@ -19,6 +19,7 @@
 const P = require('../config/parametros');
 const regras = require('../services/regras');
 const crypto = require('crypto');
+const { aplicarPercentual, arredondarMoeda } = require('../services/percentual');
 
 // O arquivo parametros é somente a semente para instalações novas. Em execução,
 // os motores consultam a configuração persistida; a semente é fallback defensivo.
@@ -39,7 +40,7 @@ function parametrosDoAno(ano, parametrosIVA) {
   return salvo ? { ...base, ...salvo } : base;
 }
 
-const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const r2 = arredondarMoeda;
 const r4 = (n) => Math.round((Number(n) || 0) * 10000) / 10000;
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
 
@@ -88,8 +89,9 @@ function grossDown(op) {
     } else {
       const pc = op.aliqPisCofins !== undefined && op.aliqPisCofins !== ''
         ? num(op.aliqPisCofins) : (regime.pisCofins || 0);
-      pis = base * (pc * 0.1757);       // proporção PIS dentro do bloco PIS/COFINS
-      cofins = base * (pc * 0.8243);
+      const blocoPisCofins = aplicarPercentual(base, pc);
+      pis = blocoPisCofins * 0.1757;     // proporção PIS dentro do bloco PIS/COFINS
+      cofins = blocoPisCofins * 0.8243;
       if (tipo === 'servico') {
         iss = base * (op.aliqIss !== undefined ? num(op.aliqIss) : padraoConfigurado('iss', P.PADROES.iss));
       } else {
@@ -144,7 +146,7 @@ function creditoAtual(atual, regimeAdquirente) {
   }
   if (adq.creditaAtual.pisCofins && forn.geraCreditoAtual.pisCofins) {
     // no não cumulativo o crédito é calculado sobre o valor de aquisição
-    det.pisCofins = (atual.valorOperacao) * (regimeConfigurado('lucro_real').pisCofins);
+    det.pisCofins = aplicarPercentual(atual.valorOperacao, regimeConfigurado('lucro_real').pisCofins);
   }
   if (adq.creditaAtual.ipi && forn.geraCreditoAtual.ipi) { det.ipi = t.ipi; }
 

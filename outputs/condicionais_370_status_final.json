@@ -1,0 +1,2953 @@
+[
+  {
+    "id": "RASCUNHO_NCM_7K43D0",
+    "ncm": "09011110",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CAFE",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1DLNMAA",
+    "ncm": "09012100",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CAFE",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_12EYAV2",
+    "ncm": "21011110",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CAFE",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_UMJF12",
+    "ncm": "21011190",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CAFE",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_M3NSTI",
+    "ncm": "21011200",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CAFE",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_VDQTBP",
+    "ncm": "25010011",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_104HPB1",
+    "ncm": "25010019",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_V97PF5",
+    "ncm": "25010020",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_D7G78G",
+    "ncm": "25010090",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1EZ7FCM",
+    "ncm": "25030010",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_145DKTA",
+    "ncm": "25030090",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1QHHFHP",
+    "ncm": "25041000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_BC0PWL",
+    "ncm": "25049000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_10JMJXO",
+    "ncm": "25051000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_XDTJ1G",
+    "ncm": "25059000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1DW6MEA",
+    "ncm": "25070010",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_H0VRAX",
+    "ncm": "25081000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_Q7EKRF",
+    "ncm": "25083000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1G6XKST",
+    "ncm": "25084090",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_PBVG1T",
+    "ncm": "25131000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_V45EGT",
+    "ncm": "25171000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1A9RIEE",
+    "ncm": "25181000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1PUUYBN",
+    "ncm": "25182000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1LGX02P",
+    "ncm": "25202090",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_8Q7E4D",
+    "ncm": "25210000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1LSBMX1",
+    "ncm": "25221000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1NR7QB8",
+    "ncm": "25222000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1SF3P74",
+    "ncm": "25232100",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_178MHNN",
+    "ncm": "25232910",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1A1LB6W",
+    "ncm": "25262000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_W71A0Z",
+    "ncm": "25309090",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_CORRETIVOS_SOLO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_I6LEY4",
+    "ncm": "31010000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_FERTILIZANTES",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1TKOBLN",
+    "ncm": "31021010",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_FERTILIZANTES",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1KOL69V",
+    "ncm": "31021090",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_FERTILIZANTES",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_X12WYZ",
+    "ncm": "31028000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_FERTILIZANTES",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_J9CZUL",
+    "ncm": "31049090",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_FERTILIZANTES",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_S8DPOU",
+    "ncm": "31052000",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_FERTILIZANTES",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_LP9HA8",
+    "ncm": "31059090",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_FERTILIZANTES",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1BEJB15",
+    "ncm": "38085910",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_A2XZJP",
+    "ncm": "38085929",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1MXYC57",
+    "ncm": "38086100",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_N4K7M7",
+    "ncm": "38086290",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1IHHN88",
+    "ncm": "38089119",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_41MP3J",
+    "ncm": "38089192",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1I3GE9F",
+    "ncm": "38089196",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_8EO0NQ",
+    "ncm": "38089197",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1L05SG",
+    "ncm": "38089199",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_HEIUEM",
+    "ncm": "38089294",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_YTV8PR",
+    "ncm": "38089299",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1KK39YA",
+    "ncm": "38089324",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_KIK62J",
+    "ncm": "38089329",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_189CNCP",
+    "ncm": "38089349",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1LYOX9",
+    "ncm": "38089419",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_UU66ZW",
+    "ncm": "38089429",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_464B4W",
+    "ncm": "38089919",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1BAW68G",
+    "ncm": "38089991",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1MYF9U2",
+    "ncm": "38089993",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_T6GYWR",
+    "ncm": "38089996",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NCM_1BPZLK8",
+    "ncm": "38089999",
+    "nbs": null,
+    "lc116": null,
+    "familia": "PISCOFINS_DEFENSIVOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_QIUD0N",
+    "ncm": null,
+    "nbs": "115021000",
+    "lc116": "0101",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_JO1QP8",
+    "ncm": null,
+    "nbs": "115022000",
+    "lc116": "0101",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_MX7MO6",
+    "ncm": null,
+    "nbs": "115024000",
+    "lc116": "0101",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_HCK7NV",
+    "ncm": null,
+    "nbs": "115025000",
+    "lc116": "0101",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_NDRYN3",
+    "ncm": null,
+    "nbs": "115029000",
+    "lc116": "0101",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_195V845",
+    "ncm": null,
+    "nbs": "115030000",
+    "lc116": "0101",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_FQZIVK",
+    "ncm": null,
+    "nbs": "115040000",
+    "lc116": "0101",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_10KY023",
+    "ncm": null,
+    "nbs": "115050000",
+    "lc116": "0101",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_IGD70S",
+    "ncm": null,
+    "nbs": "115071000",
+    "lc116": "0101",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_5357WN",
+    "ncm": null,
+    "nbs": "115072000",
+    "lc116": "0101",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_10YMI84",
+    "ncm": null,
+    "nbs": "115079000",
+    "lc116": "0101",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_19A9AA6",
+    "ncm": null,
+    "nbs": "115021000",
+    "lc116": "0102",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_T5B25T",
+    "ncm": null,
+    "nbs": "115022000",
+    "lc116": "0102",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_18B4E92",
+    "ncm": null,
+    "nbs": "115029000",
+    "lc116": "0102",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_KCSIFO",
+    "ncm": null,
+    "nbs": "115021000",
+    "lc116": "0104",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1D9TMKF",
+    "ncm": null,
+    "nbs": "115022000",
+    "lc116": "0104",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1IZD3BG",
+    "ncm": null,
+    "nbs": "115029000",
+    "lc116": "0104",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1A7A5C0",
+    "ncm": null,
+    "nbs": "111032100",
+    "lc116": "0105",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_16Q0XK1",
+    "ncm": null,
+    "nbs": "111032200",
+    "lc116": "0105",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_CRMFRY",
+    "ncm": null,
+    "nbs": "111032300",
+    "lc116": "0105",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_IOBLX4",
+    "ncm": null,
+    "nbs": "111032900",
+    "lc116": "0105",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1NRDYYW",
+    "ncm": null,
+    "nbs": "111062000",
+    "lc116": "0105",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1KKTK4N",
+    "ncm": null,
+    "nbs": "111072000",
+    "lc116": "0105",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_14W8Z2N",
+    "ncm": null,
+    "nbs": "115011000",
+    "lc116": "0106",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1PAEBRK",
+    "ncm": null,
+    "nbs": "115012000",
+    "lc116": "0106",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_ROVXWT",
+    "ncm": null,
+    "nbs": "115071000",
+    "lc116": "0106",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1FYSU2Q",
+    "ncm": null,
+    "nbs": "115072000",
+    "lc116": "0106",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_MK7UN9",
+    "ncm": null,
+    "nbs": "115079000",
+    "lc116": "0106",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_PRCHSO",
+    "ncm": null,
+    "nbs": "115100000",
+    "lc116": "0106",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_BUWW4U",
+    "ncm": null,
+    "nbs": "115013000",
+    "lc116": "0107",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1IFGBW9",
+    "ncm": null,
+    "nbs": "115021000",
+    "lc116": "0107",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1MPDU9Y",
+    "ncm": null,
+    "nbs": "115022000",
+    "lc116": "0107",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1PEQLOM",
+    "ncm": null,
+    "nbs": "115080000",
+    "lc116": "0107",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_ON4PU",
+    "ncm": null,
+    "nbs": "115023000",
+    "lc116": "0108",
+    "familia": "PISCOFINS_INFORMATICA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_11HFG20",
+    "ncm": null,
+    "nbs": "118066100",
+    "lc116": "0303",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_TA592J",
+    "ncm": null,
+    "nbs": "118066200",
+    "lc116": "0303",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1SY095I",
+    "ncm": null,
+    "nbs": "118066300",
+    "lc116": "0303",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_IRWW8Z",
+    "ncm": null,
+    "nbs": "123019300",
+    "lc116": "0402",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1EDBHIS",
+    "ncm": null,
+    "nbs": "123019400",
+    "lc116": "0402",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_55LYJ8",
+    "ncm": null,
+    "nbs": "123011900",
+    "lc116": "0403",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_5G2NSL",
+    "ncm": null,
+    "nbs": "123012100",
+    "lc116": "0403",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1NUXFD4",
+    "ncm": null,
+    "nbs": "123019200",
+    "lc116": "0408",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1YSW1ZN",
+    "ncm": null,
+    "nbs": "123019900",
+    "lc116": "0408",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_IUQID9",
+    "ncm": null,
+    "nbs": "123012100",
+    "lc116": "0418",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_UPATXW",
+    "ncm": null,
+    "nbs": "109101000",
+    "lc116": "0422",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_CDBVCC",
+    "ncm": null,
+    "nbs": "109109000",
+    "lc116": "0422",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1J2LKCQ",
+    "ncm": null,
+    "nbs": "114051100",
+    "lc116": "0502",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1FGM5VJ",
+    "ncm": null,
+    "nbs": "114052100",
+    "lc116": "0502",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_17FDHM3",
+    "ncm": null,
+    "nbs": "114032500",
+    "lc116": "0701",
+    "familia": "PISCOFINS_TELECOM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_EFUT4X",
+    "ncm": null,
+    "nbs": "101011100",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1QGGC7K",
+    "ncm": null,
+    "nbs": "101011200",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1JO676Q",
+    "ncm": null,
+    "nbs": "101012100",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_NDMJP3",
+    "ncm": null,
+    "nbs": "101012200",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_27SSVE",
+    "ncm": null,
+    "nbs": "101012900",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1A22HOC",
+    "ncm": null,
+    "nbs": "101013000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_3LPFG8",
+    "ncm": null,
+    "nbs": "101021100",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_K77GEH",
+    "ncm": null,
+    "nbs": "101021200",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_2A9TKI",
+    "ncm": null,
+    "nbs": "101021300",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1120TW4",
+    "ncm": null,
+    "nbs": "101022000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_10ZR8UY",
+    "ncm": null,
+    "nbs": "101023100",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_4PRQ8F",
+    "ncm": null,
+    "nbs": "101023200",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_16UDMF4",
+    "ncm": null,
+    "nbs": "101023300",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_ZJ4MFH",
+    "ncm": null,
+    "nbs": "101023400",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1QAREOZ",
+    "ncm": null,
+    "nbs": "101023510",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_FIMOUW",
+    "ncm": null,
+    "nbs": "101023520",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_11N35X9",
+    "ncm": null,
+    "nbs": "101023530",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_8O303C",
+    "ncm": null,
+    "nbs": "101024110",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_6JVTZ7",
+    "ncm": null,
+    "nbs": "101024120",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_HHN1OW",
+    "ncm": null,
+    "nbs": "101024190",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1A4YX0H",
+    "ncm": null,
+    "nbs": "101024210",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_RQ7NTM",
+    "ncm": null,
+    "nbs": "101024220",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1KQV3OS",
+    "ncm": null,
+    "nbs": "101025100",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1GVTC94",
+    "ncm": null,
+    "nbs": "101025210",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_7JXRBN",
+    "ncm": null,
+    "nbs": "101025220",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1U5OYF7",
+    "ncm": null,
+    "nbs": "101025310",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_M3LBSO",
+    "ncm": null,
+    "nbs": "101025320",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_RY8IV",
+    "ncm": null,
+    "nbs": "101026100",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_J2CLOV",
+    "ncm": null,
+    "nbs": "101026900",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_7IFZX1",
+    "ncm": null,
+    "nbs": "101027000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_ON23JU",
+    "ncm": null,
+    "nbs": "101028000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_XZR70F",
+    "ncm": null,
+    "nbs": "101029000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_YPP55J",
+    "ncm": null,
+    "nbs": "101032000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_EI6JAQ",
+    "ncm": null,
+    "nbs": "101033000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_AQ3J72",
+    "ncm": null,
+    "nbs": "101034100",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_N9U99F",
+    "ncm": null,
+    "nbs": "101034200",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_JT5M2S",
+    "ncm": null,
+    "nbs": "101040000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_M9PLI5",
+    "ncm": null,
+    "nbs": "101051100",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_F5WV4S",
+    "ncm": null,
+    "nbs": "101051200",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_19DFPZY",
+    "ncm": null,
+    "nbs": "101052100",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_TKFO5V",
+    "ncm": null,
+    "nbs": "101052200",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1PBV8BC",
+    "ncm": null,
+    "nbs": "101053000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1YOA3PJ",
+    "ncm": null,
+    "nbs": "101054000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_18D8CDE",
+    "ncm": null,
+    "nbs": "101055000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_IYPBOX",
+    "ncm": null,
+    "nbs": "101056000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1ACA1BY",
+    "ncm": null,
+    "nbs": "101059000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_162YVVO",
+    "ncm": null,
+    "nbs": "101061100",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_13WX7M4",
+    "ncm": null,
+    "nbs": "101061900",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1DC5MQN",
+    "ncm": null,
+    "nbs": "101062100",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1CXRFHM",
+    "ncm": null,
+    "nbs": "101062200",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_IOLHXN",
+    "ncm": null,
+    "nbs": "101063200",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1VO1LFE",
+    "ncm": null,
+    "nbs": "101064000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_VLA7WS",
+    "ncm": null,
+    "nbs": "101066000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_7YAUQ6",
+    "ncm": null,
+    "nbs": "101073000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_EE6G0P",
+    "ncm": null,
+    "nbs": "101074000",
+    "lc116": "0702",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1R0H3SG",
+    "ncm": null,
+    "nbs": "101011100",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1KL9UU9",
+    "ncm": null,
+    "nbs": "101011200",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1SSKV4F",
+    "ncm": null,
+    "nbs": "101012100",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_4E0TAI",
+    "ncm": null,
+    "nbs": "101012200",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1EURQ8N",
+    "ncm": null,
+    "nbs": "101012900",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_48Z0AT",
+    "ncm": null,
+    "nbs": "101013000",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1GFL66H",
+    "ncm": null,
+    "nbs": "101021100",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_STHJ20",
+    "ncm": null,
+    "nbs": "101021200",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_ESXJXB",
+    "ncm": null,
+    "nbs": "101021300",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_N8DLEL",
+    "ncm": null,
+    "nbs": "101022000",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1GOGH53",
+    "ncm": null,
+    "nbs": "101023100",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1UMH49U",
+    "ncm": null,
+    "nbs": "101023200",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_19C3YA9",
+    "ncm": null,
+    "nbs": "101023300",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_C3J6IS",
+    "ncm": null,
+    "nbs": "101023400",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_F8KUZI",
+    "ncm": null,
+    "nbs": "101023510",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1TVZ3D",
+    "ncm": null,
+    "nbs": "101023520",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_5SZOC4",
+    "ncm": null,
+    "nbs": "101023530",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1SXFT",
+    "ncm": null,
+    "nbs": "101024110",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1NKF70E",
+    "ncm": null,
+    "nbs": "101024120",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_BMGKBL",
+    "ncm": null,
+    "nbs": "101024190",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_B3OM4W",
+    "ncm": null,
+    "nbs": "101024210",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_9Y379J",
+    "ncm": null,
+    "nbs": "101024220",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1CRMEUT",
+    "ncm": null,
+    "nbs": "101025100",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_E7BCUX",
+    "ncm": null,
+    "nbs": "101025210",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_MOVDHQ",
+    "ncm": null,
+    "nbs": "101025220",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_10J93WE",
+    "ncm": null,
+    "nbs": "101025310",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1YXH2IX",
+    "ncm": null,
+    "nbs": "101025320",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_U2D796",
+    "ncm": null,
+    "nbs": "101026100",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1U4F8YQ",
+    "ncm": null,
+    "nbs": "101026900",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_12XBXOS",
+    "ncm": null,
+    "nbs": "101027000",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1UDR6SN",
+    "ncm": null,
+    "nbs": "101028000",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_FPDRTE",
+    "ncm": null,
+    "nbs": "101029000",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1RUHAJ7",
+    "ncm": null,
+    "nbs": "101073000",
+    "lc116": "0705",
+    "familia": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_LQQURI",
+    "ncm": null,
+    "nbs": "122011100",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_14QKSXX",
+    "ncm": null,
+    "nbs": "122011200",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_14Y7XBQ",
+    "ncm": null,
+    "nbs": "122011900",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_S1E186",
+    "ncm": null,
+    "nbs": "122012000",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1S7VI6L",
+    "ncm": null,
+    "nbs": "122013000",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_TMU0SB",
+    "ncm": null,
+    "nbs": "122020000",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_P3QNE9",
+    "ncm": null,
+    "nbs": "122031000",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1QOMG90",
+    "ncm": null,
+    "nbs": "122032000",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1JFHMC6",
+    "ncm": null,
+    "nbs": "122041000",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1SSURMF",
+    "ncm": null,
+    "nbs": "122042000",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_HZGY0G",
+    "ncm": null,
+    "nbs": "122043000",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1176X9T",
+    "ncm": null,
+    "nbs": "122044000",
+    "lc116": "0801",
+    "familia": "PISCOFINS_EDUCACAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_163P9W2",
+    "ncm": null,
+    "nbs": "103031100",
+    "lc116": "0901",
+    "familia": "PISCOFINS_HOTELARIA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_H83JPT",
+    "ncm": null,
+    "nbs": "103031200",
+    "lc116": "0901",
+    "familia": "PISCOFINS_HOTELARIA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_V81B0K",
+    "ncm": null,
+    "nbs": "103031300",
+    "lc116": "0901",
+    "familia": "PISCOFINS_HOTELARIA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_VZ924B",
+    "ncm": null,
+    "nbs": "103031400",
+    "lc116": "0901",
+    "familia": "PISCOFINS_HOTELARIA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_N4G4H6",
+    "ncm": null,
+    "nbs": "103032000",
+    "lc116": "0901",
+    "familia": "PISCOFINS_HOTELARIA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1Q3J7B3",
+    "ncm": null,
+    "nbs": "103039000",
+    "lc116": "0901",
+    "familia": "PISCOFINS_HOTELARIA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_TN0RO0",
+    "ncm": null,
+    "nbs": "103041000",
+    "lc116": "0901",
+    "familia": "PISCOFINS_HOTELARIA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_13R5GSX",
+    "ncm": null,
+    "nbs": "103042000",
+    "lc116": "0901",
+    "familia": "PISCOFINS_HOTELARIA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_APND94",
+    "ncm": null,
+    "nbs": "103049000",
+    "lc116": "0901",
+    "familia": "PISCOFINS_HOTELARIA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_4WJ8K5",
+    "ncm": null,
+    "nbs": "104011710",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1LEMMRQ",
+    "ncm": null,
+    "nbs": "104011720",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_11T3ZP9",
+    "ncm": null,
+    "nbs": "104011790",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_P1634B",
+    "ncm": null,
+    "nbs": "104012300",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_KS60D9",
+    "ncm": null,
+    "nbs": "104014300",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_NOV7F",
+    "ncm": null,
+    "nbs": "104021320",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1GNDNGJ",
+    "ncm": null,
+    "nbs": "118051100",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1I1O1LA",
+    "ncm": null,
+    "nbs": "118051200",
+    "lc116": "0902",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_14BQPT1",
+    "ncm": null,
+    "nbs": "118051300",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1SGCZY8",
+    "ncm": null,
+    "nbs": "118051400",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_KY51DN",
+    "ncm": null,
+    "nbs": "118051900",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_6MA194",
+    "ncm": null,
+    "nbs": "118052100",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_4Y92IX",
+    "ncm": null,
+    "nbs": "118052200",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_19L3KE2",
+    "ncm": null,
+    "nbs": "118052300",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_HOL00R",
+    "ncm": null,
+    "nbs": "118052400",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_CXIE1",
+    "ncm": null,
+    "nbs": "118053100",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1BHD2H8",
+    "ncm": null,
+    "nbs": "118053200",
+    "lc116": "0902",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_VWA9B5",
+    "ncm": null,
+    "nbs": "118053900",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_4QGG71",
+    "ncm": null,
+    "nbs": "118054000",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_K3P09G",
+    "ncm": null,
+    "nbs": "118056100",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1XPLVR9",
+    "ncm": null,
+    "nbs": "118056200",
+    "lc116": "0902",
+    "familia": "PISCOFINS_AGENCIAS_VIAGEM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_NBCDYC",
+    "ncm": null,
+    "nbs": "118022000",
+    "lc116": "1102",
+    "familia": "PISCOFINS_SEGURANCA_PRIVADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1N747RV",
+    "ncm": null,
+    "nbs": "118023000",
+    "lc116": "1102",
+    "familia": "PISCOFINS_SEGURANCA_PRIVADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1LA4V99",
+    "ncm": null,
+    "nbs": "118025000",
+    "lc116": "1102",
+    "familia": "PISCOFINS_SEGURANCA_PRIVADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_9T9ZC9",
+    "ncm": null,
+    "nbs": "118029000",
+    "lc116": "1102",
+    "familia": "PISCOFINS_SEGURANCA_PRIVADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_A35BH",
+    "ncm": null,
+    "nbs": "118066100",
+    "lc116": "1208",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1UGODEE",
+    "ncm": null,
+    "nbs": "118066200",
+    "lc116": "1208",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_SGC3UN",
+    "ncm": null,
+    "nbs": "118066300",
+    "lc116": "1208",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1FYNF8P",
+    "ncm": null,
+    "nbs": "125051000",
+    "lc116": "1210",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_81UFIG",
+    "ncm": null,
+    "nbs": "125051000",
+    "lc116": "1211",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_128YRRQ",
+    "ncm": null,
+    "nbs": "125012100",
+    "lc116": "1213",
+    "familia": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1V8PKJ",
+    "ncm": null,
+    "nbs": "125012200",
+    "lc116": "1213",
+    "familia": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_2DRBVJ",
+    "ncm": null,
+    "nbs": "125021000",
+    "lc116": "1213",
+    "familia": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1HRJ5LO",
+    "ncm": null,
+    "nbs": "125022000",
+    "lc116": "1213",
+    "familia": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_RSP3QT",
+    "ncm": null,
+    "nbs": "125023000",
+    "lc116": "1213",
+    "familia": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1SHYDFQ",
+    "ncm": null,
+    "nbs": "125051000",
+    "lc116": "1213",
+    "familia": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_65COGZ",
+    "ncm": null,
+    "nbs": "125051000",
+    "lc116": "1216",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1UDKQ4A",
+    "ncm": null,
+    "nbs": "120017000",
+    "lc116": "1401",
+    "familia": "PISCOFINS_TELECOM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1G71WBY",
+    "ncm": null,
+    "nbs": "120018200",
+    "lc116": "1401",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1F7ELLX",
+    "ncm": null,
+    "nbs": "120017000",
+    "lc116": "1402",
+    "familia": "PISCOFINS_TELECOM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_8XR6DT",
+    "ncm": null,
+    "nbs": "120018200",
+    "lc116": "1402",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1LD1FUB",
+    "ncm": null,
+    "nbs": "120032400",
+    "lc116": "1406",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1OMSE0K",
+    "ncm": null,
+    "nbs": "109014000",
+    "lc116": "1501",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_UN2RJ3",
+    "ncm": null,
+    "nbs": "109052100",
+    "lc116": "1501",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_XG7SZ8",
+    "ncm": null,
+    "nbs": "109052200",
+    "lc116": "1501",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_KA5I41",
+    "ncm": null,
+    "nbs": "109052300",
+    "lc116": "1501",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_HPO71K",
+    "ncm": null,
+    "nbs": "109054000",
+    "lc116": "1501",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_P97JAZ",
+    "ncm": null,
+    "nbs": "109064000",
+    "lc116": "1501",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_18QWGNW",
+    "ncm": null,
+    "nbs": "109012100",
+    "lc116": "1502",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_14ROT8V",
+    "ncm": null,
+    "nbs": "109012200",
+    "lc116": "1502",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1MXH6MC",
+    "ncm": null,
+    "nbs": "109012900",
+    "lc116": "1502",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1T8EDCI",
+    "ncm": null,
+    "nbs": "111019000",
+    "lc116": "1503",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1IYFR8K",
+    "ncm": null,
+    "nbs": "120018900",
+    "lc116": "1503",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1G1JN5H",
+    "ncm": null,
+    "nbs": "113013000",
+    "lc116": "1504",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_O2DP7Z",
+    "ncm": null,
+    "nbs": "118061000",
+    "lc116": "1504",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_OYLEQY",
+    "ncm": null,
+    "nbs": "118061000",
+    "lc116": "1505",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1QIKUTM",
+    "ncm": null,
+    "nbs": "107020000",
+    "lc116": "1506",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_QQSJHZ",
+    "ncm": null,
+    "nbs": "113013000",
+    "lc116": "1506",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1LZ6BET",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1507",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_11YIEB",
+    "ncm": null,
+    "nbs": "118063100",
+    "lc116": "1507",
+    "familia": "PISCOFINS_CALL_CENTER",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_ROTZR3",
+    "ncm": null,
+    "nbs": "109013300",
+    "lc116": "1508",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_10WWPAO",
+    "ncm": null,
+    "nbs": "109013400",
+    "lc116": "1508",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_4M3Y25",
+    "ncm": null,
+    "nbs": "109013500",
+    "lc116": "1508",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_Z7K0B2",
+    "ncm": null,
+    "nbs": "109013600",
+    "lc116": "1508",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1SM7HKH",
+    "ncm": null,
+    "nbs": "109013900",
+    "lc116": "1508",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_GQ1QKM",
+    "ncm": null,
+    "nbs": "109055000",
+    "lc116": "1508",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_FHWLGG",
+    "ncm": null,
+    "nbs": "109015111",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1MIC7R7",
+    "ncm": null,
+    "nbs": "109015112",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_LDRTP2",
+    "ncm": null,
+    "nbs": "109015113",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_15MV89D",
+    "ncm": null,
+    "nbs": "109015114",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_150PY70",
+    "ncm": null,
+    "nbs": "109015115",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_UBE4TB",
+    "ncm": null,
+    "nbs": "109015116",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1A91COI",
+    "ncm": null,
+    "nbs": "109015117",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1X9JL7D",
+    "ncm": null,
+    "nbs": "109015121",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_164OBGA",
+    "ncm": null,
+    "nbs": "109015122",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_B1FW07",
+    "ncm": null,
+    "nbs": "109015123",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_14AXINC",
+    "ncm": null,
+    "nbs": "109015124",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_17XPT0G",
+    "ncm": null,
+    "nbs": "109015125",
+    "lc116": "1509",
+    "familia": "PISCOFINS_TELECOM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_VSHK4X",
+    "ncm": null,
+    "nbs": "109015129",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_WKTN5Y",
+    "ncm": null,
+    "nbs": "109015210",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1B57G0R",
+    "ncm": null,
+    "nbs": "109015220",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_H3NGQW",
+    "ncm": null,
+    "nbs": "109015230",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_BAC8RH",
+    "ncm": null,
+    "nbs": "109015240",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_14IEYFE",
+    "ncm": null,
+    "nbs": "109015250",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1DLJPN2",
+    "ncm": null,
+    "nbs": "109015290",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_R2EJ59",
+    "ncm": null,
+    "nbs": "111011100",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1JPLD1I",
+    "ncm": null,
+    "nbs": "111011200",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1Q6DVNV",
+    "ncm": null,
+    "nbs": "111011300",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_AG12XO",
+    "ncm": null,
+    "nbs": "111011400",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1E3PW4P",
+    "ncm": null,
+    "nbs": "111011500",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1X9KBJ6",
+    "ncm": null,
+    "nbs": "111011600",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1K76PHJ",
+    "ncm": null,
+    "nbs": "111011700",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_GUKPIX",
+    "ncm": null,
+    "nbs": "111012000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_16OSY9A",
+    "ncm": null,
+    "nbs": "111013000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1E3OB27",
+    "ncm": null,
+    "nbs": "111014000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_WDO2JO",
+    "ncm": null,
+    "nbs": "111015000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_13Y2Z80",
+    "ncm": null,
+    "nbs": "111016000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_TELECOM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_8WRHMW",
+    "ncm": null,
+    "nbs": "111019000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1CRCDK3",
+    "ncm": null,
+    "nbs": "111021000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1RHV9SM",
+    "ncm": null,
+    "nbs": "111022000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_S4PIU9",
+    "ncm": null,
+    "nbs": "111023000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_LF36TO",
+    "ncm": null,
+    "nbs": "111024000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_BK69IF",
+    "ncm": null,
+    "nbs": "111025000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_BB72XM",
+    "ncm": null,
+    "nbs": "111026000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_15OVO6Z",
+    "ncm": null,
+    "nbs": "111029000",
+    "lc116": "1509",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_ZPXD05",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1510",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1QJ2VAD",
+    "ncm": null,
+    "nbs": "118062000",
+    "lc116": "1510",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_10C722O",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1511",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_810Y0L",
+    "ncm": null,
+    "nbs": "109053000",
+    "lc116": "1512",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1M847BV",
+    "ncm": null,
+    "nbs": "109056000",
+    "lc116": "1513",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_16M8Z2",
+    "ncm": null,
+    "nbs": "109014000",
+    "lc116": "1514",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_NVJS9T",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1514",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_15D75D8",
+    "ncm": null,
+    "nbs": "109012100",
+    "lc116": "1515",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_16HPA4F",
+    "ncm": null,
+    "nbs": "109012200",
+    "lc116": "1515",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_13HNO9G",
+    "ncm": null,
+    "nbs": "109012900",
+    "lc116": "1515",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_81OJ4R",
+    "ncm": null,
+    "nbs": "109051300",
+    "lc116": "1515",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1Q2SRYB",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1516",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1WP4SCU",
+    "ncm": null,
+    "nbs": "109019000",
+    "lc116": "1517",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_H1MNK2",
+    "ncm": null,
+    "nbs": "109013100",
+    "lc116": "1518",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_I04CHT",
+    "ncm": null,
+    "nbs": "109013200",
+    "lc116": "1518",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_ORNAX1",
+    "ncm": null,
+    "nbs": "110013000",
+    "lc116": "1518",
+    "familia": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_7T00GS",
+    "ncm": null,
+    "nbs": "104011119",
+    "lc116": "1601",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1XDC3AY",
+    "ncm": null,
+    "nbs": "104011610",
+    "lc116": "1601",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_SSLCNV",
+    "ncm": null,
+    "nbs": "104011620",
+    "lc116": "1601",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_GI4S4I",
+    "ncm": null,
+    "nbs": "104011690",
+    "lc116": "1601",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1GMCEBK",
+    "ncm": null,
+    "nbs": "104012110",
+    "lc116": "1601",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1OMA2D4",
+    "ncm": null,
+    "nbs": "104012190",
+    "lc116": "1601",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1MPM9GL",
+    "ncm": null,
+    "nbs": "104013000",
+    "lc116": "1601",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_B1FFCF",
+    "ncm": null,
+    "nbs": "104012120",
+    "lc116": "1602",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_B8V6J0",
+    "ncm": null,
+    "nbs": "104012190",
+    "lc116": "1602",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_6YA2O0",
+    "ncm": null,
+    "nbs": "104012200",
+    "lc116": "1602",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1MBIM4P",
+    "ncm": null,
+    "nbs": "104012900",
+    "lc116": "1602",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_Z2EM4X",
+    "ncm": null,
+    "nbs": "114011800",
+    "lc116": "1701",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_11MMGDK",
+    "ncm": null,
+    "nbs": "118063100",
+    "lc116": "1702",
+    "familia": "PISCOFINS_CALL_CENTER",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_14CI9N",
+    "ncm": null,
+    "nbs": "118066100",
+    "lc116": "1710",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1M26Q6W",
+    "ncm": null,
+    "nbs": "118066200",
+    "lc116": "1710",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1R0WSRH",
+    "ncm": null,
+    "nbs": "118066300",
+    "lc116": "1710",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_NFHBDA",
+    "ncm": null,
+    "nbs": "103013100",
+    "lc116": "1711",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_117B3TO",
+    "ncm": null,
+    "nbs": "118066300",
+    "lc116": "1711",
+    "familia": "PISCOFINS_EVENTOS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_PHGHU",
+    "ncm": null,
+    "nbs": "114012200",
+    "lc116": "1712",
+    "familia": "PISCOFINS_SAUDE_LISTADA",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_1A4OKEM",
+    "ncm": null,
+    "nbs": "114063300",
+    "lc116": "1725",
+    "familia": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_RUFYLF",
+    "ncm": null,
+    "nbs": "114063400",
+    "lc116": "1725",
+    "familia": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_QAMCSK",
+    "ncm": null,
+    "nbs": "114063900",
+    "lc116": "1725",
+    "familia": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_JQ1YIR",
+    "ncm": null,
+    "nbs": "104012120",
+    "lc116": "2001",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_OHQKCZ",
+    "ncm": null,
+    "nbs": "106059000",
+    "lc116": "2001",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_156ETQ",
+    "ncm": null,
+    "nbs": "106030000",
+    "lc116": "2003",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_JIQYJQ",
+    "ncm": null,
+    "nbs": "106049000",
+    "lc116": "2003",
+    "familia": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_8CA6JP",
+    "ncm": null,
+    "nbs": "106042100",
+    "lc116": "2201",
+    "familia": "PISCOFINS_RODOVIAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_VE3J6I",
+    "ncm": null,
+    "nbs": "106042200",
+    "lc116": "2201",
+    "familia": "PISCOFINS_RODOVIAS",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "id": "RASCUNHO_NBS_LC116_ATTSAU",
+    "ncm": null,
+    "nbs": "114150000",
+    "lc116": "3101",
+    "familia": "PISCOFINS_TELECOM",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "ncm": "84701000",
+    "familia": "PISCOFINS_ASSISTIVOS_SINTETIZADOR_VOZ",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "ncm": "84716053",
+    "familia": "PISCOFINS_ASSISTIVOS_MOUSE_ACIONADOR",
+    "status": "MODELADA_HOMOLOGADA"
+  },
+  {
+    "ncm": "84719014",
+    "familia": "PISCOFINS_ASSISTIVOS_SINTETIZADOR_VOZ",
+    "status": "MODELADA_HOMOLOGADA"
+  }
+]

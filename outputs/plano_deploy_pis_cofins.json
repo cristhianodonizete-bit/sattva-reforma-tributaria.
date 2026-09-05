@@ -1,0 +1,12 @@
+{
+  "pre_condicoes": [
+    "Identificar project ref DEV",
+    "Snapshot lógico DEV",
+    "Drenar workers",
+    "Aplicar migrations em transação de manutenção",
+    "Carregar rascunhos como RASCUNHO",
+    "Smoke e shadow",
+    "Liberar workers"
+  ],
+  "janela_codigo_antigo_banco_novo": "IMPECA EXECUCOES E DRENE WORKERS ANTES DA MIGRATION"
+}

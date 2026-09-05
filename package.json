@@ -11,6 +11,7 @@
     "dev": "node --watch server.js",
     "test:cbs": "node testes/cadeia-cbs.test.js",
     "test:cff": "node testes/cff-catalogo.test.js",
+    "test:e2e:motor-condicional": "node testes/e2e-motor-condicional-final.test.js",
     "test": "node scripts/executar_testes_isolados.js"
   },
   "dependencies": {

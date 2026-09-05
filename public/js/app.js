@@ -186,6 +186,7 @@ const App = (() => {
     ] },
     { id: 'motor', titulo: 'Motor tributário', itens: [
       { id: 'coberturaDiagnostico', t: 'Cobertura do diagnóstico', i: '◌' },
+      { id: 'classificacaoFiscalComplementar', t: 'Classificação fiscal complementar', i: '✓' },
     ] },
     { id: 'diagnostico', titulo: 'Módulo 1 · Diagnóstico', itens: [
       { id: 'perfil', t: 'Perfil Tributário', i: '◉' }, { id: 'fornecedores', t: 'Cadeia de fornecedores', i: '↙' },
@@ -215,7 +216,7 @@ const App = (() => {
   const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens.filter((item) => item.id));
   const PERMISSAO_TELA = {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
-    dados: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
+    dados: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     servicos: 'gestao_projetos', gestaoProjetos: 'gestao_projetos', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', conhecimento: 'configuracoes', documentacaoSistema: 'configuracoes', configuracoes: 'configuracoes', questor: 'configuracoes', acessos: 'acessos',
   };

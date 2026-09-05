@@ -1,0 +1,446 @@
+[
+  {
+    "id": "RASCUNHO_ASSISTIVO_84701000_XXV_possui_sintetizador_voz_TODOS",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84701000",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "possui_sintetizador_voz",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": null,
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "tratamento_resultante": "ALIQUOTA_ZERO_PIS_COFINS",
+    "vigencia_inicio": null,
+    "vigencia_fim": "2026-03-31",
+    "prioridade_proposta": 50,
+    "versao_proposta": 1,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXV",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  },
+  {
+    "id": "RASCUNHO_ASSISTIVO_84701000_XXV_possui_sintetizador_voz_CUMULATIVO",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84701000",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "possui_sintetizador_voz",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": "CUMULATIVO",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0.065,
+    "cofins_percentual": 0.3,
+    "tratamento_resultante": "BENEFICIO_REDUZIDO_LC224",
+    "vigencia_inicio": "2026-04-01",
+    "vigencia_fim": null,
+    "prioridade_proposta": 50,
+    "versao_proposta": 2,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXV",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  },
+  {
+    "id": "RASCUNHO_ASSISTIVO_84701000_XXV_possui_sintetizador_voz_NAO_CUMULATIVO",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84701000",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "possui_sintetizador_voz",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": "NAO_CUMULATIVO",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0.165,
+    "cofins_percentual": 0.76,
+    "tratamento_resultante": "BENEFICIO_REDUZIDO_LC224",
+    "vigencia_inicio": "2026-04-01",
+    "vigencia_fim": null,
+    "prioridade_proposta": 50,
+    "versao_proposta": 2,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXV",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  },
+  {
+    "id": "RASCUNHO_ASSISTIVO_84716053_XXVII_adaptado_para_pessoa_com_deficiencia_TODOS",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84716053",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "adaptado_para_pessoa_com_deficiencia",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": null,
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "tratamento_resultante": "ALIQUOTA_ZERO_PIS_COFINS",
+    "vigencia_inicio": null,
+    "vigencia_fim": "2026-03-31",
+    "prioridade_proposta": 50,
+    "versao_proposta": 1,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXVII",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  },
+  {
+    "id": "RASCUNHO_ASSISTIVO_84716053_XXVII_adaptado_para_pessoa_com_deficiencia_CUMULATIVO",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84716053",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "adaptado_para_pessoa_com_deficiencia",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": "CUMULATIVO",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0.065,
+    "cofins_percentual": 0.3,
+    "tratamento_resultante": "BENEFICIO_REDUZIDO_LC224",
+    "vigencia_inicio": "2026-04-01",
+    "vigencia_fim": null,
+    "prioridade_proposta": 50,
+    "versao_proposta": 2,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXVII",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  },
+  {
+    "id": "RASCUNHO_ASSISTIVO_84716053_XXVII_adaptado_para_pessoa_com_deficiencia_NAO_CUMULATIVO",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84716053",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "adaptado_para_pessoa_com_deficiencia",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": "NAO_CUMULATIVO",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0.165,
+    "cofins_percentual": 0.76,
+    "tratamento_resultante": "BENEFICIO_REDUZIDO_LC224",
+    "vigencia_inicio": "2026-04-01",
+    "vigencia_fim": null,
+    "prioridade_proposta": 50,
+    "versao_proposta": 2,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXVII",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  },
+  {
+    "id": "RASCUNHO_ASSISTIVO_84716053_XXXI_acionador_pressao_TODOS",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84716053",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "acionador_pressao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": null,
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "tratamento_resultante": "ALIQUOTA_ZERO_PIS_COFINS",
+    "vigencia_inicio": null,
+    "vigencia_fim": "2026-03-31",
+    "prioridade_proposta": 50,
+    "versao_proposta": 1,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXXI",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  },
+  {
+    "id": "RASCUNHO_ASSISTIVO_84716053_XXXI_acionador_pressao_CUMULATIVO",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84716053",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "acionador_pressao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": "CUMULATIVO",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0.065,
+    "cofins_percentual": 0.3,
+    "tratamento_resultante": "BENEFICIO_REDUZIDO_LC224",
+    "vigencia_inicio": "2026-04-01",
+    "vigencia_fim": null,
+    "prioridade_proposta": 50,
+    "versao_proposta": 2,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXXI",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  },
+  {
+    "id": "RASCUNHO_ASSISTIVO_84716053_XXXI_acionador_pressao_NAO_CUMULATIVO",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84716053",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "acionador_pressao",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": "NAO_CUMULATIVO",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0.165,
+    "cofins_percentual": 0.76,
+    "tratamento_resultante": "BENEFICIO_REDUZIDO_LC224",
+    "vigencia_inicio": "2026-04-01",
+    "vigencia_fim": null,
+    "prioridade_proposta": 50,
+    "versao_proposta": 2,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXXI",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  },
+  {
+    "id": "RASCUNHO_ASSISTIVO_84719014_XXIX_possui_sintetizador_voz_TODOS",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84719014",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "possui_sintetizador_voz",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": null,
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "tratamento_resultante": "ALIQUOTA_ZERO_PIS_COFINS",
+    "vigencia_inicio": null,
+    "vigencia_fim": "2026-03-31",
+    "prioridade_proposta": 50,
+    "versao_proposta": 1,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXIX",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  },
+  {
+    "id": "RASCUNHO_ASSISTIVO_84719014_XXIX_possui_sintetizador_voz_CUMULATIVO",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84719014",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "possui_sintetizador_voz",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": "CUMULATIVO",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0.065,
+    "cofins_percentual": 0.3,
+    "tratamento_resultante": "BENEFICIO_REDUZIDO_LC224",
+    "vigencia_inicio": "2026-04-01",
+    "vigencia_fim": null,
+    "prioridade_proposta": 50,
+    "versao_proposta": 2,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXIX",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  },
+  {
+    "id": "RASCUNHO_ASSISTIVO_84719014_XXIX_possui_sintetizador_voz_NAO_CUMULATIVO",
+    "status": "RASCUNHO",
+    "familia": "FAMILIA_LEI_10865_ART28_ASSISTIVOS",
+    "tipo_chave": "NCM",
+    "ncm": "84719014",
+    "condicoes_obrigatorias": [
+      {
+        "fato": "possui_sintetizador_voz",
+        "operador": "VERDADEIRO"
+      }
+    ],
+    "regime_pis_cofins": "NAO_CUMULATIVO",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0.165,
+    "cofins_percentual": 0.76,
+    "tratamento_resultante": "BENEFICIO_REDUZIDO_LC224",
+    "vigencia_inicio": "2026-04-01",
+    "vigencia_fim": null,
+    "prioridade_proposta": 50,
+    "versao_proposta": 2,
+    "fundamento_legal": {
+      "lei": "Lei 10.865/2004",
+      "artigo": "28",
+      "inciso": "XXIX",
+      "lc224": "LC 224/2025, art. 4º, §2º, I; categoria DGT 2026 Cadeira de Rodas e Aparelhos Assistivos; sem exceção do §8º aplicável."
+    },
+    "fontes_oficiais": [
+      "https://www.planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.865compilado.htm",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/lei-orcamentaria-anual-2026",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/loa/comparativo-ploa-2026-x-loa-2026.pdf",
+      "https://www.gov.br/planejamento/pt-br/assuntos/orcamento/orcamentos-anuais/2026/ploa/01_ics_ploa_2026_volume_i-web.pdf",
+      "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/relatorios/renuncia/gastos-tributarios-bases-efetivas/sistema-tributario-de-referencia-str-v1-02.pdf",
+      "https://www2.camara.leg.br/legin/fed/leicom/2025/leicomplementar-224-26-dezembro-2025-798608-normaatualizada-pl.html"
+    ]
+  }
+]

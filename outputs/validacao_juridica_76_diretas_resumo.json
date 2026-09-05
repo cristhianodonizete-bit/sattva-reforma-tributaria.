@@ -1,0 +1,34 @@
+{
+  "resumo": {
+    "registros_analisados": 76,
+    "zero_mantido_2026": 0,
+    "alcancados_lc224": 0,
+    "outro_tratamento": 0,
+    "precisa_revisao_juridica": 76,
+    "com_vigencia_dividida_2026": 0,
+    "cst06_com_percentual_nao_zero": 0,
+    "exigem_infadfisco_lc224": 0,
+    "fundamento_legal_identificado": 0,
+    "fundamento_legal_nao_identificado": 76,
+    "registros_prontos_para_modelagem": 0,
+    "registros_nao_prontos": 76,
+    "alteracoes_banco": "NENHUMA",
+    "alteracoes_supabase": "NENHUMA",
+    "alteracoes_motor": "NENHUMA"
+  },
+  "criterio": "Sem dispositivo originário e cruzamento oficial NCM–exceção, a regra fica em PRECISA_REVISAO_JURIDICA.",
+  "fontes_gerais": [
+    {
+      "titulo": "LC 224/2025, art. 4º, §§ 2º, 3º, 4º, I, e 8º",
+      "url": "https://anttlegis.antt.gov.br/action/ActionDatalegis.php?acao=abrirTextoAto&cod_menu=7145&cod_modulo=420&desItem=&desItemFim=&nomeTitulo=codigos&numeroAto=00000224&orgao=NI&seqAto=000&tipo=LCP&valorAno=2025"
+    },
+    {
+      "titulo": "RFB — Perguntas e Respostas, redução dos incentivos e benefícios, questão 34.1",
+      "url": "https://www.gov.br/receitafederal/pt-br/centrais-de-conteudo/publicacoes/perguntas-e-respostas/beneficios-fiscais/perguntas-e-respostas-reducao-dos-incentivos-e-beneficios-tributarios.pdf/%40%40download/file"
+    },
+    {
+      "titulo": "Lei 10.925/2004, art. 1º",
+      "url": "https://planalto.gov.br/ccivil_03/_ato2004-2006/2004/lei/l10.925.htm"
+    }
+  ]
+}

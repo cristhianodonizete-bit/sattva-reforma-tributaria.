@@ -1,0 +1,380 @@
+{
+  "corretivo_solo": {
+    "fato_id": "corretivo_solo",
+    "tipo": "BOOLEAN",
+    "escopo": "EMPRESA_PRODUTO",
+    "pergunta_humana": "Confirme o fato: corretivo solo.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.925/2004, art. 1º, I a IV"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_CORRETIVOS_SOLO"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "origem_mineral": {
+    "fato_id": "origem_mineral",
+    "tipo": "BOOLEAN",
+    "escopo": "EMPRESA_PRODUTO",
+    "pergunta_humana": "Confirme o fato: origem mineral.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.925/2004, art. 1º, I a IV"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_CORRETIVOS_SOLO"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "uso_veterinario": {
+    "fato_id": "uso_veterinario",
+    "tipo": "BOOLEAN",
+    "escopo": "EMPRESA_PRODUTO",
+    "pergunta_humana": "Confirme o fato: uso veterinario.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.925/2004, art. 1º, I a IV"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_FERTILIZANTES"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "defensivo_agropecuario": {
+    "fato_id": "defensivo_agropecuario",
+    "tipo": "BOOLEAN",
+    "escopo": "EMPRESA_PRODUTO",
+    "pergunta_humana": "Confirme o fato: defensivo agropecuario.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.925/2004, art. 1º, I a IV"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_DEFENSIVOS"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "receita_servico_informatica_enquadrada": {
+    "fato_id": "receita_servico_informatica_enquadrada",
+    "tipo": "BOOLEAN",
+    "escopo": "RECEITA",
+    "pergunta_humana": "Confirme o fato: receita servico informatica enquadrada.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_INFORMATICA"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "receita_organizacao_eventos_enquadrada": {
+    "fato_id": "receita_organizacao_eventos_enquadrada",
+    "tipo": "BOOLEAN",
+    "escopo": "RECEITA",
+    "pergunta_humana": "Confirme o fato: receita organizacao eventos enquadrada.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_EVENTOS"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "receita_servico_saude_listado": {
+    "fato_id": "receita_servico_saude_listado",
+    "tipo": "BOOLEAN",
+    "escopo": "RECEITA",
+    "pergunta_humana": "Confirme o fato: receita servico saude listado.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_SAUDE_LISTADA"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "receita_telecomunicacoes": {
+    "fato_id": "receita_telecomunicacoes",
+    "tipo": "BOOLEAN",
+    "escopo": "RECEITA",
+    "pergunta_humana": "Confirme o fato: receita telecomunicacoes.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_TELECOM"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "receita_construcao_civil_enquadrada": {
+    "fato_id": "receita_construcao_civil_enquadrada",
+    "tipo": "BOOLEAN",
+    "escopo": "RECEITA",
+    "pergunta_humana": "Confirme o fato: receita construcao civil enquadrada.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_CONSTRUCAO_CIVIL"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "receita_educacao_nivel_legal": {
+    "fato_id": "receita_educacao_nivel_legal",
+    "tipo": "BOOLEAN",
+    "escopo": "RECEITA",
+    "pergunta_humana": "Confirme o fato: receita educacao nivel legal.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_EDUCACAO"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "receita_hotelaria_enquadrada": {
+    "fato_id": "receita_hotelaria_enquadrada",
+    "tipo": "BOOLEAN",
+    "escopo": "RECEITA",
+    "pergunta_humana": "Confirme o fato: receita hotelaria enquadrada.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente; Portaria Interministerial MF/MTur 33/2005"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_HOTELARIA"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "receita_agencia_viagem_enquadrada": {
+    "fato_id": "receita_agencia_viagem_enquadrada",
+    "tipo": "BOOLEAN",
+    "escopo": "RECEITA",
+    "pergunta_humana": "Confirme o fato: receita agencia viagem enquadrada.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_AGENCIAS_VIAGEM"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "receita_transporte_turismo_apoio_enquadrada": {
+    "fato_id": "receita_transporte_turismo_apoio_enquadrada",
+    "tipo": "BOOLEAN",
+    "escopo": "RECEITA",
+    "pergunta_humana": "Confirme o fato: receita transporte turismo apoio enquadrada.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_TRANSPORTE_TURISMO_APOIO"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "prestadora_seguranca_privada_enquadrada": {
+    "fato_id": "prestadora_seguranca_privada_enquadrada",
+    "tipo": "BOOLEAN",
+    "escopo": "EMPRESA",
+    "pergunta_humana": "Confirme o fato: prestadora seguranca privada enquadrada.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_SEGURANCA_PRIVADA"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "empresa_jornalistica_ou_radiodifusao": {
+    "fato_id": "empresa_jornalistica_ou_radiodifusao",
+    "tipo": "BOOLEAN",
+    "escopo": "EMPRESA",
+    "pergunta_humana": "Confirme o fato: empresa jornalistica ou radiodifusao.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_JORNALISMO_RADIODIFUSAO"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "pj_financeira_ou_equiparada": {
+    "fato_id": "pj_financeira_ou_equiparada",
+    "tipo": "BOOLEAN",
+    "escopo": "EMPRESA",
+    "pergunta_humana": "Confirme o fato: pj financeira ou equiparada.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_FINANCEIRAS_EQUIPARADAS"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "empresa_call_center": {
+    "fato_id": "empresa_call_center",
+    "tipo": "BOOLEAN",
+    "escopo": "EMPRESA",
+    "pergunta_humana": "Confirme o fato: empresa call center.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente art. 10, XIX"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_CALL_CENTER"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "receita_concessionaria_rodovia": {
+    "fato_id": "receita_concessionaria_rodovia",
+    "tipo": "BOOLEAN",
+    "escopo": "RECEITA",
+    "pergunta_humana": "Confirme o fato: receita concessionaria rodovia.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_RODOVIAS"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "possui_sintetizador_voz": {
+    "fato_id": "possui_sintetizador_voz",
+    "tipo": "BOOLEAN",
+    "escopo": "EMPRESA",
+    "pergunta_humana": "Confirme o fato: possui sintetizador voz.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      null
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_ASSISTIVOS_SINTETIZADOR_VOZ"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "adaptado_para_pessoa_com_deficiencia": {
+    "fato_id": "adaptado_para_pessoa_com_deficiencia",
+    "tipo": "BOOLEAN",
+    "escopo": "EMPRESA",
+    "pergunta_humana": "Confirme o fato: adaptado para pessoa com deficiencia.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      null
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_ASSISTIVOS_MOUSE_ACIONADOR"
+    ],
+    "fonte_possivel": "HUMANA"
+  },
+  "acionador_pressao": {
+    "fato_id": "acionador_pressao",
+    "tipo": "BOOLEAN",
+    "escopo": "EMPRESA",
+    "pergunta_humana": "Confirme o fato: acionador pressao.",
+    "valores_permitidos": [
+      "SIM",
+      "NAO",
+      "NAO_SEI"
+    ],
+    "fontes_juridicas": [
+      null
+    ],
+    "familias_utilizadoras": [
+      "PISCOFINS_ASSISTIVOS_MOUSE_ACIONADOR"
+    ],
+    "fonte_possivel": "HUMANA"
+  }
+}

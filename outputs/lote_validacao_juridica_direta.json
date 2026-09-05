@@ -1,0 +1,3968 @@
+[
+  {
+    "chave_fiscal_canonica": "ncm::02011000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1AWTUZM",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02011000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Carcaças e meias-carcaças"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 6,
+        "id_origem": "3"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 7,
+        "id_origem": "2954"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02012020::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_W8E6Y3",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02012020",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Quartos traseiros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 8,
+        "id_origem": "4"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 9,
+        "id_origem": "2955"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02012090::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1CQ145C",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02012090",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outras"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 10,
+        "id_origem": "5"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 11,
+        "id_origem": "2956"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02013000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_15EZKR4",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02013000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Desossadas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 12,
+        "id_origem": "6"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 13,
+        "id_origem": "2957"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02022090::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_10AGVE1",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02022090",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outras"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 14,
+        "id_origem": "7"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 15,
+        "id_origem": "2958"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02023000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_X2L17T",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02023000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Desossadas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 16,
+        "id_origem": "8"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 17,
+        "id_origem": "2959"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02031100::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_150RRG7",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02031100",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Carcaças e meias-carcaças"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 18,
+        "id_origem": "9"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 19,
+        "id_origem": "2960"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02031200::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_Q6BZXQ",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02031200",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Pernas, pás e respectivos pedaços, não desossados"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 20,
+        "id_origem": "10"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 21,
+        "id_origem": "2961"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02031900::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_FEE3XR",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02031900",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outras"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 22,
+        "id_origem": "11"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 23,
+        "id_origem": "2962"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02032200::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1ET5WG9",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02032200",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Pernas, pás e respectivos pedaços, não desossados"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 24,
+        "id_origem": "12"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 25,
+        "id_origem": "2963"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02032900::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_8R1JN8",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02032900",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outras"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 26,
+        "id_origem": "13"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 27,
+        "id_origem": "2964"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02043000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1H4DJBB",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02043000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Carcaças e meias-carcaças de cordeiro, congeladas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 28,
+        "id_origem": "14"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 29,
+        "id_origem": "2965"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02044200::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1N3K8Z6",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02044200",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outras peças não desossadas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 30,
+        "id_origem": "15"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 31,
+        "id_origem": "2966"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02044300::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1HTMT91",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02044300",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Desossadas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 32,
+        "id_origem": "16"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 33,
+        "id_origem": "2967"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02062100::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_BL2E8N",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02062100",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Línguas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 34,
+        "id_origem": "17"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 35,
+        "id_origem": "2968"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02062200::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1TWPF2M",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02062200",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Fígados"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 36,
+        "id_origem": "18"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 37,
+        "id_origem": "2969"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02062910::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_21R526",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02062910",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Rabos"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 38,
+        "id_origem": "19"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 39,
+        "id_origem": "2970"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02062990::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1118YW6",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02062990",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 40,
+        "id_origem": "20"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 41,
+        "id_origem": "2971"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02063000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_UY70BP",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02063000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Da espécie suína, frescas ou refrigeradas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 42,
+        "id_origem": "21"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 43,
+        "id_origem": "2972"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02064900::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_794E59",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02064900",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outras"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 44,
+        "id_origem": "22"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 45,
+        "id_origem": "2973"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071100::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1YF87HF",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071100",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Não cortadas em pedaços, frescas ou refrigeradas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 46,
+        "id_origem": "23"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 47,
+        "id_origem": "2974"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071210::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_R5QJQJ",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071210",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Com miudezas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 48,
+        "id_origem": "24"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 49,
+        "id_origem": "2975"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071220::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1JKSNSO",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071220",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Sem miudezas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 50,
+        "id_origem": "25"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 51,
+        "id_origem": "2976"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071300::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_P4CKFX",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071300",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Pedaços e miudezas, frescos ou refrigerados"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 52,
+        "id_origem": "26"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 53,
+        "id_origem": "2977"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071400::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1PFYZSC",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071400",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 54,
+        "id_origem": "27"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 55,
+        "id_origem": "2978"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071412::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_HOFA6Z",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071412",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Coxas com sobrecoxas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 56,
+        "id_origem": "28"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 57,
+        "id_origem": "2979"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071413::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_17ZKE1C",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071413",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Asas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 58,
+        "id_origem": "29"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 59,
+        "id_origem": "2980"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071419::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_I0K576",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071419",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 60,
+        "id_origem": "30"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 61,
+        "id_origem": "2981"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071422::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_129OO84",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071422",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Peitos"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 62,
+        "id_origem": "31"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 63,
+        "id_origem": "2982"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071423::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1X6B6TB",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071423",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Coxas com sobrecoxas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 64,
+        "id_origem": "32"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 65,
+        "id_origem": "2983"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071429::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1IVEHK1",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071429",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 66,
+        "id_origem": "33"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 67,
+        "id_origem": "2984"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071432::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_195PTM1",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071432",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Moelas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 68,
+        "id_origem": "34"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 69,
+        "id_origem": "2985"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02071433::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_NB9USU",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02071433",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Corações"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 70,
+        "id_origem": "35"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 71,
+        "id_origem": "2986"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02072400::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_XEIFQF",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02072400",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Não cortadas em pedaços, frescas ou refrigeradas"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 72,
+        "id_origem": "36"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 73,
+        "id_origem": "2987"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02091029::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_8RDD2J",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02091029",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outras"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 74,
+        "id_origem": "37"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 75,
+        "id_origem": "2988"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02101200::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_GI6OOY",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02101200",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Toucinhos entremeados (Barrigas (entremeadas)*) e seus pedaços"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 76,
+        "id_origem": "38"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 77,
+        "id_origem": "2989"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 78,
+        "id_origem": "39"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 79,
+        "id_origem": "2990"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02101900::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_OMHW0Z",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02101900",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outras"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 80,
+        "id_origem": "40"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 81,
+        "id_origem": "2991"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 82,
+        "id_origem": "41"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 83,
+        "id_origem": "2992"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::02102000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_19IVT1V",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "02102000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Carnes da espécie bovina"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 84,
+        "id_origem": "42"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 85,
+        "id_origem": "2993"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 86,
+        "id_origem": "43"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 87,
+        "id_origem": "2994"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::03024300::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1MPYSAK",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "03024300",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Sardinhas (Sardina pilchardus, Sardinops spp., Sardinella spp.) (Sardinha (Sardina pilchardus) e sardinelas (Sardinops spp., Sardinella spp.)*), anchoveta (espadilha*) (Sprattus sprattus)"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 92,
+        "id_origem": "46"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 93,
+        "id_origem": "2997"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::03024990::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_13CJXDZ",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "03024990",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 94,
+        "id_origem": "47"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 95,
+        "id_origem": "2998"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::03036300::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_17EDZ29",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "03036300",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Bacalhau-do-atlântico (Gadus morhua), bacalhau-da-groelândia (Gadus ogac) e bacalhau-do-pacífico (Gadus macrocephalus)"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 96,
+        "id_origem": "48"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 97,
+        "id_origem": "2999"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::03043100::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_ZR72W7",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "03043100",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Tilápias (Oreochromis spp.)"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 98,
+        "id_origem": "49"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 99,
+        "id_origem": "3000"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::03044100::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1SMQP8O",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "03044100",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Salmões-do-pacífico (Oncorhynchus nerka, Oncorhynchus gorbuscha, Oncorhynchus keta, Oncorhynchus tschawytscha, Oncorhynchus kisutch, Oncorhynchus masou e Oncorhynchus rhodurus), salmão-do-atlântico (Salmo salar) e salmão-do-danúbio (Hucho hucho)"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 100,
+        "id_origem": "50"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 101,
+        "id_origem": "3001"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::03046100::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1MSV08U",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "03046100",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Tilápias (Oreochromis spp.)"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 102,
+        "id_origem": "51"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 103,
+        "id_origem": "3002"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::03048100::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_14PQGP0",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "03048100",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Salmões-do-pacífico (Oncorhynchus nerka, Oncorhynchus gorbuscha, Oncorhynchus keta, Oncorhynchus tschawytscha, Oncorhynchus kisutch, Oncorhynchus masou e Oncorhynchus rhodurus), salmão-do-atlântico (Salmo salar) e salmão-do-danúbio (Hucho hucho)"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 104,
+        "id_origem": "52"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 105,
+        "id_origem": "3003"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::03049212::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1SV2SZN",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "03049212",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Colares (collars)"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 106,
+        "id_origem": "53"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 107,
+        "id_origem": "3004"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::04051000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1T7HA2C",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "04051000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Manteiga"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 140,
+        "id_origem": "70"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 141,
+        "id_origem": "3021"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::07133319::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_UQR5D7",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "07133319",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 240,
+        "id_origem": "120"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 241,
+        "id_origem": "3071"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::07133399::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1Q00TS3",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "07133399",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 242,
+        "id_origem": "121"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 243,
+        "id_origem": "3072"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::10063021::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1A76QYR",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "10063021",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Polido ou brunido"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 384,
+        "id_origem": "192"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 385,
+        "id_origem": "3143"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::10063029::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1P5TAQ3",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "10063029",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 386,
+        "id_origem": "193"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 387,
+        "id_origem": "3144"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::11022000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_PSC694",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "11022000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Farinha de milho"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 396,
+        "id_origem": "198"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 397,
+        "id_origem": "3149"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 398,
+        "id_origem": "199"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 399,
+        "id_origem": "3150"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::11062000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1EDTFLG",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "11062000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "De sagu ou das raízes ou tubérculos, da posição 07.14"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 424,
+        "id_origem": "212"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 425,
+        "id_origem": "3163"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 426,
+        "id_origem": "213"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 427,
+        "id_origem": "3164"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15071000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1MBANW4",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15071000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Óleo em bruto, mesmo degomado"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 500,
+        "id_origem": "250"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 501,
+        "id_origem": "3201"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15079011::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_W0CLHM",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15079011",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Em recipientes com capacidade inferior ou igual a 5 l"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 502,
+        "id_origem": "251"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 503,
+        "id_origem": "3202"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15079019::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1SHD1GI",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15079019",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 504,
+        "id_origem": "252"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 505,
+        "id_origem": "3203"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15079090::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_18BTF31",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15079090",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 506,
+        "id_origem": "253"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 507,
+        "id_origem": "3204"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15092000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_OFLGMD",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15092000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Azeite de oliva (oliveira) extra virgem"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 508,
+        "id_origem": "254"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 509,
+        "id_origem": "3205"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15099090::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_185VXK7",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15099090",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 510,
+        "id_origem": "255"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 511,
+        "id_origem": "3206"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15121110::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_RNWRZG",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15121110",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "De girassol"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 512,
+        "id_origem": "256"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 513,
+        "id_origem": "3207"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15121911::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_B9D2WV",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15121911",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Refinado, em recipientes com capacidade inferior ou igual a 5 l"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 514,
+        "id_origem": "257"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 515,
+        "id_origem": "3208"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15121919::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_72UFT3",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15121919",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 516,
+        "id_origem": "258"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 517,
+        "id_origem": "3209"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15122910::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_VE3BH3",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15122910",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Refinado"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 518,
+        "id_origem": "259"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 519,
+        "id_origem": "3210"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15131100::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_6OMMAM",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15131100",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Óleo em bruto"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 520,
+        "id_origem": "260"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 521,
+        "id_origem": "3211"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::15131900::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_18C5VA",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "15131900",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 522,
+        "id_origem": "261"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 523,
+        "id_origem": "3212"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 524,
+        "id_origem": "262"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 525,
+        "id_origem": "3213"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 526,
+        "id_origem": "263"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 527,
+        "id_origem": "3214"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::17011400::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1EYC6I4",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "17011400",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros açúcares de cana"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 576,
+        "id_origem": "288"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 577,
+        "id_origem": "3239"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::17019900::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_M9ZQBN",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "17019900",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Outros"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 578,
+        "id_origem": "289"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 579,
+        "id_origem": "3240"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::30023010::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1KD5KY5",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "30023010",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 1462,
+        "id_origem": "731"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 1463,
+        "id_origem": "3682"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::30023070::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_9ERUDV",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "30023070",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 1464,
+        "id_origem": "732"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 1465,
+        "id_origem": "3683"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::30023080::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_16FXJ1O",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "30023080",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 1466,
+        "id_origem": "733"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 1467,
+        "id_origem": "3684"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::30023090::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_19PZVUT",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "30023090",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 1468,
+        "id_origem": "734"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 1469,
+        "id_origem": "3685"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::48181000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_136INIU",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "48181000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Papel higiênico"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 2886,
+        "id_origem": "1443"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 2887,
+        "id_origem": "4394"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::84701000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_DRAXLC",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "84701000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Calculadoras eletrônicas capazes de funcionar sem fonte externa de energia elétrica e máquinas de bolso com função de cálculo incorporada que permitam gravar, reproduzir e visualizar informações"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 4722,
+        "id_origem": "2361"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 4723,
+        "id_origem": "5312"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 4724,
+        "id_origem": "2362"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 4725,
+        "id_origem": "5313"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::84716053::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1CHXJO8",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "84716053",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Indicadores ou apontadores (mouse e track-ball, por exemplo)"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 4738,
+        "id_origem": "2369"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 4739,
+        "id_origem": "5320"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 4740,
+        "id_origem": "2370"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 4741,
+        "id_origem": "5321"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::84719014::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_KCAZ2I",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "84719014",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "Digitalizadores de imagens (scanners)"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 4744,
+        "id_origem": "2372"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 4745,
+        "id_origem": "5323"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 4746,
+        "id_origem": "2373"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 4747,
+        "id_origem": "5324"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  },
+  {
+    "chave_fiscal_canonica": "ncm::87142000::::::aliquota zero::aliquota zero::06::06::0::0::conforme cadastro da empresa/receita::nao::::matriz vigente cadastrada",
+    "id_proposto": "RASCUNHO_NCM_1JOJ3O8",
+    "status_proposto": "RASCUNHO",
+    "tipo_chave": "NCM",
+    "ncm": "87142000",
+    "nbs": null,
+    "lc116": null,
+    "descricao": [
+      "De cadeiras de rodas ou de outros veículos para pessoas com incapacidade"
+    ],
+    "tratamento_resultante_proposto": "ALÍQUOTA ZERO",
+    "operacao_pis_cofins_fonte": "Alíquota zero",
+    "cst_pis": "06",
+    "cst_cofins": "06",
+    "pis_percentual": 0,
+    "cofins_percentual": 0,
+    "regime_pis_cofins_receita": "Conforme cadastro da empresa/receita",
+    "papel_cadeia_fonte": "NÃO APLICÁVEL",
+    "papel_cadeia_necessario": "NÃO",
+    "condicao_textual_fonte": null,
+    "status_fonte": "MATRIZ VIGENTE CADASTRADA",
+    "marcador_condicional": false,
+    "classificacao": "REGRA_ESPECIFICA_DIRETA",
+    "bloqueios_para_ativacao": [],
+    "elegivel_para_revisao": true,
+    "elegivel_para_rascunho_operacional": true,
+    "campos_pendentes_estruturacao": [
+      "familia",
+      "tipo_operacao",
+      "direcao",
+      "prioridade",
+      "vigencia_inicio",
+      "fundamento_legal",
+      "versao"
+    ],
+    "origens": [
+      {
+        "aba": "Produtos NCM",
+        "linha": 5382,
+        "id_origem": "2691"
+      },
+      {
+        "aba": "Produtos NCM",
+        "linha": 5383,
+        "id_origem": "5642"
+      }
+    ],
+    "classificacao_operacional": "REGRA_ESPECIFICA_DIRETA_EXECUTAVEL",
+    "prontidao_operacional": "PRONTO_PARA_VALIDACAO_JURIDICA_DIRETA"
+  }
+]

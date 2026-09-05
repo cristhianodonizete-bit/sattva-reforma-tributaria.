@@ -1,0 +1,58 @@
+{
+  "fonte": {
+    "arquivo": "C:/Users/cristhiano/Downloads/BASE_REGRAS_PIS_COFINS_ATUAL_E_REFORMA_PIS_COFINS_PREENCHIDO.xlsx",
+    "aba": "Serviços LC116 NBS",
+    "linhas_originais": 2635
+  },
+  "nbs_distintos": 675,
+  "lc116_distintos": 200,
+  "pares_lc116_nbs_distintos": 899,
+  "chaves_fiscais_servicos_consolidadas": 899,
+  "regra_geral_residual": 711,
+  "regra_condicional": 188,
+  "regra_condicional_reconciliada": 188,
+  "regra_condicional_reconciliada_final": 302,
+  "regra_condicional_sem_rascunho": 0,
+  "rascunhos_fora_da_condicao_matriz": 120,
+  "rascunhos_obsoletos": 6,
+  "rascunhos_reclassificados_condicionais": 114,
+  "regra_geral_residual_final": 597,
+  "regra_especifica_direta_final": 0,
+  "regra_condicional_final": 302,
+  "familias_reutilizadas": 13,
+  "familias_novas": 0,
+  "fatos_reutilizados": 13,
+  "fatos_novos": 0,
+  "fatos_orfaos": [],
+  "conflitos_matriz": 0,
+  "conflitos_de_ativacao": 0,
+  "homologacao_postgres_dev": "ADIADA_POR_DECISAO_DE_PROJETO",
+  "alteracoes_producao": "NENHUMA",
+  "deploy_producao_liberado": "NAO",
+  "fontes_oficiais_consultadas": [
+    {
+      "titulo": "Lei nº 10.833/2003, art. 10",
+      "url": "https://www.planalto.gov.br/ccivil_03/leis/2003/l10.833compilado.htm",
+      "uso": "Delimitação das receitas excluídas da não-cumulatividade, inclusive serviços condicionados ao tipo de receita/prestador."
+    },
+    {
+      "titulo": "Lei nº 10.637/2002",
+      "url": "https://www.planalto.gov.br/ccivil_03/leis/2002/l10637compilado.htm",
+      "uso": "Regime não cumulativo de PIS e cálculo/creditamento correspondente."
+    },
+    {
+      "titulo": "NBS e NEBS versão 2.0 — MDIC",
+      "url": "https://www.gov.br/mdic/pt-br/assuntos/sdic/comercio-e-servicos/nbs-nomenclatura-brasileira-de-servicos",
+      "uso": "Referência oficial de código e notas explicativas da NBS; não substitui a solução de consulta quando a classificação for controvertida."
+    }
+  ],
+  "testes": {
+    "todos_os_condicionais_da_matriz_possuem_rascunho": true,
+    "fatos_referenciados_existem": true,
+    "divergencias_cst": 0,
+    "sobreposicoes_publicaveis": 0,
+    "regras_expiradas_selecionadas": 0,
+    "rascunhos_excedentes_saneados": 120
+  },
+  "resultado": "APROVADO_COM_BLOQUEIO_DE_PUBLICACAO"
+}

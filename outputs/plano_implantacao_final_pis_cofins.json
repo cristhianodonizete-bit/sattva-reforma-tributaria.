@@ -1,0 +1,17 @@
+{
+  "modo": "NAO_EXECUTADO",
+  "sequencia": [
+    "bloquear processamentos",
+    "drenar workers",
+    "backup/snapshot",
+    "preflight",
+    "migrations 20260918/19/20",
+    "validar schema",
+    "deploy código",
+    "carga segura",
+    "smoke",
+    "shadow",
+    "ativação controlada",
+    "monitoramento"
+  ]
+}

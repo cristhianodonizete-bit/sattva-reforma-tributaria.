@@ -1,0 +1,19 @@
+{
+  "status": "APROVADA_LOCAL",
+  "familias_testadas": 12,
+  "cenarios_por_familia": [
+    "VERDADEIRO",
+    "FALSO",
+    "AUSENTE",
+    "REGRA_EXPIRADA"
+  ],
+  "lacunas_indevidas": 0,
+  "sobreposicoes": 0,
+  "regras_expiradas_selecionadas": 0,
+  "divergencias_cst": 0,
+  "divergencias_percentual": 0,
+  "divergencias_valor": 0,
+  "divergencias_regime": 0,
+  "divergencias_regra": 0,
+  "regras_ativas_producao": 0
+}

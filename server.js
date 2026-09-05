@@ -54,10 +54,10 @@ async function iniciar() {
     const operacao = require('./src/services/operacaoCompartilhada');
     if (operacao.ativo()) {
       let dados = {};
-      try { dados = await operacao.baixar(); }
-      catch (e) { console.error('  carga operacional parcial falhou:', e.message); }
-      // `baixar()` já inclui parâmetros e gestão. Repetir essas leituras antes
-      // de iniciar o servidor aumentava o cold start sem trazer informação nova.
+      try { dados = await operacao.sincronizarIncremental(); }
+      catch (e) { console.error('  sincronização operacional incremental falhou:', e.message); }
+      // Na primeira instalação há uma carga-base completa; nos reinícios
+      // seguintes, somente eventos posteriores ao marco local são aplicados.
       console.log(`  operação compartilhada carregada: ${JSON.stringify(dados)}`);
       const db = require('./src/db');
       const bases = require('./src/services/basesReforma');

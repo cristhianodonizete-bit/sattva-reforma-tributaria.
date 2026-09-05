@@ -1,0 +1,8 @@
+const assert=require('assert'),fs=require('fs'),os=require('os'),path=require('path');
+process.env.SATTVA_DADOS=fs.mkdtempSync(path.join(os.tmpdir(),'sattva-370-'));
+const db=require('../src/db'),motor=require('../src/services/motorCondicionalPisCofins');
+const rs=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../outputs/condicionais_370_modeladas.json')));
+const empresa=Number(db.prepare("INSERT INTO empresas(cnpj,razao_social) VALUES('37000000000001','E2E 370')").run().lastInsertRowid);
+const familias=[...new Set(rs.map(x=>x.familia_juridica_id))];
+for(const f of familias){const regra=rs.find(x=>x.familia_juridica_id===f&&x.fato_id!==null); if(!regra)continue; const fato=regra.condicoes_obrigatorias[0]?.fato;if(!fato)continue;const regras=[{regra_id:regra.id,prioridade:50,vigencia_inicio:'2020-01-01',vigencia_fim:'2026-12-31',condicoes:[{fato,operador:'VERDADEIRO'}],resultado:{tratamento:regra.tratamento}}]; const c={empresa_id:empresa,codigo_produto:f,ncm:regra.ncm||'00000000',data_operacao:'2026-06-01'};assert.equal(motor.selecionar(regras,{...c,fatos_operacao:{[fato]:true}}).status,'APLICAVEL');assert.equal(motor.selecionar(regras,{...c,fatos_operacao:{[fato]:false}}).status,'NAO_APLICAVEL');assert.equal(motor.selecionar(regras,c).status,'INDETERMINADA');assert.equal(motor.selecionar(regras,{...c,data_operacao:'2027-01-01',fatos_operacao:{[fato]:true}}).status,'NAO_APLICAVEL');}
+console.log(`condicionais-370-familias: ${familias.length} famílias estruturadas, verdadeiro/falso/ausente/vigência aprovados`);db.close();fs.rmSync(process.env.SATTVA_DADOS,{recursive:true,force:true});

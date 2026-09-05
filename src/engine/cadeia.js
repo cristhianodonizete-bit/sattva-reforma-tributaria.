@@ -11,6 +11,7 @@
 const P = require('../config/parametros');
 const { calcularOperacao, r2, r4 } = require('./calculadora');
 const regras = require('../services/regras');
+const { aplicarPercentual } = require('../services/percentual');
 
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
 const regimeConfigurado = (chave) => regras.regime(chave) || P.REGIMES[chave] || P.REGIMES.lucro_real;
@@ -37,7 +38,7 @@ function calcularVendaCbs(m, regimeEmpresa, regimeCliente, cfg) {
     : (referencia.das_efetivo !== null && referencia.das_efetivo !== undefined
       ? num(referencia.das_efetivo) : num(regimePisCofins));
   const usaDocumento = pisDocumento > 0;
-  const pisCofins = usaDocumento ? pisDocumento : valor * aliquotaReferencia;
+  const pisCofins = usaDocumento ? pisDocumento : aplicarPercentual(valor, aliquotaReferencia);
   const baseEconomica = Math.max(valor - pisCofins, 0);
   const anos = (cfg.anos && cfg.anos.length ? cfg.anos : [2027]).map(Number);
   const projecao = anos.map((ano) => {

@@ -19,6 +19,11 @@ const { avaliarDimensoes } = require('./autonomiaDimensoes');
 const pendenciasEnriquecimento = require('./pendenciasEnriquecimento');
 const normalizacaoFiscalXml = require('./normalizacaoFiscalXml');
 const revisaoBeneficiosFiscais = require('./revisaoBeneficiosFiscais');
+const motorCondicionalPisCofins = require('./motorCondicionalPisCofins');
+const registrarErroSombra = (m, oficial, erro) => {
+  try { db.prepare(`INSERT INTO motor_condicional_sombra (movimento_id,empresa_id,produto_empresa_id,ncm,status_avaliacao,resultado_oficial,resultado_sombra,motivo) VALUES (?,?,?,?,?,?,?,?)`)
+    .run(m.id || null,m.empresa_id,m.produto_empresa_id || null,m.ncm || null,'ERRO',JSON.stringify(oficial),null,`SOMBRA:${String(erro?.message || 'erro').slice(0,300)}`); } catch (_) { /* auditoria não interrompe o oficial */ }
+};
 const crypto = require('crypto');
 
 // A versão é gravada em cada resultado para permitir invalidar apenas as
@@ -197,6 +202,7 @@ function executar(empresaId, opcoes = {}) {
     }
 
     proj.conferencia = conferirDeclarado(proj, { ...m, declarado: item.declarado }, ano);
+    try { motorCondicionalPisCofins.executarSombraAposOficial({ movimento:m, resultado_oficial:structuredClone(proj) }); } catch (e) { registrarErroSombra(m,proj,e); console.error('[sombra PIS/Cofins]', e.message); }
     entradas.push({ ...proj, movimento_id: m.id, regimeParceiro: regime });
     coletarConformidade(conformidade, proj, m, 'entrada', regime);
   }
@@ -219,6 +225,7 @@ function executar(empresaId, opcoes = {}) {
       perfilDestinatario: dest.perfil, simplesEmitente: empresaSimples,
       elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(m.inscr_federal), qsa: qsaEmitente },
     });
+    try { motorCondicionalPisCofins.executarSombraAposOficial({ movimento:m, resultado_oficial:structuredClone(proj) }); } catch (e) { registrarErroSombra(m,proj,e); console.error('[sombra PIS/Cofins]', e.message); }
     proj.destinatario = dest;
     proj.sensibilidade = motor.sensibilidadeCredito({
       perfil: dest.perfil, credita: dest.credita, credito: proj.credito, projecao: proj,

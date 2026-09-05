@@ -1,0 +1,197 @@
+[
+  {
+    "familia_juridica_id": "PISCOFINS_INFORMATICA",
+    "regras": 34,
+    "chaves_fiscais": 34,
+    "fatos_reutilizados": [
+      "receita_servico_informatica_enquadrada"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_SAUDE_LISTADA",
+    "regras": 16,
+    "chaves_fiscais": 16,
+    "fatos_reutilizados": [
+      "receita_servico_saude_listado"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_EDUCACAO",
+    "regras": 12,
+    "chaves_fiscais": 12,
+    "fatos_reutilizados": [
+      "receita_educacao_nivel_legal"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_AGENCIAS_VIAGEM",
+    "regras": 19,
+    "chaves_fiscais": 19,
+    "fatos_reutilizados": [
+      "receita_agencia_viagem_enquadrada"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_TRANSPORTE_TURISMO_APOIO",
+    "regras": 16,
+    "chaves_fiscais": 16,
+    "fatos_reutilizados": [
+      "receita_transporte_turismo_apoio_enquadrada"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_SEGURANCA_PRIVADA",
+    "regras": 4,
+    "chaves_fiscais": 4,
+    "fatos_reutilizados": [
+      "prestadora_seguranca_privada_enquadrada"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_JORNALISMO_RADIODIFUSAO",
+    "regras": 9,
+    "chaves_fiscais": 9,
+    "fatos_reutilizados": [
+      "empresa_jornalistica_ou_radiodifusao"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_FINANCEIRAS_EQUIPARADAS",
+    "regras": 76,
+    "chaves_fiscais": 76,
+    "fatos_reutilizados": [
+      "pj_financeira_ou_equiparada"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_RODOVIAS",
+    "regras": 2,
+    "chaves_fiscais": 2,
+    "fatos_reutilizados": [
+      "receita_concessionaria_rodovia"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_EVENTOS",
+    "regras": 15,
+    "chaves_fiscais": 15,
+    "fatos_reutilizados": [
+      "receita_organizacao_eventos_enquadrada"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente; Lei 11.771/2008, art. 21"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_CONSTRUCAO_CIVIL",
+    "regras": 88,
+    "chaves_fiscais": 88,
+    "fatos_reutilizados": [
+      "receita_construcao_civil_enquadrada"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_HOTELARIA",
+    "regras": 9,
+    "chaves_fiscais": 9,
+    "fatos_reutilizados": [
+      "receita_hotelaria_enquadrada"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente; Portaria Interministerial MF/MTur 33/2005"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  },
+  {
+    "familia_juridica_id": "PISCOFINS_CALL_CENTER",
+    "regras": 2,
+    "chaves_fiscais": 2,
+    "fatos_reutilizados": [
+      "empresa_call_center"
+    ],
+    "tratamentos": [
+      "CUMULATIVO_OBRIGATORIO"
+    ],
+    "fundamentos": [
+      "Lei 10.833/2003, art. 10, redação vigente art. 10, XIX"
+    ],
+    "origem": "REUSO_DO_FECHAMENTO_370"
+  }
+]
