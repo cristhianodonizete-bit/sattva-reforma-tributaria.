@@ -59,6 +59,7 @@ const revisaoBeneficiosFiscais = require('../services/revisaoBeneficiosFiscais')
 const performanceTelemetry = require('../services/performanceTelemetry');
 const identidadeProduto = require('../services/identidadeProduto');
 const cadastroFiscalComplementar = require('../services/cadastroFiscalComplementar');
+const autenticacao = require('../services/autenticacao');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -480,6 +481,7 @@ router.post('/acessos/perfis', async (req, res) => {
     if (!String(b.nome || '').trim()) throw new Error('Informe o nome do perfil.');
     const { data, error } = await remoto.from('perfis_acesso').insert({ nome: b.nome.trim(), descricao: b.descricao || '', ativo: b.ativo !== false, permissoes: normalizarPermissoes(b.permissoes) }).select().single();
     if (error) throw error;
+    autenticacao.invalidarPerfilAcesso(data.id);
     auditar(req, { acao: 'Criou perfil de acesso', entidade: 'perfil_acesso', entidadeId: data.id, depois: { nome: data.nome } });
     ok(res, { perfil: data });
   } catch (e) { erro(res, e); }
@@ -491,6 +493,7 @@ router.put('/acessos/perfis/:id', async (req, res) => {
     if (erroAntes) throw erroAntes;
     const { data, error } = await remoto.from('perfis_acesso').update({ nome: String(b.nome || antes.nome).trim(), descricao: b.descricao ?? antes.descricao, ativo: b.ativo !== false, permissoes: normalizarPermissoes(b.permissoes ?? antes.permissoes), atualizado_em: new Date().toISOString() }).eq('id', req.params.id).select().single();
     if (error) throw error;
+    autenticacao.invalidarPerfilAcesso(data.id);
     auditar(req, { acao: 'Atualizou perfil de acesso', entidade: 'perfil_acesso', entidadeId: data.id, antes: { nome: antes.nome }, depois: { nome: data.nome } });
     ok(res, { perfil: data });
   } catch (e) { erro(res, e); }
@@ -514,6 +517,7 @@ router.put('/acessos/usuarios/:id', async (req, res) => {
     if (erroAntes) throw erroAntes;
     const { error } = await remoto.from('perfis').upsert({ id: req.params.id, nome: String(b.nome ?? antes?.nome ?? '').trim(), papel: antes?.papel || 'consultor', ativo: b.ativo !== false, perfil_acesso_id: b.perfil_acesso_id || null, atualizado_em: new Date().toISOString() });
     if (error) throw error;
+    autenticacao.invalidarUsuario(req.params.id);
     auditar(req, { acao: 'Atualizou usuário', entidade: 'usuario', entidadeId: req.params.id, antes: { perfil_acesso_id: antes?.perfil_acesso_id || null, ativo: antes?.ativo ?? true }, depois: { perfil_acesso_id: b.perfil_acesso_id || null, ativo: b.ativo !== false } });
     ok(res, {});
   } catch (e) { erro(res, e); }
