@@ -1597,7 +1597,13 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     // fotografia se alguma dependência efetivamente mudou.
     motorExec.reprocessarIncremental(empresa.id, { ano: 2027 });
     const cfg = prepararCadeia(empresa, tipo, req.query);
-    const resultado = consolidacaoOficial.cadeia(empresa.id, tipo, { executarSeAusente: false });
+    const detalhesSolicitados = req.query.detalhes === undefined ? true : String(req.query.detalhes) === '1';
+    const resultado = consolidacaoOficial.cadeia(empresa.id, tipo, {
+      executarSeAusente: false,
+      incluirDetalhes: detalhesSolicitados,
+      paginaDetalhes: req.query.pagina,
+      limiteDetalhes: req.query.limite,
+    });
     ok(res, { empresa, analise: resultado, pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', valor: Number(m.valor) || 0 })) });
   } catch (e) { erro(res, e); }
 });

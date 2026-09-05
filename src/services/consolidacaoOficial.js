@@ -221,7 +221,16 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const ordemFaixa = { INTEGRAL: 0, REDUCAO_30: 1, REDUCAO_40: 2, REDUCAO_60: 3, ALIQUOTA_ZERO: 4 };
   const regimes = [...porGrupo.values()].map((x) => ({ ...finalizar(x), parceiros: x.parceirosSet.size, representatividade: total.valor ? r4(x.valor / total.valor) : 0 }))
     .sort((a, b) => a.label.localeCompare(b.label, 'pt-BR') || (ordemFaixa[a.faixaOrdem] ?? 99) - (ordemFaixa[b.faixaOrdem] ?? 99) || b.valor - a.valor);
-  const detalhes = itens.map((x) => ({
+  // O detalhamento é apenas drill-down. Totais, parceiros e regimes acima
+  // continuam sendo calculados sobre todas as operações; não há corte fiscal.
+  // Evita transferir e montar centenas de memórias JSON quando a tela não está
+  // na aba de rastreabilidade.
+  const incluirDetalhes = opcoes.incluirDetalhes !== false;
+  const limiteDetalhes = Math.min(500, Math.max(1, Number(opcoes.limiteDetalhes) || 100));
+  const paginasDetalhes = Math.max(1, Math.ceil(itens.length / limiteDetalhes));
+  const paginaDetalhes = Math.min(paginasDetalhes, Math.max(1, Number(opcoes.paginaDetalhes) || 1));
+  const inicioDetalhes = (paginaDetalhes - 1) * limiteDetalhes;
+  const detalhes = (incluirDetalhes ? itens.slice(inicioDetalhes, inicioDetalhes + limiteDetalhes) : []).map((x) => ({
     movimento_id: x.movimento_id, documento: x.documento || x.chave || '', parceiro: x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || '', cnpj: x.inscr_federal || '',
     produto: x.descricao || '', ncm: x.ncm || '', nbs: x.nbs || '', cfop: x.cfop || '', competencia: x.competencia || null,
     valor: r2(x.preco_atual), valorSemImposto: r2(x.base_economica), ibs: r2(x.ibs), cbs: r2(x.cbs), precoFinal: r2(x.preco_projetado),
@@ -249,7 +258,9 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     statusBaseEconomica: x.detalhe?.reconstrucao?.status || 'INDETERMINADO',
     impactoOperacao: r2(n(x.preco_projetado) - n(x.preco_atual)), impactoOperacaoPerc: x.preco_atual ? r4((n(x.preco_projetado) - n(x.preco_atual)) / n(x.preco_atual)) : null,
     tipoCredito: x.tipo_credito, modalidadeCredito: x.modalidade_credito, statusCredito: x.status_credito_determinacao || x.status_credito,
-    natureza: natureza(x), detalhe: x.detalhe,
+    // A memória bruta permanece no resultado oficial. A tela recebe somente
+    // os campos de rastreabilidade que efetivamente apresenta.
+    natureza: natureza(x),
   }));
   const operacoesBeneficios = lado === 'cliente' ? itens.map(leituraBeneficio).filter(Boolean) : [];
   const tratamentoBeneficios = operacoesBeneficios.reduce((s, x) => ({
@@ -261,6 +272,15 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   }), { operacoes: 0, valor: 0, baseEconomica: 0, cbs: 0, diferencaReducaoCbs: 0 });
   const t = finalizar(total); t.parceiros = parceiros.length;
   return { execucao: base.execucao, lado, totais: t, parceiros, regimes, detalhes,
+    paginacaoDetalhes: {
+      incluido: incluirDetalhes,
+      pagina: paginaDetalhes,
+      limite: limiteDetalhes,
+      total: itens.length,
+      totalPaginas: paginasDetalhes,
+      temAnterior: paginaDetalhes > 1,
+      temProxima: paginaDetalhes < paginasDetalhes,
+    },
     condicao200044: lado === 'cliente' ? elegibilidadeAnexoXi.qsaEmpresa(empresaId) : { status: 'NAO_APLICAVEL' },
     operacoesBeneficios, tratamentoBeneficios,
     // Compatibilidade transitória para clientes que ainda consumam o contrato

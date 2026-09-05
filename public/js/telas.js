@@ -693,19 +693,20 @@ const barras = (itens) => itens.map(([rot, v]) => `<div style="margin-bottom:11p
 // ===========================================================================
 async function telaCadeia(el, tipo) {
   const rep = S.cache[`rep_${tipo}`] === undefined ? 1 : S.cache[`rep_${tipo}`];
-  const { analise, pendenciasReferencias = [] } = await A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}`);
   const eForn = tipo === 'fornecedor';
+  const abaCliente = S.aba.clientesCadeia || 'carteira';
+  const mostrarRastreabilidade = !eForn && abaCliente === 'rastreabilidade';
+  const paginaRastreabilidade = Math.max(1, Number(S.cache[`cadeia_pagina_${tipo}`]) || 1);
+  const { analise, pendenciasReferencias = [] } = await A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidade ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100`);
   const t = analise.totais;
   const ultimo = analise.cenarios[analise.cenarios.length - 1] || {};
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   const cbsReferencia = Number(S.params?.aliquotaReferencia?.cbs) || 0;
   const ibsReferencia = ibsAtivo ? (Number(S.params?.aliquotaReferencia?.ibs) || 0) : 0;
   const rotuloBase = ibsAtivo ? 'Base econômica integral' : 'Base econômica CBS';
-  const abaCliente = S.aba.clientesCadeia || 'carteira';
   const mostrarCarteira = eForn || abaCliente === 'carteira';
   const mostrarRiscos = eForn || abaCliente === 'riscos';
   const mostrarAbc = eForn || abaCliente === 'abc';
-  const mostrarRastreabilidade = !eForn && abaCliente === 'rastreabilidade';
   const mostrarBeneficios = !eForn && abaCliente === 'beneficios';
   const resumoBeneficios = analise.tratamentoBeneficios || { operacoes: 0 };
 
@@ -853,7 +854,8 @@ async function telaCadeia(el, tipo) {
         { t: 'Venda projetada', num: true, r: (d) => A.moeda(d.precoFinal) },
         { t: 'Impacto', num: true, r: (d) => A.setaR$(d.impactoOperacao) },
         { t: 'Impacto %', num: true, r: (d) => A.setaPct(d.impactoOperacaoPerc) },
-      ], analise.detalhes.slice(0, 500), { vazio: 'Não há vendas para rastrear.' })}
+      ], analise.detalhes, { vazio: 'Não há vendas para rastrear.' })}
+      ${(() => { const p = analise.paginacaoDetalhes || {}; return p.totalPaginas > 1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">${p.total} operações · página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-cadeia-pagina="${p.pagina - 1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-cadeia-pagina="${p.pagina + 1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}` : A.vazio('Sem movimentação importada',
       `Importe a movimentação de ${eForn ? 'fornecedores' : 'clientes'} para gerar esta análise.`,
       '<button class="btn" onclick="App.ir(\'dados\')">Ir para importação</button>'));
@@ -861,7 +863,10 @@ async function telaCadeia(el, tipo) {
   const r = document.getElementById('repasse');
   if (r) r.onchange = () => { S.cache[`rep_${tipo}`] = Number(r.value); A.ir(tipo === 'fornecedor' ? 'fornecedores' : 'clientes'); };
   el.querySelectorAll('[data-aba-cliente]').forEach((botao) => {
-    botao.onclick = () => { S.aba.clientesCadeia = botao.dataset.abaCliente; A.ir('clientes'); };
+    botao.onclick = () => { S.aba.clientesCadeia = botao.dataset.abaCliente; S.cache.cadeia_pagina_cliente = 1; A.ir('clientes'); };
+  });
+  el.querySelectorAll('[data-cadeia-pagina]').forEach((botao) => {
+    botao.onclick = () => { S.cache[`cadeia_pagina_${tipo}`] = Number(botao.dataset.cadeiaPagina) || 1; A.ir('clientes'); };
   });
   document.getElementById('corrigirDadosCadeia')?.addEventListener('click', () => {
     S.aba.dados = 'cliente'; S.aba.dadosMotor = 'atual'; A.ir('dados');
