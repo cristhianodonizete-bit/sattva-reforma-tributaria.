@@ -205,13 +205,19 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     acumular(total, x);
   }
 
-  const finalizar = (x) => ({ ...x,
+  // `_linha` é usada apenas para compor a leitura agregada abaixo. Nunca é
+  // parte do contrato da API: ela referencia o resultado completo do motor e
+  // multiplicava centenas de memórias JSON no payload da cadeia.
+  const finalizar = (x) => {
+    const { _linha, ...agregado } = x;
+    return { ...agregado,
     valor: r2(x.valor), baseEconomica: r2(x.baseEconomica), ibs: r2(x.ibs), cbs: r2(x.cbs), precoFinal: r2(x.precoFinal), custoLiquido: r2(x.custoLiquido),
     creditoPotencial: r2(x.creditoPotencial), creditoFinal: r2(x.creditoFinal), pisCofinsAtual: r2(x.pisCofinsAtual),
     impactoOperacao: r2(n(x.precoFinal) - n(x.valor)), impactoOperacaoPerc: x.valor ? r4((n(x.precoFinal) - n(x.valor)) / n(x.valor)) : null,
     relevanciaCreditoCliente: lado === 'cliente' ? leituraCliente(x._linha || {}) : leituraCreditoFornecedor(x._linha || {}),
     natureza: x.naturezas?.has('INDETERMINADO') ? 'INDETERMINADO' : x.naturezas?.has('SIMULADO') ? 'SIMULADO' : x.naturezas?.has('REAL') ? 'REAL' : 'CALCULADO',
-  });
+    };
+  };
   // A leitura é fixa por grupo/parceiro a partir da primeira operação apenas; status agregado segue visível no drill-down.
   for (const x of porParceiro.values()) x._linha = itens.find((i) => (i.inscr_federal || i.nome || `movimento:${i.movimento_id}`) === x.chave);
   for (const x of porGrupo.values()) x._linha = itens.find((i) => grupoDaLinha(i, lado) === x.label && faixaTributacao(i).chave === x.faixaOrdem);
@@ -283,10 +289,6 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     },
     condicao200044: lado === 'cliente' ? elegibilidadeAnexoXi.qsaEmpresa(empresaId) : { status: 'NAO_APLICAVEL' },
     operacoesBeneficios, tratamentoBeneficios,
-    // Compatibilidade transitória para clientes que ainda consumam o contrato
-    // anterior; a interface usa exclusivamente os campos genéricos acima.
-    operacoes200044: operacoesBeneficios.filter((x) => String(x.cclasstrib) === '200044'),
-    tratamento200044: tratamentoBeneficios,
     cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, precoFinal: t.precoFinal, credito: t.creditoFinal, creditoPotencial: t.creditoPotencial, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
     riscos: [], fonte: 'motor_resultados' };
 }

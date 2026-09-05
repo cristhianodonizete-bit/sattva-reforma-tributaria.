@@ -627,14 +627,21 @@ function resultados(empresaId, filtros = {}) {
 }
 
 function resultadoMaterializado(empresa, ano) {
+  const execucao = ultimaExecucao(empresa.id);
+  if (!execucao) return null;
   const linhas = db.prepare('SELECT * FROM motor_resultados WHERE empresa_id=?').all(empresa.id)
     .map((r) => { try { return JSON.parse(r.detalhe || '{}'); } catch (_) { return null; } }).filter(Boolean);
   const entradas = linhas.filter((x) => x.sentido === 'entrada');
   const saidas = linhas.filter((x) => x.sentido === 'saida');
   const apuracao = motor.apurar(saidas, entradas);
-  return { empresa, ano, entradas, saidas, apuracao, resumo: {
-    ano, itens: linhas.length, entradas: entradas.length, saidas: saidas.length,
-    apuracao, materializado: true, observacao: 'Resultados vigentes reutilizados sem novo cálculo.' }, cenariosSimples: [] };
+  // A tela recebe o mesmo resumo certificado da execução que gravou as
+  // linhas. Não recalculamos cenários na leitura e também não fingimos que
+  // um ano solicitado é diferente da fotografia efetivamente ativa.
+  const resumo = { ...(execucao.resumo || {}), ano: execucao.ano, itens: linhas.length,
+    entradas: entradas.length, saidas: saidas.length, apuracao, materializado: true,
+    observacao: 'Resultados vigentes reutilizados sem novo cálculo.' };
+  const cenariosSimples = [...entradas, ...saidas].map((x) => x.cenariosSimples).filter(Boolean);
+  return { empresa, ano: execucao.ano, entradas, saidas, apuracao, resumo, cenariosSimples };
 }
 
 /** Identifica apenas operações cuja entrada ou dependência mudou. */
@@ -661,4 +668,4 @@ function reprocessarIncremental(empresaId, opcoes = {}) {
   return { empresa_id: empresaId, reprocessados: movimentoIds.length, removidos, status: 'CONCLUIDO', resultado };
 }
 
-module.exports = { executar, reprocessarIncremental, pendentesIncrementais, porFornecedor, porCliente, ultimaExecucao, resultados, normalizar, hashMovimento, versoesAtuais, versoesDaOperacao };
+module.exports = { executar, reprocessarIncremental, pendentesIncrementais, porFornecedor, porCliente, ultimaExecucao, resultados, resultadoMaterializado, normalizar, hashMovimento, versoesAtuais, versoesDaOperacao };

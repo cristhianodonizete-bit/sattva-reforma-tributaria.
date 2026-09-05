@@ -15,6 +15,8 @@ if (!empresa) throw new Error('Fixture ausente: é necessária uma empresa para 
 motorExec.executar(empresa.id, { ano: 2027 });
 const clientes = oficial.cadeia(empresa.id, 'cliente', { executarSeAusente: false });
 const fornecedores = oficial.cadeia(empresa.id, 'fornecedor', { executarSeAusente: false });
+const empresaCompleta = db.prepare('SELECT * FROM empresas WHERE id=?').get(empresa.id);
+const fotografia = motorExec.resultadoMaterializado(empresaCompleta);
 const impacto = oficial.impactoFinal(empresa.id, { executarSeAusente: false });
 const linhas = oficial.linhas(empresa.id, { executarSeAusente: false }).linhas;
 const soma = (xs, campo) => r2(xs.reduce((s, x) => s + (Number(x[campo]) || 0), 0));
@@ -27,6 +29,11 @@ assert.equal(impacto.cbs_debito_vendas, debito, 'Impacto Final deve ler o débit
 assert.equal(impacto.cbs_credito_compras, credito, 'Impacto Final deve ler o crédito materializado');
 assert.equal(impacto.cbs_liquida, r2(debito - credito), 'CBS líquida deve reconciliar');
 assert.equal(impacto.reconciliacao.status, 'RECONCILIADO', 'Perfil CBS e motor_resultados devem reconciliar');
+assert.equal(fotografia.ano, 2027, 'leitura materializada deve informar o ano efetivamente certificado');
+assert.equal(fotografia.resumo.materializado, true, 'leitura de projeção não pode disparar novo cálculo');
+assert.equal(r2(motorExec.porCliente(fotografia).reduce((s, x) => s + x.faturamento, 0)), r2(clientes.totais.valor), 'cliente materializado deve reconciliar com a cadeia oficial');
+assert.equal(clientes.parceiros.some((x) => Object.hasOwn(x, '_linha')), false, 'referência interna da linha não pode vazar no payload');
+assert.equal(Object.hasOwn(clientes, 'operacoes200044'), false, 'benefícios não podem ser duplicados pelo contrato legado');
 const rastreabilidade = clientes.detalhes[0];
 assert.ok(rastreabilidade?.tributosRetirados, 'detalhe deve expor os tributos retirados da base');
 assert.equal(typeof rastreabilidade.tributosRetirados.total, 'number');

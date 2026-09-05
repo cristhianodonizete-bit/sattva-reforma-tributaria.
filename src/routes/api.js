@@ -3335,18 +3335,23 @@ router.get('/empresas/:id/motor', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
+// As telas de projeção são leituras da fotografia ativa. Recalcular toda a
+// empresa aqui tornava a troca de aba um trabalho de segundos e competia com
+// o job assíncrono. Sem fotografia, o operador deve executar o motor pela
+// fila; uma leitura nunca cria uma segunda execução síncrona.
+function leituraMotorMaterializada(empresaId) {
+  const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(empresaId);
+  if (!empresa) throw new Error('Empresa não encontrada.');
+  const resultado = motorExec.resultadoMaterializado(empresa);
+  if (!resultado) throw new Error('Ainda não há fotografia do motor. Execute o motor e acompanhe a conclusão antes de abrir esta análise.');
+  return resultado;
+}
+
 /** Itens 34 e 35 — consolidado por fornecedor e por cliente */
 function consolidado(lado) {
-  return async (req, res) => {
+  return (req, res) => {
     try {
-      // A cadeia é uma projeção ao vivo; deve carregar os parâmetros de
-      // crédito antes de calcular, inclusive se a requisição cair em outra
-      // instância do Render.
-      if (supabase.configurado()) {
-        await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_regimes','param_aliquotas','param_simples']);
-        regras.invalidar();
-      }
-      const r = motorExec.executar(req.params.id, { ano: req.query.ano, gravar: false });
+      const r = leituraMotorMaterializada(Number(req.params.id));
       ok(res, {
         ano: r.ano,
         linhas: lado === 'fornecedores' ? motorExec.porFornecedor(r) : motorExec.porCliente(r),
@@ -3379,7 +3384,7 @@ router.get('/empresas/:id/motor/conformidade', (req, res) => {
 /** Item 38 — Simulações tributárias */
 router.get('/empresas/:id/motor/simulacoes', (req, res) => {
   try {
-    const r = motorExec.executar(req.params.id, { ano: req.query.ano, gravar: false });
+    const r = leituraMotorMaterializada(Number(req.params.id));
     ok(res, { ano: r.ano, resumo: r.resumo, apuracao: r.apuracao });
   } catch (e) { erro(res, e); }
 });
@@ -3511,7 +3516,7 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, r
 /** Mapa de riscos derivado do motor */
 router.get('/empresas/:id/motor/riscos', (req, res) => {
   try {
-    const r = motorExec.executar(req.params.id, { ano: req.query.ano, gravar: false });
+    const r = leituraMotorMaterializada(Number(req.params.id));
     const mapa = mapaRiscos.montar(r, {
       fornecedores: motorExec.porFornecedor(r), clientes: motorExec.porCliente(r),
     });
@@ -3522,7 +3527,7 @@ router.get('/empresas/:id/motor/riscos', (req, res) => {
 /** Leva os riscos para o plano de adequação, sem duplicar o que já existe */
 router.post('/empresas/:id/motor/riscos/plano', (req, res) => {
   try {
-    const r = motorExec.executar(req.params.id, { ano: req.body.ano, gravar: false });
+    const r = leituraMotorMaterializada(Number(req.params.id));
     const mapa = mapaRiscos.montar(r, {
       fornecedores: motorExec.porFornecedor(r), clientes: motorExec.porCliente(r),
     });

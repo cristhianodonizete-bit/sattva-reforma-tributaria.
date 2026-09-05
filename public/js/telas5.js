@@ -18,7 +18,9 @@ const sens = (s) => ({ ALTA: ['a', 'Alta'], MEDIA: ['b', 'Média'], BAIXA: ['c',
 const perfil = (p) => ({ b2b: 'B2B', b2c_pf: 'B2C — pessoa física', b2c_pj: 'B2C — pessoa jurídica',
   governo: 'Governo', requer_validacao: 'Requer validação' }[p] || p || '—');
 
-const anoAtual = () => S.cache.motorAno || 2033;
+// Sem IBS ativo a análise usa a fotografia CBS certificada (2027). O ano
+// nunca deve induzir uma rota de leitura a recalcular a empresa em 2033.
+const anoAtual = () => S.cache.motorAno || 2027;
 
 /** Barra de abas que envolve uma tela existente sem alterá-la */
 function comAbas(nome, abas, padrao, chaveEstado = nome, opcoes = {}) {
