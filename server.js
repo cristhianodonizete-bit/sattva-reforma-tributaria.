@@ -5,6 +5,17 @@ const compression = require('compression');
 const autenticacao = require('./src/services/autenticacao');
 
 const app = express();
+// O processo HTTP não deve aguardar uma carga-base remota para abrir a porta.
+// Em uma instância sem fotografia local, as APIs operacionais ficam
+// temporariamente indisponíveis (503) até a sincronização íntegra terminar;
+// isto evita entregar uma carteira vazia ou disparar cálculo sobre base parcial.
+const estadoOperacao = {
+  ativa: false,
+  pronta: false,
+  possuiBaseLocal: false,
+  sincronizando: false,
+  erro: null,
+};
 // Plataformas como Render fornecem a porta em PORT; PORTA mantém a execução
 // local compatível com a configuração já usada no Windows.
 const PORTA = process.env.PORT || process.env.PORTA || 3200;
@@ -18,6 +29,14 @@ app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/auth', require('./src/routes/auth'));
+app.use('/api', (_req, res, next) => {
+  if (!estadoOperacao.ativa || estadoOperacao.pronta || estadoOperacao.possuiBaseLocal) return next();
+  return res.status(503).json({
+    ok: false,
+    erro: 'Base operacional em sincronização inicial. Tente novamente em instantes.',
+    codigo: 'BASE_OPERACIONAL_INDISPONIVEL',
+  });
+});
 app.use('/api', autenticacao.validar, require('./src/routes/api'));
 
 app.use((err, _req, res, _next) => {
@@ -49,13 +68,32 @@ function prepararMotor() {
   } catch (e) { console.error('  motor não pôde ser executado na inicialização:', e.message); }
 }
 
-async function iniciar() {
+function possuiBaseOperacionalLocal() {
+  try {
+    const db = require('./src/db');
+    return Number(db.prepare('SELECT COUNT(*) AS total FROM empresas').get()?.total || 0) > 0;
+  } catch (_) {
+    return false;
+  }
+}
+
+async function iniciarOperacao() {
+  let sincronizacaoConcluida = false;
   try {
     const operacao = require('./src/services/operacaoCompartilhada');
     if (operacao.ativo()) {
+      estadoOperacao.ativa = true;
+      estadoOperacao.possuiBaseLocal = possuiBaseOperacionalLocal();
+      estadoOperacao.sincronizando = true;
       let dados = {};
-      try { dados = await operacao.sincronizarIncremental(); }
-      catch (e) { console.error('  sincronização operacional incremental falhou:', e.message); }
+      try {
+        dados = await operacao.sincronizarIncremental();
+        sincronizacaoConcluida = true;
+      }
+      catch (e) {
+        estadoOperacao.erro = e.message;
+        console.error('  sincronização operacional incremental falhou:', e.message);
+      }
       try { await operacao.baixarRegrasEnquadramento(); }
       catch (e) { console.error('  sincronização de regras condicionais falhou:', e.message); }
       const intervaloRegras = setInterval(() => operacao.baixarRegrasEnquadramento()
@@ -89,16 +127,38 @@ async function iniciar() {
       fila.executar().catch((e) => console.error('  fila de carteira:', e.message));
     }
   } catch (e) {
+    estadoOperacao.erro = e.message;
     console.error('  não foi possível carregar a operação compartilhada:', e.message);
+  } finally {
+    // Uma falha de sincronização sem fotografia local não pode liberar uma
+    // base vazia como se estivesse pronta.
+    estadoOperacao.pronta = !estadoOperacao.ativa || sincronizacaoConcluida;
+    estadoOperacao.sincronizando = false;
+    if (estadoOperacao.pronta || estadoOperacao.possuiBaseLocal) prepararMotor();
+  }
+}
+
+function iniciar() {
+  // Define a guarda antes de expor a porta. Assim, uma requisição que chegue
+  // no primeiro milissegundo do processo não observa uma base ainda vazia.
+  try {
+    const operacao = require('./src/services/operacaoCompartilhada');
+    estadoOperacao.ativa = operacao.ativo();
+    estadoOperacao.possuiBaseLocal = estadoOperacao.ativa && possuiBaseOperacionalLocal();
+  } catch (e) {
+    estadoOperacao.erro = e.message;
   }
   app.listen(PORTA, () => {
-  console.log('');
-  console.log('  ███  SATTVA — IMPLEMENTAÇÃO DA REFORMA TRIBUTÁRIA');
-  console.log('  ---------------------------------------------------');
-  console.log(`  Sistema no ar em http://localhost:${PORTA}`);
-  console.log(`  Banco de dados: ${process.env.SATTVA_DADOS || path.join(__dirname, 'dados')}`);
-  prepararMotor();
-  console.log('');
+    console.log('');
+    console.log('  ███  SATTVA — IMPLEMENTAÇÃO DA REFORMA TRIBUTÁRIA');
+    console.log('  ---------------------------------------------------');
+    console.log(`  Sistema no ar em http://localhost:${PORTA}`);
+    console.log(`  Banco de dados: ${process.env.SATTVA_DADOS || path.join(__dirname, 'dados')}`);
+    console.log('  sincronização operacional iniciada em segundo plano');
+    console.log('');
   });
+  // Não aguardar: Render pode considerar a instância indisponível enquanto a
+  // primeira carga-base baixa dezenas de coleções.
+  iniciarOperacao().catch((e) => console.error('  inicialização operacional não concluída:', e.message));
 }
 iniciar();
