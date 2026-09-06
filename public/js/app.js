@@ -170,7 +170,8 @@ const App = (() => {
   const MENU = [
     { id: 'visao-geral', titulo: 'Visão geral', itens: [
       { id: 'painel', t: 'Painel do projeto', i: '◈' },
-      { id: 'dashboardOperacao', t: 'Acompanhamento geral', i: '◷' },
+      { id: 'dashboardOperacao', t: 'Dashboard operacional', i: '◷' },
+      { id: 'gestaoProjetos', t: 'Escopos e entregas', i: '▣' },
     ] },
     { id: 'planejamento', titulo: 'Planejamento tributário', itens: [
       { id: 'planejamento', t: 'Análises e regimes', i: '◫' },
@@ -209,12 +210,19 @@ const App = (() => {
     { id: 'acompanhamento', titulo: 'Módulo 5 · Acompanhamento', itens: [
       { id: 'acompanhamento', t: 'Baseline e realizado', i: '◷' },
     ] },
+    { id: 'empresa-operacao', titulo: 'Gestão da empresa', itens: [
+      { id: 'servicos', t: 'Escopo contratado', i: '⊞' },
+      { id: 'plano', t: 'Plano de adequação', i: '✓' },
+    ] },
     { id: 'gestao', titulo: 'Gestão do produto', itens: [
-      { id: 'plano', t: 'Plano de adequação', i: '✓' }, { id: 'servicos', t: 'Escopos e combos', i: '⊞' },
-      { id: 'gestaoProjetos', t: 'Escopo e entregas', i: '▣' }, { id: 'configComercial', t: 'Configurar combos', i: '⚙' },
-      { id: 'conhecimento', t: 'Base de conhecimento', i: '◰' }, { id: 'atualizacoesReforma', t: 'Atualizações da reforma', i: '◷' }, { id: 'configuracoes', t: 'Configurações e controle', i: '⚙' },
-      { id: 'documentacaoSistema', t: 'Manuais do sistema', i: '▤' },
-      { id: 'questor', t: 'Integração Questor', i: '↔' }, { id: 'acessos', t: 'Usuários e acessos', i: '♙' },
+      { tipo: 'titulo', t: 'Escopos e combos' },
+      { id: 'servicosCatalogo', t: 'Serviços e combos', i: '⊞' }, { id: 'configComercial', t: 'Configurar combos', i: '⚙' },
+      { tipo: 'titulo', t: 'Conhecimento e integrações' },
+      { id: 'conhecimento', t: 'Base de conhecimento', i: '◰' }, { id: 'questor', t: 'Integração Questor', i: '↔' },
+      { tipo: 'titulo', t: 'Configuração técnica' },
+      { id: 'configuracoes', t: 'Regras e parâmetros do motor', i: '⚙' },
+      { id: 'controleProjeto', t: 'Controle operacional da carteira', i: '◌' },
+      { id: 'acessos', t: 'Usuários e acessos', i: '♙' },
     ] },
   ];
   const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens.filter((item) => item.id));
@@ -223,7 +231,7 @@ const App = (() => {
     dados: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     planejamento: 'gestao_projetos',
-    servicos: 'gestao_projetos', gestaoProjetos: 'gestao_projetos', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'configuracoes', documentacaoSistema: 'configuracoes', configuracoes: 'configuracoes', questor: 'configuracoes', acessos: 'acessos',
+    servicos: 'gestao_projetos', servicosCatalogo: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'configuracoes', acessos: 'acessos',
   };
   const pode = (tela, acao = 'ver') => {
     const permissoes = S.usuario?.permissoes;
@@ -287,7 +295,7 @@ const App = (() => {
       const tarefasDaTela = TAREFAS_POR_TELA[tela];
       const fn = tarefasDaTela ? ((host) => telaTarefasModulo(host, ...tarefasDaTela)) : Telas[tela];
       if (!fn) { alvo.innerHTML = vazio('Tela não encontrada', 'Escolha uma opção no menu.'); return; }
-      const semEmpresa = ['empresas', 'dashboardOperacao', 'planejamento', 'servicos', 'gestaoProjetos', 'configComercial', 'cadastrosCnpj', 'conhecimento', 'atualizacoesReforma', 'documentacaoSistema', 'questor', 'bases', 'configuracoes', 'acessos'];
+      const semEmpresa = ['empresas', 'dashboardOperacao', 'planejamento', 'servicosCatalogo', 'gestaoProjetos', 'configComercial', 'cadastrosCnpj', 'conhecimento', 'atualizacoesReforma', 'documentacaoSistema', 'questor', 'bases', 'configuracoes', 'controleProjeto', 'acessos'];
       if (!semEmpresa.includes(tela) && !S.empresaId) {
         alvo.innerHTML = vazio('Selecione uma empresa', 'Este módulo trabalha sobre os dados de uma empresa. Cadastre ou selecione uma no topo do menu.',
           '<button class="btn" onclick="App.ir(\'empresas\')">Ir para empresas</button>');
@@ -356,6 +364,28 @@ const App = (() => {
     return S.params;
   }
 
+  async function atualizarNotificacoesReforma() {
+    const badge = document.getElementById('badgeAtualizacoes');
+    if (!badge) return;
+    try {
+      const resposta = await api('/atualizacoes-reforma');
+      const novas = (resposta.atualizacoes || resposta.itens || []).filter((x) => x.status === 'NOVA').length;
+      badge.hidden = novas === 0; badge.textContent = String(novas);
+    } catch (_) { badge.hidden = true; }
+  }
+
+  function configurarAcoesCabecalho() {
+    document.getElementById('abrirAtualizacoes')?.addEventListener('click', () => ir('atualizacoesReforma'));
+    const usuario = document.getElementById('usuarioHeader');
+    const menu = document.getElementById('usuarioMenuItens');
+    usuario?.addEventListener('click', () => { const aberto = menu?.hidden !== false; if (menu) menu.hidden = !aberto; usuario.setAttribute('aria-expanded', String(aberto)); });
+    document.querySelector('[data-manual-header]')?.addEventListener('click', () => ir('documentacaoSistema'));
+    document.querySelector('[data-redefinir-header]')?.addEventListener('click', () => modal({ titulo: 'Redefinir senha', descricao: 'Enviaremos um link seguro para o e-mail da sua conta.', corpo: `<p>${esc(S.usuario?.email || '')}</p>`, confirmar: 'Enviar link', aoConfirmar: async () => {
+      const r = await fetch('/auth/esqueci-senha', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ email:S.usuario?.email || '' }) }); const j = await r.json(); if (!j.ok) throw new Error(j.erro || 'Não foi possível solicitar a redefinição.'); toast('Se o e-mail estiver cadastrado, você receberá o link de recuperação.', 'ok');
+    } }));
+    document.querySelector('[data-sair-header]')?.addEventListener('click', () => { localStorage.removeItem('sattva_token'); location.reload(); });
+  }
+
   async function iniciar() {
     const parametrosHash = new URLSearchParams(String(location.hash || '').replace(/^#/, ''));
     const tokenRecuperacao = parametrosHash.get('access_token');
@@ -367,12 +397,13 @@ const App = (() => {
       if (!sessao?.ok) { telaLogin(); return; }
       S.usuario = sessao.usuario;
     }
-    const usuarioHeader = document.getElementById('usuarioHeader'); if (usuarioHeader) usuarioHeader.textContent = S.usuario?.nome || S.usuario?.email || '';
+    const usuarioHeader = document.getElementById('usuarioHeader'); if (usuarioHeader) usuarioHeader.textContent = S.usuario ? `${S.usuario.nome || S.usuario.email} ▾` : '';
+    configurarAcoesCabecalho();
     const toggle = document.getElementById('menuToggle'); if (toggle) toggle.onclick = () => document.body.classList.toggle('menu-colapsado');
     try {
       // Leituras independentes: não altera contexto da empresa, parâmetros ou
       // motor; somente elimina uma espera de rede antes da primeira tela.
-      await Promise.all([carregarParametros(), carregarEmpresas()]);
+      await Promise.all([carregarParametros(), carregarEmpresas(), atualizarNotificacoesReforma()]);
     } catch (e) { document.getElementById('tela').innerHTML = `<div class="aviso alto">Servidor indisponível: ${esc(e.message)}</div>`; return; }
     // A navegação começa recolhida a cada acesso; cada pessoa abre apenas a
     // área necessária para não transformar a lateral numa lista extensa.

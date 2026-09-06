@@ -19,13 +19,12 @@ async function recalcularProjeto() {
 }
 
 const ABAS = [
-  { id: 'controle', t: 'Controle do projeto' },
   { id: 'aliquotas', t: 'Alíquotas e transição' },
   { id: 'tributos', t: 'Forma de cálculo' },
   { id: 'regimes', t: 'Regimes e crédito' },
   { id: 'reducoes', t: 'Reduções' },
   { id: 'simples', t: 'Simples Nacional' },
-  { id: 'cfop', t: 'Natureza por CFOP' },
+  { id: 'cfop', t: 'Mapa de natureza por CFOP' },
   { id: 'limiares', t: 'Limiares e padrões' },
   { id: 'ensaio', t: 'Ensaio de regra' },
   { id: 'historico', t: 'Histórico' },
@@ -33,14 +32,15 @@ const ABAS = [
 
 Telas.configuracoes = async (el) => {
   const d = await A.api('/config/regras');
-  const aba = S.aba.config || 'controle';
+  const modoControle = S.tela === 'controleProjeto';
+  const aba = modoControle ? 'controle' : (S.aba.config || 'aliquotas');
 
-  el.innerHTML = cab('Configurações', 'Controle e regras do projeto',
-    'Comece pelo controle: ele mostra pendências e inconsistências antes de recalcular. As demais abas concentram todas as regras usadas pelo motor — nenhuma fica escondida no código.',
+  el.innerHTML = cab(modoControle ? 'Operação da carteira' : 'Configurações técnicas', modoControle ? 'Controle operacional da carteira' : 'Regras e parâmetros do motor',
+    modoControle ? 'Acompanha qualidade dos dados, pendências, enriquecimento e processamento. Não altera escopos contratados nem substitui o dashboard operacional.' : 'Parâmetros técnicos usados pelo motor. Alterações exigem permissão e afetam apenas execuções futuras.',
     '<button class="btn" id="recalcularProjeto">Recalcular projeto</button>') +
-    `<div class="abas">${ABAS.map((a) =>
+    (modoControle ? '' : `<div class="abas">${ABAS.map((a) =>
       `<button data-c="${a.id}" class="${aba === a.id ? 'ativo' : ''}">${a.t}</button>`).join('')}</div>
-     <div id="corpoConfig"></div>`;
+     `) + '<div id="corpoConfig"></div>';
 
   el.querySelectorAll('[data-c]').forEach((b) => { b.onclick = () => { S.aba.config = b.dataset.c; A.ir('configuracoes'); }; });
   document.getElementById('recalcularProjeto').onclick = () => A.confirmar(
@@ -52,6 +52,8 @@ Telas.configuracoes = async (el) => {
   const box = document.getElementById('corpoConfig');
   ({ controle, aliquotas, tributos, regimes, reducoes, simples, cfop, limiares, ensaio, historico }[aba])(box, d);
 };
+
+Telas.controleProjeto = async (el) => Telas.configuracoes(el);
 
 async function controle(box) {
   box.innerHTML = '<div class="carregando">Verificando o projeto…</div>';
@@ -313,7 +315,8 @@ function cfop(box, d) {
     'exportacao', 'importacao', 'ativo_consumo'];
   const porPrioridade = [1, 2, 3].map((p) => d.cfop.filter((c) => (c.prioridade || 2) === p));
   const rotulo = ['1 — primeiro dígito (avaliado primeiro)', '2 — grupo de três dígitos', '3 — sentido geral'];
-  box.innerHTML = `<div class="aviso"><b>A ordem de avaliação importa</b>
+  box.innerHTML = `<div class="aviso"><b>Para que serve este mapa</b> Ele transforma o CFOP do documento em natureza operacional (venda, aquisição, devolução, importação etc.) para orientar a classificação do motor. Não define alíquota nem substitui a leitura do documento.
+      <br><br><b>A ordem de avaliação importa</b>
       O primeiro dígito do CFOP indica operação com o exterior e precisa ser avaliado antes dos grupos:
       5102 é venda interna, 3102 é importação — os três últimos dígitos são iguais. Por isso cada regra
       tem uma prioridade.</div>

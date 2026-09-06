@@ -565,6 +565,7 @@ Telas.plano = async (el) => {
 // SERVIÇOS E COMBOS
 // ===========================================================================
 Telas.servicos = async (el) => {
+  const modoCatalogo = S.tela === 'servicosCatalogo';
   const [dados, contratacoesDados] = await Promise.all([
     A.api('/servicos'),
     S.empresaId ? A.api(`/empresas/${S.empresaId}/contratacoes`) : Promise.resolve({ contratacoes: [] }),
@@ -579,13 +580,13 @@ Telas.servicos = async (el) => {
   if (contratacaoAtual) S.cache.selServ = [...servicosDoContrato];
   const modulos = [...new Set(servicos.map((s) => s.modulo))];
 
-  el.innerHTML = cab('Escopo do projeto', 'Serviços e combos',
-    'Defina exclusivamente o que será entregue ao cliente. A aprovação posterior congela esse escopo e libera os módulos correspondentes.') +
+  el.innerHTML = cab(modoCatalogo ? 'Gestão do produto' : 'Escopo da empresa', modoCatalogo ? 'Serviços e combos' : 'Escopo contratado',
+    modoCatalogo ? 'Catálogo comercial de serviços e combinações. A contratação e as entregas são definidas no escopo de cada empresa.' : 'Defina exclusivamente o que será entregue à empresa selecionada. A aprovação posterior congela esse escopo e libera os módulos correspondentes.') +
     (contratacaoAtual ? `<div class="aviso bom" style="margin-bottom:16px"><b>Escopo já registrado: ${A.esc(combos.find((c) => Number(c.id) === Number(contratacaoAtual.combo_id))?.nome || 'Escopo personalizado')}.</b> ${contratacaoAtual.aprovado_em ? 'O projeto está aprovado; as entregas e o acompanhamento permanecem preservados.' : 'Aguardando aprovação.'}<div class="acao"><button class="btn pq vazio" id="gerenciarEscopoExistente">Gerenciar escopo e entregas</button></div></div>` : '') +
     `<div class="grade g3">${combos.map((c) => `<div class="cartao ${c.destaque ? '' : ''}" style="${c.destaque ? 'border-left:3px solid var(--ouro)' : ''}">
         <h2>${A.esc(c.nome)}</h2><p class="desc">${A.esc(c.descricao)}</p>
         <div class="mini">${c.servicos.length} serviços · ${c.acompanhamento_meses || 0} mês(es) de acompanhamento</div>
-        <button class="btn vazio pq" style="margin-top:11px" data-combo="${c.id}">Selecionar combo</button>
+        <button class="btn vazio pq" style="margin-top:11px" data-combo="${c.id}">${modoCatalogo ? 'Ver composição' : 'Selecionar combo'}</button>
       </div>`).join('')}</div>
     <div class="grade g2" style="margin-top:16px">
       <div>
@@ -639,10 +640,16 @@ Telas.servicos = async (el) => {
   }; });
   el.querySelectorAll('[data-combo]').forEach((b) => { b.onclick = () => {
     const c = combos.find((x) => x.id === Number(b.dataset.combo));
+    if (modoCatalogo) {
+      const itens = servicos.filter((s) => c.servicos.includes(s.id));
+      A.modal({ titulo: `Combo — ${c.nome}`, confirmar:null, corpo:A.tabela([{t:'Serviço',r:x=>`<b>${A.esc(x.nome)}</b><div class="mini">${A.esc(x.modulo)}</div>`},{t:'Entregáveis',r:x=>A.esc(x.entregaveis||'—')}],itens,{vazio:'Nenhum serviço vinculado.'}) });
+      return;
+    }
     S.cache.selServ = [...c.servicos]; S.cache.comboSelecionado = c.id; A.ir('servicos'); }; });
   document.getElementById('gerenciarEscopoExistente')?.addEventListener('click', () => A.ir('gestaoProjetos'));
   recalcular();
 };
+Telas.servicosCatalogo = Telas.servicos;
 
 // ===========================================================================
 // INTEGRAÇÃO QUESTOR
