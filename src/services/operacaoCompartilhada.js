@@ -300,6 +300,7 @@ async function baixarRegrasEnquadramento(remotoInformado = null) {
 // A trilha remota é a fonte de verdade para o delta. O marco só é avançado
 // dentro da mesma transação SQLite que aplica todas as linhas do lote.
 const CHAVE_SEQUENCIA_INCREMENTAL = 'operacao_compartilhada_sequencia';
+const CHAVE_CONFIGURACAO_CERTIFICADA = 'configuracao_fiscal_certificada_v1';
 const TABELAS_INCREMENTAIS_SEGURAS = new Set([
   'empresas', 'empresa_servicos_fiscais', 'parceiros', 'empresa_qsa', 'lotes',
   'movimentos', 'perfil_tributario', 'folhas_pagamento_competencias',
@@ -331,6 +332,23 @@ function temSequenciaIncremental() {
 function salvarSequenciaIncremental(sequencia) {
   db.prepare(`INSERT INTO sincronizacao_operacional_estado(chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))
     ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor, atualizado_em=excluded.atualizado_em`).run(CHAVE_SEQUENCIA_INCREMENTAL, String(sequencia));
+}
+function lerConfiguracaoCertificada() {
+  const valor = db.prepare('SELECT valor FROM sincronizacao_operacional_estado WHERE chave=?').get(CHAVE_CONFIGURACAO_CERTIFICADA)?.valor;
+  try { return valor ? JSON.parse(valor) : null; } catch (_) { return null; }
+}
+function salvarConfiguracaoCertificada(tabelas) {
+  const anterior = lerConfiguracaoCertificada();
+  const conjunto = new Set([...(anterior?.tabelas || []), ...tabelas]);
+  const valor = JSON.stringify({ tabelas: [...conjunto].sort(), certificado_em: new Date().toISOString() });
+  db.prepare(`INSERT INTO sincronizacao_operacional_estado(chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))
+    ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor, atualizado_em=excluded.atualizado_em`).run(CHAVE_CONFIGURACAO_CERTIFICADA, valor);
+  return JSON.parse(valor);
+}
+function configuracaoFiscalCertificada(tabelas = CONFIG_TABELAS) {
+  const certificado = lerConfiguracaoCertificada();
+  if (!certificado || !Array.isArray(certificado.tabelas)) return false;
+  return tabelas.every((tabela) => certificado.tabelas.includes(tabela));
 }
 function chaveEvento(evento) {
   const chave = evento.chave && typeof evento.chave === 'object' ? evento.chave : JSON.parse(evento.chave || '{}');
@@ -587,10 +605,15 @@ async function baixarConfiguracao(tabelas = CONFIG_TABELAS, remotoInformado = nu
   if (error && !String(error.message).includes('does not exist')) throw error;
   const porChave = new Map((configuracoes || []).map((x) => [x.chave, x.dados]));
   const resultado = {};
+  const aplicadas = [];
   for (const tabela of tabelas) {
     const dados = porChave.get(tabela);
-    if (Array.isArray(dados)) { gravarConfiguracao(tabela, dados); resultado[`config_${tabela}`] = dados.length; }
+    if (Array.isArray(dados)) { gravarConfiguracao(tabela, dados); resultado[`config_${tabela}`] = dados.length; aplicadas.push(tabela); }
   }
+  // O certificado só é emitido após cada fotografia solicitada chegar por
+  // completo da fonte compartilhada. Ele permite reinício rápido sem aceitar
+  // SQLite não confirmado como parâmetro fiscal vigente.
+  if (aplicadas.length === tabelas.length) resultado.configuracao_certificada = salvarConfiguracaoCertificada(aplicadas).certificado_em;
   return resultado;
 }
 
@@ -710,6 +733,6 @@ async function publicarContratos(remoto, empresaId) {
   }
   return { contratos: contratos.length };
 }
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };

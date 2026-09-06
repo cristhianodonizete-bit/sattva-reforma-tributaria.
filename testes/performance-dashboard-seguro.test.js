@@ -4,6 +4,7 @@ const path = require('node:path');
 
 const api = fs.readFileSync(path.join(__dirname, '../src/routes/api.js'), 'utf8');
 const app = fs.readFileSync(path.join(__dirname, '../public/js/app.js'), 'utf8');
+const operacao = fs.readFileSync(path.join(__dirname, '../src/services/operacaoCompartilhada.js'), 'utf8');
 
 assert.match(api, /const DASHBOARD_CACHE_MS = 5000;/, 'cache do dashboard deve ser curto');
 assert.match(api, /req\.usuario\?\.id/, 'cache deve ser separado por usuário');
@@ -25,5 +26,8 @@ assert.match(api, /X-Sattva-Qsa-Resumo/, 'resposta da carteira deve expor a orig
 assert.match(api, /const CACHE_CONFIGURACAO_CALCULO_MS = 30000;/, 'configuração de cálculo deve reutilizar cache curto');
 assert.match(api, /const RETENTATIVA_CONFIGURACAO_CALCULO_MS = 10000;/, 'falha de atualização de configuração deve ter contenção');
 assert.match(api, /if \(!configuracaoCalculo\.atualizadaEm\) await configuracaoCalculo\.carregando;/, 'primeira leitura deve aguardar configuração certificada');
+assert.match(operacao, /const CHAVE_CONFIGURACAO_CERTIFICADA = 'configuracao_fiscal_certificada_v1';/, 'certificação deve sobreviver ao reinício do processo');
+assert.match(operacao, /if \(aplicadas\.length === tabelas\.length\).*salvarConfiguracaoCertificada/s, 'somente download completo pode certificar configuração fiscal');
+assert.match(api, /operacao\.configuracaoFiscalCertificada\(tabelasCriticas\)/, 'inicialização só pode reutilizar configuração fiscal certificada');
 
 console.log('Performance segura: cache isolado, invalidação e carga paralela validados.');

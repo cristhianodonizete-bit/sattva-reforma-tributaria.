@@ -210,12 +210,17 @@ const metadadosDocumentoUso = (tipo) => {
 // do Render nunca decide com um SQLite vazio ou com cache anterior à alteração.
 async function atualizarConfiguracaoDeCalculo() {
   if (!supabase.configurado()) return;
-  if (configuracaoCalculoValida()) return;
+  const operacao = require('../services/operacaoCompartilhada');
+  // Após reinício, somente uma fotografia previamente certificada pode
+  // atender a primeira leitura. A renovação remota começa em segundo plano;
+  // sem certificado, preservamos a espera segura pela fonte vigente.
+  const tabelasCriticas = ['param_regimes', 'param_aliquotas', 'param_regras', 'param_reducoes', 'param_simples', 'param_tributos', 'param_cfop'];
+  const certificadoLocal = !configuracaoCalculo.atualizadaEm && operacao.configuracaoFiscalCertificada(tabelasCriticas);
+  if (certificadoLocal) configuracaoCalculo.atualizadaEm = Date.now();
+  if (configuracaoCalculoValida() && !certificadoLocal) return;
   if (configuracaoCalculo.atualizadaEm && Date.now() < configuracaoCalculo.proximaTentativaEm) return;
   if (!configuracaoCalculo.carregando) {
-    configuracaoCalculo.carregando = require('../services/operacaoCompartilhada').baixarConfiguracao([
-      'param_regimes', 'param_aliquotas', 'param_regras', 'param_reducoes', 'param_simples', 'param_tributos', 'param_cfop',
-    ]).then(() => {
+    configuracaoCalculo.carregando = operacao.baixarConfiguracao(tabelasCriticas).then(() => {
       regras.invalidar();
       configuracaoCalculo.atualizadaEm = Date.now();
       configuracaoCalculo.proximaTentativaEm = 0;
