@@ -1771,9 +1771,22 @@ CREATE TABLE IF NOT EXISTS planejamento_eventos (
   id INTEGER PRIMARY KEY AUTOINCREMENT, analise_id INTEGER NOT NULL REFERENCES planejamento_analises(id) ON DELETE CASCADE,
   acao TEXT NOT NULL, usuario_id TEXT, dados_json TEXT, criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+CREATE TABLE IF NOT EXISTS planejamento_assistente_interacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  analise_id INTEGER NOT NULL REFERENCES planejamento_analises(id) ON DELETE CASCADE,
+  snapshot_id INTEGER NOT NULL REFERENCES planejamento_snapshots(id) ON DELETE RESTRICT,
+  usuario_id TEXT,
+  pergunta TEXT NOT NULL,
+  resposta TEXT NOT NULL,
+  modelo TEXT,
+  uso_json TEXT,
+  contexto_json TEXT NOT NULL,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
 CREATE INDEX IF NOT EXISTS ix_planejamento_analises_status ON planejamento_analises(status, atualizado_em DESC);
 CREATE INDEX IF NOT EXISTS ix_planejamento_empresas_empresa ON planejamento_analise_empresas(empresa_id, analise_id);
 CREATE INDEX IF NOT EXISTS ix_planejamento_resultados_analise ON planejamento_resultados(analise_id, snapshot_id);
+CREATE INDEX IF NOT EXISTS ix_planejamento_assistente_analise ON planejamento_assistente_interacoes(analise_id, id DESC);
 `);
 
 // --------------------------------------------------------------------------

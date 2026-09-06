@@ -60,6 +60,7 @@ const performanceTelemetry = require('../services/performanceTelemetry');
 const identidadeProduto = require('../services/identidadeProduto');
 const cadastroFiscalComplementar = require('../services/cadastroFiscalComplementar');
 const planejamentoTributario = require('../services/planejamentoTributario');
+const analistaTributarioIa = require('../services/analistaTributarioIa');
 const autenticacao = require('../services/autenticacao');
 
 const router = express.Router();
@@ -1150,6 +1151,19 @@ router.post('/planejamento/analises/:id/fotografia', (req, res) => {
 router.post('/planejamento/analises/:id/aprovar', (req, res) => {
   try { planejamentoTributario.aprovar(Number(req.params.id), req.body?.observacao, req.usuario?.id || null); ok(res, planejamentoTributario.obter(Number(req.params.id))); }
   catch (e) { erro(res, e); }
+});
+router.get('/planejamento/analises/:id/assistente', (req, res) => {
+  try { ok(res, { interacoes: analistaTributarioIa.historico(Number(req.params.id)), configurado: ia.config().ativo }); }
+  catch (e) { erro(res, e); }
+});
+router.post('/planejamento/analises/:id/assistente', async (req, res) => {
+  try {
+    const estudo = planejamentoTributario.obter(Number(req.params.id));
+    for (const empresa of estudo.empresas) await garantirEmpresaPermitida(req, empresa.id);
+    const r = await analistaTributarioIa.perguntar(Number(req.params.id), req.body?.pergunta, req.usuario?.id || null);
+    auditar(req, { empresaId: estudo.empresas[0]?.id || null, acao: 'planejamento_assistente_consultado', entidade: 'planejamento_analises', entidadeId: req.params.id, depois: { interacao_id:r.id, snapshot_id:r.snapshot_id } });
+    ok(res, r);
+  } catch (e) { erro(res, e); }
 });
 
 // Perfil CBS: lê exclusivamente o resultado já produzido pelo motor e a
