@@ -1734,6 +1734,36 @@ CREATE TABLE IF NOT EXISTS questor_log (
 );
 
 -- ============ PLANEJAMENTO TRIBUTÁRIO ============
+-- Atualizações normativas são uma trilha de governança independente do motor.
+-- Nenhum registro desta tabela pode publicar ou alterar regra automaticamente.
+CREATE TABLE IF NOT EXISTS atualizacoes_reforma (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titulo TEXT NOT NULL,
+  resumo TEXT NOT NULL DEFAULT '',
+  fonte_nome TEXT NOT NULL DEFAULT '',
+  fonte_url TEXT NOT NULL DEFAULT '',
+  data_publicacao TEXT,
+  tema TEXT NOT NULL DEFAULT 'GERAL',
+  impacto_potencial TEXT NOT NULL DEFAULT 'EM_ANALISE',
+  modulos_afetados TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'NOVA',
+  observacao_analise TEXT NOT NULL DEFAULT '',
+  criado_por TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  analisado_por TEXT,
+  analisado_em TEXT
+);
+CREATE TABLE IF NOT EXISTS atualizacoes_reforma_eventos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  atualizacao_id INTEGER NOT NULL REFERENCES atualizacoes_reforma(id) ON DELETE CASCADE,
+  acao TEXT NOT NULL,
+  usuario_id TEXT,
+  dados_json TEXT NOT NULL DEFAULT '{}',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_atualizacoes_reforma_status ON atualizacoes_reforma(status, data_publicacao DESC, id DESC);
+CREATE INDEX IF NOT EXISTS ix_atualizacoes_reforma_eventos ON atualizacoes_reforma_eventos(atualizacao_id, id DESC);
+
 -- Estudos isolados: nunca alteram a empresa, movimentos ou o motor oficial.
 CREATE TABLE IF NOT EXISTS planejamento_analises (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

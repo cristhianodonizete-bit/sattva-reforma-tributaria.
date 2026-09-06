@@ -761,3 +761,25 @@ Telas.acessos = async (el) => {
   ligarDetalhesAuditoria();
 };
 })();
+
+// Monitoramento normativo: é um mural de governança. Nenhuma ação nesta tela
+// altera catálogo, motor, banco fiscal ou resultado já homologado.
+Telas.atualizacoesReforma = async (el) => {
+  const carregar = async () => {
+    const d = await A.api('/atualizacoes-reforma');
+    const itens = d.atualizacoes || [];
+    const tag = (s) => ({ NOVA:'a', EM_ANALISE:'b', APLICADA:'c', DESCARTADA:'n' })[s] || 'n';
+    el.innerHTML = cab('GOVERNANÇA NORMATIVA', 'Atualizações da Reforma', 'Registro de fontes oficiais e avaliação humana. Nenhuma atualização altera regras ou cálculos automaticamente.', '<button class="btn" id="novaAtualizacaoReforma">Registrar atualização</button>') +
+      `<div class="grade g4">${A.kpi('Novas', itens.filter(x=>x.status==='NOVA').length, 'aguardam triagem')}${A.kpi('Em análise', itens.filter(x=>x.status==='EM_ANALISE').length, 'impacto em avaliação')}${A.kpi('Aplicadas', itens.filter(x=>x.status==='APLICADA').length, 'com decisão registrada')}${A.kpi('Descartadas', itens.filter(x=>x.status==='DESCARTADA').length, 'sem ação sistêmica')}</div>` +
+      `<section class="cartao" style="margin-top:16px"><div class="aviso"><b>Monitor diário ativo</b><br>Fontes oficiais são acompanhadas fora do motor. Registre ou revise aqui apenas após leitura e decisão humana.</div>${A.tabela([
+        {t:'Atualização',r:x=>`<b>${A.esc(x.titulo)}</b><div class="mini">${A.esc(x.tema)} · ${A.esc(x.data_publicacao || 'data não informada')}</div>`},
+        {t:'Fonte',r:x=>x.fonte_url?`<a href="${A.esc(x.fonte_url)}" target="_blank" rel="noopener">${A.esc(x.fonte_nome || 'Fonte oficial')}</a>`:A.esc(x.fonte_nome || '—')},
+        {t:'Impacto potencial',r:x=>A.esc(x.impacto_potencial || 'EM_ANALISE')},
+        {t:'Status',r:x=>`<span class="tag ${tag(x.status)}">${A.esc(x.status.replace('_',' '))}</span><div class="mini">${x.eventos?.length || 0} evento(s)</div>`},
+        {t:'',r:x=>`<button class="btn pq vazio" data-revisar-atualizacao="${x.id}">Revisar</button>`},
+      ],itens,{vazio:'Nenhuma atualização registrada.',desc:'O monitor diário avisará neste task quando uma fonte oficial trouxer mudança relevante.'})}</section>`;
+    el.querySelector('#novaAtualizacaoReforma').onclick = () => A.modal({ titulo:'Registrar atualização normativa', largura:760, descricao:'Registre somente conteúdo já conferido. Isso não altera regras fiscais.', corpo:`${A.campo('titulo','Título','')}${A.area('resumo','Resumo objetivo','',3)}<div class="grade g2">${A.campo('fonte_nome','Fonte oficial','')}${A.campo('fonte_url','Link da fonte','https://','url')}</div><div class="grade g3">${A.campo('data_publicacao','Data de publicação','','date')}${A.selecao('tema','Tema',[{v:'GERAL',t:'Geral'},{v:'IBS_CBS',t:'IBS / CBS'},{v:'SIMPLES',t:'Simples Nacional'},{v:'CREDITO',t:'Créditos'},{v:'TRANSICAO',t:'Transição'}],'GERAL')}${A.selecao('impacto_potencial','Impacto potencial',[{v:'EM_ANALISE',t:'Em análise'},{v:'BAIXO',t:'Baixo'},{v:'MEDIO',t:'Médio'},{v:'ALTO',t:'Alto'}],'EM_ANALISE')}</div>${A.campo('modulos_afetados','Módulos potencialmente afetados','')}`, confirmar:'Registrar', aoConfirmar:async f=>{await A.api('/atualizacoes-reforma',{metodo:'POST',corpo:f});A.toast('Atualização registrada para análise humana.','ok');await carregar();} });
+    el.querySelectorAll('[data-revisar-atualizacao]').forEach((b)=>b.onclick=()=>{const x=itens.find(i=>Number(i.id)===Number(b.dataset.revisarAtualizacao));A.modal({titulo:`Revisar atualização — ${x.titulo}`,largura:760,descricao:x.resumo||'Sem resumo informado.',corpo:`<p class="mini">Módulos: ${A.esc(x.modulos_afetados||'não informados')}</p>${A.selecao('status','Decisão',[{v:'NOVA',t:'Nova'},{v:'EM_ANALISE',t:'Em análise'},{v:'APLICADA',t:'Aplicada (decisão registrada)'},{v:'DESCARTADA',t:'Descartada'}],x.status)}${A.area('observacao_analise','Fundamentação da decisão',x.observacao_analise||'',3)}`,confirmar:'Registrar decisão',aoConfirmar:async f=>{await A.api(`/atualizacoes-reforma/${x.id}/status`,{metodo:'PUT',corpo:f});A.toast('Decisão registrada. Nenhuma regra foi alterada.','ok');await carregar();}});});
+  };
+  await carregar();
+};

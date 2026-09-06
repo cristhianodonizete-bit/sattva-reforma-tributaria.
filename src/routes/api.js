@@ -1198,6 +1198,58 @@ router.post('/planejamento/analises/:id/assistente', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
+// ATUALIZAÇÕES DA REFORMA — mural de monitoramento e governança. Registros
+// aqui são informativos: não chamam o motor nem publicam regras fiscais.
+const STATUS_ATUALIZACAO_REFORMA = new Set(['NOVA', 'EM_ANALISE', 'APLICADA', 'DESCARTADA']);
+router.get('/atualizacoes-reforma', (req, res) => {
+  try {
+    const status = String(req.query.status || '').trim().toUpperCase();
+    const linhas = db.prepare(`SELECT * FROM atualizacoes_reforma ${status ? 'WHERE status=?' : ''} ORDER BY CASE status WHEN 'NOVA' THEN 0 WHEN 'EM_ANALISE' THEN 1 ELSE 2 END, COALESCE(data_publicacao,'') DESC, id DESC`)
+      .all(...(status ? [status] : []));
+    const eventos = db.prepare('SELECT * FROM atualizacoes_reforma_eventos ORDER BY id DESC').all();
+    const porAtualizacao = new Map();
+    for (const evento of eventos) {
+      const lista = porAtualizacao.get(evento.atualizacao_id) || [];
+      lista.push({ ...evento, dados: JSON.parse(evento.dados_json || '{}') }); porAtualizacao.set(evento.atualizacao_id, lista);
+    }
+    ok(res, { atualizacoes:linhas.map((x) => ({ ...x, eventos:porAtualizacao.get(x.id) || [] })) });
+  } catch (e) { erro(res, e); }
+});
+router.post('/atualizacoes-reforma', (req, res) => {
+  try {
+    const b = req.body || {};
+    const titulo = String(b.titulo || '').trim();
+    if (!titulo) throw new Error('Título da atualização é obrigatório.');
+    const url = String(b.fonte_url || '').trim();
+    if (url) { const validada = new URL(url); if (!/^https?:$/.test(validada.protocol)) throw new Error('A fonte deve usar URL HTTP ou HTTPS.'); }
+    const status = STATUS_ATUALIZACAO_REFORMA.has(String(b.status || '').toUpperCase()) ? String(b.status).toUpperCase() : 'NOVA';
+    const insercao = db.prepare(`INSERT INTO atualizacoes_reforma (titulo,resumo,fonte_nome,fonte_url,data_publicacao,tema,impacto_potencial,modulos_afetados,status,observacao_analise,criado_por)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(titulo, String(b.resumo || ''), String(b.fonte_nome || ''), url, b.data_publicacao || null,
+      String(b.tema || 'GERAL'), String(b.impacto_potencial || 'EM_ANALISE'), String(b.modulos_afetados || ''), status, String(b.observacao_analise || ''), req.usuario?.id || null);
+    const id = Number(insercao.lastInsertRowid);
+    db.prepare('INSERT INTO atualizacoes_reforma_eventos (atualizacao_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)')
+      .run(id, 'REGISTRADA', req.usuario?.id || null, JSON.stringify({ status, fonte_nome:String(b.fonte_nome || '') }));
+    auditar(req, { acao:'atualizacao_reforma_registrada', entidade:'atualizacoes_reforma', entidadeId:String(id), depois:{ titulo, status } });
+    ok(res, { id });
+  } catch (e) { erro(res, e); }
+});
+router.put('/atualizacoes-reforma/:id/status', (req, res) => {
+  try {
+    const id = Number(req.params.id); const b = req.body || {};
+    const atual = db.prepare('SELECT * FROM atualizacoes_reforma WHERE id=?').get(id);
+    if (!atual) throw new Error('Atualização não encontrada.');
+    const status = String(b.status || '').toUpperCase();
+    if (!STATUS_ATUALIZACAO_REFORMA.has(status)) throw new Error('Status de governança inválido.');
+    const observacao = String(b.observacao_analise || '');
+    db.prepare('UPDATE atualizacoes_reforma SET status=?,observacao_analise=?,analisado_por=?,analisado_em=datetime(\'now\',\'localtime\') WHERE id=?')
+      .run(status, observacao, req.usuario?.id || null, id);
+    db.prepare('INSERT INTO atualizacoes_reforma_eventos (atualizacao_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)')
+      .run(id, 'STATUS_ALTERADO', req.usuario?.id || null, JSON.stringify({ anterior:atual.status, atual:status, observacao }));
+    auditar(req, { acao:'atualizacao_reforma_status_alterado', entidade:'atualizacoes_reforma', entidadeId:String(id), antes:{ status:atual.status }, depois:{ status, observacao } });
+    ok(res, { id, status });
+  } catch (e) { erro(res, e); }
+});
+
 // Perfil CBS: lê exclusivamente o resultado já produzido pelo motor e a
 // competência do movimento. Não cria cálculo tributário paralelo.
 router.get('/empresas/:id/perfil-cbs', (req, res) => {
