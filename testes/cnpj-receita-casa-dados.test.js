@@ -86,6 +86,23 @@ const banco = require('../src/db');
   assert.equal(cnaeFallback.cnaes_secundarios.length, 1);
   assert.equal(chamadas.some((url) => /infosimples/.test(url)), true);
   assert.equal(chamadas.some((url) => /brasilapi/.test(url)), true);
+  // A InfoSimples devolve o resultado de CNPJ em `data` como lista. O CNAE
+  // principal e a lista de atividades secundárias devem ser persistíveis sem
+  // recorrer a outro provedor nem consumir uma segunda consulta.
+  chamadas.length = 0;
+  global.fetch = async (url) => {
+    chamadas.push(String(url));
+    return { ok:true, status:200, json:async()=>({ code:200, data:[{
+      razao_social:'Empresa InfoSimples',
+      atividade_economica:{ codigo:'5611201', descricao:'Restaurantes e similares' },
+      atividade_economica_secundaria_lista:[{ codigo:'4721103', descricao:'Comércio varejista de laticínios e frios' }],
+    }] }) };
+  };
+  const cnaeInfoSimples = await consultar('22333444000192', { forcar:true, finalidade:'cnae_carteira' });
+  assert.equal(cnaeInfoSimples.cnae, '5611201');
+  assert.equal(cnaeInfoSimples.cnae_descricao, 'Restaurantes e similares');
+  assert.deepEqual(cnaeInfoSimples.cnaes_secundarios, [{ codigo:'4721103', descricao:'Comércio varejista de laticínios e frios' }]);
+  assert.equal(chamadas.length, 1, 'CNAE retornado pela InfoSimples não pode disparar fallback');
   console.log('cnpj-receita-casa-dados: credencial e prioridade QSA: OK');
 })().finally(() => {
   global.fetch = fetchOriginal;

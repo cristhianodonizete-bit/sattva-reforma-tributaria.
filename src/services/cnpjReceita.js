@@ -76,12 +76,17 @@ const PROVEDORES = {
     url: (cnpj) => `${process.env.INFOSIMPLES_CNPJ_URL || 'https://api.infosimples.com/api/v2/consultas/receita-federal/cnpj'}?cnpj=${cnpj}`,
     exigeChave: true, intervalo: 250, site: 'https://infosimples.com/consultas/receita-federal-cnpj/',
     mapear: (bruto) => {
-      const d = bruto?.data || bruto?.resultado || bruto?.response || bruto || {};
+      // A API pode devolver `data` como objeto ou como lista de resultados.
+      // A lista é o formato usado pela consulta de CNPJ; usar o array direto
+      // fazia a leitura de atividade econômica resultar sempre vazia.
+      const origem = bruto?.data || bruto?.resultado || bruto?.response || bruto || {};
+      const d = Array.isArray(origem) ? (origem[0] || {}) : origem;
+      const atividade = Array.isArray(d.atividade_economica) ? (d.atividade_economica[0] || {}) : (d.atividade_economica || {});
       return {
         razao_social: d.razao_social || d.nome_empresarial || '', situacao: d.situacao_cadastral || '', porte: d.porte || '',
-        cnae: String(d.atividade_economica?.codigo || d.atividade_economica_codigo || d.cnae || ''),
-        cnae_descricao: d.atividade_economica?.descricao || d.atividade_economica || d.cnae_descricao || '',
-        cnaes_secundarios: normalizarCnaesSecundarios(d.atividades_secundarias, d.atividade_economica_secundaria, d.cnaes_secundarios),
+        cnae: String(atividade?.codigo || d.atividade_economica_codigo || d.cnae || ''),
+        cnae_descricao: atividade?.descricao || (typeof d.atividade_economica === 'string' ? d.atividade_economica : '') || d.cnae_descricao || '',
+        cnaes_secundarios: normalizarCnaesSecundarios(d.atividades_secundarias, d.atividade_economica_secundaria, d.atividade_economica_secundaria_lista, d.cnaes_secundarios),
         uf: d.endereco_uf || d.uf || '', municipio: d.endereco_municipio || d.municipio || '',
         natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.natureza_juridica_codigo || ''), efr: d.efr || '',
         // A consulta de CNPJ não confirma opção pelo Simples; não inferir.
