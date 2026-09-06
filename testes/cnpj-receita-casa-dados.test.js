@@ -73,19 +73,20 @@ const banco = require('../src/db');
   assert.equal(natureza.codigo_natureza_juridica, '2062');
   // CNAE não utiliza a InfoSimples: BrasilAPI é a fonte primária gratuita.
   process.env.INFOSIMPLES_API_KEY = 'token-invalido-para-teste'; chamadas.length = 0;
-  global.fetch = async (url) => {
-    chamadas.push(String(url));
+  global.fetch = async (url, opcoes = {}) => {
+    chamadas.push({ url:String(url), headers:opcoes.headers || {} });
     return { ok:true, status:200, json:async()=>({ razao_social:'Empresa com CNAE', cnae_fiscal:6201501, cnae_fiscal_descricao:'Desenvolvimento de programas sob encomenda', cnaes_secundarios:[{ codigo:6202300, descricao:'Programas customizáveis' }] }) };
   };
   const cnaeFallback = await consultar('11222333000181', { forcar:true, finalidade:'cnae_carteira' });
   assert.equal(cnaeFallback.cnae, '6201501');
   assert.equal(cnaeFallback.cnaes_secundarios.length, 1);
-  assert.equal(chamadas.some((url) => /infosimples/.test(url)), false);
-  assert.equal(chamadas.some((url) => /brasilapi/.test(url)), true);
+  assert.equal(chamadas.some(({ url }) => /infosimples/.test(url)), false);
+  assert.equal(chamadas.some(({ url }) => /brasilapi/.test(url)), true);
+  assert.equal(chamadas.find(({ url }) => /brasilapi/.test(url)).headers['User-Agent'], 'Sattva-Reforma-Tributaria/1.0');
   // ReceitaWS é acionada somente se a BrasilAPI não responder.
   chamadas.length = 0;
   global.fetch = async (url) => {
-    chamadas.push(String(url));
+    chamadas.push({ url:String(url), headers:{} });
     if (/brasilapi/.test(String(url))) return { ok:false, status:503, json:async()=>({}) };
     return { ok:true, status:200, json:async()=>({
       nome:'Empresa ReceitaWS', atividade_principal:[{ code:'5611201', text:'Restaurantes e similares' }],
@@ -97,7 +98,7 @@ const banco = require('../src/db');
   assert.equal(cnaeReceitaWs.cnae_descricao, 'Restaurantes e similares');
   assert.deepEqual(cnaeReceitaWs.cnaes_secundarios, [{ codigo:'4721103', descricao:'Comércio varejista de laticínios e frios' }]);
   assert.equal(chamadas.length, 2, 'ReceitaWS só deve ser chamada após falha da BrasilAPI');
-  assert.equal(chamadas.some((url) => /infosimples/.test(url)), false);
+  assert.equal(chamadas.some(({ url }) => /infosimples/.test(url)), false);
   console.log('cnpj-receita-casa-dados: credencial e prioridade QSA: OK');
 })().finally(() => {
   global.fetch = fetchOriginal;

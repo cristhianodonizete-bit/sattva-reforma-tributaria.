@@ -785,8 +785,8 @@ router.post('/empresas/:id/cadastro-cnpj/consultar', async (req, res) => {
     const resultado = await cnpjReceita.consultar(empresa.cnpj, { forcar:true, finalidade:'cnae_carteira' });
     const preenchimento = cnpjReceita.preencherCadastroEmpresaSeVazio(empresa.id, resultado);
     if (preenchimento.preenchidos.length && supabase.configurado()) await sincronizarGestaoSupabase();
-    auditar(req, { acao:'Consultou CNPJ manualmente', entidade:'cnpj_cache', entidade_id:String(empresaId), depois:{ cnpj:empresa.cnpj, cnae_encontrado:preenchimento.cnae_encontrado, campos_preenchidos:preenchimento.preenchidos } });
-    ok(res, { cnpj:empresa.cnpj, cnae_encontrado:preenchimento.cnae_encontrado, campos_preenchidos:preenchimento.preenchidos, fonte:resultado.fonte || null });
+    auditar(req, { acao:'Consultou CNPJ manualmente', entidade:'cnpj_cache', entidade_id:String(empresaId), depois:{ cnpj:empresa.cnpj, cnae_encontrado:preenchimento.cnae_encontrado, campos_preenchidos:preenchimento.preenchidos, tentativas_cnae:resultado.tentativas_cnae || [] } });
+    ok(res, { cnpj:empresa.cnpj, cnae_encontrado:preenchimento.cnae_encontrado, campos_preenchidos:preenchimento.preenchidos, fonte:resultado.fonte || null, fallback_de:resultado.fallback_de || null, motivo_fallback:resultado.motivo_fallback || null });
   } catch (e) { erro(res, e); }
 });
 

@@ -494,6 +494,10 @@ async function consultar(cnpj, opcoes = {}) {
     const t = setTimeout(() => ctrl.abort(), 20000);
     try {
     const headers = { Accept: 'application/json' };
+    // A edge da BrasilAPI pode bloquear o User-Agent padrão do fetch Node.
+    // Identificação explícita evita o 403 de mitigação sem mascará-lo como
+    // necessidade de fallback para ReceitaWS.
+    if (provedor.provedor === 'brasilapi') headers['User-Agent'] = 'Sattva-Reforma-Tributaria/1.0';
     const token = tokenDoProvedor(provedor, cfg);
     if (provedor.provedor === 'casadosdados') {
       if (!token) throw new Error('Casa dos Dados não está configurada: CASA_DOS_DADOS_API_KEY ausente.');
@@ -536,14 +540,22 @@ async function consultar(cnpj, opcoes = {}) {
       { ...PROVEDORES.receitaws, provedor:'receitaws' },
     ];
     let ultimoResultado = null, ultimoErro = null;
+    const tentativas = [];
     for (const alternativa of alternativas) {
       try {
         const resultado = await consultarProvedor(alternativa);
         ultimoResultado = resultado;
-        if (textoBanco(resultado.cnae)) return resultado;
-      } catch (erroAlternativa) { ultimoErro = erroAlternativa; }
+        tentativas.push({ provedor:alternativa.nome, resultado:textoBanco(resultado.cnae) ? 'CNAE_ENCONTRADO' : 'CNAE_AUSENTE' });
+        if (textoBanco(resultado.cnae)) {
+          const fallback = alternativa.provedor === 'receitaws' ? tentativas[0] : null;
+          return { ...resultado, tentativas_cnae:tentativas, fallback_de:fallback?.provedor || null, motivo_fallback:fallback?.resultado || null };
+        }
+      } catch (erroAlternativa) {
+        ultimoErro = erroAlternativa;
+        tentativas.push({ provedor:alternativa.nome, resultado:'ERRO', motivo:erroAlternativa.message });
+      }
     }
-    if (ultimoResultado) return ultimoResultado;
+    if (ultimoResultado) return { ...ultimoResultado, tentativas_cnae:tentativas };
     throw (ultimoErro || new Error('BrasilAPI e ReceitaWS não retornaram CNAE para o CNPJ.'));
   }
   // InfoSimples é a fonte contratada prioritária do cadastro da empresa. Sem

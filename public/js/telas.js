@@ -189,7 +189,8 @@ Telas.empresas = async (el) => {
     const original = b.textContent; b.disabled = true; b.textContent = 'Consultando…';
     try {
       const r = await A.api(`/empresas/${e.id}/cadastro-cnpj/consultar`, { metodo:'POST', corpo:{} });
-      A.toast(r.cnae_encontrado ? 'Cadastro atualizado com CNAE principal e atividades secundárias disponíveis. QSA, cotas, nacionalidade e regime não foram alterados.' : 'A consulta foi concluída, mas o provedor não informou CNAE para este CNPJ.', r.cnae_encontrado ? 'ok' : 'aviso');
+      const origem = r.fallback_de ? ` BrasilAPI: ${String(r.motivo_fallback || 'sem CNAE').toLowerCase()}; resultado obtido via ${r.fonte || 'ReceitaWS'}.` : ` Fonte: ${r.fonte || 'BrasilAPI'}.`;
+      A.toast(r.cnae_encontrado ? `Cadastro atualizado com CNAE principal e atividades secundárias disponíveis. QSA, cotas, nacionalidade e regime não foram alterados.${origem}` : 'A consulta foi concluída, mas o provedor não informou CNAE para este CNPJ.', r.cnae_encontrado ? 'ok' : 'aviso');
       await A.carregarEmpresas(); A.ir('empresas');
     } catch (erro) { A.toast(erro.message, 'erro'); }
     finally { b.disabled = false; b.textContent = original; }
