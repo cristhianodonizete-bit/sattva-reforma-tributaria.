@@ -7,6 +7,8 @@
  */
 const LIMITE_AMOSTRAS = 2000;
 const amostras = [];
+let ultimaPersistencia = 0;
+let persistindo = null;
 
 function normalizarRota(rota = '') {
   return String(rota)
@@ -77,4 +79,21 @@ function resumo() {
 
 function limparParaTeste() { amostras.splice(0, amostras.length); }
 
-module.exports = { registrar, resumo, normalizarRota, limparParaTeste };
+async function persistir(remoto, intervaloMs = 60000) {
+  if (!remoto || !amostras.length || persistindo || Date.now() - ultimaPersistencia < intervaloMs) return false;
+  const resumoAtual = resumo();
+  const linhas = resumoAtual.rotas.map((r) => ({
+    janela_inicio: resumoAtual.inicio_janela, janela_fim: resumoAtual.fim_janela, rota: r.rota,
+    requisicoes: r.requisicoes, erros: r.erros, lentas_acima_1s: r.lentas_acima_1s,
+    media_ms: r.media_ms, p50_ms: r.p50_ms, p95_ms: r.p95_ms, max_ms: r.max_ms,
+    heap_ultimo_mb: r.heap_ultimo_mb, rss_ultimo_mb: r.rss_ultimo_mb,
+  }));
+  persistindo = remoto.from('telemetria_performance_http').insert(linhas).then(({ error }) => {
+    if (error) throw error;
+    ultimaPersistencia = Date.now();
+    return true;
+  }).finally(() => { persistindo = null; });
+  return persistindo;
+}
+
+module.exports = { registrar, resumo, normalizarRota, limparParaTeste, persistir };

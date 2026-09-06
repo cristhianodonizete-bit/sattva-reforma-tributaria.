@@ -3,6 +3,8 @@ const path = require('path');
 const express = require('express');
 const compression = require('compression');
 const autenticacao = require('./src/services/autenticacao');
+const supabase = require('./src/services/supabase');
+const performanceTelemetry = require('./src/services/performanceTelemetry');
 
 const app = express();
 // O processo HTTP não deve aguardar uma carga-base remota para abrir a porta.
@@ -157,6 +159,9 @@ function iniciar() {
     console.log('  sincronização operacional iniciada em segundo plano');
     console.log('');
   });
+  setInterval(() => {
+    if (supabase.configurado()) performanceTelemetry.persistir(supabase.admin()).catch((e) => console.error('  telemetria de performance:', e.message));
+  }, 60_000).unref();
   // Não aguardar: Render pode considerar a instância indisponível enquanto a
   // primeira carga-base baixa dezenas de coleções.
   iniciarOperacao().catch((e) => console.error('  inicialização operacional não concluída:', e.message));
