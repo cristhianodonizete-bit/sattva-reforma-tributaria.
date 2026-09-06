@@ -752,9 +752,23 @@ router.post('/empresas', async (req, res) => {
     // que dados complementares recém-informados fiquem apenas no cache local
     // de uma instância efêmera do Render.
     if (supabase.configurado()) await publicarCadastroEmpresa(Number(r.lastInsertRowid));
+    // A pré-consulta só é persistida no primeiro cadastro, após confirmação
+    // explícita do operador. Ela jamais é aplicada a empresa já existente.
+    const consulta = cnpjReceita.consumirPreconsultaCadastro(b.consulta_cadastro_token, cnpj);
+    const qsa = consulta ? await cnpjReceita.persistirQsaConsultado(Number(r.lastInsertRowid), consulta) : null;
     auditar(req, { empresaId: Number(r.lastInsertRowid), acao: 'Criou cadastro da empresa', entidade: 'empresa', entidadeId: r.lastInsertRowid,
       depois: { cnpj, razao_social: b.razao_social, regime: b.regime || 'lucro_real' } });
-    ok(res, { id: r.lastInsertRowid, enriquecimento_qsa: { status: 'NAO_CONSULTADO', mensagem: 'O QSA é consultado somente pelo botão “Consultar cadastro” da empresa.' } });
+    ok(res, { id: r.lastInsertRowid, enriquecimento_qsa: qsa ? { status:'CONSULTADO_NA_CRIACAO', ...qsa } : { status:'NAO_CONSULTADO', mensagem:'Nenhuma pré-consulta válida foi confirmada.' } });
+  } catch (e) { erro(res, e); }
+});
+
+// Prévia exclusiva do fluxo de criação. Não cria empresa, não altera cadastro
+// existente e não grava QSA até a confirmação do operador na criação.
+router.post('/empresas/preconsulta-cnpj', async (req, res) => {
+  try {
+    const r = await cnpjReceita.preconsultarCadastroEmpresa(req.body?.cnpj);
+    auditar(req, { acao:'Consultou cadastro por CNPJ antes da criação', entidade:'preconsulta_cnpj', depois:{ cnpj:r.cnpj, fonte:r.fonte, socios:r.qsa.length } });
+    ok(res, r);
   } catch (e) { erro(res, e); }
 });
 

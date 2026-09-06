@@ -28,8 +28,10 @@
  */
 const db = require('./db_ref');
 const supabase = require('./supabase');
+const crypto = require('crypto');
 const { naturezaAdquirente } = require('./elegibilidadeAnexoXi');
 const filasAutomaticas = new Map();
+const preconsultasCadastro = new Map();
 
 const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
 const textoBanco = (v) => {
@@ -47,6 +49,26 @@ const percentualBanco = (v) => {
 // PROVEDORES
 // --------------------------------------------------------------------------
 const PROVEDORES = {
+  infosimples: {
+    nome: 'InfoSimples',
+    // A URL pode ser definida pelo contrato da conta InfoSimples, sem deixar
+    // endpoint ou credencial fiscal expostos ao navegador.
+    url: (cnpj) => `${process.env.INFOSIMPLES_CNPJ_URL || 'https://api.infosimples.com/api/v2/consultas/receita-federal/cnpj'}?cnpj=${cnpj}`,
+    exigeChave: true, intervalo: 250, site: 'https://infosimples.com/consultas/receita-federal-cnpj/',
+    mapear: (bruto) => {
+      const d = bruto?.data || bruto?.resultado || bruto?.response || bruto || {};
+      return {
+        razao_social: d.razao_social || d.nome_empresarial || '', situacao: d.situacao_cadastral || '', porte: d.porte || '',
+        cnae: String(d.atividade_economica?.codigo || d.atividade_economica_codigo || d.cnae || ''),
+        cnae_descricao: d.atividade_economica?.descricao || d.atividade_economica || d.cnae_descricao || '',
+        uf: d.endereco_uf || d.uf || '', municipio: d.endereco_municipio || d.municipio || '',
+        natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.natureza_juridica_codigo || ''), efr: d.efr || '',
+        // A consulta de CNPJ não confirma opção pelo Simples; não inferir.
+        opcao_simples_desconhecida:true, optante_simples:null, optante_mei:null,
+        qsa: (d.qsa || []).map((s) => ({ nome:s.nome || '', documento:s.cpf_cnpj || s.documento || '', qualificacao:s.qualificacao || '', pais:s.pais_origem || s.pais || '', percentual_participacao:s.percentual_participacao ?? null, brasileiro:(s.pais_origem || s.pais) ? /brasil/i.test(s.pais_origem || s.pais) : true })),
+      };
+    },
+  },
   brasilapi: {
     nome: 'BrasilAPI',
     // BRASILAPI_URL permite apontar para outro endereço com o mesmo contrato
@@ -140,6 +162,7 @@ function config() {
 }
 
 function tokenDoProvedor(provedor, cfg) {
+  if (provedor.provedor === 'infosimples') return String((cfg.provedor === 'infosimples' ? cfg.token : '') || process.env.INFOSIMPLES_API_KEY || '').trim();
   if (provedor.provedor === 'casadosdados') {
     const tokenConfigurado = cfg.provedor === 'casadosdados' ? cfg.token : '';
     return String(tokenConfigurado || process.env.CASA_DOS_DADOS_API_KEY || '').trim();
@@ -150,6 +173,41 @@ function tokenDoProvedor(provedor, cfg) {
 
 function provedorCasaDisponivel(cfg) {
   return Boolean(tokenDoProvedor({ ...PROVEDORES.casadosdados, provedor: 'casadosdados' }, cfg));
+}
+function provedorInfoSimplesDisponivel(cfg) { return Boolean(tokenDoProvedor({ ...PROVEDORES.infosimples, provedor:'infosimples' }, cfg)); }
+
+async function preconsultarCadastroEmpresa(cnpj) {
+  const resultado = await consultar(cnpj, { forcar:true, finalidade:'qsa' });
+  const token = crypto.randomUUID();
+  preconsultasCadastro.set(token, { cnpj:soDigitos(cnpj), resultado, expira_em:Date.now() + (10 * 60 * 1000) });
+  for (const [chave, valor] of preconsultasCadastro) if (valor.expira_em < Date.now()) preconsultasCadastro.delete(chave);
+  return { token, cnpj:soDigitos(cnpj), cadastro:{ razao_social:resultado.razao_social || '', nome_fantasia:resultado.nome_fantasia || '', uf:resultado.uf || '', municipio:resultado.municipio || '', cnae:resultado.cnae || '', atividade:resultado.cnae_descricao || '' }, qsa:(resultado.qsa || []).map((s) => ({ nome:s.nome || '', qualificacao:s.qualificacao || '', pais:s.pais || '', percentual_participacao:s.percentual_participacao ?? null, brasileiro:s.brasileiro !== false })), fonte:resultado.fonte || '', origem:resultado.origem || '' };
+}
+function consumirPreconsultaCadastro(token, cnpj) {
+  const r = preconsultasCadastro.get(String(token || ''));
+  if (!r || r.expira_em < Date.now() || r.cnpj !== soDigitos(cnpj)) return null;
+  preconsultasCadastro.delete(String(token));
+  return r.resultado;
+}
+
+async function persistirQsaConsultado(empresaId, resultado) {
+  const socios = resultado.qsa || [];
+  const inserir = db().prepare(`INSERT INTO empresa_qsa
+    (empresa_id,nome,documento,qualificacao,pais,percentual_participacao,brasileiro,fonte,consultado_em,origem,atualizado_em)
+    VALUES (?,?,?,?,?,?,?,?,?,'consulta_cadastral',datetime('now','localtime'))
+    ON CONFLICT(empresa_id,nome,documento,qualificacao) DO UPDATE SET
+      pais=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.pais ELSE excluded.pais END,
+      percentual_participacao=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.percentual_participacao ELSE COALESCE(excluded.percentual_participacao, empresa_qsa.percentual_participacao) END,
+      brasileiro=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.brasileiro ELSE excluded.brasileiro END,
+      fonte=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.fonte ELSE excluded.fonte END,
+      consultado_em=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.consultado_em ELSE excluded.consultado_em END,
+      origem=CASE WHEN empresa_qsa.origem='confirmacao_manual' THEN empresa_qsa.origem ELSE excluded.origem END,
+      atualizado_em=datetime('now','localtime')`);
+  db().transaction(() => socios.filter((s) => textoBanco(s.nome)).forEach((s) => inserir.run(
+    Number(empresaId), textoBanco(s.nome), soDigitos(s.documento), textoBanco(s.qualificacao), textoBanco(s.pais), percentualBanco(s.percentual_participacao), s.brasileiro === false ? 0 : 1, textoBanco(resultado.fonte), new Date().toISOString(),
+  )))();
+  await publicarQsaEmpresa(empresaId);
+  return { socios_recuperados:socios.filter((s) => textoBanco(s.nome)).length, percentual_automatico:socios.filter((s) => s.percentual_participacao != null).length };
 }
 
 function salvarConfig(d) {
@@ -365,7 +423,9 @@ async function consultar(cnpj, opcoes = {}) {
       if (!token) throw new Error('Casa dos Dados não está configurada: CASA_DOS_DADOS_API_KEY ausente.');
       headers['api-key'] = token;
     } else if (token) headers.Authorization = token.startsWith('Bearer') ? token : `Bearer ${token}`;
-    const resp = await fetch(provedor.url(c), { headers, signal: ctrl.signal });
+    const destino = provedor.provedor === 'infosimples' && token
+      ? `${provedor.url(c)}${provedor.url(c).includes('?') ? '&' : '?'}token=${encodeURIComponent(token)}` : provedor.url(c);
+    const resp = await fetch(destino, { headers, signal: ctrl.signal });
     if (resp.status === 404) {
       return { cnpj: c, regime_derivado: null, fonte: provedor.nome, origem: 'nao_encontrado',
         justificativa: 'CNPJ não localizado na base pública.' };
@@ -385,6 +445,15 @@ async function consultar(cnpj, opcoes = {}) {
   };
 
   const casa = { ...PROVEDORES.casadosdados, provedor: 'casadosdados' };
+  // InfoSimples é a fonte contratada prioritária do cadastro da empresa. Sem
+  // chave, ou se ela falhar, a consulta continua pelos provedores atuais.
+  if (provedorInfoSimplesDisponivel(cfg)) {
+    try {
+      const info = await consultarProvedor({ ...PROVEDORES.infosimples, provedor:'infosimples' });
+      if (opcoes.finalidade !== 'qsa' || (info.qsa || []).some((s) => textoBanco(s.nome))) return info;
+      // Uma resposta sem QSA não é considerada confirmação de quadro vazio.
+    } catch (_) { /* fallback deliberado: fontes secundárias abaixo */ }
+  }
   if (opcoes.finalidade === 'qsa' && provedorCasaDisponivel(cfg)) {
     try {
       const resultadoCasa = await consultarProvedor(casa);
@@ -577,5 +646,5 @@ function estatisticasCache() {
     .map(([k, v]) => ({ chave: k, nome: v.nome, intervalo: v.intervalo, site: v.site, exigeChave: v.exigeChave })) };
 }
 
-module.exports = { consultar, enriquecerParceiros, enriquecerQsaEmpresa, publicarQsaEmpresa, sincronizarConfirmacoesManuaisQsa, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
+module.exports = { consultar, preconsultarCadastroEmpresa, consumirPreconsultaCadastro, persistirQsaConsultado, enriquecerParceiros, enriquecerQsaEmpresa, publicarQsaEmpresa, sincronizarConfirmacoesManuaisQsa, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
   config, salvarConfig, derivarRegime, classificarEnteGovernamental, PROVEDORES };

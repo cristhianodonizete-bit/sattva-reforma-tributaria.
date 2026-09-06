@@ -150,8 +150,8 @@ Telas.empresas = async (el) => {
       ${grupos.length ? `<div class="lista-grupos">${grupos.map((g) => { const nomes = empresas.filter((e) => (g.empresa_ids || []).map(Number).includes(Number(e.id))).map((e) => e.razao_social); return `<article class="grupo-empresas-item"><div><b>${A.esc(g.nome)}</b><p class="mini">${A.esc(g.descricao || 'Sem descrição')} · ${nomes.length} empresa(s)</p><p class="mini">${A.esc(nomes.join(' · ') || 'Nenhuma empresa vinculada')}</p></div><div><button class="btn pq vazio" data-grupo-ed="${g.id}">Editar</button><button class="btn pq perigo" data-grupo-rm="${g.id}">Excluir</button></div></article>`; }).join('')}</div>` : A.vazio('Nenhum grupo criado.', 'Crie um grupo para organizar empresas que serão analisadas em conjunto.')}
     </div>`;
 
-  const form = (e = {}) => A.campo('razao_social', 'Razão social', e.razao_social) +
-    `<div class="grade g2">${A.campo('cnpj', 'CNPJ', e.cnpj)}${A.campo('nome_fantasia', 'Nome fantasia', e.nome_fantasia)}</div>
+  const form = (e = {}, nova = false) => A.campo('razao_social', 'Razão social', e.razao_social) +
+    `<div class="grade g2">${A.campo('cnpj', 'CNPJ', e.cnpj, 'text', nova ? 'placeholder="Informe os 14 dígitos para consultar CNAE e QSA"' : '')}${A.campo('nome_fantasia', 'Nome fantasia', e.nome_fantasia)}</div>${nova ? '<input type="hidden" name="consulta_cadastro_token"><div id="preconsultaCadastro" class="preconsulta-cadastro"><span class="mini">Informe o CNPJ para consultar dados cadastrais, CNAE e quadro societário.</span></div>' : ''}
      <div class="grade g2">${A.selecao('regime', 'Regime tributário', A.opcoesRegime(), e.regime || 'lucro_real')}
      ${A.selecao('reducao_padrao', 'Enquadramento predominante no IVA', A.opcoesReducao(), e.reducao_padrao || 'integral')}</div>
      <div class="grade g3">${A.campo('uf', 'UF', e.uf)}${A.campo('municipio', 'Município', e.municipio)}${A.campo('cnae', 'CNAE principal', e.cnae)}</div>
@@ -160,10 +160,23 @@ Telas.empresas = async (el) => {
      ${A.area('atividade', 'Atividade', e.atividade, 2)}`;
   const formGrupo = (g = {}) => `${A.campo('nome', 'Nome do grupo', g.nome || '')}${A.area('descricao', 'Descrição / objetivo da análise', g.descricao || '', 2)}<h3 class="subtitulo-modal">Empresas incluídas</h3><div class="empresas-acesso">${empresas.map((empresa) => `<label class="check"><input type="checkbox" name="empresa_${empresa.id}" ${(g.empresa_ids || []).map(Number).includes(Number(empresa.id)) ? 'checked' : ''}> ${A.esc(empresa.razao_social)}</label>`).join('') || '<p class="mini">Cadastre empresas antes de criar um grupo.</p>'}</div>`;
 
-  document.getElementById('novaEmpresa').onclick = () => A.modal({
-    titulo: 'Cadastrar empresa', descricao: 'Os dados alimentam todos os módulos do produto.',
-    corpo: form(), aoConfirmar: async (d) => { await A.api('/empresas', { metodo: 'POST', corpo: d }); A.toast('Empresa cadastrada', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); },
-  });
+  document.getElementById('novaEmpresa').onclick = () => {
+    const modal = A.modal({ titulo: 'Cadastrar empresa', descricao: 'Ao informar o CNPJ, a consulta cadastral traz CNAE e QSA para conferência. Nada é salvo até a confirmação.',
+      corpo: form({}, true), aoConfirmar: async (d) => { const r=await A.api('/empresas', { metodo:'POST', corpo:d }); A.toast(r.enriquecimento_qsa?.status==='CONSULTADO_NA_CRIACAO' ? `Empresa cadastrada com ${r.enriquecimento_qsa.socios_recuperados} sócio(s) consultado(s).` : 'Empresa cadastrada', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); },
+    });
+    const cnpjInput = modal.fundo.querySelector('[name="cnpj"]'); const previa = modal.fundo.querySelector('#preconsultaCadastro'); let ultimo = '';
+    const consultar = async () => {
+      const cnpj=String(cnpjInput.value||'').replace(/\D/g,''); if(cnpj.length!==14 || cnpj===ultimo) return; ultimo=cnpj;
+      previa.innerHTML='<div class="mini">Consultando CNPJ, CNAE e QSA…</div>';
+      try {
+        const r=await A.api('/empresas/preconsulta-cnpj',{metodo:'POST',corpo:{cnpj}}); const c=r.cadastro||{};
+        ['razao_social','nome_fantasia','uf','municipio','cnae','atividade'].forEach((campo)=>{const input=modal.fundo.querySelector(`[name="${campo}"]`);if(input&&c[campo])input.value=c[campo];});
+        modal.fundo.querySelector('[name="consulta_cadastro_token"]').value=r.token;
+        const socios=(r.qsa||[]); previa.innerHTML=`<div class="aviso bom"><b>Consulta cadastral encontrada · ${A.esc(r.fonte||'fonte cadastrada')}</b><span>CNAE: ${A.esc(c.cnae||'não informado')} · ${A.esc(c.atividade||'')}</span><br><span>${socios.length?`${socios.length} sócio(s) localizado(s), a serem gravados somente com este cadastro.`:'QSA não retornado pela fonte; nenhum sócio será presumido.'}</span></div>${socios.length?`<div class="mini preconsulta-socios">${socios.map(s=>`${A.esc(s.nome)}${s.qualificacao?` · ${A.esc(s.qualificacao)}`:''}${s.percentual_participacao!=null?` · ${A.esc(s.percentual_participacao)}%`:' · participação pendente'}${s.brasileiro?' · brasileiro':' · nacionalidade pendente'}`).join('<br>')}</div>`:''}`;
+      } catch(e) { modal.fundo.querySelector('[name="consulta_cadastro_token"]').value=''; previa.innerHTML=`<div class="aviso atencao"><b>Consulta não disponível</b>${A.esc(e.message)}. Você pode preencher o cadastro manualmente.</div>`; }
+    };
+    cnpjInput.addEventListener('blur', consultar); cnpjInput.addEventListener('change', consultar);
+  };
   document.getElementById('novoGrupo').onclick = () => A.modal({ titulo: 'Criar grupo de empresas para análise', largura: 720, corpo: formGrupo(), aoConfirmar: async (d) => { d.empresa_ids = empresas.filter((empresa) => d[`empresa_${empresa.id}`]).map((empresa) => empresa.id); await A.api('/grupos-empresas', { metodo: 'POST', corpo: d }); A.toast('Grupo criado', 'ok'); A.ir('empresas'); } });
   el.querySelectorAll('[data-abrir]').forEach((b) => { b.onclick = async () => {
     localStorage.setItem('sattva_empresa', b.dataset.abrir); await A.carregarEmpresas(); A.ir('painel');
