@@ -288,14 +288,18 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     // os campos de rastreabilidade que efetivamente apresenta.
     natureza: natureza(x),
   }));
-  const operacoesBeneficios = lado === 'cliente' ? itens.map(leituraBeneficio).filter(Boolean) : [];
-  const tratamentoBeneficios = operacoesBeneficios.reduce((s, x) => ({
+  // A aba de benefícios é um drill-down. O resumo permanece sempre no
+  // contrato, mas a relação completa só é transmitida quando a própria aba
+  // foi aberta; isso evita centenas de evidências em todas as demais telas.
+  const beneficiosCalculados = lado === 'cliente' ? itens.map(leituraBeneficio).filter(Boolean) : [];
+  const tratamentoBeneficios = beneficiosCalculados.reduce((s, x) => ({
     operacoes: s.operacoes + 1,
     valor: r2(s.valor + n(x.valor)),
     baseEconomica: r2(s.baseEconomica + n(x.baseEconomica)),
     cbs: r2(s.cbs + n(x.cbs)),
     diferencaReducaoCbs: r2(s.diferencaReducaoCbs + n(x.diferencaReducaoCbs)),
   }), { operacoes: 0, valor: 0, baseEconomica: 0, cbs: 0, diferencaReducaoCbs: 0 });
+  const operacoesBeneficios = opcoes.incluirBeneficios === true ? beneficiosCalculados : [];
   const t = finalizar(total); t.parceiros = parceiros.length;
   return { execucao: base.execucao, lado, totais: t, parceiros, regimes, detalhes,
     paginacaoDetalhes: {

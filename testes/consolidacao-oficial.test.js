@@ -16,6 +16,7 @@ if (!empresa) throw new Error('Fixture ausente: é necessária uma empresa para 
 motorExec.executar(empresa.id, { ano: 2027 });
 const execucaoInicial = oficial.ultimaExecucao(empresa.id).id;
 const clientes = oficial.cadeia(empresa.id, 'cliente', { executarSeAusente: false });
+const clientesComBeneficios = oficial.cadeia(empresa.id, 'cliente', { executarSeAusente: false, incluirBeneficios: true });
 const fornecedores = oficial.cadeia(empresa.id, 'fornecedor', { executarSeAusente: false });
 const empresaCompleta = db.prepare('SELECT * FROM empresas WHERE id=?').get(empresa.id);
 const fotografia = motorExec.resultadoMaterializado(empresaCompleta);
@@ -39,6 +40,8 @@ assert.equal(fotografia.resumo.materializado, true, 'leitura de projeção não 
 assert.equal(r2(motorExec.porCliente(fotografia).reduce((s, x) => s + x.faturamento, 0)), r2(clientes.totais.valor), 'cliente materializado deve reconciliar com a cadeia oficial');
 assert.equal(clientes.parceiros.some((x) => Object.hasOwn(x, '_linha')), false, 'referência interna da linha não pode vazar no payload');
 assert.equal(Object.hasOwn(clientes, 'operacoes200044'), false, 'benefícios não podem ser duplicados pelo contrato legado');
+assert.equal(clientes.operacoesBeneficios.length, 0, 'resumo da cadeia não deve transferir o drill-down de benefícios');
+assert.equal(clientes.tratamentoBeneficios.operacoes, clientesComBeneficios.tratamentoBeneficios.operacoes, 'resumo de benefícios deve permanecer íntegro sem transferir evidências');
 assert.strictEqual(linhasReutilizadas, linhas, 'a mesma fotografia materializada deve reutilizar linhas já desserializadas');
 assert.strictEqual(perfilReutilizado.competencias, perfil.competencias, 'o perfil CBS deve reutilizar a mesma fotografia materializada');
 motorExec.executar(empresa.id, { ano: 2027 });

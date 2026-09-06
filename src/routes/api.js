@@ -1672,6 +1672,7 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     const resultado = consolidacaoOficial.cadeia(empresa.id, tipo, {
       executarSeAusente: false,
       incluirDetalhes: detalhesSolicitados,
+      incluirBeneficios: String(req.query.beneficios) === '1',
       paginaDetalhes: req.query.pagina,
       limiteDetalhes: req.query.limite,
     });
