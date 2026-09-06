@@ -62,7 +62,7 @@ const App = (() => {
   }
 
   // ---------- MODAL ----------
-  function modal({ titulo, descricao, corpo, confirmar = 'Salvar', aoConfirmar, largura, podeFechar = () => true }) {
+  function modal({ titulo, descricao, corpo, confirmar = 'Salvar', aoConfirmar, aoAbrir, largura, podeFechar = () => true }) {
     const fundo = document.createElement('div');
     fundo.className = 'modal-fundo';
     fundo.innerHTML = `<div class="modal" ${largura ? `style="max-width:${largura}px"` : ''}>
@@ -92,6 +92,7 @@ const App = (() => {
       try { okBtn.disabled = true; const r = await aoConfirmar(dados, fundo); if (r !== false) fechar(); }
       catch (e) { toast(e.message, 'erro'); } finally { okBtn.disabled = false; }
     };
+    if (typeof aoAbrir === 'function') aoAbrir(fundo);
     return { fundo, fechar };
   }
 
