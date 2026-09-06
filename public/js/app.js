@@ -172,7 +172,7 @@ const App = (() => {
       { id: 'painel', t: 'Painel do projeto', i: '◈' },
       { id: 'dashboardOperacao', t: 'Dashboard operacional', i: '◷' },
     ] },
-    { id: 'planejamento', titulo: 'Planejamento tributário', itens: [
+    { id: 'planejamento', titulo: 'Módulo 5 · Planejamento tributário', itens: [
       { id: 'planejamento', t: 'Análises e regimes', i: '◫' },
     ] },
     { id: 'dados', titulo: 'Central de Dados', itens: [
@@ -206,7 +206,7 @@ const App = (() => {
     { id: 'capacitacao', titulo: 'Módulo 4 · Capacitação', itens: [
       { id: 'capacitacao', t: 'Capacitação do time', i: '◌' }, { id: 'tarefasCapacitacao', t: 'Tarefas', i: '✓' },
     ] },
-    { id: 'acompanhamento', titulo: 'Módulo 5 · Acompanhamento', itens: [
+    { id: 'acompanhamento', titulo: 'Módulo 6 · Acompanhamento', itens: [
       { id: 'acompanhamento', t: 'Baseline e realizado', i: '◷' },
     ] },
     { id: 'empresa-operacao', titulo: 'Operação da carteira', itens: [

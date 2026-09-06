@@ -1,4 +1,4 @@
-/* Módulo 5 — Acompanhamento: previsto congelado x fotografia realizada. */
+/* Módulo 6 — Acompanhamento: previsto congelado x fotografia realizada. */
 (() => {
 const A = App, S = App.S;
 let filtroAcoes = 'TODAS';
@@ -11,7 +11,7 @@ Telas.acompanhamento = async (el) => {
   const base = d.baselines[0], foto = d.snapshots[0];
   const executivo = d.executivo || { indicadores:{ aderencia:d.aderencia }, previsto_realizado:[], cronologia:[], acoes:[] };
   const acoesVisiveis = filtroAcoes === 'TODAS' ? d.acoes : d.acoes.filter((x) => (filtroAcoes === 'ATRASADAS' ? x.prazo && x.prazo < new Date().toISOString().slice(0,10) && !['CONCLUIDA','CANCELADA'].includes(x.status) : x.status === filtroAcoes));
-  el.innerHTML = cab('Módulo 5 · acompanhamento', 'Previsto × realizado', 'O baseline aprovado permanece congelado. Cada fotografia posterior apenas evidencia desvios, causas e evidências.', '<button class="btn" id="novoBaseline">Congelar baseline</button><button class="btn vazio" id="novaFotografia">Registrar fotografia</button>') +
+  el.innerHTML = cab('Módulo 6 · acompanhamento', 'Previsto × realizado', 'O baseline aprovado permanece congelado. Cada fotografia posterior apenas evidencia desvios, causas e evidências.', '<button class="btn" id="novoBaseline">Congelar baseline</button><button class="btn vazio" id="novaFotografia">Registrar fotografia</button>') +
     `<div class="aviso"><b>Regra do módulo:</b> baseline aprovado + fotografia realizada = comparação. Nenhum resultado tributário, econômico ou de cenário é recalculado nesta tela.</div>` +
     `<div class="grade g4">
       ${A.kpi('Baselines aprovados', d.baselines.length, base ? `V${base.versao} é o mais recente` : 'nenhum baseline')}
