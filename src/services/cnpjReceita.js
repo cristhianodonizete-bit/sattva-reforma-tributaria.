@@ -45,7 +45,14 @@ const percentualBanco = (v) => {
   return Number.isFinite(normalizado) ? normalizado : null;
 };
 const normalizarCnaesSecundarios = (...fontes) => {
-  const itens = fontes.flatMap((fonte) => Array.isArray(fonte) ? fonte : fonte ? [fonte] : []).map((item) => {
+  const expandir = (fonte) => {
+    if (Array.isArray(fonte)) return fonte.flatMap(expandir);
+    if (typeof fonte === 'string') {
+      try { const json = JSON.parse(fonte); if (Array.isArray(json)) return json.flatMap(expandir); } catch (_) { /* texto simples */ }
+    }
+    return fonte ? [fonte] : [];
+  };
+  const itens = fontes.flatMap(expandir).map((item) => {
     if (typeof item === 'string') return { codigo:'', descricao:item.trim() };
     return { codigo:String(item?.codigo || item?.code || item?.id || item?.cnae || '').trim(),
       descricao:textoBanco(item?.descricao || item?.description || item?.text || item?.atividade || '').trim() };
@@ -421,7 +428,7 @@ function gravarCache(cnpj, d, fonte) {
   if (supabase.configurado()) supabase.admin().from('cadastros_cnpj').upsert(compartilhado, { onConflict: 'cnpj' })
     .then(({ error }) => { if (error) console.error('[supabase] cadastro CNPJ:', error.message); })
     .catch((e) => console.error('[supabase] cadastro CNPJ:', e.message));
-  return salvo;
+  return { ...salvo, cnaes_secundarios: normalizarCnaesSecundarios(salvo.cnaes_secundarios) };
 }
 
 async function cadastroCentral(cnpj, validadeDias) {
@@ -475,6 +482,12 @@ async function consultar(cnpj, opcoes = {}) {
     if (resp.status === 429) throw new Error(`Limite de consultas do ${provedor.nome} atingido.`);
     if (!resp.ok) throw new Error(`${provedor.nome} respondeu ${resp.status}.`);
     const bruto = await resp.json();
+    // A InfoSimples pode sinalizar falha de autenticação ou processamento no
+    // próprio JSON com HTTP 200. Sem esta validação, um retorno vazio seria
+    // aceito como consulta válida e impediria os provedores de fallback.
+    if (provedor.provedor === 'infosimples' && Number(bruto?.code || 0) >= 400) {
+      throw new Error(`${provedor.nome}: ${bruto.code_message || `código ${bruto.code}`}`);
+    }
     const d = provedor.mapear(bruto);
     return { ...gravarCache(c, d, provedor.nome), qsa: d.qsa || [], origem: 'consulta', intervaloUsado: provedor.intervalo };
     } catch (e) {
@@ -528,6 +541,24 @@ async function consultar(cnpj, opcoes = {}) {
         catch (_) { throw erroCasa; }
       }
     }
+  }
+
+  // Para completar CNAE da carteira, uma resposta cadastral sem atividade não
+  // conclui o trabalho. Tentamos as fontes públicas na ordem de menor custo,
+  // sem mudar a prioridade da InfoSimples quando ela efetivamente responde.
+  if (opcoes.finalidade === 'cnae_carteira') {
+    const alternativas = [PROVEDORES.brasilapi, cfg, PROVEDORES.cnpja]
+      .filter((p, indice, lista) => p && lista.findIndex((x) => x.provedor === p.provedor) === indice);
+    let ultimoResultado = null, ultimoErro = null;
+    for (const alternativa of alternativas) {
+      try {
+        const resultado = await consultarProvedor(alternativa);
+        ultimoResultado = resultado;
+        if (textoBanco(resultado.cnae)) return resultado;
+      } catch (erroAlternativa) { ultimoErro = erroAlternativa; }
+    }
+    if (ultimoResultado) return ultimoResultado;
+    throw (ultimoErro || new Error('Nenhum provedor retornou CNAE para o CNPJ.'));
   }
 
   try { return await consultarProvedor(cfg); }

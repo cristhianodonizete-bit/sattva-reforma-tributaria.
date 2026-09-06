@@ -71,6 +71,21 @@ const banco = require('../src/db');
   assert.equal(enriquecimento.total, 1, 'Natureza jurídica ausente deve entrar na consulta mesmo com regime informado');
   const natureza = banco.prepare('SELECT codigo_natureza_juridica FROM cnpj_cache WHERE cnpj=?').get('98765432000198');
   assert.equal(natureza.codigo_natureza_juridica, '2062');
+  // Um HTTP 200 da InfoSimples com código de falha interno não pode encerrar
+  // a consulta da carteira sem CNAE: BrasilAPI segue como fallback objetivo.
+  process.env.INFOSIMPLES_API_KEY = 'token-invalido-para-teste'; chamadas.length = 0;
+  global.fetch = async (url) => {
+    chamadas.push(String(url));
+    const info = /infosimples/.test(String(url));
+    return { ok:true, status:200, json:async()=>info
+      ? { code:601, code_message:'Token inválido', data:[] }
+      : { razao_social:'Empresa com CNAE', cnae_fiscal:6201501, cnae_fiscal_descricao:'Desenvolvimento de programas sob encomenda', cnaes_secundarios:[{ codigo:6202300, descricao:'Programas customizáveis' }] } };
+  };
+  const cnaeFallback = await consultar('11222333000181', { forcar:true, finalidade:'cnae_carteira' });
+  assert.equal(cnaeFallback.cnae, '6201501');
+  assert.equal(cnaeFallback.cnaes_secundarios.length, 1);
+  assert.equal(chamadas.some((url) => /infosimples/.test(url)), true);
+  assert.equal(chamadas.some((url) => /brasilapi/.test(url)), true);
   console.log('cnpj-receita-casa-dados: credencial e prioridade QSA: OK');
 })().finally(() => {
   global.fetch = fetchOriginal;
