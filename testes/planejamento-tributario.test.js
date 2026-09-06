@@ -9,6 +9,10 @@ const b = Number(db.prepare('INSERT INTO empresas (cnpj,razao_social,regime) VAL
 const estudo = planejamento.criar({ titulo:'Estudo protegido', empresa_ids:[a,b], usuario_id:'usuario-teste', periodo_base_inicio:'2026-01', periodo_base_fim:'2026-12' });
 assert.equal(estudo.empresas.length, 2);
 assert.equal(estudo.snapshot.versao, 1);
+const solicitacoes = estudo.snapshot.dados.necessidades_coleta.flatMap((x) => x.itens.map((i) => i.titulo));
+assert.ok(solicitacoes.some((x) => /PGDAS 2025/.test(x)));
+assert.ok(solicitacoes.some((x) => /PGDAS 2024/.test(x)));
+assert.ok(!solicitacoes.some((x) => /Folha|pró-labore/i.test(x)));
 assert.equal(db.prepare('SELECT COUNT(*) c FROM planejamento_snapshots WHERE analise_id=?').get(estudo.analise.id).c, 1);
 const premissa = planejamento.adicionarPremissa(estudo.analise.id, { campo:'crescimento_receita', valor:'0.1', origem:'PREMISSA_MANUAL' }, 'usuario-teste');
 assert.ok(premissa > 0);

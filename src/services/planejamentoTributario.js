@@ -35,26 +35,32 @@ function resumoEmpresa(empresaId) {
   const receitas = db.prepare("SELECT competencia,receita_bruta,das FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY competencia").all(empresaId);
   const folhas = db.prepare("SELECT competencia,valor_folha,pro_labore FROM folhas_pagamento_competencias WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY competencia").all(empresaId);
   const anosPgdas = new Set(receitas.filter((x) => Number(x.das) > 0).map((x) => String(x.competencia).slice(0, 4)));
+  const primeiraCompetencia = receitas.map((x) => String(x.competencia || '')).filter((x) => /^\d{4}-\d{2}$/.test(x)).sort()[0] || null;
   const projecaoReceita = projetar12Meses(receitas, 'receita_bruta');
   const projecaoFolha = projetar12Meses(folhas, 'valor_folha');
   const projecaoProLabore = projetar12Meses(folhas, 'pro_labore');
   const margem = db.prepare('SELECT margem_operacional_percentual FROM margens_operacionais_premissas WHERE empresa_id=? ORDER BY periodo_fim DESC LIMIT 1').get(empresaId);
   return { empresa: { ...leitura.empresa, cnpj: cadastro.cnpj || '', cnae: cadastro.cnae || '', atividade: cadastro.atividade || '' }, receita_analisada: leitura.receita_analisada, cenarios: leitura.cenarios,
-    coleta: { meses_receita: receitas.length, meses_folha: folhas.length, pgdas_2024: anosPgdas.has('2024'), pgdas_2025: anosPgdas.has('2025'),
+    coleta: { meses_receita: receitas.length, meses_folha: folhas.length, anos_pgdas:[...anosPgdas], primeira_competencia_receita:primeiraCompetencia,
       projecao: projecaoReceita.metodo }, margem_operacional_percentual: margem ? Number(margem.margem_operacional_percentual) : null, projecao_12_meses: { receita:projecaoReceita, folha:projecaoFolha, pro_labore:projecaoProLabore },
     pendencias: leitura.pendencias, status_comparacao: leitura.status_comparacao,
     origem: 'FOTOGRAFIA_LEITURA_MOTOR_E_CADASTROS' };
 }
 
 function necessidadesColeta(empresas) {
+  const anoAtual = new Date().getFullYear(); const anos = [anoAtual - 1, anoAtual - 2]; const inicioEsperado = `${anos[1]}-01`;
   return empresas.map((e) => {
     const simples = e.empresa.regime_atual === 'simples_nacional'; const c = e.coleta || {};
     const itens = simples
-      ? [{ chave: 'pgdas_2024', titulo: 'PGDAS 2024', recebido: Boolean(c.pgdas_2024) }, { chave: 'pgdas_2025', titulo: 'PGDAS 2025', recebido: Boolean(c.pgdas_2025) }]
-      : [{ chave: 'faturamento_24_meses', titulo: 'Faturamento mensal dos últimos 24 meses', recebido: Number(c.meses_receita) >= 24 }];
-    itens.push({ chave: 'folha_12_meses', titulo: 'Folha e pró-labore dos últimos 12 meses', recebido: Number(c.meses_folha) >= 12 });
+      ? anos.map((ano) => ({ chave: `pgdas_${ano}`, titulo: `PGDAS ${ano}`, recebido: (c.anos_pgdas || []).includes(String(ano)) }))
+      : [{ chave: 'faturamento_2_anos_anteriores', titulo: `Faturamento mensal de ${anos[0]} e ${anos[1]}`, recebido: Number(c.meses_receita) >= 24 }];
+    const historicoParcial = Boolean(c.primeira_competencia_receita && c.primeira_competencia_receita > inicioEsperado);
     return { empresa_id: e.empresa.id, empresa: e.empresa.nome, regime: e.empresa.regime_atual, itens,
-      alerta: Number(c.meses_receita) >= 24 ? null : 'Projeção linear: histórico mensal insuficiente. Variações de faturamento podem alterar a análise e a recomendação de regime tributário.' };
+      contexto_historico: historicoParcial ? 'INICIO_POSTERIOR_OU_HISTORICO_PARCIAL' : 'HISTORICO_INSUFICIENTE',
+      primeira_competencia_receita: c.primeira_competencia_receita || null,
+      alerta: Number(c.meses_receita) >= 24 ? null : historicoParcial
+        ? `Histórico disponível desde ${c.primeira_competencia_receita}. Se a empresa iniciou a atividade após ${anos[1]}, a projeção será usada por ausência natural de período anterior; registre a justificativa na análise.`
+        : `Projeção linear: faltam dados de faturamento de ${anos[0]} e/ou ${anos[1]}. Variações de faturamento podem alterar a análise e a recomendação de regime tributário.` };
   });
 }
 
