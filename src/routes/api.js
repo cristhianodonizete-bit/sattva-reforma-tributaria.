@@ -1143,6 +1143,10 @@ router.post('/planejamento/analises/:id/executar', (req, res) => {
   try { ok(res, planejamentoTributario.executar(Number(req.params.id), req.usuario?.id || null)); }
   catch (e) { erro(res, e); }
 });
+router.post('/planejamento/analises/:id/fotografia', (req, res) => {
+  try { ok(res, { snapshot_id: planejamentoTributario.criarSnapshot(Number(req.params.id), req.usuario?.id || null) }); }
+  catch (e) { erro(res, e); }
+});
 router.post('/planejamento/analises/:id/aprovar', (req, res) => {
   try { planejamentoTributario.aprovar(Number(req.params.id), req.body?.observacao, req.usuario?.id || null); ok(res, planejamentoTributario.obter(Number(req.params.id))); }
   catch (e) { erro(res, e); }
