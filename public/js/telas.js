@@ -742,6 +742,9 @@ Telas.perfil = async (el) => {
   const aliquotaEfetiva = receitaTotal > 0 && (informado(valoresPis) || informado(valoresCofins)) ? cargaTotal / receitaTotal : null;
   const origem = apuracoes.some((x) => x.status_validacao === 'VALIDADO_USUARIO') ? 'apuração confirmada pelo usuário'
     : apuracoes.length ? 'relatório de PIS/Cofins importado' : historico.length ? 'perfil histórico importado' : 'sem fonte de apuração';
+  const rotulosRegime = { simples_nacional: 'Simples Nacional', lucro_presumido: 'Lucro Presumido', lucro_real: 'Lucro Real', mei: 'MEI', imune_isento: 'Imune / Isento' };
+  const chaveRegime = String(tributario.empresa?.regime_atual || '').toLowerCase();
+  const regimeAtual = rotulosRegime[chaveRegime] || A.regimeLabel(chaveRegime) || 'INDETERMINADO';
   const tratamentoSemDetalhe = 'Não discriminado pela fonte importada';
   const moedaOuIndeterminado = (valor) => valor === null || valor === undefined ? 'INDETERMINADO' : A.moeda(valor);
 
@@ -750,7 +753,7 @@ Telas.perfil = async (el) => {
     '<button class="btn vazio" id="centralDadosPerfil">Central de Dados</button>') +
     `<div class="cartao"><div class="cabecalho-lista"><div><h2>Resumo da apuração atual</h2><p class="desc">Valores efetivamente importados. A alíquota efetiva final é PIS/Cofins apurados ÷ receita analisada.</p></div><span class="tag">${A.esc(origem)}</span></div>
       <div class="grade g4">
-        ${A.kpi('Períodos analisados', historico.length, historico.length ? 'dados históricos disponíveis' : 'nenhum período disponível')}
+        ${A.kpi('Regime atual', A.esc(regimeAtual), historico.length ? `${historico.length} período(s) analisado(s)` : 'sem período analisado')}
         ${A.kpi('Receita analisada', receitaTotal ? A.moeda(receitaTotal) : 'INDETERMINADO', 'base dos documentos/importações')}
         ${A.kpi('PIS apurado', informado(valoresPis) ? A.moeda(pisTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
         ${A.kpi('Cofins apurada', informado(valoresCofins) ? A.moeda(cofinsTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
