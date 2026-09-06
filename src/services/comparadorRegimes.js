@@ -9,6 +9,16 @@ const REGIMES = [
 const NATUREZAS_LP = new Set(['COMERCIO_INDUSTRIA', 'SERVICOS_GERAIS', 'INTERMEDIACAO', 'LOCACAO_CESSAO_BENS_DIREITOS', 'TRANSPORTE_CARGA', 'SERVICO_HOSPITALAR_QUALIFICADO']);
 
 function linhasSeTabelaExiste(db, sql, empresaId) { try { return db.prepare(sql).all(empresaId); } catch (_) { return []; } }
+function contribuicaoPatronalFolha(folhas) {
+  // Contrato explícito de planejamento: folha normal 26,8%; pró-labore 20%.
+  // Não altera folha nem apuração oficial; apenas compõe cenários fora do Simples.
+  if (!folhas.length) return null;
+  const folhaNormal = folhas.reduce((s, x) => s + n(x.valor_folha), 0);
+  const proLabore = folhas.reduce((s, x) => s + n(x.pro_labore), 0);
+  return { valor: folhaNormal * .268 + proLabore * .20, folha_normal: folhaNormal, pro_labore: proLabore,
+    aliquota_folha_normal: .268, aliquota_pro_labore: .20, natureza: 'CALCULADO',
+    origem: 'folhas_pagamento_competencias · premissa INSS patronal de planejamento' };
+}
 function margemAplicavel(perfis, margens, receita) {
   if (!perfis.length || !margens.length || !receita) return null;
   let ponderada = 0;
@@ -109,6 +119,8 @@ function comparar(db, empresaId, opcoes = {}) {
   const parametros = new Map(db.prepare('SELECT chave,pis_cofins FROM param_regimes').all().map((x) => [x.chave, x]));
   const dasReal = perfis.reduce((s, x) => s + n(x.das), 0), temDasReal = perfis.length > 0 && empresa.regime === 'simples_nacional';
   const margens = db.prepare('SELECT * FROM margens_operacionais_premissas WHERE empresa_id=?').all(empresaId), margemInformada = margens.length > 0, margem = margemAplicavel(perfis, margens, receita);
+  const folhas = linhasSeTabelaExiste(db, 'SELECT * FROM folhas_pagamento_competencias WHERE empresa_id=?', empresaId);
+  const inssPatronal = contribuicaoPatronalFolha(folhas);
   const competencias = [...new Set(perfis.map((x) => x.competencia))], meses = competencias.length, competenciaReferencia = competencias.sort().at(-1) || null;
   const competenciaVigencia = /^\d{4}-\d{2}$/.test(String(competenciaReferencia || '')) ? `${competenciaReferencia}-28` : competenciaReferencia;
   const parametrosIrpjCsll = competenciaVigencia ? db.prepare("SELECT * FROM param_irpj_csll_versionados WHERE status='ATIVO' AND vigencia_inicio<=? AND (vigencia_fim IS NULL OR vigencia_fim>=?)").all(competenciaVigencia, competenciaVigencia) : [];
@@ -121,10 +133,11 @@ function comparar(db, empresaId, opcoes = {}) {
     else if (!['simples_nacional', 'simples_regime_regular'].includes(regime.chave)) pendencias.push('Regra parametrizada de PIS/Cofins não disponível para este regime.');
     const irpjCsll = ['lucro_real', 'lucro_presumido'].includes(regime.chave) ? calcularIrpjCsll(parametrosIrpjCsll, regime.chave, { receita, margem, receitasPorNatureza: segregacao.valores, receitaIndeterminada: segregacao.indeterminada, meses }) : null;
     if (irpjCsll?.valor !== null && irpjCsll?.valor !== undefined) componentes.irpj_csll = { valor: irpjCsll.valor, natureza: irpjCsll.natureza, regras: irpjCsll.regras.map((x) => ({ tributo: x.tributo, natureza_receita: x.natureza_receita, versao: x.versao, fonte: x.fonte, fundamento: x.fundamento })), detalhes: irpjCsll.detalhes || null };
+    if (['lucro_real', 'lucro_presumido'].includes(regime.chave) && inssPatronal) componentes.inss_patronal = inssPatronal;
     if (cbs.quantidade > 0) componentes.cbs_motor_existente = { valor: n(cbs.valor), natureza: 'CALCULADO', origem: 'perfil_cbs_competencias' }; else pendencias.push('Fotografia CBS do motor não materializada.');
     let tributosEstimados = null, natureza = 'INDETERMINADO', status = 'INCOMPLETO';
     if (regime.chave === 'simples_nacional' && temDasReal && receita !== null) { tributosEstimados = dasReal; natureza = 'REAL'; status = 'COMPLETO'; }
-    else if (['lucro_real', 'lucro_presumido'].includes(regime.chave) && receita !== null && componentes.pis_cofins && componentes.irpj_csll && componentes.cbs_motor_existente) { tributosEstimados = componentes.pis_cofins.valor + componentes.irpj_csll.valor + componentes.cbs_motor_existente.valor; natureza = regime.chave === 'lucro_real' ? 'SIMULADO' : 'CALCULADO'; status = 'COMPLETO'; }
+    else if (['lucro_real', 'lucro_presumido'].includes(regime.chave) && receita !== null && componentes.pis_cofins && componentes.irpj_csll && componentes.cbs_motor_existente) { tributosEstimados = componentes.pis_cofins.valor + componentes.irpj_csll.valor + componentes.cbs_motor_existente.valor + (componentes.inss_patronal?.valor || 0); natureza = regime.chave === 'lucro_real' ? 'SIMULADO' : 'CALCULADO'; status = 'COMPLETO'; }
     else { pendencias.push(regime.chave === 'simples_nacional' ? 'PGDAS real ou dados completos para apuração do DAS não disponíveis.' : irpjCsll?.motivo || 'IRPJ/CSLL e demais componentes necessários à carga total não estão determinados pelas evidências disponíveis.'); natureza = receita !== null && Object.keys(componentes).length ? 'PARCIAL' : 'INCOMPLETO'; status = natureza; }
     if (regime.chave === 'simples_regime_regular') {
       const dasRemanescente = dasRemanescenteDoHibrido(empresa, perfis);
@@ -136,6 +149,12 @@ function comparar(db, empresaId, opcoes = {}) {
         tributosEstimados = componentes.das_remanescente_pgdas.valor + componentes.cbs_hibrida_motor.valor + componentes.ibs_hibrida_motor.valor;
         natureza = 'SIMULADO'; status = 'COMPLETO';
       } else { natureza = receita !== null && Object.keys(componentes).length ? 'PARCIAL' : 'INCOMPLETO'; status = natureza; }
+    }
+    // Sem um campo estruturado por atividade não é seguro afirmar Anexo III/V.
+    // Havendo receita de serviços no Simples, apenas sinalizamos a conferência:
+    // o DAS real continua sendo a fonte do valor, sem estimativa automática.
+    if (regime.chave === 'simples_nacional' && n(segregacao.valores.SERVICOS_GERAIS) > 0) {
+      pendencias.push('Há receita de serviços: confirme o Fator R quando a atividade estiver sujeita a esse enquadramento. O DAS real foi preservado e não foi recalculado.');
     }
     return { ...regime, tributos_estimados: tributosEstimados, carga_efetiva_percentual: tributosEstimados !== null && receita > 0 ? tributosEstimados / receita : null, diferenca_para_menor: null, status, completude: status, natureza, componentes_disponiveis: componentes,
       premissas_utilizadas: [receitaPerfil !== null ? 'Receita do Perfil Tributário.' : 'Receita fiscal de documentos.', receitaComplementar > 0 ? 'Receitas sem DF-e validadas foram adicionadas à mesma base econômica.' : null, cbs.quantidade > 0 ? 'CBS consumida da fotografia materializada do motor.' : 'CBS indisponível.', regime.chave === 'simples_nacional' && temDasReal ? 'PGDAS real prevaleceu sobre estimativa.' : null, regime.chave === 'lucro_real' && margemInformada ? 'Margem operacional informada: PREMISSA_INFORMADA em cenário simulado; não é lucro tributável real.' : null, regime.chave === 'lucro_presumido' && componentes.irpj_csll ? 'Presunção segregada por natureza de receita, com excedente 2026 proporcional.' : null, regime.chave === 'simples_regime_regular' && hibridoMotor ? 'CBS híbrida executada pelo motor existente em modo sombra.' : null].filter(Boolean), pendencias };
