@@ -8,6 +8,16 @@ const texto = (v) => String(v || '').trim();
 const json = (v, padrao = null) => { try { return JSON.parse(v); } catch (_) { return padrao; } };
 const moeda = (v) => Math.round((Number(v) || 0) * 100) / 100;
 
+function projetar12Meses(linhas, campo) {
+  const validas = linhas.filter((x) => /^\d{4}-\d{2}$/.test(String(x.competencia || '')) && Number.isFinite(Number(x[campo])));
+  if (!validas.length) return { metodo:'SEM_DADOS', meses:[], total:null };
+  const media = validas.reduce((s,x)=>s+Number(x[campo]||0),0) / validas.length;
+  const porMes = new Map(); validas.forEach((x) => { const m=String(x.competencia).slice(5); const a=porMes.get(m)||[]; a.push(Number(x[campo]||0)); porMes.set(m,a); });
+  const sazonal = validas.length >= 24;
+  const meses = Array.from({length:12},(_,i)=>{ const chave=String(i+1).padStart(2,'0'); const valores=porMes.get(chave)||[]; return { mes:chave, valor: moeda(sazonal && valores.length ? valores.reduce((s,v)=>s+v,0)/valores.length : media), origem:sazonal?'SAZONAL_24_MESES':'LINEAR' }; });
+  return { metodo:sazonal?'SAZONAL_24_MESES':'LINEAR_COM_ALERTA', meses, total:moeda(meses.reduce((s,x)=>s+x.valor,0)) };
+}
+
 function registrar(analiseId, acao, usuarioId, dados = {}) {
   db.prepare('INSERT INTO planejamento_eventos (analise_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)')
     .run(analiseId, acao, usuarioId || null, JSON.stringify(dados));
@@ -25,9 +35,12 @@ function resumoEmpresa(empresaId) {
   const receitas = db.prepare("SELECT competencia,receita_bruta,das FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY competencia").all(empresaId);
   const folhas = db.prepare("SELECT competencia,valor_folha,pro_labore FROM folhas_pagamento_competencias WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY competencia").all(empresaId);
   const anosPgdas = new Set(receitas.filter((x) => Number(x.das) > 0).map((x) => String(x.competencia).slice(0, 4)));
+  const projecaoReceita = projetar12Meses(receitas, 'receita_bruta');
+  const projecaoFolha = projetar12Meses(folhas, 'valor_folha');
+  const projecaoProLabore = projetar12Meses(folhas, 'pro_labore');
   return { empresa: { ...leitura.empresa, cnpj: cadastro.cnpj || '', cnae: cadastro.cnae || '', atividade: cadastro.atividade || '' }, receita_analisada: leitura.receita_analisada, cenarios: leitura.cenarios,
     coleta: { meses_receita: receitas.length, meses_folha: folhas.length, pgdas_2024: anosPgdas.has('2024'), pgdas_2025: anosPgdas.has('2025'),
-      projecao: receitas.length >= 24 ? 'SAZONAL_24_MESES' : 'LINEAR_COM_ALERTA' },
+      projecao: projecaoReceita.metodo }, projecao_12_meses: { receita:projecaoReceita, folha:projecaoFolha, pro_labore:projecaoProLabore },
     pendencias: leitura.pendencias, status_comparacao: leitura.status_comparacao,
     origem: 'FOTOGRAFIA_LEITURA_MOTOR_E_CADASTROS' };
 }
