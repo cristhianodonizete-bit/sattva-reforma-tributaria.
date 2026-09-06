@@ -22,6 +22,7 @@ const r4 = (v) => Math.round(n(v) * 10000) / 10000;
 // fiscal anterior. Mantemos poucas fotografias para limitar memória da instância.
 const LIMITE_FOTOGRAFIAS_EM_MEMORIA = 12;
 const linhasPorExecucao = new Map();
+const cadeiasPorExecucao = new Map();
 function guardarLinhas(empresaId, execucaoId, dados) {
   const chave = `${empresaId}:${execucaoId}`;
   linhasPorExecucao.set(chave, dados);
@@ -187,6 +188,9 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const lado = tipo === 'cliente' ? 'cliente' : 'fornecedor';
   const sentido = lado === 'cliente' ? 'saida' : 'entrada';
   const base = linhas(empresaId, opcoes);
+  const chaveCache = `${empresaId}:${base.execucao?.id || 'sem-execucao'}:${tipo}:${opcoes.incluirDetalhes === false ? 0 : 1}:${opcoes.incluirBeneficios === true ? 1 : 0}:${opcoes.paginaDetalhes || 1}:${opcoes.limiteDetalhes || 100}:${opcoes.paginaParceiros || 1}:${opcoes.limiteParceiros || 100}`;
+  const cadeiaEmMemoria = cadeiasPorExecucao.get(chaveCache);
+  if (cadeiaEmMemoria) return cadeiaEmMemoria;
   const itens = base.linhas.filter((x) => x.sentido === sentido);
   const porParceiro = new Map(), porGrupo = new Map();
   const total = { registros: itens.length, valor: 0, baseEconomica: 0, cbs: 0, ibs: 0, precoFinal: 0, custoLiquido: 0, credito: 0, pisCofinsAtual: 0, pisIndeterminado: false };
@@ -305,7 +309,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const totalPaginasParceiros = Math.max(1, Math.ceil(parceiros.length / limiteParceiros));
   const paginaParceiros = Math.min(totalPaginasParceiros, Math.max(1, Number(opcoes.paginaParceiros) || 1));
   const parceirosPaginados = parceiros.slice((paginaParceiros - 1) * limiteParceiros, paginaParceiros * limiteParceiros);
-  return { execucao: base.execucao, lado, totais: t, parceiros: parceirosPaginados, regimes, detalhes,
+  const resultado = { execucao: base.execucao, lado, totais: t, parceiros: parceirosPaginados, regimes, detalhes,
     paginacaoParceiros: { pagina: paginaParceiros, limite: limiteParceiros, total: parceiros.length, totalPaginas: totalPaginasParceiros,
       temAnterior: paginaParceiros > 1, temProxima: paginaParceiros < totalPaginasParceiros },
     paginacaoDetalhes: {
@@ -321,6 +325,9 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     operacoesBeneficios, tratamentoBeneficios,
     cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, precoFinal: t.precoFinal, credito: t.creditoFinal, creditoPotencial: t.creditoPotencial, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
     riscos: [], fonte: 'motor_resultados' };
+  cadeiasPorExecucao.set(chaveCache, resultado);
+  while (cadeiasPorExecucao.size > LIMITE_FOTOGRAFIAS_EM_MEMORIA * 12) cadeiasPorExecucao.delete(cadeiasPorExecucao.keys().next().value);
+  return resultado;
 }
 
 function impactoFinal(empresaId, opcoes = {}) {
