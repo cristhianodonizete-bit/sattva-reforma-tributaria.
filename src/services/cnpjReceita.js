@@ -122,6 +122,28 @@ const PROVEDORES = {
       qsa: (d.qsa || []).map((s) => ({ nome: s.nome_socio || s.nome || '', documento: s.cnpj_cpf_do_socio || s.cnpj_cpf || '', qualificacao: s.qualificacao_socio || s.qualificacao || '', pais: s.pais || '', percentual_participacao: s.percentual_capital_social ?? s.percentual_participacao ?? null, brasileiro: s.pais ? /brasil/i.test(s.pais) : true })),
     }),
   },
+  receitaws: {
+    nome: 'ReceitaWS',
+    url: (cnpj) => `https://receitaws.com.br/v1/cnpj/${cnpj}`,
+    exigeChave: false,
+    intervalo: 1000,
+    site: 'https://receitaws.com.br',
+    mapear: (d) => {
+      const atividadePrincipal = Array.isArray(d.atividade_principal) ? (d.atividade_principal[0] || {}) : (d.atividade_principal || {});
+      return {
+        razao_social: d.nome || d.razao_social || d.fantasia || '',
+        situacao: d.situacao || d.descricao_situacao_cadastral || '',
+        porte: d.porte || '',
+        cnae: String(atividadePrincipal.code || atividadePrincipal.codigo || d.cnae || ''),
+        cnae_descricao: atividadePrincipal.text || atividadePrincipal.descricao || d.cnae_descricao || '',
+        cnaes_secundarios: normalizarCnaesSecundarios(d.atividades_secundarias),
+        uf: d.uf || '', municipio: d.municipio || '',
+        natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.codigo_natureza_juridica || ''),
+        efr: d.efr || '', opcao_simples_desconhecida:true, optante_simples:null, optante_mei:null,
+        qsa: [],
+      };
+    },
+  },
   cnpja: {
     nome: 'CNPJá (API aberta)',
     url: (cnpj) => `https://open.cnpja.com/office/${cnpj}`,
@@ -505,6 +527,25 @@ async function consultar(cnpj, opcoes = {}) {
   };
 
   const casa = { ...PROVEDORES.casadosdados, provedor: 'casadosdados' };
+  // CNAE é um fluxo gratuito, isolado e individual: BrasilAPI é a fonte
+  // primária e ReceitaWS é o único fallback. Nunca chamar InfoSimples neste
+  // caminho, para não consumir a franquia contratada nem misturar QSA.
+  if (opcoes.finalidade === 'cnae_carteira') {
+    const alternativas = [
+      { ...PROVEDORES.brasilapi, provedor:'brasilapi' },
+      { ...PROVEDORES.receitaws, provedor:'receitaws' },
+    ];
+    let ultimoResultado = null, ultimoErro = null;
+    for (const alternativa of alternativas) {
+      try {
+        const resultado = await consultarProvedor(alternativa);
+        ultimoResultado = resultado;
+        if (textoBanco(resultado.cnae)) return resultado;
+      } catch (erroAlternativa) { ultimoErro = erroAlternativa; }
+    }
+    if (ultimoResultado) return ultimoResultado;
+    throw (ultimoErro || new Error('BrasilAPI e ReceitaWS não retornaram CNAE para o CNPJ.'));
+  }
   // InfoSimples é a fonte contratada prioritária do cadastro da empresa. Sem
   // chave, ou se ela falhar, a consulta continua pelos provedores atuais.
   if (provedorInfoSimplesDisponivel(cfg)) {
@@ -546,24 +587,6 @@ async function consultar(cnpj, opcoes = {}) {
         catch (_) { throw erroCasa; }
       }
     }
-  }
-
-  // Para completar CNAE da carteira, uma resposta cadastral sem atividade não
-  // conclui o trabalho. Tentamos as fontes públicas na ordem de menor custo,
-  // sem mudar a prioridade da InfoSimples quando ela efetivamente responde.
-  if (opcoes.finalidade === 'cnae_carteira') {
-    const alternativas = [PROVEDORES.brasilapi, cfg, PROVEDORES.cnpja]
-      .filter((p, indice, lista) => p && lista.findIndex((x) => x.provedor === p.provedor) === indice);
-    let ultimoResultado = null, ultimoErro = null;
-    for (const alternativa of alternativas) {
-      try {
-        const resultado = await consultarProvedor(alternativa);
-        ultimoResultado = resultado;
-        if (textoBanco(resultado.cnae)) return resultado;
-      } catch (erroAlternativa) { ultimoErro = erroAlternativa; }
-    }
-    if (ultimoResultado) return ultimoResultado;
-    throw (ultimoErro || new Error('Nenhum provedor retornou CNAE para o CNPJ.'));
   }
 
   try { return await consultarProvedor(cfg); }

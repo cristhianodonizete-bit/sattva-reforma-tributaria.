@@ -71,38 +71,33 @@ const banco = require('../src/db');
   assert.equal(enriquecimento.total, 1, 'Natureza jurídica ausente deve entrar na consulta mesmo com regime informado');
   const natureza = banco.prepare('SELECT codigo_natureza_juridica FROM cnpj_cache WHERE cnpj=?').get('98765432000198');
   assert.equal(natureza.codigo_natureza_juridica, '2062');
-  // Um HTTP 200 da InfoSimples com código de falha interno não pode encerrar
-  // a consulta da carteira sem CNAE: BrasilAPI segue como fallback objetivo.
+  // CNAE não utiliza a InfoSimples: BrasilAPI é a fonte primária gratuita.
   process.env.INFOSIMPLES_API_KEY = 'token-invalido-para-teste'; chamadas.length = 0;
   global.fetch = async (url) => {
     chamadas.push(String(url));
-    const info = /infosimples/.test(String(url));
-    return { ok:true, status:200, json:async()=>info
-      ? { code:601, code_message:'Token inválido', data:[] }
-      : { razao_social:'Empresa com CNAE', cnae_fiscal:6201501, cnae_fiscal_descricao:'Desenvolvimento de programas sob encomenda', cnaes_secundarios:[{ codigo:6202300, descricao:'Programas customizáveis' }] } };
+    return { ok:true, status:200, json:async()=>({ razao_social:'Empresa com CNAE', cnae_fiscal:6201501, cnae_fiscal_descricao:'Desenvolvimento de programas sob encomenda', cnaes_secundarios:[{ codigo:6202300, descricao:'Programas customizáveis' }] }) };
   };
   const cnaeFallback = await consultar('11222333000181', { forcar:true, finalidade:'cnae_carteira' });
   assert.equal(cnaeFallback.cnae, '6201501');
   assert.equal(cnaeFallback.cnaes_secundarios.length, 1);
-  assert.equal(chamadas.some((url) => /infosimples/.test(url)), true);
+  assert.equal(chamadas.some((url) => /infosimples/.test(url)), false);
   assert.equal(chamadas.some((url) => /brasilapi/.test(url)), true);
-  // A InfoSimples devolve o resultado de CNPJ em `data` como lista. O CNAE
-  // principal e a lista de atividades secundárias devem ser persistíveis sem
-  // recorrer a outro provedor nem consumir uma segunda consulta.
+  // ReceitaWS é acionada somente se a BrasilAPI não responder.
   chamadas.length = 0;
   global.fetch = async (url) => {
     chamadas.push(String(url));
-    return { ok:true, status:200, json:async()=>({ code:200, data:[{
-      razao_social:'Empresa InfoSimples',
-      atividade_economica:{ codigo:'5611201', descricao:'Restaurantes e similares' },
-      atividade_economica_secundaria_lista:[{ codigo:'4721103', descricao:'Comércio varejista de laticínios e frios' }],
-    }] }) };
+    if (/brasilapi/.test(String(url))) return { ok:false, status:503, json:async()=>({}) };
+    return { ok:true, status:200, json:async()=>({
+      nome:'Empresa ReceitaWS', atividade_principal:[{ code:'5611201', text:'Restaurantes e similares' }],
+      atividades_secundarias:[{ code:'4721103', text:'Comércio varejista de laticínios e frios' }],
+    }) };
   };
-  const cnaeInfoSimples = await consultar('22333444000192', { forcar:true, finalidade:'cnae_carteira' });
-  assert.equal(cnaeInfoSimples.cnae, '5611201');
-  assert.equal(cnaeInfoSimples.cnae_descricao, 'Restaurantes e similares');
-  assert.deepEqual(cnaeInfoSimples.cnaes_secundarios, [{ codigo:'4721103', descricao:'Comércio varejista de laticínios e frios' }]);
-  assert.equal(chamadas.length, 1, 'CNAE retornado pela InfoSimples não pode disparar fallback');
+  const cnaeReceitaWs = await consultar('22333444000192', { forcar:true, finalidade:'cnae_carteira' });
+  assert.equal(cnaeReceitaWs.cnae, '5611201');
+  assert.equal(cnaeReceitaWs.cnae_descricao, 'Restaurantes e similares');
+  assert.deepEqual(cnaeReceitaWs.cnaes_secundarios, [{ codigo:'4721103', descricao:'Comércio varejista de laticínios e frios' }]);
+  assert.equal(chamadas.length, 2, 'ReceitaWS só deve ser chamada após falha da BrasilAPI');
+  assert.equal(chamadas.some((url) => /infosimples/.test(url)), false);
   console.log('cnpj-receita-casa-dados: credencial e prioridade QSA: OK');
 })().finally(() => {
   global.fetch = fetchOriginal;
