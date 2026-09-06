@@ -1123,6 +1123,18 @@ router.get('/planejamento/analises/:id', (req, res) => {
   try { ok(res, planejamentoTributario.obter(Number(req.params.id))); }
   catch (e) { erro(res, e); }
 });
+router.post('/planejamento/analises/:id/cnaes', async (req, res) => {
+  try {
+    const estudo = planejamentoTributario.obter(Number(req.params.id));
+    const resultados = await Promise.all(estudo.empresas.map(async (empresa) => {
+      await garantirEmpresaPermitida(req, empresa.id);
+      const r = await cnpjReceita.consultar(empresa.cnpj || db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresa.id)?.cnpj, { finalidade: 'planejamento' });
+      return { empresa_id: empresa.id, empresa: empresa.razao_social, cnae: r.cnae || '', descricao: r.cnae_descricao || '', fonte: r.fonte || r.origem || '' };
+    }));
+    auditar(req, { empresaId: estudo.empresas[0]?.id || null, acao: 'planejamento_cnae_consultado', entidade: 'planejamento_analises', entidadeId: req.params.id, depois: { empresas: resultados.length } });
+    ok(res, { cnaes: resultados, natureza: 'CONSULTA_LEITURA_NAO_ALTERA_CADASTRO' });
+  } catch (e) { erro(res, e); }
+});
 router.post('/planejamento/analises/:id/premissas', (req, res) => {
   try { ok(res, { id: planejamentoTributario.adicionarPremissa(Number(req.params.id), req.body || {}, req.usuario?.id || null) }); }
   catch (e) { erro(res, e); }

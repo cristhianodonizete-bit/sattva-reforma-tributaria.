@@ -21,9 +21,27 @@ function empresasDaAnalise(analiseId) {
 
 function resumoEmpresa(empresaId) {
   const leitura = comparador.comparar(db, empresaId);
-  return { empresa: leitura.empresa, receita_analisada: leitura.receita_analisada, cenarios: leitura.cenarios,
+  const cadastro = db.prepare('SELECT cnpj,cnae,atividade FROM empresas WHERE id=?').get(empresaId) || {};
+  const receitas = db.prepare("SELECT competencia,receita_bruta,das FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY competencia").all(empresaId);
+  const folhas = db.prepare("SELECT competencia,valor_folha,pro_labore FROM folhas_pagamento_competencias WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY competencia").all(empresaId);
+  const anosPgdas = new Set(receitas.filter((x) => Number(x.das) > 0).map((x) => String(x.competencia).slice(0, 4)));
+  return { empresa: { ...leitura.empresa, cnpj: cadastro.cnpj || '', cnae: cadastro.cnae || '', atividade: cadastro.atividade || '' }, receita_analisada: leitura.receita_analisada, cenarios: leitura.cenarios,
+    coleta: { meses_receita: receitas.length, meses_folha: folhas.length, pgdas_2024: anosPgdas.has('2024'), pgdas_2025: anosPgdas.has('2025'),
+      projecao: receitas.length >= 24 ? 'SAZONAL_24_MESES' : 'LINEAR_COM_ALERTA' },
     pendencias: leitura.pendencias, status_comparacao: leitura.status_comparacao,
     origem: 'FOTOGRAFIA_LEITURA_MOTOR_E_CADASTROS' };
+}
+
+function necessidadesColeta(empresas) {
+  return empresas.map((e) => {
+    const simples = e.empresa.regime_atual === 'simples_nacional'; const c = e.coleta || {};
+    const itens = simples
+      ? [{ chave: 'pgdas_2024', titulo: 'PGDAS 2024', recebido: Boolean(c.pgdas_2024) }, { chave: 'pgdas_2025', titulo: 'PGDAS 2025', recebido: Boolean(c.pgdas_2025) }]
+      : [{ chave: 'faturamento_24_meses', titulo: 'Faturamento mensal dos últimos 24 meses', recebido: Number(c.meses_receita) >= 24 }];
+    itens.push({ chave: 'folha_12_meses', titulo: 'Folha e pró-labore dos últimos 12 meses', recebido: Number(c.meses_folha) >= 12 });
+    return { empresa_id: e.empresa.id, empresa: e.empresa.nome, regime: e.empresa.regime_atual, itens,
+      alerta: Number(c.meses_receita) >= 24 ? null : 'Projeção linear: histórico mensal insuficiente. Variações de faturamento podem alterar a análise e a recomendação de regime tributário.' };
+  });
 }
 
 function criar({ titulo, descricao, empresa_ids, periodo_base_inicio, periodo_base_fim, periodo_projecao_inicio, periodo_projecao_fim, responsavel_id, usuario_id }) {
@@ -53,7 +71,7 @@ function criarSnapshot(analiseId, usuarioId) {
   const dados = { tipo: 'PLANEJAMENTO_TRIBUTARIO', congelado_em: agora(), periodo: {
     base_inicio: analise.periodo_base_inicio, base_fim: analise.periodo_base_fim,
     projecao_inicio: analise.periodo_projecao_inicio, projecao_fim: analise.periodo_projecao_fim,
-  }, empresas, classificacao_origem: 'REAL|CALCULADO|SIMULADO|INDETERMINADO' };
+  }, empresas, necessidades_coleta: necessidadesColeta(empresas), classificacao_origem: 'REAL|CALCULADO|SIMULADO|INDETERMINADO' };
   const r = db.prepare('INSERT INTO planejamento_snapshots (analise_id,versao,dados_json,motor_versao) VALUES (?,?,?,?)')
     .run(analiseId, versao, JSON.stringify(dados), 'motor-operacional-adapter-v1');
   db.prepare("UPDATE planejamento_analises SET atualizado_em=datetime('now','localtime') WHERE id=?").run(analiseId);
@@ -102,7 +120,7 @@ function executar(analiseId, usuarioId) {
     db.prepare("UPDATE planejamento_analises SET status='EM_REVISAO',atualizado_em=datetime('now','localtime') WHERE id=?").run(analiseId);
     registrar(analiseId, 'scenario_calculated', usuarioId, { snapshot_id: snapshot.id, recomendacao });
   }); tx();
-  return { snapshot_id: snapshot.id, resultados, recomendacao };
+  return { snapshot_id: snapshot.id, resultados, recomendacao, consolidado_grupo: resultados.map((r) => ({ cenario: r.cenario, tributos_total: r.tributos_total, receita_total: r.receita_total, status: r.status, empresas: r.empresas.length })) };
 }
 
 function adicionarPremissa(analiseId, dados, usuarioId) {
