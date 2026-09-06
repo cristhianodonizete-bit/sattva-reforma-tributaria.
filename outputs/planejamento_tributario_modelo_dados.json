@@ -1,0 +1,5 @@
+{
+  "entidades_novas": ["planejamento_analises", "planejamento_analise_empresas", "planejamento_snapshots", "planejamento_premissas", "planejamento_resultados", "planejamento_eventos"],
+  "governanca": {"snapshot_versionado": true, "eventos_append_only": true, "premissa_com_origem": ["REAL", "PROJETADO", "PREMISSA_MANUAL"], "resultado_persistido": true},
+  "seguranca": "RLS habilitada no Supabase; backend aplica RBAC e acesso às empresas existente"
+}

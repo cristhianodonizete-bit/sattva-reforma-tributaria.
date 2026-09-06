@@ -1129,4 +1129,38 @@ Telas.calculadora = async (el) => {
   }
   calcular().catch(() => {});
 };
+// ===========================================================================
+// PLANEJAMENTO TRIBUTÁRIO — estudos isolados, sem alteração do cadastro/motor.
+// ===========================================================================
+Telas.planejamento = async (el) => {
+  const listar = async () => A.api('/planejamento/analises');
+  const abrir = async (id) => A.api(`/planejamento/analises/${id}`);
+  const render = async () => {
+    const dados = await listar(); const analises = dados.analises || [];
+    const atualId = Number(S.cache.planejamentoAnaliseId) || Number(analises[0]?.id) || null;
+    const detalhe = atualId ? await abrir(atualId) : null;
+    const resultado = (detalhe?.resultados || []).map((x) => x.resultado || x);
+    const recomendado = resultado.find((x) => x.status === 'COMPLETO' && x.cenario !== 'baseline') || null;
+    el.innerHTML = cab('PLANEJAMENTO TRIBUTÁRIO', 'Decisão de regime com fotografia e governança', 'Estudos isolados: não alteram documentos, regime cadastrado, apuração nem motor operacional.', '<button class="btn" id="novaAnalisePlanejamento">Nova análise</button>') +
+      `<div class="grade g4">${A.kpi('Análises', analises.length, 'estudos versionados')}${A.kpi('Em revisão', analises.filter((x) => x.status === 'EM_REVISAO').length, 'aguardam decisão')}${A.kpi('Aprovadas', analises.filter((x) => x.status === 'APROVADA').length, 'decisão registrada')}${A.kpi('Empresas analisadas', analises.reduce((s,x)=>s+Number(x.empresas||0),0), 'sem cadastro paralelo')}</div>` +
+      `<div class="grade g2" style="margin-top:16px"><section class="cartao"><h2>Análises</h2>${A.tabela([{t:'Estudo',r:x=>`<button class="link-tabela" data-abrir-planejamento="${x.id}">${A.esc(x.titulo)}</button><br><span class="mini">${Number(x.empresas||0)} empresa(s) · v${x.versao}</span>`},{t:'Status',r:x=>`<span class="tag ${x.status==='APROVADA'?'c':x.status==='EM_REVISAO'?'b':'n'}">${A.esc(x.status.replace('_',' '))}</span>`},{t:'Atualização',r:x=>A.esc(x.atualizado_em||'—')}],analises,{vazio:'Nenhum estudo criado. Inicie selecionando uma ou mais empresas.'})}</section>` +
+      `<section class="cartao"><h2>${detalhe ? A.esc(detalhe.analise.titulo) : 'Detalhe da análise'}</h2>${detalhe ? detalhePlanejamento(detalhe, resultado, recomendado) : A.vazio('Selecione ou crie uma análise', 'A fotografia será congelada antes da comparação.', '')}</section></div>`;
+    el.querySelector('#novaAnalisePlanejamento').onclick = () => {
+      const empresas = S.empresas || [];
+      A.modal({ titulo:'Nova análise tributária', descricao:'A fotografia dos dados será congelada. Premissas não sobrescrevem dados reais.', largura:760,
+        corpo:`${A.campo('titulo','Título','Planejamento tributário')}<div class="grade g2">${A.campo('periodo_base_inicio','Período-base inicial','','month')}${A.campo('periodo_base_fim','Período-base final','','month')}${A.campo('periodo_projecao_inicio','Projeção inicial','','month')}${A.campo('periodo_projecao_fim','Projeção final','','month')}</div>${A.area('descricao','Objetivo / observação','',2)}<label class="campo"><span>Empresas da análise</span><div class="check-list">${empresas.map((x,i)=>`<label><input type="checkbox" name="empresa_${x.id}" ${i===0?'checked':''}> ${A.esc(x.razao_social)}</label>`).join('')}</div></label>`,
+        confirmar:'Criar e congelar fotografia', aoConfirmar:async(form,fundo)=>{ const empresa_ids=empresas.filter((x)=>fundo.querySelector(`[name="empresa_${x.id}"]`)?.checked).map((x)=>x.id); const r=await A.api('/planejamento/analises',{metodo:'POST',corpo:{...form,empresa_ids}}); S.cache.planejamentoAnaliseId=r.analise.id; A.toast('Análise criada com fotografia congelada.', 'ok'); await render(); } });
+    };
+    el.querySelectorAll('[data-abrir-planejamento]').forEach((b)=>b.onclick=async()=>{S.cache.planejamentoAnaliseId=Number(b.dataset.abrirPlanejamento); await render();});
+    el.querySelector('[data-executar-planejamento]')?.addEventListener('click', async()=>{ await A.api(`/planejamento/analises/${atualId}/executar`,{metodo:'POST',corpo:{}}); A.toast('Cenários executados sobre a fotografia congelada.', 'ok'); await render(); });
+    el.querySelector('[data-aprovar-planejamento]')?.addEventListener('click', ()=>A.modal({titulo:'Aprovar recomendação',descricao:'A aprovação registra uma decisão de planejamento; ela não altera o regime da empresa.',corpo:A.area('observacao','Observação da aprovação','',2),confirmar:'Aprovar',aoConfirmar:async(f)=>{await A.api(`/planejamento/analises/${atualId}/aprovar`,{metodo:'POST',corpo:f}); A.toast('Decisão aprovada e registrada.', 'ok'); await render();}}));
+    el.querySelector('[data-premissa-planejamento]')?.addEventListener('click', ()=>A.modal({titulo:'Adicionar premissa',descricao:'A premissa fica identificada e não substitui silenciosamente o dado observado.',corpo:`<div class="grade g2">${A.campo('campo','Campo','')}${A.campo('valor','Valor','')}${A.selecao('tipo','Tipo',[{v:'FINANCEIRA',t:'Financeira'},{v:'OPERACIONAL',t:'Operacional'},{v:'CRESCIMENTO',t:'Crescimento'},{v:'MARGEM',t:'Margem'},{v:'FOLHA',t:'Folha'},{v:'COMPRAS',t:'Compras'}],'OPERACIONAL')}${A.selecao('origem','Origem',[{v:'PREMISSA_MANUAL',t:'Premissa manual'},{v:'PROJETADO',t:'Projetado'},{v:'REAL',t:'Real'}],'PREMISSA_MANUAL')}</div>${A.area('justificativa','Justificativa','',2)}`,confirmar:'Registrar',aoConfirmar:async(f)=>{await A.api(`/planejamento/analises/${atualId}/premissas`,{metodo:'POST',corpo:f}); A.toast('Premissa registrada na trilha de auditoria.', 'ok'); await render();}}));
+  };
+  await render();
+};
+function detalhePlanejamento(d, resultados, recomendado) {
+  const a=d.analise, empresas=d.empresas||[], snap=d.snapshot;
+  const linhas=resultados.map((x)=>({cenario:x.cenario,status:x.status,confianca:x.confianca,tributos:x.tributos_total,carga:x.carga_efetiva_percentual,economia:x.economia_vs_baseline,pendencias:(x.pendencias||[]).length}));
+  return `<p class="mini">${empresas.map((x)=>A.esc(x.razao_social)).join(' · ')}</p><div class="grade g3">${A.kpi('Fotografia',snap?`v${snap.versao}`:'PENDENTE',snap?'dados congelados':'não disponível')}${A.kpi('Decisão',A.esc(a.status),'não altera cadastro')}${A.kpi('Recomendação',recomendado?A.esc(recomendado.cenario):'VALIDAÇÃO NECESSÁRIA',recomendado?'cenário completo':'dados insuficientes')}</div><div class="acoes-topo" style="margin-top:14px"><button class="btn" data-executar-planejamento>Executar cenários</button><button class="btn vazio" data-premissa-planejamento>Premissa</button>${a.status==='EM_REVISAO'?'<button class="btn ouro" data-aprovar-planejamento>Aprovar decisão</button>':''}</div>${linhas.length?A.tabela([{t:'Cenário',r:x=>A.esc(x.cenario.replaceAll('_',' '))},{t:'Tributos',num:true,r:x=>x.tributos===null?'INDICATIVO':A.moeda(x.tributos)},{t:'Carga efetiva',num:true,r:x=>x.carga===null?'—':A.pct(x.carga)},{t:'Δ baseline',num:true,r:x=>x.economia===null?'—':A.moeda(x.economia)},{t:'Confiança',r:x=>`<span class="tag ${x.confianca==='ALTA'?'c':x.confianca==='MEDIA'?'b':'n'}">${A.esc(x.confianca)}</span>`},{t:'Pendências',r:x=>String(x.pendencias)}],linhas):'<div class="aviso">Execute a análise para comparar Baseline, Simples, Híbrido, Presumido e Real.</div>'}<h3 style="margin-top:16px">Premissas e histórico</h3><p class="mini">${(d.premissas||[]).length} premissa(s) · ${(d.eventos||[]).length} evento(s) auditável(is). Dados reais, projetados e manuais permanecem identificados.</p>`;
+}
 })();

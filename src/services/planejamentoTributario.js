@@ -1,0 +1,138 @@
+/* Planejamento Tributário: governança da simulação, sem escrever no motor operacional. */
+const db = require('../db');
+const comparador = require('./comparadorRegimes');
+
+const CENARIOS = ['baseline', 'simples_nacional', 'simples_regime_regular', 'lucro_presumido', 'lucro_real'];
+const agora = () => new Date().toISOString();
+const texto = (v) => String(v || '').trim();
+const json = (v, padrao = null) => { try { return JSON.parse(v); } catch (_) { return padrao; } };
+const moeda = (v) => Math.round((Number(v) || 0) * 100) / 100;
+
+function registrar(analiseId, acao, usuarioId, dados = {}) {
+  db.prepare('INSERT INTO planejamento_eventos (analise_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)')
+    .run(analiseId, acao, usuarioId || null, JSON.stringify(dados));
+}
+
+function empresasDaAnalise(analiseId) {
+  return db.prepare(`SELECT e.id,e.razao_social,e.regime,p.incluida_consolidado,p.ordem
+    FROM planejamento_analise_empresas p JOIN empresas e ON e.id=p.empresa_id
+    WHERE p.analise_id=? ORDER BY p.ordem,e.razao_social`).all(analiseId);
+}
+
+function resumoEmpresa(empresaId) {
+  const leitura = comparador.comparar(db, empresaId);
+  return { empresa: leitura.empresa, receita_analisada: leitura.receita_analisada, cenarios: leitura.cenarios,
+    pendencias: leitura.pendencias, status_comparacao: leitura.status_comparacao,
+    origem: 'FOTOGRAFIA_LEITURA_MOTOR_E_CADASTROS' };
+}
+
+function criar({ titulo, descricao, empresa_ids, periodo_base_inicio, periodo_base_fim, periodo_projecao_inicio, periodo_projecao_fim, responsavel_id, usuario_id }) {
+  const ids = [...new Set((empresa_ids || []).map(Number).filter(Boolean))];
+  if (!texto(titulo)) throw new Error('Informe o título da análise.');
+  if (!ids.length) throw new Error('Selecione ao menos uma empresa.');
+  const existentes = db.prepare(`SELECT id FROM empresas WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids);
+  if (existentes.length !== ids.length) throw new Error('Há empresa inválida na análise.');
+  const tx = db.transaction(() => {
+    const r = db.prepare(`INSERT INTO planejamento_analises (titulo,descricao,periodo_base_inicio,periodo_base_fim,periodo_projecao_inicio,periodo_projecao_fim,responsavel_id,criado_por)
+      VALUES (?,?,?,?,?,?,?,?)`).run(texto(titulo), texto(descricao), texto(periodo_base_inicio) || null, texto(periodo_base_fim) || null,
+      texto(periodo_projecao_inicio) || null, texto(periodo_projecao_fim) || null, responsavel_id || usuario_id || null, usuario_id || null);
+    const analiseId = Number(r.lastInsertRowid);
+    const ins = db.prepare('INSERT INTO planejamento_analise_empresas (analise_id,empresa_id,incluida_consolidado,ordem) VALUES (?,?,1,?)');
+    ids.forEach((id, ordem) => ins.run(analiseId, id, ordem));
+    registrar(analiseId, 'analysis_created', usuario_id, { empresas: ids });
+    return analiseId;
+  });
+  const id = tx(); criarSnapshot(id, usuario_id); return obter(id);
+}
+
+function criarSnapshot(analiseId, usuarioId) {
+  const analise = db.prepare('SELECT * FROM planejamento_analises WHERE id=?').get(analiseId);
+  if (!analise) throw new Error('Análise não encontrada.');
+  const empresas = empresasDaAnalise(analiseId).map((e) => resumoEmpresa(e.id));
+  const versao = Number(db.prepare('SELECT COALESCE(MAX(versao),0)+1 proxima FROM planejamento_snapshots WHERE analise_id=?').get(analiseId).proxima);
+  const dados = { tipo: 'PLANEJAMENTO_TRIBUTARIO', congelado_em: agora(), periodo: {
+    base_inicio: analise.periodo_base_inicio, base_fim: analise.periodo_base_fim,
+    projecao_inicio: analise.periodo_projecao_inicio, projecao_fim: analise.periodo_projecao_fim,
+  }, empresas, classificacao_origem: 'REAL|CALCULADO|SIMULADO|INDETERMINADO' };
+  const r = db.prepare('INSERT INTO planejamento_snapshots (analise_id,versao,dados_json,motor_versao) VALUES (?,?,?,?)')
+    .run(analiseId, versao, JSON.stringify(dados), 'motor-operacional-adapter-v1');
+  db.prepare("UPDATE planejamento_analises SET atualizado_em=datetime('now','localtime') WHERE id=?").run(analiseId);
+  registrar(analiseId, 'snapshot_created', usuarioId, { snapshot_id: Number(r.lastInsertRowid), versao });
+  return Number(r.lastInsertRowid);
+}
+
+function nivelConfianca(linhas) {
+  const completos = linhas.filter((x) => x.status === 'COMPLETO').length;
+  if (completos === linhas.length && completos > 0) return 'ALTA';
+  if (completos > 0) return 'MEDIA';
+  return 'BAIXA';
+}
+
+function executar(analiseId, usuarioId) {
+  const snapshot = db.prepare('SELECT * FROM planejamento_snapshots WHERE analise_id=? ORDER BY versao DESC LIMIT 1').get(analiseId);
+  if (!snapshot) throw new Error('A análise não possui fotografia.');
+  const dados = json(snapshot.dados_json, {});
+  const resultados = CENARIOS.map((cenario) => {
+    const chave = cenario === 'baseline' ? null : cenario;
+    const empresas = (dados.empresas || []).map((x) => {
+      const item = chave ? x.cenarios.find((c) => c.chave === chave) : x.cenarios.find((c) => c.chave === x.empresa.regime_atual);
+      return { empresa: x.empresa, resultado: item || { status: 'INDETERMINADO', tributos_estimados: null, pendencias: ['Regime atual sem cenário correspondente.'] } };
+    });
+    const pendencias = empresas.flatMap((x) => x.resultado.pendencias || []);
+    const invalidos = empresas.filter((x) => x.resultado.status !== 'COMPLETO' || x.resultado.tributos_estimados === null);
+    const tributos = invalidos.length ? null : moeda(empresas.reduce((s, x) => s + Number(x.resultado.tributos_estimados || 0), 0));
+    const receita = moeda((dados.empresas || []).reduce((s, x) => s + Number(x.receita_analisada || 0), 0));
+    return { cenario, status: invalidos.length ? (empresas.some((x) => x.resultado.status === 'PARCIAL') ? 'INDICATIVO' : 'DADOS_INSUFICIENTES') : 'COMPLETO',
+      confianca: nivelConfianca(empresas.map((x) => x.resultado)), receita_total: receita, tributos_total: tributos,
+      carga_efetiva_percentual: tributos !== null && receita > 0 ? tributos / receita : null,
+      resultado_apos_tributos: tributos !== null ? moeda(receita - tributos) : null,
+      empresas, pendencias: [...new Set(pendencias)] };
+  });
+  const baseline = resultados.find((x) => x.cenario === 'baseline');
+  const completos = resultados.filter((x) => x.cenario !== 'baseline' && x.status === 'COMPLETO' && x.tributos_total !== null);
+  const vencedor = completos.length ? completos.reduce((a, b) => a.tributos_total <= b.tributos_total ? a : b) : null;
+  for (const r of resultados) r.economia_vs_baseline = baseline?.tributos_total !== null && r.tributos_total !== null ? moeda(baseline.tributos_total - r.tributos_total) : null;
+  const recomendacao = vencedor && vencedor.confianca !== 'BAIXA' ? { status: 'CENARIO_RECOMENDADO', cenario: vencedor.cenario,
+    justificativa: 'Menor carga entre cenários completos e elegíveis na fotografia congelada.', confianca: vencedor.confianca } :
+    { status: 'CENARIO_INDICATIVO_REQUER_VALIDACAO', cenario: null, justificativa: 'Não há comparação completa suficiente para decisão automática.', confianca: 'BAIXA' };
+  const tx = db.transaction(() => {
+    const upsert = db.prepare(`INSERT INTO planejamento_resultados (analise_id,snapshot_id,cenario,status,confianca,resultado_json)
+      VALUES (?,?,?,?,?,?) ON CONFLICT(analise_id,snapshot_id,cenario) DO UPDATE SET status=excluded.status,confianca=excluded.confianca,resultado_json=excluded.resultado_json,calculado_em=datetime('now','localtime')`);
+    resultados.forEach((r) => upsert.run(analiseId, snapshot.id, r.cenario, r.status, r.confianca, JSON.stringify(r)));
+    db.prepare("UPDATE planejamento_analises SET status='EM_REVISAO',atualizado_em=datetime('now','localtime') WHERE id=?").run(analiseId);
+    registrar(analiseId, 'scenario_calculated', usuarioId, { snapshot_id: snapshot.id, recomendacao });
+  }); tx();
+  return { snapshot_id: snapshot.id, resultados, recomendacao };
+}
+
+function adicionarPremissa(analiseId, dados, usuarioId) {
+  if (!texto(dados.campo) || dados.valor === undefined) throw new Error('Informe campo e valor da premissa.');
+  const origem = ['REAL', 'PROJETADO', 'PREMISSA_MANUAL'].includes(dados.origem) ? dados.origem : 'PREMISSA_MANUAL';
+  const r = db.prepare(`INSERT INTO planejamento_premissas (analise_id,cenario,escopo,campo,valor,tipo,origem,justificativa,responsavel_id)
+    VALUES (?,?,?,?,?,?,?,?,?)`).run(analiseId, texto(dados.cenario) || null, texto(dados.escopo) || 'ANALISE', texto(dados.campo), String(dados.valor), texto(dados.tipo) || 'OPERACIONAL', origem, texto(dados.justificativa) || null, usuarioId || null);
+  registrar(analiseId, 'premise_changed', usuarioId, { premissa_id: Number(r.lastInsertRowid), campo: dados.campo, origem });
+  return Number(r.lastInsertRowid);
+}
+
+function aprovar(analiseId, observacao, usuarioId) {
+  const r = db.prepare("UPDATE planejamento_analises SET status='APROVADA',atualizado_em=datetime('now','localtime') WHERE id=? AND status='EM_REVISAO'").run(analiseId);
+  if (!r.changes) throw new Error('Execute a análise antes de aprová-la.');
+  registrar(analiseId, 'approved', usuarioId, { observacao: texto(observacao) || null });
+}
+
+function listar() {
+  return db.prepare(`SELECT a.*, COUNT(DISTINCT ae.empresa_id) empresas,
+    (SELECT resultado_json FROM planejamento_resultados r WHERE r.analise_id=a.id ORDER BY r.calculado_em DESC LIMIT 1) ultimo_resultado
+    FROM planejamento_analises a LEFT JOIN planejamento_analise_empresas ae ON ae.analise_id=a.id
+    GROUP BY a.id ORDER BY a.atualizado_em DESC`).all().map((x) => ({ ...x, ultimo_resultado: json(x.ultimo_resultado) }));
+}
+function obter(analiseId) {
+  const analise = db.prepare('SELECT * FROM planejamento_analises WHERE id=?').get(analiseId);
+  if (!analise) throw new Error('Análise não encontrada.');
+  const snapshot = db.prepare('SELECT id,versao,dados_json,motor_versao,criado_em FROM planejamento_snapshots WHERE analise_id=? ORDER BY versao DESC LIMIT 1').get(analiseId);
+  return { analise, empresas: empresasDaAnalise(analiseId), snapshot: snapshot ? { ...snapshot, dados: json(snapshot.dados_json) } : null,
+    premissas: db.prepare('SELECT * FROM planejamento_premissas WHERE analise_id=? ORDER BY id DESC').all(analiseId),
+    resultados: snapshot ? db.prepare('SELECT * FROM planejamento_resultados WHERE analise_id=? AND snapshot_id=? ORDER BY id').all(analiseId, snapshot.id).map((r) => ({ ...r, resultado: json(r.resultado_json) })) : [],
+    eventos: db.prepare('SELECT * FROM planejamento_eventos WHERE analise_id=? ORDER BY id DESC LIMIT 100').all(analiseId).map((r) => ({ ...r, dados: json(r.dados_json, {}) })), };
+}
+module.exports = { CENARIOS, criar, criarSnapshot, executar, adicionarPremissa, aprovar, listar, obter };

@@ -1731,6 +1731,49 @@ CREATE TABLE IF NOT EXISTS questor_log (
   status TEXT, mensagem TEXT, registros INTEGER DEFAULT 0,
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
+
+-- ============ PLANEJAMENTO TRIBUTÁRIO ============
+-- Estudos isolados: nunca alteram a empresa, movimentos ou o motor oficial.
+CREATE TABLE IF NOT EXISTS planejamento_analises (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  titulo TEXT NOT NULL, descricao TEXT,
+  periodo_base_inicio TEXT, periodo_base_fim TEXT,
+  periodo_projecao_inicio TEXT, periodo_projecao_fim TEXT,
+  responsavel_id TEXT, criado_por TEXT,
+  status TEXT NOT NULL DEFAULT 'RASCUNHO', versao INTEGER NOT NULL DEFAULT 1,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS planejamento_analise_empresas (
+  analise_id INTEGER NOT NULL REFERENCES planejamento_analises(id) ON DELETE CASCADE,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE RESTRICT,
+  incluida_consolidado INTEGER NOT NULL DEFAULT 1, ordem INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (analise_id, empresa_id)
+);
+CREATE TABLE IF NOT EXISTS planejamento_snapshots (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, analise_id INTEGER NOT NULL REFERENCES planejamento_analises(id) ON DELETE CASCADE,
+  versao INTEGER NOT NULL, dados_json TEXT NOT NULL, motor_versao TEXT, criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE(analise_id, versao)
+);
+CREATE TABLE IF NOT EXISTS planejamento_premissas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, analise_id INTEGER NOT NULL REFERENCES planejamento_analises(id) ON DELETE CASCADE,
+  cenario TEXT, escopo TEXT NOT NULL DEFAULT 'ANALISE', campo TEXT NOT NULL, valor TEXT, tipo TEXT NOT NULL DEFAULT 'OPERACIONAL',
+  origem TEXT NOT NULL DEFAULT 'PREMISSA_MANUAL', justificativa TEXT, responsavel_id TEXT, criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS planejamento_resultados (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, analise_id INTEGER NOT NULL REFERENCES planejamento_analises(id) ON DELETE CASCADE,
+  snapshot_id INTEGER NOT NULL REFERENCES planejamento_snapshots(id) ON DELETE RESTRICT,
+  cenario TEXT NOT NULL, status TEXT NOT NULL, confianca TEXT NOT NULL,
+  resultado_json TEXT NOT NULL, calculado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE(analise_id, snapshot_id, cenario)
+);
+CREATE TABLE IF NOT EXISTS planejamento_eventos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, analise_id INTEGER NOT NULL REFERENCES planejamento_analises(id) ON DELETE CASCADE,
+  acao TEXT NOT NULL, usuario_id TEXT, dados_json TEXT, criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_planejamento_analises_status ON planejamento_analises(status, atualizado_em DESC);
+CREATE INDEX IF NOT EXISTS ix_planejamento_empresas_empresa ON planejamento_analise_empresas(empresa_id, analise_id);
+CREATE INDEX IF NOT EXISTS ix_planejamento_resultados_analise ON planejamento_resultados(analise_id, snapshot_id);
 `);
 
 // --------------------------------------------------------------------------

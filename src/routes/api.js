@@ -59,6 +59,7 @@ const revisaoBeneficiosFiscais = require('../services/revisaoBeneficiosFiscais')
 const performanceTelemetry = require('../services/performanceTelemetry');
 const identidadeProduto = require('../services/identidadeProduto');
 const cadastroFiscalComplementar = require('../services/cadastroFiscalComplementar');
+const planejamentoTributario = require('../services/planejamentoTributario');
 const autenticacao = require('../services/autenticacao');
 
 const router = express.Router();
@@ -341,6 +342,7 @@ const chaveAcessoApi = (caminho, metodo) => {
   if (/^\/(contratacoes|projeto|servicos|combos|gestao)/.test(caminho)) return 'gestao_projetos';
   if (/^\/(config|regras|questor|conhecimento|rag|ia|documentacao-uso)/.test(caminho)) return 'configuracoes';
   if (/^\/precificacao/.test(caminho)) return 'precificacao';
+  if (/^\/planejamento/.test(caminho)) return 'gestao_projetos';
   if (/^\/contratos/.test(caminho)) return 'contratos';
   if (/^\/capacitacao/.test(caminho)) return 'capacitacao';
   if (/^\/(lotes|movimentos|motor|cenarios|bases|perfil|fornecedores|clientes|import)/.test(caminho)) return 'diagnostico';
@@ -1100,6 +1102,37 @@ router.get('/empresas/:id/comparador-regimes', async (req, res) => {
     if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarParametrosIrpjCsll();
     ok(res, comparadorRegimes.comparar(db, Number(req.params.id)));
   }
+  catch (e) { erro(res, e); }
+});
+
+// PLANEJAMENTO TRIBUTÁRIO — estudo versionado; consome somente leituras do motor.
+router.get('/planejamento/analises', async (req, res) => {
+  try { ok(res, { analises: planejamentoTributario.listar() }); }
+  catch (e) { erro(res, e); }
+});
+router.post('/planejamento/analises', async (req, res) => {
+  try {
+    const ids = req.body?.empresa_ids || [];
+    for (const id of ids) await garantirEmpresaPermitida(req, id);
+    const estudo = planejamentoTributario.criar({ ...req.body, usuario_id: req.usuario?.id || null });
+    auditar(req, { empresaId: Number(ids[0]) || null, acao: 'planejamento_analysis_created', entidade: 'planejamento_analises', entidadeId: estudo.analise.id, depois: { empresas: ids } });
+    ok(res, estudo);
+  } catch (e) { erro(res, e); }
+});
+router.get('/planejamento/analises/:id', (req, res) => {
+  try { ok(res, planejamentoTributario.obter(Number(req.params.id))); }
+  catch (e) { erro(res, e); }
+});
+router.post('/planejamento/analises/:id/premissas', (req, res) => {
+  try { ok(res, { id: planejamentoTributario.adicionarPremissa(Number(req.params.id), req.body || {}, req.usuario?.id || null) }); }
+  catch (e) { erro(res, e); }
+});
+router.post('/planejamento/analises/:id/executar', (req, res) => {
+  try { ok(res, planejamentoTributario.executar(Number(req.params.id), req.usuario?.id || null)); }
+  catch (e) { erro(res, e); }
+});
+router.post('/planejamento/analises/:id/aprovar', (req, res) => {
+  try { planejamentoTributario.aprovar(Number(req.params.id), req.body?.observacao, req.usuario?.id || null); ok(res, planejamentoTributario.obter(Number(req.params.id))); }
   catch (e) { erro(res, e); }
 });
 

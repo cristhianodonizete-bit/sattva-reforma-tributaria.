@@ -171,6 +171,9 @@ const App = (() => {
       { id: 'painel', t: 'Painel do projeto', i: '◈' },
       { id: 'dashboardOperacao', t: 'Acompanhamento geral', i: '◷' },
     ] },
+    { id: 'planejamento', titulo: 'Planejamento tributário', itens: [
+      { id: 'planejamento', t: 'Análises e regimes', i: '◫' },
+    ] },
     { id: 'dados', titulo: 'Central de Dados', itens: [
       { tipo: 'titulo', t: 'Importações' },
       { id: 'dados', t: 'Documentos fiscais', i: '⇧', centralGrupo: 'documentos' },
@@ -218,6 +221,7 @@ const App = (() => {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
     dados: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
+    planejamento: 'gestao_projetos',
     servicos: 'gestao_projetos', gestaoProjetos: 'gestao_projetos', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', conhecimento: 'configuracoes', documentacaoSistema: 'configuracoes', configuracoes: 'configuracoes', questor: 'configuracoes', acessos: 'acessos',
   };
   const pode = (tela, acao = 'ver') => {
@@ -282,7 +286,7 @@ const App = (() => {
       const tarefasDaTela = TAREFAS_POR_TELA[tela];
       const fn = tarefasDaTela ? ((host) => telaTarefasModulo(host, ...tarefasDaTela)) : Telas[tela];
       if (!fn) { alvo.innerHTML = vazio('Tela não encontrada', 'Escolha uma opção no menu.'); return; }
-      const semEmpresa = ['empresas', 'dashboardOperacao', 'servicos', 'gestaoProjetos', 'configComercial', 'cadastrosCnpj', 'conhecimento', 'documentacaoSistema', 'questor', 'bases', 'configuracoes', 'acessos'];
+      const semEmpresa = ['empresas', 'dashboardOperacao', 'planejamento', 'servicos', 'gestaoProjetos', 'configComercial', 'cadastrosCnpj', 'conhecimento', 'documentacaoSistema', 'questor', 'bases', 'configuracoes', 'acessos'];
       if (!semEmpresa.includes(tela) && !S.empresaId) {
         alvo.innerHTML = vazio('Selecione uma empresa', 'Este módulo trabalha sobre os dados de uma empresa. Cadastre ou selecione uma no topo do menu.',
           '<button class="btn" onclick="App.ir(\'empresas\')">Ir para empresas</button>');

@@ -1,0 +1,7 @@
+{
+  "status": "MVP_IMPLEMENTADO",
+  "cenarios": ["baseline", "simples_nacional", "simples_regime_regular", "lucro_presumido", "lucro_real"],
+  "limitacao_real": "Cenários sem componentes fiscais comprovados retornam INDICATIVO ou DADOS_INSUFICIENTES; o sistema não cria cálculo fictício.",
+  "producao_tributaria_alterada": false,
+  "migration_producao_aplicada": false
+}

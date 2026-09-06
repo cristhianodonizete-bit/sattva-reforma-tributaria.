@@ -1,0 +1,7 @@
+{
+  "modulo": "Planejamento Tributário",
+  "principio": "simulação isolada que consome leituras do motor fiscal existente",
+  "nao_altera": ["empresas.regime", "movimentos", "motor_resultados", "regras fiscais", "apuração oficial"],
+  "fluxo": ["análise", "fotografia", "premissas identificadas", "cenários", "comparativo", "revisão humana", "aprovação"],
+  "reuso": ["autenticação", "RBAC existente", "empresas", "comparadorRegimes", "motorExec em sombra", "perfil CBS", "catálogos"]
+}
