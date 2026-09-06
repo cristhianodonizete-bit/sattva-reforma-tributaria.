@@ -646,7 +646,9 @@ Telas.dados = async (el) => {
 // ===========================================================================
 // 1.a PERFIL TRIBUTÁRIO
 // ===========================================================================
-Telas.perfil = async (el) => {
+// Mantida temporariamente apenas como referência do leiaute anterior.
+// A tela ativa abaixo é deliberadamente limitada ao retrato PIS/Cofins atual.
+Telas.perfilLegado = async (el) => {
   const [dados, tributario, comparador, apuracoesResposta] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/perfil-cbs`),
     A.api(`/empresas/${S.empresaId}/perfil-tributario-historico`),
@@ -712,6 +714,85 @@ Telas.perfil = async (el) => {
   el.querySelectorAll('[data-apuracao-revisar]').forEach((b) => { b.onclick = () => { const a = apuracoes.find((x) => Number(x.id) === Number(b.dataset.apuracaoRevisar)); if (a) A.modal({ titulo: `Revisar — ${a.nome_original}`, largura: 1200, corpo: tabelaCamposApuracao(a.campos_extraidos) }); }; });
   el.querySelectorAll('[data-apuracao-confirmar]').forEach((b) => { b.onclick = () => A.confirmar('Confirmar os valores identificados? Campos sem valor continuarão indeterminados.', async () => { await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins/${b.dataset.apuracaoConfirmar}/confirmar`, { metodo: 'POST', corpo: {} }); A.toast('Revisão confirmada pelo usuário.', 'ok'); A.ir('perfil'); }); });
   el.querySelectorAll('[data-cbs-detalhe]').forEach((b) => { b.onclick = async () => { const d = await A.api(`/empresas/${S.empresaId}/perfil-cbs/${encodeURIComponent(b.dataset.cbsDetalhe)}/detalhes`); A.modal({ titulo: `Memória CBS — ${b.dataset.cbsDetalhe}`, largura: 1100, corpo: A.tabela([{t:'Documento',r:x=>A.esc(x.documento||x.chave||'—')},{t:'Item / parceiro',r:x=>`${A.esc(x.descricao||'—')}<br><span class="mini">${A.esc(x.nome||'—')}</span>`},{t:'NCM/NBS',r:x=>A.esc(x.ncm||x.nbs||'—')},{t:'CST / cClassTrib',r:x=>`${A.esc(x.cst||'—')} / ${A.esc(x.cclasstrib||'—')}`},{t:'Tratamento',r:x=>A.esc(x.tratamento||'—')},{t:'Base',num:true,r:x=>A.moeda(x.base_economica)},{t:'CBS',num:true,r:x=>A.moeda(x.cbs)},{t:'Crédito CBS',num:true,r:x=>A.moeda(x.credito_cbs)},{t:'Crédito',r:x=>A.esc(x.status_credito||'—')},{t:'Natureza',r:x=>A.esc(x.natureza||'—')}],d.operacoes||[]) }); }; });
+};
+
+// Perfil Tributário: retrato histórico da apuração atual. CBS, cadeias,
+// cenários, margem e regimes comparados pertencem às telas próprias.
+Telas.perfil = async (el) => {
+  const [tributario, respostaApuracoes] = await Promise.all([
+    A.api(`/empresas/${S.empresaId}/perfil-tributario-historico`),
+    A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`),
+  ]);
+  const historico = tributario.historico || [];
+  const apuracoes = respostaApuracoes.apuracoes || [];
+  const numero = (v) => v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
+  const somar = (valores) => valores.reduce((total, valor) => total + (numero(valor) || 0), 0);
+  const informado = (valores) => valores.some((valor) => numero(valor) !== null);
+  const valorDaApuracao = (linha, campo, campoPerfil) => {
+    const extraido = linha.apuracao_pis_cofins_historica?.[campo]?.valor;
+    return numero(extraido) ?? numero(linha[campoPerfil]?.valor);
+  };
+  const receitas = historico.map((x) => x.receita?.valor);
+  const valoresPis = historico.map((x) => valorDaApuracao(x, 'pis_recolhido', 'pis_historico'));
+  const valoresCofins = historico.map((x) => valorDaApuracao(x, 'cofins_recolhida', 'cofins_historico'));
+  const receitaTotal = somar(receitas);
+  const pisTotal = somar(valoresPis);
+  const cofinsTotal = somar(valoresCofins);
+  const cargaTotal = pisTotal + cofinsTotal;
+  const aliquotaEfetiva = receitaTotal > 0 && (informado(valoresPis) || informado(valoresCofins)) ? cargaTotal / receitaTotal : null;
+  const origem = apuracoes.some((x) => x.status_validacao === 'VALIDADO_USUARIO') ? 'apuração confirmada pelo usuário'
+    : apuracoes.length ? 'relatório de PIS/Cofins importado' : historico.length ? 'perfil histórico importado' : 'sem fonte de apuração';
+  const tratamentoSemDetalhe = 'Não discriminado pela fonte importada';
+  const moedaOuIndeterminado = (valor) => valor === null || valor === undefined ? 'INDETERMINADO' : A.moeda(valor);
+
+  el.innerHTML = cab('Módulo 1.a · diagnóstico', 'Perfil Tributário',
+    'Raio-X da apuração atual de PIS/Cofins. Esta tela não projeta CBS, não analisa cadeias e não apresenta cenários.',
+    '<button class="btn vazio" id="centralDadosPerfil">Central de Dados</button>') +
+    `<div class="cartao"><div class="cabecalho-lista"><div><h2>Resumo da apuração atual</h2><p class="desc">Valores efetivamente importados. A alíquota efetiva final é PIS/Cofins apurados ÷ receita analisada.</p></div><span class="tag">${A.esc(origem)}</span></div>
+      <div class="grade g4">
+        ${A.kpi('Períodos analisados', historico.length, historico.length ? 'dados históricos disponíveis' : 'nenhum período disponível')}
+        ${A.kpi('Receita analisada', receitaTotal ? A.moeda(receitaTotal) : 'INDETERMINADO', 'base dos documentos/importações')}
+        ${A.kpi('PIS apurado', informado(valoresPis) ? A.moeda(pisTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
+        ${A.kpi('Cofins apurada', informado(valoresCofins) ? A.moeda(cofinsTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
+      </div>
+      <div class="grade g2" style="margin-top:16px">
+        ${A.kpi('PIS/Cofins total', informado(valoresPis) || informado(valoresCofins) ? A.moeda(cargaTotal) : 'INDETERMINADO', 'PIS + Cofins')}
+        ${A.kpi('Alíquota efetiva atual', aliquotaEfetiva === null ? 'INDETERMINADO' : A.pct(aliquotaEfetiva), 'PIS/Cofins apurados ÷ receita analisada', aliquotaEfetiva === null ? 'destaque' : '')}
+      </div>
+    </div>
+    <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>Tratamentos na apuração atual</h2><p class="desc">A fonte atual registra totais de apuração. Tratamentos só são apresentados como identificados quando vierem discriminados no documento.</p></div></div>
+      ${A.tabela([
+        { t:'Tratamento', r:x=>`<b>${A.esc(x.nome)}</b>` },
+        { t:'Receita', num:true, r:x=>x.receita === null ? 'NÃO IDENTIFICADA' : A.moeda(x.receita) },
+        { t:'PIS/Cofins', num:true, r:x=>x.valor === null ? 'NÃO IDENTIFICADO' : A.moeda(x.valor) },
+        { t:'Situação', r:x=>`<span class="tag ${x.valor === null ? 'n' : 'c'}">${A.esc(x.situacao)}</span>` },
+      ], [
+        { nome:'Tributação normal', receita:null, valor:null, situacao:tratamentoSemDetalhe },
+        { nome:'Monofásica', receita:null, valor:null, situacao:tratamentoSemDetalhe },
+        { nome:'Alíquota zero', receita:null, valor:null, situacao:tratamentoSemDetalhe },
+        { nome:'Isenção / imunidade', receita:null, valor:null, situacao:tratamentoSemDetalhe },
+      ], { vazio:'Nenhum tratamento informado.' })}
+      <p class="mini" style="margin-top:12px">A ausência de detalhe não é presumida como tributação normal. O detalhamento por operação é analisado nas Cadeias de Fornecedores e Clientes.</p>
+    </div>
+    <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>Apurações importadas</h2><p class="desc">Documentos preservados e auditáveis. Revise os valores antes de usá-los como referência.</p></div></div>
+      ${A.tabela([
+        { t:'Competência', r:x=>A.esc(x.competencia || 'Não identificada') }, { t:'Documento', r:x=>`<b>${A.esc(x.nome_original)}</b>` },
+        { t:'Receita base', num:true, r:x=>moedaOuIndeterminado(numero(x.receita_base)) }, { t:'PIS recolhido', num:true, r:x=>moedaOuIndeterminado(numero(x.pis_recolhido)) },
+        { t:'Cofins recolhida', num:true, r:x=>moedaOuIndeterminado(numero(x.cofins_recolhida)) }, { t:'Validação', r:x=>A.esc(x.status_validacao || 'INDETERMINADO') },
+        { t:'', r:x=>`<button class="btn pq vazio" data-apuracao-revisar="${x.id}">Revisar</button>` },
+      ], apuracoes, { vazio:'Nenhuma apuração de PIS/Cofins foi importada. Envie o relatório pela Central de Dados.' })}
+    </div>`;
+
+  el.querySelector('#centralDadosPerfil').onclick = () => A.ir('dados');
+  el.querySelectorAll('[data-apuracao-revisar]').forEach((botao) => { botao.onclick = () => {
+    const apuracao = apuracoes.find((x) => Number(x.id) === Number(botao.dataset.apuracaoRevisar));
+    if (!apuracao) return;
+    A.modal({ titulo: `Revisar — ${apuracao.nome_original}`, largura: 1100, corpo: A.tabela([
+      { t:'Campo', r:x=>A.esc(x.campo) }, { t:'Valor extraído', r:x=>A.esc(x.valor_extraido ?? 'Não identificado') },
+      { t:'Origem', r:x=>`${A.esc(x.origem_documento || 'Não identificada')} · ${A.esc(x.pagina_ou_localizacao || 'localização não identificada')}` },
+      { t:'Validação', r:x=>A.esc(x.status_validacao || 'INDETERMINADO') },
+    ], apuracao.campos_extraidos || [], { vazio:'Nenhum campo extraído.' }) });
+  }; });
 };
 
 const barras = (itens) => itens.map(([rot, v]) => `<div style="margin-bottom:11px">
