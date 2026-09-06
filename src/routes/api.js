@@ -780,17 +780,21 @@ router.post('/empresas/cnaes/consultar', async (req, res) => {
   try {
     const empresas = db.prepare('SELECT id,cnpj,razao_social FROM empresas ORDER BY razao_social').all();
     const resultado = { consultadas:0, cache:0, cadastros_preenchidos:0, cnaes_encontrados:0, erros:[] };
+    const empresasAtualizadas = [];
     for (const empresa of empresas) {
       await garantirEmpresaPermitida(req, empresa.id);
       try {
         const r = await cnpjReceita.consultar(empresa.cnpj, { forcar:true, finalidade:'cnae_carteira' });
         if (r.origem === 'cache') resultado.cache++; else resultado.consultadas++;
         const preenchimento = cnpjReceita.preencherCadastroEmpresaSeVazio(empresa.id, r);
-        if (preenchimento.preenchidos.length) resultado.cadastros_preenchidos++;
+        if (preenchimento.preenchidos.length) { resultado.cadastros_preenchidos++; empresasAtualizadas.push(empresa.id); }
         if (preenchimento.cnae_encontrado) resultado.cnaes_encontrados++;
-        if (preenchimento.preenchidos.length && supabase.configurado()) await publicarCadastroEmpresa(empresa.id);
       } catch (e) { resultado.erros.push({ empresa:empresa.razao_social, erro:e.message }); }
     }
+    // A sincronização de gestão já publica todas as empresas alteradas. Fazê-la
+    // dentro de cada iteração multiplicava a mesma operação por toda a carteira
+    // e deixava a consulta de CNAE desnecessariamente lenta.
+    if (empresasAtualizadas.length && supabase.configurado()) await sincronizarGestaoSupabase();
     auditar(req, { acao:'Consultou CNAEs da carteira manualmente', entidade:'cnpj_cache', depois:{ consultadas:resultado.consultadas, cache:resultado.cache, cadastros_preenchidos:resultado.cadastros_preenchidos, erros:resultado.erros.length } });
     ok(res, resultado);
   } catch (e) { erro(res, e); }
