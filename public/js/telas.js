@@ -697,7 +697,8 @@ async function telaCadeia(el, tipo) {
   const abaCliente = S.aba.clientesCadeia || 'carteira';
   const mostrarRastreabilidade = !eForn && abaCliente === 'rastreabilidade';
   const paginaRastreabilidade = Math.max(1, Number(S.cache[`cadeia_pagina_${tipo}`]) || 1);
-  const { analise, pendenciasReferencias = [] } = await A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidade ? 1 : 0}&beneficios=${mostrarBeneficios ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100`);
+  const paginaParceiros = Math.max(1, Number(S.cache[`cadeia_parceiros_${tipo}`]) || 1);
+  const { analise, pendenciasReferencias = [] } = await A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidade ? 1 : 0}&beneficios=${mostrarBeneficios ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100&pagina_parceiros=${paginaParceiros}&limite_parceiros=100`);
   const t = analise.totais;
   const ultimo = analise.cenarios[analise.cenarios.length - 1] || {};
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
@@ -804,7 +805,8 @@ async function telaCadeia(el, tipo) {
         { t: 'Impacto', num: true, r: (p) => A.setaR$(p.impactoOperacao) },
         { t: 'Crédito potencial', num: true, r: (p) => A.moeda(p.creditoPotencial) },
         { t: 'Relevância do crédito', r: (p) => `<span class="tag ${String(p.relevanciaCreditoCliente || '').startsWith('Potencialmente') ? 'c' : 'n'}">${A.esc(p.relevanciaCreditoCliente)}</span>` },
-      ], analise.parceiros.slice(0, 200))}
+      ], analise.parceiros)}
+      ${(() => { const p = analise.paginacaoParceiros || {}; return p.totalPaginas > 1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">${p.total} parceiros · página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-cadeia-parceiros="${p.pagina - 1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-cadeia-parceiros="${p.pagina + 1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
     ${mostrarBeneficios ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><h2>Benefícios fiscais aplicados</h2><button class="btn vazio" id="revisarBeneficiosFiscais">Revisar benefício fiscal</button></div>
       <p class="desc">Lista todas as vendas em que a execução oficial do motor aplicou redução de CBS ou alíquota zero. Esta leitura não cria benefício, não inclui candidatos pendentes e não altera o cálculo já materializado.</p>
@@ -867,6 +869,9 @@ async function telaCadeia(el, tipo) {
   });
   el.querySelectorAll('[data-cadeia-pagina]').forEach((botao) => {
     botao.onclick = () => { S.cache[`cadeia_pagina_${tipo}`] = Number(botao.dataset.cadeiaPagina) || 1; A.ir('clientes'); };
+  });
+  el.querySelectorAll('[data-cadeia-parceiros]').forEach((botao) => {
+    botao.onclick = () => { S.cache[`cadeia_parceiros_${tipo}`] = Number(botao.dataset.cadeiaParceiros) || 1; A.ir(tipo === 'fornecedor' ? 'fornecedores' : 'clientes'); };
   });
   document.getElementById('corrigirDadosCadeia')?.addEventListener('click', () => {
     S.aba.dados = 'cliente'; S.aba.dadosMotor = 'atual'; A.ir('dados');

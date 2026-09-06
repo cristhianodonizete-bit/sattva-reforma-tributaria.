@@ -1675,6 +1675,8 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
       incluirBeneficios: String(req.query.beneficios) === '1',
       paginaDetalhes: req.query.pagina,
       limiteDetalhes: req.query.limite,
+      paginaParceiros: req.query.pagina_parceiros,
+      limiteParceiros: req.query.limite_parceiros,
     });
     ok(res, { empresa, analise: resultado, pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', valor: Number(m.valor) || 0 })) });
   } catch (e) { erro(res, e); }

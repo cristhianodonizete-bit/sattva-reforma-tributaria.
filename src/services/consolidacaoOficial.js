@@ -301,7 +301,13 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   }), { operacoes: 0, valor: 0, baseEconomica: 0, cbs: 0, diferencaReducaoCbs: 0 });
   const operacoesBeneficios = opcoes.incluirBeneficios === true ? beneficiosCalculados : [];
   const t = finalizar(total); t.parceiros = parceiros.length;
-  return { execucao: base.execucao, lado, totais: t, parceiros, regimes, detalhes,
+  const limiteParceiros = Math.min(200, Math.max(1, Number(opcoes.limiteParceiros) || 100));
+  const totalPaginasParceiros = Math.max(1, Math.ceil(parceiros.length / limiteParceiros));
+  const paginaParceiros = Math.min(totalPaginasParceiros, Math.max(1, Number(opcoes.paginaParceiros) || 1));
+  const parceirosPaginados = parceiros.slice((paginaParceiros - 1) * limiteParceiros, paginaParceiros * limiteParceiros);
+  return { execucao: base.execucao, lado, totais: t, parceiros: parceirosPaginados, regimes, detalhes,
+    paginacaoParceiros: { pagina: paginaParceiros, limite: limiteParceiros, total: parceiros.length, totalPaginas: totalPaginasParceiros,
+      temAnterior: paginaParceiros > 1, temProxima: paginaParceiros < totalPaginasParceiros },
     paginacaoDetalhes: {
       incluido: incluirDetalhes,
       pagina: paginaDetalhes,
