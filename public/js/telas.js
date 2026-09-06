@@ -127,7 +127,7 @@ Telas.empresas = async (el) => {
     return `<span class="tag c">QSA 100% preenchido</span><div class="mini">Brasileiro: ${brasileiros}/${socios} informado${fonte}</div>`;
   };
   el.innerHTML = cab('Cadastro', 'Empresas atendidas', 'Cada empresa é um projeto de implementação independente.',
-    '<button class="btn vazio" id="novoGrupo">Criar grupo de análise</button><button class="btn" id="novaEmpresa">Cadastrar empresa</button>') +
+    '<button class="btn vazio" id="consultarCnaesCarteira">Consultar CNAEs</button><button class="btn vazio" id="novoGrupo">Criar grupo de análise</button><button class="btn" id="novaEmpresa">Cadastrar empresa</button>') +
     `<div class="grade g4 resumo-carteira">
       ${A.kpi('Projetos cadastrados', empresas.length, 'empresas atendidas')}
       ${A.kpi('Fornecedores', totais.fornecedores, 'na carteira total')}
@@ -138,6 +138,7 @@ Telas.empresas = async (el) => {
       { t: 'Razão social', r: (e) => `<b>${A.esc(e.razao_social)}</b><div class="mini">${A.cnpjFmt(e.cnpj)}</div>` },
       { t: 'Regime', r: (e) => `<span class="tag">${A.regimeLabel(e.regime)}</span>` },
       { t: 'UF', r: (e) => A.esc(e.uf || '—') },
+      { t: 'CNAE', r: (e) => e.cnae_exibicao ? `<b class="mono">${A.esc(e.cnae_exibicao)}</b><div class="mini">${A.esc(e.atividade_cnae_exibicao || '')}</div>` : '<span class="mini">Não consultado</span>' },
       { t: 'Fornecedores', num: true, r: (e) => e.fornecedores },
       { t: 'Clientes', num: true, r: (e) => e.clientes },
       { t: 'Lançamentos', num: true, r: (e) => e.movimentos },
@@ -178,6 +179,7 @@ Telas.empresas = async (el) => {
     cnpjInput.addEventListener('blur', consultar); cnpjInput.addEventListener('change', consultar);
   };
   document.getElementById('novoGrupo').onclick = () => A.modal({ titulo: 'Criar grupo de empresas para análise', largura: 720, corpo: formGrupo(), aoConfirmar: async (d) => { d.empresa_ids = empresas.filter((empresa) => d[`empresa_${empresa.id}`]).map((empresa) => empresa.id); await A.api('/grupos-empresas', { metodo: 'POST', corpo: d }); A.toast('Grupo criado', 'ok'); A.ir('empresas'); } });
+  document.getElementById('consultarCnaesCarteira').onclick = async (evento) => { const botao=evento.currentTarget, original=botao.textContent; botao.disabled=true; botao.textContent='Consultando CNAEs…'; try { const r=await A.api('/empresas/cnaes/consultar',{metodo:'POST',corpo:{}}); A.toast(`${r.consultadas + r.cache} CNAE(s) consultado(s). Nenhum cadastro, QSA ou regime foi alterado.`,r.erros?.length?'aviso':'ok'); await A.carregarEmpresas(); A.ir('empresas'); } catch(e) { A.toast(e.message,'erro'); } finally { botao.disabled=false; botao.textContent=original; } };
   el.querySelectorAll('[data-abrir]').forEach((b) => { b.onclick = async () => {
     localStorage.setItem('sattva_empresa', b.dataset.abrir); await A.carregarEmpresas(); A.ir('painel');
   }; });

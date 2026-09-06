@@ -15,6 +15,19 @@ const cnpj = require('../src/services/cnpjReceita');
   assert.equal(confirmado.brasileiro,1);
   assert.equal(confirmado.origem,'confirmacao_manual');
   assert.equal(db.prepare('SELECT COUNT(*) total FROM empresa_qsa WHERE empresa_id=?').get(empresaId).total,2);
+
+  // A consulta da carteira guarda somente a evidência no cache. A listagem
+  // pode exibir o CNAE consultado sem atualizar qualquer dado mestre da empresa
+  // e, por consequência, sem afetar QSA, regime ou o motor.
+  db.prepare(`INSERT INTO cnpj_cache (cnpj,razao_social,cnae,cnae_descricao,fonte,consultado_em)
+    VALUES (?,?,?,?,?,datetime('now','localtime'))`).run('10000000000004','Empresa QSA','6201501','Desenvolvimento de programas de computador sob encomenda','InfoSimples');
+  const exibicao = db.prepare(`SELECT e.regime, COALESCE(NULLIF(e.cnae,''), c.cnae) AS cnae_exibicao,
+    CASE WHEN NULLIF(e.cnae,'') IS NULL THEN c.cnae_descricao ELSE e.atividade END AS atividade_cnae_exibicao
+    FROM empresas e LEFT JOIN cnpj_cache c ON c.cnpj=e.cnpj WHERE e.id=?`).get(empresaId);
+  assert.equal(exibicao.cnae_exibicao, '6201501');
+  assert.equal(exibicao.atividade_cnae_exibicao, 'Desenvolvimento de programas de computador sob encomenda');
+  assert.equal(exibicao.regime, 'lucro_real');
+  assert.equal(db.prepare('SELECT percentual_participacao FROM empresa_qsa WHERE empresa_id=? AND nome=?').get(empresaId,'Sócio confirmado').percentual_participacao, 60);
   db.close(); fs.rmSync(pasta,{recursive:true,force:true});
   console.log('cadastro-cnpj-qsa-preservacao.test.js: OK');
 })().catch((erro)=>{console.error(erro);process.exitCode=1;});

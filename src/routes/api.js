@@ -665,7 +665,9 @@ router.get('/parametros', async (_req, res) => {
 // ===========================================================================
 router.get('/empresas', async (req, res) => {
   try {
-    const sql = `SELECT e.*,
+    const sql = `SELECT e.*, COALESCE(NULLIF(e.cnae,''), c.cnae) AS cnae_exibicao,
+    CASE WHEN NULLIF(e.cnae,'') IS NULL THEN c.cnae_descricao ELSE e.atividade END AS atividade_cnae_exibicao,
+    c.fonte AS cnae_fonte, c.consultado_em AS cnae_consultado_em,
     (SELECT COUNT(*) FROM parceiros p WHERE p.empresa_id = e.id AND p.tipo='fornecedor') fornecedores,
     (SELECT COUNT(*) FROM parceiros p WHERE p.empresa_id = e.id AND p.tipo='cliente') clientes,
     (SELECT COUNT(*) FROM movimentos m WHERE m.empresa_id = e.id) movimentos,
@@ -673,7 +675,7 @@ router.get('/empresas', async (req, res) => {
     (SELECT COUNT(*) FROM empresa_qsa q WHERE q.empresa_id=e.id AND (q.percentual_participacao IS NULL OR q.percentual_participacao='')) qsa_participacoes_pendentes,
     COALESCE((SELECT SUM(q.percentual_participacao) FROM empresa_qsa q WHERE q.empresa_id=e.id),0) qsa_percentual_total,
     (SELECT COUNT(*) FROM empresa_qsa q WHERE q.empresa_id=e.id AND q.brasileiro IN (0,1)) qsa_brasileiro_preenchido
-    FROM empresas e ORDER BY e.razao_social`;
+    FROM empresas e LEFT JOIN cnpj_cache c ON c.cnpj=e.cnpj ORDER BY e.razao_social`;
     const empresas = db.prepare(sql).all();
     // A carteira é uma tela de consulta. Para o resumo do QSA, a confirmação
     // manual compartilhada é a fonte de verdade: um novo processo do Render
@@ -769,6 +771,24 @@ router.post('/empresas/preconsulta-cnpj', async (req, res) => {
     const r = await cnpjReceita.preconsultarCadastroEmpresa(req.body?.cnpj);
     auditar(req, { acao:'Consultou cadastro por CNPJ antes da criação', entidade:'preconsulta_cnpj', depois:{ cnpj:r.cnpj, fonte:r.fonte, socios:r.qsa.length } });
     ok(res, r);
+  } catch (e) { erro(res, e); }
+});
+
+// Consulta manual em lote para exibir CNAE na carteira. Lê o CNPJ e atualiza
+// apenas a evidência de cache; não altera empresa, QSA, regime ou motor.
+router.post('/empresas/cnaes/consultar', async (req, res) => {
+  try {
+    const empresas = db.prepare('SELECT id,cnpj,razao_social FROM empresas ORDER BY razao_social').all();
+    const resultado = { consultadas:0, cache:0, erros:[] };
+    for (const empresa of empresas) {
+      await garantirEmpresaPermitida(req, empresa.id);
+      try {
+        const r = await cnpjReceita.consultar(empresa.cnpj, { forcar:true, finalidade:'cnae_carteira' });
+        if (r.origem === 'cache') resultado.cache++; else resultado.consultadas++;
+      } catch (e) { resultado.erros.push({ empresa:empresa.razao_social, erro:e.message }); }
+    }
+    auditar(req, { acao:'Consultou CNAEs da carteira manualmente', entidade:'cnpj_cache', depois:{ consultadas:resultado.consultadas, cache:resultado.cache, erros:resultado.erros.length } });
+    ok(res, resultado);
   } catch (e) { erro(res, e); }
 });
 
