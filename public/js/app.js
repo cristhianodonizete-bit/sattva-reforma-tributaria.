@@ -171,7 +171,6 @@ const App = (() => {
     { id: 'visao-geral', titulo: 'Visão geral', itens: [
       { id: 'painel', t: 'Painel do projeto', i: '◈' },
       { id: 'dashboardOperacao', t: 'Dashboard operacional', i: '◷' },
-      { id: 'gestaoProjetos', t: 'Escopos e entregas', i: '▣' },
     ] },
     { id: 'planejamento', titulo: 'Planejamento tributário', itens: [
       { id: 'planejamento', t: 'Análises e regimes', i: '◫' },
@@ -210,8 +209,8 @@ const App = (() => {
     { id: 'acompanhamento', titulo: 'Módulo 5 · Acompanhamento', itens: [
       { id: 'acompanhamento', t: 'Baseline e realizado', i: '◷' },
     ] },
-    { id: 'empresa-operacao', titulo: 'Gestão da empresa', itens: [
-      { id: 'plano', t: 'Plano de adequação', i: '✓' },
+    { id: 'empresa-operacao', titulo: 'Operação da carteira', itens: [
+      { id: 'gestaoProjetos', t: 'Escopo, entregas e ações', i: '✓' },
     ] },
     { id: 'gestao', titulo: 'Gestão do produto', itens: [
       { tipo: 'titulo', t: 'Escopos e combos' },
@@ -342,6 +341,9 @@ const App = (() => {
     const selecionarEmpresa = (valor) => {
       S.empresaId = Number(valor) || null;
       S.empresa = S.empresas.find((e) => e.id === S.empresaId) || null;
+      // A operação da carteira sempre inicia no mesmo contexto do cabeçalho.
+      // A opção "Todas as empresas" continua disponível dentro daquela tela.
+      S.cache.filtroGestaoEmpresa = S.empresaId ? String(S.empresaId) : '';
       localStorage.setItem('sattva_empresa', S.empresaId);
       // Os dois controles representam a mesma empresa em análise. Atualizá-
       // los antes da navegação impede que uma tela seja aberta com contexto

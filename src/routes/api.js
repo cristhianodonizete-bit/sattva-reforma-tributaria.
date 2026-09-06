@@ -2638,7 +2638,10 @@ router.get('/gestao/projetos', async (req, res) => {
       .filter((c) => permitidas === null || permitidas.has(String(c.empresa_id)))
       .map((c) => ({ ...c, servicos: JSON.parse(c.servicos_json || '[]') }));
     const servicos = db.prepare("SELECT id,nome,modulo,chave_entrega FROM servicos WHERE ativo=1 AND chave_entrega <> 'acompanhamento' ORDER BY ordem,nome").all();
-    ok(res, { projetos, propostas, servicos });
+    const acoes = db.prepare(`SELECT a.*, e.razao_social FROM acoes a JOIN empresas e ON e.id=a.empresa_id
+      ORDER BY CASE a.prioridade WHEN 'alta' THEN 1 WHEN 'media' THEN 2 ELSE 3 END, a.prazo, a.id`).all()
+      .filter((a) => permitidas === null || permitidas.has(String(a.empresa_id)));
+    ok(res, { projetos, propostas, servicos, acoes });
   } catch (e) { erro(res, e); }
 });
 
