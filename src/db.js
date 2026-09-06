@@ -450,6 +450,7 @@ CREATE TABLE IF NOT EXISTS parceiros (
   UNIQUE(empresa_id, tipo, cnpj)
 );
 CREATE INDEX IF NOT EXISTS ix_parceiros ON parceiros(empresa_id, tipo);
+CREATE INDEX IF NOT EXISTS ix_parceiros_empresa_tipo_descricao ON parceiros(empresa_id, tipo, descricao);
 
 -- Quadro societário é evidência cadastral da empresa analisada. Percentual
 -- nunca recebe valor por inferência: NULL significa que a API/documento não o informou.
@@ -510,6 +511,7 @@ CREATE TABLE IF NOT EXISTS movimentos (
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_mov ON movimentos(empresa_id, tipo);
+CREATE INDEX IF NOT EXISTS ix_mov_empresa_tipo_valor ON movimentos(empresa_id, tipo, valor DESC);
 CREATE INDEX IF NOT EXISTS ix_mov_insc ON movimentos(empresa_id, inscr_federal);
 
 CREATE TABLE IF NOT EXISTS lotes (
