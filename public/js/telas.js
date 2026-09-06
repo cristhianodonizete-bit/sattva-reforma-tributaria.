@@ -131,7 +131,7 @@ Telas.empresas = async (el) => {
     return `<span class="tag c">QSA 100% preenchido</span><div class="mini">Brasileiro: ${brasileiros}/${socios} informado${fonte}</div>`;
   };
   el.innerHTML = cab('Cadastro', 'Empresas atendidas', 'Cada empresa é um projeto de implementação independente.',
-    '<button class="btn vazio" id="consultarCnaesCarteira">Consultar CNAEs</button><button class="btn vazio" id="novoGrupo">Criar grupo de análise</button><button class="btn" id="novaEmpresa">Cadastrar empresa</button>') +
+    '<button class="btn vazio" id="novoGrupo">Criar grupo de análise</button><button class="btn" id="novaEmpresa">Cadastrar empresa</button>') +
     `<div class="grade g4 resumo-carteira">
       ${A.kpi('Projetos cadastrados', empresas.length, 'empresas atendidas')}
       ${A.kpi('Fornecedores', totais.fornecedores, 'na carteira total')}
@@ -148,7 +148,7 @@ Telas.empresas = async (el) => {
       { t: 'Lançamentos', num: true, r: (e) => e.movimentos },
       { t: 'QSA', r: (e) => situacaoQsa(e) },
       { t: 'Código Questor', r: (e) => `<span class="mono mini">${A.esc(e.codigo_questor || '—')}</span>` },
-      { t: '', r: (e) => `<button class="btn pq" data-abrir="${e.id}">Abrir projeto</button><button class="btn pq vazio" data-qsa="${e.id}">Quadro societário</button><button class="btn pq vazio" data-ed="${e.id}">Editar</button>
+      { t: '', r: (e) => `<button class="btn pq" data-abrir="${e.id}">Abrir projeto</button><button class="btn pq vazio" data-qsa="${e.id}">Quadro societário</button><button class="btn pq vazio" data-cnpj-consultar="${e.id}">Consultar CNPJ</button><button class="btn pq vazio" data-ed="${e.id}">Editar</button>
         <button class="btn pq perigo" data-rm="${e.id}">Excluir</button>` },
     ], empresas, { vazio: 'Nenhuma empresa cadastrada. Comece cadastrando a primeira.' })}</div>
     <div class="cartao grupos-empresas"><div class="cabecalho-lista"><div><h2>Grupos de empresas para análise</h2><p class="desc">Organize empresas por carteira, segmento ou projeto para conduzir análises conjuntas.</p></div><span class="tag">${grupos.length} grupo${grupos.length === 1 ? '' : 's'}</span></div>
@@ -183,7 +183,17 @@ Telas.empresas = async (el) => {
     cnpjInput.addEventListener('blur', consultar); cnpjInput.addEventListener('change', consultar);
   };
   document.getElementById('novoGrupo').onclick = () => A.modal({ titulo: 'Criar grupo de empresas para análise', largura: 720, corpo: formGrupo(), aoConfirmar: async (d) => { d.empresa_ids = empresas.filter((empresa) => d[`empresa_${empresa.id}`]).map((empresa) => empresa.id); await A.api('/grupos-empresas', { metodo: 'POST', corpo: d }); A.toast('Grupo criado', 'ok'); A.ir('empresas'); } });
-  document.getElementById('consultarCnaesCarteira').onclick = async (evento) => { const botao=evento.currentTarget, original=botao.textContent; botao.disabled=true; botao.textContent='Consultando CNAEs…'; try { const r=await A.api('/empresas/cnaes/consultar',{metodo:'POST',corpo:{}}); A.toast(`${r.cnaes_encontrados} CNAE(s) encontrado(s); ${r.cadastros_preenchidos} cadastro(s) complementado(s). QSA, cotas, nacionalidade e regime não foram alterados.`,r.erros?.length?'aviso':'ok'); await A.carregarEmpresas(); A.ir('empresas'); } catch(e) { A.toast(e.message,'erro'); } finally { botao.disabled=false; botao.textContent=original; } };
+  el.querySelectorAll('[data-cnpj-consultar]').forEach((b) => { b.onclick = async () => {
+    const e = empresas.find((x) => x.id === Number(b.dataset.cnpjConsultar));
+    if (!e || !window.confirm(`Consultar o CNPJ ${A.cnpjFmt(e.cnpj)} de ${e.razao_social}? Será realizada uma única consulta cadastral, que pode ser cobrada pelo provedor.`)) return;
+    const original = b.textContent; b.disabled = true; b.textContent = 'Consultando…';
+    try {
+      const r = await A.api(`/empresas/${e.id}/cadastro-cnpj/consultar`, { metodo:'POST', corpo:{} });
+      A.toast(r.cnae_encontrado ? 'Cadastro atualizado com CNAE principal e atividades secundárias disponíveis. QSA, cotas, nacionalidade e regime não foram alterados.' : 'A consulta foi concluída, mas o provedor não informou CNAE para este CNPJ.', r.cnae_encontrado ? 'ok' : 'aviso');
+      await A.carregarEmpresas(); A.ir('empresas');
+    } catch (erro) { A.toast(erro.message, 'erro'); }
+    finally { b.disabled = false; b.textContent = original; }
+  }; });
   el.querySelectorAll('[data-abrir]').forEach((b) => { b.onclick = async () => {
     localStorage.setItem('sattva_empresa', b.dataset.abrir); await A.carregarEmpresas(); A.ir('painel');
   }; });

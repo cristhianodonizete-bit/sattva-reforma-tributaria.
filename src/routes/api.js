@@ -774,29 +774,19 @@ router.post('/empresas/preconsulta-cnpj', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-// Consulta manual em lote para completar os campos cadastrais públicos vazios
-// da carteira. Não altera qualquer informação existente, QSA, regime ou motor.
-router.post('/empresas/cnaes/consultar', async (req, res) => {
+// Consulta cadastral individual. Nunca percorre a carteira inteira e não altera
+// QSA, participações, nacionalidade, regime nem resultados do motor.
+router.post('/empresas/:id/cadastro-cnpj/consultar', async (req, res) => {
   try {
-    const empresas = db.prepare('SELECT id,cnpj,razao_social FROM empresas ORDER BY razao_social').all();
-    const resultado = { consultadas:0, cache:0, cadastros_preenchidos:0, cnaes_encontrados:0, erros:[] };
-    const empresasAtualizadas = [];
-    for (const empresa of empresas) {
-      await garantirEmpresaPermitida(req, empresa.id);
-      try {
-        const r = await cnpjReceita.consultar(empresa.cnpj, { forcar:true, finalidade:'cnae_carteira' });
-        if (r.origem === 'cache') resultado.cache++; else resultado.consultadas++;
-        const preenchimento = cnpjReceita.preencherCadastroEmpresaSeVazio(empresa.id, r);
-        if (preenchimento.preenchidos.length) { resultado.cadastros_preenchidos++; empresasAtualizadas.push(empresa.id); }
-        if (preenchimento.cnae_encontrado) resultado.cnaes_encontrados++;
-      } catch (e) { resultado.erros.push({ empresa:empresa.razao_social, erro:e.message }); }
-    }
-    // A sincronização de gestão já publica todas as empresas alteradas. Fazê-la
-    // dentro de cada iteração multiplicava a mesma operação por toda a carteira
-    // e deixava a consulta de CNAE desnecessariamente lenta.
-    if (empresasAtualizadas.length && supabase.configurado()) await sincronizarGestaoSupabase();
-    auditar(req, { acao:'Consultou CNAEs da carteira manualmente', entidade:'cnpj_cache', depois:{ consultadas:resultado.consultadas, cache:resultado.cache, cadastros_preenchidos:resultado.cadastros_preenchidos, erros:resultado.erros.length } });
-    ok(res, resultado);
+    const empresaId = Number(req.params.id);
+    await garantirEmpresaPermitida(req, empresaId);
+    const empresa = db.prepare('SELECT id,cnpj,razao_social FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa) throw new Error('Empresa não encontrada.');
+    const resultado = await cnpjReceita.consultar(empresa.cnpj, { forcar:true, finalidade:'cnae_carteira' });
+    const preenchimento = cnpjReceita.preencherCadastroEmpresaSeVazio(empresa.id, resultado);
+    if (preenchimento.preenchidos.length && supabase.configurado()) await sincronizarGestaoSupabase();
+    auditar(req, { acao:'Consultou CNPJ manualmente', entidade:'cnpj_cache', entidade_id:String(empresaId), depois:{ cnpj:empresa.cnpj, cnae_encontrado:preenchimento.cnae_encontrado, campos_preenchidos:preenchimento.preenchidos } });
+    ok(res, { cnpj:empresa.cnpj, cnae_encontrado:preenchimento.cnae_encontrado, campos_preenchidos:preenchimento.preenchidos, fonte:resultado.fonte || null });
   } catch (e) { erro(res, e); }
 });
 
