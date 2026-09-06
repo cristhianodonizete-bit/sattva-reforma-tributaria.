@@ -255,12 +255,24 @@ const App = (() => {
       const chave = `sattva_menu_grupo_${grupo.id}`;
       const aberto = localStorage.getItem(chave) === 'aberto';
       return `<section class="nav-grupo ${aberto ? 'aberto' : ''}" data-grupo="${grupo.id}">
-        <button class="grupo-titulo" type="button" aria-expanded="${aberto}">${grupo.titulo}<span>${aberto ? '⌃' : '⌄'}</span></button>
-        <div class="grupo-itens">${itens.map((item) => item.tipo === 'titulo'
+        <button class="grupo-titulo" type="button" data-grupo-toggle aria-expanded="${aberto}" aria-controls="grupo-itens-${grupo.id}">${grupo.titulo}<span>${aberto ? '⌃' : '⌄'}</span></button>
+        <div class="grupo-itens" id="grupo-itens-${grupo.id}">${itens.map((item) => item.tipo === 'titulo'
           ? `<div class="menu-subtitulo">${item.t}</div>`
           : `<a data-tela="${item.id}" ${item.centralGrupo ? `data-central-grupo="${item.centralGrupo}"` : ''} title="${item.t}" class="${S.tela === item.id && (!item.centralGrupo || (S.aba.centralDados || 'documentos') === item.centralGrupo) ? 'ativo' : ''}"><i aria-hidden="true">${item.i}</i><span>${item.t}</span></a>`).join('')}</div>
       </section>`;
     }).join('') + (S.usuario ? `<section class="nav-grupo sessao aberto"><div class="grupo-titulo">${esc(S.usuario.nome || S.usuario.email)}</div><div class="grupo-itens"><a data-sair title="Sair"><i aria-hidden="true">↪</i><span>Sair</span></a></div></section>` : '');
+    menu.onclick = (evento) => {
+      const botao = evento.target.closest('[data-grupo-toggle]');
+      if (botao && menu.contains(botao)) {
+        evento.preventDefault();
+        const bloco = botao.closest('.nav-grupo');
+        const aberto = bloco.classList.toggle('aberto');
+        botao.setAttribute('aria-expanded', String(aberto));
+        botao.querySelector('span').textContent = aberto ? '⌃' : '⌄';
+        localStorage.setItem(`sattva_menu_grupo_${bloco.dataset.grupo}`, aberto ? 'aberto' : 'fechado');
+        return;
+      }
+    };
     menu.querySelectorAll('[data-tela]').forEach((a) => { a.onclick = () => {
       if (a.dataset.centralGrupo) {
         S.aba.centralDados = a.dataset.centralGrupo;
@@ -270,13 +282,6 @@ const App = (() => {
     }; });
     const sair = menu.querySelector('[data-sair]');
     if (sair) sair.onclick = () => { localStorage.removeItem('sattva_token'); location.reload(); };
-    menu.querySelectorAll('.grupo-titulo[type="button"]').forEach((botao) => {
-      botao.onclick = () => {
-        const bloco = botao.closest('.nav-grupo'); const aberto = bloco.classList.toggle('aberto');
-        botao.setAttribute('aria-expanded', String(aberto)); botao.querySelector('span').textContent = aberto ? '⌃' : '⌄';
-        localStorage.setItem(`sattva_menu_grupo_${bloco.dataset.grupo}`, aberto ? 'aberto' : 'fechado');
-      };
-    });
   }
 
   async function ir(tela) {
