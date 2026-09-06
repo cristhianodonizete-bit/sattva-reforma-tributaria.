@@ -295,7 +295,7 @@ async function publicarCadastroEmpresa(empresaId) {
   // cadastro usa então a identidade remota estável, nunca o id efêmero do
   // cache operacional.
   await sincronizarGestaoSupabase();
-  const empresa = db.prepare('SELECT cnpj,razao_social,nome_fantasia,regime,uf,municipio,cnae,atividade,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes FROM empresas WHERE id=?').get(empresaId);
+  const empresa = db.prepare('SELECT cnpj,razao_social,nome_fantasia,regime,uf,municipio,cnae,atividade,cnaes_secundarios,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes FROM empresas WHERE id=?').get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada para publicação.');
   const remoto = supabase.admin();
   const { data, error: consultaErro } = await remoto.from('empresas').select('id').eq('origem_local_id', Number(empresaId)).maybeSingle();
@@ -745,10 +745,10 @@ router.post('/empresas', async (req, res) => {
     if (!cnpj) throw new Error('CNPJ obrigatório.');
     if (!b.razao_social) throw new Error('Razão social obrigatória.');
     const r = db.prepare(`INSERT INTO empresas (cnpj, razao_social, nome_fantasia, regime, uf, municipio,
-      cnae, atividade, faturamento_anual, setor, reducao_padrao, codigo_questor, observacoes)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(cnpj, b.razao_social, b.nome_fantasia || '',
+      cnae, atividade, cnaes_secundarios, faturamento_anual, setor, reducao_padrao, codigo_questor, observacoes)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(cnpj, b.razao_social, b.nome_fantasia || '',
       b.regime || 'lucro_real', b.uf || '', b.municipio || '', b.cnae || '', b.atividade || '',
-      Number(b.faturamento_anual) || 0, b.setor || '', b.reducao_padrao || 'integral',
+      b.cnaes_secundarios || '', Number(b.faturamento_anual) || 0, b.setor || '', b.reducao_padrao || 'integral',
       b.codigo_questor || '', b.observacoes || '');
     // A empresa precisa existir primeiro na fonte compartilhada. Isso evita
     // que dados complementares recém-informados fiquem apenas no cache local
@@ -774,20 +774,24 @@ router.post('/empresas/preconsulta-cnpj', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-// Consulta manual em lote para exibir CNAE na carteira. Lê o CNPJ e atualiza
-// apenas a evidência de cache; não altera empresa, QSA, regime ou motor.
+// Consulta manual em lote para completar os campos cadastrais públicos vazios
+// da carteira. Não altera qualquer informação existente, QSA, regime ou motor.
 router.post('/empresas/cnaes/consultar', async (req, res) => {
   try {
     const empresas = db.prepare('SELECT id,cnpj,razao_social FROM empresas ORDER BY razao_social').all();
-    const resultado = { consultadas:0, cache:0, erros:[] };
+    const resultado = { consultadas:0, cache:0, cadastros_preenchidos:0, cnaes_encontrados:0, erros:[] };
     for (const empresa of empresas) {
       await garantirEmpresaPermitida(req, empresa.id);
       try {
         const r = await cnpjReceita.consultar(empresa.cnpj, { forcar:true, finalidade:'cnae_carteira' });
         if (r.origem === 'cache') resultado.cache++; else resultado.consultadas++;
+        const preenchimento = cnpjReceita.preencherCadastroEmpresaSeVazio(empresa.id, r);
+        if (preenchimento.preenchidos.length) resultado.cadastros_preenchidos++;
+        if (preenchimento.cnae_encontrado) resultado.cnaes_encontrados++;
+        if (preenchimento.preenchidos.length && supabase.configurado()) await publicarCadastroEmpresa(empresa.id);
       } catch (e) { resultado.erros.push({ empresa:empresa.razao_social, erro:e.message }); }
     }
-    auditar(req, { acao:'Consultou CNAEs da carteira manualmente', entidade:'cnpj_cache', depois:{ consultadas:resultado.consultadas, cache:resultado.cache, erros:resultado.erros.length } });
+    auditar(req, { acao:'Consultou CNAEs da carteira manualmente', entidade:'cnpj_cache', depois:{ consultadas:resultado.consultadas, cache:resultado.cache, cadastros_preenchidos:resultado.cadastros_preenchidos, erros:resultado.erros.length } });
     ok(res, resultado);
   } catch (e) { erro(res, e); }
 });
@@ -805,7 +809,7 @@ router.put('/empresas/:id', async (req, res) => {
     if (!antes) throw new Error('Empresa não encontrada.');
     // Não use defaults em um UPDATE. Campo não enviado permanece exatamente
     // como estava, especialmente regime tributário e enquadramento padrão.
-    const campos = ['razao_social','nome_fantasia','regime','uf','municipio','cnae','atividade','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes'];
+    const campos = ['razao_social','nome_fantasia','regime','uf','municipio','cnae','atividade','cnaes_secundarios','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes'];
     const alteracoes = campos.filter((campo) => Object.prototype.hasOwnProperty.call(b, campo));
     if (!alteracoes.length) throw new Error('Nenhum campo de cadastro foi informado para atualização.');
     const depoisPretendido = { ...antes };

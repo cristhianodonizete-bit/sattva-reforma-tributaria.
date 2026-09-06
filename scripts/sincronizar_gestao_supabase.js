@@ -22,7 +22,9 @@ async function espelharEmpresas(empresas, remoto = supabase) {
   const cnpjCanonico = (valor) => String(valor || '').replace(/\D/g, '');
   const porCnpj = new Map((existentes || []).filter((e) => cnpjCanonico(e.cnpj)).map((e) => [cnpjCanonico(e.cnpj), e]));
   for (const empresa of empresas) {
-    const linha = { origem_local_id: empresa.id, cnpj: empresa.cnpj, razao_social: empresa.razao_social, nome_fantasia: empresa.nome_fantasia || null };
+    const linha = { origem_local_id: empresa.id, cnpj: empresa.cnpj, razao_social: empresa.razao_social, nome_fantasia: empresa.nome_fantasia || null,
+      regime: empresa.regime || null, uf: empresa.uf || null, municipio: empresa.municipio || null, cnae: empresa.cnae || null,
+      atividade: empresa.atividade || null, cnaes_secundarios: empresa.cnaes_secundarios || null };
     // A publicação operacional legada já podia ter criado a empresa pelo ID
     // local. Reaproveitamos essa mesma linha e materializamos a chave de
     // gestão, evitando uma segunda empresa pelo mesmo CNPJ.
@@ -67,7 +69,7 @@ async function excluirEmpresa(empresaLocalId, remoto = supabase) {
   return { empresa: 1, dependencias: dependencias.length };
 }
 async function executar() {
-  const empresas = db.prepare('SELECT id, cnpj, razao_social, nome_fantasia FROM empresas').all();
+  const empresas = db.prepare('SELECT id, cnpj, razao_social, nome_fantasia, regime, uf, municipio, cnae, atividade, cnaes_secundarios FROM empresas').all();
   await espelharEmpresas(empresas);
   const { data: remotas, error } = await supabase.from('empresas').select('id,origem_local_id');
   if (error) throw error;

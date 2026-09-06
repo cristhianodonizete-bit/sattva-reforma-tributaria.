@@ -44,6 +44,19 @@ const percentualBanco = (v) => {
   const normalizado = typeof v === 'number' ? v : Number(String(v).replace('%', '').replace('.', '').replace(',', '.'));
   return Number.isFinite(normalizado) ? normalizado : null;
 };
+const normalizarCnaesSecundarios = (...fontes) => {
+  const itens = fontes.flatMap((fonte) => Array.isArray(fonte) ? fonte : fonte ? [fonte] : []).map((item) => {
+    if (typeof item === 'string') return { codigo:'', descricao:item.trim() };
+    return { codigo:String(item?.codigo || item?.code || item?.id || item?.cnae || '').trim(),
+      descricao:textoBanco(item?.descricao || item?.description || item?.text || item?.atividade || '').trim() };
+  }).filter((item) => item.codigo || item.descricao);
+  const vistos = new Set();
+  return itens.filter((item) => { const chave=`${item.codigo}|${item.descricao}`.toLowerCase(); if (vistos.has(chave)) return false; vistos.add(chave); return true; });
+};
+const cnaesSecundariosTexto = (valor) => {
+  const lista = normalizarCnaesSecundarios(valor);
+  return lista.length ? JSON.stringify(lista) : '';
+};
 
 // --------------------------------------------------------------------------
 // PROVEDORES
@@ -61,6 +74,7 @@ const PROVEDORES = {
         razao_social: d.razao_social || d.nome_empresarial || '', situacao: d.situacao_cadastral || '', porte: d.porte || '',
         cnae: String(d.atividade_economica?.codigo || d.atividade_economica_codigo || d.cnae || ''),
         cnae_descricao: d.atividade_economica?.descricao || d.atividade_economica || d.cnae_descricao || '',
+        cnaes_secundarios: normalizarCnaesSecundarios(d.atividades_secundarias, d.atividade_economica_secundaria, d.cnaes_secundarios),
         uf: d.endereco_uf || d.uf || '', municipio: d.endereco_municipio || d.municipio || '',
         natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.natureza_juridica_codigo || ''), efr: d.efr || '',
         // A consulta de CNPJ não confirma opção pelo Simples; não inferir.
@@ -83,6 +97,7 @@ const PROVEDORES = {
       porte: d.descricao_porte || '',
       cnae: String(d.cnae_fiscal || ''),
       cnae_descricao: d.cnae_fiscal_descricao || '',
+      cnaes_secundarios: normalizarCnaesSecundarios(d.cnaes_secundarios),
       uf: d.uf || '', municipio: d.municipio || '',
       natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.codigo_natureza_juridica || ''),
       efr: d.ente_federativo_responsavel || '',
@@ -110,6 +125,7 @@ const PROVEDORES = {
         porte: (d.company && d.company.size && d.company.size.text) || '',
         cnae: String((d.mainActivity && d.mainActivity.id) || ''),
         cnae_descricao: (d.mainActivity && d.mainActivity.text) || '',
+        cnaes_secundarios: normalizarCnaesSecundarios(d.sideActivities, d.secondaryActivities),
         uf: (d.address && d.address.state) || '', municipio: (d.address && d.address.city) || '',
         optante_simples: s.optant === true,
         data_opcao_simples: s.since || null, data_exclusao_simples: s.until || null,
@@ -130,7 +146,7 @@ const PROVEDORES = {
       razao_social: d.razao_social || d.nome_fantasia || '',
       situacao: (d.situacao_cadastral && d.situacao_cadastral.situacao_cadastral) || '',
       porte: (d.porte_empresa && d.porte_empresa.descricao) || '',
-      cnae: '', cnae_descricao: '',
+      cnae: '', cnae_descricao: '', cnaes_secundarios: normalizarCnaesSecundarios(d.atividades_secundarias, d.cnaes_secundarios),
       uf: (d.endereco && d.endereco.uf) || '', municipio: (d.endereco && d.endereco.municipio) || '',
       // A resposta v4 documentada não contém opção pelo Simples/SIMEI. Nunca
       // interpretar a ausência desses campos como "não optante".
@@ -181,13 +197,39 @@ async function preconsultarCadastroEmpresa(cnpj) {
   const token = crypto.randomUUID();
   preconsultasCadastro.set(token, { cnpj:soDigitos(cnpj), resultado, expira_em:Date.now() + (10 * 60 * 1000) });
   for (const [chave, valor] of preconsultasCadastro) if (valor.expira_em < Date.now()) preconsultasCadastro.delete(chave);
-  return { token, cnpj:soDigitos(cnpj), cadastro:{ razao_social:resultado.razao_social || '', nome_fantasia:resultado.nome_fantasia || '', uf:resultado.uf || '', municipio:resultado.municipio || '', cnae:resultado.cnae || '', atividade:resultado.cnae_descricao || '' }, qsa:(resultado.qsa || []).map((s) => ({ nome:s.nome || '', qualificacao:s.qualificacao || '', pais:s.pais || '', percentual_participacao:s.percentual_participacao ?? null, brasileiro:s.brasileiro !== false })), fonte:resultado.fonte || '', origem:resultado.origem || '' };
+  return { token, cnpj:soDigitos(cnpj), cadastro:{ razao_social:resultado.razao_social || '', nome_fantasia:resultado.nome_fantasia || '', uf:resultado.uf || '', municipio:resultado.municipio || '', cnae:resultado.cnae || '', atividade:resultado.cnae_descricao || '', cnaes_secundarios:cnaesSecundariosTexto(resultado.cnaes_secundarios) }, qsa:(resultado.qsa || []).map((s) => ({ nome:s.nome || '', qualificacao:s.qualificacao || '', pais:s.pais || '', percentual_participacao:s.percentual_participacao ?? null, brasileiro:s.brasileiro !== false })), fonte:resultado.fonte || '', origem:resultado.origem || '' };
 }
 function consumirPreconsultaCadastro(token, cnpj) {
   const r = preconsultasCadastro.get(String(token || ''));
   if (!r || r.expira_em < Date.now() || r.cnpj !== soDigitos(cnpj)) return null;
   preconsultasCadastro.delete(String(token));
   return r.resultado;
+}
+
+// O cadastro de CNPJ pode complementar uma empresa já existente, mas nunca
+// substitui informação que o operador já cadastrou. Esta função é deliberadamente
+// limitada aos quatro campos cadastrais públicos: não toca em regime, QSA,
+// cotas, nacionalidade, motor ou quaisquer campos fiscais.
+function preencherCadastroEmpresaSeVazio(empresaId, resultado) {
+  const atual = db().prepare('SELECT cnae,atividade,uf,municipio,cnaes_secundarios FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!atual) throw new Error('Empresa não encontrada.');
+  const candidatos = {
+    cnae: textoBanco(resultado?.cnae).trim(),
+    atividade: textoBanco(resultado?.cnae_descricao).trim(),
+    uf: textoBanco(resultado?.uf).trim(),
+    municipio: textoBanco(resultado?.municipio).trim(),
+    cnaes_secundarios: cnaesSecundariosTexto(resultado?.cnaes_secundarios),
+  };
+  const vazio = (valor) => !textoBanco(valor).trim();
+  const proximos = {};
+  const preenchidos = [];
+  for (const campo of Object.keys(candidatos)) {
+    proximos[campo] = vazio(atual[campo]) && candidatos[campo] ? candidatos[campo] : atual[campo];
+    if (vazio(atual[campo]) && candidatos[campo]) preenchidos.push(campo);
+  }
+  if (preenchidos.length) db().prepare('UPDATE empresas SET cnae=?,atividade=?,uf=?,municipio=?,cnaes_secundarios=? WHERE id=?')
+    .run(proximos.cnae, proximos.atividade, proximos.uf, proximos.municipio, proximos.cnaes_secundarios, Number(empresaId));
+  return { preenchidos, cnae_encontrado: Boolean(candidatos.cnae) };
 }
 
 async function persistirQsaConsultado(empresaId, resultado) {
@@ -356,13 +398,13 @@ function doCache(cnpj, validadeDias) {
 
 function gravarCache(cnpj, d, fonte) {
   const reg = derivarRegime(d);
-  db().prepare(`INSERT INTO cnpj_cache (cnpj, razao_social, situacao, porte, cnae, cnae_descricao,
+  db().prepare(`INSERT INTO cnpj_cache (cnpj, razao_social, situacao, porte, cnae, cnae_descricao, cnaes_secundarios,
     uf, municipio, optante_simples, data_opcao_simples, data_exclusao_simples,
     optante_mei, data_opcao_mei, data_exclusao_mei, regime_derivado, justificativa,
     natureza_juridica, codigo_natureza_juridica, efr, fonte, consultado_em)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?, datetime('now','localtime'))
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?, datetime('now','localtime'))
     ON CONFLICT(cnpj) DO UPDATE SET razao_social=excluded.razao_social, situacao=excluded.situacao,
-      porte=excluded.porte, cnae=excluded.cnae, cnae_descricao=excluded.cnae_descricao,
+      porte=excluded.porte, cnae=excluded.cnae, cnae_descricao=excluded.cnae_descricao, cnaes_secundarios=excluded.cnaes_secundarios,
       uf=excluded.uf, municipio=excluded.municipio,
       optante_simples=excluded.optante_simples, data_opcao_simples=excluded.data_opcao_simples,
       data_exclusao_simples=excluded.data_exclusao_simples, optante_mei=excluded.optante_mei,
@@ -370,7 +412,7 @@ function gravarCache(cnpj, d, fonte) {
       regime_derivado=excluded.regime_derivado, justificativa=excluded.justificativa,
       natureza_juridica=excluded.natureza_juridica, codigo_natureza_juridica=excluded.codigo_natureza_juridica, efr=excluded.efr,
       fonte=excluded.fonte, consultado_em=datetime('now','localtime')`)
-    .run(cnpj, d.razao_social, d.situacao, d.porte, d.cnae, d.cnae_descricao, d.uf, d.municipio,
+    .run(cnpj, d.razao_social, d.situacao, d.porte, d.cnae, d.cnae_descricao, cnaesSecundariosTexto(d.cnaes_secundarios), d.uf, d.municipio,
       d.optante_simples ? 1 : 0, d.data_opcao_simples, d.data_exclusao_simples,
       d.optante_mei ? 1 : 0, d.data_opcao_mei, d.data_exclusao_mei,
       reg.regime, reg.justificativa, d.natureza_juridica || '', d.codigo_natureza_juridica || '', d.efr || '', fonte);
@@ -646,5 +688,5 @@ function estatisticasCache() {
     .map(([k, v]) => ({ chave: k, nome: v.nome, intervalo: v.intervalo, site: v.site, exigeChave: v.exigeChave })) };
 }
 
-module.exports = { consultar, preconsultarCadastroEmpresa, consumirPreconsultaCadastro, persistirQsaConsultado, enriquecerParceiros, enriquecerQsaEmpresa, publicarQsaEmpresa, sincronizarConfirmacoesManuaisQsa, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
+module.exports = { consultar, preconsultarCadastroEmpresa, consumirPreconsultaCadastro, preencherCadastroEmpresaSeVazio, persistirQsaConsultado, enriquecerParceiros, enriquecerQsaEmpresa, publicarQsaEmpresa, sincronizarConfirmacoesManuaisQsa, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
   config, salvarConfig, derivarRegime, classificarEnteGovernamental, PROVEDORES };

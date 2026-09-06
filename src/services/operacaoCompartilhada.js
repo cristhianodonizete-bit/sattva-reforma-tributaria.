@@ -3,7 +3,7 @@ const db = require('../db');
 const supabase = require('./supabase');
 
 const CAMPOS = {
-  empresas: ['id','cnpj','razao_social','nome_fantasia','regime','uf','municipio','cnae','atividade','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes','criado_em'],
+  empresas: ['id','cnpj','razao_social','nome_fantasia','regime','uf','municipio','cnae','atividade','cnaes_secundarios','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes','criado_em'],
   empresa_servicos_fiscais: ['id','empresa_id','chave','nbs','descricao','pis_cofins','das_efetivo','iss_aliquota','ativo','origem','criado_em','atualizado_em'],
   parceiros: ['id','empresa_id','tipo','cnpj','descricao','regime','faturamento_anual','uf','municipio','origem','criado_em','regime_resolvido','perfil_economico','perfil_origem','sensibilidade_credito','sensibilidade_origem'],
   empresa_qsa: ['id','empresa_id','nome','documento','qualificacao','pais','percentual_participacao','brasileiro','fonte','consultado_em','origem','criado_em','atualizado_em'],
@@ -109,11 +109,11 @@ function gravar(tabela, linhas, dentroDaTransacao = false) {
 
 function gravarEmpresas(linhas, dentroDaTransacao = false) {
   const inserir = db.prepare(`INSERT INTO empresas
-    (id,cnpj,razao_social,nome_fantasia,regime,uf,municipio,cnae,atividade,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes,criado_em)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    (id,cnpj,razao_social,nome_fantasia,regime,uf,municipio,cnae,atividade,cnaes_secundarios,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes,criado_em)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET cnpj=excluded.cnpj,razao_social=excluded.razao_social,nome_fantasia=excluded.nome_fantasia,
       regime=CASE WHEN excluded.regime IS NULL OR excluded.regime='' THEN empresas.regime ELSE excluded.regime END,
-      uf=excluded.uf,municipio=excluded.municipio,cnae=excluded.cnae,atividade=excluded.atividade,
+      uf=excluded.uf,municipio=excluded.municipio,cnae=excluded.cnae,atividade=excluded.atividade,cnaes_secundarios=excluded.cnaes_secundarios,
       faturamento_anual=excluded.faturamento_anual,setor=excluded.setor,reducao_padrao=excluded.reducao_padrao,
       codigo_questor=excluded.codigo_questor,observacoes=excluded.observacoes,criado_em=excluded.criado_em`);
   const persistir = () => linhas.forEach((empresa) => {
@@ -121,7 +121,7 @@ function gravarEmpresas(linhas, dentroDaTransacao = false) {
     if (!id) return;
     inserir.run(id, String(empresa.cnpj || '').replace(/\D/g, ''), empresa.razao_social || 'Empresa sem razão social',
       empresa.nome_fantasia || '', empresa.regime || '', empresa.uf || '', empresa.municipio || '', empresa.cnae || '',
-      empresa.atividade || '', Number(empresa.faturamento_anual) || 0, empresa.setor || '', empresa.reducao_padrao || 'integral',
+      empresa.atividade || '', empresa.cnaes_secundarios || '', Number(empresa.faturamento_anual) || 0, empresa.setor || '', empresa.reducao_padrao || 'integral',
       empresa.codigo_questor || '', empresa.observacoes || '', empresa.criado_em || null);
   });
   if (dentroDaTransacao) persistir(); else db.transaction(persistir)();
