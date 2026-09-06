@@ -807,6 +807,7 @@ async function telaCadeia(el, tipo) {
   const eForn = tipo === 'fornecedor';
   const abaCliente = S.aba.clientesCadeia || 'carteira';
   const mostrarRastreabilidade = !eForn && abaCliente === 'rastreabilidade';
+  const mostrarBeneficios = !eForn && abaCliente === 'beneficios';
   const paginaRastreabilidade = Math.max(1, Number(S.cache[`cadeia_pagina_${tipo}`]) || 1);
   const paginaParceiros = Math.max(1, Number(S.cache[`cadeia_parceiros_${tipo}`]) || 1);
   const { analise, pendenciasReferencias = [] } = await A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidade ? 1 : 0}&beneficios=${mostrarBeneficios ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100&pagina_parceiros=${paginaParceiros}&limite_parceiros=100`);
@@ -819,7 +820,6 @@ async function telaCadeia(el, tipo) {
   const mostrarCarteira = eForn || abaCliente === 'carteira';
   const mostrarRiscos = eForn || abaCliente === 'riscos';
   const mostrarAbc = eForn || abaCliente === 'abc';
-  const mostrarBeneficios = !eForn && abaCliente === 'beneficios';
   const resumoBeneficios = analise.tratamentoBeneficios || { operacoes: 0 };
 
   el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
