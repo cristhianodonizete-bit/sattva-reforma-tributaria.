@@ -162,6 +162,8 @@ function executar(analiseId, usuarioId) {
   const recomendacao = vencedor && vencedor.confianca !== 'BAIXA' ? { status: 'CENARIO_RECOMENDADO', cenario: vencedor.cenario,
     justificativa: 'Menor carga entre cenários completos e elegíveis na fotografia congelada.', confianca: vencedor.confianca } :
     { status: 'CENARIO_INDICATIVO_REQUER_VALIDACAO', cenario: null, justificativa: 'Não há comparação completa suficiente para decisão automática.', confianca: 'BAIXA' };
+  const valorIntercompany = intercompany(dados.empresas || []);
+  resultados.forEach((r) => { r.consolidado_grupo = { receita_bruta:r.receita_total, receita_eliminando_intercompany:moeda(r.receita_total - valorIntercompany), intercompany_identificado:valorIntercompany, empresas:r.empresas.length }; });
   const tx = db.transaction(() => {
     const upsert = db.prepare(`INSERT INTO planejamento_resultados (analise_id,snapshot_id,cenario,status,confianca,resultado_json)
       VALUES (?,?,?,?,?,?) ON CONFLICT(analise_id,snapshot_id,cenario) DO UPDATE SET status=excluded.status,confianca=excluded.confianca,resultado_json=excluded.resultado_json,calculado_em=datetime('now','localtime')`);
@@ -169,7 +171,6 @@ function executar(analiseId, usuarioId) {
     db.prepare("UPDATE planejamento_analises SET status='EM_REVISAO',atualizado_em=datetime('now','localtime') WHERE id=?").run(analiseId);
     registrar(analiseId, 'scenario_calculated', usuarioId, { snapshot_id: snapshot.id, recomendacao });
   }); tx();
-  const valorIntercompany = intercompany(dados.empresas || []);
   return { snapshot_id: snapshot.id, resultados, recomendacao, consolidado_grupo: resultados.map((r) => ({ cenario: r.cenario, tributos_total: r.tributos_total, receita_bruta: r.receita_total, receita_eliminando_intercompany: moeda(r.receita_total - valorIntercompany), intercompany_identificado:valorIntercompany, status: r.status, empresas: r.empresas.length })) };
 }
 
