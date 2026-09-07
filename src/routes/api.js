@@ -68,6 +68,7 @@ const especialistaFiscalSenior = require('../services/especialistaFiscalSenior')
 const autenticacao = require('../services/autenticacao');
 const fechamentoModulos = require('../services/fechamentoModulos');
 const periodoAnalisado = require('../services/periodoAnalisado');
+const prontidaoDados = require('../services/prontidaoDados');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -1070,6 +1071,17 @@ router.put('/empresas/:id/periodo-analisado', (req, res) => {
     const periodo = periodoAnalisado.salvar(Number(req.params.id), req.body || {}, req.usuario?.id || null);
     auditar(req, { empresaId:Number(req.params.id), acao:'periodo_analisado_definido', entidade:'empresa_periodo_analisado', entidadeId:String(req.params.id), depois:periodo });
     ok(res, periodoAnalisado.cobertura(Number(req.params.id)));
+  } catch (e) { erro(res, e); }
+});
+router.get('/empresas/:id/prontidao-dados', (req, res) => {
+  try { ok(res, prontidaoDados.obter(Number(req.params.id))); }
+  catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/prontidao-dados/declaracoes', (req, res) => {
+  try {
+    const resultado = prontidaoDados.declarar(Number(req.params.id), req.body || {}, req.usuario?.id || null);
+    auditar(req, { empresaId:Number(req.params.id), acao:'prontidao_declaracao_registrada', entidade:'empresa_prontidao_declaracoes', entidadeId:req.params.id, depois:req.body || {} });
+    ok(res, resultado);
   } catch (e) { erro(res, e); }
 });
 
@@ -3702,6 +3714,8 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
 router.post('/empresas/:id/motor/executar', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
+    const prontidao = prontidaoDados.obter(empresaId);
+    if (!prontidao.motor.liberado) throw new Error(`Motor bloqueado: ${prontidao.motor.pendencias.join(' ')}`);
     const bloqueados = fechamentoModulos.listar(empresaId).modulos.filter((m) => m.modulo === 'diagnostico' && m.status === 'FECHADO');
     if (bloqueados.length) throw new Error(`O motor integral atualizaria submódulos fechados. Reabra somente os necessários: ${bloqueados.map((m) => m.titulo).join(', ')}.`);
     const r = await motorExecucaoFila.solicitar(empresaId, req.body || {});

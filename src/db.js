@@ -1922,6 +1922,22 @@ CREATE TABLE IF NOT EXISTS empresa_periodo_analisado_eventos (
 );
 CREATE INDEX IF NOT EXISTS ix_empresa_periodo_analisado_eventos ON empresa_periodo_analisado_eventos(empresa_id,id DESC);
 
+-- Declarações auditáveis resolvem somente a ausência legítima de uma
+-- competência (empresa nova, inatividade ou receita não aplicável). Nunca
+-- inventam dado fiscal e não alteram as tabelas de origem.
+CREATE TABLE IF NOT EXISTS empresa_prontidao_declaracoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  tipo TEXT NOT NULL,
+  referencia TEXT NOT NULL,
+  motivo TEXT NOT NULL,
+  justificativa TEXT,
+  usuario_id TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id,tipo,referencia)
+);
+CREATE INDEX IF NOT EXISTS ix_empresa_prontidao_declaracoes ON empresa_prontidao_declaracoes(empresa_id,tipo,referencia);
+
 -- Estudos isolados: nunca alteram a empresa, movimentos ou o motor oficial.
 CREATE TABLE IF NOT EXISTS planejamento_analises (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

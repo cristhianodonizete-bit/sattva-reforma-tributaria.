@@ -472,7 +472,7 @@ async function projImportacaoXml(el) {
           <div class="mini">.txt · até 60 arquivos por vez</div></div>
         <div id="statusSped" style="margin-top:12px"></div>
       </div>
-      <div class="cartao">
+      <div class="cartao" style="display:none">
         <h2>Executar o motor</h2>
         <p class="desc">Classifica cada item, reconstrói a base econômica e projeta ${S.params?.modoAnalise?.ibsAtivo ? 'IBS/CBS' : 'CBS'}, débitos e créditos.</p>
         ${ex.execucao ? `<div class="aviso bom"><b>Última execução: ${A.esc(ex.execucao.criado_em)}</b>
@@ -568,6 +568,7 @@ async function projImportacaoXml(el) {
   }
 
   const botaoMotor = document.getElementById('rodarMotor');
+  if (!botaoMotor) return;
   const ativoMotor = (j) => ['PENDENTE','PROCESSANDO','AGUARDANDO','PUBLICANDO'].includes(j?.estado || j?.status);
   const atualizarBotaoMotor = async () => {
     try { const x = await A.api(`/empresas/${S.empresaId}/motor/status`); botaoMotor.disabled = ativoMotor(x.job); if (x.job?.status === 'FALHOU') botaoMotor.textContent = 'Tentar novamente'; }
@@ -641,6 +642,6 @@ window.MotorUI.abasBases = [
 
 comAbas('dados', [
   { id: 'atual', t: 'Planilhas' },
-  { id: 'xml', t: 'XML, SPED e motor', render: projImportacaoXml },
+  { id: 'xml', t: 'XML e SPED', render: projImportacaoXml },
 ], 'atual', 'dadosMotor', { mostrarQuando: () => (S.aba.centralDados || 'documentos') === 'documentos' });
 })();

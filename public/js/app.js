@@ -189,6 +189,7 @@ const App = (() => {
       { id: 'bases', t: 'Bases, catálogos e classificações', i: '⌘' },
     ] },
     { id: 'motor', titulo: 'Motor tributário', itens: [
+      { id: 'executarMotor', t: 'Executar motor', i: '●' },
       { id: 'coberturaDiagnostico', t: 'Cobertura do diagnóstico', i: '◌' },
       { id: 'classificacaoFiscalComplementar', t: 'Classificação fiscal complementar', i: '✓' },
     ] },
@@ -232,7 +233,7 @@ const App = (() => {
   const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens.filter((item) => item.id));
   const PERMISSAO_TELA = {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
-    dados: 'diagnostico', periodoAnalisado: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
+    dados: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     planejamento: 'gestao_projetos', entregavelCliente: 'diagnostico',
     servicos: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', consultaBaseRegime: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'configuracoes', acessos: 'acessos',
@@ -286,7 +287,7 @@ const App = (() => {
         <button class="grupo-titulo" type="button" data-grupo-toggle aria-expanded="${aberto}" aria-controls="grupo-itens-${grupo.id}">${grupo.titulo}<span>${aberto ? '⌃' : '⌄'}</span></button>
         <div class="grupo-itens" id="grupo-itens-${grupo.id}">${itens.map((item) => item.tipo === 'titulo'
           ? `<div class="menu-subtitulo">${item.t}</div>`
-          : `<a data-tela="${item.id}" ${item.centralGrupo ? `data-central-grupo="${item.centralGrupo}"` : ''} title="${item.t}" class="${S.tela === item.id && (!item.centralGrupo || (S.aba.centralDados || 'documentos') === item.centralGrupo) ? 'ativo' : ''}"><i aria-hidden="true">${item.i}</i><span>${item.t}</span></a>`).join('')}</div>
+          : `<a data-tela="${item.id}" ${item.centralGrupo ? `data-central-grupo="${item.centralGrupo}"` : ''} title="${item.t}" class="${S.tela === item.id && (!item.centralGrupo || (S.aba.centralDados || 'documentos') === item.centralGrupo) ? 'ativo' : ''}"><i aria-hidden="true" ${item.id==='executarMotor' && S.cache.prontidaoMotor !== undefined ? `style="color:${S.cache.prontidaoMotor?'#138a4b':'#c03532'}"` : ''}>${item.i}</i><span>${item.t}</span></a>`).join('')}</div>
       </section>`;
     }).join('') + (S.usuario ? `<section class="nav-grupo sessao aberto"><div class="grupo-titulo">${esc(S.usuario.nome || S.usuario.email)}</div><div class="grupo-itens"><a data-sair title="Sair"><i aria-hidden="true">↪</i><span>Sair</span></a></div></section>` : '');
     menu.onclick = (evento) => {
@@ -336,7 +337,7 @@ const App = (() => {
       // O catálogo é configurável, mas uma vez que o plano é aprovado só os
       // módulos presentes naquela fotografia ficam disponíveis ao projeto.
       const moduloPorTela = {
-        dados: 'diagnostico', periodoAnalisado: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico',
+        dados: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico',
         clientes: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico', entregavelCliente: 'diagnostico',
         precificacao: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao',
       };
@@ -376,6 +377,13 @@ const App = (() => {
       sel.value = S.empresaId;
       S.empresa = empresas.find((e) => e.id === S.empresaId);
     } else { S.empresaId = null; S.empresa = null; }
+    const atualizarProntidaoMenu = async () => {
+      if (!S.empresaId) { S.cache.prontidaoMotor = undefined; return; }
+      try { S.cache.prontidaoMotor = Boolean((await api(`/empresas/${S.empresaId}/prontidao-dados`)).motor?.liberado); }
+      catch (_) { S.cache.prontidaoMotor = false; }
+      desenharMenu();
+    };
+    await atualizarProntidaoMenu();
     const selecionarEmpresa = (valor) => {
       S.empresaId = Number(valor) || null;
       S.empresa = S.empresas.find((e) => e.id === S.empresaId) || null;
@@ -383,6 +391,8 @@ const App = (() => {
       // A opção "Todas as empresas" continua disponível dentro daquela tela.
       S.cache.filtroGestaoEmpresa = S.empresaId ? String(S.empresaId) : '';
       localStorage.setItem('sattva_empresa', S.empresaId);
+      S.cache.prontidaoMotor = undefined;
+      atualizarProntidaoMenu().catch(() => {});
       // Os dois controles representam a mesma empresa em análise. Atualizá-
       // los antes da navegação impede que uma tela seja aberta com contexto
       // diferente daquele exibido no cabeçalho ou na lateral.

@@ -280,13 +280,14 @@ Telas.dados = async (el) => {
   const regimeEmpresa = S.empresa?.regime || '';
   const simplesNacional = regimeEmpresa === 'simples_nacional';
   const exigeApuracaoPisCofins = ['lucro_presumido', 'lucro_real'].includes(regimeEmpresa);
-  const [{ parceiros }, { lotes }, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta] = await Promise.all([
+  const [{ parceiros }, { lotes }, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, prontidao] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/parceiros?tipo=${aba}`),
     A.api(`/empresas/${S.empresaId}/lotes`),
     A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`),
     A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`),
     A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`),
     simplesNacional ? A.api(`/empresas/${S.empresaId}/pgdas/documentos`) : Promise.resolve({ documentos: [] }),
+    A.api(`/empresas/${S.empresaId}/prontidao-dados`),
   ]);
   const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`);
   const referenciasVendas = aba === 'cliente' ? await A.api(`/empresas/${S.empresaId}/referencias-vendas`) : null;
@@ -300,11 +301,18 @@ Telas.dados = async (el) => {
     apuracoes: (simplesNacional ? (pgdasResposta.documentos || []) : (apuracoesResposta.apuracoes || []) ).filter((x) => x.status_processamento === 'ERRO' || x.status_validacao !== 'VALIDADO_USUARIO' || (x.campos_pendentes || []).length),
     margem: (dadosAdicionais.margens || []).filter((x) => !x.periodo_inicio || !x.periodo_fim || x.margem_operacional_percentual === null || x.margem_operacional_percentual === undefined),
   };
+  const itemProntidao = (id) => (prontidao.etapas || []).find((x) => x.id === id);
+  const luzProntidao = (id, destino) => {
+    const p=itemProntidao(id); const verde=p?.status==='VERDE';
+    return `<button type="button" class="btn pq ${verde ? 'vazio' : 'perigo'}" data-prontidao="${id}" data-prontidao-destino="${destino || id}"><span aria-hidden="true">${verde ? '●' : '●'}</span> ${verde ? 'LIBERADO' : 'PENDÊNCIAS'}</button>`;
+  };
+  const painelProntidao = `<section class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><div class="olho">PRONTIDÃO DAS ENTREGAS</div><h2>O que falta para o sistema entregar</h2><p class="desc">Verde: resolvido por dado ou declaração auditável. Vermelho: exige ação. Clique no status para ver a pendência.</p></div>${luzProntidao('periodo','periodoAnalisado')}</div><div class="grade g3" style="margin-top:12px">${(prontidao.etapas || []).map((p)=>`<div class="cartao" style="box-shadow:none;border:1px solid var(--linha)"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><b>${A.esc(p.titulo)}</b>${luzProntidao(p.id,p.id)}</div><p class="mini">${p.status==='VERDE'?'Dados resolvidos para esta etapa.':A.esc(p.pendencias?.[0] || 'Há informações a resolver.')}</p></div>`).join('')}</div></section>`;
 
   el.innerHTML = cab('DADOS · ENTRADA E TRATAMENTO', 'Central de Dados',
     'Cadastre, importe, complete e trate dados uma única vez. Os módulos de análise apenas consomem esta base com origem e rastreabilidade preservadas.') +
     `<div class="aviso bom"><b>Fluxo de dados:</b> Central de Dados → tratamento e validações → módulos do produto → relatórios e entregáveis.</div>` +
-    `${grupoCentral === 'documentos' ? `<div class="cartao" style="margin-top:16px"><label style="max-width:300px">Tipo de documento fiscal<select id="tipoDocumentoFiscal"><option value="fornecedor" ${aba === 'fornecedor' ? 'selected' : ''}>Entradas / fornecedores</option><option value="cliente" ${aba === 'cliente' ? 'selected' : ''}>Saídas / clientes</option></select></label><p class="mini" style="margin-top:8px">A escolha define a origem dos registros da aba Planilhas. As únicas abas de Documentos fiscais são Planilhas e XML/SPED.</p></div>
+    painelProntidao +
+    `${grupoCentral === 'documentos' ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:end;flex-wrap:wrap"><label style="max-width:300px">Tipo de documento fiscal<select id="tipoDocumentoFiscal"><option value="fornecedor" ${aba === 'fornecedor' ? 'selected' : ''}>Entradas / fornecedores</option><option value="cliente" ${aba === 'cliente' ? 'selected' : ''}>Saídas / clientes</option></select></label><div>${luzProntidao('documentos','documentos')} <button class="btn vazio pq" id="declararDocumentoSemMovimento">Declarar sem movimento</button></div></div><p class="mini" style="margin-top:8px">A escolha define a origem dos registros da aba Planilhas. As abas desta etapa são Planilhas e XML/SPED.</p></div>
     <section class="fluxo-importacao" aria-label="Etapas da importação">
       <button type="button" class="${parceiros.length ? 'feito' : 'atual'}" data-ir-importacao="cadastro">
         <b>1</b><span><strong>Cadastre ${rotulo}</strong><small>${parceiros.length ? `${parceiros.length} registros disponíveis` : 'Importe ou inclua manualmente'}</small></span>
@@ -336,14 +344,14 @@ Telas.dados = async (el) => {
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
           <button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/movimento_${aba}').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button>
           <button class="btn vazio pq" id="revincular">Revincular regimes</button>
-          <button class="btn ouro pq" id="executarMotorPlanilha">Executar motor</button>
+          <button class="btn ouro pq" id="executarMotorPlanilha">Ver prontidão do motor</button>
           <span class="mini" style="margin-left:auto;align-self:center">${total.c} lançamentos · ${A.moeda(total.v)}</span>
         </div>
       </div>
     </div>` : ''}
-    ${grupoCentral === 'folha' ? `<div class="cartao" style="margin-top:16px"><h2>Folha de pagamento</h2><p class="desc">Informe ou importe a folha agregada por competência. Não é necessário detalhar empregados individualmente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addFolha">Informar folha</button><button class="btn vazio" id="importarFolha">Importar planilha</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/folha').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Folhas informadas',(dadosAdicionais.folhas || []).length,'por competência')}${A.kpi('Pendências',(pendenciasGrupo.folha || []).length,'campos a completar')}</div></div>` : ''}
-    ${grupoCentral === 'receitas' ? `<div class="cartao" style="margin-top:16px"><h2>Receitas sem DF-e</h2><p class="desc">Registre ou importe apenas receitas que ainda não estejam nos documentos fiscais. Possível duplicidade não é consolidada automaticamente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addReceitaSemDfe">Adicionar receita</button><button class="btn vazio" id="importarReceitaSemDfe">Importar planilha</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/receitas_sem_dfe').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Receitas registradas',(dadosAdicionais.receitas_sem_dfe || []).length,'não consolidadas automaticamente')}${A.kpi('Possíveis duplicidades',(dadosAdicionais.receitas_sem_dfe || []).filter(x=>x.status_validacao==='POSSIVEL_DUPLICIDADE').length,'exigem revisão')}</div></div>` : ''}
-    ${grupoCentral === 'apuracoes' ? `<div class="cartao" style="margin-top:16px"><h2>Apurações tributárias</h2><p class="desc">Envie a apuração adequada ao regime da empresa. O documento é revisado antes de ser aproveitado no histórico.</p><div style="display:flex;gap:8px;flex-wrap:wrap">${simplesNacional ? '<button class="btn" id="centralPgdas">Importar PGDAS</button><button class="btn vazio" onclick="App.baixarArquivo(\'/modelos/pgdas\').catch(e=>App.toast(e.message,\'erro\'))">Baixar modelo PGDAS</button>' : `<button class="btn" id="centralApuracao">Enviar apuração PIS/Cofins</button>`}</div><div class="grade g2" style="margin-top:16px">${A.kpi('Documentos enviados',simplesNacional ? (pgdasResposta.documentos || []).length : (apuracoesResposta.apuracoes || []).length,'histórico de apurações')}${A.kpi('Pendências',(pendenciasGrupo.apuracoes || []).length,'revisão ou confirmação')}</div><div class="aviso ${simplesNacional ? 'bom' : 'atencao'}" style="margin-top:14px">${simplesNacional ? 'Empresa do Simples Nacional: planilha XLSX, XLS ou CSV é lida de forma estruturada. PDF ou imagem do PGDAS é lido pelo Azure e exige revisão antes de entrar no histórico.' : exigeApuracaoPisCofins ? 'Empresa no Lucro Presumido ou Lucro Real: envie a apuração histórica de PIS/Cofins.' : 'A apuração aplicável depende do regime cadastrado da empresa.'}</div>${simplesNacional && (pgdasResposta.documentos || []).length ? `<div style="margin-top:14px"><h3>Documentos PGDAS em revisão</h3>${A.tabela([{t:'Arquivo',r:x=>A.esc(x.nome_original)},{t:'Competência',r:x=>A.esc(x.competencia_detectada || 'Não identificada')},{t:'Situação',r:x=>A.esc(x.status_processamento)},{t:'',r:x=>`<button class="btn pq vazio" data-pgdas-revisar="${x.id}">Revisar</button>${x.status_processamento === 'VALIDADO_USUARIO' ? '<span class="mini"> Confirmado</span>' : `<button class="btn pq" data-pgdas-confirmar="${x.id}">Confirmar dados</button>`}`}],pgdasResposta.documentos)}</div>` : ''}</div>` : ''}
+    ${grupoCentral === 'folha' ? `<div class="cartao" style="margin-top:16px"><h2>Folha de pagamento ${luzProntidao('folha','folha')}</h2><p class="desc">Informe ou importe a folha agregada por competência. Não é necessário detalhar empregados individualmente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addFolha">Informar folha</button><button class="btn vazio" id="importarFolha">Importar planilha</button><button class="btn vazio" id="declararFolha">Declarar ausência</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/folha').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Folhas informadas',(dadosAdicionais.folhas || []).length,'por competência')}${A.kpi('Pendências',(itemProntidao('folha')?.pendencias || []).length,'competências a resolver')}</div></div>` : ''}
+    ${grupoCentral === 'receitas' ? `<div class="cartao" style="margin-top:16px"><h2>Outras receitas ${luzProntidao('receitas','receitas')}</h2><p class="desc">Registre ou importe apenas receitas que ainda não estejam nos documentos fiscais. Possível duplicidade não é consolidada automaticamente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addReceitaSemDfe">Adicionar receita</button><button class="btn vazio" id="importarReceitaSemDfe">Importar planilha</button><button class="btn vazio" id="declararReceitaNaoAplicavel">Declarar não se aplica</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/receitas_sem_dfe').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Receitas registradas',(dadosAdicionais.receitas_sem_dfe || []).length,'não consolidadas automaticamente')}${A.kpi('Pendências',(itemProntidao('receitas')?.pendencias || []).length,'competências a resolver')}</div></div>` : ''}
+    ${grupoCentral === 'apuracoes' ? `<div class="cartao" style="margin-top:16px"><h2>Apurações tributárias ${luzProntidao('apuracoes','apuracoes')}</h2><p class="desc">Envie a apuração do período analisado, do ano anterior e de dois anos atrás, conforme o regime da empresa.</p><div style="display:flex;gap:8px;flex-wrap:wrap">${simplesNacional ? '<button class="btn" id="centralPgdas">Importar PGDAS</button><button class="btn vazio" onclick="App.baixarArquivo(\'/modelos/pgdas\').catch(e=>App.toast(e.message,\'erro\'))">Baixar modelo PGDAS</button>' : `<button class="btn" id="centralApuracao">Enviar apuração PIS/Cofins</button>`}<button class="btn vazio" id="declararHistoricoApuracao">Declarar início posterior/inatividade</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Documentos enviados',simplesNacional ? (pgdasResposta.documentos || []).length : (apuracoesResposta.apuracoes || []).length,'histórico de apurações')}${A.kpi('Pendências',(itemProntidao('apuracoes')?.pendencias || []).length,'competências a resolver')}</div><div class="aviso ${simplesNacional ? 'bom' : 'atencao'}" style="margin-top:14px">${simplesNacional ? 'Empresa do Simples Nacional: planilha XLSX, XLS ou CSV é lida de forma estruturada. PDF ou imagem do PGDAS é lido pelo Azure e exige revisão antes de entrar no histórico.' : exigeApuracaoPisCofins ? 'Empresa no Lucro Presumido ou Lucro Real: envie a apuração histórica de PIS/Cofins.' : 'A apuração aplicável depende do regime cadastrado da empresa.'}</div>${simplesNacional && (pgdasResposta.documentos || []).length ? `<div style="margin-top:14px"><h3>Documentos PGDAS em revisão</h3>${A.tabela([{t:'Arquivo',r:x=>A.esc(x.nome_original)},{t:'Competência',r:x=>A.esc(x.competencia_detectada || 'Não identificada')},{t:'Situação',r:x=>A.esc(x.status_processamento)},{t:'',r:x=>`<button class="btn pq vazio" data-pgdas-revisar="${x.id}">Revisar</button>${x.status_processamento === 'VALIDADO_USUARIO' ? '<span class="mini"> Confirmado</span>' : `<button class="btn pq" data-pgdas-confirmar="${x.id}">Confirmar dados</button>`}`}],pgdasResposta.documentos)}</div>` : ''}</div>` : ''}
     ${grupoCentral === 'margem' ? `<div class="cartao" style="margin-top:16px"><h2>Margem operacional</h2><p class="desc">Informe a margem por período como premissa para cenários. Ela não representa automaticamente o lucro fiscal da empresa.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addMargemOperacional">Informar margem operacional</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Margens informadas',(dadosAdicionais.margens || []).length,'premissas declaradas')}${A.kpi('Pendências',(pendenciasGrupo.margem || []).length,'período ou percentual')}</div></div>` : ''}
     ${grupoCentral !== 'documentos' ? `<div class="cartao" style="margin-top:16px"><h2>Pendências deste grupo</h2>${pendenciasGrupo[grupoCentral].length ? A.tabela([{t:'Registro',r:x=>A.esc(x.competencia || x.periodo_inicio || 'Sem período')},{t:'Situação',r:x=>grupoCentral === 'receitas' ? 'Possível duplicidade ou campo obrigatório ausente' : 'Complete os campos obrigatórios antes da análise.'}],pendenciasGrupo[grupoCentral],{vazio:'Sem pendências.'}) : A.vazio('Sem pendências','Os dados disponíveis deste grupo não exigem ação adicional.')}</div>` : ''}
     ${grupoCentral === 'documentos' ? `<div class="cartao" style="margin-top:16px" id="pendenciasDiagnosticoCentral"><h2>Pendências dos documentos fiscais</h2><p class="desc">Localize a linha que bloqueia a cobertura, confira a evidência existente e siga a ação indicada. Cada operação aparece uma única vez pela pendência principal.</p>${pendenciasDaAba.length ? A.tabela([
@@ -413,6 +421,12 @@ Telas.dados = async (el) => {
     </div>` : ''}`;
 
     document.getElementById('tipoDocumentoFiscal')?.addEventListener('change', (evento) => { S.aba.dados = evento.target.value; S.aba.dadosPendencia = null; A.ir('dados'); });
+    el.querySelectorAll('[data-prontidao]').forEach((botao) => botao.addEventListener('click', () => {
+      const p=itemProntidao(botao.dataset.prontidao); if (!p) return;
+      const destino=botao.dataset.prontidaoDestino;
+      const abrir=()=>{ if (destino==='periodoAnalisado') A.ir('periodoAnalisado'); else if (destino==='empresa') A.ir('empresas'); else { S.aba.centralDados=destino; A.ir('dados'); } };
+      A.modal({ titulo:`${p.status==='VERDE'?'Liberado':'Pendências'} — ${p.titulo}`, descricao:p.status==='VERDE'?'Esta etapa está resolvida para a empresa selecionada.':'Resolva cada item abaixo para tornar a etapa verde.', corpo:p.status==='VERDE'?'<div class="aviso bom">Requisito atendido por dado preenchido, importado ou declaração auditável.</div>':`<div class="aviso alto"><ul>${(p.pendencias||[]).map((x)=>`<li>${A.esc(x)}</li>`).join('')}</ul></div><p class="mini">Se não houve operação, a ausência pode ser declarada com justificativa — sem inventar dados fiscais.</p>`, confirmar:'Abrir etapa', aoConfirmar:async()=>abrir() });
+    }));
     el.querySelectorAll('[data-central-grupo]').forEach((b) => { b.onclick = () => { S.aba.centralDados = b.dataset.centralGrupo; S.aba.dadosMotor = 'atual'; S.aba.dadosPendencia = null; A.ir('dados'); }; });
     document.getElementById('limparFiltroPendencia')?.addEventListener('click', () => { S.aba.dadosPendencia = null; A.ir('dados'); });
     el.querySelectorAll('[data-abrir-pendencia]').forEach((botao) => botao.addEventListener('click', async () => {
@@ -513,6 +527,14 @@ Telas.dados = async (el) => {
       `<div class="grade g2">${A.campo('pro_labore','Pró-labore (se informado)','', 'number','step="0.01" min="0"')}${A.campo('referencia_arquivo','Referência do arquivo (opcional)')}</div>`,
     aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/folhas-pagamento`, { metodo: 'POST', corpo: d }); A.toast('Folha registrada como dado complementar', 'ok'); A.ir('dados'); },
   }));
+  const abrirDeclaracaoProntidao = (tipo, titulo, referenciaPadrao, descricao) => A.modal({
+    titulo, descricao, corpo:`${A.campo('referencia','Competência ou ano',referenciaPadrao,'text')}${A.selecao('motivo','Motivo',[{v:'EMPRESA_NOVA',t:'Empresa constituída ou iniciou operação posteriormente'},{v:'SEM_MOVIMENTO',t:'Não houve movimento no período'},{v:'NAO_APLICAVEL',t:'Não se aplica à empresa'},{v:'OUTRO',t:'Outro'}],'SEM_MOVIMENTO')}${A.area('justificativa','Justificativa complementar','',3)}`,
+    confirmar:'Registrar declaração', aoConfirmar:async(d)=>{ await A.api(`/empresas/${S.empresaId}/prontidao-dados/declaracoes`,{metodo:'POST',corpo:{...d,tipo}}); A.toast('Declaração registrada com trilha de auditoria.', 'ok'); A.ir('dados'); },
+  });
+  document.getElementById('declararFolha')?.addEventListener('click', () => abrirDeclaracaoProntidao('FOLHA_SEM_MOVIMENTO','Declarar ausência de folha',itemProntidao('folha')?.pendencias?.[0]?.match(/\d{4}-\d{2}/)?.[0] || '', 'Use somente quando a competência não possui folha ou pró-labore.'));
+  document.getElementById('declararDocumentoSemMovimento')?.addEventListener('click', () => abrirDeclaracaoProntidao('DOCUMENTOS_SEM_MOVIMENTO','Declarar competência sem movimento',itemProntidao('documentos')?.pendencias?.[0]?.match(/\d{4}-\d{2}/)?.[0] || '', 'Use somente quando não houve documento fiscal na competência.'));
+  document.getElementById('declararReceitaNaoAplicavel')?.addEventListener('click', () => abrirDeclaracaoProntidao('OUTRAS_RECEITAS_NAO_APLICAVEL','Declarar outras receitas não aplicáveis',itemProntidao('receitas')?.pendencias?.[0]?.match(/\d{4}-\d{2}/)?.[0] || '', 'Registre que não há receita complementar fora dos documentos fiscais para a competência.'));
+  document.getElementById('declararHistoricoApuracao')?.addEventListener('click', () => abrirDeclaracaoProntidao('APURACAO_HISTORICO_NAO_APLICAVEL','Declarar histórico não disponível',String(itemProntidao('apuracoes')?.anos?.[2] || ''), 'Use para empresa nova, início posterior ou período de inatividade. A declaração resolve a ausência sem simular apuração.'));
   document.getElementById('importarFolha')?.addEventListener('click', () => A.modal({
     titulo: 'Importar folha de pagamento', descricao: 'Envie uma planilha agregada por competência. Competência e Valor da Folha são obrigatórios; Pró-labore e Referência são opcionais.', confirmar: null,
     corpo: `${A.dropzone('zonaImportarFolha', '<b>Solte a planilha de folha aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>', async (arquivo) => {
@@ -630,17 +652,7 @@ Telas.dados = async (el) => {
     A.toast(r.semRegime ? `${r.semRegime} lançamentos ainda sem regime` : 'Todos os lançamentos vinculados', r.semRegime ? '' : 'ok');
     A.ir('dados');
   });
-  document.getElementById('executarMotorPlanilha')?.addEventListener('click', async (evento) => {
-    const botao = evento.currentTarget; const texto = botao.textContent;
-    botao.disabled = true; botao.textContent = 'Executando motor…';
-    try {
-      const r = await A.api(`/empresas/${S.empresaId}/motor/executar`, { metodo: 'POST', corpo: { ano: S.params?.modoAnalise?.ibsAtivo ? 2033 : 2033 } });
-      A.toast(r.deduplicado ? 'Motor já está em processamento.' : 'Motor enviado para processamento. Acompanhe na projeção.', 'ok');
-      A.ir('fornecedores');
-    } catch (e) {
-      A.toast(e.message, 'erro'); botao.disabled = false; botao.textContent = texto;
-    }
-  });
+  document.getElementById('executarMotorPlanilha')?.addEventListener('click', () => A.ir('executarMotor'));
 };
 
 // ===========================================================================
@@ -1275,6 +1287,17 @@ Telas.periodoAnalisado = async (el) => {
         await render();
       },
     }));
+  };
+  await render();
+};
+Telas.executarMotor = async (el) => {
+  const render = async () => {
+    const [prontidao, motor] = await Promise.all([A.api(`/empresas/${S.empresaId}/prontidao-dados`), A.api(`/empresas/${S.empresaId}/motor`)]);
+    const liberado=Boolean(prontidao.motor?.liberado); const pendencias=prontidao.motor?.pendencias || [];
+    el.innerHTML=cab('MOTOR TRIBUTÁRIO · PROCESSAMENTO','Executar motor','Processa somente quando os dados mínimos da operação atual estiverem resolvidos. O cálculo permanece bloqueado por empresa até a prontidão ficar verde.')+
+      `<section class="cartao"><div class="cabecalho-lista"><div><div class="olho">PRONTIDÃO PARA CÁLCULO</div><h2><span style="color:${liberado?'#138a4b':'#c03532'}">●</span> ${liberado?'Motor pronto para cálculo':'Motor bloqueado'}</h2><p class="desc">${liberado?'Documentos fiscais e Outras receitas estão resolvidos no período analisado.':'Há pendências obrigatórias antes do processamento.'}</p></div><span class="tag ${liberado?'c':'a'}">${liberado?'LIBERADO':'PENDÊNCIAS'}</span></div>${liberado?`<div class="aviso bom">Período: ${A.esc(prontidao.periodo.competencia_inicio)} até ${A.esc(prontidao.periodo.competencia_fim)}.</div>`:`<div class="aviso alto"><ul>${pendencias.map((p)=>`<li>${A.esc(p)}</li>`).join('')}</ul><button class="btn pq" id="abrirPendenciasMotor">Resolver pendências</button></div>`}${motor.execucao?`<div class="aviso bom" style="margin-top:12px"><b>Última execução:</b> ${A.esc(motor.execucao.criado_em || '—')} · ${motor.execucao.itens || 0} itens processados.</div>`:''}<div style="margin-top:16px"><button class="btn ouro" id="executarMotorCentral" ${liberado?'':'disabled'}>Executar motor</button></div><div id="statusMotorCentral" style="margin-top:12px"></div></section>`;
+    el.querySelector('#abrirPendenciasMotor')?.addEventListener('click',()=>{ S.aba.centralDados='documentos'; A.ir('dados'); });
+    el.querySelector('#executarMotorCentral')?.addEventListener('click',async()=>{ const box=el.querySelector('#statusMotorCentral'); box.innerHTML='<div class="carregando">Enviando processamento para a fila…</div>'; try { const r=await A.api(`/empresas/${S.empresaId}/motor/executar`,{metodo:'POST',corpo:{ano:2033}}); box.innerHTML=`<div class="aviso bom"><b>Processamento iniciado.</b><br>Job ${A.esc(r.processamento_id || r.id || '')}. A fotografia anterior permanece ativa até a publicação da nova.</div>`; } catch(e) { box.innerHTML=`<div class="aviso alto">${A.esc(e.message)}</div>`; } });
   };
   await render();
 };
