@@ -813,10 +813,20 @@ async function catalogoFiscal(el) {
   const estado = S.cache.catalogoFiscal || (S.cache.catalogoFiscal = { tipo: 'ncm', busca: '', pagina: 1 });
   const carregar = async () => {
     el.innerHTML = '<div class="carregando">Carregando catálogo fiscal…</div>';
-    const r = await A.api(`/bases/catalogo?tipo=${estado.tipo}&pagina=${estado.pagina}&tamanho=50&busca=${encodeURIComponent(estado.busca)}`);
+    const referencias = await A.api('/bases/referencias-oficiais/resumo');
+    const dominioOficial = ({ referencia_ncm: 'NCM', referencia_nbs: 'NBS', referencia_lc116: 'LC116' })[estado.tipo];
+    const operacional = !dominioOficial;
+    const r = operacional
+      ? await A.api(`/bases/catalogo?tipo=${estado.tipo}&pagina=${estado.pagina}&tamanho=50&busca=${encodeURIComponent(estado.busca)}`)
+      : await A.api(`/bases/referencias-oficiais?dominio=${dominioOficial}&pagina=${estado.pagina}&tamanho=50&busca=${encodeURIComponent(estado.busca)}`);
     const paginas = Math.max(1, Math.ceil(r.total / r.tamanho));
     const beneficio = (lista) => !lista?.length ? '<span class="tag n">Sem benefício específico</span>' : lista.map((b) => `<div style="margin-bottom:6px"><span class="tag c">Benefício governamental</span><div class="mini">${A.esc(b.tratamento || (b.aliquota_zero ? 'Alíquota zero' : 'Tratamento específico'))}${b.reducao != null ? ` · redução ${A.pct(b.reducao, 0)}` : ''}</div>${b.cst || b.cclasstrib ? `<div class="mono mini">CST ${A.esc(b.cst || '—')} · cClassTrib ${A.esc(b.cclasstrib || '—')}</div>` : ''}${b.ente_elegivel ? `<div class="mini">Ente: ${A.esc(b.ente_elegivel)}</div>` : ''}${b.condicoes ? `<div class="mini">${A.esc(b.condicoes)}</div>` : ''}</div>`).join('');
-    const colunas = estado.tipo === 'ncm' ? [
+    const colunas = !operacional ? [
+      { t: 'Código oficial', r: (x) => `<b class="mono">${A.esc(x.codigo)}</b>` },
+      { t: 'Descrição oficial', r: (x) => A.esc(x.descricao || '—') },
+      { t: 'Vigência / situação', r: (x) => `<span class="tag c">${A.esc(x.situacao)}</span><div class="mini">${A.esc(x.vigencia_inicio || '—')}${x.vigencia_fim ? ` até ${A.esc(x.vigencia_fim)}` : ''}</div>` },
+      { t: 'Fonte e versão', r: (x) => `${A.esc(x.fonte || '—')}<div class="mini">${A.esc(x.versao_fonte || '')}</div>` },
+    ] : estado.tipo === 'ncm' ? [
       { t: 'NCM', r: (x) => `<b class="mono">${A.esc(x.ncm)}</b>` },
       { t: 'Descrição / classificação', r: (x) => `<b>${A.esc(x.descricao || '—')}</b><div class="mini">${A.esc(x.classificacao || '')}</div>` },
       { t: 'CST / cClassTrib', r: (x) => `<span class="mono mini">${A.esc(x.cst || '—')} · ${A.esc(x.cclasstrib || '—')}</span>` },
@@ -829,7 +839,11 @@ async function catalogoFiscal(el) {
       { t: 'Tratamento geral', r: (x) => `<span class="tag">${A.esc(x.reducao || 'integral')}</span><div class="mini">${A.esc(x.local_incidencia || '')}</div>` },
       { t: 'Benefício governo/autarquia', r: (x) => beneficio(x.beneficios) },
     ];
-    el.innerHTML = `<div class="topo"><div><div class="olho">Bases fiscais</div><h1>Catálogo fiscal</h1><p>Consulta completa de NCMs e NBSs cadastrados, incluindo benefícios específicos para governo e autarquias.</p></div><button class="btn vazio" id="catalogoExportar">Baixar Excel completo</button></div><div class="cartao"><div class="filtros-carteira"><label>Base<select id="catalogoTipo"><option value="ncm" ${estado.tipo === 'ncm' ? 'selected' : ''}>Produtos — NCM</option><option value="servicos" ${estado.tipo === 'servicos' ? 'selected' : ''}>Serviços — NBS / LC 116</option></select></label><label style="flex:1">Buscar código ou descrição<input id="catalogoBusca" value="${A.esc(estado.busca)}" placeholder="Ex.: 30049099, 1.1502.10.00 ou medicamento"></label><button class="btn" id="catalogoBuscar">Buscar</button></div><div class="aviso"><b>${r.total.toLocaleString('pt-BR')} registro(s)</b> O benefício só é aplicado pelo motor após confirmar o destinatário como ente governamental.</div><div style="margin-top:14px">${A.tabela(colunas, r.itens, { vazio: 'Nenhum registro encontrado.' })}</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px"><span class="mini">Página ${r.pagina} de ${paginas}</span><div style="display:flex;gap:8px"><button class="btn pq vazio" id="catalogoAnterior" ${r.pagina <= 1 ? 'disabled' : ''}>Anterior</button><button class="btn pq vazio" id="catalogoProximo" ${r.pagina >= paginas ? 'disabled' : ''}>Próxima</button></div></div></div>`;
+    const resumoOficial = `<div class="grade g3" style="margin-top:16px"><div class="kpi"><span>Referência oficial NCM</span><b>${(referencias.NCM?.vigentes || 0).toLocaleString('pt-BR')}</b><small>classificações vigentes · não são regras</small></div><div class="kpi"><span>Referência oficial NBS</span><b>${(referencias.NBS?.vigentes || 0).toLocaleString('pt-BR')}</b><small>classificações vigentes · não são regras</small></div><div class="kpi"><span>Lista oficial LC 116</span><b>${(referencias.LC116?.vigentes || 0).toLocaleString('pt-BR')}</b><small>itens vigentes · não são regras</small></div></div>`;
+    const explicacao = operacional
+      ? `<div class="aviso"><b>${r.total.toLocaleString('pt-BR')} regra(s) operacional(is)</b> — esta é a matriz que o motor consulta para classificação e benefícios. Ela não representa a quantidade total de NCMs/NBS existentes no Brasil.</div>`
+      : `<div class="aviso info"><b>${r.total.toLocaleString('pt-BR')} referência(s) oficial(is)</b> — esta nomenclatura ajuda a identificar a chave fiscal; não traz, infere nem altera PIS/Cofins, CBS, CST ou benefícios.</div>`;
+    el.innerHTML = `<div class="topo"><div><div class="olho">Bases fiscais</div><h1>Catálogo fiscal</h1><p>Separe a nomenclatura oficial completa das regras operacionais que o motor efetivamente utiliza.</p></div><button class="btn vazio" id="catalogoExportar">Baixar regras operacionais</button></div>${resumoOficial}<div class="cartao" style="margin-top:16px"><div class="filtros-carteira"><label>Camada consultada<select id="catalogoTipo"><optgroup label="Regras operacionais do motor"><option value="ncm" ${estado.tipo === 'ncm' ? 'selected' : ''}>Mercadorias — NCM</option><option value="servicos" ${estado.tipo === 'servicos' ? 'selected' : ''}>Serviços — NBS / LC 116</option></optgroup><optgroup label="Referência oficial (sem regra tributária)"><option value="referencia_ncm" ${estado.tipo === 'referencia_ncm' ? 'selected' : ''}>NCM oficial completa</option><option value="referencia_nbs" ${estado.tipo === 'referencia_nbs' ? 'selected' : ''}>NBS oficial completa</option><option value="referencia_lc116" ${estado.tipo === 'referencia_lc116' ? 'selected' : ''}>Lista oficial LC 116</option></optgroup></select></label><label style="flex:1">Buscar código ou descrição<input id="catalogoBusca" value="${A.esc(estado.busca)}" placeholder="Ex.: 30049099, 1.1502.10.00 ou medicamento"></label><button class="btn" id="catalogoBuscar">Buscar</button></div>${explicacao}<div style="margin-top:14px">${A.tabela(colunas, r.itens, { vazio: 'Nenhum registro encontrado.' })}</div><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-top:14px"><span class="mini">Página ${r.pagina} de ${paginas}</span><div style="display:flex;gap:8px"><button class="btn pq vazio" id="catalogoAnterior" ${r.pagina <= 1 ? 'disabled' : ''}>Anterior</button><button class="btn pq vazio" id="catalogoProximo" ${r.pagina >= paginas ? 'disabled' : ''}>Próxima</button></div></div></div>`;
     el.querySelector('#catalogoTipo').onchange = (e) => { estado.tipo = e.target.value; estado.pagina = 1; carregar(); };
     const buscar = () => { estado.busca = el.querySelector('#catalogoBusca').value.trim(); estado.pagina = 1; carregar(); };
     el.querySelector('#catalogoBuscar').onclick = buscar;
@@ -864,7 +878,7 @@ async function catalogoFiscal(el) {
 }
 
 M.comAbas('bases', M.abasBases.concat([
-  { id: 'catalogo_fiscal', t: 'Catálogo NCM / NBS', render: catalogoFiscal },
+  { id: 'catalogo_fiscal', t: 'Catálogo fiscal', render: catalogoFiscal },
   { id: 'regime_receita', t: 'Bases da Receita (Real/Presumido)', render: basesReceita },
 ]), 'atual');
 })();

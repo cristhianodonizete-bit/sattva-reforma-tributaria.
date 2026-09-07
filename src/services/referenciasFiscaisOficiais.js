@@ -132,6 +132,44 @@ function consultar({ ncm, nbs, lc116, somenteVigentes = true } = {}) {
   return db.prepare(`SELECT * FROM referencias_fiscais_oficiais WHERE (${filtros.join(' OR ')})${ativos} ORDER BY dominio,codigo,vigencia_inicio DESC`).all(...params);
 }
 
+// Esta consulta é exclusivamente para a tela de referência. Ela não mistura a
+// nomenclatura oficial com a matriz operacional nem é utilizada pelo motor.
+function listar({ dominio, busca = '', pagina = 1, tamanho = 50, somenteVigentes = true } = {}) {
+  const dominioNormalizado = String(dominio || '').toUpperCase();
+  if (!['NCM', 'NBS', 'LC116'].includes(dominioNormalizado)) throw new Error('Domínio oficial inválido');
+  const termo = String(busca || '').trim();
+  const digitos = somenteDigitos(termo);
+  const filtros = ['dominio=?'];
+  const parametros = [dominioNormalizado];
+  if (somenteVigentes) filtros.push("situacao='VIGENTE'");
+  if (termo) {
+    filtros.push('(codigo LIKE ? OR descricao LIKE ?)');
+    // A busca por código é deliberadamente parcial: a tela deve aceitar o
+    // formato que o usuário enxerga na fonte, sem transformar a chave gravada.
+    parametros.push(`%${digitos || termo}%`, `%${termo}%`);
+  }
+  const onde = filtros.join(' AND ');
+  const paginaSegura = Math.max(1, Number(pagina) || 1);
+  const tamanhoSeguro = Math.min(100, Math.max(10, Number(tamanho) || 50));
+  const total = db.prepare(`SELECT COUNT(*) c FROM referencias_fiscais_oficiais WHERE ${onde}`).get(...parametros).c;
+  const itens = db.prepare(`SELECT id,dominio,codigo,descricao,vigencia_inicio,vigencia_fim,situacao,fonte,versao_fonte,hash_origem
+    FROM referencias_fiscais_oficiais WHERE ${onde} ORDER BY codigo, vigencia_inicio DESC LIMIT ? OFFSET ?`)
+    .all(...parametros, tamanhoSeguro, (paginaSegura - 1) * tamanhoSeguro);
+  return { dominio: dominioNormalizado, pagina: paginaSegura, tamanho: tamanhoSeguro, total, itens };
+}
+
+function resumo() {
+  const linhas = db.prepare(`SELECT dominio, situacao, COUNT(*) quantidade
+    FROM referencias_fiscais_oficiais GROUP BY dominio, situacao`).all();
+  const resultado = { NCM: { total: 0, vigentes: 0 }, NBS: { total: 0, vigentes: 0 }, LC116: { total: 0, vigentes: 0 } };
+  for (const linha of linhas) {
+    if (!resultado[linha.dominio]) continue;
+    resultado[linha.dominio].total += Number(linha.quantidade) || 0;
+    if (linha.situacao === 'VIGENTE') resultado[linha.dominio].vigentes += Number(linha.quantidade) || 0;
+  }
+  return resultado;
+}
+
 function sha256(conteudo) { return crypto.createHash('sha256').update(conteudo).digest('hex'); }
 
 function referenciasNcmDoArquivo(arquivo) {
@@ -249,7 +287,7 @@ function importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, arq
 }
 
 module.exports = {
-  normalizarNcm, normalizarNbs, normalizarLc116, registrarReferencia, registrarRelacaoNbsLc116, consultar,
+  normalizarNcm, normalizarNbs, normalizarLc116, registrarReferencia, registrarRelacaoNbsLc116, consultar, listar, resumo,
   referenciasNcmDoArquivo, referenciasNbsDoArquivo, referenciasLc116DoArquivo, referenciasLc116DoHtmlOficial, importarReferenciasOficiais,
   relacoesNbsLc116DoAnexoViii, importarRelacoesNbsLc116DoAnexoViii,
 };

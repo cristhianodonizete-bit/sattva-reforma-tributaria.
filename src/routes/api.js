@@ -59,6 +59,7 @@ const revisaoBeneficiosFiscais = require('../services/revisaoBeneficiosFiscais')
 const performanceTelemetry = require('../services/performanceTelemetry');
 const identidadeProduto = require('../services/identidadeProduto');
 const cadastroFiscalComplementar = require('../services/cadastroFiscalComplementar');
+const referenciasFiscaisOficiais = require('../services/referenciasFiscaisOficiais');
 const planejamentoTributario = require('../services/planejamentoTributario');
 const analistaTributarioIa = require('../services/analistaTributarioIa');
 const autenticacao = require('../services/autenticacao');
@@ -3332,6 +3333,25 @@ router.get('/bases/consultar', (req, res) => {
 router.get('/bases/buscar', (req, res) => {
   try { responderBasesEmCache(req, res, () => bases.buscar(req.query.q || '', Number(req.query.limite) || 60)); }
   catch (e) { erro(res, e); }
+});
+
+// Referência oficial é uma camada de consulta separada. Não retorna nem cria
+// tratamento tributário: a matriz operacional continua sendo servida abaixo.
+router.get('/bases/referencias-oficiais/resumo', (req, res) => {
+  try { responderBasesEmCache(req, res, () => referenciasFiscaisOficiais.resumo()); }
+  catch (e) { erro(res, e); }
+});
+
+router.get('/bases/referencias-oficiais', (req, res) => {
+  try {
+    responderBasesEmCache(req, res, () => referenciasFiscaisOficiais.listar({
+      dominio: req.query.dominio,
+      busca: req.query.busca || '',
+      pagina: Number(req.query.pagina) || 1,
+      tamanho: Number(req.query.tamanho) || 50,
+      somenteVigentes: req.query.incluir_historico !== '1',
+    }));
+  } catch (e) { erro(res, e); }
 });
 
 // Catálogo paginado das bases oficiais, enriquecido com as regras específicas

@@ -19,6 +19,8 @@ const ncm = refs.registrarReferencia({ dominio: 'NCM', codigo: '01.02.90.00', de
 assert.equal(ncm.criado, true);
 assert.equal(refs.registrarReferencia({ dominio: 'NCM', codigo: '01029000', descricao: 'Outro texto não substitui a fonte', fonte: 'RFB', versao_fonte: '2026-02' }).criado, false);
 assert.equal(refs.consultar({ ncm: '01029000' }).length, 1);
+assert.equal(refs.listar({ dominio: 'NCM', busca: '0102' }).total, 1);
+assert.equal(refs.resumo().NCM.vigentes, 1);
 
 const relacao = refs.registrarRelacaoNbsLc116({
   nbs: { codigo: '1.1501.30.00', descricao: 'Suporte de TI', fonte: 'NBS oficial', versao_fonte: '2026' },
@@ -58,6 +60,9 @@ assert.equal(carga.inseridos, 4);
 assert.equal(refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, aplicar: true }).inseridos, 0);
 assert.equal(refs.importarRelacoesNbsLc116DoAnexoViii({ arquivo: anexoViii, aplicar: true }).inseridas, 2);
 assert.equal(refs.importarRelacoesNbsLc116DoAnexoViii({ arquivo: anexoViii, aplicar: true }).inseridas, 0);
+// A referência mantém variantes por fonte/vigência; a busca não as consolida.
+assert.equal(refs.listar({ dominio: 'NBS', busca: 'Suporte' }).itens.length, 2);
+assert.equal(refs.resumo().NBS.vigentes, 3);
 
 console.log('referencias-fiscais-oficiais: normalização, fonte e carga idempotente validadas');
 db.close();
