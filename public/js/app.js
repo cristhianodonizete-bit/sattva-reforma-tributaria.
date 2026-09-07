@@ -245,8 +245,8 @@ const App = (() => {
     tarefasContratos: ['contratos', 'Contratos'], tarefasCapacitacao: ['capacitacao', 'Capacitação'],
   };
   const MODULO_FECHAMENTO_POR_TELA = {
-    perfil:'diagnostico', fornecedores:'diagnostico', clientes:'diagnostico', impactoFinalCbs:'diagnostico', cenarios:'diagnostico', calculadora:'diagnostico', conformidadeDocumental:'diagnostico', pendenciasDiagnostico:'diagnostico', tarefasDiagnostico:'diagnostico',
-    precificacao:'precificacao', formacaoCusto:'precificacao', tarefasPrecificacao:'precificacao',
+    perfil:'perfil', fornecedores:'fornecedores', clientes:'clientes', impactoFinalCbs:'impacto_cbs', cenarios:'cenarios', conformidadeDocumental:'conformidade',
+    precificacao:'precificacao', formacaoCusto:'formacao_custo', tarefasPrecificacao:'precificacao',
     contratos:'contratos', analise:'contratos', tarefasContratos:'contratos',
     capacitacao:'capacitacao', tarefasCapacitacao:'capacitacao', planejamento:'planejamento', acompanhamento:'acompanhamento',
   };

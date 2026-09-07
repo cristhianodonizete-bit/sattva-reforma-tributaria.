@@ -24,11 +24,12 @@ assert.equal(congelado.composicao.compras.credito_fornecedor.grupos[0].grupo, 'n
 
 assert.equal(fechamento.listar(empresaId).pronto_para_entrega, false, 'empresa inicia com módulos abertos');
 assert.throws(() => fechamento.exigirProntoParaEntrega(empresaId), /Entregável bloqueado/, 'entrega não é liberada antecipadamente');
-assert.equal(fechamento.fechar({ empresaId, modulo:'diagnostico', usuarioId:'teste', observacao:'Dados revisados.' }).modulos[0].status, 'FECHADO');
-assert.throws(() => fechamento.exigirAberto(empresaId, 'diagnostico', 'executar o motor'), /está fechado/, 'fechamento bloqueia novo cálculo do diagnóstico');
-assert.throws(() => fechamento.reabrir({ empresaId, modulo:'diagnostico', usuarioId:'teste' }), /Informe o motivo/, 'reabertura exige rastreabilidade');
-assert.equal(fechamento.reabrir({ empresaId, modulo:'diagnostico', usuarioId:'teste', motivo:'Correção de evidência.' }).modulos[0].status, 'ABERTO');
+assert.equal(fechamento.fechar({ empresaId, modulo:'perfil', usuarioId:'teste', observacao:'Dados revisados.' }).modulos[0].status, 'FECHADO');
+assert.throws(() => fechamento.exigirAberto(empresaId, 'perfil', 'executar o cálculo deste submódulo'), /está fechado/, 'fechamento bloqueia apenas o submódulo fechado');
+assert.equal(fechamento.exigirAberto(empresaId, 'clientes').modulos.find((m) => m.chave === 'clientes').status, 'ABERTO', 'outro submódulo continua aberto');
+assert.throws(() => fechamento.reabrir({ empresaId, modulo:'perfil', usuarioId:'teste' }), /Informe o motivo/, 'reabertura exige rastreabilidade');
+assert.equal(fechamento.reabrir({ empresaId, modulo:'perfil', usuarioId:'teste', motivo:'Correção de evidência.' }).modulos[0].status, 'ABERTO');
 for (const modulo of fechamento.MODULOS) fechamento.fechar({ empresaId, modulo:modulo.chave, usuarioId:'teste' });
 assert.equal(fechamento.exigirProntoParaEntrega(empresaId).pronto_para_entrega, true, 'todos os módulos fechados liberam a entrega');
-assert.equal(db.prepare('SELECT COUNT(*) AS n FROM empresa_modulos_entrega_eventos WHERE empresa_id=?').get(empresaId).n, 8, 'histórico mantém fechamento e reabertura');
+assert.equal(db.prepare('SELECT COUNT(*) AS n FROM empresa_submodulos_entrega_eventos WHERE empresa_id=?').get(empresaId).n, 14, 'histórico mantém fechamento e reabertura');
 console.log('fechamento-modulos-entregavel: bloqueio do motor, reabertura auditável e gate de entrega aprovados.');

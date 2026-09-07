@@ -331,7 +331,7 @@ const areaDaTarefaModulo = (chave) => ({
 }[chave] || 'gestao_projetos');
 const chaveAcessoApi = (caminho, metodo) => {
   const fechamento = caminho.match(/^\/empresas\/\d+\/modulos-entrega(?:\/([^/]+))?/);
-  if (fechamento) return ({ diagnostico:'diagnostico', precificacao:'precificacao', contratos:'contratos', capacitacao:'capacitacao', planejamento:'gestao_projetos', acompanhamento:'gestao_projetos' })[fechamento[1]] || 'visao_geral';
+  if (fechamento) return ({ perfil:'diagnostico', fornecedores:'diagnostico', clientes:'diagnostico', impacto_cbs:'diagnostico', cenarios:'diagnostico', conformidade:'diagnostico', precificacao:'precificacao', formacao_custo:'precificacao', contratos:'contratos', capacitacao:'capacitacao', planejamento:'gestao_projetos', acompanhamento:'gestao_projetos' })[fechamento[1]] || 'visao_geral';
   if (/^\/operacao/.test(caminho)) return 'visao_geral';
   if (/^\/acessos/.test(caminho)) return 'acessos';
   if (/^\/grupos-empresas/.test(caminho)) return 'gestao_projetos';
@@ -396,14 +396,14 @@ async function garantirEmpresaPermitida(req, empresaId) {
   const permitidas = await empresasPermitidasUsuario(req.usuario);
   if (permitidas !== null && !permitidas.has(String(empresaId))) throw new Error('Seu usuário não está vinculado a esta empresa.');
 }
-function diagnosticoFechado(empresaId) {
-  return fechamentoModulos.listar(Number(empresaId)).modulos.find((m) => m.chave === 'diagnostico')?.status === 'FECHADO';
+function submoduloFechado(empresaId, submodulo) {
+  return fechamentoModulos.listar(Number(empresaId)).modulos.find((m) => m.chave === submodulo)?.status === 'FECHADO';
 }
-function atualizarDiagnosticoSeAberto(empresaId, opcoes) {
+function atualizarDiagnosticoSeAberto(empresaId, submodulo, opcoes) {
   // Consultar um módulo fechado é permitido, mas sua leitura usa a fotografia
   // materializada. Isso impede que abrir Cadeias ou Impacto Final dispare um
   // cálculo silencioso depois da aprovação.
-  if (diagnosticoFechado(empresaId)) return { empresa_id:Number(empresaId), reprocessados:0, status:'FOTOGRAFIA_FECHADA' };
+  if (submoduloFechado(empresaId, submodulo)) return { empresa_id:Number(empresaId), reprocessados:0, status:'FOTOGRAFIA_FECHADA' };
   return motorExec.reprocessarIncremental(Number(empresaId), opcoes);
 }
 
@@ -417,7 +417,7 @@ router.get('/empresas/:id/modulos-entrega', async (req, res) => {
 router.post('/empresas/:id/modulos-entrega/:modulo/fechar', async (req, res) => {
   try {
     const empresaId = Number(req.params.id); await garantirEmpresaPermitida(req, empresaId);
-    if (req.params.modulo === 'diagnostico') {
+    if (fechamentoModulos.MODULOS.find((m) => m.chave === req.params.modulo)?.modulo === 'diagnostico') {
       const job = motorExecucaoFila.status(empresaId);
       if (job && ['PENDENTE', 'EM_EXECUCAO', 'PROCESSANDO'].includes(String(job.status || '').toUpperCase())) {
         throw new Error('Aguarde a conclusão do processamento do motor antes de fechar o Diagnóstico.');
@@ -1864,7 +1864,7 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     // motor_resultados; ela não recalcula base, CBS, IBS ou crédito.
     // Leitura operacional nunca refaz a empresa inteira. Só atualiza a
     // fotografia se alguma dependência efetivamente mudou.
-    atualizarDiagnosticoSeAberto(empresa.id, { ano: 2027 });
+    atualizarDiagnosticoSeAberto(empresa.id, tipo === 'cliente' ? 'clientes' : 'fornecedores', { ano: 2027 });
     const cfg = prepararCadeia(empresa, tipo, req.query);
     const detalhesSolicitados = req.query.detalhes === undefined ? true : String(req.query.detalhes) === '1';
     const resultado = consolidacaoOficial.cadeia(empresa.id, tipo, {
@@ -1887,7 +1887,7 @@ router.get('/empresas/:id/beneficios-fiscais/revisao', async (req, res) => {
     const empresaId = Number(req.params.id);
     const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(empresaId);
     if (!empresa) throw new Error('Empresa não encontrada.');
-    atualizarDiagnosticoSeAberto(empresaId, { ano: 2027 });
+    atualizarDiagnosticoSeAberto(empresaId, 'conformidade', { ano: 2027 });
     const operacoes = consolidacaoOficial.cadeia(empresaId, 'cliente', { executarSeAusente: false }).operacoesBeneficios
       .map((x) => ({ ...x, alternativas: revisaoBeneficiosFiscais.candidatos(x.lc116, x.nbs).map((c) => ({
         cclasstrib: c.cclasstrib, cst: c.cst || String(c.cclasstrib || '').slice(0, 3),
@@ -1930,7 +1930,7 @@ router.get('/empresas/:id/impacto-final-cbs', async (req, res) => {
     await atualizarConfiguracaoDeCalculo();
     const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
-    atualizarDiagnosticoSeAberto(empresa.id, { ano: 2027 });
+    atualizarDiagnosticoSeAberto(empresa.id, 'impacto_cbs', { ano: 2027 });
     ok(res, { empresa, ...consolidacaoOficial.impactoFinal(empresa.id, { executarSeAusente: false }) });
   } catch (e) { erro(res, e); }
 });
@@ -1939,7 +1939,7 @@ router.get('/empresas/:id/cenarios', async (req, res) => {
     await atualizarConfiguracaoDeCalculo();
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
-    atualizarDiagnosticoSeAberto(empresa.id, { ano: 2027 });
+    atualizarDiagnosticoSeAberto(empresa.id, 'cenarios', { ano: 2027 });
     const compras = consolidacaoOficial.cadeia(empresa.id, 'fornecedor', { executarSeAusente: false });
     const vendas = consolidacaoOficial.cadeia(empresa.id, 'cliente', { executarSeAusente: false });
     const c = compras.cenarios[0] || {}, v = vendas.cenarios[0] || {};
@@ -3678,7 +3678,8 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, r
 router.post('/empresas/:id/motor/executar', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
-    fechamentoModulos.exigirAberto(empresaId, 'diagnostico', 'executar o motor');
+    const bloqueados = fechamentoModulos.listar(empresaId).modulos.filter((m) => m.modulo === 'diagnostico' && m.status === 'FECHADO');
+    if (bloqueados.length) throw new Error(`O motor integral atualizaria submódulos fechados. Reabra somente os necessários: ${bloqueados.map((m) => m.titulo).join(', ')}.`);
     const r = await motorExecucaoFila.solicitar(empresaId, req.body || {});
     processamentoCarteira.executar(r.processamento_id).catch((e) => console.error('[motor completo]', e.message));
     ok(res, { assincro: true, ...r });
@@ -4152,7 +4153,7 @@ router.get('/cenarios/dimensoes', (_req, res) => {
 /** Cenário base: fotografia econômica atual, imutável */
 router.get('/empresas/:id/cenarios/base', (req, res) => {
   try {
-    fechamentoModulos.exigirAberto(Number(req.params.id), 'diagnostico', 'calcular cenários');
+    fechamentoModulos.exigirAberto(Number(req.params.id), 'cenarios', 'calcular cenários');
     const ano = Number(req.query.ano) || 2033;
     const cen = cenarioMotor.obterOuCriarBase(req.params.id, ano);
     const r = cenarioMotor.executarCenario(cen.id);
@@ -4170,7 +4171,7 @@ router.get('/empresas/:id/cenarios/lista', (req, res) => ok(res, {
 
 router.post('/empresas/:id/cenarios', (req, res) => {
   try {
-    fechamentoModulos.exigirAberto(Number(req.params.id), 'diagnostico', 'alterar cenários');
+    fechamentoModulos.exigirAberto(Number(req.params.id), 'cenarios', 'alterar cenários');
     const b = req.body;
     const ano = Number(b.ano) || 2033;
     const base = cenarioMotor.obterOuCriarBase(req.params.id, ano);
@@ -4198,7 +4199,7 @@ router.post('/cenarios/:id/versao', (req, res) => {
   try {
     const c = db.prepare('SELECT * FROM cenarios WHERE id = ?').get(req.params.id);
     if (!c) throw new Error('Cenário não encontrado.');
-    fechamentoModulos.exigirAberto(c.empresa_id, 'diagnostico', 'alterar cenários');
+    fechamentoModulos.exigirAberto(c.empresa_id, 'cenarios', 'alterar cenários');
     const r = db.prepare(`INSERT INTO cenarios (empresa_id, nome, descricao, tipo, base_id,
       versao, versao_anterior_id, ano, status) VALUES (?,?,?,?,?,?,?,?, 'rascunho')`)
       .run(c.empresa_id, req.body.nome || `${c.nome} v${c.versao + 1}`, c.descricao,
@@ -4228,7 +4229,7 @@ router.post('/cenarios/:id/alocacoes', (req, res) => {
     // participação do grupo de origem no cenário base, para registrar o impacto
     const cen = db.prepare('SELECT * FROM cenarios WHERE id = ?').get(req.params.id);
     if (!cen) throw new Error('Cenário não encontrado.');
-    fechamentoModulos.exigirAberto(cen.empresa_id, 'diagnostico', 'alterar cenários');
+    fechamentoModulos.exigirAberto(cen.empresa_id, 'cenarios', 'alterar cenários');
     const comp = db.prepare(`SELECT participacao, valor FROM cenario_composicao
       WHERE cenario_id = ? AND lado = ? AND dimensao = ? AND grupo = ?`)
       .get(cen.base_id || cen.id, b.lado, b.dimensao, b.grupo_origem);
@@ -4255,7 +4256,7 @@ router.get('/cenarios/:id/alocacoes', (req, res) => ok(res, {
 
 router.delete('/cenarios/alocacoes/:id', (req, res) => {
   const a = db.prepare('SELECT cenario_id FROM cenario_alocacoes WHERE id = ?').get(req.params.id);
-  if (a) { const c = db.prepare('SELECT empresa_id FROM cenarios WHERE id=?').get(a.cenario_id); if (c) fechamentoModulos.exigirAberto(c.empresa_id, 'diagnostico', 'alterar cenários'); }
+  if (a) { const c = db.prepare('SELECT empresa_id FROM cenarios WHERE id=?').get(a.cenario_id); if (c) fechamentoModulos.exigirAberto(c.empresa_id, 'cenarios', 'alterar cenários'); }
   db.prepare('DELETE FROM cenario_alocacoes WHERE id = ?').run(req.params.id);
   if (a) db.prepare(`UPDATE cenarios SET status = 'rascunho' WHERE id = ?`).run(a.cenario_id);
   ok(res, {});
@@ -4268,7 +4269,7 @@ router.post('/cenarios/:id/premissas', (req, res) => {
   try {
     const cen = db.prepare('SELECT empresa_id FROM cenarios WHERE id=?').get(req.params.id);
     if (!cen) throw new Error('Cenário não encontrado.');
-    fechamentoModulos.exigirAberto(cen.empresa_id, 'diagnostico', 'alterar cenários');
+    fechamentoModulos.exigirAberto(cen.empresa_id, 'cenarios', 'alterar cenários');
     const b = req.body;
     if (!['global', 'grupo', 'individual'].includes(b.nivel)) throw new Error('Nível deve ser global, grupo ou individual.');
     if (!b.campo) throw new Error('Informe o campo da premissa.');
@@ -4291,7 +4292,7 @@ router.post('/cenarios/:id/premissas', (req, res) => {
 
 router.delete('/cenarios/premissas/:id', (req, res) => {
   const p = db.prepare('SELECT cenario_id FROM cenario_premissas WHERE id = ?').get(req.params.id);
-  if (p) { const c = db.prepare('SELECT empresa_id FROM cenarios WHERE id=?').get(p.cenario_id); if (c) fechamentoModulos.exigirAberto(c.empresa_id, 'diagnostico', 'alterar cenários'); }
+  if (p) { const c = db.prepare('SELECT empresa_id FROM cenarios WHERE id=?').get(p.cenario_id); if (c) fechamentoModulos.exigirAberto(c.empresa_id, 'cenarios', 'alterar cenários'); }
   db.prepare('DELETE FROM cenario_premissas WHERE id = ?').run(req.params.id);
   if (p) db.prepare(`UPDATE cenarios SET status = 'rascunho' WHERE id = ?`).run(p.cenario_id);
   ok(res, {});
@@ -4306,7 +4307,7 @@ router.get('/cenarios/templates', (_req, res) => ok(res, { templates: cenarioTem
  */
 router.post('/empresas/:id/cenarios/templates/:chave', (req, res) => {
   try {
-    fechamentoModulos.exigirAberto(Number(req.params.id), 'diagnostico', 'alterar cenários');
+    fechamentoModulos.exigirAberto(Number(req.params.id), 'cenarios', 'alterar cenários');
     const tpl = cenarioTemplates.obter(req.params.chave);
     if (!tpl) throw new Error('Template de cenário não encontrado.');
     const ano = Number(req.body.ano) || 2033;
@@ -4336,7 +4337,7 @@ router.post('/cenarios/:id/executar', (req, res) => {
   try {
     const c = db.prepare('SELECT empresa_id FROM cenarios WHERE id=?').get(req.params.id);
     if (!c) throw new Error('Cenário não encontrado.');
-    fechamentoModulos.exigirAberto(c.empresa_id, 'diagnostico', 'calcular cenários');
+    fechamentoModulos.exigirAberto(c.empresa_id, 'cenarios', 'calcular cenários');
     const r = cenarioMotor.executarCenario(req.params.id);
     ok(res, {
       cenario: r.cenario, composicao: r.composicao, indicadores: r.indicadores,

@@ -1963,6 +1963,29 @@ CREATE TABLE IF NOT EXISTS empresa_modulos_entrega_eventos (
 );
 CREATE INDEX IF NOT EXISTS ix_empresa_modulos_entrega_status ON empresa_modulos_entrega(empresa_id, status);
 CREATE INDEX IF NOT EXISTS ix_empresa_modulos_entrega_eventos ON empresa_modulos_entrega_eventos(empresa_id, modulo, id DESC);
+
+-- Granularidade efetiva do fechamento: cada tela/entregável é congelado
+-- separadamente. As tabelas anteriores são preservadas como histórico da
+-- primeira versão do controle, sem converter fechamento amplo em aprovação
+-- automática de submódulos.
+CREATE TABLE IF NOT EXISTS empresa_submodulos_entrega (
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  submodulo TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'ABERTO' CHECK(status IN ('ABERTO','FECHADO')),
+  fechado_em TEXT, fechado_por TEXT, observacao TEXT,
+  reaberto_em TEXT, reaberto_por TEXT, motivo_reabertura TEXT,
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  PRIMARY KEY (empresa_id, submodulo)
+);
+CREATE TABLE IF NOT EXISTS empresa_submodulos_entrega_eventos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  submodulo TEXT NOT NULL, acao TEXT NOT NULL CHECK(acao IN ('FECHADO','REABERTO')),
+  usuario_id TEXT, dados_json TEXT NOT NULL DEFAULT '{}',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_empresa_submodulos_entrega_status ON empresa_submodulos_entrega(empresa_id, status);
+CREATE INDEX IF NOT EXISTS ix_empresa_submodulos_entrega_eventos ON empresa_submodulos_entrega_eventos(empresa_id, submodulo, id DESC);
 `);
 
 // --------------------------------------------------------------------------
