@@ -3349,13 +3349,24 @@ router.get('/bases/referencias-oficiais/resumo', (req, res) => {
 
 router.get('/bases/referencias-oficiais', (req, res) => {
   try {
-    responderBasesEmCache(req, res, () => referenciasFiscaisOficiais.listar({
+    responderBasesEmCache(req, res, () => {
+      const resultado = referenciasFiscaisOficiais.listar({
       dominio: req.query.dominio,
       busca: req.query.busca || '',
       pagina: Number(req.query.pagina) || 1,
       tamanho: Number(req.query.tamanho) || 50,
       somenteVigentes: req.query.incluir_historico !== '1',
-    }));
+      });
+      // A referência oficial é completa; o indicador abaixo apenas informa se
+      // existe tratamento operacional homologado. Ele não cria regra nem faz
+      // a referência oficial entrar no motor.
+      if (String(req.query.dominio || '').toUpperCase() === 'NCM' && resultado.itens.length) {
+        const codigos = resultado.itens.map((x) => x.codigo);
+        const encontrados = new Set(db.prepare(`SELECT DISTINCT ncm FROM base_ncm WHERE ncm IN (${codigos.map(() => '?').join(',')})`).all(...codigos).map((x) => x.ncm));
+        resultado.itens = resultado.itens.map((x) => ({ ...x, possui_regra_operacional: encontrados.has(x.codigo) }));
+      }
+      return resultado;
+    });
   } catch (e) { erro(res, e); }
 });
 
@@ -3430,6 +3441,14 @@ router.get('/bases/catalogo/exportar', (req, res) => {
         'Redução CBS geral': item.reducao_cbs, 'Tratamento geral': item.reducao,
         Regra: item.regra, Fonte: item.fonte, ...camposBeneficio(b),
     }));
+    const ncmOperacionais = new Set(db.prepare('SELECT DISTINCT ncm FROM base_ncm').all().map((x) => x.ncm));
+    const ncmOficial = db.prepare(`SELECT codigo,descricao,situacao,vigencia_inicio,vigencia_fim,fonte,versao_fonte
+      FROM referencias_fiscais_oficiais WHERE dominio='NCM' ORDER BY codigo`).all().map((item) => ({
+      NCM: item.codigo, 'Descrição oficial': item.descricao, Situação: item.situacao,
+      'Vigência inicial': item.vigencia_inicio, 'Vigência final': item.vigencia_fim || '',
+      'Possui regra operacional homologada?': ncmOperacionais.has(item.codigo) ? 'SIM' : 'NÃO',
+      Fonte: item.fonte, 'Versão da fonte': item.versao_fonte,
+    }));
     const servicos = comBeneficios(db.prepare('SELECT * FROM base_servicos ORDER BY nbs, lc116, cclasstrib').all(), 'servicos', (item, b) => ({
         NBS: item.nbs, 'LC 116': item.lc116, 'Descrição NBS': item.descricao_nbs,
         'Descrição do serviço': item.descricao_item, Onerosa: item.onerosa, Exterior: item.exterior,
@@ -3446,6 +3465,7 @@ router.get('/bases/catalogo/exportar', (req, res) => {
       XLSX.utils.book_append_sheet(wb, ws, nome);
     };
     adicionarAba('Produtos NCM', ncm);
+    adicionarAba('NCM oficial completa', ncmOficial);
     adicionarAba('Serviços NBS', servicos);
     adicionarAba('Benefícios governo', regrasGoverno.map((r) => ({
       Tipo: r.tipo, Chave: r.chave, NCM: r.ncm, NBS: r.nbs, 'LC 116': r.lc116, Descrição: r.descricao,
