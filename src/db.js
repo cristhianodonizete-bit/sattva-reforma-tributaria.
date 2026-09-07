@@ -1631,6 +1631,27 @@ CREATE TABLE IF NOT EXISTS referencias_fiscais_relacoes (
 CREATE INDEX IF NOT EXISTS ix_referencias_fiscais_relacoes_origem ON referencias_fiscais_relacoes(origem_id, tipo, vigencia_inicio);
 CREATE INDEX IF NOT EXISTS ix_referencias_fiscais_relacoes_destino ON referencias_fiscais_relacoes(destino_id, tipo, vigencia_inicio);
 
+-- Correlações históricas preservam uma mudança oficial de nomenclatura sem
+-- sobrescrever a chave do documento ou do catálogo operacional. Esta tabela
+-- não é consultada pelo motor até uma promoção explícita e auditada.
+CREATE TABLE IF NOT EXISTS referencias_fiscais_correlacoes_historicas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  dominio TEXT NOT NULL CHECK(dominio='NCM'),
+  codigo_origem TEXT NOT NULL,
+  codigo_destino TEXT NOT NULL,
+  tipo_relacao TEXT NOT NULL CHECK(tipo_relacao IN ('DIRETA','PARCIAL_EX')),
+  versao_origem TEXT NOT NULL,
+  versao_destino TEXT NOT NULL,
+  vigencia_inicio TEXT,
+  fonte TEXT NOT NULL,
+  hash_origem TEXT NOT NULL,
+  evidencia TEXT NOT NULL DEFAULT '',
+  importado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE(dominio,codigo_origem,codigo_destino,tipo_relacao,versao_origem,versao_destino,fonte,hash_origem)
+);
+CREATE INDEX IF NOT EXISTS ix_referencias_fiscais_correlacoes_origem ON referencias_fiscais_correlacoes_historicas(dominio,codigo_origem,tipo_relacao);
+CREATE INDEX IF NOT EXISTS ix_referencias_fiscais_correlacoes_destino ON referencias_fiscais_correlacoes_historicas(dominio,codigo_destino);
+
 -- Matriz fiscal em estágio de conteúdo. Nenhuma linha desta tabela é lida
 -- pelo motor atual: publicação explícita e execução sombra são pré-requisitos
 -- para promover uma regra à base operacional.

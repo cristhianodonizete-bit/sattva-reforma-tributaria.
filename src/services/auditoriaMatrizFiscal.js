@@ -7,6 +7,7 @@
  */
 const dbPadrao = require('../db');
 const { normalizarNcm, normalizarNbs, normalizarLc116 } = require('./referenciasFiscaisOficiais');
+const correlacoesHistoricasNcm = require('./correlacoesHistoricasNcm');
 
 const VAZIO = (valor) => valor == null || String(valor).trim() === '';
 const MARCADOR_NBS_INTERNO = '999999999';
@@ -113,6 +114,8 @@ function reconciliarNcmsSemReferencia({ db = dbPadrao } = {}) {
     // NCM histórico. Para admitir contexto, exigimos descrição ou fonte/fundamento.
     const temEvidenciaCatalogo = [linha.descricao, linha.fonte, linha.fundamento].some((x) => !VAZIO(x));
     const uso = usoPorNcm.get(codigo) || { operacoes: 0, valor: 0 };
+    const resolucao = interno ? null : correlacoesHistoricasNcm.resolver({ ncm: codigo, db });
+    const direta = resolucao?.status === 'RESOLVIDA_OFICIALMENTE';
     return {
       ncm_operacional: codigo,
       linhas_catalogo: Number(linha.linhas),
@@ -121,11 +124,13 @@ function reconciliarNcmsSemReferencia({ db = dbPadrao } = {}) {
       fundamento_catalogo: linha.fundamento || '',
       operacoes_atuais: uso.operacoes,
       valor_operacoes_atuais: uso.valor,
-      classificacao: interno ? 'CODIGO_INTERNO_OU_TESTE' : temEvidenciaCatalogo ? 'SEM_SUCESSOR_OBJETIVO_COM_CONTEXTO' : 'SEM_SUCESSOR_OBJETIVO_SEM_CONTEXTO',
-      sucessor_oficial_comprovado: null,
+      classificacao: interno ? 'CODIGO_INTERNO_OU_TESTE' : direta ? 'SUCESSOR_OFICIAL_DIRETO' : temEvidenciaCatalogo ? 'SEM_SUCESSOR_OBJETIVO_COM_CONTEXTO' : 'SEM_SUCESSOR_OBJETIVO_SEM_CONTEXTO',
+      sucessor_oficial_comprovado: direta ? resolucao.codigo_resolvido : null,
+      evidencia_sucessor: direta ? resolucao.evidencia : null,
       candidatos_mesmo_prefixo_apenas_pesquisa: interno ? [] : candidatosPorPrefixo(codigo),
       acao_segura: interno
         ? 'Preservar fora de qualquer correspondência automática; confirmar se deve permanecer apenas em dados de teste.'
+        : direta ? 'Disponível somente para auditoria; não substituir o NCM original até validação econômica e promoção explícita.'
         : 'Preservar a chave histórica e obter de/para de fonte oficial antes de qualquer substituição.',
     };
   }).filter(Boolean).sort((a, b) => a.ncm_operacional.localeCompare(b.ncm_operacional));
@@ -138,7 +143,7 @@ function reconciliarNcmsSemReferencia({ db = dbPadrao } = {}) {
     criterio: 'Candidato de mesmo prefixo é apenas apoio de pesquisa; não é sucessor fiscal nem autorização para alterar a chave.',
     total: itens.length,
     resumo,
-    sucessores_oficiais_comprovados: 0,
+    sucessores_oficiais_comprovados: itens.filter((x) => x.classificacao === 'SUCESSOR_OFICIAL_DIRETO').length,
     itens,
   };
 }
