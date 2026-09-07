@@ -26,6 +26,19 @@ const relacao = refs.registrarRelacaoNbsLc116({
 });
 assert.equal(relacao.criado, true);
 
-console.log('referencias-fiscais-oficiais: normalização e proteção de fonte validadas');
+const arquivoNcm = path.join(dados, 'ncm.json');
+fs.writeFileSync(arquivoNcm, JSON.stringify({ Data_Ultima_Atualizacao_NCM: 'Vigente em teste', Ato: 'Ato teste', Nomenclaturas: [
+  { Codigo: '01.02.90.00', Descricao: 'NCM folha', Data_Inicio: '01/01/2026', Data_Fim: '31/12/9999' },
+  { Codigo: '01.02', Descricao: 'NCM agrupadora', Data_Inicio: '01/01/2026', Data_Fim: '31/12/9999' },
+] }));
+const arquivoNbs = path.join(dados, 'nbs.csv');
+fs.writeFileSync(arquivoNbs, Buffer.from('NBS 2.0;DESCRIÇÃO\n1.1501.30.00;Suporte de TI\n1.15;Agrupador\n', 'latin1'));
+const previa = refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs });
+assert.deepEqual({ ncm: previa.ncm_lidos, nbs: previa.nbs_lidos, aplicado: previa.aplicado }, { ncm: 1, nbs: 1, aplicado: false });
+const carga = refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs, aplicar: true });
+assert.equal(carga.inseridos, 2);
+assert.equal(refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs, aplicar: true }).inseridos, 0);
+
+console.log('referencias-fiscais-oficiais: normalização, fonte e carga idempotente validadas');
 db.close();
 fs.rmSync(dados, { recursive: true, force: true });

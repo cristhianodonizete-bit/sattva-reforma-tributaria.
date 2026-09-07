@@ -6,6 +6,8 @@
  * base operacional já homologada.
  */
 const db = require('../db');
+const fs = require('fs');
+const crypto = require('crypto');
 
 const somenteDigitos = (valor) => String(valor == null ? '' : valor).replace(/\D/g, '');
 const normalizarNcm = (valor) => somenteDigitos(valor).padStart(8, '0').slice(-8);
@@ -76,4 +78,64 @@ function consultar({ ncm, nbs, lc116, somenteVigentes = true } = {}) {
   return db.prepare(`SELECT * FROM referencias_fiscais_oficiais WHERE (${filtros.join(' OR ')})${ativos} ORDER BY dominio,codigo,vigencia_inicio DESC`).all(...params);
 }
 
-module.exports = { normalizarNcm, normalizarNbs, normalizarLc116, registrarReferencia, registrarRelacaoNbsLc116, consultar };
+function sha256(conteudo) { return crypto.createHash('sha256').update(conteudo).digest('hex'); }
+
+function referenciasNcmDoArquivo(arquivo) {
+  const bruto = fs.readFileSync(arquivo);
+  const json = JSON.parse(bruto.toString('utf8'));
+  const data = String(json.Data_Ultima_Atualizacao_NCM || '').trim();
+  const versao = [data, json.Ato].filter(Boolean).join(' | ');
+  const linhas = (json.Nomenclaturas || []).filter((x) => somenteDigitos(x.Codigo).length === 8).map((x) => ({
+    dominio: 'NCM', codigo: x.Codigo, descricao: x.Descricao || '',
+    vigencia_inicio: x.Data_Inicio || '',
+    vigencia_fim: x.Data_Fim && x.Data_Fim !== '31/12/9999' ? x.Data_Fim : null,
+    situacao: x.Data_Fim === '31/12/9999' ? 'VIGENTE' : 'HISTORICO',
+    fonte: 'Receita Federal / Siscomex Classif', versao_fonte: versao,
+    hash_origem: sha256(bruto), dados_origem: x,
+  }));
+  return { linhas, versao, hash: sha256(bruto), atualizacao: data };
+}
+
+function referenciasNbsDoArquivo(arquivo) {
+  const bruto = fs.readFileSync(arquivo);
+  // O CSV oficial NBS 2.0 é publicado em codificação Windows-1252 e usa
+  // ponto e vírgula. Mantemos a descrição como recebida, sem normalização
+  // semântica ou associação a LC116.
+  const texto = new TextDecoder('windows-1252').decode(bruto);
+  const [cabecalho, ...corpo] = texto.split(/\r?\n/).filter(Boolean);
+  if (!/NBS/i.test(cabecalho)) throw new Error('Arquivo NBS não possui cabeçalho oficial esperado');
+  const linhas = corpo.map((linha) => {
+    const sep = linha.indexOf(';');
+    return { codigo: sep < 0 ? linha : linha.slice(0, sep), descricao: sep < 0 ? '' : linha.slice(sep + 1) };
+  }).filter((x) => somenteDigitos(x.codigo).length === 9).map((x) => ({
+    dominio: 'NBS', codigo: x.codigo, descricao: x.descricao,
+    vigencia_inicio: '2019-01-01', situacao: 'VIGENTE',
+    fonte: 'MDIC / NBS 2.0', versao_fonte: 'NBS 2.0 | arquivo publicado em 03/07/2025',
+    hash_origem: sha256(bruto), dados_origem: { codigo_publicado: x.codigo },
+  }));
+  return { linhas, hash: sha256(bruto) };
+}
+
+function importarReferenciasOficiais({ arquivoNcm, arquivoNbs, aplicar = false } = {}) {
+  const ncm = arquivoNcm ? referenciasNcmDoArquivo(arquivoNcm) : { linhas: [] };
+  const nbs = arquivoNbs ? referenciasNbsDoArquivo(arquivoNbs) : { linhas: [] };
+  const resumo = { ncm_lidos: ncm.linhas.length, nbs_lidos: nbs.linhas.length, ncm_hash: ncm.hash || null, nbs_hash: nbs.hash || null, aplicado: Boolean(aplicar) };
+  if (!aplicar) return resumo;
+  const inserir = db.prepare(`INSERT OR IGNORE INTO referencias_fiscais_oficiais
+    (dominio,codigo,descricao,vigencia_inicio,vigencia_fim,situacao,fonte,versao_fonte,hash_origem,dados_origem)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`);
+  let inseridos = 0;
+  db.transaction(() => {
+    for (const x of [...ncm.linhas, ...nbs.linhas]) {
+      const r = validarReferencia(x);
+      inseridos += inserir.run(r.dominio, r.codigo, r.descricao, r.vigencia_inicio, r.vigencia_fim, r.situacao,
+        r.fonte, r.versao_fonte, r.hash_origem, r.dados_origem).changes;
+    }
+  })();
+  return { ...resumo, inseridos, existentes: ncm.linhas.length + nbs.linhas.length - inseridos };
+}
+
+module.exports = {
+  normalizarNcm, normalizarNbs, normalizarLc116, registrarReferencia, registrarRelacaoNbsLc116, consultar,
+  referenciasNcmDoArquivo, referenciasNbsDoArquivo, importarReferenciasOficiais,
+};
