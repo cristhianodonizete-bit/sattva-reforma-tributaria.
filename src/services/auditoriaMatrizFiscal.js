@@ -219,6 +219,39 @@ function sombraSucessoresHistoricosNcm({ db = dbPadrao } = {}) {
   };
 }
 
+function evidenciasMinimasSucessor(item) {
+  const basicas = ['NCM_DOCUMENTO_VALIDADO', 'DESCRICAO_TECNICA_PRODUTO', 'DATA_OPERACAO', 'FUNDAMENTO_LEGAL_ESPECIFICO'];
+  const ncm = item.ncm_sucessor_oficial || '';
+  if (ncm.startsWith('3002')) return [...basicas, 'USO_HUMANO_OU_VETERINARIO', 'MERCADO_INTERNO_OU_IMPORTACAO', 'HABILITACAO_ESPECIAL_SE_EXIGIDA'];
+  if (ncm.startsWith('3822') || ncm.startsWith('9027')) return [...basicas, 'DESTINACAO_E_FINALIDADE_DO_PRODUTO'];
+  return basicas;
+}
+
+// Não cria pendência, não grava fato e não altera o motor. É um roteiro
+// determinístico para que a futura coleta por empresa+produto não transforme
+// uma correlação de nomenclatura em presunção tributária.
+function triagemEvidenciasSucessoresHistoricosNcm({ db = dbPadrao } = {}) {
+  const sombra = sombraSucessoresHistoricosNcm({ db });
+  const itens = sombra.itens.map((item) => ({
+    ...item,
+    evidencia_minima: [
+      ...evidenciasMinimasSucessor(item),
+      ...(item.status === 'SEM_REGRA_OPERACIONAL_DESTINO' ? ['REGRA_OPERACIONAL_VERSIONADA_DO_SUCESSOR'] : []),
+    ],
+    fatos_existentes_reutilizaveis: (item.ncm_sucessor_oficial || '').startsWith('3002')
+      ? ['uso_veterinario', 'importador', 'fabricacao_propria', 'revendedor']
+      : ['importador', 'fabricacao_propria', 'revendedor'],
+    coleta_automatica_autorizada: false,
+    decisao: 'COLETAR_EVIDENCIA_POR_EMPRESA_PRODUTO_SEM_ALTERAR_TRATAMENTO',
+  }));
+  return {
+    finalidade: 'Triagem somente-leitura para evidência material por empresa+produto. Não cadastra fatos, não cria pendências e não altera resultados.',
+    itens,
+    total: itens.length,
+    bloqueados: itens.filter((x) => x.status !== 'EQUIVALENTE_SEM_PROMOCAO_AUTOMATICA').length,
+  };
+}
+
 function auditar({ db = dbPadrao } = {}) {
   const ncm = auditarChaves(db, 'base_ncm', 'ncm', 'NCM', normalizarNcm);
   const nbs = auditarChaves(db, 'base_servicos', 'nbs', 'NBS', normalizarNbs);
@@ -237,4 +270,4 @@ function auditar({ db = dbPadrao } = {}) {
   };
 }
 
-module.exports = { auditar, reconciliarNcmsSemReferencia, sombraSucessoresHistoricosNcm, MARCADOR_NBS_INTERNO };
+module.exports = { auditar, reconciliarNcmsSemReferencia, sombraSucessoresHistoricosNcm, triagemEvidenciasSucessoresHistoricosNcm, MARCADOR_NBS_INTERNO };

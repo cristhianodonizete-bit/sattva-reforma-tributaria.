@@ -6,7 +6,7 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-sombra-sucessor-'));
 process.env.SATTVA_DADOS = dir;
 const db = require('../src/db');
 const { importarArquivo } = require('../src/services/correlacoesHistoricasNcm');
-const { sombraSucessoresHistoricosNcm } = require('../src/services/auditoriaMatrizFiscal');
+const { sombraSucessoresHistoricosNcm, triagemEvidenciasSucessoresHistoricosNcm } = require('../src/services/auditoriaMatrizFiscal');
 
 const arquivo = path.join(dir, 'correlacoes.json');
 fs.writeFileSync(arquivo, JSON.stringify({ relacoes: [
@@ -25,6 +25,10 @@ assert.equal(resultado.resumo.DIVERGENTE_BLOQUEADA, 1);
 assert.equal(resultado.resumo.SEM_REGRA_OPERACIONAL_DESTINO, 1);
 assert.deepEqual(resultado.itens.find((x) => x.ncm_historico === '33333333').campos_divergentes, ['cst']);
 assert.equal(resultado.itens.find((x) => x.ncm_historico === '55555555').decisao, 'MANTER_PENDENTE_SEM_COPIAR_REGRA');
+const triagem = triagemEvidenciasSucessoresHistoricosNcm({ db });
+assert.equal(triagem.total, 3);
+assert.ok(triagem.itens.find((x) => x.ncm_historico === '55555555').evidencia_minima.includes('REGRA_OPERACIONAL_VERSIONADA_DO_SUCESSOR'));
+assert.equal(triagem.itens.every((x) => x.coleta_automatica_autorizada === false), true);
 console.log('sombra-sucessores-historicos-ncm: equivalência, divergência e ausência bloqueadas com segurança');
 db.close();
 fs.rmSync(dir, { recursive: true, force: true });
