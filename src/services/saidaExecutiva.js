@@ -9,6 +9,8 @@ const PDFDocument = require('pdfkit');
 const XLSX = require('xlsx');
 const db = require('../db');
 const analiseCadeia = require('./analiseCadeia');
+const perfilTributarioHistorico = require('./perfilTributarioHistorico');
+const conformidadeDocumental = require('./conformidadeDocumental');
 
 const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
 const r2 = (v) => Math.round(n(v) * 100) / 100;
@@ -79,7 +81,20 @@ function limitacoes(resultado, analise) {
   return out;
 }
 
-function montar(resultados) {
+function contextoEmpresa(empresaId) {
+  if (!empresaId) return { empresa:null, perfil:null, conformidade:null, planejamento:null };
+  const empresa = db.prepare('SELECT id,razao_social,nome_fantasia,cnpj,cnae,atividade,cnaes_secundarios,regime,regime_resolvido FROM empresas WHERE id=?').get(empresaId) || null;
+  const historico = empresa ? perfilTributarioHistorico.consolidar(db, empresaId).historico : [];
+  const perfil = historico.at(-1) || null;
+  const conformidade = empresa ? conformidadeDocumental.listar(empresaId) : null;
+  const planejamento = empresa ? db.prepare(`SELECT a.id,a.titulo,a.status,a.atualizado_em,
+      (SELECT COUNT(*) FROM planejamento_resultados r WHERE r.analise_id=a.id) resultados
+    FROM planejamento_analises a JOIN planejamento_analise_empresas ae ON ae.analise_id=a.id
+    WHERE ae.empresa_id=? ORDER BY a.atualizado_em DESC,a.id DESC LIMIT 1`).get(empresaId) || null : null;
+  return { empresa, perfil, conformidade, planejamento };
+}
+
+function montar(resultados, opcoes = {}) {
   if (!resultados?.length) throw new Error('Selecione ao menos o cenário base.');
   const baseResultado = resultados.find((r) => r.eBase || r.cenario.tipo === 'base') || resultados[0];
   const base = fotografia(baseResultado);
@@ -93,9 +108,12 @@ function montar(resultados) {
     memoria:a.drilldown ? { ...a.drilldown, cenarioId:x.id } : null })));
   const oportunidades = alertas.filter((a) => a.severidade === 'bom').map((a) => ({ titulo:a.titulo, texto:a.texto, evidencia:a.evidencia, memoria:a.drilldown, natureza:a.natureza }));
   const atencoes = alertas.filter((a) => a.severidade !== 'bom').map((a) => ({ titulo:a.titulo, texto:a.texto, evidencia:a.evidencia, memoria:a.drilldown, natureza:a.natureza }));
+  const empresaId = Number(opcoes.empresaId || baseResultado.cenario?.empresa_id || 0) || null;
+  const contexto = contextoEmpresa(empresaId);
   return {
     titulo:'Implementação da Reforma Tributária', subtitulo:'Diagnóstico executivo CBS', geradoEm:new Date().toISOString(),
     fonte:'motor_resultados via cenários, indicadores, alertas, matriz e memória de cálculo',
+    empresa:contexto.empresa, perfilAtual:contexto.perfil, conformidadeDocumental:contexto.conformidade, planejamentoTributario:contexto.planejamento,
     base, cenarios, comparacao:comparacao(base, fotos),
     secoes:{
       resumoExecutivo:{ natureza:'CALCULADO', fatos:[
@@ -121,31 +139,46 @@ function montar(resultados) {
 
 function textoSeguro(v) { return String(v ?? '').replace(/[\u2013\u2014]/g, '-').replace(/•/g, '-'); }
 function gerarPdf(relatorio, destino) {
-  const doc = new PDFDocument({ size:'A4', margin:42, info:{ Title:'Diagnóstico executivo CBS - Sattva' } });
+  const doc = new PDFDocument({ size:'A4', margin:0, bufferPages:true, info:{ Title:'Relatório de entrega - Sattva' } });
   doc.pipe(destino);
-  const titulo = (t) => { doc.moveDown(.55); doc.font('Helvetica-Bold').fontSize(17).fillColor('#07395A').text(textoSeguro(t)); doc.moveDown(.35); };
-  const linha = (r, ntr='CALCULADO') => { doc.font('Helvetica-Bold').fontSize(9).fillColor('#07395A').text(textoSeguro(r)); doc.font('Helvetica').fontSize(9).fillColor('#263745').text(`${textoSeguro(ntr)} | ${textoSeguro(typeof r === 'object' ? JSON.stringify(r) : '')}`); };
-  const fato = (rotulo, valor, natureza) => { doc.font('Helvetica-Bold').fontSize(10).fillColor('#07395A').text(textoSeguro(rotulo)); doc.font('Helvetica').fontSize(12).fillColor('#111827').text(`${brl(valor)} | ${textoSeguro(natureza)}`); doc.moveDown(.2); };
-  doc.font('Helvetica-Bold').fontSize(25).fillColor('#07395A').text('Sattva');
-  doc.fontSize(19).text('Implementação da Reforma Tributária'); doc.moveDown(1);
-  doc.font('Helvetica').fontSize(12).fillColor('#263745').text('Diagnóstico executivo CBS');
-  doc.text(`Cenário base: ${textoSeguro(relatorio.base.nome)}`);
-  doc.text(`Gerado em: ${new Date(relatorio.geradoEm).toLocaleString('pt-BR')}`);
-  doc.moveDown(1); doc.fontSize(9).fillColor('#5d6b78').text('Todos os números são derivados dos resultados oficiais e podem ser auditados na memória de cálculo.');
-  titulo('1. Resumo executivo'); relatorio.secoes.resumoExecutivo.fatos.forEach((x) => fato(x.rotulo, x.valor, x.natureza));
-  titulo('2. Qualidade e cobertura dos dados'); relatorio.secoes.qualidade.indicadores.forEach((x) => linha(`${x.nome}: ${pct(x.percentual)}`, x.percentual === null ? 'INDETERMINADO' : 'CALCULADO'));
-  titulo('3. Cenário base'); fato('Receita atual', relatorio.base.receita, relatorio.base.natureza); fato('Base econômica das saídas', relatorio.base.baseEconomicaSaidas, relatorio.base.natureza); fato('CBS líquida projetada', relatorio.base.cbsLiquida, relatorio.base.natureza);
-  titulo('4. Impacto nas compras'); const cp=relatorio.secoes.compras; fato('Compras atuais',cp.valor,cp.natureza); fato('Base econômica das entradas',cp.baseEconomica,cp.natureza); fato('Crédito CBS recebido',cp.credito,cp.natureza);
-  titulo('5. Impacto nas vendas'); const vd=relatorio.secoes.vendas; fato('Vendas atuais',vd.valor,vd.natureza); fato('CBS das vendas',vd.cbs,vd.natureza); fato('Venda projetada',vd.precoProjetado,vd.natureza);
-  titulo('6. Crédito recebido e crédito entregue'); fato('Recebido de fornecedores',relatorio.base.creditoRecebido,relatorio.base.natureza); fato('Entregue aos clientes',relatorio.base.creditoEntregue,relatorio.base.natureza);
-  titulo('7. Waterfall econômico'); if (relatorio.secoes.waterfall) Object.entries(relatorio.secoes.waterfall).filter(([,v]) => typeof v === 'number').forEach(([k,v]) => fato(k,v,relatorio.secoes.waterfall.natureza)); else doc.fontSize(10).text('Sem hipótese adicional selecionada; o cenário base não cria waterfall de variação.');
-  titulo('8. Comparação Base x Cenário(s)'); relatorio.comparacao.forEach((x) => { doc.font('Helvetica-Bold').fontSize(11).fillColor('#07395A').text(textoSeguro(x.cenario)); doc.font('Helvetica').fontSize(9).fillColor('#263745').text(`CBS líquida ${brl(x.cbsLiquida)} | Delta ${brl(x.deltaCbsLiquida)} | Crédito recebido ${brl(x.creditoRecebido)} | Custo efetivo ${brl(x.custoEfetivo)} | ${x.natureza}`); doc.moveDown(.25); });
-  titulo('9. Matriz Fornecedores x Clientes'); doc.font('Helvetica').fontSize(9).fillColor('#263745').text(textoSeguro(relatorio.secoes.matriz.observacao)); relatorio.secoes.matriz.linhas.forEach((l) => { doc.moveDown(.25); doc.font('Helvetica-Bold').text(textoSeguro(l.nome)); doc.font('Helvetica').text(l.celulas.map((c) => `${c.horizontal}: ${brl(c.exposicaoEconomica)}`).join(' | ')); });
-  titulo('10. Principais alertas'); if (relatorio.secoes.alertas.length) relatorio.secoes.alertas.forEach((a) => { doc.font('Helvetica-Bold').fontSize(10).text(textoSeguro(a.titulo)); doc.font('Helvetica').fontSize(9).text(textoSeguro(a.texto)); doc.moveDown(.25); }); else doc.fontSize(10).text('Nenhum limiar de alerta foi atingido.');
-  titulo('11. Oportunidades e pontos de atenção'); [...relatorio.secoes.oportunidades,...relatorio.secoes.atencoes].forEach((a) => { doc.font('Helvetica-Bold').fontSize(10).text(textoSeguro(a.titulo)); doc.font('Helvetica').fontSize(9).text(textoSeguro(a.texto)); doc.moveDown(.2); });
-  titulo('12. Premissas utilizadas'); if(relatorio.secoes.premissas.length) relatorio.secoes.premissas.forEach((p) => doc.font('Helvetica').fontSize(9).text(textoSeguro(`${p.cenario}: ${p.tipo} ${p.campo || `${p.grupo_origem} -> ${p.grupo_destino}`} | ${p.valor_simulado || pct(p.percentual_grupo)} | ${p.natureza}`))); else doc.fontSize(10).text('Não há premissas simuladas no cenário base.');
-  titulo('13. Limitações e dados indeterminados'); if(relatorio.secoes.limitacoes.length) relatorio.secoes.limitacoes.forEach((x) => doc.font('Helvetica').fontSize(9).text(textoSeguro(`${x.cenario}: ${x.natureza} - ${x.texto}`))); else doc.fontSize(10).text('Nenhuma limitação adicional identificada na fotografia selecionada.');
-  titulo('14. Memória e resumo metodológico'); doc.font('Helvetica').fontSize(10).text(textoSeguro(relatorio.secoes.metodologia.texto));
+  const W=595.28, H=841.89, M=52, CW=W-(M*2), navy='#0C4264', tinta='#243746', cinza='#6A8191', fundo='#EEF4F7', turquesa='#24A5A4', ouro='#BF7B12', linha='#D4E0E7';
+  const txt=(v)=>textoSeguro(v || 'INDETERMINADO');
+  const cabeçalho=(subtitulo='Relatório de entrega')=>{ doc.rect(0,0,W,52).fill(navy); doc.fillColor('#FFFFFF').font('Helvetica-Bold').fontSize(18).text('Sattva',M,17); doc.font('Helvetica').fontSize(9).fillColor('#DDEBF2').text('Implementação da Reforma Tributária',145,20); doc.text(subtitulo,414,20,{width:130,align:'right'}); };
+  const titulo=(t, y)=>{ doc.fillColor(navy).font('Helvetica-Bold').fontSize(20).text(txt(t),M,y); return y+29; };
+  const texto=(t,x,y,w,size=9,color=tinta)=>{ doc.fillColor(color).font('Helvetica').fontSize(size).text(txt(t),x,y,{width:w,lineGap:2}); return y+doc.heightOfString(txt(t),{width:w,lineGap:2}); };
+  const caixa=(x,y,w,h,cor='#FFFFFF',borda=linha)=>{ doc.roundedRect(x,y,w,h,8).fillAndStroke(cor,borda); };
+  const card=(x,y,w,rotulo,valor,apoio,cor=turquesa)=>{ const v=txt(valor); const tamanho=v.length > 11 ? 12 : 17; caixa(x,y,w,108); doc.roundedRect(x,y+100,w,8).fill(cor); doc.fillColor(cinza).font('Helvetica-Bold').fontSize(8).text(txt(rotulo).toUpperCase(),x+15,y+20,{width:w-30}); doc.fillColor(navy).font('Helvetica-Bold').fontSize(tamanho).text(v,x+15,y+49,{width:w-30,ellipsis:true}); doc.fillColor(cinza).font('Helvetica').fontSize(8).text(txt(apoio),x+15,y+80,{width:w-30}); };
+  const linhaDado=(x,y,rotulo,valor,cor=navy)=>{ doc.fillColor(cinza).font('Helvetica').fontSize(9).text(txt(rotulo),x,y,{width:170}); doc.fillColor(cor).font('Helvetica-Bold').fontSize(10).text(txt(valor),x+175,y,{width:120,align:'right'}); return y+24; };
+  const linhaPequena=(x,y,w,rotulo,valor,cor=navy)=>{ doc.fillColor(cinza).font('Helvetica').fontSize(8.5).text(txt(rotulo),x,y,{width:w*.48}); doc.fillColor(cor).font('Helvetica-Bold').fontSize(9).text(txt(valor),x+(w*.5),y,{width:w*.5,align:'right',ellipsis:true}); return y+24; };
+  const natureza=(n)=>String(n || 'INDETERMINADO').replaceAll('_',' ');
+  const empresa=relatorio.empresa || {}; const perfil=relatorio.perfilAtual || {}; const conf=relatorio.conformidadeDocumental || { resumo:{ total:0,valor:0 }, itens:[] }; const plan=relatorio.planejamentoTributario;
+  const perfilPis=perfil.carga_pis_cofins_atual || {}; const perfilPisPct=perfil.carga_pis_cofins_percentual || {};
+
+  cabeçalho('Relatório executivo'); let y=78;
+  doc.fillColor(navy).font('Helvetica-Bold').fontSize(27).text('Diagnóstico e plano de adequação',M,y); y+=42;
+  doc.fillColor(navy).font('Helvetica-Bold').fontSize(14).text(txt(empresa.razao_social || 'Empresa em análise'),M,y); y+=23;
+  doc.fillColor(cinza).font('Helvetica').fontSize(10).text(`Cenário de referência: ${txt(relatorio.base.nome)}  |  Gerado em: ${new Date(relatorio.geradoEm).toLocaleString('pt-BR')}`,M,y); y+=36;
+  caixa(M,y,CW,48,fundo); texto('Este relatório conta a história da operação atual, dos efeitos da CBS e das decisões que precisam ser avaliadas. Todos os valores vêm de fotografias oficiais já calculadas; dados ausentes permanecem explícitos.',M+16,y+14,CW-32,9,navy); y+=72;
+  y=titulo('Informação da empresa',y);
+  caixa(M,y,CW,93); let iy=y+18; iy=linhaDado(M+18,iy,'CNPJ',empresa.cnpj || 'INDETERMINADO'); iy=linhaDado(M+18,iy,'CNAE principal',empresa.cnae || 'INDETERMINADO'); linhaDado(M+18,iy,'Atividade',empresa.atividade || empresa.nome_fantasia || 'INDETERMINADO'); y+=118;
+  y=titulo('Perfil tributário atual',y);
+  const gap=12, cw=(CW-(gap*2))/3; card(M,y,cw,'Regime atual',String(empresa.regime_resolvido || empresa.regime || perfil.regime || 'INDETERMINADO').replaceAll('_',' '),'cadastro e histórico',navy); card(M+cw+gap,y,cw,'PIS/Cofins atual',perfilPis.valor===null||perfilPis.valor===undefined?'INDETERMINADO':brl(perfilPis.valor),`${natureza(perfilPis.natureza)} · ${perfilPis.origem || 'sem origem'}`,turquesa); card(M+(cw+gap)*2,y,cw,'Carga efetiva PIS/Cofins',perfilPisPct.valor===null||perfilPisPct.valor===undefined?'INDETERMINADO':pct(perfilPisPct.valor),natureza(perfilPisPct.natureza), '#5B8DB9');
+  y+=132; y=titulo('Leitura executiva',y); caixa(M,y,CW,59,'#FFF7E4','#F4E1B9'); texto('O perfil atual é a referência para comparar o efeito da CBS. O relatório não substitui a apuração fiscal nem presume que uma divergência documental, sozinha, mude a carga tributária.',M+16,y+15,CW-32,9,ouro);
+
+  doc.addPage(); cabeçalho('Cadeia e impacto CBS'); y=78;
+  const metade=(CW-12)/2; y=titulo('Cadeia de fornecedores',y); caixa(M,y,metade,142); let fy=y+20; fy=linhaPequena(M+16,fy,metade-32,'Compras atuais',brl(relatorio.secoes.compras.valor)); fy=linhaPequena(M+16,fy,metade-32,'Base econômica',brl(relatorio.secoes.compras.baseEconomica)); linhaPequena(M+16,fy,metade-32,'Crédito CBS recebido',brl(relatorio.secoes.compras.credito),turquesa);
+  const x2=M+metade+12; caixa(x2,y,metade,142); let cy=y+20; cy=linhaPequena(x2+16,cy,metade-32,'Crédito normal',brl(relatorio.base.creditoRecebido)); cy=linhaPequena(x2+16,cy,metade-32,'Custo efetivo',brl(relatorio.base.custoEfetivo)); linhaPequena(x2+16,cy,metade-32,'Operações',String(relatorio.base.operacoesCompras)); y+=167;
+  y=titulo('Cadeia de clientes',y); caixa(M,y,metade,142); let vy=y+20; vy=linhaPequena(M+16,vy,metade-32,'Vendas atuais',brl(relatorio.secoes.vendas.valor)); vy=linhaPequena(M+16,vy,metade-32,'Base econômica',brl(relatorio.secoes.vendas.baseEconomica)); linhaPequena(M+16,vy,metade-32,'CBS das vendas',brl(relatorio.secoes.vendas.cbs),'#5B8DB9');
+  caixa(x2,y,metade,142); let ly=y+20; ly=linhaPequena(x2+16,ly,metade-32,'Venda projetada',brl(relatorio.secoes.vendas.precoProjetado)); ly=linhaPequena(x2+16,ly,metade-32,'Crédito entregue',brl(relatorio.base.creditoEntregue)); linhaPequena(x2+16,ly,metade-32,'Operações',String(relatorio.base.operacoesVendas)); y+=168;
+  y=titulo('Impacto da CBS',y); card(M,y,cw,'CBS débito',brl(relatorio.base.cbsDebito),'efeito nas vendas','#5B8DB9'); card(M+cw+gap,y,cw,'CBS crédito',brl(relatorio.base.cbsCredito),'efeito nas compras',turquesa); card(M+(cw+gap)*2,y,cw,'CBS líquida',brl(relatorio.base.cbsLiquida),'débito menos crédito',navy);
+
+  doc.addPage(); cabeçalho('Conformidade, cenários e planejamento'); y=78;
+  y=titulo('Conformidade documental',y); caixa(M,y,CW,83,'#FFF7E4','#F4E1B9'); doc.fillColor(ouro).font('Helvetica-Bold').fontSize(9).text('PONTOS A VALIDAR',M+16,y+17); doc.fillColor(navy).font('Helvetica-Bold').fontSize(20).text(String(conf.resumo?.total || 0),M+16,y+38); doc.fillColor(tinta).font('Helvetica').fontSize(9).text(`apontamento(s) documentais · valor envolvido ${brl(conf.resumo?.valor)}`,M+55,y+45); texto('Apontamentos documentais são evidência para revisão. Só devem se tornar prioridade econômica quando o motor demonstrar impacto material na carga, crédito ou preço.',M+16,y+63,CW-32,8,cinza); y+=104;
+  const exemplos=(conf.itens || []).slice(0,3); if(exemplos.length){ exemplos.forEach((x)=>{ caixa(M,y,CW,42,'#FFFFFF',linha); doc.fillColor(navy).font('Helvetica-Bold').fontSize(9).text(txt(x.titulo),M+14,y+9,{width:220}); texto(x.evidencia,M+14,y+22,CW-28,8,cinza); y+=50; }); } else { caixa(M,y,CW,42,fundo); texto('Nenhum apontamento documental disponível para a fotografia selecionada.',M+14,y+14,CW-28,9,cinza); y+=56; }
+  y=titulo('Cenários',y); caixa(M,y,CW,Math.max(68, 25+(relatorio.comparacao.length*19))); let sy=y+15; relatorio.comparacao.slice(0,5).forEach((x)=>{ doc.fillColor(navy).font('Helvetica-Bold').fontSize(9).text(txt(x.cenario),M+16,sy,{width:200}); doc.font('Helvetica').fillColor(tinta).text(`CBS líquida ${brl(x.cbsLiquida)} | variação ${brl(x.deltaCbsLiquida)} | ${natureza(x.natureza)}`,M+222,sy,{width:CW-238}); sy+=19; }); y+=Math.max(84, 41+(relatorio.comparacao.length*19));
+  y=titulo('Planejamento tributário',y); caixa(M,y,CW,72, plan ? '#EAF6F6' : fundo, linha); doc.fillColor(plan?turquesa:cinza).font('Helvetica-Bold').fontSize(9).text(plan?'ESTUDO MAIS RECENTE':'STATUS',M+16,y+16); doc.fillColor(navy).font('Helvetica-Bold').fontSize(12).text(plan?txt(plan.titulo):'Ainda não há estudo de planejamento vinculado',M+16,y+32,{width:CW-32}); texto(plan?`Status: ${txt(plan.status)} · ${plan.resultados || 0} resultado(s) registrado(s) · atualização ${txt(plan.atualizado_em)}`:'Crie o estudo no Módulo 5 para comparar regimes, receita projetada, folha, margem e as decisões de preço.',M+16,y+50,CW-32,8,cinza);
+
+  const paginas=doc.bufferedPageRange(); for(let i=0;i<paginas.count;i++){ doc.switchToPage(i); doc.strokeColor(linha).moveTo(M,H-38).lineTo(W-M,H-38).stroke(); doc.fillColor(cinza).font('Helvetica').fontSize(8).text('Sattva · Relatório de entrega · Valores auditáveis na memória de cálculo',M,H-28); doc.text(`Página ${i+1} de ${paginas.count}`,W-130,H-28,{width:78,align:'right'}); }
   doc.end(); return doc;
 }
 

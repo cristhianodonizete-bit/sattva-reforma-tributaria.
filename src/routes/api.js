@@ -4321,7 +4321,7 @@ function montarSaidaExecutiva(empresaId, ids, anoSolicitado) {
   if (!base) throw new Error(`Cenário base ${ano} não encontrado para esta empresa.`);
   if (selecionados.some((id) => !permitidos.has(id))) throw new Error('Há cenário selecionado que não pertence à empresa em análise.');
   if (selecionados.length > 5) throw new Error('Selecione o cenário base e no máximo quatro hipóteses.');
-  return saidaExecutiva.montar(selecionados.map((id) => cenarioMotor.executarCenario(id)));
+  return saidaExecutiva.montar(selecionados.map((id) => cenarioMotor.executarCenario(id)), { empresaId });
 }
 router.post('/empresas/:id/saida-executiva', async (req, res) => {
   try {
