@@ -56,6 +56,12 @@ const completa = normalizacao.avaliar({ origem: 'xml', ncm: '', iss: 2, lc116: '
 assert.equal(completa.status, 'VALIDADO');
 assert.equal(completa.pendencia, '');
 
+const marcadorInterno = normalizacao.avaliar({ origem: 'xml', ncm: '', iss: 2, lc116: '1.05', nbs: '999999999', cst: '010501' });
+assert.deepEqual(marcadorInterno, {
+  status: 'PENDENTE', pendencia: 'NBS_NAO_IDENTIFICADA',
+  evidencia: 'Item LC116: 0105 · marcador interno de NBS sem correspondência · Código fiscal bruto do XML: 010501',
+});
+
 // Em XMLs cujo item não vem em tag separada, os quatro primeiros dígitos do
 // código fiscal preservado são a evidência do item LC116.
 const apenasCodigoFiscal = normalizacao.avaliar({ origem: 'xml', ncm: '', iss: 0, lc116: '', nbs: '115013000', cst: '010701' });

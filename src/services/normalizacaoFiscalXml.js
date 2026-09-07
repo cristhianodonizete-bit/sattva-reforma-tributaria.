@@ -8,6 +8,7 @@
 const db = require('../db');
 
 const somenteDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
+const NBS_INTERNA_SEM_CORRESPONDENCIA = '999999999';
 const normalizarLc116 = (v) => {
   const d = somenteDigitos(v).slice(0, 4);
   return d ? d.padStart(4, '0') : '';
@@ -32,6 +33,15 @@ function avaliar(movimento) {
     return {
       status: 'PENDENTE', pendencia: 'LC116_NAO_IDENTIFICADO',
       evidencia: cst ? `Código fiscal bruto do XML: ${cst}` : 'XML de serviço sem item LC116 identificado.',
+    };
+  }
+  // Este valor foi usado por importações antigas apenas como marcador interno
+  // de ausência. Ele não é NBS oficial e não pode transformar uma pendência
+  // em lançamento "validado" nem ser enviado ao resolvedor como chave fiscal.
+  if (nbs === NBS_INTERNA_SEM_CORRESPONDENCIA) {
+    return {
+      status: 'PENDENTE', pendencia: 'NBS_NAO_IDENTIFICADA',
+      evidencia: `Item LC116: ${lc116} · marcador interno de NBS sem correspondência${cst ? ` · Código fiscal bruto do XML: ${cst}` : ''}`,
     };
   }
   if (!nbs) {

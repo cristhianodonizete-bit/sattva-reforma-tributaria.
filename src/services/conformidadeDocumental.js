@@ -7,6 +7,7 @@
  */
 const db = require('../db');
 const bases = require('./basesReforma');
+const NBS_INTERNA_SEM_CORRESPONDENCIA = '999999999';
 
 const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
 const r2 = (v) => Math.round(n(v) * 100) / 100;
@@ -41,8 +42,9 @@ function regraDeUso(x) {
 function avaliar(movimento) {
   const lc116 = bases.normLc116(movimento.lc116);
   const nbs = bases.normNbs(movimento.nbs);
+  const marcadorInternoNbs = nbs === NBS_INTERNA_SEM_CORRESPONDENCIA;
   if (!lc116 && !nbs) return null;
-  const consulta = bases.consultarServico(lc116, nbs);
+  const consulta = bases.consultarServico(lc116, marcadorInternoNbs ? '' : nbs);
   // O catálogo pode conter linhas técnicas repetidas pela origem da carga.
   // Na conformidade, a alternativa é a combinação fiscal distinta; não faz
   // sentido repetir a mesma opção para quem revisa o documento.
@@ -69,6 +71,15 @@ function avaliar(movimento) {
     solucao: candidatos.length
       ? 'Confirme o item da lista de serviços aplicável dentre as opções apresentadas.'
       : 'Complete o item LC 116 e revise a correspondência no catálogo fiscal.',
+    candidatos,
+  };
+  if (marcadorInternoNbs) return {
+    tipo: 'NBS_NAO_IDENTIFICADA', severidade: 'ATENCAO',
+    titulo: 'NBS não identificada no documento fiscal',
+    evidencia: `O lançamento informa LC 116 ${lc116}, mas contém apenas um marcador interno no campo NBS; não há NBS oficial identificada.`,
+    solucao: candidatos.length
+      ? 'Confirme a descrição efetiva do serviço e informe uma NBS oficial compatível dentre as opções apresentadas.'
+      : 'Complete a NBS oficial e revise a correspondência no catálogo fiscal.',
     candidatos,
   };
   if (!consulta.encontrado) return {

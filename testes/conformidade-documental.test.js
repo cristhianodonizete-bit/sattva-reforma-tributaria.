@@ -24,9 +24,10 @@ const omissao = resultado.itens.find((x) => x.tipo === 'LC116_SEM_NBS');
 assert.ok(omissao);
 assert.equal(omissao.candidatos.length, 2);
 assert.equal(omissao.candidatos[0].cst, null, 'CST ausente no catálogo não pode ser inventado');
-const incompatibilidade = resultado.itens.find((x) => x.tipo === 'LC116_NBS_INCOMPATIVEIS');
-assert.ok(incompatibilidade);
-assert.match(incompatibilidade.evidencia, /não existe como chave composta/);
+const nbsNaoIdentificada = resultado.itens.find((x) => x.tipo === 'NBS_NAO_IDENTIFICADA');
+assert.ok(nbsNaoIdentificada);
+assert.match(nbsNaoIdentificada.evidencia, /marcador interno/);
+assert.equal(nbsNaoIdentificada.candidatos.length, 2);
 assert.equal(resultado.itens.some((x) => x.documento === 'NF-3'), false, 'chave composta exata não é erro documental');
 
 // Mais de um cClassTrib para a mesma chave exige enquadramento no motor, mas

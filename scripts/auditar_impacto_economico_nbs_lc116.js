@@ -9,6 +9,7 @@ const motor = require('../src/engine/motor');
 const { normalizar } = require('../src/services/motorExec');
 const elegibilidadeAnexoXi = require('../src/services/elegibilidadeAnexoXi');
 const { normalizarNbs, normalizarLc116 } = require('../src/services/referenciasFiscaisOficiais');
+const NBS_INTERNA_SEM_CORRESPONDENCIA = '999999999';
 
 const paresOficiais = new Map();
 for (const linha of db.prepare(`
@@ -91,7 +92,8 @@ const divergencias = [...grupos.values()].map((grupo) => {
     }
   }
   let classificacao;
-  if (!lc116Oficiais.length) classificacao = 'SEM_CORRELACAO_OFICIAL';
+  if (grupo.nbs === NBS_INTERNA_SEM_CORRESPONDENCIA) classificacao = 'NBS_NAO_IDENTIFICADA';
+  else if (!lc116Oficiais.length) classificacao = 'SEM_CORRELACAO_OFICIAL';
   else classificacao = diferencas === 0 ? 'SEM_EFEITO_CBS_E_CREDITO_COMPROVADO' : 'EFEITO_CBS_OU_CREDITO_OBSERVADO';
   return {
     nbs: grupo.nbs, lc116_documental: grupo.lc116, lc116_oficiais: lc116Oficiais,
