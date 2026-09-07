@@ -148,6 +148,77 @@ function reconciliarNcmsSemReferencia({ db = dbPadrao } = {}) {
   };
 }
 
+// Uma correlação de classificação (NCM antigo -> NCM vigente) não transfere
+// tratamento fiscal. Esta sombra compara explicitamente os atributos que o
+// catálogo operacional usa antes de permitir sequer um rascunho de promoção.
+const CAMPOS_TRATAMENTO_NCM = [
+  'cst', 'cclasstrib', 'reducao', 'reducao_ibs', 'reducao_cbs',
+  'tratamento_pis_cofins', 'pis_percentual', 'cofins_percentual',
+  'regime_pis_cofins_receita', 'regra_precedencia',
+];
+
+function assinaturaTratamentoNcm(linha) {
+  return Object.fromEntries(CAMPOS_TRATAMENTO_NCM.map((campo) => [campo,
+    linha[campo] == null ? '' : String(linha[campo]).trim(),
+  ]));
+}
+
+function linhasNcm(db, ncm) {
+  return db.prepare(`SELECT ${CAMPOS_TRATAMENTO_NCM.join(',')} FROM base_ncm
+    WHERE replace(replace(replace(ncm,'.',''),'-',''),' ','')=?`).all(ncm)
+    .map(assinaturaTratamentoNcm);
+}
+
+function conjuntoAssinaturas(linhas) {
+  return [...new Set(linhas.map((linha) => JSON.stringify(linha)))].sort();
+}
+
+function diferencasTratamento(origem, destino) {
+  const todos = new Set([...origem, ...destino].flatMap((texto) => Object.keys(JSON.parse(texto))));
+  return [...todos].filter((campo) => {
+    const valoresOrigem = new Set(origem.map((texto) => JSON.parse(texto)[campo]));
+    const valoresDestino = new Set(destino.map((texto) => JSON.parse(texto)[campo]));
+    return JSON.stringify([...valoresOrigem].sort()) !== JSON.stringify([...valoresDestino].sort());
+  });
+}
+
+function sombraSucessoresHistoricosNcm({ db = dbPadrao } = {}) {
+  const reconciliacao = reconciliarNcmsSemReferencia({ db });
+  const itens = reconciliacao.itens
+    .filter((item) => item.classificacao === 'SUCESSOR_OFICIAL_DIRETO')
+    .map((item) => {
+      const origem = conjuntoAssinaturas(linhasNcm(db, item.ncm_operacional));
+      const destino = conjuntoAssinaturas(linhasNcm(db, item.sucessor_oficial_comprovado));
+      const status = !destino.length
+        ? 'SEM_REGRA_OPERACIONAL_DESTINO'
+        : JSON.stringify(origem) === JSON.stringify(destino)
+          ? 'EQUIVALENTE_SEM_PROMOCAO_AUTOMATICA'
+          : 'DIVERGENTE_BLOQUEADA';
+      return {
+        ncm_historico: item.ncm_operacional,
+        ncm_sucessor_oficial: item.sucessor_oficial_comprovado,
+        operacoes_atuais: item.operacoes_atuais,
+        valor_operacoes_atuais: item.valor_operacoes_atuais,
+        regras_origem: origem.length,
+        regras_destino: destino.length,
+        campos_divergentes: status === 'DIVERGENTE_BLOQUEADA' ? diferencasTratamento(origem, destino) : [],
+        status,
+        decisao: status === 'EQUIVALENTE_SEM_PROMOCAO_AUTOMATICA'
+          ? 'REQUER_VALIDACAO_FISCAL_E_PROMOCAO_EXPLICITA'
+          : 'MANTER_PENDENTE_SEM_COPIAR_REGRA',
+      };
+    });
+  const resumo = itens.reduce((acc, item) => ({ ...acc, [item.status]: (acc[item.status] || 0) + 1 }), {});
+  return {
+    finalidade: 'Sombra somente-leitura. Não altera NCM histórico, catálogo, regras, movimentos ou resultados.',
+    criterio: 'Correlação histórica demonstra apenas sucessão de código. Promoção fiscal exige equivalência operacional e validação fiscal explícita.',
+    resumo,
+    operacoes_atuais_afetadas: itens.reduce((soma, item) => soma + item.operacoes_atuais, 0),
+    valor_operacoes_atuais_afetado: itens.reduce((soma, item) => soma + item.valor_operacoes_atuais, 0),
+    itens,
+  };
+}
+
 function auditar({ db = dbPadrao } = {}) {
   const ncm = auditarChaves(db, 'base_ncm', 'ncm', 'NCM', normalizarNcm);
   const nbs = auditarChaves(db, 'base_servicos', 'nbs', 'NBS', normalizarNbs);
@@ -166,4 +237,4 @@ function auditar({ db = dbPadrao } = {}) {
   };
 }
 
-module.exports = { auditar, reconciliarNcmsSemReferencia, MARCADOR_NBS_INTERNO };
+module.exports = { auditar, reconciliarNcmsSemReferencia, sombraSucessoresHistoricosNcm, MARCADOR_NBS_INTERNO };
