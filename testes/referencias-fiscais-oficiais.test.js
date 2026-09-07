@@ -2,6 +2,7 @@ const assert = require('assert');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
+const XLSX = require('xlsx');
 const dados = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-referencias-'));
 process.env.SATTVA_DADOS = dados;
 const db = require('../src/db');
@@ -32,20 +33,31 @@ fs.writeFileSync(arquivoNcm, JSON.stringify({ Data_Ultima_Atualizacao_NCM: 'Vige
   { Codigo: '01.02', Descricao: 'NCM agrupadora', Data_Inicio: '01/01/2026', Data_Fim: '31/12/9999' },
 ] }));
 const arquivoNbs = path.join(dados, 'nbs.csv');
-fs.writeFileSync(arquivoNbs, Buffer.from('NBS 2.0;DESCRIÇÃO\n1.1501.30.00;Suporte de TI\n1.15;Agrupador\n', 'latin1'));
+fs.writeFileSync(arquivoNbs, Buffer.from('NBS 2.0;DESCRIÇÃO\n1.1501.30.00;Suporte de TI\n1.1501.20.00;Consultoria em TI\n1.15;Agrupador\n', 'latin1'));
 const arquivoLc116 = path.join(dados, 'lc116.csv');
 fs.writeFileSync(arquivoLc116, '1.07;Suporte técnico em informática\n1;Grupo sem uso como chave\n');
 const previa = refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116 });
-assert.deepEqual({ ncm: previa.ncm_lidos, nbs: previa.nbs_lidos, lc116: previa.lc116_lidos, aplicado: previa.aplicado }, { ncm: 1, nbs: 1, lc116: 1, aplicado: false });
+assert.deepEqual({ ncm: previa.ncm_lidos, nbs: previa.nbs_lidos, lc116: previa.lc116_lidos, aplicado: previa.aplicado }, { ncm: 1, nbs: 2, lc116: 1, aplicado: false });
 const arquivoLc116Html = path.join(dados, 'lc116-oficial.html');
 fs.writeFileSync(arquivoLc116Html, '<html><body><p>Lista de serviços anexa à Lei Complementar nº 116</p><p>1.01 - Análise e desenvolvimento de sistemas.</p><p>1.02 - Programação.</p></body></html>');
 const lc116Oficial = refs.referenciasLc116DoHtmlOficial(arquivoLc116Html);
 assert.equal(lc116Oficial.linhas.length, 2);
 assert.equal(lc116Oficial.linhas[0].codigo, '1.01');
 assert.match(lc116Oficial.linhas[0].fonte, /Senado Federal/);
+const anexoViii = path.join(dados, 'anexo-viii.xlsx');
+const wb = XLSX.utils.book_new();
+const ws = XLSX.utils.json_to_sheet([
+  { 'Item LC 116': '01.07', NBS: '1.1501.30.00', INDOP: '100301', cClassTrib: '000001' },
+  { 'Item LC 116': '', NBS: '1.1501.20.00', INDOP: '100301', cClassTrib: '000001' },
+]);
+XLSX.utils.book_append_sheet(wb, ws, 'tabela geral');
+XLSX.writeFile(wb, anexoViii);
+assert.equal(refs.importarRelacoesNbsLc116DoAnexoViii({ arquivo: anexoViii }).relacoes_lidas, 2);
 const carga = refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, aplicar: true });
-assert.equal(carga.inseridos, 3);
+assert.equal(carga.inseridos, 4);
 assert.equal(refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, aplicar: true }).inseridos, 0);
+assert.equal(refs.importarRelacoesNbsLc116DoAnexoViii({ arquivo: anexoViii, aplicar: true }).inseridas, 2);
+assert.equal(refs.importarRelacoesNbsLc116DoAnexoViii({ arquivo: anexoViii, aplicar: true }).inseridas, 0);
 
 console.log('referencias-fiscais-oficiais: normalização, fonte e carga idempotente validadas');
 db.close();

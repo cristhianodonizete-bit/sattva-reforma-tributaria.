@@ -8,6 +8,7 @@
 const db = require('../db');
 const fs = require('fs');
 const crypto = require('crypto');
+const XLSX = require('xlsx');
 
 const somenteDigitos = (valor) => String(valor == null ? '' : valor).replace(/\D/g, '');
 const normalizarNcm = (valor) => somenteDigitos(valor).padStart(8, '0').slice(-8);
@@ -54,8 +55,14 @@ function registrarReferencia(referencia) {
 }
 
 function registrarRelacaoNbsLc116(relacao) {
-  const nbs = registrarReferencia({ ...relacao.nbs, dominio: 'NBS' });
-  const lc116 = registrarReferencia({ ...relacao.lc116, dominio: 'LC116' });
+  const localizarOuRegistrar = (referencia, dominio) => {
+    const codigo = normalizarCodigo(dominio, referencia.codigo);
+    const existente = db.prepare(`SELECT id, dominio, codigo FROM referencias_fiscais_oficiais
+      WHERE dominio=? AND codigo=? AND situacao='VIGENTE' ORDER BY id LIMIT 1`).get(dominio, codigo);
+    return existente || registrarReferencia({ ...referencia, dominio });
+  };
+  const nbs = localizarOuRegistrar(relacao.nbs, 'NBS');
+  const lc116 = localizarOuRegistrar(relacao.lc116, 'LC116');
   const vigenciaInicio = String(relacao.vigencia_inicio || '').trim();
   const fonte = String(relacao.fonte || '').trim();
   if (!fonte) throw new Error('Fonte oficial da relação NBS/LC116 é obrigatória');
@@ -66,6 +73,53 @@ function registrarRelacaoNbsLc116(relacao) {
     (origem_id,destino_id,tipo,vigencia_inicio,vigencia_fim,fonte,evidencia) VALUES (?,?, 'NBS_LC116',?,?,?,?)`).run(
     nbs.id, lc116.id, vigenciaInicio, relacao.vigencia_fim || null, fonte, relacao.evidencia || null);
   return { id: Number(out.lastInsertRowid), criado: true, nbs, lc116 };
+}
+
+/**
+ * Lê o Anexo VIII do padrão nacional da NFS-e. Cada relação importada exige
+ * que os dois códigos já existam na referência oficial. IndOp e cClassTrib
+ * são deliberadamente ignorados aqui: esta função só cria NBS–LC116.
+ */
+function relacoesNbsLc116DoAnexoViii(arquivo) {
+  const bruto = fs.readFileSync(arquivo);
+  const planilha = XLSX.read(bruto, { type: 'buffer', raw: false });
+  const nome = planilha.SheetNames.find((x) => /tabela geral/i.test(x));
+  if (!nome) throw new Error('Anexo VIII não possui a aba "tabela geral" esperada');
+  const linhas = XLSX.utils.sheet_to_json(planilha.Sheets[nome], { defval: '', raw: false });
+  const encontrados = [];
+  let lc116Atual = null;
+  for (const linha of linhas) {
+    const lc116DaLinha = String(linha['Item LC 116'] || '').trim();
+    if (/^\d{1,2}\.\d{2}$/.test(lc116DaLinha)) lc116Atual = lc116DaLinha;
+    const nbs = String(linha.NBS || '').trim();
+    if (!lc116Atual || somenteDigitos(nbs).length !== 9) continue;
+    encontrados.push({ nbs, lc116: lc116Atual });
+  }
+  const unicos = new Map(encontrados.map((x) => [`${normalizarNbs(x.nbs)}:${normalizarLc116(x.lc116)}`, x]));
+  if (!unicos.size) throw new Error('Anexo VIII não contém pares NBS–LC116 explícitos');
+  return { relacoes: [...unicos.values()], hash: sha256(bruto), linhas_lidas: linhas.length };
+}
+
+function importarRelacoesNbsLc116DoAnexoViii({ arquivo, aplicar = false } = {}) {
+  const dados = relacoesNbsLc116DoAnexoViii(arquivo);
+  const resumo = { relacoes_lidas: dados.relacoes.length, hash: dados.hash, aplicado: Boolean(aplicar) };
+  if (!aplicar) return resumo;
+  let inseridas = 0;
+  let semReferencia = 0;
+  db.transaction(() => {
+    for (const par of dados.relacoes) {
+      const nbs = db.prepare(`SELECT id FROM referencias_fiscais_oficiais
+        WHERE dominio='NBS' AND codigo=? AND situacao='VIGENTE' ORDER BY id LIMIT 1`).get(normalizarNbs(par.nbs));
+      const lc116 = db.prepare(`SELECT id FROM referencias_fiscais_oficiais
+        WHERE dominio='LC116' AND codigo=? AND situacao='VIGENTE' ORDER BY id LIMIT 1`).get(normalizarLc116(par.lc116));
+      if (!nbs || !lc116) { semReferencia += 1; continue; }
+      inseridas += db.prepare(`INSERT OR IGNORE INTO referencias_fiscais_relacoes
+        (origem_id,destino_id,tipo,vigencia_inicio,fonte,evidencia) VALUES (?,?,'NBS_LC116',?,?,?)`).run(
+        nbs.id, lc116.id, '2026-01-01', 'Anexo VIII SNNFSe — correlação Item NBS, IndOp e cClassTrib IBS/CBS',
+        `Arquivo hash ${dados.hash}`).changes;
+    }
+  })();
+  return { ...resumo, inseridas, existentes: dados.relacoes.length - inseridas - semReferencia, sem_referencia: semReferencia };
 }
 
 function consultar({ ncm, nbs, lc116, somenteVigentes = true } = {}) {
@@ -197,4 +251,5 @@ function importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, arq
 module.exports = {
   normalizarNcm, normalizarNbs, normalizarLc116, registrarReferencia, registrarRelacaoNbsLc116, consultar,
   referenciasNcmDoArquivo, referenciasNbsDoArquivo, referenciasLc116DoArquivo, referenciasLc116DoHtmlOficial, importarReferenciasOficiais,
+  relacoesNbsLc116DoAnexoViii, importarRelacoesNbsLc116DoAnexoViii,
 };

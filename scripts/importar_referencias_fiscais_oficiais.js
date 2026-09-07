@@ -1,7 +1,8 @@
 /*
  * Carga explícita de referências oficiais, fora do motor.
  * Uso: node scripts/importar_referencias_fiscais_oficiais.js --ncm caminho.json --nbs caminho.csv
- *      --lc116 caminho.csv | --lc116-html texto-oficial.html [--aplicar]
+ *      --lc116 caminho.csv | --lc116-html texto-oficial.html
+ *      --nbs-lc116 anexo-viii.xlsx [--aplicar]
  */
 const path = require('path');
 const refs = require('../src/services/referenciasFiscaisOficiais');
@@ -15,7 +16,8 @@ const arquivoNcm = valor('--ncm');
 const arquivoNbs = valor('--nbs');
 const arquivoLc116 = valor('--lc116');
 const arquivoLc116Html = valor('--lc116-html');
-if (!arquivoNcm && !arquivoNbs && !arquivoLc116 && !arquivoLc116Html) throw new Error('Informe --ncm, --nbs, --lc116 e/ou --lc116-html. A carga não consulta fontes externas automaticamente.');
+const arquivoNbsLc116 = valor('--nbs-lc116');
+if (!arquivoNcm && !arquivoNbs && !arquivoLc116 && !arquivoLc116Html && !arquivoNbsLc116) throw new Error('Informe uma referência ou relação oficial. A carga não consulta fontes externas automaticamente.');
 
 const resultado = refs.importarReferenciasOficiais({
   arquivoNcm: arquivoNcm && path.resolve(arquivoNcm),
@@ -24,4 +26,7 @@ const resultado = refs.importarReferenciasOficiais({
   arquivoLc116Html: arquivoLc116Html && path.resolve(arquivoLc116Html),
   aplicar: args.includes('--aplicar'),
 });
-console.log(JSON.stringify(resultado, null, 2));
+const relacoes = arquivoNbsLc116 ? refs.importarRelacoesNbsLc116DoAnexoViii({
+  arquivo: path.resolve(arquivoNbsLc116), aplicar: args.includes('--aplicar'),
+}) : null;
+console.log(JSON.stringify({ ...resultado, relacoes_nbs_lc116: relacoes }, null, 2));
