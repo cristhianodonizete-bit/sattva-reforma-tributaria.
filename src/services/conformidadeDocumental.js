@@ -79,10 +79,10 @@ function avaliar(movimento) {
     candidatos: [],
   };
   if (consulta.nivel !== 'exato') return {
-    tipo: 'LC116_NBS_INCOMPATIVEIS', severidade: 'ALTA',
-    titulo: 'LC 116 e NBS incompatíveis no documento fiscal',
-    evidencia: `A combinação LC 116 ${lc116} + NBS ${nbs} não existe como chave composta no catálogo. As referências foram encontradas separadamente, mas não como o mesmo serviço.`,
-    solucao: 'Revise a descrição do serviço e utilize a combinação LC 116/NBS compatível apresentada abaixo.',
+    tipo: 'LC116_NBS_INCOMPATIVEIS', severidade: 'ATENCAO',
+    titulo: 'Divergência documental entre LC 116 e NBS',
+    evidencia: `A combinação LC 116 ${lc116} + NBS ${nbs} não existe como chave composta no catálogo. As referências foram encontradas separadamente, mas não como o mesmo serviço. Isso, isoladamente, não comprova alteração de CBS, crédito ou PIS/Cofins.`,
+    solucao: 'Confirme a descrição do serviço e a combinação documental aplicável. Trate como prioridade alta somente se a análise econômica apontar impacto tributário material.',
     candidatos,
   };
   return null;
