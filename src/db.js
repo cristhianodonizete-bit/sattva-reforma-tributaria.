@@ -1941,6 +1941,28 @@ CREATE INDEX IF NOT EXISTS ix_planejamento_analises_status ON planejamento_anali
 CREATE INDEX IF NOT EXISTS ix_planejamento_empresas_empresa ON planejamento_analise_empresas(empresa_id, analise_id);
 CREATE INDEX IF NOT EXISTS ix_planejamento_resultados_analise ON planejamento_resultados(analise_id, snapshot_id);
 CREATE INDEX IF NOT EXISTS ix_planejamento_assistente_analise ON planejamento_assistente_interacoes(analise_id, id DESC);
+
+-- Fechamento de módulo é uma decisão operacional auditável. Ele não congela
+-- nem modifica cálculos: apenas habilita o entregável quando todos os módulos
+-- contratados para a narrativa forem explicitamente revisados.
+CREATE TABLE IF NOT EXISTS empresa_modulos_entrega (
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  modulo TEXT NOT NULL CHECK(modulo IN ('diagnostico','precificacao','contratos','capacitacao','planejamento','acompanhamento')),
+  status TEXT NOT NULL DEFAULT 'ABERTO' CHECK(status IN ('ABERTO','FECHADO')),
+  fechado_em TEXT, fechado_por TEXT, observacao TEXT,
+  reaberto_em TEXT, reaberto_por TEXT, motivo_reabertura TEXT,
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  PRIMARY KEY (empresa_id, modulo)
+);
+CREATE TABLE IF NOT EXISTS empresa_modulos_entrega_eventos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  modulo TEXT NOT NULL, acao TEXT NOT NULL CHECK(acao IN ('FECHADO','REABERTO')),
+  usuario_id TEXT, dados_json TEXT NOT NULL DEFAULT '{}',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_empresa_modulos_entrega_status ON empresa_modulos_entrega(empresa_id, status);
+CREATE INDEX IF NOT EXISTS ix_empresa_modulos_entrega_eventos ON empresa_modulos_entrega_eventos(empresa_id, modulo, id DESC);
 `);
 
 // --------------------------------------------------------------------------

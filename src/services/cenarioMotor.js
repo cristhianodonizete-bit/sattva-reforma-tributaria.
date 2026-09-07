@@ -664,6 +664,32 @@ function marcarCalculado(cenarioId, resultado) {
     }), cenarioId);
 }
 
+// Leitura da fotografia já calculada. É usada pelo entregável depois do
+// fechamento do Diagnóstico: não chama o motor, não regrava composição e não
+// transforma uma apresentação em uma nova execução.
+function obterResultadoPersistido(cenarioId) {
+  const cenario = db.prepare('SELECT * FROM cenarios WHERE id=?').get(cenarioId);
+  if (!cenario) throw new Error('Cenário não encontrado.');
+  if (cenario.status !== 'calculado' || !cenario.resultado) throw new Error(`O cenário “${cenario.nome}” ainda não possui fotografia calculada. Reabra o Diagnóstico, execute-o e feche novamente.`);
+  let salvo;
+  try { salvo = JSON.parse(cenario.resultado); } catch (_) { throw new Error(`A fotografia do cenário “${cenario.nome}” está inválida. Reabra o Diagnóstico e execute-o novamente.`); }
+  const composicao = { compras:{}, vendas:{} };
+  const linhas = db.prepare('SELECT * FROM cenario_composicao WHERE cenario_id=? ORDER BY lado,dimensao,id').all(cenarioId);
+  for (const linha of linhas) {
+    const lado = composicao[linha.lado];
+    if (!lado) continue;
+    const dimensao = lado[linha.dimensao] || (lado[linha.dimensao] = { dimensao:linha.dimensao, grupos:[] });
+    dimensao.grupos.push({ grupo:linha.grupo, valor:Number(linha.valor)||0, participacao:Number(linha.participacao)||0,
+      itens:Number(linha.itens)||0, entidades:Number(linha.entidades)||0, baseEconomica:Number(linha.base_economica)||0,
+      ibs:Number(linha.ibs)||0, cbs:Number(linha.cbs)||0, creditoIbs:Number(linha.credito_ibs)||0,
+      creditoCbs:Number(linha.credito_cbs)||0, custoEfetivo:Number(linha.custo_efetivo)||0, natureza:linha.natureza || 'CALCULADO' });
+  }
+  if (!linhas.length) throw new Error(`O cenário “${cenario.nome}” não possui composição congelada. Reabra o Diagnóstico e execute-o novamente.`);
+  const contar = (lado) => Object.values(composicao[lado]).reduce((s, d) => Math.max(s, ...d.grupos.map((g) => Number(g.itens) || 0)), 0);
+  return { cenario, ano:cenario.ano, eBase:cenario.tipo === 'base', ...salvo, composicao,
+    entradas:{ length:contar('compras') }, saidas:{ length:contar('vendas') } };
+}
+
 /**
  * Separa o efeito TRIBUTÁRIO do COMERCIAL, como pedido.
  * Com preço constante, todo o delta é tributário. Quando há variação de preço,
@@ -756,7 +782,7 @@ function indiceMudanca(base, cen) {
 }
 
 module.exports = {
-  decomporCredito, obterOuCriarBase, calcularBase, executarCenario, expandir, recalcular, resolverPremissas,
+  decomporCredito, obterOuCriarBase, calcularBase, executarCenario, obterResultadoPersistido, expandir, recalcular, resolverPremissas,
   calcularIndicadores, gravarComposicao, decomporEfeitos,
   DESTINO_PARA_REGIME, DESTINO_PARA_PERFIL,
 };

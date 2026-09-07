@@ -244,6 +244,26 @@ const App = (() => {
     tarefasDiagnostico: ['diagnostico', 'Diagnóstico'], tarefasPrecificacao: ['precificacao', 'Precificação'],
     tarefasContratos: ['contratos', 'Contratos'], tarefasCapacitacao: ['capacitacao', 'Capacitação'],
   };
+  const MODULO_FECHAMENTO_POR_TELA = {
+    perfil:'diagnostico', fornecedores:'diagnostico', clientes:'diagnostico', impactoFinalCbs:'diagnostico', cenarios:'diagnostico', calculadora:'diagnostico', conformidadeDocumental:'diagnostico', pendenciasDiagnostico:'diagnostico', tarefasDiagnostico:'diagnostico',
+    precificacao:'precificacao', formacaoCusto:'precificacao', tarefasPrecificacao:'precificacao',
+    contratos:'contratos', analise:'contratos', tarefasContratos:'contratos',
+    capacitacao:'capacitacao', tarefasCapacitacao:'capacitacao', planejamento:'planejamento', acompanhamento:'acompanhamento',
+  };
+
+  async function anexarFechamentoModulo(alvo, tela) {
+    const chave = MODULO_FECHAMENTO_POR_TELA[tela];
+    if (!chave || !S.empresaId) return;
+    const estado = await api(`/empresas/${S.empresaId}/modulos-entrega`);
+    const modulo = (estado.modulos || []).find((m) => m.chave === chave);
+    if (!modulo) return;
+    const podeExecutar = !S.usuario?.permissoes || Boolean(S.usuario.permissoes[PERMISSAO_TELA[tela] || tela]?.executar);
+    const bloco = document.createElement('section'); bloco.className = `cartao fechamento-modulo ${modulo.status === 'FECHADO' ? 'fechado' : ''}`;
+    bloco.innerHTML = `<div class="cabecalho-lista"><div><div class="olho">CONTROLE DE ENTREGA</div><h2>${esc(modulo.titulo)}</h2><p class="desc">${modulo.status === 'FECHADO' ? `Fechado em ${esc(new Date(modulo.fechado_em).toLocaleString('pt-BR'))}. A fotografia permanece protegida; reabra apenas se precisar alterar dados ou cálculos.` : 'Revise este módulo e feche-o quando ele estiver pronto para compor a entrega ao cliente.'}</p>${modulo.observacao ? `<p class="mini">Fechamento: ${esc(modulo.observacao)}</p>` : ''}</div><div>${modulo.status === 'FECHADO' ? '<span class="tag c">FECHADO</span>' : '<span class="tag a">EM ABERTO</span>'}</div></div>${podeExecutar ? `<div class="acoes-topo">${modulo.status === 'FECHADO' ? '<button class="btn vazio" data-reabrir-modulo>Reabrir módulo</button>' : '<button class="btn" data-fechar-modulo>Fechar módulo</button>'}</div>` : ''}`;
+    alvo.appendChild(bloco);
+    bloco.querySelector('[data-fechar-modulo]')?.addEventListener('click', () => modal({ titulo:`Fechar ${modulo.titulo}`, descricao:'O fechamento não apaga nada. Ele impede novos cálculos deste módulo até uma reabertura registrada.', corpo:area('observacao','Observação do fechamento (opcional)','',3), confirmar:'Confirmar fechamento', aoConfirmar:async (form) => { await api(`/empresas/${S.empresaId}/modulos-entrega/${chave}/fechar`,{ metodo:'POST', corpo:form }); toast('Módulo fechado e protegido para a entrega.', 'ok'); ir(tela); } }));
+    bloco.querySelector('[data-reabrir-modulo]')?.addEventListener('click', () => modal({ titulo:`Reabrir ${modulo.titulo}`, descricao:'A reabertura será registrada no histórico e volta a permitir alterações e cálculos deste módulo.', corpo:area('motivo','Motivo da reabertura','',3), confirmar:'Reabrir módulo', aoConfirmar:async (form) => { await api(`/empresas/${S.empresaId}/modulos-entrega/${chave}/reabrir`,{ metodo:'POST', corpo:form }); toast('Módulo reaberto com histórico preservado.', 'ok'); ir(tela); } }));
+  }
 
   async function telaTarefasModulo(el, chave, titulo) {
     el.innerHTML = `<div class="topo"><div><div class="olho">GESTÃO DO MÓDULO</div><h1>Tarefas — ${esc(titulo)}</h1><p>Planeje, registre pendências do cliente e acompanhe a execução deste módulo.</p></div></div>`;
@@ -331,6 +351,10 @@ const App = (() => {
         }
       }
       await fn(alvo);
+      // O controle fica ao final de cada módulo, sem interferir no conteúdo
+      // operacional da tela. M7 não tem fechamento próprio: ele depende dos
+      // seis módulos anteriores estarem fechados.
+      if (S.tela === tela) await anexarFechamentoModulo(alvo, tela);
     } catch (e) {
       alvo.innerHTML = `<div class="aviso alto"><b>Não foi possível carregar</b>${esc(e.message)}</div>`;
     }
