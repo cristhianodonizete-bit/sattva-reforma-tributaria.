@@ -1886,6 +1886,18 @@ CREATE TABLE IF NOT EXISTS atualizacoes_reforma_eventos (
 );
 CREATE INDEX IF NOT EXISTS ix_atualizacoes_reforma_status ON atualizacoes_reforma(status, data_publicacao DESC, id DESC);
 CREATE INDEX IF NOT EXISTS ix_atualizacoes_reforma_eventos ON atualizacoes_reforma_eventos(atualizacao_id, id DESC);
+-- O monitor guarda somente a impressão digital e a última consulta. O texto
+-- legal não é ingerido automaticamente no RAG: toda mudança segue para a
+-- fila de governança, onde pode ser revisada antes de virar conhecimento.
+CREATE TABLE IF NOT EXISTS monitoramento_atualizacoes_reforma (
+  chave TEXT PRIMARY KEY,
+  fonte_nome TEXT NOT NULL,
+  fonte_url TEXT NOT NULL,
+  ultimo_hash TEXT,
+  ultima_consulta_em TEXT,
+  ultimo_sucesso_em TEXT,
+  ultimo_erro TEXT
+);
 
 -- Estudos isolados: nunca alteram a empresa, movimentos ou o motor oficial.
 CREATE TABLE IF NOT EXISTS planejamento_analises (
@@ -2137,6 +2149,43 @@ if (db.prepare('SELECT COUNT(*) c FROM conhecimento_documentos').get().c === 0) 
     }
   })();
 }
+
+// Complemento oficial versionado para o Especialista Fiscal Sênior. A carga é
+// idempotente: preserva documentos existentes e inclui cada fonte certificada
+// uma única vez, inclusive em bases já inicializadas.
+const conhecimentoFiscalOficial = require('./config/conhecimentoFiscalOficial');
+const existeConhecimentoFiscalOficial = db.prepare('SELECT id FROM conhecimento_documentos WHERE titulo = ? AND fonte = ? LIMIT 1');
+const insConhecimentoFiscalOficial = db.prepare(`INSERT INTO conhecimento_documentos (titulo, fonte, categoria, caracteres, trechos)
+  VALUES (?,?,?,?,?)`);
+const insTrechoConhecimentoFiscalOficial = db.prepare('INSERT INTO conhecimento_trechos (documento_id, titulo, fonte, conteudo, ordem) VALUES (?,?,?,?,?)');
+const fatiarConhecimentoFiscalOficial = (texto, tamanho = 1200) => {
+  const limpo = String(texto || '').trim();
+  if (!limpo) return [];
+  if (limpo.length <= tamanho) return [limpo];
+  const partes = []; let inicio = 0;
+  while (inicio < limpo.length) {
+    let fim = Math.min(inicio + tamanho, limpo.length);
+    if (fim < limpo.length) {
+      const corte = limpo.slice(inicio, fim).lastIndexOf('\n\n');
+      if (corte > tamanho * 0.5) fim = inicio + corte;
+    }
+    partes.push(limpo.slice(inicio, fim).trim());
+    inicio = fim - (fim < limpo.length ? 200 : 0);
+  }
+  return partes.filter(Boolean);
+};
+db.transaction(() => {
+  for (const documento of conhecimentoFiscalOficial) {
+    if (existeConhecimentoFiscalOficial.get(documento.titulo, documento.fonte)) continue;
+    const partes = fatiarConhecimentoFiscalOficial(documento.conteudo);
+    const inserido = insConhecimentoFiscalOficial.run(
+      documento.titulo, documento.fonte, documento.categoria, documento.conteudo.length, partes.length
+    );
+    partes.forEach((parte, ordem) => insTrechoConhecimentoFiscalOficial.run(
+      inserido.lastInsertRowid, documento.titulo, documento.fonte, parte, ordem
+    ));
+  }
+})();
 
 // Parâmetros de alíquotas (item 28): semeados a partir do cronograma e
 // editáveis pelo sistema. O motor lê SEMPRE desta tabela.

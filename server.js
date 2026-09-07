@@ -162,6 +162,13 @@ function iniciar() {
   setInterval(() => {
     if (supabase.configurado()) performanceTelemetry.persistir(supabase.admin()).catch((e) => console.error('  telemetria de performance:', e.message));
   }, 60_000).unref();
+  // Fontes oficiais são conferidas no máximo uma vez ao dia. Uma mudança
+  // somente abre uma atualização para revisão: jamais muda RAG, catálogo ou
+  // motor sem decisão humana registrada.
+  const monitoramentoAtualizacoes = require('./src/services/monitoramentoAtualizacoesReforma');
+  monitoramentoAtualizacoes.executar().catch((e) => console.error('  monitoramento normativo:', e.message));
+  setInterval(() => monitoramentoAtualizacoes.executar()
+    .catch((e) => console.error('  monitoramento normativo:', e.message)), 60 * 60 * 1000).unref();
   // Não aguardar: Render pode considerar a instância indisponível enquanto a
   // primeira carga-base baixa dezenas de coleções.
   iniciarOperacao().catch((e) => console.error('  inicialização operacional não concluída:', e.message));
