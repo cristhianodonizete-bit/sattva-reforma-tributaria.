@@ -13,6 +13,7 @@ refs.registrarReferencia({
   dominio: 'NCM', codigo: '30049099', descricao: 'Produto de teste',
   vigencia_inicio: '2026-01-01', fonte: 'Fonte oficial', versao_fonte: 'v1', hash_origem: 'a'.repeat(64),
 });
+db.prepare("INSERT INTO base_ncm (ncm,descricao,cst,cclasstrib) VALUES ('01012100','Regra legada preservada','000','000001')").run();
 
 function planilha(linhas) {
   const wb = XLSX.utils.book_new();
@@ -21,31 +22,46 @@ function planilha(linhas) {
 }
 
 try {
-const linhas = [
-  { ID: 'PIS_TESTE_001', Tributo: 'PIS_COFINS', NCM: '3004.90.99', 'Vigência início': '2026-01-01', Prioridade: 100, 'Condições JSON': '[]', 'Tratamento PIS/COFINS': 'TRIBUTADA', 'CST PIS': '01', 'CST COFINS': '01', 'PIS (%)': 1.65, 'COFINS (%)': 7.6, Fundamento: 'Fundamento de teste', Fonte: 'Fonte oficial', 'Versão fonte': 'v1' },
-  { ID: 'CBS_TESTE_001', Tributo: 'CBS', NCM: '30049099', 'Vigência início': '2026-01-01', Prioridade: 100, 'Condições JSON': '[]', 'CST IBS/CBS': '200', cClassTrib: '200038', 'Redução IBS (%)': 60, 'Redução CBS (%)': 60, Fundamento: 'Fundamento de teste', Fonte: 'Fonte oficial', 'Versão fonte': 'v1' },
-];
+const linhas = [{
+  'ID Regra': 'NCM_TESTE_001', 'Tipo de chave': 'NCM', NCM: '3004.90.99',
+  'Vigência início': '2026-01-01', Prioridade: 100, 'Condições JSON': '[]',
+  'Descrição / classificação CBS': 'Redução de teste', 'CST IBS/CBS': '200', cClassTrib: '200038', 'Redução IBS (%)': 60, 'Redução CBS (%)': 60,
+  'Tratamento PIS/COFINS': 'TRIBUTADA', 'CST PIS': '01', 'CST COFINS': '01', 'PIS (%)': 1.65, 'COFINS (%)': 7.6,
+  Fundamento: 'Fundamento de teste', Fonte: 'Fonte oficial', 'Versão fonte': 'v1',
+}];
 const arquivo = planilha(linhas);
 const previa = matriz.previsualizar(arquivo, { db });
-assert.equal(previa.resumo.total, 2);
-assert.equal(previa.resumo.pis_cofins, 1);
-assert.equal(previa.resumo.cbs, 1);
+assert.equal(previa.resumo.total, 1);
+assert.equal(previa.resumo.ncm, 1);
 
 const carga = matriz.importar(arquivo, { db });
-assert.equal(carga.status, 'RASCUNHO');
-assert.equal(carga.regras_importadas, 2);
-assert.deepEqual(db.prepare('SELECT tributo,status FROM matriz_regras_fiscais_versionada ORDER BY id').all().map((x) => ({ ...x })), [
-  { tributo: 'CBS', status: 'RASCUNHO' }, { tributo: 'PIS_COFINS', status: 'RASCUNHO' },
-]);
-assert.equal(JSON.parse(db.prepare("SELECT resultado_json FROM matriz_regras_fiscais_versionada WHERE id='PIS_TESTE_001'").get().resultado_json).pis_percentual, 1.65);
+assert.equal(carga.status, 'OPERACIONAL');
+assert.equal(carga.regras_importadas, 1);
+assert.equal(db.prepare("SELECT COUNT(*) c FROM base_ncm WHERE ncm='30049099'").get().c, 1);
+assert.equal(db.prepare("SELECT COUNT(*) c FROM base_ncm WHERE ncm='01012100'").get().c, 1);
+const regra = db.prepare("SELECT cst,cclasstrib,reducao_cbs,pis_percentual,cofins_percentual FROM base_ncm WHERE ncm='30049099'").get();
+assert.equal(regra.cst, '200'); assert.equal(regra.cclasstrib, '200038'); assert.equal(regra.reducao_cbs, 0.6); assert.equal(regra.pis_percentual, 1.65); assert.equal(regra.cofins_percentual, 7.6);
 
-db.prepare("UPDATE matriz_regras_fiscais_versionada SET status='VALIDADA' WHERE id='PIS_TESTE_001'").run();
-assert.throws(() => matriz.importar(arquivo, { db }), /não pode sobrescrever status VALIDADA/);
+const atualizada = planilha([{ ...linhas[0], 'Redução CBS (%)': 30 }]);
+matriz.importar(atualizada, { db });
+assert.equal(db.prepare("SELECT reducao_cbs FROM base_ncm WHERE ncm='30049099'").get().reducao_cbs, 0.3);
+assert.equal(db.prepare("SELECT COUNT(*) c FROM base_ncm WHERE ncm='30049099'").get().c, 1);
 
-const invalida = planilha([{ ...linhas[0], ID: 'PIS_INVALIDA', NCM: '99999999' }]);
+const condicional = planilha([{
+  'ID Regra': 'PIS_CONDICIONAL_001', 'Tipo de chave': 'NCM', NCM: '30049099',
+  'Vigência início': '2026-01-01', Prioridade: 200,
+  'Condições JSON': '[{"fato":"papel_cadeia","operador":"IGUAL","valor":"IMPORTADOR"}]',
+  'Tratamento PIS/COFINS': 'MONOFASICO', 'CST PIS': '04', 'CST COFINS': '04', 'PIS (%)': 0, 'COFINS (%)': 0,
+  Fundamento: 'Fundamento condicional', Fonte: 'Fonte oficial', 'Versão fonte': 'v1',
+}]);
+const cargaCondicional = matriz.importar(condicional, { db });
+assert.equal(cargaCondicional.condicionais_pis, 1);
+assert.equal(db.prepare("SELECT status FROM regras_enquadramento WHERE id='CATALOGO_PIS_CONDICIONAL_001'").get().status, 'ATIVA');
+
+const invalida = planilha([{ ...linhas[0], 'ID Regra': 'PIS_INVALIDA', NCM: '99999999' }]);
 assert.throws(() => matriz.previsualizar(invalida, { db }), /não existe na referência oficial vigente/);
 
-console.log('matriz-regras-fiscais-versionada: carga PIS/Cofins + CBS fica em rascunho e protege regras aprovadas');
+console.log('matriz-regras-fiscais-versionada: carga integrada PIS/Cofins + CBS atualiza o catálogo sem DELETE global');
 } finally {
 db.close();
 fs.rmSync(process.env.SATTVA_DADOS, { recursive: true, force: true });

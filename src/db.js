@@ -1677,6 +1677,27 @@ CREATE TABLE IF NOT EXISTS matriz_regras_fiscais_versionada (
 );
 CREATE INDEX IF NOT EXISTS ix_matriz_regras_fiscais_resolucao ON matriz_regras_fiscais_versionada(tributo, tipo_chave, ncm, nbs, lc116, status, vigencia_inicio, prioridade DESC);
 
+-- Vínculo estável entre a linha importada e o catálogo que o motor consulta.
+-- A carga incremental nunca apaga linhas preexistentes do catálogo.
+CREATE TABLE IF NOT EXISTS catalogo_regras_operacionais_importadas (
+  chave_regra TEXT PRIMARY KEY,
+  tipo_chave TEXT NOT NULL CHECK(tipo_chave IN ('NCM','NBS_LC116','PIS_CONDICIONAL')),
+  base_ncm_id INTEGER REFERENCES base_ncm(id) ON DELETE RESTRICT,
+  base_servico_id INTEGER REFERENCES base_servicos(id) ON DELETE RESTRICT,
+  regra_enquadramento_id TEXT REFERENCES regras_enquadramento(id) ON DELETE RESTRICT,
+  hash_conteudo TEXT NOT NULL,
+  fonte TEXT NOT NULL,
+  fundamento TEXT NOT NULL,
+  vigencia_inicio TEXT NOT NULL,
+  vigencia_fim TEXT,
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  CHECK((tipo_chave='NCM' AND base_ncm_id IS NOT NULL AND base_servico_id IS NULL AND regra_enquadramento_id IS NULL)
+    OR (tipo_chave='NBS_LC116' AND base_ncm_id IS NULL AND base_servico_id IS NOT NULL AND regra_enquadramento_id IS NULL)
+    OR (tipo_chave='PIS_CONDICIONAL' AND base_ncm_id IS NULL AND base_servico_id IS NULL AND regra_enquadramento_id IS NOT NULL))
+);
+CREATE INDEX IF NOT EXISTS ix_catalogo_regras_operacionais_ncm ON catalogo_regras_operacionais_importadas(base_ncm_id);
+CREATE INDEX IF NOT EXISTS ix_catalogo_regras_operacionais_servico ON catalogo_regras_operacionais_importadas(base_servico_id);
+
 -- Cadastro complementar: fatos materiais por empresa e produto. Não contém
 -- CST, alíquota, regra legal ou resultado de motor; somente evidências que o
 -- resolvedor poderá usar quando uma regra condicional vier a ser ativada.

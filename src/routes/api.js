@@ -3301,7 +3301,23 @@ router.get('/bases/matriz-fiscal/modelo', (req, res) => {
 });
 router.get('/bases/matriz-fiscal/resumo', (req, res) => { try { ok(res, { regras: matrizRegrasFiscaisVersionada.resumo({ db }) }); } catch (e) { erro(res, e); } });
 router.post('/bases/matriz-fiscal/importar', upload.single('arquivo'), (req, res) => {
-  try { if (!req.file) throw new Error('Envie a planilha no campo "arquivo".'); ok(res, matrizRegrasFiscaisVersionada.importar(req.file.buffer, { db })); }
+  try {
+    if (!req.file) throw new Error('Envie a planilha no campo "arquivo".');
+    const r = matrizRegrasFiscaisVersionada.importar(req.file.buffer, { db });
+    // Mesmo comportamento operacional das bases já existentes: as regras
+    // entram no catálogo e os movimentos recebem nova classificação. O motor
+    // assíncrono consome as pendências no próximo processamento; não há troca
+    // de fotografia já publicada nesta rota.
+    const empresas = db.prepare('SELECT id FROM empresas').all();
+    const reclassificacao = { empresas: empresas.length, totalMovimentos: 0, requerDecisao: 0, naoEncontrado: 0 };
+    for (const empresa of empresas) {
+      const x = bases.classificarMovimentos(empresa.id);
+      reclassificacao.totalMovimentos += x.total;
+      reclassificacao.requerDecisao += x.requerDecisao;
+      reclassificacao.naoEncontrado += x.naoEncontrado;
+    }
+    ok(res, { ...r, reclassificacao });
+  }
   catch (e) { erro(res, e); }
 });
 
