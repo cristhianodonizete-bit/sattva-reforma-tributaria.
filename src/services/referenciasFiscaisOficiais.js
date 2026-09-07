@@ -134,10 +134,50 @@ function referenciasLc116DoArquivo(arquivo) {
   return { linhas, hash: sha256(bruto) };
 }
 
-function importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, aplicar = false } = {}) {
+function decodificarTextoHtml(texto) {
+  return String(texto || '')
+    .replace(/<[^>]*>/g, ' ')
+    .replace(/&nbsp;|&#xa0;/gi, ' ')
+    .replace(/&quot;/gi, '"')
+    .replace(/&amp;/gi, '&')
+    .replace(/&#(\d+);/g, (_, codigo) => String.fromCharCode(Number(codigo)))
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Extrai somente os subitens da lista consolidada da LC 116 publicada pelo Senado.
+ * Esta referência legal não cria correlação NBS–LC116 nem tratamento fiscal. */
+function referenciasLc116DoHtmlOficial(arquivo) {
+  const bruto = fs.readFileSync(arquivo);
+  const html = new TextDecoder('utf-8').decode(bruto);
+  const inicio = html.lastIndexOf('Lista de serviços anexa');
+  if (inicio < 0) throw new Error('Texto oficial não contém a lista de serviços da LC 116');
+  const paragrafos = [...html.slice(inicio).matchAll(/<p\b[^>]*>([\s\S]*?)<\/p>/gi)]
+    .map((x) => decodificarTextoHtml(x[1]));
+  const itens = paragrafos.map((texto) => {
+    const encontrado = texto.match(/^(\d{1,2}\.\d{2})\s*[-–]\s*(.+)$/);
+    return encontrado && { codigo: encontrado[1], descricao: encontrado[2] };
+  }).filter(Boolean);
+  if (!itens.length) throw new Error('Texto oficial não contém subitens LC116 no formato 1.01 - Descrição');
+  const hash = sha256(bruto);
+  return {
+    linhas: itens.map((x) => ({
+      dominio: 'LC116', codigo: x.codigo, descricao: x.descricao,
+      vigencia_inicio: '2003-08-01', situacao: 'VIGENTE',
+      fonte: 'Senado Federal — LC 116/2003, texto consolidado',
+      versao_fonte: 'publicação 34621012, consultada em 2026-09-07',
+      hash_origem: hash, dados_origem: { codigo_publicado: x.codigo },
+    })),
+    hash,
+  };
+}
+
+function importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, arquivoLc116Html, aplicar = false } = {}) {
   const ncm = arquivoNcm ? referenciasNcmDoArquivo(arquivoNcm) : { linhas: [] };
   const nbs = arquivoNbs ? referenciasNbsDoArquivo(arquivoNbs) : { linhas: [] };
-  const lc116 = arquivoLc116 ? referenciasLc116DoArquivo(arquivoLc116) : { linhas: [] };
+  if (arquivoLc116 && arquivoLc116Html) throw new Error('Informe apenas uma fonte LC116 por carga');
+  const lc116 = arquivoLc116 ? referenciasLc116DoArquivo(arquivoLc116)
+    : arquivoLc116Html ? referenciasLc116DoHtmlOficial(arquivoLc116Html) : { linhas: [] };
   const resumo = { ncm_lidos: ncm.linhas.length, nbs_lidos: nbs.linhas.length, lc116_lidos: lc116.linhas.length, ncm_hash: ncm.hash || null, nbs_hash: nbs.hash || null, lc116_hash: lc116.hash || null, aplicado: Boolean(aplicar) };
   if (!aplicar) return resumo;
   const inserir = db.prepare(`INSERT OR IGNORE INTO referencias_fiscais_oficiais
@@ -156,5 +196,5 @@ function importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, apl
 
 module.exports = {
   normalizarNcm, normalizarNbs, normalizarLc116, registrarReferencia, registrarRelacaoNbsLc116, consultar,
-  referenciasNcmDoArquivo, referenciasNbsDoArquivo, referenciasLc116DoArquivo, importarReferenciasOficiais,
+  referenciasNcmDoArquivo, referenciasNbsDoArquivo, referenciasLc116DoArquivo, referenciasLc116DoHtmlOficial, importarReferenciasOficiais,
 };
