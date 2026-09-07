@@ -174,6 +174,7 @@ const App = (() => {
     ] },
     { id: 'dados', titulo: 'Central de Dados', itens: [
       { tipo: 'titulo', t: 'Controle da análise' },
+      { id: 'dados', t: 'Dashboard', i: '◈', centralGrupo: 'dashboard' },
       { id: 'periodoAnalisado', t: 'Período analisado', i: '◷' },
       { tipo: 'titulo', t: 'Importações' },
       { id: 'dados', t: 'Documentos fiscais', i: '⇧', centralGrupo: 'documentos' },
