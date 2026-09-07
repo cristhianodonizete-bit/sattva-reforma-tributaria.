@@ -3320,6 +3320,15 @@ router.post('/bases/matriz-fiscal/importar', upload.single('arquivo'), (req, res
   }
   catch (e) { erro(res, e); }
 });
+router.post('/bases/matriz-fiscal/completar-cobertura', (req, res) => {
+  try {
+    const r = matrizRegrasFiscaisVersionada.completarCoberturaTotal({ db });
+    const empresas = db.prepare('SELECT id FROM empresas').all();
+    let movimentos = 0;
+    for (const empresa of empresas) movimentos += bases.classificarMovimentos(empresa.id).total;
+    ok(res, { ...r, movimentos_reclassificados: movimentos });
+  } catch (e) { erro(res, e); }
+});
 
 router.post('/bases/importar/:tipo', upload.single('arquivo'), (req, res) => {
   try {
