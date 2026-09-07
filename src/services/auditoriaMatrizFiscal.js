@@ -93,6 +93,56 @@ function auditarFontes(db) {
   };
 }
 
+function reconciliarNcmsSemReferencia({ db = dbPadrao } = {}) {
+  const oficiais = referenciasPorDominio(db).get('NCM') || new Set();
+  const operacionais = db.prepare(`SELECT ncm,MAX(descricao) descricao,MAX(fonte) fonte,MAX(fundamento) fundamento,MAX(regra) regra,COUNT(*) linhas
+    FROM base_ncm WHERE COALESCE(ncm,'')<>''
+    GROUP BY ncm ORDER BY ncm`).all();
+  const movimentos = db.prepare(`SELECT ncm,COUNT(*) operacoes,COALESCE(SUM(valor),0) valor
+    FROM movimentos WHERE COALESCE(ncm,'')<>'' GROUP BY ncm`).all();
+  const usoPorNcm = new Map(movimentos.map((x) => [normalizarNcm(x.ncm), { operacoes: Number(x.operacoes), valor: Number(x.valor) }]));
+  const candidatosPorPrefixo = (codigo) => {
+    const prefixo = codigo.slice(0, 6);
+    return [...oficiais].filter((x) => x.startsWith(prefixo)).slice(0, 12);
+  };
+  const itens = operacionais.map((linha) => {
+    const codigo = normalizarNcm(linha.ncm);
+    if (oficiais.has(codigo)) return null;
+    const interno = ['12345678', '99999999'].includes(codigo);
+    // Regra operacional pode ser genérica e não demonstra a identidade de um
+    // NCM histórico. Para admitir contexto, exigimos descrição ou fonte/fundamento.
+    const temEvidenciaCatalogo = [linha.descricao, linha.fonte, linha.fundamento].some((x) => !VAZIO(x));
+    const uso = usoPorNcm.get(codigo) || { operacoes: 0, valor: 0 };
+    return {
+      ncm_operacional: codigo,
+      linhas_catalogo: Number(linha.linhas),
+      descricao_catalogo: linha.descricao || '',
+      fonte_catalogo: linha.fonte || '',
+      fundamento_catalogo: linha.fundamento || '',
+      operacoes_atuais: uso.operacoes,
+      valor_operacoes_atuais: uso.valor,
+      classificacao: interno ? 'CODIGO_INTERNO_OU_TESTE' : temEvidenciaCatalogo ? 'SEM_SUCESSOR_OBJETIVO_COM_CONTEXTO' : 'SEM_SUCESSOR_OBJETIVO_SEM_CONTEXTO',
+      sucessor_oficial_comprovado: null,
+      candidatos_mesmo_prefixo_apenas_pesquisa: interno ? [] : candidatosPorPrefixo(codigo),
+      acao_segura: interno
+        ? 'Preservar fora de qualquer correspondência automática; confirmar se deve permanecer apenas em dados de teste.'
+        : 'Preservar a chave histórica e obter de/para de fonte oficial antes de qualquer substituição.',
+    };
+  }).filter(Boolean).sort((a, b) => a.ncm_operacional.localeCompare(b.ncm_operacional));
+  const resumo = itens.reduce((acumulado, item) => ({
+    ...acumulado,
+    [item.classificacao]: (acumulado[item.classificacao] || 0) + 1,
+  }), {});
+  return {
+    finalidade: 'Somente leitura. Não substitui NCM, não atualiza catálogo e não recalcula resultados.',
+    criterio: 'Candidato de mesmo prefixo é apenas apoio de pesquisa; não é sucessor fiscal nem autorização para alterar a chave.',
+    total: itens.length,
+    resumo,
+    sucessores_oficiais_comprovados: 0,
+    itens,
+  };
+}
+
 function auditar({ db = dbPadrao } = {}) {
   const ncm = auditarChaves(db, 'base_ncm', 'ncm', 'NCM', normalizarNcm);
   const nbs = auditarChaves(db, 'base_servicos', 'nbs', 'NBS', normalizarNbs);
@@ -111,4 +161,4 @@ function auditar({ db = dbPadrao } = {}) {
   };
 }
 
-module.exports = { auditar, MARCADOR_NBS_INTERNO };
+module.exports = { auditar, reconciliarNcmsSemReferencia, MARCADOR_NBS_INTERNO };
