@@ -230,8 +230,20 @@ function evidenciasMinimasSucessor(item) {
 // Não cria pendência, não grava fato e não altera o motor. É um roteiro
 // determinístico para que a futura coleta por empresa+produto não transforme
 // uma correlação de nomenclatura em presunção tributária.
-function triagemEvidenciasSucessoresHistoricosNcm({ db = dbPadrao } = {}) {
+function produtosEmpresaPorNcmHistorico(db, empresaId) {
+  if (!empresaId) return new Map();
+  const linhas = db.prepare(`SELECT id,empresa_id,codigo_produto_atual,ncm_atual,descricao_atual
+    FROM produtos_empresa WHERE empresa_id=? AND COALESCE(ncm_atual,'')<>''`).all(Number(empresaId));
+  return linhas.reduce((mapa, linha) => {
+    const chave = normalizarNcm(linha.ncm_atual);
+    mapa.set(chave, [...(mapa.get(chave) || []), linha]);
+    return mapa;
+  }, new Map());
+}
+
+function triagemEvidenciasSucessoresHistoricosNcm({ db = dbPadrao, empresaId = null } = {}) {
   const sombra = sombraSucessoresHistoricosNcm({ db });
+  const produtosPorNcm = produtosEmpresaPorNcmHistorico(db, empresaId);
   const itens = sombra.itens.map((item) => ({
     ...item,
     evidencia_minima: [
@@ -242,6 +254,7 @@ function triagemEvidenciasSucessoresHistoricosNcm({ db = dbPadrao } = {}) {
       ? ['uso_veterinario', 'importador', 'fabricacao_propria', 'revendedor']
       : ['importador', 'fabricacao_propria', 'revendedor'],
     coleta_automatica_autorizada: false,
+    produtos_empresa: produtosPorNcm.get(item.ncm_historico) || [],
     decisao: 'COLETAR_EVIDENCIA_POR_EMPRESA_PRODUTO_SEM_ALTERAR_TRATAMENTO',
   }));
   return {
@@ -249,6 +262,7 @@ function triagemEvidenciasSucessoresHistoricosNcm({ db = dbPadrao } = {}) {
     itens,
     total: itens.length,
     bloqueados: itens.filter((x) => x.status !== 'EQUIVALENTE_SEM_PROMOCAO_AUTOMATICA').length,
+    produtos_empresa_identificados: itens.reduce((soma, item) => soma + item.produtos_empresa.length, 0),
   };
 }
 

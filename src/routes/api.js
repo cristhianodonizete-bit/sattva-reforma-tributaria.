@@ -60,6 +60,7 @@ const performanceTelemetry = require('../services/performanceTelemetry');
 const identidadeProduto = require('../services/identidadeProduto');
 const cadastroFiscalComplementar = require('../services/cadastroFiscalComplementar');
 const referenciasFiscaisOficiais = require('../services/referenciasFiscaisOficiais');
+const auditoriaMatrizFiscal = require('../services/auditoriaMatrizFiscal');
 const planejamentoTributario = require('../services/planejamentoTributario');
 const analistaTributarioIa = require('../services/analistaTributarioIa');
 const autenticacao = require('../services/autenticacao');
@@ -1544,7 +1545,11 @@ function validarPayloadSomenteFatos(payload = {}) {
   if (proibido) throw new Error(`O campo ${proibido} não pode ser alterado pelo Cadastro Fiscal Complementar.`);
 }
 router.get('/empresas/:id/classificacao-fiscal-complementar', async (req, res) => {
-  try { await garantirEmpresaPermitida(req, req.params.id); ok(res, { fatos: cadastroFiscalComplementar.FATOS, pendencias: cadastroFiscalComplementar.listarPendencias(Number(req.params.id), req.query) }); }
+  try { await garantirEmpresaPermitida(req, req.params.id); ok(res, {
+    fatos: cadastroFiscalComplementar.FATOS,
+    pendencias: cadastroFiscalComplementar.listarPendencias(Number(req.params.id), req.query),
+    triagem_ncm_historico: auditoriaMatrizFiscal.triagemEvidenciasSucessoresHistoricosNcm({ db, empresaId: Number(req.params.id) }),
+  }); }
   catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/classificacao-fiscal-complementar/pendencias', async (req, res) => {
