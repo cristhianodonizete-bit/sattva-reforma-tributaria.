@@ -172,8 +172,7 @@ function resumo() {
 
 function sha256(conteudo) { return crypto.createHash('sha256').update(conteudo).digest('hex'); }
 
-function referenciasNcmDoArquivo(arquivo) {
-  const bruto = fs.readFileSync(arquivo);
+function referenciasNcmDoBuffer(bruto) {
   const json = JSON.parse(bruto.toString('utf8'));
   const data = String(json.Data_Ultima_Atualizacao_NCM || '').trim();
   const versao = [data, json.Ato].filter(Boolean).join(' | ');
@@ -188,8 +187,11 @@ function referenciasNcmDoArquivo(arquivo) {
   return { linhas, versao, hash: sha256(bruto), atualizacao: data };
 }
 
-function referenciasNbsDoArquivo(arquivo) {
-  const bruto = fs.readFileSync(arquivo);
+function referenciasNcmDoArquivo(arquivo) {
+  return referenciasNcmDoBuffer(fs.readFileSync(arquivo));
+}
+
+function referenciasNbsDoBuffer(bruto) {
   // O CSV oficial NBS 2.0 é publicado em codificação Windows-1252 e usa
   // ponto e vírgula. Mantemos a descrição como recebida, sem normalização
   // semântica ou associação a LC116.
@@ -206,6 +208,69 @@ function referenciasNbsDoArquivo(arquivo) {
     hash_origem: sha256(bruto), dados_origem: { codigo_publicado: x.codigo },
   }));
   return { linhas, hash: sha256(bruto) };
+}
+
+function referenciasNbsDoArquivo(arquivo) {
+  return referenciasNbsDoBuffer(fs.readFileSync(arquivo));
+}
+
+const URL_NCM_OFICIAL = 'https://portalunico.siscomex.gov.br/classif/api/publico/nomenclatura/download/json';
+const URL_NBS_OFICIAL = 'https://www.gov.br/mdic/pt-br/assuntos/sdic/comercio-e-servicos/nbs-nomenclatura-brasileira-de-servicos/arquivos/nbs2-0.csv/@@download/file/NBS_2-0.csv';
+
+async function baixarArquivoOficial(url, rotulo, { fetcher = fetch } = {}) {
+  const controlador = new AbortController();
+  const limite = setTimeout(() => controlador.abort(), 30000);
+  try {
+    const resposta = await fetcher(url, { signal: controlador.signal, headers: { Accept: 'application/json,text/csv,*/*' } });
+    if (!resposta.ok) throw new Error(`${rotulo}: fonte oficial respondeu HTTP ${resposta.status}.`);
+    const bruto = Buffer.from(await resposta.arrayBuffer());
+    if (!bruto.length) throw new Error(`${rotulo}: fonte oficial retornou arquivo vazio.`);
+    return bruto;
+  } catch (erro) {
+    if (erro.name === 'AbortError') throw new Error(`${rotulo}: consulta à fonte oficial excedeu 30 segundos.`);
+    throw erro;
+  } finally { clearTimeout(limite); }
+}
+
+// A referência de chaves é atualizada da fonte pública oficial. Ela não traz
+// tratamento tributário nem altera regras específicas já publicadas.
+async function baixarReferenciasOficiaisVigentes({ fetcher = fetch } = {}) {
+  const [brutoNcm, brutoNbs] = await Promise.all([
+    baixarArquivoOficial(URL_NCM_OFICIAL, 'NCM/Siscomex', { fetcher }),
+    baixarArquivoOficial(URL_NBS_OFICIAL, 'NBS/MDIC', { fetcher }),
+  ]);
+  return { ncm: referenciasNcmDoBuffer(brutoNcm), nbs: referenciasNbsDoBuffer(brutoNbs) };
+}
+
+function inserirReferencias(linhas, banco) {
+  const inserir = banco.prepare(`INSERT OR IGNORE INTO referencias_fiscais_oficiais
+    (dominio,codigo,descricao,vigencia_inicio,vigencia_fim,situacao,fonte,versao_fonte,hash_origem,dados_origem)
+    VALUES (?,?,?,?,?,?,?,?,?,?)`);
+  let inseridos = 0;
+  banco.transaction(() => {
+    for (const x of linhas) {
+      const r = validarReferencia(x);
+      inseridos += inserir.run(r.dominio, r.codigo, r.descricao, r.vigencia_inicio, r.vigencia_fim, r.situacao,
+        r.fonte, r.versao_fonte, r.hash_origem, r.dados_origem).changes;
+    }
+  })();
+  return inseridos;
+}
+
+async function sincronizarReferenciasOficiaisVigentes({ banco = db, fetcher = fetch } = {}) {
+  const dados = await baixarReferenciasOficiaisVigentes({ fetcher });
+  const linhas = [...dados.ncm.linhas, ...dados.nbs.linhas];
+  const inseridos = inserirReferencias(linhas, banco);
+  return {
+    ncm_lidos: dados.ncm.linhas.length,
+    nbs_lidos: dados.nbs.linhas.length,
+    ncm_hash: dados.ncm.hash,
+    nbs_hash: dados.nbs.hash,
+    inseridos,
+    existentes: linhas.length - inseridos,
+    fonte_ncm: URL_NCM_OFICIAL,
+    fonte_nbs: URL_NBS_OFICIAL,
+  };
 }
 
 function referenciasLc116DoArquivo(arquivo) {
@@ -288,6 +353,7 @@ function importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, arq
 
 module.exports = {
   normalizarNcm, normalizarNbs, normalizarLc116, registrarReferencia, registrarRelacaoNbsLc116, consultar, listar, resumo,
-  referenciasNcmDoArquivo, referenciasNbsDoArquivo, referenciasLc116DoArquivo, referenciasLc116DoHtmlOficial, importarReferenciasOficiais,
+  referenciasNcmDoArquivo, referenciasNcmDoBuffer, referenciasNbsDoArquivo, referenciasNbsDoBuffer, referenciasLc116DoArquivo, referenciasLc116DoHtmlOficial, importarReferenciasOficiais,
+  baixarReferenciasOficiaisVigentes, sincronizarReferenciasOficiaisVigentes,
   relacoesNbsLc116DoAnexoViii, importarRelacoesNbsLc116DoAnexoViii,
 };

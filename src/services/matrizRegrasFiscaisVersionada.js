@@ -79,6 +79,7 @@ function completarCoberturaTotal({ db = dbPadrao } = {}) {
   const salvarMapa = db.prepare(`INSERT OR IGNORE INTO catalogo_regras_operacionais_importadas (chave_regra,tipo_chave,base_ncm_id,base_servico_id,regra_enquadramento_id,hash_conteudo,fonte,fundamento,vigencia_inicio,vigencia_fim) VALUES (?,?,?,?,?,?,?,?,?,?)`);
   const oficialNcm = db.prepare("SELECT codigo,descricao,vigencia_inicio,vigencia_fim,fonte FROM referencias_fiscais_oficiais WHERE dominio='NCM' AND situacao='VIGENTE' ORDER BY codigo").all();
   const oficialNbs = db.prepare("SELECT r.codigo,r.descricao,r.vigencia_inicio,r.vigencia_fim,r.fonte,(SELECT destino.codigo FROM referencias_fiscais_relacoes x JOIN referencias_fiscais_oficiais destino ON destino.id=x.destino_id WHERE x.origem_id=r.id AND x.tipo='NBS_LC116' ORDER BY x.id LIMIT 1) lc116 FROM referencias_fiscais_oficiais r WHERE r.dominio='NBS' AND r.situacao='VIGENTE' ORDER BY r.codigo").all();
+  if (!oficialNcm.length && !oficialNbs.length) throw new Error('Referências oficiais não foram carregadas. Nenhuma regra residual foi criada. Sincronize NCM e NBS oficiais antes de completar a cobertura.');
   const existeNcm = db.prepare('SELECT 1 FROM base_ncm WHERE ncm=? LIMIT 1'); const existeNbs = db.prepare('SELECT 1 FROM base_servicos WHERE nbs=? LIMIT 1');
   const resultado = { ncm_oficiais: oficialNcm.length, nbs_oficiais: oficialNbs.length, ncm_residuais_criados: 0, nbs_residuais_criados: 0, existentes_preservados: 0, status: 'COBERTURA_TOTAL' };
   db.transaction(() => {

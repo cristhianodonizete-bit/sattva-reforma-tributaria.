@@ -3320,13 +3320,16 @@ router.post('/bases/matriz-fiscal/importar', upload.single('arquivo'), (req, res
   }
   catch (e) { erro(res, e); }
 });
-router.post('/bases/matriz-fiscal/completar-cobertura', (req, res) => {
+router.post('/bases/matriz-fiscal/completar-cobertura', async (req, res) => {
   try {
+    // A fonte é sincronizada antes da cobertura. Isso impede que uma base
+    // vazia retorne sucesso com zero regras e mantém o catálogo autônomo.
+    const referencias = await referenciasFiscaisOficiais.sincronizarReferenciasOficiaisVigentes({ banco: db });
     const r = matrizRegrasFiscaisVersionada.completarCoberturaTotal({ db });
     const empresas = db.prepare('SELECT id FROM empresas').all();
     let movimentos = 0;
     for (const empresa of empresas) movimentos += bases.classificarMovimentos(empresa.id).total;
-    ok(res, { ...r, movimentos_reclassificados: movimentos });
+    ok(res, { ...r, referencias, movimentos_reclassificados: movimentos });
   } catch (e) { erro(res, e); }
 });
 
