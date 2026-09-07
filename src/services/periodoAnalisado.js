@@ -1,4 +1,5 @@
 const dbPadrao = require('../db');
+const supabase = require('./supabase');
 
 const COMPETENCIA = /^\d{4}-(0[1-9]|1[0-2])$/;
 const texto = (v) => String(v || '').trim();
@@ -32,6 +33,63 @@ function salvar(empresaId, dados, usuarioId = null, { banco = dbPadrao } = {}) {
   return obter(empresaId, { banco });
 }
 
+// O SQLite é um cache operacional local. A fonte durável para configurações
+// compartilhadas é o Supabase; nunca usamos o cache vazio de uma nova
+// instância como motivo para remover ou substituir uma configuração remota.
+async function empresaRemota(empresaId, banco) {
+  if (!supabase.configurado()) return null;
+  const local = banco.prepare('SELECT cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!local) throw new Error('Empresa não encontrada.');
+  const remoto = supabase.admin();
+  const cnpj = String(local.cnpj || '').replace(/\D/g, '');
+  const filtro = cnpj ? `origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}` : `origem_local_id.eq.${Number(empresaId)}`;
+  const { data, error } = await remoto.from('empresas').select('id,origem_local_id,cnpj').or(filtro).limit(2);
+  if (error) throw new Error(`Não foi possível localizar a empresa compartilhada: ${error.message}`);
+  if ((data || []).length > 1) throw new Error('Foram encontradas duas identidades compartilhadas para a empresa. Nenhuma configuração foi alterada.');
+  return data?.[0] || null;
+}
+
+function gravarCache(empresaId, registro, banco) {
+  if (!registro) return null;
+  banco.prepare(`INSERT INTO empresa_periodo_analisado
+    (empresa_id,competencia_inicio,competencia_fim,data_inicio,data_fim,atualizado_por,atualizado_em)
+    VALUES (?,?,?,?,?,?,?)
+    ON CONFLICT(empresa_id) DO UPDATE SET competencia_inicio=excluded.competencia_inicio,competencia_fim=excluded.competencia_fim,
+      data_inicio=excluded.data_inicio,data_fim=excluded.data_fim,atualizado_por=excluded.atualizado_por,atualizado_em=excluded.atualizado_em`)
+    .run(Number(empresaId), registro.competencia_inicio, registro.competencia_fim, registro.data_inicio, registro.data_fim,
+      registro.atualizado_por || null, registro.atualizado_em || new Date().toISOString());
+  return obter(empresaId, { banco });
+}
+
+async function sincronizarCompartilhado(empresaId, { banco = dbPadrao } = {}) {
+  if (!supabase.configurado()) return obter(empresaId, { banco });
+  const empresa = await empresaRemota(empresaId, banco);
+  // Instalações locais e empresas ainda não publicadas preservam seu próprio
+  // registro; não criamos uma segunda identidade por CNPJ ou nome.
+  if (!empresa) return obter(empresaId, { banco });
+  const remoto = supabase.admin();
+  const { data, error } = await remoto.from('empresa_periodo_analisado').select('*').eq('empresa_id', empresa.id).maybeSingle();
+  if (error) throw new Error(`Não foi possível ler o período compartilhado: ${error.message}`);
+  return data ? gravarCache(empresaId, data, banco) : obter(empresaId, { banco });
+}
+
+async function salvarCompartilhado(empresaId, dados, usuarioId = null, { banco = dbPadrao } = {}) {
+  const inicio = texto(dados.competencia_inicio); const fim = texto(dados.competencia_fim);
+  if (!competenciaValida(inicio) || !competenciaValida(fim) || inicio > fim) throw new Error('Informe competências válidas, de mm/aaaa inicial até mm/aaaa final.');
+  if (!banco.prepare('SELECT id FROM empresas WHERE id=?').get(Number(empresaId))) throw new Error('Empresa não encontrada.');
+  if (!supabase.configurado()) return salvar(empresaId, dados, usuarioId, { banco });
+  const empresa = await empresaRemota(empresaId, banco);
+  if (!empresa) throw new Error('Empresa ainda não está disponível na base compartilhada. A configuração não foi gravada para evitar perda de sincronização.');
+  const remoto = supabase.admin();
+  const anterior = await sincronizarCompartilhado(empresaId, { banco });
+  const registro = { empresa_id:empresa.id, competencia_inicio:inicio, competencia_fim:fim, data_inicio:dataInicio(inicio), data_fim:dataFim(fim), atualizado_por:usuarioId || null, atualizado_em:new Date().toISOString() };
+  const { data, error } = await remoto.from('empresa_periodo_analisado').upsert(registro, { onConflict:'empresa_id' }).select().single();
+  if (error) throw new Error(`Não foi possível gravar o período compartilhado: ${error.message}`);
+  const { error:eventError } = await remoto.from('empresa_periodo_analisado_eventos').insert({ empresa_id:empresa.id, acao:anterior ? 'ATUALIZADO' : 'DEFINIDO', usuario_id:usuarioId || null, antes_json:anterior || {}, depois_json:data });
+  if (eventError) console.error('[periodo-analisado] histórico remoto:', eventError.message);
+  return gravarCache(empresaId, data, banco);
+}
+
 function exigir(empresaId, { banco = dbPadrao } = {}) {
   const periodo = obter(empresaId, { banco });
   if (!periodo) throw new Error('Defina o Período analisado na Central de Dados antes de importar dados.');
@@ -54,4 +112,4 @@ function cobertura(empresaId, { banco = dbPadrao } = {}) {
   return { periodo, competencias:esperadas, cobertas:esperadas.filter((x) => dentro.has(x)), faltantes:esperadas.filter((x) => !dentro.has(x)), fora_do_periodo:encontradas.filter((x) => competenciaValida(x) && !noPeriodo(x, periodo)).length };
 }
 
-module.exports = { obter, salvar, exigir, cobertura, noPeriodo, competenciaValida, dataInicio, dataFim };
+module.exports = { obter, salvar, exigir, cobertura, noPeriodo, competenciaValida, dataInicio, dataFim, sincronizarCompartilhado, salvarCompartilhado };

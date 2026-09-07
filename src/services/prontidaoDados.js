@@ -1,5 +1,6 @@
 const dbPadrao = require('../db');
 const periodoAnalisado = require('./periodoAnalisado');
+const supabase = require('./supabase');
 
 const TIPOS = new Set(['DOCUMENTOS_SEM_MOVIMENTO', 'OUTRAS_RECEITAS_NAO_APLICAVEL', 'FOLHA_SEM_MOVIMENTO', 'APURACAO_HISTORICO_NAO_APLICAVEL', 'MARGEM_NAO_APLICAVEL']);
 const COMPETENCIA = /^\d{4}-(0[1-9]|1[0-2])$/;
@@ -60,4 +61,40 @@ function declarar(empresaId, dados, usuarioId=null, { banco=dbPadrao } = {}) {
   banco.prepare(`INSERT INTO empresa_prontidao_declaracoes (empresa_id,tipo,referencia,motivo,justificativa,usuario_id) VALUES (?,?,?,?,?,?) ON CONFLICT(empresa_id,tipo,referencia) DO UPDATE SET motivo=excluded.motivo,justificativa=excluded.justificativa,usuario_id=excluded.usuario_id,criado_em=datetime('now','localtime')`).run(empresaId,tipo,referencia,motivo,String(dados.justificativa||''),usuarioId||null);
   return obter(empresaId,{banco});
 }
-module.exports={ obter,declarar };
+
+async function empresaRemota(empresaId, banco) {
+  const local=banco.prepare('SELECT cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!local || !supabase.configurado()) return null;
+  const cnpj=String(local.cnpj||'').replace(/\D/g,'');
+  const filtro=cnpj ? `origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}` : `origem_local_id.eq.${Number(empresaId)}`;
+  const {data,error}=await supabase.admin().from('empresas').select('id').or(filtro).limit(2);
+  if(error) throw new Error(`Não foi possível localizar a empresa compartilhada: ${error.message}`);
+  if((data||[]).length>1) throw new Error('Foram encontradas duas identidades compartilhadas para a empresa. Nenhuma declaração foi alterada.');
+  return data?.[0]||null;
+}
+
+async function sincronizarCompartilhado(empresaId,{banco=dbPadrao}={}) {
+  if(!supabase.configurado()) return;
+  const empresa=await empresaRemota(empresaId,banco); if(!empresa) return;
+  const {data,error}=await supabase.admin().from('empresa_prontidao_declaracoes').select('*').eq('empresa_id',empresa.id);
+  if(error) throw new Error(`Não foi possível ler as declarações compartilhadas: ${error.message}`);
+  const inserir=banco.prepare(`INSERT INTO empresa_prontidao_declaracoes (empresa_id,tipo,referencia,motivo,justificativa,usuario_id,criado_em)
+    VALUES (?,?,?,?,?,?,?) ON CONFLICT(empresa_id,tipo,referencia) DO UPDATE SET motivo=excluded.motivo,justificativa=excluded.justificativa,usuario_id=excluded.usuario_id,criado_em=excluded.criado_em`);
+  banco.transaction(()=>{ for(const item of data||[]) inserir.run(Number(empresaId),item.tipo,item.referencia,item.motivo,item.justificativa||'',item.usuario_id||null,item.criado_em||new Date().toISOString()); })();
+}
+
+async function declararCompartilhado(empresaId,dados,usuarioId=null,{banco=dbPadrao}={}) {
+  if(!supabase.configurado()) return declarar(empresaId,dados,usuarioId,{banco});
+  const tipo=String(dados.tipo||''); const referencia=String(dados.referencia||'').trim(); const motivo=String(dados.motivo||'').trim();
+  // Reutiliza toda a validação local em uma base temporária lógica: nenhuma
+  // escrita é feita antes de a identidade compartilhada ser confirmada.
+  if(!TIPOS.has(tipo) || !motivo) return declarar(empresaId,dados,usuarioId,{banco});
+  if((tipo==='APURACAO_HISTORICO_NAO_APLICAVEL'&&!ANO.test(referencia)) || (tipo!=='APURACAO_HISTORICO_NAO_APLICAVEL'&&tipo!=='MARGEM_NAO_APLICAVEL'&&!COMPETENCIA.test(referencia)) || (tipo==='MARGEM_NAO_APLICAVEL'&&referencia!=='PERIODO_ANALISADO')) return declarar(empresaId,dados,usuarioId,{banco});
+  const empresa=await empresaRemota(empresaId,banco);
+  if(!empresa) throw new Error('Empresa ainda não está disponível na base compartilhada. A declaração não foi gravada para evitar perda de sincronização.');
+  const registro={empresa_id:empresa.id,tipo,referencia,motivo,justificativa:String(dados.justificativa||''),usuario_id:usuarioId||null};
+  const {error}=await supabase.admin().from('empresa_prontidao_declaracoes').upsert(registro,{onConflict:'empresa_id,tipo,referencia'});
+  if(error) throw new Error(`Não foi possível gravar a declaração compartilhada: ${error.message}`);
+  return declarar(empresaId,dados,usuarioId,{banco});
+}
+module.exports={ obter,declarar,sincronizarCompartilhado,declararCompartilhado };

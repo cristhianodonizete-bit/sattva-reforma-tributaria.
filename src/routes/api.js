@@ -72,7 +72,10 @@ const prontidaoDados = require('../services/prontidaoDados');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
-const exigirPeriodoParaImportacao = (req) => periodoAnalisado.exigir(Number(req.params.id));
+const exigirPeriodoParaImportacao = async (req) => {
+  await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id));
+  return periodoAnalisado.exigir(Number(req.params.id));
+};
 
 // Cache exclusivamente de leitura para a visão de gestão. Não participa de
 // cálculos, regras, parâmetros, QSA, regimes ou decisões de acesso. A chave
@@ -1062,24 +1065,24 @@ router.post('/empresas/:id/receitas-sem-dfe', async (req, res) => {
 
 // Janela comum de análise: define o intervalo de competência de todos os
 // relatórios da empresa e protege novas importações sem tocar no histórico.
-router.get('/empresas/:id/periodo-analisado', (req, res) => {
-  try { ok(res, periodoAnalisado.cobertura(Number(req.params.id))); }
+router.get('/empresas/:id/periodo-analisado', async (req, res) => {
+  try { await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id)); ok(res, periodoAnalisado.cobertura(Number(req.params.id))); }
   catch (e) { erro(res, e); }
 });
-router.put('/empresas/:id/periodo-analisado', (req, res) => {
+router.put('/empresas/:id/periodo-analisado', async (req, res) => {
   try {
-    const periodo = periodoAnalisado.salvar(Number(req.params.id), req.body || {}, req.usuario?.id || null);
+    const periodo = await periodoAnalisado.salvarCompartilhado(Number(req.params.id), req.body || {}, req.usuario?.id || null);
     auditar(req, { empresaId:Number(req.params.id), acao:'periodo_analisado_definido', entidade:'empresa_periodo_analisado', entidadeId:String(req.params.id), depois:periodo });
     ok(res, periodoAnalisado.cobertura(Number(req.params.id)));
   } catch (e) { erro(res, e); }
 });
-router.get('/empresas/:id/prontidao-dados', (req, res) => {
-  try { ok(res, prontidaoDados.obter(Number(req.params.id))); }
+router.get('/empresas/:id/prontidao-dados', async (req, res) => {
+  try { await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id)); await prontidaoDados.sincronizarCompartilhado(Number(req.params.id)); ok(res, prontidaoDados.obter(Number(req.params.id))); }
   catch (e) { erro(res, e); }
 });
-router.post('/empresas/:id/prontidao-dados/declaracoes', (req, res) => {
+router.post('/empresas/:id/prontidao-dados/declaracoes', async (req, res) => {
   try {
-    const resultado = prontidaoDados.declarar(Number(req.params.id), req.body || {}, req.usuario?.id || null);
+    const resultado = await prontidaoDados.declararCompartilhado(Number(req.params.id), req.body || {}, req.usuario?.id || null);
     auditar(req, { empresaId:Number(req.params.id), acao:'prontidao_declaracao_registrada', entidade:'empresa_prontidao_declaracoes', entidadeId:req.params.id, depois:req.body || {} });
     ok(res, resultado);
   } catch (e) { erro(res, e); }
@@ -1089,7 +1092,7 @@ router.post('/empresas/:id/prontidao-dados/declaracoes', (req, res) => {
 // formulários manuais. Não alimentam nem recalculam o motor CBS.
 router.post('/empresas/:id/importar/folhas-pagamento', upload.single('arquivo'), async (req, res) => {
   try {
-    exigirPeriodoParaImportacao(req);
+    await exigirPeriodoParaImportacao(req);
     if (!req.file?.buffer) throw new Error('Envie a planilha de folha no campo "arquivo".');
     const r = imp.importarFolhas(req.file.buffer);
     if (!r.registros.length) throw new Error('Nenhuma linha válida foi encontrada. Informe Competência e Valor da Folha.');
@@ -1109,7 +1112,7 @@ router.post('/empresas/:id/importar/folhas-pagamento', upload.single('arquivo'),
 
 router.post('/empresas/:id/importar/receitas-sem-dfe', upload.single('arquivo'), async (req, res) => {
   try {
-    exigirPeriodoParaImportacao(req);
+    await exigirPeriodoParaImportacao(req);
     if (!req.file?.buffer) throw new Error('Envie a planilha de receitas no campo "arquivo".');
     const r = imp.importarReceitasSemDfe(req.file.buffer);
     if (!r.registros.length) throw new Error('Nenhuma linha válida foi encontrada. Informe Competência, Tipo, Descrição e Valor.');
@@ -1167,7 +1170,7 @@ router.get('/empresas/:id/apuracoes-pis-cofins/diagnostico-runtime', (_req, res)
 });
 router.post('/empresas/:id/apuracoes-pis-cofins/ingestao', upload.single('arquivo'), async (req, res) => {
   try {
-    exigirPeriodoParaImportacao(req);
+    await exigirPeriodoParaImportacao(req);
     if (!req.file?.buffer) throw new Error('Envie o documento de apuração no campo "arquivo".');
     const tipoDocumento = String(req.body?.tipo_documento || '').toUpperCase();
     if (!['PDF', 'XLSX', 'CSV', 'RELATORIO_ERP'].includes(tipoDocumento)) throw new Error('Informe o tipo do documento: PDF, XLSX, CSV ou RELATORIO_ERP.');
@@ -1446,9 +1449,9 @@ router.get('/modelos/:tipo', (req, res) => {
   res.send(buf);
 });
 
-router.post('/empresas/:id/importar/parceiros', upload.single('arquivo'), (req, res) => {
+router.post('/empresas/:id/importar/parceiros', upload.single('arquivo'), async (req, res) => {
   try {
-    exigirPeriodoParaImportacao(req);
+    await exigirPeriodoParaImportacao(req);
     if (!req.file) throw new Error('Envie a planilha no campo "arquivo".');
     const tipo = req.body.tipo === 'cliente' ? 'cliente' : 'fornecedor';
     const r = imp.importarParceiros(req.file.buffer, tipo);
@@ -1466,9 +1469,9 @@ router.post('/empresas/:id/importar/parceiros', upload.single('arquivo'), (req, 
   } catch (e) { erro(res, e); }
 });
 
-router.post('/empresas/:id/importar/movimentos', upload.single('arquivo'), (req, res) => {
+router.post('/empresas/:id/importar/movimentos', upload.single('arquivo'), async (req, res) => {
   try {
-    exigirPeriodoParaImportacao(req);
+    await exigirPeriodoParaImportacao(req);
     if (!req.file) throw new Error('Envie a planilha no campo "arquivo".');
     const tipo = req.body.tipo === 'cliente' ? 'cliente' : 'fornecedor';
     const r = imp.importarMovimentos(req.file.buffer, tipo);
@@ -1502,9 +1505,9 @@ router.post('/empresas/:id/importar/movimentos', upload.single('arquivo'), (req,
 
 // PGDAS é evidência histórica do Simples Nacional. Os campos ausentes
 // permanecem nulos no importador e não são convertidos em zero.
-router.post('/empresas/:id/importar/pgdas', upload.single('arquivo'), (req, res) => {
+router.post('/empresas/:id/importar/pgdas', upload.single('arquivo'), async (req, res) => {
   try {
-    exigirPeriodoParaImportacao(req);
+    await exigirPeriodoParaImportacao(req);
     if (!req.file) throw new Error('Envie o arquivo XLSX, XLS ou CSV no campo "arquivo".');
     const empresa = db.prepare('SELECT id, regime FROM empresas WHERE id=?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada.');
@@ -1545,7 +1548,7 @@ router.post('/empresas/:id/importar/pgdas', upload.single('arquivo'), (req, res)
 // de o usuário revisar e confirmar competência e DAS.
 router.post('/empresas/:id/pgdas/ingestao', upload.single('arquivo'), async (req, res) => {
   try {
-    exigirPeriodoParaImportacao(req);
+    await exigirPeriodoParaImportacao(req);
     if (!req.file?.buffer) throw new Error('Envie o documento PGDAS no campo "arquivo".');
     const tipoDocumento = String(req.body?.tipo_documento || '').toUpperCase();
     if (!['PDF', 'IMAGEM'].includes(tipoDocumento)) throw new Error('Para leitura Azure do PGDAS, informe PDF ou IMAGEM. Planilhas XLSX, XLS e CSV usam a importação estruturada.');
@@ -3637,9 +3640,9 @@ router.post('/empresas/:id/bases/decidir', (req, res) => {
 // ===========================================================================
 
 // ---- Importação de XML (fonte principal) ----
-router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), (req, res) => {
+router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (req, res) => {
   try {
-    exigirPeriodoParaImportacao(req);
+    await exigirPeriodoParaImportacao(req);
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada.');
     const arquivos = req.files || [];
@@ -3826,9 +3829,9 @@ router.put('/motor/parametros/:ano', (req, res) => {
 });
 
 // ---- Importação de SPED (EFD ICMS/IPI e EFD Contribuições) ----
-router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), (req, res) => {
+router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (req, res) => {
   try {
-    exigirPeriodoParaImportacao(req);
+    await exigirPeriodoParaImportacao(req);
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada.');
     const arquivos = req.files || [];
