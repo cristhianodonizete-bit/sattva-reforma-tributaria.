@@ -1593,6 +1593,69 @@ CREATE TABLE IF NOT EXISTS regras_enquadramento (
 CREATE INDEX IF NOT EXISTS ix_regras_enquadramento_busca ON regras_enquadramento(status, familia, ncm, nbs, prioridade DESC);
 CREATE INDEX IF NOT EXISTS ix_regras_enquadramento_lc116_nbs ON regras_enquadramento(status, lc116, nbs, prioridade DESC);
 
+-- Referências oficiais não são regras do motor. Esta camada contém o
+-- vocabulário completo de NCM, NBS e LC 116, inclusive itens sem benefício
+-- fiscal. Ela é deliberadamente separada das bases operacionais para que uma
+-- atualização oficial não altere cálculo, catálogo homologado ou resultados.
+CREATE TABLE IF NOT EXISTS referencias_fiscais_oficiais (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  dominio TEXT NOT NULL CHECK(dominio IN ('NCM','NBS','LC116')),
+  codigo TEXT NOT NULL,
+  descricao TEXT NOT NULL DEFAULT '',
+  vigencia_inicio TEXT NOT NULL DEFAULT '',
+  vigencia_fim TEXT,
+  situacao TEXT NOT NULL DEFAULT 'VIGENTE' CHECK(situacao IN ('VIGENTE','EXTINTO','FUTURO','HISTORICO')),
+  fonte TEXT NOT NULL,
+  versao_fonte TEXT NOT NULL DEFAULT '',
+  hash_origem TEXT NOT NULL DEFAULT '',
+  dados_origem TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(dados_origem)),
+  importado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE(dominio, codigo, vigencia_inicio, fonte, versao_fonte)
+);
+CREATE INDEX IF NOT EXISTS ix_referencias_fiscais_codigo ON referencias_fiscais_oficiais(dominio, codigo, situacao, vigencia_inicio);
+
+-- Relação oficial entre duas referências; hoje cobre NBS x LC116 sem gravar
+-- uma inferência textual. Novos tipos só entram mediante fonte identificada.
+CREATE TABLE IF NOT EXISTS referencias_fiscais_relacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  origem_id INTEGER NOT NULL REFERENCES referencias_fiscais_oficiais(id) ON DELETE RESTRICT,
+  destino_id INTEGER NOT NULL REFERENCES referencias_fiscais_oficiais(id) ON DELETE RESTRICT,
+  tipo TEXT NOT NULL CHECK(tipo IN ('NBS_LC116')),
+  vigencia_inicio TEXT NOT NULL DEFAULT '',
+  vigencia_fim TEXT,
+  fonte TEXT NOT NULL,
+  evidencia TEXT,
+  importado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE(origem_id, destino_id, tipo, vigencia_inicio, fonte)
+);
+CREATE INDEX IF NOT EXISTS ix_referencias_fiscais_relacoes_origem ON referencias_fiscais_relacoes(origem_id, tipo, vigencia_inicio);
+CREATE INDEX IF NOT EXISTS ix_referencias_fiscais_relacoes_destino ON referencias_fiscais_relacoes(destino_id, tipo, vigencia_inicio);
+
+-- Matriz fiscal em estágio de conteúdo. Nenhuma linha desta tabela é lida
+-- pelo motor atual: publicação explícita e execução sombra são pré-requisitos
+-- para promover uma regra à base operacional.
+CREATE TABLE IF NOT EXISTS matriz_regras_fiscais_versionada (
+  id TEXT PRIMARY KEY,
+  tributo TEXT NOT NULL CHECK(tributo IN ('PIS_COFINS','CBS')),
+  tipo_chave TEXT NOT NULL CHECK(tipo_chave IN ('NCM','NBS_LC116','REGIME')),
+  ncm TEXT, nbs TEXT, lc116 TEXT,
+  vigencia_inicio TEXT NOT NULL,
+  vigencia_fim TEXT,
+  prioridade INTEGER NOT NULL DEFAULT 0,
+  condicoes_json TEXT NOT NULL DEFAULT '[]' CHECK(json_valid(condicoes_json)),
+  resultado_json TEXT NOT NULL DEFAULT '{}' CHECK(json_valid(resultado_json)),
+  fundamento TEXT NOT NULL DEFAULT '',
+  fonte TEXT NOT NULL,
+  versao_fonte TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'RASCUNHO' CHECK(status IN ('RASCUNHO','VALIDADA','APROVADA','REJEITADA','PUBLICADA')),
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  CHECK((tipo_chave='NCM' AND ncm IS NOT NULL AND nbs IS NULL AND lc116 IS NULL)
+    OR (tipo_chave='NBS_LC116' AND ncm IS NULL AND nbs IS NOT NULL AND lc116 IS NOT NULL)
+    OR (tipo_chave='REGIME' AND ncm IS NULL AND nbs IS NULL AND lc116 IS NULL))
+);
+CREATE INDEX IF NOT EXISTS ix_matriz_regras_fiscais_resolucao ON matriz_regras_fiscais_versionada(tributo, tipo_chave, ncm, nbs, lc116, status, vigencia_inicio, prioridade DESC);
+
 -- Cadastro complementar: fatos materiais por empresa e produto. Não contém
 -- CST, alíquota, regra legal ou resultado de motor; somente evidências que o
 -- resolvedor poderá usar quando uma regra condicional vier a ser ativada.
