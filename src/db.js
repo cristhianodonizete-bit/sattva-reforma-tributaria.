@@ -1899,6 +1899,29 @@ CREATE TABLE IF NOT EXISTS monitoramento_atualizacoes_reforma (
   ultimo_erro TEXT
 );
 
+-- Período de referência por empresa. Define a janela comum dos relatórios e
+-- é pré-requisito apenas para novas importações; dados anteriores permanecem
+-- íntegros e são sinalizados na cobertura, nunca apagados.
+CREATE TABLE IF NOT EXISTS empresa_periodo_analisado (
+  empresa_id INTEGER PRIMARY KEY REFERENCES empresas(id) ON DELETE CASCADE,
+  competencia_inicio TEXT NOT NULL,
+  competencia_fim TEXT NOT NULL,
+  data_inicio TEXT NOT NULL,
+  data_fim TEXT NOT NULL,
+  atualizado_por TEXT,
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS empresa_periodo_analisado_eventos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  acao TEXT NOT NULL,
+  usuario_id TEXT,
+  antes_json TEXT NOT NULL DEFAULT '{}',
+  depois_json TEXT NOT NULL DEFAULT '{}',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_empresa_periodo_analisado_eventos ON empresa_periodo_analisado_eventos(empresa_id,id DESC);
+
 -- Estudos isolados: nunca alteram a empresa, movimentos ou o motor oficial.
 CREATE TABLE IF NOT EXISTS planejamento_analises (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

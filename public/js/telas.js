@@ -1246,6 +1246,38 @@ Telas.calculadora = async (el) => {
 // ===========================================================================
 // PLANEJAMENTO TRIBUTÁRIO — estudos isolados, sem alteração do cadastro/motor.
 // ===========================================================================
+Telas.periodoAnalisado = async (el) => {
+  const formatarCompetencia = (competencia) => {
+    const [ano, mes] = String(competencia || '').split('-');
+    return ano && mes ? `${mes}/${ano}` : '—';
+  };
+  const render = async () => {
+    const dados = await A.api(`/empresas/${S.empresaId}/periodo-analisado`);
+    const periodo = dados.periodo;
+    const meses = (dados.competencias || []).map((competencia) => {
+      const coberto = (dados.cobertas || []).includes(competencia);
+      return `<span class="tag ${coberto ? 'c' : 'a'}">${formatarCompetencia(competencia)} ${coberto ? '✓' : 'pendente'}</span>`;
+    }).join('');
+    const resumo = !periodo
+      ? `<div class="aviso atencao"><b>Período ainda não definido</b><br>Antes de importar documentos, PGDAS, apurações ou dados de folha, defina a janela oficial da análise. Nada já importado será apagado.</div>`
+      : `<div class="grade g3">${A.kpi('Início', formatarCompetencia(periodo.competencia_inicio), `de ${periodo.data_inicio}`)}${A.kpi('Fim', formatarCompetencia(periodo.competencia_fim), `até ${periodo.data_fim}`)}${A.kpi('Cobertura mensal', `${(dados.cobertas || []).length}/${(dados.competencias || []).length}`, `${(dados.faltantes || []).length} competência(s) sem dado`)}</div>
+        <div class="aviso"><b>Como o intervalo é aplicado</b><br>A competência inicial considera o primeiro dia do mês e a final, o último dia. A configuração passa a ser exigida nas novas importações; os relatórios usam esta mesma janela para expor cobertura e consistência.</div>
+        <section class="cartao"><h2>Competências do período</h2><div class="tags" style="gap:8px">${meses || '<span class="mini">Nenhuma competência no intervalo.</span>'}</div>${Number(dados.fora_do_periodo || 0) ? `<p class="mini">${dados.fora_do_periodo} competência(s) já cadastrada(s) fora da janela permanecem preservadas e são sinalizadas; não houve exclusão.</p>` : ''}</section>`;
+    el.innerHTML = cab('CENTRAL DE DADOS · CONTROLE DA ANÁLISE', 'Período analisado', 'Defina uma única janela de competências para importações, conferência de completude e relatórios desta empresa.', `<button class="btn" id="editarPeriodoAnalisado">${periodo ? 'Alterar período' : 'Definir período'}</button>`) + resumo;
+    el.querySelector('#editarPeriodoAnalisado')?.addEventListener('click', () => A.modal({
+      titulo: periodo ? 'Alterar período analisado' : 'Definir período analisado',
+      descricao: 'Informe competência inicial e final. O sistema converte automaticamente para o primeiro e o último dia dos respectivos meses.',
+      corpo: `<div class="grade g2">${A.campo('competencia_inicio', 'Competência inicial', periodo?.competencia_inicio || '', 'month')}${A.campo('competencia_fim', 'Competência final', periodo?.competencia_fim || '', 'month')}</div><div class="aviso mini">Esta ação não altera nem exclui dados existentes. Ela passa a bloquear novas importações sem período e cria um registro auditável da mudança.</div>`,
+      confirmar: 'Salvar período',
+      aoConfirmar: async (form) => {
+        await A.api(`/empresas/${S.empresaId}/periodo-analisado`, { metodo:'PUT', corpo:form });
+        A.toast('Período analisado salvo. As próximas importações já estão protegidas.', 'ok');
+        await render();
+      },
+    }));
+  };
+  await render();
+};
 Telas.planejamento = async (el) => {
   const listar = async () => A.api('/planejamento/analises');
   const abrir = async (id) => A.api(`/planejamento/analises/${id}`);
@@ -1264,10 +1296,14 @@ Telas.planejamento = async (el) => {
       `<div class="grade g4 planejamento-kpis">${A.kpi('Estudos', analises.length, 'versionados')}${A.kpi('Em revisão', analises.filter((x) => x.status === 'EM_REVISAO').length, 'aguardam decisão')}${A.kpi('Aprovadas', analises.filter((x) => x.status === 'APROVADA').length, 'decisão registrada')}${A.kpi('Empresas', analises.reduce((s,x)=>s+Number(x.empresas||0),0), 'no planejamento')}</div>` +
       `<section class="cartao planejamento-estudos"><div class="planejamento-secao"><div><h2>Estudos de planejamento</h2><p class="mini">Selecione um estudo para revisar sua fotografia e cenários.</p></div></div>${A.tabela([{t:'Estudo',r:x=>`<button class="link-tabela" data-abrir-planejamento="${x.id}">${A.esc(x.titulo)}</button><span class="mini bloco">${Number(x.empresas||0)} empresa(s) · versão ${x.versao}</span>`},{t:'Status',r:x=>`<span class="tag ${x.status==='APROVADA'?'c':x.status==='EM_REVISAO'?'b':'n'}">${A.esc(x.status.replace('_',' '))}</span>`},{t:'Atualização',r:x=>A.esc(x.atualizado_em||'—')}],analises,{vazio:'Nenhum estudo criado. Inicie selecionando uma ou mais empresas.'})}</section>` +
       `<section class="cartao planejamento-detalhe"><h2>${detalhe ? A.esc(detalhe.analise.titulo) : 'Detalhe da análise'}</h2>${detalhe ? detalhePlanejamento(detalhe, resultado, recomendado) : A.vazio('Selecione ou crie uma análise', 'A fotografia será congelada antes da comparação.', '')}</section>`;
-    el.querySelector('#novaAnalisePlanejamento').onclick = () => {
+    el.querySelector('#novaAnalisePlanejamento').onclick = async () => {
       const empresas = S.empresas || [];
+      const periodoCentral = S.empresaId ? await A.api(`/empresas/${S.empresaId}/periodo-analisado`) : { periodo:null };
+      const inicioPadrao = periodoCentral.periodo?.competencia_inicio || `${anoAtual}-01`;
+      const fimPadrao = periodoCentral.periodo?.competencia_fim || `${anoAtual}-12`;
+      const anosPadrao = [Number(fimPadrao.slice(0,4)), Number(fimPadrao.slice(0,4)) - 1, Number(fimPadrao.slice(0,4)) - 2];
       A.modal({ titulo:'Nova análise tributária', descricao:'A fotografia dos dados será congelada. Premissas não sobrescrevem dados reais.', largura:760,
-        corpo:`${A.campo('titulo','Título','Planejamento tributário')}${A.area('descricao','Objetivo / observação','',2)}<div class="grade g2">${A.campo('periodo_base_inicio','Período analisado — início',`${anoAtual}-01`,'month')}${A.campo('periodo_base_fim','Período analisado — fim',`${anoAtual}-12`,'month')}</div><div class="aviso"><b>Dados solicitados neste módulo</b><br>O planejamento exige o <b>período analisado (${anoAtual})</b> e os <b>dois anos anteriores (${anoAtual - 1} e ${anoAtual - 2})</b>.<br>Simples Nacional: PGDAS mensal dos três anos. Lucro Presumido ou Real: faturamento mensal e apurações PIS/Cofins mensais dos três anos. Folha e pró-labore permanecem no módulo próprio.<br><span class="mini">Se a empresa iniciou depois de ${anoAtual - 2}, envie o período disponível; a projeção será identificada e exigirá justificativa.</span></div><label class="campo"><span>Empresas da análise</span><div class="check-list">${empresas.map((x,i)=>`<label><input type="checkbox" name="empresa_${x.id}" ${i===0?'checked':''}> ${A.esc(x.razao_social)}</label>`).join('')}</div></label>`,
+        corpo:`${A.campo('titulo','Título','Planejamento tributário')}${A.area('descricao','Objetivo / observação','',2)}<div class="grade g2">${A.campo('periodo_base_inicio','Período analisado — início',inicioPadrao,'month')}${A.campo('periodo_base_fim','Período analisado — fim',fimPadrao,'month')}</div><div class="aviso"><b>Dados solicitados neste módulo</b><br>O planejamento exige o <b>período analisado (${anosPadrao[0]})</b> e os <b>dois anos anteriores (${anosPadrao[1]} e ${anosPadrao[2]})</b>. ${periodoCentral.periodo ? 'A janela foi preenchida a partir da Central de Dados.' : 'Defina a janela na Central de Dados antes de importar novos arquivos.'}<br>Simples Nacional: PGDAS mensal dos três anos. Lucro Presumido ou Real: faturamento mensal e apurações PIS/Cofins mensais dos três anos. Folha e pró-labore permanecem no módulo próprio.<br><span class="mini">Se a empresa iniciou depois de ${anosPadrao[2]}, envie o período disponível; a projeção será identificada e exigirá justificativa.</span></div><label class="campo"><span>Empresas da análise</span><div class="check-list">${empresas.map((x,i)=>`<label><input type="checkbox" name="empresa_${x.id}" ${i===0?'checked':''}> ${A.esc(x.razao_social)}</label>`).join('')}</div></label>`,
         confirmar:'Criar e congelar fotografia', aoConfirmar:async(form,fundo)=>{ const empresa_ids=empresas.filter((x)=>fundo.querySelector(`[name="empresa_${x.id}"]`)?.checked).map((x)=>x.id); const r=await A.api('/planejamento/analises',{metodo:'POST',corpo:{...form,empresa_ids}}); S.cache.planejamentoAnaliseId=r.analise.id; A.toast('Análise criada com fotografia congelada.', 'ok'); await render(); } });
     };
     el.querySelectorAll('[data-abrir-planejamento]').forEach((b)=>b.onclick=async()=>{S.cache.planejamentoAnaliseId=Number(b.dataset.abrirPlanejamento); await render();});

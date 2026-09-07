@@ -32,6 +32,7 @@ function empresasDaAnalise(analiseId) {
 function resumoEmpresa(empresaId) {
   const leitura = comparador.comparar(db, empresaId);
   const cadastro = db.prepare('SELECT cnpj,cnae,atividade FROM empresas WHERE id=?').get(empresaId) || {};
+  const periodoConfigurado = db.prepare('SELECT competencia_inicio,competencia_fim,data_inicio,data_fim FROM empresa_periodo_analisado WHERE empresa_id=?').get(empresaId) || null;
   const receitas = db.prepare("SELECT competencia,receita_bruta,das FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY competencia").all(empresaId);
   const folhas = db.prepare("SELECT competencia,valor_folha,pro_labore FROM folhas_pagamento_competencias WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY competencia").all(empresaId);
   const anosPgdas = new Set(receitas.filter((x) => Number(x.das) > 0).map((x) => String(x.competencia).slice(0, 4)));
@@ -48,18 +49,20 @@ function resumoEmpresa(empresaId) {
   const projecaoProLabore = projetar12Meses(folhas, 'pro_labore');
   const margem = db.prepare('SELECT margem_operacional_percentual FROM margens_operacionais_premissas WHERE empresa_id=? ORDER BY periodo_fim DESC LIMIT 1').get(empresaId);
   return { empresa: { ...leitura.empresa, cnpj: cadastro.cnpj || '', cnae: cadastro.cnae || '', atividade: cadastro.atividade || '' }, receita_analisada: leitura.receita_analisada, cenarios: leitura.cenarios,
-    coleta: { meses_receita: receitas.length, meses_folha: folhas.length, anos_pgdas:[...anosPgdas], meses_receita_por_ano:contarMesesPorAno(receitas), meses_pgdas_por_ano:contarMesesPorAno(receitas.filter((x) => Number(x.das) > 0)), meses_pis_cofins_por_ano:contarMesesPorAno(apuracoesPisCofins), primeira_competencia_receita:primeiraCompetencia,
+    coleta: { periodo_analisado:periodoConfigurado, meses_receita: receitas.length, meses_folha: folhas.length, anos_pgdas:[...anosPgdas], meses_receita_por_ano:contarMesesPorAno(receitas), meses_pgdas_por_ano:contarMesesPorAno(receitas.filter((x) => Number(x.das) > 0)), meses_pis_cofins_por_ano:contarMesesPorAno(apuracoesPisCofins), primeira_competencia_receita:primeiraCompetencia,
       projecao: projecaoReceita.metodo }, margem_operacional_percentual: margem ? Number(margem.margem_operacional_percentual) : null, projecao_12_meses: { receita:projecaoReceita, folha:projecaoFolha, pro_labore:projecaoProLabore },
     pendencias: leitura.pendencias, status_comparacao: leitura.status_comparacao,
     origem: 'FOTOGRAFIA_LEITURA_MOTOR_E_CADASTROS' };
 }
 
 function necessidadesColeta(empresas, periodoAnalisado = null) {
-  const anoDoPeriodo = Number(String(periodoAnalisado || '').slice(0, 4));
-  const anoReferencia = Number.isInteger(anoDoPeriodo) && anoDoPeriodo >= 2000 ? anoDoPeriodo : new Date().getFullYear();
-  const anos = [anoReferencia, anoReferencia - 1, anoReferencia - 2]; const inicioEsperado = `${anos[2]}-01`;
   return empresas.map((e) => {
-    const simples = e.empresa.regime_atual === 'simples_nacional'; const c = e.coleta || {};
+    const c = e.coleta || {};
+    const competenciaReferencia = c.periodo_analisado?.competencia_fim || periodoAnalisado;
+    const anoDoPeriodo = Number(String(competenciaReferencia || '').slice(0, 4));
+    const anoReferencia = Number.isInteger(anoDoPeriodo) && anoDoPeriodo >= 2000 ? anoDoPeriodo : new Date().getFullYear();
+    const anos = [anoReferencia, anoReferencia - 1, anoReferencia - 2]; const inicioEsperado = `${anos[2]}-01`;
+    const simples = e.empresa.regime_atual === 'simples_nacional';
     const itens = simples
       ? anos.map((ano, indice) => ({ chave: `pgdas_${ano}`, titulo: `PGDAS ${ano} — ${indice === 0 ? 'período analisado' : 'ano anterior'} (12 competências)`, recebido: Number(c.meses_pgdas_por_ano?.[ano] || 0) >= 12 }))
       : anos.flatMap((ano, indice) => [
@@ -67,7 +70,7 @@ function necessidadesColeta(empresas, periodoAnalisado = null) {
         { chave: `pis_cofins_${ano}`, titulo: `Apuração PIS/Cofins ${ano} — ${indice === 0 ? 'período analisado' : 'ano anterior'} (12 competências validadas)`, recebido: Number(c.meses_pis_cofins_por_ano?.[ano] || 0) >= 12 },
       ]);
     const historicoParcial = Boolean(c.primeira_competencia_receita && c.primeira_competencia_receita > inicioEsperado);
-    return { empresa_id: e.empresa.id, empresa: e.empresa.nome, regime: e.empresa.regime_atual, itens,
+    return { empresa_id: e.empresa.id, empresa: e.empresa.nome, regime: e.empresa.regime_atual, itens, periodo_analisado:c.periodo_analisado || null,
       contexto_historico: historicoParcial ? 'INICIO_POSTERIOR_OU_HISTORICO_PARCIAL' : 'HISTORICO_INSUFICIENTE',
       primeira_competencia_receita: c.primeira_competencia_receita || null,
       alerta: Number(c.meses_receita) >= 24 ? null : historicoParcial

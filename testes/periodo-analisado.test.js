@@ -1,0 +1,13 @@
+const assert = require('assert'); const fs = require('fs'); const os = require('os'); const path = require('path');
+const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-periodo-'));
+process.env.SATTVA_DADOS = pasta;
+const db = require('../src/db'); const periodo = require('../src/services/periodoAnalisado');
+const empresa = Number(db.prepare('INSERT INTO empresas (cnpj,razao_social,regime) VALUES (?,?,?)').run('20000000000001','Empresa período','lucro_presumido').lastInsertRowid);
+assert.throws(() => periodo.exigir(empresa), /Defina o Período/);
+const salvo = periodo.salvar(empresa, { competencia_inicio:'2026-01', competencia_fim:'2026-03' }, 'teste');
+assert.equal(salvo.data_inicio, '2026-01-01'); assert.equal(salvo.data_fim, '2026-03-31');
+assert.equal(periodo.noPeriodo('2026-02', salvo), true); assert.equal(periodo.noPeriodo('2025-12', salvo), false);
+db.prepare('INSERT INTO perfil_tributario (empresa_id,competencia,receita_bruta) VALUES (?,?,?)').run(empresa,'2026-01',1);
+const cobertura = periodo.cobertura(empresa); assert.deepEqual(cobertura.faltantes, ['2026-02','2026-03']);
+assert.throws(() => periodo.salvar(empresa, { competencia_inicio:'2026-13', competencia_fim:'2026-12' }), /competências válidas/);
+db.close(); fs.rmSync(pasta, { recursive:true, force:true }); console.log('periodo-analisado.test.js: OK');
