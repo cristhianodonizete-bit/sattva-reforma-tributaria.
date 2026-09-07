@@ -174,7 +174,7 @@ const App = (() => {
     ] },
     { id: 'dados', titulo: 'Central de Dados', itens: [
       { tipo: 'titulo', t: 'Controle da análise' },
-      { id: 'dados', t: 'Dashboard', i: '◈', centralGrupo: 'dashboard' },
+      { id: 'dadosDashboard', t: 'Dashboard', i: '◈' },
       { id: 'periodoAnalisado', t: 'Período analisado', i: '◷' },
       { tipo: 'titulo', t: 'Importações' },
       { id: 'dados', t: 'Documentos fiscais', i: '⇧', centralGrupo: 'documentos' },
@@ -234,7 +234,7 @@ const App = (() => {
   const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens.filter((item) => item.id));
   const PERMISSAO_TELA = {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
-    dados: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
+    dados: 'diagnostico', dadosDashboard: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     planejamento: 'gestao_projetos', entregavelCliente: 'diagnostico',
     servicos: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', consultaBaseRegime: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'configuracoes', acessos: 'acessos',
@@ -338,7 +338,7 @@ const App = (() => {
       // O catálogo é configurável, mas uma vez que o plano é aprovado só os
       // módulos presentes naquela fotografia ficam disponíveis ao projeto.
       const moduloPorTela = {
-        dados: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico',
+        dados: 'diagnostico', dadosDashboard: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico',
         clientes: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico', entregavelCliente: 'diagnostico',
         precificacao: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao',
       };

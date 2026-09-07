@@ -312,7 +312,7 @@ Telas.dados = async (el) => {
     'Cadastre, importe, complete e trate dados uma única vez. Os módulos de análise apenas consomem esta base com origem e rastreabilidade preservadas.') +
     `<div class="aviso bom"><b>Fluxo de dados:</b> Central de Dados → tratamento e validações → módulos do produto → relatórios e entregáveis.</div>` +
     `${grupoCentral === 'dashboard' ? painelProntidao : ''}` +
-    `${grupoCentral === 'documentos' ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:end;flex-wrap:wrap"><label style="max-width:300px">Tipo de documento fiscal<select id="tipoDocumentoFiscal"><option value="fornecedor" ${aba === 'fornecedor' ? 'selected' : ''}>Entradas / fornecedores</option><option value="cliente" ${aba === 'cliente' ? 'selected' : ''}>Saídas / clientes</option></select></label><div>${luzProntidao('documentos','documentos')} <button class="btn vazio pq" id="declararDocumentoSemMovimento">Declarar sem movimento</button></div></div><p class="mini" style="margin-top:8px">A escolha define a origem dos registros da aba Planilhas. As abas desta etapa são Planilhas e XML/SPED.</p></div>
+    `${grupoCentral === 'documentos' ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:end;flex-wrap:wrap"><div><h2>Documentos fiscais ${luzProntidao('documentos','documentos')}</h2><p class="mini">Planilhas, XML ou SPED. A cobertura precisa contemplar o período analisado.</p></div><div><button class="btn vazio pq" id="declararDocumentoSemMovimento">Declarar sem movimento</button></div></div><label style="max-width:300px;margin-top:10px">Tipo de documento fiscal<select id="tipoDocumentoFiscal"><option value="fornecedor" ${aba === 'fornecedor' ? 'selected' : ''}>Entradas / fornecedores</option><option value="cliente" ${aba === 'cliente' ? 'selected' : ''}>Saídas / clientes</option></select></label><p class="mini" style="margin-top:8px">A escolha define a origem dos registros da aba Planilhas. As abas desta etapa são Planilhas e XML/SPED.</p></div>
     <section class="fluxo-importacao" aria-label="Etapas da importação">
       <button type="button" class="${parceiros.length ? 'feito' : 'atual'}" data-ir-importacao="cadastro">
         <b>1</b><span><strong>Cadastre ${rotulo}</strong><small>${parceiros.length ? `${parceiros.length} registros disponíveis` : 'Importe ou inclua manualmente'}</small></span>
@@ -653,6 +653,15 @@ Telas.dados = async (el) => {
     A.ir('dados');
   });
   document.getElementById('executarMotorPlanilha')?.addEventListener('click', () => A.ir('executarMotor'));
+};
+
+// Rota própria: evita que o Dashboard seja confundido com a última aba de
+// importação aberta quando a página é recarregada.
+Telas.dadosDashboard = async (el) => {
+  const grupoAnterior = S.aba.centralDados;
+  S.aba.centralDados = 'dashboard';
+  try { await Telas.dados(el); }
+  finally { S.aba.centralDados = grupoAnterior; }
 };
 
 // ===========================================================================
