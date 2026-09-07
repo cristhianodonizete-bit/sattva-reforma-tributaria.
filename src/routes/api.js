@@ -61,6 +61,7 @@ const identidadeProduto = require('../services/identidadeProduto');
 const cadastroFiscalComplementar = require('../services/cadastroFiscalComplementar');
 const referenciasFiscaisOficiais = require('../services/referenciasFiscaisOficiais');
 const auditoriaMatrizFiscal = require('../services/auditoriaMatrizFiscal');
+const matrizRegrasFiscaisVersionada = require('../services/matrizRegrasFiscaisVersionada');
 const planejamentoTributario = require('../services/planejamentoTributario');
 const analistaTributarioIa = require('../services/analistaTributarioIa');
 const autenticacao = require('../services/autenticacao');
@@ -3292,6 +3293,16 @@ router.get('/bases/modelo/:tipo', (req, res) => {
     res.setHeader('Content-Disposition', `attachment; filename="modelo-base-${tipo}.xlsx"`);
     res.send(arquivo);
   } catch (e) { erro(res, e, 404); }
+});
+
+router.get('/bases/matriz-fiscal/modelo', (req, res) => {
+  try { const arquivo = matrizRegrasFiscaisVersionada.gerarModelo(); res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'); res.setHeader('Content-Disposition', 'attachment; filename="modelo-matriz-pis-cofins-cbs.xlsx"'); res.send(arquivo); }
+  catch (e) { erro(res, e); }
+});
+router.get('/bases/matriz-fiscal/resumo', (req, res) => { try { ok(res, { regras: matrizRegrasFiscaisVersionada.resumo({ db }) }); } catch (e) { erro(res, e); } });
+router.post('/bases/matriz-fiscal/importar', upload.single('arquivo'), (req, res) => {
+  try { if (!req.file) throw new Error('Envie a planilha no campo "arquivo".'); ok(res, matrizRegrasFiscaisVersionada.importar(req.file.buffer, { db })); }
+  catch (e) { erro(res, e); }
 });
 
 router.post('/bases/importar/:tipo', upload.single('arquivo'), (req, res) => {

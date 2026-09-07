@@ -11,6 +11,7 @@ Telas.bases = async (el) => {
   const { estatisticas: e } = await A.api('/bases');
   const pend = S.empresaId ? (await A.api(`/empresas/${S.empresaId}/bases/pendencias`)).pendencias : [];
   const temBase = e.ncm.linhas > 0 || e.servicos.linhas > 0;
+  const matriz = await A.api('/bases/matriz-fiscal/resumo');
 
   el.innerHTML = cab('Cadastros base', 'Classificação tributária',
     'As duas bases oficiais que dizem em qual tributação cada produto e cada serviço se enquadra. É delas que sai a redução aplicada no cálculo — sem elas, tudo entra como tributação integral.') +
@@ -27,6 +28,7 @@ Telas.bases = async (el) => {
       <div style="margin-top:10px"><button class="btn vazio pq" onclick="App.baixarArquivo('/bases/modelo/catalogo-fiscal').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>
       <div id="statusCatalogo" style="margin-top:12px"></div>
     </div>
+    <div class="cartao" style="margin-top:16px;border-left:4px solid var(--azul)"><h2>Matriz versionada — PIS/Cofins e CBS</h2><p class="desc">Carregue regras por NCM em estágio de rascunho. Cada linha exige NCM oficial vigente, vigência, fonte e fundamento. A carga não substitui a base operacional, não ativa regra e não reprocessa empresas.</p><div class="grade g2" style="margin:12px 0">${A.kpi('Rascunhos PIS/Cofins',(matriz.regras||[]).filter(x=>x.tributo==='PIS_COFINS').reduce((s,x)=>s+Number(x.quantidade||0),0),'aguardam sombra e aprovação')}${A.kpi('Rascunhos CBS',(matriz.regras||[]).filter(x=>x.tributo==='CBS').reduce((s,x)=>s+Number(x.quantidade||0),0),'aguardam sombra e aprovação')}</div><div class="dropzone" id="zonaMatrizFiscal"><b>Solte a matriz PIS/Cofins + CBS aqui</b><div class="mini">.xlsx · cada linha entra como RASCUNHO</div></div><div style="margin-top:10px"><button class="btn vazio pq" onclick="App.baixarArquivo('/bases/matriz-fiscal/modelo').catch(e=>App.toast(e.message,'erro'))">Baixar modelo da matriz</button></div><div id="statusMatrizFiscal" style="margin-top:12px"></div></div>
     <div class="grade g2" style="margin-top:16px">
       <div class="cartao">
         <h2>Base de mercadorias — NCM</h2>
@@ -117,6 +119,8 @@ Telas.bases = async (el) => {
   ligarZona('zonaNcm', 'ncm', 'statusNcm');
   ligarZona('zonaServ', 'servicos', 'statusServ');
   ligarZona('zonaCatalogo', 'catalogo-fiscal', 'statusCatalogo');
+  const zonaMatriz = document.getElementById('zonaMatrizFiscal');
+  if (zonaMatriz) { const i=document.createElement('input'); i.type='file'; i.accept='.xlsx,.xls'; i.style.display='none'; zonaMatriz.appendChild(i); zonaMatriz.onclick=()=>i.click(); zonaMatriz.ondragover=e=>{e.preventDefault();zonaMatriz.classList.add('sobre');}; zonaMatriz.ondragleave=()=>zonaMatriz.classList.remove('sobre'); zonaMatriz.ondrop=e=>{e.preventDefault();zonaMatriz.classList.remove('sobre');if(e.dataTransfer.files[0]) enviarMatriz(e.dataTransfer.files[0]);}; i.onchange=()=>{if(i.files[0])enviarMatriz(i.files[0]);i.value='';}; async function enviarMatriz(f){const box=document.getElementById('statusMatrizFiscal');box.innerHTML='<div class="aviso">Validando matriz…</div>';const fd=new FormData();fd.append('arquivo',f);try{const r=await A.api('/bases/matriz-fiscal/importar',{metodo:'POST',corpo:fd});box.innerHTML=`<div class="aviso bom"><b>${r.regras_importadas} regra(s) em RASCUNHO</b><br>PIS/Cofins: ${r.pis_cofins} · CBS: ${r.cbs}. Nenhuma regra foi ativada.</div>`;setTimeout(()=>A.ir('bases'),1800);}catch(e){box.innerHTML=`<div class="aviso alto"><b>Carga bloqueada</b><br>${A.esc(e.message)}</div>`;}} }
 
   // ---- busca ----
   const btn = document.getElementById('btnBusca');
