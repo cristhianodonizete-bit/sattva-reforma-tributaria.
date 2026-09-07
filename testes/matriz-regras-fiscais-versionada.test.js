@@ -14,6 +14,7 @@ refs.registrarReferencia({
   vigencia_inicio: '2026-01-01', fonte: 'Fonte oficial', versao_fonte: 'v1', hash_origem: 'a'.repeat(64),
 });
 refs.registrarReferencia({ dominio: 'NCM', codigo: '01012100', descricao: 'NCM residual', vigencia_inicio: '2026-01-01', fonte: 'Fonte oficial', versao_fonte: 'v1', hash_origem: 'b'.repeat(64) });
+refs.registrarReferencia({ dominio: 'NCM', codigo: '02011000', descricao: 'NCM sem regra', vigencia_inicio: '2026-01-01', fonte: 'Fonte oficial', versao_fonte: 'v1', hash_origem: 'e'.repeat(64) });
 const nbs = refs.registrarReferencia({ dominio: 'NBS', codigo: '115013000', descricao: 'Serviço residual', vigencia_inicio: '2026-01-01', fonte: 'Fonte oficial', versao_fonte: 'v1', hash_origem: 'c'.repeat(64) });
 const lc = refs.registrarReferencia({ dominio: 'LC116', codigo: '0107', descricao: 'Serviço', vigencia_inicio: '2026-01-01', fonte: 'Fonte oficial', versao_fonte: 'v1', hash_origem: 'd'.repeat(64) });
 refs.registrarRelacaoNbsLc116({ nbs, lc116: lc, fonte: 'Correlação oficial', vigencia_inicio: '2026-01-01' });
@@ -63,8 +64,9 @@ assert.equal(cargaCondicional.condicionais_pis, 1);
 assert.equal(db.prepare("SELECT status FROM regras_enquadramento WHERE id='CATALOGO_PIS_CONDICIONAL_001'").get().status, 'ATIVA');
 
 const cobertura = matriz.completarCoberturaTotal({ db });
-assert.equal(cobertura.ncm_residuais_criados, 0);
+assert.equal(cobertura.ncm_residuais_criados, 1);
 assert.equal(cobertura.nbs_residuais_criados, 1);
+assert.equal(db.prepare("SELECT tratamento_pis_cofins FROM base_ncm WHERE ncm='02011000'").get().tratamento_pis_cofins, 'REGRA_RESIDUAL_REGIME');
 assert.equal(db.prepare("SELECT cclasstrib,tratamento_pis_cofins FROM base_servicos WHERE nbs='115013000'").get().cclasstrib, '000001');
 assert.equal(db.prepare("SELECT tratamento_pis_cofins FROM base_servicos WHERE nbs='115013000'").get().tratamento_pis_cofins, 'REGRA_RESIDUAL_REGIME');
 
