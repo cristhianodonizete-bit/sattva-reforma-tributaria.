@@ -2,7 +2,7 @@
    NÚCLEO — estado, navegação, chamadas à API e componentes reutilizáveis
    ========================================================================= */
 const App = (() => {
-  const S = { empresas: [], empresaId: null, empresa: null, params: null, tela: 'painel', aba: {}, cache: {} };
+  const S = { empresas: [], empresaId: null, empresa: null, params: null, tela: 'painel', aba: {}, cache: {}, menuAbertos: new Set() };
 
   // ---------- API ----------
   async function api(caminho, opcoes = {}) {
@@ -256,8 +256,10 @@ const App = (() => {
     menu.innerHTML = MENU.map((grupo) => {
       const itens = grupo.itens.filter((item) => item.tipo === 'titulo' || pode(item.id));
       if (!itens.length) return '';
-      const chave = `sattva_menu_grupo_${grupo.id}`;
-      const aberto = localStorage.getItem(chave) === 'aberto';
+      // A navegação inicia recolhida em toda nova abertura do sistema. O
+      // estado é apenas da sessão atual: não ressuscitamos menus antigos por
+      // localStorage, que era a causa de grupos voltarem todos abertos.
+      const aberto = S.menuAbertos.has(grupo.id);
       return `<section class="nav-grupo ${aberto ? 'aberto' : ''}" data-grupo="${grupo.id}">
         <button class="grupo-titulo" type="button" data-grupo-toggle aria-expanded="${aberto}" aria-controls="grupo-itens-${grupo.id}">${grupo.titulo}<span>${aberto ? '⌃' : '⌄'}</span></button>
         <div class="grupo-itens" id="grupo-itens-${grupo.id}">${itens.map((item) => item.tipo === 'titulo'
@@ -273,7 +275,8 @@ const App = (() => {
         const aberto = bloco.classList.toggle('aberto');
         botao.setAttribute('aria-expanded', String(aberto));
         botao.querySelector('span').textContent = aberto ? '⌃' : '⌄';
-        localStorage.setItem(`sattva_menu_grupo_${bloco.dataset.grupo}`, aberto ? 'aberto' : 'fechado');
+        if (aberto) S.menuAbertos.add(bloco.dataset.grupo);
+        else S.menuAbertos.delete(bloco.dataset.grupo);
         return;
       }
     };
