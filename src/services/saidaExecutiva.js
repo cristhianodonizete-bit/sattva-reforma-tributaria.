@@ -6,6 +6,7 @@
  * zero. Todo bloco devolve a sua natureza e o alvo de memória que o sustenta.
  */
 const PDFDocument = require('pdfkit');
+const XLSX = require('xlsx');
 const db = require('../db');
 const analiseCadeia = require('./analiseCadeia');
 
@@ -148,4 +149,42 @@ function gerarPdf(relatorio, destino) {
   doc.end(); return doc;
 }
 
-module.exports = { montar, gerarPdf, fotografia, premissasDoCenario };
+// A planilha de apoio é uma representação tabular do mesmo relatório. Ela
+// preserva naturezas e limitações, sem calcular ou persistir nada novo.
+function gerarXlsx(relatorio) {
+  const livro = XLSX.utils.book_new();
+  const adicionar = (nome, linhas) => XLSX.utils.book_append_sheet(livro, XLSX.utils.aoa_to_sheet(linhas), nome.slice(0, 31));
+  const b = relatorio.base;
+  adicionar('Resumo executivo', [
+    ['CAMPO', 'VALOR', 'NATUREZA'], ['Cenário base', b.nome, b.natureza], ['Ano', b.ano, b.natureza],
+    ['Receita atual', b.receita, b.natureza], ['Compras atuais', b.compras, b.natureza],
+    ['Base econômica das saídas', b.baseEconomicaSaidas, b.natureza], ['Base econômica das entradas', b.baseEconomicaEntradas, b.natureza],
+    ['CBS débito', b.cbsDebito, b.natureza], ['CBS crédito', b.cbsCredito, b.natureza], ['CBS líquida', b.cbsLiquida, b.natureza],
+    ['Crédito recebido', b.creditoRecebido, b.natureza], ['Crédito entregue', b.creditoEntregue, b.natureza], ['Custo efetivo', b.custoEfetivo, b.natureza],
+    ['Operações de compras', b.operacoesCompras, b.natureza], ['Operações de vendas', b.operacoesVendas, b.natureza],
+  ]);
+  adicionar('Cenários', [
+    ['CENÁRIO', 'NATUREZA', 'RECEITA PROJETADA', 'CBS LÍQUIDA', 'Δ CBS', 'CRÉDITO RECEBIDO', 'CUSTO EFETIVO', 'MARGEM', 'CAIXA'],
+    ...relatorio.comparacao.map((x) => [x.cenario, x.natureza, x.receitaProjetada, x.cbsLiquida, x.deltaCbsLiquida, x.creditoRecebido, x.custoEfetivo, x.margem, x.caixa]),
+  ]);
+  const evidencias = [
+    ...relatorio.secoes.oportunidades.map((x) => ({ grupo:'OPORTUNIDADE', ...x })),
+    ...relatorio.secoes.atencoes.map((x) => ({ grupo:'PONTO DE ATENÇÃO', ...x })),
+    ...relatorio.secoes.limitacoes.map((x) => ({ grupo:'LIMITAÇÃO / DADO INDETERMINADO', ...x })),
+  ];
+  adicionar('Conformidade e evidências', [
+    ['CLASSIFICAÇÃO', 'TÍTULO / CENÁRIO', 'EVIDÊNCIA', 'NATUREZA'],
+    ...evidencias.map((x) => [x.grupo, x.titulo || x.cenario || '', x.texto || x.evidencia || '', x.natureza || 'INDETERMINADO']),
+  ]);
+  adicionar('Premissas', [
+    ['CENÁRIO', 'TIPO', 'CAMPO / REGRA', 'VALOR SIMULADO', 'JUSTIFICATIVA', 'FONTE', 'NATUREZA'],
+    ...relatorio.secoes.premissas.map((x) => [x.cenario, x.tipo, x.campo || `${x.grupo_origem || ''} → ${x.grupo_destino || ''}`, x.valor_simulado || x.percentual_grupo || '', x.justificativa || '', x.fonte || '', x.natureza || 'SIMULADO']),
+  ]);
+  adicionar('Metodologia', [
+    ['CAMPO', 'DESCRIÇÃO'], ['Fonte', relatorio.fonte], ['Metodologia', relatorio.secoes.metodologia.texto],
+    ['Aviso', 'A planilha organiza resultados oficiais já calculados. Divergências documentais não são tratadas como alteração de carga sem impacto econômico calculado.'],
+  ]);
+  return XLSX.write(livro, { type:'buffer', bookType:'xlsx' });
+}
+
+module.exports = { montar, gerarPdf, gerarXlsx, fotografia, premissasDoCenario };

@@ -4339,6 +4339,17 @@ router.get('/empresas/:id/saida-executiva.pdf', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
+router.get('/empresas/:id/saida-executiva.xlsx', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const relatorio = montarSaidaExecutiva(Number(req.params.id), idsSaidaExecutiva(req), req.query.ano);
+    const arquivo = saidaExecutiva.gerarXlsx(relatorio);
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', 'attachment; filename="entregavel-executivo-e-evidencias.xlsx"');
+    res.send(arquivo);
+  } catch (e) { erro(res, e); }
+});
+
 /** Memória de cálculo do grupo — nível 1 */
 router.get('/cenarios/:id/memoria/:lado/:dimensao/:grupo', (req, res) => {
   try {

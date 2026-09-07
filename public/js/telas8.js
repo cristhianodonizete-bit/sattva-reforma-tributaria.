@@ -49,3 +49,46 @@ Telas.acompanhamento = async (el) => {
   document.querySelector('#baixarAcompanhamentoConsolidado').onclick = async () => { try { await baixarPdf(true); } catch(e) { A.toast(e.message,'erro'); } };
 };
 })();
+
+/* Módulo 7 — entregável determinístico para apresentação ao cliente. */
+(() => {
+const A = App, S = App.S;
+const estado = () => (S.cache.entregavelCliente = S.cache.entregavelCliente || { ids: [], relatorio: null, ano: null });
+const cab = (olho, titulo, texto, acoes = '') => `<div class="topo"><div><div class="olho">${olho}</div><h1>${titulo}</h1><p>${texto}</p></div><div class="acoes-topo">${acoes}</div></div>`;
+const dinheiro = (v) => v === null || v === undefined ? '<span class="tag a">INDETERMINADO</span>' : A.moeda(v);
+const baixar = async (extensao, ano, ids) => A.baixarArquivo(`/empresas/${S.empresaId}/saida-executiva.${extensao}?ano=${encodeURIComponent(ano)}&cenarios=${encodeURIComponent(ids.join(','))}`, extensao === 'pdf' ? 'entregavel-executivo.pdf' : 'entregavel-executivo-e-evidencias.xlsx');
+
+Telas.entregavelCliente = async (el) => {
+  const e = estado();
+  let { cenarios } = await A.api(`/empresas/${S.empresaId}/cenarios/lista`);
+  const anos = [...new Set(cenarios.map((x) => Number(x.ano)).filter(Boolean))].sort((a,b) => b-a);
+  e.ano = anos.includes(e.ano) ? e.ano : (anos[0] || Number(S.params?.anos?.at(-1)) || 2033);
+  let cenariosAno = cenarios.filter((x) => Number(x.ano) === e.ano);
+  let base = cenariosAno.find((x) => x.tipo === 'base');
+  const hipoteses = cenariosAno.filter((x) => x.tipo !== 'base');
+  e.ids = e.ids.filter((id) => hipoteses.some((x) => Number(x.id) === Number(id))).slice(0, 4);
+  const basePronto = Boolean(base);
+  const selecao = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Fotografia e cenários da apresentação</h2><p class="desc">O cenário base é obrigatório. Escolha até quatro hipóteses da mesma referência para demonstrar alternativas ao cliente.</p></div><label class="campo" style="min-width:130px"><span>Referência</span><select id="entregavelAno">${[...new Set([...anos, e.ano])].sort((a,b)=>b-a).map((a) => `<option value="${a}" ${a===e.ano?'selected':''}>${a}</option>`).join('')}</select></label></div>
+    ${basePronto ? `<div class="grade g3"><label class="aviso bom" style="margin:0"><input type="checkbox" checked disabled> <b>${A.esc(base.nome)}</b><div class="mini">Cenário base oficial · sempre incluído</div></label>${hipoteses.map((c) => `<label class="aviso" style="margin:0"><input type="checkbox" class="entregavelCenario" value="${c.id}" ${e.ids.includes(Number(c.id))?'checked':''}> <b>${A.esc(c.nome)}</b><div class="mini">${c.premissas || 0} premissa(s) · ${c.alocacoes || 0} migração(ões)</div></label>`).join('') || '<div class="aviso">Sem hipótese adicional: o PDF apresentará a fotografia base e as evidências disponíveis.</div>'}</div>` : `<div class="aviso"><b>A fotografia base ainda não foi preparada para ${e.ano}.</b><div class="acao">Crie-a a partir dos dados já importados; nenhum documento, regra ou resultado homologado será alterado.</div></div>`}
+    <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap">${basePronto ? '<button class="btn" id="visualizarEntregavel">Visualizar entregável</button><button class="btn vazio" id="baixarEntregavelPdf" disabled>Baixar PDF executivo</button><button class="btn vazio" id="baixarEntregavelXlsx" disabled>Baixar Excel de evidências</button>' : '<button class="btn" id="prepararBaseEntregavel">Preparar fotografia base</button>'}</div></div>`;
+  const preview = e.relatorio ? render(e.relatorio) : A.vazio('Entregável ainda não preparado', 'Selecione os cenários e gere a prévia. A apresentação não usa IA e não altera o motor fiscal.');
+  el.innerHTML = cab('Módulo 7 · entregável ao cliente', 'Relatório executivo e conformidade', 'Apresenta fatos, cenários e evidências já calculados em linguagem de decisão. A conformidade é separada do impacto econômico: divergência documental não é tratada como alteração de carga sem cálculo comprovado.') +
+    `<div class="grade g4">${A.kpi('Empresa', A.esc(S.empresa?.razao_social || '—'), 'cliente selecionado')}${A.kpi('Referência', e.ano, 'ano dos cenários')}${A.kpi('Cenários disponíveis', cenariosAno.length, basePronto ? 'base incluído' : 'prepare a base')}${A.kpi('Hipóteses selecionadas', e.ids.length, 'máximo de quatro')}</div>` + selecao + `<div id="previewEntregavel" style="margin-top:16px">${preview}</div>`;
+  document.getElementById('entregavelAno').onchange = (ev) => { e.ano = Number(ev.target.value); e.ids=[]; e.relatorio=null; A.ir('entregavelCliente'); };
+  document.getElementById('prepararBaseEntregavel')?.addEventListener('click', async () => { try { await A.api(`/empresas/${S.empresaId}/cenarios/base?ano=${e.ano}`); A.toast('Fotografia base preparada.', 'ok'); e.relatorio=null; A.ir('entregavelCliente'); } catch (err) { A.toast(err.message, 'erro'); } });
+  el.querySelectorAll('.entregavelCenario').forEach((b) => b.onchange = () => { const ids = [...el.querySelectorAll('.entregavelCenario:checked')].map((x) => Number(x.value)); if (ids.length > 4) { b.checked=false; A.toast('Selecione no máximo quatro hipóteses.', 'erro'); } e.ids=[...el.querySelectorAll('.entregavelCenario:checked')].map((x) => Number(x.value)); });
+  document.getElementById('visualizarEntregavel')?.addEventListener('click', async () => { const host=el.querySelector('#previewEntregavel'); host.innerHTML='<div class="carregando">Organizando resultados oficiais e evidências…</div>'; try { const r=await A.api(`/empresas/${S.empresaId}/saida-executiva`, { metodo:'POST', corpo:{ cenario_ids:e.ids, ano:e.ano } }); e.relatorio=r.relatorio; host.innerHTML=render(r.relatorio); document.getElementById('baixarEntregavelPdf').disabled=false; document.getElementById('baixarEntregavelXlsx').disabled=false; } catch (err) { host.innerHTML=`<div class="aviso alto"><b>Não foi possível preparar o entregável</b><div>${A.esc(err.message)}</div></div>`; } });
+  document.getElementById('baixarEntregavelPdf')?.addEventListener('click', async () => { try { await baixar('pdf', e.ano, e.ids); } catch (err) { A.toast(err.message,'erro'); } });
+  document.getElementById('baixarEntregavelXlsx')?.addEventListener('click', async () => { try { await baixar('xlsx', e.ano, e.ids); } catch (err) { A.toast(err.message,'erro'); } });
+};
+
+function render(r) {
+  const b=r.base, s=r.secoes;
+  const evidencias=[...s.oportunidades.map(x=>({classe:'Oportunidade evidenciada',...x})),...s.atencoes.map(x=>({classe:'Ponto de atenção',...x})),...s.limitacoes.map(x=>({classe:'Dado incompleto / indeterminado',...x}))];
+  return `<div class="cartao"><h2>Resumo para apresentação</h2><div class="grade g4">${A.kpi('Receita atual',dinheiro(b.receita),b.natureza)}${A.kpi('Compras atuais',dinheiro(b.compras),b.natureza)}${A.kpi('CBS líquida projetada',dinheiro(b.cbsLiquida),b.natureza)}${A.kpi('Operações analisadas',b.operacoesCompras+b.operacoesVendas,'compras e vendas')}</div></div>
+    <div class="grade g2"><div class="cartao"><h2>Efeito nas compras</h2><p><b>Crédito CBS recebido:</b> ${dinheiro(s.compras.credito)}</p><p><b>Custo efetivo:</b> ${dinheiro(b.custoEfetivo)}</p><p class="mini">Base econômica: ${dinheiro(s.compras.baseEconomica)}</p></div><div class="cartao"><h2>Efeito nas vendas</h2><p><b>CBS das vendas:</b> ${dinheiro(s.vendas.cbs)}</p><p><b>Venda projetada:</b> ${dinheiro(s.vendas.precoProjetado)}</p><p class="mini">Base econômica: ${dinheiro(s.vendas.baseEconomica)}</p></div></div>
+    <div class="cartao"><h2>Cenários e decisão</h2>${A.tabela([{t:'Cenário',r:x=>A.esc(x.cenario)},{t:'CBS líquida',num:true,r:x=>dinheiro(x.cbsLiquida)},{t:'Δ CBS',num:true,r:x=>A.setaR$(x.deltaCbsLiquida)},{t:'Crédito recebido',num:true,r:x=>dinheiro(x.creditoRecebido)},{t:'Custo efetivo',num:true,r:x=>dinheiro(x.custoEfetivo)},{t:'Natureza',r:x=>A.esc(x.natureza)}],r.comparacao)}</div>
+    <div class="cartao"><h2>Conformidade e evidências</h2><p class="desc">Itens aqui organizados não substituem validação jurídica. A classificação só indica o tipo de evidência disponível, sem presumir erro tributário no documento.</p>${evidencias.length ? A.tabela([{t:'Classificação',r:x=>A.esc(x.classe)},{t:'Evidência',r:x=>`<b>${A.esc(x.titulo||x.cenario||'—')}</b><div class="mini">${A.esc(x.texto||x.evidencia||'—')}</div>`},{t:'Natureza',r:x=>A.esc(x.natureza||'INDETERMINADO')}],evidencias) : A.vazio('Sem apontamentos calculados','A fotografia selecionada não contém alertas ou limitações adicionais.')}</div>
+    <div class="cartao"><h2>Premissas, próximos passos e rastreabilidade</h2><p>${A.esc(s.metodologia.texto)}</p>${s.premissas.length ? A.tabela([{t:'Cenário',r:x=>A.esc(x.cenario)},{t:'Premissa',r:x=>A.esc(x.campo||`${x.grupo_origem||''} → ${x.grupo_destino||''}`)},{t:'Justificativa',r:x=>A.esc(x.justificativa||'—')},{t:'Natureza',r:x=>A.esc(x.natureza||'SIMULADO')}],s.premissas) : '<div class="aviso">Cenário base sem premissas simuladas. Use cenários para registrar alternativas de preço, margem ou operação.</div>'}</div>`;
+}
+})();

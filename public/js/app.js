@@ -210,6 +210,9 @@ const App = (() => {
     { id: 'acompanhamento', titulo: 'Módulo 6 · Acompanhamento', itens: [
       { id: 'acompanhamento', t: 'Baseline e realizado', i: '◷' },
     ] },
+    { id: 'entregavel-cliente', titulo: 'Módulo 7 · Entregável ao cliente', itens: [
+      { id: 'entregavelCliente', t: 'Relatório executivo e conformidade', i: '▣' },
+    ] },
     { id: 'empresa-operacao', titulo: 'Operação da carteira', itens: [
       { id: 'gestaoProjetos', t: 'Escopo, entregas e ações', i: '✓' },
     ] },
@@ -229,7 +232,7 @@ const App = (() => {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
     dados: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
-    planejamento: 'gestao_projetos',
+    planejamento: 'gestao_projetos', entregavelCliente: 'diagnostico',
     servicos: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', consultaBaseRegime: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'configuracoes', acessos: 'acessos',
   };
   const pode = (tela, acao = 'ver') => {
@@ -309,7 +312,7 @@ const App = (() => {
       // módulos presentes naquela fotografia ficam disponíveis ao projeto.
       const moduloPorTela = {
         dados: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico',
-        clientes: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
+        clientes: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico', entregavelCliente: 'diagnostico',
         precificacao: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao',
       };
       if (S.empresaId && moduloPorTela[tela]) {

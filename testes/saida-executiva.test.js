@@ -2,6 +2,7 @@
 /* Saída executiva: consolida fatos, não cria segundo cálculo tributário. */
 const assert = require('node:assert/strict');
 const { PassThrough } = require('node:stream');
+const XLSX = require('xlsx');
 const saida = require('../src/services/saidaExecutiva');
 
 const grupos = (dados) => ({ grupos: dados.map(([grupo, valor, extra = {}]) => ({ grupo, nome:grupo, valor, participacao:valor / 1000, baseEconomica:valor, custoEfetivo:valor, creditoIbs:0, creditoCbs:extra.credito || 0, ...extra })) });
@@ -32,5 +33,8 @@ const resultado = {
   saida.gerarPdf(r, stream); await terminou;
   const pdf = Buffer.concat(partes).toString('latin1', 0, 8);
   assert.equal(pdf, '%PDF-1.3', 'exportação entrega PDF válido');
-  console.log('saida-executiva: apresentação derivada, limitações explícitas e PDF aprovados.');
+  const planilha = XLSX.read(saida.gerarXlsx(r), { type:'buffer' });
+  assert.deepEqual(planilha.SheetNames, ['Resumo executivo', 'Cenários', 'Conformidade e evidências', 'Premissas', 'Metodologia'], 'Excel preserva as abas do entregável');
+  assert.equal(planilha.Sheets['Resumo executivo'].A2.v, 'Cenário base', 'Excel traz a fotografia do cenário oficial');
+  console.log('saida-executiva: apresentação derivada, limitações explícitas, PDF e Excel aprovados.');
 })().catch((e) => { console.error(e); process.exitCode = 1; });
