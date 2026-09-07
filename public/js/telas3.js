@@ -493,6 +493,34 @@ Telas.cadastrosCnpj = async (el) => {
 };
 
 // ===========================================================================
+// CONSULTA MANUAL — BASE IMPORTADA DA RECEITA
+// ===========================================================================
+Telas.consultaBaseRegime = async (el) => {
+  const rotulos = { lucro_real: 'Lucro Real', lucro_presumido: 'Lucro Presumido', lucro_arbitrado: 'Lucro Arbitrado', imune_isento: 'Imune / Isento' };
+  let resultado = null;
+  const render = () => {
+    const regime = resultado?.regime ? (rotulos[String(resultado.regime).toLowerCase()] || A.regimeLabel(resultado.regime) || resultado.regime) : null;
+    el.innerHTML = cab('Cadastro central', 'Consultar regime na base importada',
+      'Consulta manual e somente leitura na base importada da Receita. Abrange registros de Lucro Real, Lucro Presumido, Lucro Arbitrado e Imune / Isento; não consulta serviços externos.') +
+      `<div class="cartao"><div class="grade g3" style="align-items:end"><label class="campo" style="margin:0;grid-column:span 2"><span>CNPJ</span><input id="consultaRegimeCnpj" inputmode="numeric" placeholder="00.000.000/0000-00"></label><button class="btn" id="consultarRegimeImportado">Consultar na base</button></div>
+        <p class="mini" style="margin-top:12px">A busca aceita CNPJ completo e também encontra filiais pela raiz quando a base tiver apenas o cadastro da matriz.</p>
+        ${resultado === null ? '' : resultado ? `<div class="aviso bom" style="margin-top:16px"><b>${A.esc(regime)}</b><br><span class="mini">CNPJ da base: ${A.esc(resultado.cnpj || '—')} · ano: ${A.esc(resultado.ano || '—')} · correspondência: ${A.esc(resultado.nivel === 'raiz' ? 'raiz da matriz' : 'CNPJ completo')} · fonte: ${A.esc(resultado.fonte || 'base importada')}</span></div>` : `<div class="aviso atencao" style="margin-top:16px"><b>CNPJ não encontrado na base importada.</b><br><span class="mini">Nenhum regime foi inferido, alterado ou consultado externamente.</span></div>`}
+      </div>`;
+    const entrada = el.querySelector('#consultaRegimeCnpj');
+    const consultar = async () => {
+      const cnpj = entrada.value.replace(/\D/g, '');
+      if (cnpj.length !== 14) { A.toast('Informe um CNPJ com 14 dígitos.', 'erro'); return; }
+      const botao = el.querySelector('#consultarRegimeImportado'); botao.disabled = true; botao.textContent = 'Consultando…';
+      try { resultado = (await A.api(`/base-regime/consultar/${cnpj}`)).resultado || false; render(); }
+      catch (erro) { A.toast(erro.message, 'erro'); botao.disabled = false; botao.textContent = 'Consultar na base'; }
+    };
+    el.querySelector('#consultarRegimeImportado').onclick = consultar;
+    entrada.onkeydown = (evento) => { if (evento.key === 'Enter') consultar(); };
+  };
+  render();
+};
+
+// ===========================================================================
 // GESTÃO DA CARTEIRA — escopo aprovado, entrega e acompanhamento
 // ===========================================================================
 Telas.gestaoProjetos = async (el) => {

@@ -182,6 +182,7 @@ const App = (() => {
       { tipo: 'titulo', t: 'Cadastros' },
       { id: 'empresas', t: 'Empresas e estabelecimentos', i: '▦' },
       { id: 'cadastrosCnpj', t: 'Cadastros compartilhados', i: '⌘' },
+      { id: 'consultaBaseRegime', t: 'Consultar regime na base importada', i: '⌕' },
       { tipo: 'titulo', t: 'Bases e classificações' },
       { id: 'bases', t: 'Bases, catálogos e classificações', i: '⌘' },
     ] },
@@ -229,7 +230,7 @@ const App = (() => {
     dados: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     planejamento: 'gestao_projetos',
-    servicos: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'configuracoes', acessos: 'acessos',
+    servicos: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', consultaBaseRegime: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'configuracoes', acessos: 'acessos',
   };
   const pode = (tela, acao = 'ver') => {
     const permissoes = S.usuario?.permissoes;
@@ -298,7 +299,7 @@ const App = (() => {
       const tarefasDaTela = TAREFAS_POR_TELA[tela];
       const fn = tarefasDaTela ? ((host) => telaTarefasModulo(host, ...tarefasDaTela)) : Telas[tela];
       if (!fn) { alvo.innerHTML = vazio('Tela não encontrada', 'Escolha uma opção no menu.'); return; }
-      const semEmpresa = ['empresas', 'dashboardOperacao', 'planejamento', 'gestaoProjetos', 'configComercial', 'cadastrosCnpj', 'conhecimento', 'atualizacoesReforma', 'documentacaoSistema', 'questor', 'bases', 'configuracoes', 'controleProjeto', 'acessos'];
+      const semEmpresa = ['empresas', 'dashboardOperacao', 'planejamento', 'gestaoProjetos', 'configComercial', 'cadastrosCnpj', 'consultaBaseRegime', 'conhecimento', 'atualizacoesReforma', 'documentacaoSistema', 'questor', 'bases', 'configuracoes', 'controleProjeto', 'acessos'];
       if (!semEmpresa.includes(tela) && !S.empresaId) {
         alvo.innerHTML = vazio('Selecione uma empresa', 'Este módulo trabalha sobre os dados de uma empresa. Cadastre ou selecione uma no topo do menu.',
           '<button class="btn" onclick="App.ir(\'empresas\')">Ir para empresas</button>');
