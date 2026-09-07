@@ -116,26 +116,45 @@ function referenciasNbsDoArquivo(arquivo) {
   return { linhas, hash: sha256(bruto) };
 }
 
-function importarReferenciasOficiais({ arquivoNcm, arquivoNbs, aplicar = false } = {}) {
+function referenciasLc116DoArquivo(arquivo) {
+  const bruto = fs.readFileSync(arquivo);
+  const texto = new TextDecoder('utf-8').decode(bruto);
+  const linhasBrutas = texto.split(/\r?\n/).filter((x) => x.trim());
+  const linhas = linhasBrutas.map((linha) => {
+    const sep = linha.indexOf(';');
+    return { codigo: sep < 0 ? linha : linha.slice(0, sep), descricao: sep < 0 ? '' : linha.slice(sep + 1) };
+  }).filter((x) => /^\d{1,2}\.\d{2}$/.test(String(x.codigo).trim())).map((x) => ({
+    dominio: 'LC116', codigo: x.codigo, descricao: x.descricao.trim(),
+    vigencia_inicio: '2003-08-01', situacao: 'VIGENTE',
+    fonte: 'Lei Complementar 116/2003 — lista oficial de serviços',
+    versao_fonte: 'texto consolidado identificado pelo arquivo de origem',
+    hash_origem: sha256(bruto), dados_origem: { codigo_publicado: x.codigo },
+  }));
+  if (!linhas.length) throw new Error('Arquivo LC116 não contém itens no formato 1.01;Descrição');
+  return { linhas, hash: sha256(bruto) };
+}
+
+function importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, aplicar = false } = {}) {
   const ncm = arquivoNcm ? referenciasNcmDoArquivo(arquivoNcm) : { linhas: [] };
   const nbs = arquivoNbs ? referenciasNbsDoArquivo(arquivoNbs) : { linhas: [] };
-  const resumo = { ncm_lidos: ncm.linhas.length, nbs_lidos: nbs.linhas.length, ncm_hash: ncm.hash || null, nbs_hash: nbs.hash || null, aplicado: Boolean(aplicar) };
+  const lc116 = arquivoLc116 ? referenciasLc116DoArquivo(arquivoLc116) : { linhas: [] };
+  const resumo = { ncm_lidos: ncm.linhas.length, nbs_lidos: nbs.linhas.length, lc116_lidos: lc116.linhas.length, ncm_hash: ncm.hash || null, nbs_hash: nbs.hash || null, lc116_hash: lc116.hash || null, aplicado: Boolean(aplicar) };
   if (!aplicar) return resumo;
   const inserir = db.prepare(`INSERT OR IGNORE INTO referencias_fiscais_oficiais
     (dominio,codigo,descricao,vigencia_inicio,vigencia_fim,situacao,fonte,versao_fonte,hash_origem,dados_origem)
     VALUES (?,?,?,?,?,?,?,?,?,?)`);
   let inseridos = 0;
   db.transaction(() => {
-    for (const x of [...ncm.linhas, ...nbs.linhas]) {
+    for (const x of [...ncm.linhas, ...nbs.linhas, ...lc116.linhas]) {
       const r = validarReferencia(x);
       inseridos += inserir.run(r.dominio, r.codigo, r.descricao, r.vigencia_inicio, r.vigencia_fim, r.situacao,
         r.fonte, r.versao_fonte, r.hash_origem, r.dados_origem).changes;
     }
   })();
-  return { ...resumo, inseridos, existentes: ncm.linhas.length + nbs.linhas.length - inseridos };
+  return { ...resumo, inseridos, existentes: ncm.linhas.length + nbs.linhas.length + lc116.linhas.length - inseridos };
 }
 
 module.exports = {
   normalizarNcm, normalizarNbs, normalizarLc116, registrarReferencia, registrarRelacaoNbsLc116, consultar,
-  referenciasNcmDoArquivo, referenciasNbsDoArquivo, importarReferenciasOficiais,
+  referenciasNcmDoArquivo, referenciasNbsDoArquivo, referenciasLc116DoArquivo, importarReferenciasOficiais,
 };

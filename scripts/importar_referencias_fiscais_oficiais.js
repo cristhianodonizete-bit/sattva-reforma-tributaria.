@@ -1,6 +1,6 @@
 /*
  * Carga explícita de referências oficiais, fora do motor.
- * Uso: node scripts/importar_referencias_fiscais_oficiais.js --ncm caminho.json --nbs caminho.csv [--aplicar]
+ * Uso: node scripts/importar_referencias_fiscais_oficiais.js --ncm caminho.json --nbs caminho.csv --lc116 caminho.csv [--aplicar]
  */
 const path = require('path');
 const refs = require('../src/services/referenciasFiscaisOficiais');
@@ -12,11 +12,13 @@ const valor = (chave) => {
 };
 const arquivoNcm = valor('--ncm');
 const arquivoNbs = valor('--nbs');
-if (!arquivoNcm && !arquivoNbs) throw new Error('Informe --ncm e/ou --nbs. A carga não consulta fontes externas automaticamente.');
+const arquivoLc116 = valor('--lc116');
+if (!arquivoNcm && !arquivoNbs && !arquivoLc116) throw new Error('Informe --ncm, --nbs e/ou --lc116. A carga não consulta fontes externas automaticamente.');
 
 const resultado = refs.importarReferenciasOficiais({
   arquivoNcm: arquivoNcm && path.resolve(arquivoNcm),
   arquivoNbs: arquivoNbs && path.resolve(arquivoNbs),
+  arquivoLc116: arquivoLc116 && path.resolve(arquivoLc116),
   aplicar: args.includes('--aplicar'),
 });
 console.log(JSON.stringify(resultado, null, 2));

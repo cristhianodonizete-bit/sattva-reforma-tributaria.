@@ -33,11 +33,13 @@ fs.writeFileSync(arquivoNcm, JSON.stringify({ Data_Ultima_Atualizacao_NCM: 'Vige
 ] }));
 const arquivoNbs = path.join(dados, 'nbs.csv');
 fs.writeFileSync(arquivoNbs, Buffer.from('NBS 2.0;DESCRIÇÃO\n1.1501.30.00;Suporte de TI\n1.15;Agrupador\n', 'latin1'));
-const previa = refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs });
-assert.deepEqual({ ncm: previa.ncm_lidos, nbs: previa.nbs_lidos, aplicado: previa.aplicado }, { ncm: 1, nbs: 1, aplicado: false });
-const carga = refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs, aplicar: true });
-assert.equal(carga.inseridos, 2);
-assert.equal(refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs, aplicar: true }).inseridos, 0);
+const arquivoLc116 = path.join(dados, 'lc116.csv');
+fs.writeFileSync(arquivoLc116, '1.07;Suporte técnico em informática\n1;Grupo sem uso como chave\n');
+const previa = refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116 });
+assert.deepEqual({ ncm: previa.ncm_lidos, nbs: previa.nbs_lidos, lc116: previa.lc116_lidos, aplicado: previa.aplicado }, { ncm: 1, nbs: 1, lc116: 1, aplicado: false });
+const carga = refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, aplicar: true });
+assert.equal(carga.inseridos, 3);
+assert.equal(refs.importarReferenciasOficiais({ arquivoNcm, arquivoNbs, arquivoLc116, aplicar: true }).inseridos, 0);
 
 console.log('referencias-fiscais-oficiais: normalização, fonte e carga idempotente validadas');
 db.close();
