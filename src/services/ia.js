@@ -16,53 +16,131 @@ const { CLAUSULAS } = require('../config/conteudo');
 const API = 'https://api.anthropic.com/v1/messages';
 const VERSAO = '2023-06-01';
 
+// A base jurídica é única (RAG e fontes cadastradas). Estes provedores são
+// apenas modelos de raciocínio: nenhum deles vira fonte normativa por si só.
+// Chaves secundárias permanecem somente em variáveis de ambiente para não
+// ampliar o armazenamento de segredos no banco da aplicação.
+const PROVEDORES_PADRAO = [
+  { id: 'anthropic', nome: 'Anthropic', modelo: 'claude-sonnet-5', papel: 'principal', env: 'ANTHROPIC_API_KEY' },
+  { id: 'openai', nome: 'OpenAI', modelo: 'gpt-5-mini', papel: 'revisor', env: 'OPENAI_API_KEY' },
+  { id: 'gemini', nome: 'Google Gemini', modelo: 'gemini-2.5-flash', papel: 'revisor', env: 'GOOGLE_AI_API_KEY' },
+  { id: 'groq', nome: 'Groq', modelo: 'llama-3.3-70b-versatile', papel: 'revisor', env: 'GROQ_API_KEY' },
+  { id: 'ollama', nome: 'Ollama', modelo: 'llama3.1:8b', papel: 'revisor', env: 'OLLAMA_BASE_URL' },
+];
+
+function jsonSeguro(valor, padrao) { try { return JSON.parse(valor); } catch (_) { return padrao; } }
+function chaveDoProvedor(id, row) {
+  if (id === 'anthropic') return process.env.ANTHROPIC_API_KEY || row.api_key || '';
+  if (id === 'openai') return process.env.OPENAI_API_KEY || '';
+  if (id === 'gemini') return process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
+  if (id === 'groq') return process.env.GROQ_API_KEY || '';
+  if (id === 'ollama') return process.env.OLLAMA_BASE_URL || '';
+  return '';
+}
+
+function normalizarProvedores(valor, row) {
+  const salvos = new Map((Array.isArray(valor) ? valor : []).filter(Boolean).map((p) => [p.id, p]));
+  return PROVEDORES_PADRAO.map((padrao) => {
+    const salvo = salvos.get(padrao.id) || {};
+    const chave = chaveDoProvedor(padrao.id, row);
+    return {
+      id: padrao.id, nome: padrao.nome, env: padrao.env,
+      modelo: String(salvo.modelo || (padrao.id === 'anthropic' ? row.modelo : padrao.modelo)),
+      papel: ['principal', 'revisor', 'desativado'].includes(salvo.papel) ? salvo.papel : padrao.papel,
+      configurado: Boolean(chave),
+      ativo: salvo.papel !== 'desativado' && Boolean(chave),
+    };
+  });
+}
+
 function config() {
   const row = db.prepare('SELECT * FROM ia_config WHERE id = 1').get() || {};
+  const provedores = normalizarProvedores(jsonSeguro(row.provedores_json, []), row);
+  const principal = provedores.find((p) => p.ativo && p.papel === 'principal') || provedores.find((p) => p.ativo) || null;
   return {
     chave: process.env.ANTHROPIC_API_KEY || row.api_key || '',
     modelo: row.modelo || process.env.ANTHROPIC_MODELO || 'claude-sonnet-5',
-    ativo: !!(process.env.ANTHROPIC_API_KEY || row.api_key),
+    ativo: Boolean(principal),
     especialistaFiscalAtivo: Boolean(row.especialista_fiscal_ativo),
+    especialistaPainelAtivo: Boolean(row.especialista_painel_ativo),
+    provedores,
+    provedorPrincipal: principal?.id || null,
     origemChave: process.env.ANTHROPIC_API_KEY ? 'variável de ambiente' : (row.api_key ? 'configuração do sistema' : 'não configurada'),
   };
 }
 
-function salvarConfig({ api_key, modelo, especialista_fiscal_ativo }) {
-  const atual = db.prepare('SELECT api_key,especialista_fiscal_ativo FROM ia_config WHERE id=1').get() || {};
-  db.prepare(`UPDATE ia_config SET api_key = ?, modelo = ?, especialista_fiscal_ativo = ?, atualizado_em = datetime('now','localtime') WHERE id = 1`)
+function salvarConfig({ api_key, modelo, especialista_fiscal_ativo, especialista_painel_ativo, provedores }) {
+  const atual = db.prepare('SELECT api_key,especialista_fiscal_ativo,especialista_painel_ativo,provedores_json FROM ia_config WHERE id=1').get() || {};
+  const lista = Array.isArray(provedores) ? provedores.map((p) => ({
+    id: p.id, modelo: String(p.modelo || ''), papel: ['principal', 'revisor', 'desativado'].includes(p.papel) ? p.papel : 'desativado',
+  })) : jsonSeguro(atual.provedores_json, []);
+  const principais = lista.filter((p) => p.papel === 'principal');
+  if (principais.length > 1) throw new Error('Escolha somente uma IA principal para o Especialista Fiscal.');
+  db.prepare(`UPDATE ia_config SET api_key = ?, modelo = ?, especialista_fiscal_ativo = ?, especialista_painel_ativo = ?, provedores_json = ?, atualizado_em = datetime('now','localtime') WHERE id = 1`)
     .run(api_key === undefined ? atual.api_key || '' : api_key,
-      modelo || 'claude-sonnet-5', especialista_fiscal_ativo === undefined ? Number(atual.especialista_fiscal_ativo || 0) : (especialista_fiscal_ativo ? 1 : 0));
+      modelo || 'claude-sonnet-5', especialista_fiscal_ativo === undefined ? Number(atual.especialista_fiscal_ativo || 0) : (especialista_fiscal_ativo ? 1 : 0),
+      especialista_painel_ativo === undefined ? Number(atual.especialista_painel_ativo || 0) : (especialista_painel_ativo ? 1 : 0), JSON.stringify(lista));
   return config();
 }
 
-async function chamar(mensagens, { sistema, maxTokens = 8000, temperatura = 0 } = {}) {
-  const cfg = config();
-  if (!cfg.chave) {
-    throw new Error('Chave da API não configurada. Informe a ANTHROPIC_API_KEY no arquivo .env ou na tela "Base de conhecimento".');
-  }
+async function chamarAnthropic(mensagens, { sistema, maxTokens, temperatura, provedor, chave }) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 180000);
   try {
     const resp = await fetch(API, {
       method: 'POST', signal: ctrl.signal,
-      headers: { 'content-type': 'application/json', 'x-api-key': cfg.chave, 'anthropic-version': VERSAO },
-      body: JSON.stringify({ model: cfg.modelo, max_tokens: maxTokens, temperature: temperatura,
-        system: sistema, messages: mensagens }),
+      headers: { 'content-type': 'application/json', 'x-api-key': chave, 'anthropic-version': VERSAO },
+      body: JSON.stringify({ model: provedor.modelo, max_tokens: maxTokens, temperature: temperatura, system: sistema, messages: mensagens }),
     });
-    const texto = await resp.text();
-    let dados; try { dados = JSON.parse(texto); } catch (_) { dados = null; }
-    if (!resp.ok) {
-      const msg = dados && dados.error ? dados.error.message : texto.slice(0, 300);
-      if (resp.status === 401) throw new Error('Chave da API rejeitada (401). Confira a ANTHROPIC_API_KEY.');
-      if (resp.status === 429) throw new Error('Limite de requisições atingido (429). Aguarde alguns instantes e tente de novo.');
-      throw new Error(`API respondeu ${resp.status}: ${msg}`);
-    }
-    const conteudo = (dados.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n');
-    return { texto: conteudo, uso: dados.usage || {} };
-  } catch (e) {
-    if (e.name === 'AbortError') throw new Error('Tempo esgotado na chamada à IA. Documentos muito longos podem exigir divisão em partes.');
-    throw e;
+    const texto = await resp.text(); let dados; try { dados = JSON.parse(texto); } catch (_) { dados = null; }
+    if (!resp.ok) throw new Error(dados?.error?.message || `Anthropic respondeu ${resp.status}`);
+    return { texto: (dados.content || []).filter((c) => c.type === 'text').map((c) => c.text).join('\n'), uso: dados.usage || {} };
   } finally { clearTimeout(t); }
+}
+
+async function chamarOpenAiCompativel(mensagens, { sistema, maxTokens, temperatura, provedor, chave }) {
+  const origem = provedor.id === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
+  const resp = await fetch(`${origem}/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${chave}` },
+    body: JSON.stringify({ model: provedor.modelo, max_tokens: maxTokens, temperature: temperatura, messages: [{ role: 'system', content: sistema }, ...mensagens] }) });
+  const dados = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(dados?.error?.message || `${provedor.nome} respondeu ${resp.status}`);
+  return { texto: dados?.choices?.[0]?.message?.content || '', uso: dados.usage || {} };
+}
+
+async function chamarGemini(mensagens, { sistema, maxTokens, temperatura, provedor, chave }) {
+  const prompt = mensagens.map((m) => `${m.role}: ${typeof m.content === 'string' ? m.content : JSON.stringify(m.content)}`).join('\n\n');
+  const u = `https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(provedor.modelo)}:generateContent?key=${encodeURIComponent(chave)}`;
+  const resp = await fetch(u, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ systemInstruction: { parts: [{ text: sistema }] }, contents: [{ role: 'user', parts: [{ text: prompt }] }], generationConfig: { maxOutputTokens: maxTokens, temperature } }) });
+  const dados = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(dados?.error?.message || `Gemini respondeu ${resp.status}`);
+  return { texto: dados?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('\n') || '', uso: dados.usageMetadata || {} };
+}
+
+async function chamarOllama(mensagens, { sistema, maxTokens, temperatura, provedor }) {
+  const base = (process.env.OLLAMA_BASE_URL || '').replace(/\/$/, '');
+  const resp = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: provedor.modelo, stream: false, options: { num_predict: maxTokens, temperature }, messages: [{ role: 'system', content: sistema }, ...mensagens] }) });
+  const dados = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(dados?.error || `Ollama respondeu ${resp.status}`);
+  return { texto: dados?.message?.content || '', uso: { prompt_eval_count: dados.prompt_eval_count, eval_count: dados.eval_count } };
+}
+
+async function chamar(mensagens, { sistema, maxTokens = 8000, temperatura = 0, provedorId = null, fallback = true } = {}) {
+  const cfg = config();
+  const escolhido = cfg.provedores.find((p) => p.id === provedorId && p.ativo) || cfg.provedores.find((p) => p.id === cfg.provedorPrincipal);
+  const candidatos = fallback && escolhido ? [escolhido, ...cfg.provedores.filter((p) => p.ativo && p.id !== escolhido.id)] : [escolhido].filter(Boolean);
+  if (!candidatos.length) throw new Error('Nenhuma IA configurada. Defina ANTHROPIC_API_KEY, OPENAI_API_KEY, GOOGLE_AI_API_KEY, GROQ_API_KEY ou OLLAMA_BASE_URL.');
+  const falhas = [];
+  for (const provedor of candidatos) {
+    try {
+      const chave = chaveDoProvedor(provedor.id, db.prepare('SELECT * FROM ia_config WHERE id=1').get() || {});
+      const args = { sistema, maxTokens, temperatura, provedor, chave };
+      const r = provedor.id === 'anthropic' ? await chamarAnthropic(mensagens, args)
+        : provedor.id === 'openai' || provedor.id === 'groq' ? await chamarOpenAiCompativel(mensagens, args)
+          : provedor.id === 'gemini' ? await chamarGemini(mensagens, args) : await chamarOllama(mensagens, args);
+      return { ...r, provedor: provedor.id, modelo: provedor.modelo, falhas };
+    } catch (e) { falhas.push({ provedor: provedor.id, erro: e.message }); if (!fallback) throw e; }
+  }
+  throw new Error(`Nenhuma IA respondeu: ${falhas.map((f) => `${f.provedor}: ${f.erro}`).join(' | ')}`);
 }
 
 // --------------------------------------------------------------------------

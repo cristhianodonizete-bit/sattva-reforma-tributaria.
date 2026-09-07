@@ -1,6 +1,8 @@
 -- Especialista Fiscal Sênior: chave operacional e histórico auditável.
 -- Não concede ao modelo permissão para modificar motor, catálogo ou regras.
 alter table public.ia_config add column if not exists especialista_fiscal_ativo boolean not null default false;
+alter table public.ia_config add column if not exists provedores_json jsonb not null default '[]'::jsonb;
+alter table public.ia_config add column if not exists especialista_painel_ativo boolean not null default false;
 
 create table if not exists public.especialista_fiscal_interacoes (
   id bigint generated always as identity primary key,

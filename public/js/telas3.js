@@ -173,6 +173,7 @@ Telas.analise = async (el) => {
 Telas.conhecimento = async (el) => {
   const { documentos, estatisticas, ia } = await A.api('/conhecimento');
   const categorias = [...new Set(documentos.map((d) => d.categoria))];
+  const provedores = ia.provedores || [];
 
   el.innerHTML = cab('Fundamento', 'Base de conhecimento',
     'É daqui que a IA tira o fundamento de cada análise. Quanto melhor a base — pareceres, minutas padrão, notas técnicas, atos normativos —, mais precisa e mais defensável fica a saída.',
@@ -195,24 +196,26 @@ Telas.conhecimento = async (el) => {
       </div>
       <div class="cartao"><h2>Especialista Fiscal Sênior</h2>
         <p class="desc">Consultoria assistida sobre PIS/Cofins atual e CBS/IBS, limitada às fontes jurídicas indexadas e aos fatos cadastrados.</p>
-        <div class="aviso ${ia.especialistaFiscalAtivo && ia.ativo ? 'bom' : 'atencao'}"><b>${ia.especialistaFiscalAtivo && ia.ativo ? 'Ligado' : 'Desligado'}</b>${ia.especialistaFiscalAtivo ? (ia.ativo ? 'Consulta auditável; não altera motor ou regras.' : 'Configure a chave da IA para usá-lo.') : 'Ative na configuração abaixo quando a base jurídica estiver pronta.'}</div>
+        <div class="aviso ${ia.especialistaFiscalAtivo && ia.ativo ? 'bom' : 'atencao'}"><b>${ia.especialistaFiscalAtivo && ia.ativo ? 'Ligado' : 'Desligado'}</b>${ia.especialistaFiscalAtivo ? (ia.ativo ? `IA principal: ${A.esc(ia.provedorPrincipal || '—')}. Consulta auditável; não altera motor ou regras.` : 'Configure ao menos uma IA para usá-lo.') : 'Ative na configuração abaixo quando a base jurídica estiver pronta.'}</div>
         ${ia.especialistaFiscalAtivo && ia.ativo ? `<textarea id="perguntaEspecialista" rows="3" placeholder="Ex.: Este NCM possui impacto distinto em PIS/Cofins atual e CBS?"></textarea><div style="display:flex;gap:8px;margin-top:9px"><button class="btn" id="perguntarEspecialista">Consultar especialista</button></div><div id="respostaEspecialista" style="margin-top:14px"></div>` : ''}
       </div>
-      <div class="cartao"><h2>Configuração da IA</h2>
-        <p class="desc">Chave da API Anthropic. Fica gravada apenas neste servidor.</p>
-        <div class="aviso ${ia.ativo ? 'bom' : 'atencao'}"><b>${ia.ativo ? 'Chave ativa' : 'Sem chave'}</b>Origem: ${A.esc(ia.origemChave)}</div>
+      <div class="cartao"><h2>IA principal e revisores</h2>
+        <p class="desc">A base jurídica é única. As IAs formulam ou revisam o parecer usando as mesmas fontes indexadas.</p>
+        <div class="aviso ${ia.ativo ? 'bom' : 'atencao'}"><b>${ia.ativo ? 'IA configurada' : 'Sem IA configurada'}</b>Origem Anthropic: ${A.esc(ia.origemChave)}</div>
         <label class="check" style="margin:10px 0"><input type="checkbox" name="especialista_fiscal_ativo" ${ia.especialistaFiscalAtivo ? 'checked' : ''}> Ligar Especialista Fiscal Sênior</label>
+        <label class="check" style="margin:0 0 10px"><input type="checkbox" name="especialista_painel_ativo" ${ia.especialistaPainelAtivo ? 'checked' : ''}> Revisão cruzada pelos revisores ativos</label>
         <p class="mini">Mesmo ligado, ele apenas responde com fontes e registra a consulta. Não altera cálculos, cadastro, catálogo ou regras fiscais.</p>
         ${A.campo('api_key', 'Chave da API (sk-ant-...)', '', 'text', 'placeholder="deixe em branco para manter a atual"')}
         ${A.campo('modelo', 'Modelo', ia.modelo)}
+        <div class="mini" style="margin:10px 0 6px"><b>Painel de provedores</b> — escolha uma principal e, se desejar, revisoras independentes.</div>
+        <div>${provedores.map((p) => `<div class="aviso" style="margin:6px 0;display:grid;grid-template-columns:1fr 125px 165px;gap:8px;align-items:center"><div><b>${A.esc(p.nome)}</b><div class="mini">${p.configurado ? 'Configurada' : `Requer ${A.esc(p.env)}`}</div></div><select data-papel-provedor="${A.esc(p.id)}"><option value="principal" ${p.papel === 'principal' ? 'selected' : ''}>Principal</option><option value="revisor" ${p.papel === 'revisor' ? 'selected' : ''}>Revisora</option><option value="desativado" ${p.papel === 'desativado' ? 'selected' : ''}>Desativada</option></select><input data-modelo-provedor="${A.esc(p.id)}" value="${A.esc(p.modelo)}" aria-label="Modelo ${A.esc(p.nome)}"></div>`).join('')}</div>
         <div style="display:flex;gap:8px">
           <button class="btn" id="salvarIA">Salvar</button>
           <button class="btn vazio" id="testarIA">Testar conexão</button>
         </div>
         <div id="statusIA" style="margin-top:12px"></div>
         <hr class="sep">
-        <p class="mini">Preferindo variável de ambiente, crie um arquivo <span class="mono">.env</span> na raiz com
-          <span class="mono">ANTHROPIC_API_KEY=sk-ant-...</span> — ela tem prioridade sobre a chave salva aqui.</p>
+        <p class="mini">Variáveis aceitas: <span class="mono">ANTHROPIC_API_KEY</span>, <span class="mono">OPENAI_API_KEY</span>, <span class="mono">GOOGLE_AI_API_KEY</span>, <span class="mono">GROQ_API_KEY</span> e <span class="mono">OLLAMA_BASE_URL</span>.</p>
       </div>
     </div>
     <div class="cartao"><h2>Documentos indexados</h2>
@@ -292,7 +295,9 @@ Telas.conhecimento = async (el) => {
         <span class="mini">${A.esc(t.conteudo.slice(0, 380))}…</span></div>`).join('') || '<div class="mini">Nada encontrado.</div>';
   };
   document.getElementById('salvarIA').onclick = async () => {
-    const corpo = { modelo: el.querySelector('[name="modelo"]').value, especialista_fiscal_ativo: el.querySelector('[name="especialista_fiscal_ativo"]')?.checked || false };
+    const corpo = { modelo: el.querySelector('[name="modelo"]').value, especialista_fiscal_ativo: el.querySelector('[name="especialista_fiscal_ativo"]')?.checked || false,
+      especialista_painel_ativo: el.querySelector('[name="especialista_painel_ativo"]')?.checked || false,
+      provedores: provedores.map((p) => ({ id: p.id, papel: el.querySelector(`[data-papel-provedor="${p.id}"]`).value, modelo: el.querySelector(`[data-modelo-provedor="${p.id}"]`).value.trim() })) };
     const k = el.querySelector('[name="api_key"]').value.trim();
     if (k) corpo.api_key = k;
     await A.api('/ia/config', { metodo: 'POST', corpo });
@@ -305,7 +310,7 @@ Telas.conhecimento = async (el) => {
     box.innerHTML = '<div class="carregando">Consultando o especialista…</div>';
     try {
       const r = await A.api('/especialista-fiscal/perguntar', { metodo: 'POST', corpo: { pergunta, empresa_id: S.empresaId || null } });
-      box.innerHTML = `<div style="white-space:pre-wrap;font-size:13.5px">${A.esc(r.resposta)}</div><hr class="sep"><div class="mini"><b>Fontes:</b> ${(r.fontes || []).map((f) => `[${f.marcador}] ${A.esc(f.titulo)}`).join(' · ')}</div>`;
+      box.innerHTML = `<div style="white-space:pre-wrap;font-size:13.5px">${A.esc(r.resposta)}</div>${(r.pareceres || []).length ? `<hr class="sep"><b>Pareceres independentes</b>${r.pareceres.map((p) => `<div class="aviso" style="white-space:pre-wrap"><b>${A.esc(p.provedor)} · ${A.esc(p.modelo)}</b>${p.erro ? `<br>${A.esc(p.erro)}` : `<br>${A.esc(p.resposta)}`}</div>`).join('')}` : ''}<hr class="sep"><div class="mini"><b>Fontes:</b> ${(r.fontes || []).map((f) => `[${f.marcador}] ${A.esc(f.titulo)}`).join(' · ')}</div>`;
     } catch (e) { box.innerHTML = `<div class="aviso alto">${A.esc(e.message)}</div>`; }
   });
   document.getElementById('testarIA').onclick = async () => {

@@ -39,10 +39,30 @@ async function perguntar({ pergunta, empresaId = null, usuarioId = null } = {}) 
   const contexto = rag.montarContexto([p, 'PIS Cofins CBS IBS reforma tributária legislação'], 10, 20);
   if (!contexto.texto) throw new Error('A base jurídica está vazia. Cadastre fontes normativas antes de consultar o Especialista Fiscal Sênior.');
   const fatos = empresa ? JSON.stringify({ empresa }) : 'Nenhuma empresa foi selecionada; responda somente em tese.';
-  const resposta = await ia.chamar([{ role: 'user', content: `FONTES RECUPERADAS:\n${contexto.texto}\n\nFATOS DA CONSULTA:\n${fatos}\n\nPERGUNTA:\n${p}` }], { sistema: SISTEMA, maxTokens: 3200, temperatura: 0 });
+  const consulta = [{ role: 'user', content: `FONTES RECUPERADAS:\n${contexto.texto}\n\nFATOS DA CONSULTA:\n${fatos}\n\nPERGUNTA:\n${p}` }];
+  const resposta = await ia.chamar(consulta, { sistema: SISTEMA, maxTokens: 3200, temperatura: 0, fallback: true });
+  // A conferência cruzada é opt-in: evita custo e compartilhamento adicional
+  // de dados quando a administração não a habilitou expressamente.
+  const revisores = cfg.especialistaPainelAtivo
+    ? cfg.provedores.filter((x) => x.ativo && x.papel === 'revisor' && x.id !== resposta.provedor)
+    : [];
+  const pareceres = [];
+  for (const revisor of revisores) {
+    try {
+      const r = await ia.chamar(consulta, {
+        sistema: `${SISTEMA}\n\nVocê atua como REVISOR INDEPENDENTE. Não substitua a resposta principal: aponte apenas conclusões sem fonte, divergências factuais, premissas ausentes e o que exige revisão humana.`,
+        maxTokens: 1800, temperatura: 0, provedorId: revisor.id, fallback: false,
+      });
+      pareceres.push({ provedor: r.provedor, modelo: r.modelo, resposta: r.texto, uso: r.uso || {} });
+    } catch (e) { pareceres.push({ provedor: revisor.id, modelo: revisor.modelo, erro: e.message }); }
+  }
+  const respostaAuditada = pareceres.length
+    ? `${resposta.texto}\n\n--- PARECERES INDEPENDENTES ---\n${pareceres.map((x) => `${x.provedor}/${x.modelo}: ${x.resposta || `INDISPONÍVEL — ${x.erro}`}`).join('\n\n')}`
+    : resposta.texto;
   const gravada = db.prepare(`INSERT INTO especialista_fiscal_interacoes (empresa_id,usuario_id,pergunta,resposta,modelo,fontes_json,uso_json)
-    VALUES (?,?,?,?,?,?,?)`).run(empresa?.id || null, usuarioId || null, p, resposta.texto, cfg.modelo, JSON.stringify(contexto.trechos), JSON.stringify(resposta.uso || {}));
-  return { id: Number(gravada.lastInsertRowid), resposta: resposta.texto, fontes: contexto.trechos, modelo: cfg.modelo, uso: resposta.uso || {} };
+    VALUES (?,?,?,?,?,?,?)`).run(empresa?.id || null, usuarioId || null, p, respostaAuditada, resposta.modelo || cfg.modelo, JSON.stringify(contexto.trechos), JSON.stringify({ principal: resposta.uso || {}, pareceres }));
+  return { id: Number(gravada.lastInsertRowid), resposta: resposta.texto, fontes: contexto.trechos,
+    provedor: resposta.provedor, modelo: resposta.modelo || cfg.modelo, uso: resposta.uso || {}, pareceres };
 }
 
 function historico({ empresaId = null, limite = 20 } = {}) {

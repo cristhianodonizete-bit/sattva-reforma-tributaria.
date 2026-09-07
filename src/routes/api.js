@@ -3176,18 +3176,21 @@ router.post('/conhecimento/perguntar', async (req, res) => {
 
 router.get('/ia/config', (_req, res) => {
   const c = ia.config();
-  ok(res, { config: { modelo: c.modelo, ativo: c.ativo, origemChave: c.origemChave, especialistaFiscalAtivo: c.especialistaFiscalAtivo } });
+  ok(res, { config: { modelo: c.modelo, ativo: c.ativo, origemChave: c.origemChave, especialistaFiscalAtivo: c.especialistaFiscalAtivo,
+    especialistaPainelAtivo: c.especialistaPainelAtivo, provedorPrincipal: c.provedorPrincipal, provedores: c.provedores } });
 });
 
 router.post('/ia/config', (req, res) => {
-  try { const c = ia.salvarConfig(req.body); ok(res, { config: { modelo: c.modelo, ativo: c.ativo, origemChave: c.origemChave, especialistaFiscalAtivo: c.especialistaFiscalAtivo } }); }
+  try { const c = ia.salvarConfig(req.body); ok(res, { config: { modelo: c.modelo, ativo: c.ativo, origemChave: c.origemChave, especialistaFiscalAtivo: c.especialistaFiscalAtivo,
+    especialistaPainelAtivo: c.especialistaPainelAtivo, provedorPrincipal: c.provedorPrincipal, provedores: c.provedores } }); }
   catch (e) { erro(res, e); }
 });
 
 router.get('/especialista-fiscal', (req, res) => {
   try {
     const c = ia.config();
-    ok(res, { ativo: c.especialistaFiscalAtivo, ia_configurada: c.ativo, modelo: c.modelo,
+    ok(res, { ativo: c.especialistaFiscalAtivo, ia_configurada: c.ativo, modelo: c.modelo, provedor_principal: c.provedorPrincipal,
+      painel_ativo: c.especialistaPainelAtivo, provedores: c.provedores,
       interacoes: especialistaFiscalSenior.historico({ empresaId: req.query.empresa_id, limite: req.query.limite }) });
   } catch (e) { erro(res, e); }
 });

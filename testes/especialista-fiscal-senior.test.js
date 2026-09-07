@@ -17,6 +17,15 @@ const ragOriginal = rag.montarContexto;
 (async () => {
   ia.salvarConfig({ modelo: 'teste', especialista_fiscal_ativo: true });
   assert.equal(ia.config().especialistaFiscalAtivo, true);
+  ia.salvarConfig({ modelo: 'teste', especialista_painel_ativo: true, provedores: [
+    { id: 'anthropic', modelo: 'claude-teste', papel: 'principal' },
+    { id: 'groq', modelo: 'llama-teste', papel: 'revisor' },
+  ] });
+  assert.equal(ia.config().especialistaPainelAtivo, true);
+  assert.equal(ia.config().provedores.find((p) => p.id === 'groq').papel, 'revisor');
+  assert.throws(() => ia.salvarConfig({ provedores: [
+    { id: 'anthropic', modelo: 'a', papel: 'principal' }, { id: 'groq', modelo: 'b', papel: 'principal' },
+  ] }), /somente uma IA principal/);
   ia.salvarConfig({ modelo: 'teste', especialista_fiscal_ativo: false });
   assert.equal(ia.config().especialistaFiscalAtivo, false);
   ia.config = () => ({ ativo: false, especialistaFiscalAtivo: false, modelo: 'teste' });
