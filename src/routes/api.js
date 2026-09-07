@@ -64,6 +64,7 @@ const auditoriaMatrizFiscal = require('../services/auditoriaMatrizFiscal');
 const matrizRegrasFiscaisVersionada = require('../services/matrizRegrasFiscaisVersionada');
 const planejamentoTributario = require('../services/planejamentoTributario');
 const analistaTributarioIa = require('../services/analistaTributarioIa');
+const especialistaFiscalSenior = require('../services/especialistaFiscalSenior');
 const autenticacao = require('../services/autenticacao');
 
 const router = express.Router();
@@ -3175,12 +3176,28 @@ router.post('/conhecimento/perguntar', async (req, res) => {
 
 router.get('/ia/config', (_req, res) => {
   const c = ia.config();
-  ok(res, { config: { modelo: c.modelo, ativo: c.ativo, origemChave: c.origemChave } });
+  ok(res, { config: { modelo: c.modelo, ativo: c.ativo, origemChave: c.origemChave, especialistaFiscalAtivo: c.especialistaFiscalAtivo } });
 });
 
 router.post('/ia/config', (req, res) => {
-  try { const c = ia.salvarConfig(req.body); ok(res, { config: { modelo: c.modelo, ativo: c.ativo, origemChave: c.origemChave } }); }
+  try { const c = ia.salvarConfig(req.body); ok(res, { config: { modelo: c.modelo, ativo: c.ativo, origemChave: c.origemChave, especialistaFiscalAtivo: c.especialistaFiscalAtivo } }); }
   catch (e) { erro(res, e); }
+});
+
+router.get('/especialista-fiscal', (req, res) => {
+  try {
+    const c = ia.config();
+    ok(res, { ativo: c.especialistaFiscalAtivo, ia_configurada: c.ativo, modelo: c.modelo,
+      interacoes: especialistaFiscalSenior.historico({ empresaId: req.query.empresa_id, limite: req.query.limite }) });
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/especialista-fiscal/perguntar', async (req, res) => {
+  try {
+    const r = await especialistaFiscalSenior.perguntar({ pergunta: req.body?.pergunta, empresaId: req.body?.empresa_id, usuarioId: req.usuario?.id || null });
+    auditar(req, { empresaId: req.body?.empresa_id || null, acao: 'especialista_fiscal_consultado', entidade: 'especialista_fiscal_interacoes', entidadeId: r.id, depois: { fontes: r.fontes.length, modelo: r.modelo } });
+    ok(res, r);
+  } catch (e) { erro(res, e); }
 });
 
 router.post('/ia/testar', async (_req, res) => {

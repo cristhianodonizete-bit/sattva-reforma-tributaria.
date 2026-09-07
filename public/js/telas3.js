@@ -193,9 +193,16 @@ Telas.conhecimento = async (el) => {
         </div>
         <div id="respostaBase" style="margin-top:14px"></div>
       </div>
+      <div class="cartao"><h2>Especialista Fiscal Sênior</h2>
+        <p class="desc">Consultoria assistida sobre PIS/Cofins atual e CBS/IBS, limitada às fontes jurídicas indexadas e aos fatos cadastrados.</p>
+        <div class="aviso ${ia.especialistaFiscalAtivo && ia.ativo ? 'bom' : 'atencao'}"><b>${ia.especialistaFiscalAtivo && ia.ativo ? 'Ligado' : 'Desligado'}</b>${ia.especialistaFiscalAtivo ? (ia.ativo ? 'Consulta auditável; não altera motor ou regras.' : 'Configure a chave da IA para usá-lo.') : 'Ative na configuração abaixo quando a base jurídica estiver pronta.'}</div>
+        ${ia.especialistaFiscalAtivo && ia.ativo ? `<textarea id="perguntaEspecialista" rows="3" placeholder="Ex.: Este NCM possui impacto distinto em PIS/Cofins atual e CBS?"></textarea><div style="display:flex;gap:8px;margin-top:9px"><button class="btn" id="perguntarEspecialista">Consultar especialista</button></div><div id="respostaEspecialista" style="margin-top:14px"></div>` : ''}
+      </div>
       <div class="cartao"><h2>Configuração da IA</h2>
         <p class="desc">Chave da API Anthropic. Fica gravada apenas neste servidor.</p>
         <div class="aviso ${ia.ativo ? 'bom' : 'atencao'}"><b>${ia.ativo ? 'Chave ativa' : 'Sem chave'}</b>Origem: ${A.esc(ia.origemChave)}</div>
+        <label class="check" style="margin:10px 0"><input type="checkbox" name="especialista_fiscal_ativo" ${ia.especialistaFiscalAtivo ? 'checked' : ''}> Ligar Especialista Fiscal Sênior</label>
+        <p class="mini">Mesmo ligado, ele apenas responde com fontes e registra a consulta. Não altera cálculos, cadastro, catálogo ou regras fiscais.</p>
         ${A.campo('api_key', 'Chave da API (sk-ant-...)', '', 'text', 'placeholder="deixe em branco para manter a atual"')}
         ${A.campo('modelo', 'Modelo', ia.modelo)}
         <div style="display:flex;gap:8px">
@@ -285,12 +292,22 @@ Telas.conhecimento = async (el) => {
         <span class="mini">${A.esc(t.conteudo.slice(0, 380))}…</span></div>`).join('') || '<div class="mini">Nada encontrado.</div>';
   };
   document.getElementById('salvarIA').onclick = async () => {
-    const corpo = { modelo: el.querySelector('[name="modelo"]').value };
+    const corpo = { modelo: el.querySelector('[name="modelo"]').value, especialista_fiscal_ativo: el.querySelector('[name="especialista_fiscal_ativo"]')?.checked || false };
     const k = el.querySelector('[name="api_key"]').value.trim();
     if (k) corpo.api_key = k;
     await A.api('/ia/config', { metodo: 'POST', corpo });
     A.toast('Configuração salva', 'ok'); A.ir('conhecimento');
   };
+  document.getElementById('perguntarEspecialista')?.addEventListener('click', async () => {
+    const pergunta = document.getElementById('perguntaEspecialista').value.trim();
+    if (!pergunta) return;
+    const box = document.getElementById('respostaEspecialista');
+    box.innerHTML = '<div class="carregando">Consultando o especialista…</div>';
+    try {
+      const r = await A.api('/especialista-fiscal/perguntar', { metodo: 'POST', corpo: { pergunta, empresa_id: S.empresaId || null } });
+      box.innerHTML = `<div style="white-space:pre-wrap;font-size:13.5px">${A.esc(r.resposta)}</div><hr class="sep"><div class="mini"><b>Fontes:</b> ${(r.fontes || []).map((f) => `[${f.marcador}] ${A.esc(f.titulo)}`).join(' · ')}</div>`;
+    } catch (e) { box.innerHTML = `<div class="aviso alto">${A.esc(e.message)}</div>`; }
+  });
   document.getElementById('testarIA').onclick = async () => {
     const box = document.getElementById('statusIA');
     box.innerHTML = '<div class="carregando">Testando…</div>';

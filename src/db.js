@@ -125,6 +125,7 @@ const COLUNAS_NOVAS = {
     nome: 'TEXT', moeda: "TEXT DEFAULT 'BRL'", periodicidade_reajuste: 'TEXT', tipo_relacao: 'TEXT',
     renovacao: 'TEXT', observacoes: 'TEXT', arquivo_origem: 'TEXT', status_analise: "TEXT DEFAULT 'NAO_INICIADA'", natureza_contrato: "TEXT DEFAULT 'INDETERMINADO'", natureza_contrato_origem: 'TEXT', natureza_contrato_evidencia: 'TEXT',
   },
+  ia_config: { especialista_fiscal_ativo: 'INTEGER DEFAULT 0' },
   contrato_precificacao_vinculos: { pricing_simulacao_id: 'INTEGER' },
 };
 
@@ -1822,8 +1823,20 @@ CREATE INDEX IF NOT EXISTS ix_analises ON contrato_analises(empresa_id, contrato
 
 CREATE TABLE IF NOT EXISTS ia_config (
   id INTEGER PRIMARY KEY CHECK (id = 1),
-  api_key TEXT, modelo TEXT DEFAULT 'claude-sonnet-5', atualizado_em TEXT
+  api_key TEXT, modelo TEXT DEFAULT 'claude-sonnet-5', especialista_fiscal_ativo INTEGER DEFAULT 0, atualizado_em TEXT
 );
+CREATE TABLE IF NOT EXISTS especialista_fiscal_interacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER REFERENCES empresas(id) ON DELETE SET NULL,
+  usuario_id TEXT,
+  pergunta TEXT NOT NULL,
+  resposta TEXT NOT NULL,
+  modelo TEXT,
+  fontes_json TEXT NOT NULL DEFAULT '[]',
+  uso_json TEXT NOT NULL DEFAULT '{}',
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_especialista_fiscal_interacoes ON especialista_fiscal_interacoes(empresa_id,id DESC);
 
 -- ============ INTEGRAÇÃO QUESTOR ============
 CREATE TABLE IF NOT EXISTS questor_config (

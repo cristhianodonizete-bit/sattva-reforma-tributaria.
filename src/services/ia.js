@@ -22,14 +22,16 @@ function config() {
     chave: process.env.ANTHROPIC_API_KEY || row.api_key || '',
     modelo: row.modelo || process.env.ANTHROPIC_MODELO || 'claude-sonnet-5',
     ativo: !!(process.env.ANTHROPIC_API_KEY || row.api_key),
+    especialistaFiscalAtivo: Boolean(row.especialista_fiscal_ativo),
     origemChave: process.env.ANTHROPIC_API_KEY ? 'variável de ambiente' : (row.api_key ? 'configuração do sistema' : 'não configurada'),
   };
 }
 
-function salvarConfig({ api_key, modelo }) {
-  db.prepare(`UPDATE ia_config SET api_key = ?, modelo = ?, atualizado_em = datetime('now','localtime') WHERE id = 1`)
-    .run(api_key === undefined ? (db.prepare('SELECT api_key FROM ia_config WHERE id=1').get() || {}).api_key || '' : api_key,
-      modelo || 'claude-sonnet-5');
+function salvarConfig({ api_key, modelo, especialista_fiscal_ativo }) {
+  const atual = db.prepare('SELECT api_key,especialista_fiscal_ativo FROM ia_config WHERE id=1').get() || {};
+  db.prepare(`UPDATE ia_config SET api_key = ?, modelo = ?, especialista_fiscal_ativo = ?, atualizado_em = datetime('now','localtime') WHERE id = 1`)
+    .run(api_key === undefined ? atual.api_key || '' : api_key,
+      modelo || 'claude-sonnet-5', especialista_fiscal_ativo === undefined ? Number(atual.especialista_fiscal_ativo || 0) : (especialista_fiscal_ativo ? 1 : 0));
   return config();
 }
 
