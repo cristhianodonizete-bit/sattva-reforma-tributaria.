@@ -4215,12 +4215,47 @@ router.get('/config/historico', (req, res) => {
   try { ok(res, { historico: regras.historico(req.query.limite) }); } catch (e) { erro(res, e); }
 });
 
-/** Testa uma regra sem gravar: simula uma operação com os valores informados */
+/**
+ * Testa uma regra sem gravar. Além de reconstruir a carga atual, recebe o
+ * contexto operacional necessário à classificação CBS: sentido na cadeia,
+ * contraparte, CFOP, item e fatos condicionais. Não lê nem grava dados de uma
+ * empresa real.
+ */
 router.post('/config/simular', (req, res) => {
   try {
     const { reconstruir } = require('../engine/reconstrucao');
-    const rec = reconstruir(req.body);
-    ok(res, { reconstrucao: rec });
+    const b = req.body || {};
+    const sentido = b.sentido === 'entrada' ? 'entrada' : 'saida';
+    const regimeEmitente = b.regime_emitente || b.regime || 'lucro_real';
+    const regimeDestinatario = b.regime_destinatario || 'regime_regular';
+    const perfilDestinatario = b.perfil_destinatario || 'normal';
+    const statusQsa = b.qsa_20_brasileiro || 'PENDENTE';
+    const statusGoverno = b.adquirente_governo || (perfilDestinatario === 'governo' ? 'PENDENTE' : 'NAO');
+    const rec = reconstruir({ ...b, regime: regimeEmitente });
+    const item = {
+      valor: Number(b.valor) || 0, tipo: b.tipo, cfop: String(b.cfop || '').replace(/\D/g, ''),
+      ncm: String(b.ncm || '').replace(/\D/g, ''), nbs: String(b.nbs || '').replace(/\D/g, ''),
+      lc116: String(b.lc116 || '').replace(/\D/g, ''),
+      icms: Number(b.icms) || 0, pis: Number(b.pis) || 0, cofins: Number(b.cofins) || 0,
+      ipi: Number(b.ipi) || 0, iss: Number(b.iss) || 0, icms_st: Number(b.icms_st) || 0,
+    };
+    const empresa = { regime: sentido === 'saida' ? regimeEmitente : regimeDestinatario };
+    const projecao = motor.projetarItem(item, {
+      empresa, sentido, ano: Number(b.ano) || 2027,
+      regimeContraparte: sentido === 'saida' ? regimeDestinatario : regimeEmitente,
+      perfilDestinatario,
+      elegibilidadeAnexoXi: {
+        qsa: { status: statusQsa, motivo: statusQsa === 'SIM'
+          ? 'Ensaio: sócio brasileiro com participação mínima de 20% confirmado.'
+          : statusQsa === 'NAO' ? 'Ensaio: condição societária não atendida.'
+            : 'Ensaio: condição societária ainda não confirmada.' },
+        adquirente: { status: statusGoverno, motivo: statusGoverno === 'SIM'
+          ? 'Ensaio: natureza jurídica elegível de ente público confirmada.'
+          : statusGoverno === 'NAO' ? 'Ensaio: destinatário não integra a matriz pública elegível.'
+            : 'Ensaio: natureza jurídica do destinatário público ainda não confirmada.' },
+      },
+    });
+    ok(res, { reconstrucao: rec, projecao });
   } catch (e) { erro(res, e); }
 });
 

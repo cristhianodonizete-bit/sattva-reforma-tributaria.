@@ -376,16 +376,39 @@ function limiares(box, d) {
 
 // ------------------------------------------------------------------ ENSAIO
 function ensaio(box) {
+  const opcoesStatus = [{ v: 'PENDENTE', t: 'Ainda não confirmado' }, { v: 'SIM', t: 'Sim — confirmado' }, { v: 'NAO', t: 'Não — não se aplica' }];
   box.innerHTML = `<div class="aviso"><b>Confira a regra antes de confiar nela</b>
-      Informe uma operação qualquer e veja exatamente como a volta à base econômica acontece com as
-      regras atualmente configuradas — tributo a tributo, com a forma de cálculo de cada um.</div>
+      Simule uma operação completa: cadeia, destinatário, CFOP, item e fatos condicionais. Nada desta tela
+      é gravado ou interfere nas análises das empresas.</div>
     <div class="grade g2">
       <div class="cartao"><h2>Operação de ensaio</h2>
         <div class="grade g2">
           ${A.campo('valor', 'Valor da operação', 60000, 'number', 'step=0.01')}
           ${A.selecao('tipo', 'Natureza', [{ v: 'mercadoria', t: 'Mercadoria' }, { v: 'servico', t: 'Serviço' }], 'mercadoria')}
         </div>
-        ${A.selecao('regime', 'Regime do emitente', A.opcoesRegime(), 'lucro_real')}
+        <div class="grade g2">
+          ${A.selecao('sentido', 'Papel da empresa na cadeia', [{ v: 'saida', t: 'Vendedora / prestadora (saída)' }, { v: 'entrada', t: 'Compradora / tomadora (entrada)' }], 'saida')}
+          ${A.campo('ano', 'Ano da projeção CBS', 2027, 'number', 'min=2026 max=2100')}
+        </div>
+        <div class="grade g2">
+          ${A.selecao('regime_emitente', 'Regime do emitente', A.opcoesRegime(), 'lucro_real')}
+          ${A.selecao('regime_destinatario', 'Regime do destinatário / adquirente', A.opcoesRegime(), 'regime_regular')}
+        </div>
+        <div class="grade g2">
+          ${A.campo('cfop', 'CFOP', '', 'text', 'placeholder="Ex.: 5102" maxlength=4')}
+          ${A.selecao('perfil_destinatario', 'Tipo do destinatário', [{ v: 'normal', t: 'Normal' }, { v: 'governo', t: 'Ente público' }], 'normal')}
+        </div>
+        <div class="grade g3">
+          ${A.campo('ncm', 'NCM (mercadoria)', '', 'text', 'placeholder="8 dígitos" maxlength=10')}
+          ${A.campo('lc116', 'LC 116 (serviço)', '', 'text', 'placeholder="Ex.: 1.05" maxlength=10')}
+          ${A.campo('nbs', 'NBS (serviço)', '', 'text', 'placeholder="9 dígitos" maxlength=12')}
+        </div>
+        <details style="margin:12px 0"><summary><b>Fatos condicionais da regra</b></summary>
+          <div class="grade g2" style="margin-top:12px">
+            ${A.selecao('adquirente_governo', 'Natureza jurídica pública elegível (cClassTrib 200043)', opcoesStatus, 'NAO')}
+            ${A.selecao('qsa_20_brasileiro', 'Sócio brasileiro com 20% ou mais (cClassTrib 200044)', opcoesStatus, 'PENDENTE')}
+          </div>
+        </details>
         <div class="grade g3">
           ${A.campo('icms', 'ICMS', 10800, 'number', 'step=0.01')}
           ${A.campo('pis', 'PIS', 990, 'number', 'step=0.01')}
@@ -396,7 +419,7 @@ function ensaio(box) {
           ${A.campo('iss', 'ISS', 0, 'number', 'step=0.01')}
           ${A.campo('icms_st', 'ICMS-ST', 0, 'number', 'step=0.01')}
         </div>
-        <button class="btn ouro" id="rodarEnsaio" style="width:100%">Reconstruir a base</button>
+        <button class="btn ouro" id="rodarEnsaio" style="width:100%">Simular regra completa</button>
       </div>
       <div id="resEnsaio"></div>
     </div>`;
@@ -405,9 +428,20 @@ function ensaio(box) {
     const o = {};
     box.querySelectorAll('[name]').forEach((i) => { o[i.name] = i.type === 'number' ? Number(i.value) : i.value; });
     try {
-      const { reconstrucao: r } = await A.api('/config/simular', { metodo: 'POST', corpo: o });
+      const { reconstrucao: r, projecao: p } = await A.api('/config/simular', { metodo: 'POST', corpo: o });
+      const cls = p.classificacao || {};
       document.getElementById('resEnsaio').innerHTML = `<div class="cartao">
-        <h2>Resultado com as regras atuais</h2>
+        <h2>Resultado da regra</h2>
+        <p class="desc">Classificação: <span class="tag ${cls.status === 'CLASSIFICADO' ? 'c' : 'b'}">${A.esc(cls.status || '—')}</span>
+          &nbsp; ${A.esc(cls.origemRegra || '')}</p>
+        <table style="margin-bottom:12px"><tr><td>Operação</td><td><b>${A.esc((p.sentido || '').toUpperCase())}</b></td></tr>
+          <tr><td>CST / cClassTrib</td><td class="mono"><b>${A.esc(cls.cst || '—')} / ${A.esc(cls.cclasstrib || '—')}</b></td></tr>
+          <tr><td>Tratamento CBS</td><td>${A.esc(cls.tratamento || 'Em validação')}</td></tr>
+          <tr><td>IBS / CBS projetados</td><td class="mono">${A.moeda(p.ibs)} / ${A.moeda(p.cbs)}</td></tr>
+          <tr><td>Crédito CBS</td><td class="mono">${A.moeda(p.creditoCbs)} — ${A.esc(p.credito?.motivo || '')}</td></tr></table>
+        ${(cls.fundamentos || []).map((f) => `<div class="aviso" style="margin:7px 0">${A.esc(f)}</div>`).join('')}
+        <hr style="border:0;border-top:1px solid var(--borda);margin:16px 0">
+        <h3 style="font-size:15px">Reconstrução da carga atual</h3>
         <p class="desc">Status da reconstrução: <span class="tag ${r.status === 'reconstruida' ? 'c' : 'b'}">${A.esc(r.status)}</span></p>
         <div class="mono mini" style="background:#f4f7f9;padding:10px;border-radius:6px;margin-bottom:12px">${A.esc(r.formula)}</div>
         ${A.tabela([
