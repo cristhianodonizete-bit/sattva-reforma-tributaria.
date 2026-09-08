@@ -21,7 +21,9 @@ async function executar(t) {
   const acao=t.payload?.actionName || 'nFisRRTotalPISCOFINSProd';
   if(t.tipo==='PARAMETROS_RELATORIO') return { parametros:await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acao}) };
   if(t.tipo==='IMPORTAR_MOVIMENTACAO') { const entrada=t.payload?.tipo==='fornecedor'; return { registros:JSON.parse(await nweb(entrada?'/TnWebDMFiscal/PegarLancamentosEntrada':'/TnWebDMFiscal/PegarLancamentosSaida',{codigoempresa:t.payload.codigo_questor,datainicial:t.payload.inicio,datafinal:t.payload.fim})) }; }
-  return { actionName:acao, formato:'nrwexTXT', relatorio:await nweb('/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT',...(t.payload?.parametros||{})}) };
+  // O nWeb aceita a rota, mas exige os parâmetros do relatório em corpo JSON;
+  // enviá-los apenas pela query retorna “Tipo de body inválido”.
+  return { actionName:acao, formato:'nrwexTXT', relatorio:await nweb('/TnWebDMRelatorio/Executar',{}, {_AActionName:acao,_ABase64:false,_ATipoRetorno:'nrwexTXT',...(t.payload?.parametros||{})}) };
 }
 async function ciclo(){
   const r=await fetch(url(cfg.sattvaUrl,'/api/conector-questor/poll'),{method:'POST',headers:cab()});
