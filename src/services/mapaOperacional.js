@@ -126,7 +126,7 @@ function itemServico(db, item, empresaId) {
     tratamento_atual:regra?.tratamento_pis_cofins || null, cclasstrib:regra?.cclasstrib || null, fundamento:regra?.regra_precedencia || null };
 }
 
-function correlacoesIndicativas(db, empresa) {
+function correlacoesIndicativas(db, empresa, escopo = { produto:true, servico:true }) {
   const atividades = cnaes(empresa).filter((x) => x.descricao);
   const servicos = db.prepare('SELECT * FROM base_servicos WHERE TRIM(COALESCE(nbs,\'\'))<>\'\' OR TRIM(COALESCE(lc116,\'\'))<>\'\'').all();
   // Regras para governo podem ter chave própria no Anexo XI e não repetir a
@@ -137,20 +137,24 @@ function correlacoesIndicativas(db, empresa) {
   const produtosGoverno = db.prepare("SELECT ncm,descricao,cclasstrib,reducao,condicoes,\n    'REGRA_GOVERNO' origem FROM regras_governo WHERE tipo='produto' AND cclasstrib<>'' AND TRIM(COALESCE(ncm,''))<>''").all();
   const candidatos = [];
   for (const atividade of atividades) {
-    for (const regra of [...servicos, ...servicosGoverno]) {
-      const pontos = pontuar(atividade.descricao, `${regra.descricao_item || ''} ${regra.descricao_nbs || ''} ${regra.descricao || ''}`);
-      if (!pontos) continue;
-      const item = itemServico(db, { nbs:regra.nbs, lc116:regra.lc116, descricao:regra.descricao_item || regra.descricao_nbs || regra.descricao, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo }, empresa.id);
-      candidatos.push({ ...item, cnae:atividade.codigo, atividade:atividade.descricao, confianca:pontos >= 2 ? 'MEDIA' : 'BAIXA', pontos });
+    if (escopo.servico) {
+      for (const regra of [...servicos, ...servicosGoverno]) {
+        const pontos = pontuar(atividade.descricao, `${regra.descricao_item || ''} ${regra.descricao_nbs || ''} ${regra.descricao || ''}`);
+        if (!pontos) continue;
+        const item = itemServico(db, { nbs:regra.nbs, lc116:regra.lc116, descricao:regra.descricao_item || regra.descricao_nbs || regra.descricao, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo }, empresa.id);
+        candidatos.push({ ...item, cnae:atividade.codigo, atividade:atividade.descricao, confianca:pontos >= 2 ? 'MEDIA' : 'BAIXA', pontos });
+      }
     }
-    for (const regra of [...produtos, ...produtosGoverno]) {
-      const pontos = pontuar(atividade.descricao, regra.descricao || regra.classificacao || '');
-      // O mapa deve expor todas as possibilidades catalogadas com vínculo
-      // textual objetivo ao CNAE. A confirmação do item continua obrigatória
-      // antes de qualquer uso pelo motor.
-      if (!pontos) continue;
-      const item = itemProduto(db, { ncm:regra.ncm, descricao:regra.descricao || regra.classificacao, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo }, empresa.id);
-      candidatos.push({ ...item, cnae:atividade.codigo, atividade:atividade.descricao, confianca:'BAIXA', pontos });
+    if (escopo.produto) {
+      for (const regra of [...produtos, ...produtosGoverno]) {
+        const pontos = pontuar(atividade.descricao, regra.descricao || regra.classificacao || '');
+        // O mapa deve expor todas as possibilidades catalogadas com vínculo
+        // textual objetivo ao CNAE. A confirmação do item continua obrigatória
+        // antes de qualquer uso pelo motor.
+        if (!pontos) continue;
+        const item = itemProduto(db, { ncm:regra.ncm, descricao:regra.descricao || regra.classificacao, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo }, empresa.id);
+        candidatos.push({ ...item, cnae:atividade.codigo, atividade:atividade.descricao, confianca:'BAIXA', pontos });
+      }
     }
   }
   const unicos = new Map();
@@ -191,11 +195,11 @@ function listar(empresaId, { banco=dbPadrao } = {}) {
   const deduplicar = (lista) => [...new Map(lista.map((x) => [`${x.tipo}:${x.codigo}:${x.lc116 || ''}`, x])).values()].sort((a,b)=>a.codigo.localeCompare(b.codigo));
   const itens = [...deduplicar(produtos), ...deduplicar(servicos)];
   const operacoesSaida = deduplicar(itensSaida).map((x) => ({ ...x, contexto:'DOCUMENTO FISCAL DE SAÍDA', atividade:'Produto/serviço efetivamente vendido pela empresa.' }));
-  // CNAE não é fonte de classificação deste mapa. A função histórica de
-  // correlação permanece isolada para não alterar outros consumidores, mas
-  // esta resposta deliberadamente expõe somente documentos de saída.
-  const correlacoes = [];
+  const escopo = { produto:operacoesSaida.some((x) => x.tipo === 'NCM'), servico:operacoesSaida.some((x) => x.tipo === 'SERVIÇO') };
+  // Os documentos emitidos não classificam a operação: somente delimitam se
+  // o CNAE deve ser correlacionado com produtos, serviços ou ambos.
+  const correlacoes = (escopo.produto || escopo.servico) ? correlacoesIndicativas(banco, empresa, escopo) : [];
   return { empresa, cnaes:cnaes(empresa), itens, resumo:{ itens:itens.length, produtos:deduplicar(produtos).length, servicos:deduplicar(servicos).length, com_regra:itens.filter((x)=>x.regra_encontrada).length, com_beneficio:itens.filter((x)=>x.hipoteses_cbs?.some((h)=>String(h.reducao).toLowerCase()!=='integral')).length },
-    operacoes_saida:operacoesSaida, correlacoes, documentos_prontos:true, aviso:'O mapa usa exclusivamente os documentos fiscais de saída do Período analisado: NCM para venda de mercadorias e NBS/LC 116 para prestação de serviços. Nenhuma linha aplica regra, benefício ou cálculo no motor.' };
+    operacoes_saida:operacoesSaida, correlacoes, escopo, documentos_prontos:true, aviso:'O CNAE continua sendo a fonte das possibilidades tributárias. Os documentos fiscais de saída do Período analisado servem exclusivamente para definir o escopo: NCM para mercadorias, NBS/LC 116 para serviços, ou ambos. Nenhuma linha aplica regra, benefício ou cálculo no motor.' };
 }
 module.exports = { listar };
