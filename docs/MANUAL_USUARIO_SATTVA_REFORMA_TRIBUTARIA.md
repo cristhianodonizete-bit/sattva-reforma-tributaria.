@@ -1,326 +1,273 @@
-# Manual do Usuário — Sattva Reforma Tributária
+# Manual do Usuário Sattva Reforma Tributária
 
-Este manual ensina a operar o sistema. Use a **Central de Dados** para cadastrar, importar, complementar e corrigir informações; os módulos de análise usam esses mesmos dados.
+Este manual descreve a operação da versão atual do Sattva Reforma Tributária. O sistema usa uma única base de dados por empresa: os dados entram na **Central de Dados**, são tratados e rastreados e, depois, alimentam os módulos de análise, planejamento e entrega ao cliente.
 
-## 1. Primeiro acesso e navegação
+**Regra central:** informação ausente nunca é tratada como zero. O sistema mostra a pendência, permite uma declaração auditável quando aplicável e identifica o que é real, calculado, projetado ou ainda indeterminado.
 
-**Para que serve.** Entrar no ambiente e confirmar a empresa em uso.
+## 1. Acesso, empresa e aparência
 
-**Onde acessar.** Tela inicial → informe **E-mail** e **Senha** → **Entrar**. Se necessário, use **Esqueci minha senha**.
+Entre com e-mail e senha. Use **Esqueci minha senha** quando necessário.
 
-**O que conferir.** Após o acesso, confira o nome da empresa no Painel do projeto. Para trocar, abra **Dados → Empresas e estabelecimentos**, localize a empresa e clique em **Abrir projeto**.
+Depois do acesso, confirme a empresa no seletor do canto superior direito ou no menu lateral. A empresa selecionada é usada em todos os módulos; confirme-a antes de importar, executar cálculos ou gerar uma entrega.
 
-**Navegação.** O menu separa **Dados** (Central de Dados, Empresas e estabelecimentos, Cadastros compartilhados e Bases, catálogos e classificações) dos módulos: **Módulo 1 · Diagnóstico**, **Precificação**, **Contratos**, **Capacitação** e **Acompanhamento**. A área **Gestão do produto → Escopo e entregas** reúne o projeto e o checklist. Em **Gestão do produto → Manuais do sistema**, consulte ou baixe este manual e o Guia do Instrutor sempre na versão publicada mais recente.
+No menu do seu nome, no canto superior direito, estão:
 
-**Concluído quando.** O Painel exibe a empresa correta. A próxima ação é abrir a Central de Dados ou o módulo previsto no escopo.
+- **Claro** e **Escuro**, para alterar apenas a aparência visual. A preferência fica salva neste navegador e não altera dados, regras ou cálculos.
+- **Manuais do sistema**, para consultar ou baixar a versão publicada deste manual.
+- **Redefinir senha** e **Sair**.
 
-## 2. Cadastro de empresa / cliente
+Os grupos do menu lateral podem ser recolhidos ou expandidos pelo respectivo título.
 
-**Para que serve.** Criar a empresa que receberá os dados e as análises.
+## 2. Estrutura do sistema
 
-**Onde acessar.** **Dados → Empresas e estabelecimentos → Cadastrar empresa**.
+### Central de Dados
 
-**O que preencher.** Razão social, CNPJ, regime tributário, enquadramento predominante no IVA, UF, município, CNAE principal, faturamento anual, código Questor (se houver), nome fantasia e atividade. Preencha ao menos os campos marcados pela tela como obrigatórios.
+É a entrada e o controle da análise. Nela ficam o período analisado, documentos, folha, outras receitas, apurações, margem, empresas, cadastros compartilhados e bases fiscais.
 
-**O que clicar e conferir.** Clique em **Cadastrar empresa** e confirme a mensagem de sucesso. A empresa deve aparecer em **Carteira de projetos**; use **Editar** para corrigir e **Abrir projeto** para selecioná-la.
+### Módulo 1 Diagnóstico
 
-**Se houver erro.** Revise CNPJ, campos obrigatórios e formato de valores. Não exclua uma empresa com dados reais para corrigir um campo; use **Editar**.
+Mostra a operação atual e seus efeitos: Perfil Tributário, Cadeia de Fornecedores, Cadeia de Clientes, Impacto da CBS, Cenários, Cobertura, Conformidade e Mapa Operacional.
 
-**Observação.** Estabelecimentos não possuem cadastro operacional separado nesta versão: `NAO_SUPORTADO_ATUALMENTE`.
+### Módulos 2 a 7
 
-## 3. Criação e gestão do projeto
+- **Módulo 2 - Precificação:** efeito tributário sobre preço, custo e margem.
+- **Módulo 3 - Contratos:** revisão e acompanhamento das adequações contratuais.
+- **Módulo 4 - Capacitação:** programação das turmas e acompanhamento de participantes.
+- **Módulo 5 - Planejamento tributário:** comparação de regimes, projeções e recomendações.
+- **Módulo 6 - Acompanhamento:** tarefas, baseline, realizado e evolução do projeto.
+- **Módulo 7 - Entregável ao cliente:** consolida a apresentação do trabalho para o cliente.
 
-**Para que serve.** Definir o escopo contratado, responsáveis, entregas e checklist.
+Um módulo ou submódulo pode ser **fechado** quando estiver revisado. O fechamento protege aquela parte contra novos cálculos; use **Reabrir** somente se precisar alterar dados ou executar novamente o motor. O Entregável ao Cliente só fica disponível quando as partes necessárias estiverem fechadas.
 
-**Onde acessar.** **Gestão do produto → Escopo e entregas**.
+## 3. Cadastro de empresas e estabelecimentos
 
-**Antes de começar.** A empresa deve estar cadastrada e a proposta/contratação deve estar disponível.
+Acesse **Central de Dados > Empresas e estabelecimentos**.
 
-**Passo a passo.**
+Cadastre ou edite razão social, CNPJ, regime tributário, enquadramento IVA, localização, atividade e demais campos disponíveis. Ao informar o CNPJ, use a consulta cadastral para preencher dados oficiais quando disponível.
 
-1. Em **Escopos aguardando aprovação**, localize o cliente e clique em **Fechar e aprovar**.
-2. Informe meses de acompanhamento e observações; confirme a aprovação.
-3. No projeto aprovado, use **Alterar escopo** para incluir ou retirar serviços autorizados.
-4. Use **Planejar** em cada entrega para registrar responsável Sattva, responsável do cliente, contatos, tarefas e prazos.
-5. Atualize os itens do checklist em **Atualizar**; informe situação, evidência/vínculo e observações.
+Confira especialmente:
 
-**Escopos.** Os escopos iniciais são Diagnóstico, Contratos, Precificação, Capacitação e Acompanhamento. Cada um pode gerar entregas e checklist próprios.
+- CNAE principal e CNAEs secundários;
+- endereço e natureza jurídica;
+- quadro societário (QSA), percentual de cotas e indicação de sócio brasileiro ou estrangeiro;
+- regime tributário informado pela empresa e a fonte desse regime.
 
-**O que conferir.** Percentual de progresso, entregas concluídas, pendências de implantação e **próxima ação**. `VALIDADO`, `CONCLUIDO` e `NAO_APLICAVEL` sinalizam item concluído; `AGUARDANDO_CLIENTE` e `COM_PENDENCIA` exigem acompanhamento.
+O sistema preserva uma confirmação manual de QSA. Uma nova consulta cadastral complementa informações, mas não deve substituir confirmação manual já registrada.
 
-**Próxima ação.** Solicite ou registre a evidência indicada no checklist, preferencialmente pela Central de Dados.
+## 4. Cadastros compartilhados e parceiros
 
-## 4. Central de Dados
+Em **Cadastros compartilhados**, consulte CNPJs já encontrados nas operações da carteira. Um cadastro enriquecido pode ser reutilizado por outras empresas, evitando consultas repetidas.
 
-**Para que serve.** É o ponto principal para entrada e tratamento de dados:
+O perfil compartilhado pode exibir razão social, CNAE, endereço, natureza jurídica, regime, fonte e etiquetas fiscais. As etiquetas aparecem somente quando influenciam o tratamento, por exemplo, para ente público elegível; parceiros sem condição especial permanecem como operação normal.
 
-`Central de Dados → tratamento e validações → módulos do produto → relatórios e entregáveis`.
+Use filtros por CNPJ/razão social, regime, CNAE/endereço, natureza, etiqueta e fonte para localizar registros. **Ver cadastro** abre o perfil completo.
 
-**Onde acessar.** **Dados → Central de Dados**.
+Em **Consultar regime na base importada**, não marque **Sobrescrever regimes já definidos** sem necessidade. A consulta complementa dados faltantes; o regime manualmente confirmado deve permanecer preservado.
 
-**O que encontrar.**
+## 5. Central de Dados e prontidão
 
-- **Planilhas:** cadastro e movimentação de fornecedores/clientes.
-- **XML, SPED e motor:** envio de XML fiscal e SPED; o motor é acionado somente quando o usuário escolher essa ação.
-- **Importações e documentos:** atalhos para XML/SPED, planilhas, apuração PIS/Cofins e referências de serviços.
-- **Dados complementares:** folha, margem operacional e receitas sem DF-e.
-- **Tratamento e revisão:** apurações, rastreabilidade, pendências de regime e pendências de classificação.
-- **Lotes importados:** histórico de arquivos e registros.
+Acesse **Central de Dados**. O cabeçalho da área é sempre Central de Dados; cada card identifica a etapa aberta.
 
-**Como voltar.** Após concluir a entrada ou correção, use o menu para abrir Perfil Tributário, Diagnóstico, Cadeias, Cenários ou outro módulo. Eles consomem a mesma base já tratada.
+O **Dashboard** mostra a prontidão das entregas. Em cada etapa, o status é:
 
-## 5. Cadastros na Central de Dados
+- **Verde - Liberado:** o dado foi importado, preenchido ou declarado de forma auditável.
+- **Vermelho - Pendências:** há algo a resolver. Clique no status para ver exatamente quais competências ou informações faltam.
 
-### Clientes e fornecedores
+Não há status amarelo. Uma informação está resolvida ou exige ação.
 
-**Para que serve.** Vincular parceiro, CNPJ/CPF, regime e dados de localização às operações.
+### Período analisado
 
-**Onde acessar.** **Central de Dados → Fornecedores** ou **Clientes**.
+Antes de importar documentos, abra **Período analisado** e defina competência inicial e final no formato mês/ano. O sistema considera o primeiro dia do mês inicial e o último dia do mês final.
 
-**O que fazer.** Use **Incluir manualmente** ou envie uma planilha. Preencha CNPJ/CPF, descrição, regime tributário, UF e município quando disponíveis. Use **Editar** para ajustar um parceiro já criado.
+Essa definição protege a consistência: a Central compara os arquivos e lançamentos com o período escolhido e aponta competências faltantes. Sem período definido, a importação de documentos fica bloqueada.
 
-**O que conferir.** A linha aparece em **Fornecedores cadastrados** ou **Clientes cadastrados** com regime e origem. Para pendências de regime, use **Ver pendências de regime** e, quando aplicável, **Consultar regime na Receita**.
+### O que cada etapa verifica
 
-### Referências fiscais de vendas por serviço
-
-**Para que serve.** Registrar a referência tributária de serviços de venda quando o documento não trouxer o dado necessário.
-
-**Onde acessar.** **Central de Dados → Clientes → Referências fiscais das vendas por serviço**.
-
-**O que preencher.** Descrição do serviço, NBS quando houver, PIS/COFINS da venda, DAS efetivo e ISS somente quando conhecidos. Use **Adicionar serviço ao cadastro**, **Importar referências** ou **Definir referência**.
-
-**Pendência.** Se a tabela sinalizar referência obrigatória, complete a informação antes de usar estimativas na análise.
-
-### Outros cadastros
-
-Produtos, serviços mestre, estabelecimentos e classificações não possuem telas independentes de cadastro nesta versão. Use os dados identificados nos documentos, planilhas e referências fiscais de serviço. `NAO_SUPORTADO_ATUALMENTE` como cadastros operacionais separados.
-
-## 6. Importação de XML
-
-**Para que serve.** Usar documentos fiscais como fonte das operações.
-
-**Onde acessar.** **Central de Dados → aba XML, SPED e motor → Importar XML fiscal**.
-
-**Antes de começar.** Selecione a empresa correta e tenha os arquivos XML do período.
-
-**Passo a passo.** Clique ou solte os arquivos na área **Solte os XMLs aqui**. Aguarde a leitura e confira documentos lidos, itens, entradas, saídas, regimes sugeridos e avisos.
-
-**Se houver pendência.** Confira se o documento pertence à empresa selecionada e se os avisos indicam classificação ou identificação a validar. Corrija dados pela Central, não no módulo de análise.
-
-**Concluído quando.** Os lotes aparecem em **XMLs já importados** e os dados ficam disponíveis para tratamento e análise.
-
-## 7. Importação de SPED
-
-**Para que serve.** Carregar arquivos EFD ICMS/IPI ou EFD Contribuições quando disponíveis.
-
-**Onde acessar.** **Central de Dados → aba XML, SPED e motor → Importar SPED**.
-
-**O que fazer.** Clique ou solte arquivos `.txt` ou `.SPED` na área correspondente. Confira itens, participantes, produtos, entradas, saídas, períodos e avisos retornados.
-
-**Se o arquivo não for aceito.** Confirme o tipo de arquivo e o período. Corrija o arquivo de origem e envie novamente; não substitua dado ausente por zero.
-
-**Concluído quando.** O processamento mostra os períodos reconhecidos e o lote aparece no histórico.
-
-## 8. Importação de planilhas
-
-**Para que serve.** Carregar cadastro de parceiros, movimentações e referências fiscais de serviços.
-
-**Onde acessar.** **Central de Dados → aba Planilhas**.
-
-**Antes de começar.** Baixe o modelo disponível em **Baixar modelo** quando houver. São aceitos `.xlsx`, `.xls` e `.csv`.
-
-**Passo a passo.** Escolha Fornecedores ou Clientes, envie a planilha no cartão de cadastro ou movimentação e confira **Importação concluída**, importados, ignorados e colunas reconhecidas.
-
-**Se houver campo não reconhecido.** Compare as colunas reconhecidas com a planilha, corrija cabeçalhos ou conteúdo e envie novamente. Use **Revincular regimes** após importar parceiros ou movimentações que precisem de vínculo.
-
-## 9. Documentos de apuração PIS/Cofins
-
-**Para que serve.** Registrar apurações históricas para revisão e, quando suficientes, exibição no Raio-X.
-
-**Onde acessar.** **Central de Dados → Importações e documentos → Enviar apuração PIS/Cofins**.
-
-**O que fazer.** Selecione o arquivo, escolha PDF, XLSX, CSV ou Relatório ERP e clique em **Enviar e processar**. Em seguida, abra **Perfil Tributário** para revisar o documento listado em **Apurações Históricas de PIS/Cofins**.
-
-**O que conferir.** Use **Revisar** para ver campo, valor, confiança, origem/localização e validação. Campos não identificados aparecem como **Não identificado**, nunca como zero. Baixa confiança e pendências exigem atenção humana.
-
-**Como concluir.** Clique em **Confirmar dados** somente depois da revisão. Em erro, use **Reprocessar** com o arquivo original.
-
-**Reflexo.** Com dados suficientes, a informação pode aparecer no Raio-X Histórico. Se faltar informação, o resultado permanece indeterminado.
-
-## 10. PGDAS
-
-### Para que serve
-
-Registrar a apuração do DAS por competência para empresas do Simples Nacional. Esses dados podem aparecer no Raio-X Histórico e apoiar o Comparador de Regimes.
-
-### Onde acessar
-
-**Central de Dados → Importações e documentos → Importar PGDAS**.
-
-### Antes de começar
-
-Selecione uma empresa enquadrada no **Simples Nacional** e tenha a exportação do PGDAS em formato **XLSX, XLS ou CSV**. O arquivo deve conter, no mínimo, as colunas **Competência** (ou Período) e **DAS** (ou Valor DAS). Receita Bruta, PIS e Cofins são opcionais.
-
-### Passo a passo
-
-1. Selecione a empresa do Simples Nacional.
-2. Abra a Central de Dados.
-3. Clique em **Importar PGDAS**.
-4. Escolha ou solte o arquivo na área indicada.
-5. Aguarde a mensagem de competências importadas ou atualizadas.
-
-### O que conferir
-
-Confira se a competência e o valor do DAS foram reconhecidos. Campos que não estiverem no arquivo permanecem sem identificação; eles não são substituídos por zero.
-
-### Se houver pendência ou erro
-
-Baixe o modelo pelo botão **Baixar modelo**, ajuste os cabeçalhos ou complete Competência e DAS nas linhas rejeitadas. Reenvie o arquivo depois da correção.
-
-### Como saber que terminou
-
-O sistema informa a quantidade de competências importadas ou atualizadas e os dados ficam disponíveis nas análises históricas da empresa.
-
-### Próxima ação
-
-Abra o **Raio-X Histórico** para conferir o período importado ou siga para o **Comparador de Regimes** quando os demais dados da empresa estiverem completos.
-
-## 11. Folha de pagamento
-
-**Onde acessar.** **Central de Dados → Fornecedores → Dados complementares**. Use **Informar folha** para uma competência ou **Importar folha** para enviar XLSX, XLS ou CSV.
-
-**O que preencher.** Competência (AAAA-MM) e valor da folha. Pró-labore e referência são opcionais.
-
-**Para importar.** Escolha **Importar folha**, envie a planilha e confira a mensagem com as linhas importadas e ignoradas. Use **Baixar modelo** caso precise do formato de referência.
-
-**O que conferir.** O cartão mostra o total de **Folhas informadas**. Se faltar informação em um período, ele continuará indicado como indisponível no Perfil Tributário.
-
-## 12. Margem operacional
-
-**Onde acessar.** **Central de Dados → Dados complementares → Informar margem operacional**.
-
-**O que preencher.** Período inicial, período final e margem percentual.
-
-**Importante.** A margem operacional é uma **premissa informada** para simulações; não é automaticamente o lucro fiscal real.
-
-**Concluído quando.** A margem aparece no contador da Central e como premissa informada no Perfil Tributário quando aplicável.
-
-## 13. Receitas sem documento fiscal eletrônico
-
-**Onde acessar.** **Central de Dados → Dados complementares**. Use **Adicionar receita sem DF-e** para um lançamento ou **Importar receitas sem DF-e** para enviar XLSX, XLS ou CSV.
-
-**O que preencher.** Competência, tipo de receita, descrição, valor e evidência/referência quando houver.
-
-**Para importar.** A planilha deve ter Competência, Tipo de receita, Descrição e Valor. Evidência é opcional. Baixe o modelo pelo botão da própria janela quando necessário.
-
-**O que conferir.** Se houver indício de repetição, o sistema marca **POSSIVEL_DUPLICIDADE** e não consolida automaticamente. Revise a evidência antes de usar a receita em análises.
-
-## 14. Tratamento de dados
-
-**Onde acessar.** **Central de Dados → Tratamento e revisão de dados**.
-
-**Como agir.**
-
-- **Pendência de regime:** abra o cadastro, revise CNPJ/CPF e regime; use a consulta disponível somente quando apropriado.
-- **Classificação pendente:** abra Clientes → Referências fiscais das vendas por serviço e complete a referência exigida.
-- **Apuração com baixa confiança:** abra **Revisar**, confira origem e localização e confirme apenas valores adequados.
-- **Possível duplicidade:** confira documento/evidência antes de considerar a receita.
-- **Dado incompleto:** complete a fonte disponível ou mantenha o estado indeterminado.
-
-**Regra prática.** Dado ausente não significa zero.
-
-## 15. Estados dos dados
-
-| Estado | O que significa | Ação do usuário |
+| Etapa | Como resolver | O que o sistema confere |
 |---|---|---|
-| REAL | Informação registrada em fonte disponível. | Confira origem quando necessário. |
-| CALCULADO | Resultado obtido a partir de dados e regras disponíveis. | Leia as premissas e a memória exibida. |
-| SIMULADO | Resultado de cenário ou premissa. | Não confunda com histórico real; ajuste premissas se necessário. |
-| INTERPRETADO | Leitura orientada de conteúdo, como contrato. | Revise antes de decidir. |
-| SUGERIDO | Recomendação que exige avaliação. | Confirme ou ajuste a ação proposta. |
-| INDETERMINADO | Não há informação suficiente. | Complete dados pela Central quando possível. |
-| INCOMPLETO | Faltam elementos para concluir uma análise. | Leia a pendência e informe o dado solicitado. |
+| Documentos fiscais | Importar planilha, XML ou SPED, ou declarar sem movimento | Cobertura do período analisado |
+| Folha | Informar manualmente, importar planilha ou declarar ausência | Competências da folha e pró-labore no período |
+| Outras receitas | Informar, importar ou declarar que não se aplica | Competências sem documento fiscal eletrônico |
+| Apurações | Importar apurações conforme o regime | Período analisado e dois anos anteriores quando necessários ao planejamento |
+| Margem operacional | Informar a margem | Premissa de margem para cenários, planejamento e precificação |
+| Empresas e estabelecimentos | Completar cadastro | CNAEs e QSA, quando aplicáveis |
 
-## 16. Perfil Tributário e Raio-X Histórico
+Empresas novas podem não ter dados dos dois anos anteriores. Nessa situação, use a declaração disponível e registre a justificativa. O sistema pode projetar, mas identificará a limitação na recomendação.
 
-**Onde acessar.** **Módulo 1 · Diagnóstico → Perfil Tributário**.
+## 6. Documentos fiscais
 
-**O que conferir.** Regime atual, períodos analisados, folha, margem, tabela **Raio-X histórico — situação anterior × CBS**, composição das receitas e tratamentos identificados.
+Abra **Central de Dados > Documentos fiscais** e escolha a origem: **Entradas / fornecedores** ou **Saídas / clientes**.
 
-**Comparação anterior × CBS.** A coluna **CBS do motor** mostra a fotografia já calculada. PIS/Cofins, PGDAS e créditos históricos só aparecem quando há evidência; `INDETERMINADO` indica falta de informação.
+### Planilhas
 
-**Próxima ação.** Use **Central de Dados** ou **Completar informações** para corrigir lacunas.
+Use a aba **Planilhas** para cadastrar parceiros e importar movimentações. Baixe o modelo quando necessário. Após a importação, confira total de linhas, campos reconhecidos, lotes e pendências.
 
-## 17. Diagnóstico e cadeias
+### XML e SPED
 
-**Onde acessar.** Em **Dados → Bases, catálogos e classificações**, consulte as bases importadas, o catálogo fiscal de NCM/NBS, as Bases da Receita (Real/Presumido), classificações e conformidade. Em **Módulo 1 · Diagnóstico**, acesse Cobertura do diagnóstico, Cadeia de fornecedores, Cadeia de clientes, Impacto Final CBS e Projeção de cenários.
+Use a aba **XML e SPED** para importar documentos fiscais e arquivos SPED. O sistema lê CFOP, NCM, NBS, CST, valores, participantes e demais dados disponíveis, preservando o documento original como evidência.
 
-**O que conferir.** Resultados principais, origem da base econômica, débitos, créditos, tratamento, classificações e itens a validar. Use a rastreabilidade disponível para entender a origem, sem alterar o documento histórico.
+O **CFOP** é convertido em natureza operacional pelo mapa de CFOP. Assim, o motor distingue venda, aquisição, devolução, remessa, transferência, importação e exportação antes de analisar regras de item e de destinatário.
 
-**Fornecedores.** Veja regime, valor, compra projetada, crédito potencial e pendências. Dados faltantes devem ser tratados pela Central.
+Se não houver movimento no período, use **Declarar sem movimento** e informe a justificativa. Não importe valores zerados apenas para liberar uma etapa.
 
-**Clientes.** Veja perfil, vendas, impacto comercial e referências fiscais de serviços. Quando aparecer **Corrigir na Central de Dados**, use o atalho para preencher a referência necessária.
+## 7. Folha, outras receitas, apurações e margem
 
-## 18. Cenários
+### Folha
 
-**Onde acessar.** **Módulo 1 · Diagnóstico → Projeção de cenários**.
+Em **Folha**, informe competência, valor da folha e, quando houver, pró-labore. Também é possível importar planilha ou declarar ausência. A folha é usada no planejamento, inclusive para a projeção de INSS e análise de Fator R quando aplicável.
 
-**O que fazer.** Escolha as opções e premissas disponíveis na tela, execute a simulação e compare os resultados apresentados.
+### Outras receitas
 
-**O que conferir.** Cenários são identificados como simulados e não alteram os dados históricos reais. Se não houver ação de salvar ou excluir para o tipo de cenário exibido, ele é apenas uma análise da sessão atual: `NAO_SUPORTADO_ATUALMENTE` como histórico de cenários salvo.
+Em **Outras receitas**, registre receitas que não vieram de documento fiscal eletrônico. Informe ou importe competência, tipo, descrição, valor e referência. Possíveis duplicidades ficam identificadas e não devem ser consolidadas sem revisão.
 
-## 19. Comparador de Regimes
+### Apurações
 
-**Onde acessar.** **Perfil Tributário → Comparador de regimes tributários**.
+Em **Apurações**, importe os documentos adequados ao regime:
 
-**O que mostra.** Lucro Real, Lucro Presumido, Simples Nacional e **Simples Nacional Híbrido**, com tributos estimados, carga efetiva, diferença para o menor cenário, status, premissas e pendências.
+- empresas do Simples: PGDAS mensal;
+- Lucro Presumido, Lucro Real, Arbitrado ou Imune/Isento: faturamento e apurações de PIS/Cofins conforme a tela solicitar.
 
-**Como interpretar.** Só há **Melhor cenário estimado** quando ao menos dois cenários são comparáveis. Cenário `INCOMPLETO` ou `INDETERMINADO` não vence ranking.
+Para o Planejamento Tributário, são solicitados o período analisado e os dois anos anteriores. Para exemplo: análise em 2026 pode exigir 2026, 2025 e 2024. Se o documento for PDF ou imagem, a leitura automatizada deve ser revisada e confirmada antes de ser usada como evidência.
 
-**Se faltar dado.** Complete receita por competência, composição/natureza das receitas e margem operacional quando a tela indicar essas pendências.
+### Margem operacional
 
-## 20. Precificação
+Em **Margem operacional**, informe a margem operacional como premissa. Ela ajuda a medir preservação de margem, revisão de preço e impacto tributário, mas não substitui o lucro tributável definitivo.
 
-**Onde acessar.** **Módulo 2 · Precificação → Precificação e margem**.
+## 8. Executar o motor
 
-**O que fazer.** Consulte a precificação oficial por item. Use **Base independente** ou **Gerenciar formação de custo** para registrar as informações comerciais disponíveis.
+**Executar motor** é uma etapa própria da Central de Dados. Ele só fica verde e habilitado quando:
 
-**O que conferir.** Preço atual, base econômica, CBS, custo líquido, margem atual e projetada. Itens `INCOMPLETO` ou `DIVERGENTE` exigem completar a formação de custo, não estimar informação ausente.
+1. o período analisado foi definido;
+2. documentos fiscais foram resolvidos para o período;
+3. outras receitas foram resolvidas para o período.
 
-## 21. Contratos
+O motor lê a mesma base importada, classifica cada operação e produz a projeção. Ele usa, entre outros fatores, CFOP/natureza, NCM ou NBS, regra de classificação, regime do emitente e adquirente, papel na cadeia, destinatário e condições específicas.
 
-**Onde acessar.** **Módulo 3 · Contratos → Revisão de contratos**.
+Não use o motor para corrigir documento histórico. Corrija o cadastro, complete a informação ou registre uma decisão rastreável na Central de Dados e então execute novamente.
 
-**O que fazer.** Use **Cadastrar contrato**, informe contraparte, objeto, valor, vigência e demais campos solicitados. Abra **Documento** para anexar ou revisar conteúdo quando disponível.
+## 9. Regras e parâmetros do motor
 
-**Como interpretar.** `INTERPRETADO` indica leitura orientada; `SUGERIDO` indica recomendação para revisão humana. Revise risco, cláusulas e pendências antes de registrar uma ação.
+Em **Gestão do produto > Regras e parâmetros do motor**, os parâmetros técnicos ficam organizados por assunto.
 
-## 22. Acompanhamento e capacitação
+- **Alíquotas e transição:** valores de IBS/CBS por ano e regras de vigência.
+- **Forma de cálculo:** como cada tributo participa da base econômica.
+- **Regimes e crédito:** comportamento de crédito e recolhimento por regime.
+- **Reduções:** percentuais gerais; regras específicas de NCM/NBS prevalecem quando existirem.
+- **Simples Nacional:** faixas e premissas vinculadas ao DAS.
+- **Mapa de natureza por CFOP:** traduz CFOP em natureza operacional para o motor.
+- **Limiares e padrões:** limiares definem alertas e relevância; padrões só são usados quando o documento não traz o valor e ficam marcados como estimativa.
+- **Ensaio de regra:** simulação sem gravação de uma operação completa.
+- **Histórico:** registro das alterações de parâmetros.
 
-**Acompanhamento.** Acesse **Módulo 5 · Acompanhamento → Baseline e realizado** ou **Escopo e entregas**. Atualize responsável, situação, prazo, observações e evidências nas ações disponíveis.
+No **Ensaio de regra**, informe valor, papel da empresa na cadeia, regimes do emitente e destinatário, CFOP, NCM ou LC 116/NBS e fatos condicionais. O resultado mostra classificação, CST, cClassTrib, tratamento CBS, crédito, fundamentos e reconstrução da carga atual. Nada informado nessa tela modifica empresas reais.
 
-**Capacitação.** Acesse **Módulo 4 · Capacitação → Capacitação do time**. Se a trilha estiver liberada no plano, clique em **Programar turma**, informe agenda e use **Participantes** para registrar nome, e-mail, cargo/área quando solicitados e presença.
+## 10. Diagnóstico
 
-**Concluído quando.** Turma, participantes e presença aparecem na agenda com o status correspondente.
+### Perfil Tributário
 
-## 23. Relatórios e encerramento
+O Perfil Tributário é o retrato da operação atual. Ele apresenta o regime em nome legível, apurações de PIS/Cofins ou PGDAS e a separação disponível entre tributação normal, monofásica, alíquota zero, isenção e alíquota efetiva final.
 
-**Onde acessar.** No Painel do projeto, use **Relatório técnico**, **Mapa de riscos** ou **Relatório completo**. Outros módulos podem disponibilizar **Exportar Excel**.
+O objetivo não é repetir o motor. Ele fornece a carga atual para comparação posterior com a CBS no **Impacto da CBS**.
 
-**O que conferir.** Empresa selecionada, período/escopo exibido, estados de dados e pendências. Download visual e todos os formatos de exportação não possuem homologação universal: confirme o resultado no seu ambiente antes de distribuir.
+### Cadeia de fornecedores
 
-**Como encerrar um projeto.** Em **Escopo e entregas**, revise checklist, evidências, tarefas abertas, responsáveis, relatórios e capacitação. O trabalho está pronto para encerramento quando não houver pendência bloqueante e as entregas contratadas estiverem concluídas ou marcadas como não aplicáveis.
+Analisa o efeito das compras. Considera dados atuais de PIS/Cofins e projeta CBS conforme regime do fornecedor, classificação, NCM/NBS, benefícios, natureza da operação e direito a crédito. Crédito indeterminado não vira crédito zero automaticamente.
 
-## 24. Pendências e erros comuns
+### Cadeia de clientes
 
-| Situação | O que significa | O que fazer |
-|---|---|---|
-| Dado incompleto | Falta informação necessária. | Complete na Central de Dados. |
-| Classificação pendente | Serviço ou item precisa de referência. | Use Clientes → Referências fiscais das vendas por serviço. |
-| Possível duplicidade | A receita pode estar em outra fonte. | Compare documentos e evidência antes de usar. |
-| Documento não processado | O arquivo não foi aceito ou terminou com erro. | Confira tipo, período e arquivo original; envie novamente. |
-| Cenário sem dados suficientes | Não há base para comparação confiável. | Complete as pendências mostradas. |
-| Ranking indisponível | Menos de dois cenários são comparáveis. | Revise os dados do Perfil/Comparador. |
-| Receita sem natureza | Não foi possível definir composição. | Complete a origem ou mantenha indeterminado. |
-| Margem não informada | Premissa de simulação ausente. | Informe em Dados complementares, se aplicável. |
-| Período sem informação | Não há dado registrado para a competência. | Importe ou registre a fonte disponível. |
+Analisa o efeito das vendas. Considera destinatário, regime, classificação, benefícios, cClassTrib e condições específicas, inclusive hipóteses relacionadas a governo quando os fatos cadastrais estiverem confirmados.
+
+### Impacto da CBS
+
+Consolida Cadeia de Fornecedores e Cadeia de Clientes e compara o resultado com o Perfil Tributário. Ele mostra o efeito da CBS sobre a operação atual; não é uma segunda apuração independente.
+
+### Cenários
+
+Usados para testar objetivos como preservação de margem, preservação de preço e repasse parcial ou integral. Cenários são sempre identificados como projeção e alimentam Planejamento Tributário, Precificação e Contratos.
+
+### Conformidade e mapa operacional
+
+**Conformidade** organiza divergências documentais e fiscais para revisão. Nem toda diferença é um erro material: uma alteração de NBS ou NCM só é relevante quando muda o tratamento tributário, crédito ou obrigação.
+
+O **Mapa Operacional** parte das atividades da empresa e usa o tipo de documento emitido apenas para decidir se deve mostrar hipóteses de mercadoria, serviço ou ambas. Ele relaciona atividades a NCM ou LC 116/NBS potenciais, PIS/Cofins atual, CBS/cClassTrib, INDOP e condições para aplicação. É indicativo: não entra no motor até haver confirmação apropriada.
+
+## 11. Planejamento Tributário
+
+No **Módulo 5 - Planejamento tributário**, crie um estudo e selecione uma ou mais empresas. O sistema calcula cada empresa individualmente e também pode apresentar o consolidado do grupo.
+
+O planejamento projeta receita e folha para doze meses. Quando houver histórico mensal suficiente, usa a distribuição mensal para reduzir distorções de sazonalidade; quando não houver, usa projeção linear e identifica o risco.
+
+Para Simples Nacional, o PGDAS dos anos necessários melhora a projeção de receita e o risco de saída do regime. Para regimes regulares, faturamento mensal e apurações de PIS/Cofins dos mesmos períodos permitem estimativa mais consistente. Folha e pró-labore são usados para o INSS projetado; para atividades sujeitas ao Fator R, o sistema alerta para revisão do usuário.
+
+Leia sempre as premissas, os dados reais, projeções e justificativas antes de aprovar uma recomendação. A recomendação não substitui a decisão do responsável técnico.
+
+## 12. Precificação, contratos, capacitação e acompanhamento
+
+### Precificação
+
+O **Módulo 2** transforma o impacto tributário em efeito sobre preço, custo líquido e margem. Use formação de custo e saídas oficiais como base. Um dado incompleto deve ser completado, não estimado silenciosamente.
+
+### Contratos
+
+No **Módulo 3**, cadastre e revise contratos para identificar cláusulas, riscos, vigências e providências de adequação. Leituras automatizadas ou sugestões exigem revisão humana antes de decisão.
+
+### Capacitação
+
+No **Módulo 4**, programe turmas, participantes, presença e evidências da capacitação. Use o escopo contratado e as necessidades identificadas no diagnóstico como referência.
+
+### Acompanhamento
+
+No **Módulo 6**, registre tarefas, responsáveis, prazo, baseline, realizado, evidências e pendências do cliente. O acompanhamento não altera o escopo contratado; ele acompanha a execução dele.
+
+## 13. Entregável ao Cliente
+
+O **Módulo 7 - Entregável ao Cliente** organiza a apresentação final com a seguinte narrativa:
+
+1. informações da empresa: nome, CNPJ e CNAEs;
+2. Perfil Tributário;
+3. Cadeia de Fornecedores;
+4. Cadeia de Clientes;
+5. Impacto da CBS;
+6. Conformidade Documental;
+7. Cenários;
+8. Planejamento Tributário.
+
+Antes de gerar ou compartilhar a entrega, confira empresa, período, fonte dos dados, pendências, módulos fechados e se os resultados são reais, calculados ou projetados. Reabra o submódulo correspondente se houver necessidade de novo cálculo ou correção.
+
+## 14. Estados e cuidados de interpretação
+
+| Estado | Significado |
+|---|---|
+| REAL | Informação recebida de documento, cadastro ou fonte identificada. |
+| CALCULADO | Resultado produzido pelo sistema a partir de dados e regras. |
+| PROJETADO ou SIMULADO | Resultado dependente de cenário, estimativa ou premissa. |
+| INTERPRETADO ou SUGERIDO | Leitura ou recomendação que exige revisão humana. |
+| INDETERMINADO ou INCOMPLETO | Não há evidência suficiente para concluir. |
+| PENDENTE | Falta uma condição, confirmação ou informação para aplicar uma regra. |
+
+Use rastreabilidade, fonte e fundamentos exibidos na tela para entender cada número. Não transforme pendência em certeza por meio de preenchimento artificial.
+
+## 15. Erros comuns e solução
+
+| Situação | O que fazer |
+|---|---|
+| O motor está bloqueado | Abra Executar motor, leia as pendências e resolva Documentos fiscais e Outras receitas no período analisado. |
+| Uma etapa está vermelha | Clique no status vermelho para ver as competências ou campos pendentes. |
+| Não existe histórico de dois anos | Registre declaração de empresa nova ou início posterior e justifique. |
+| Regime de parceiro parece incorreto | Confira a fonte. Não sobrescreva uma definição manual sem revisão. |
+| Benefício público não foi aplicado | Verifique natureza jurídica do destinatário, item, operação e condição legal. |
+| Regra 200044 está pendente | Confirme se há sócio brasileiro com participação de pelo menos 20%. |
+| NCM ou NBS tem mais de uma hipótese | Revise item, operação e condições; o sistema não deve escolher arbitrariamente. |
+| Um resultado é diferente do histórico | Compare período, documento, classificação, regra e se o resultado é real ou projetado. |
+
+## 16. Sequência recomendada de trabalho
+
+1. Selecionar e completar a empresa.
+2. Definir o período analisado.
+3. Importar documentos fiscais e completar dados complementares.
+4. Resolver as pendências vermelhas da Central de Dados.
+5. Executar o motor.
+6. Revisar Perfil Tributário, cadeias, impacto, conformidade e cenários.
+7. Construir o Planejamento Tributário e as ações de preço, contrato e capacitação.
+8. Fechar os submódulos revisados.
+9. Gerar e revisar o Entregável ao Cliente.
