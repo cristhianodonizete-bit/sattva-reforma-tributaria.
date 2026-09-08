@@ -651,6 +651,18 @@ Telas.questor = async (el) => {
   const { config } = await A.api('/questor/config');
   const { log } = await A.api('/questor/log');
   const { conectores } = await A.api('/questor/conectores');
+  const { tarefas } = await A.api('/questor/tarefas');
+  const estadoTarefa = (t) => ({
+    PENDENTE: ['Aguardando conector', 'a'], EM_EXECUCAO: ['Processando', ''], CONCLUIDA: ['Concluída', 'c'], ERRO: ['Falhou', 'alto'],
+  }[t.status] || [t.status, '']);
+  const tipoTarefa = (t) => ({ APURACAO_PIS_COFINS: 'Apuração PIS/COFINS', PARAMETROS_RELATORIO: 'Leitura dos parâmetros do relatório', TESTAR_NWEB: 'Teste do nWeb' }[t.tipo] || t.tipo);
+  const detalheTarefa = (t) => {
+    if (t.erro) return `<span class="mini" style="color:#b42318"><b>Erro:</b> ${A.esc(t.erro)}</span>`;
+    if (t.status !== 'CONCLUIDA') return '<span class="mini">Aguardando atualização.</span>';
+    let resultado = 'Processamento concluído.';
+    try { resultado = JSON.stringify(JSON.parse(t.resultado_json || '{}')); } catch (_) { /* mantém o texto padrão */ }
+    return `<span class="mini">${A.esc(resultado.slice(0, 240))}</span>`;
+  };
   el.innerHTML = cab('Integração', 'Questor · nWeb',
     'Busca cadastros e movimentação direto do Questor Tributário, sem planilha. O nWeb roda na máquina do servidor Questor, porta 8080 por padrão.') +
     `<div class="grade g2">
@@ -679,6 +691,13 @@ Telas.questor = async (el) => {
       </div>
     </div>
     <div class="cartao" style="margin-top:16px"><h2>Conector local seguro</h2><p class="desc">Instale somente no computador onde o nWeb está ativo. Ele se conecta ao Sattva por saída HTTPS e não abre porta na sua rede. Cada usuário visualiza apenas os próprios pareamentos.</p><button class="btn" id="gerarConectorQuestor">Gerar pareamento</button>${conectores.length ? A.tabela([{t:'Nome',r:x=>A.esc(x.nome)},{t:'Situação',r:x=>A.esc(x.status)},{t:'Última conexão',r:x=>A.esc(x.ultima_conexao_em||'Ainda não conectado')},{t:'Acesso',r:x=>`<button class="btn vazio pq" data-revelar-conector="${A.esc(x.id)}">Ver identificação e segredo</button>`}],conectores) : '<p class="mini" style="margin-top:12px">Nenhum conector pareado.</p>'}</div>
+    <div class="cartao" style="margin-top:16px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><h2>Processamento das solicitações</h2><p class="desc">Acompanhe aqui a fila, a execução pelo conector e os retornos do Questor.</p></div><button class="btn vazio pq" id="atualizarTarefasQuestor">Atualizar</button></div>${A.tabela([
+      {t:'Solicitação',r:t=>`<b>${A.esc(tipoTarefa(t))}</b><br><span class="mini">${A.esc(t.empresa_nome||'Empresa não informada')} · ${A.esc(t.conector_nome)}</span>`},
+      {t:'Estágio',r:t=>{const [rot,classe]=estadoTarefa(t); return `<span class="tag ${classe}">${A.esc(rot)}</span>`;}},
+      {t:'Solicitada em',r:t=>`<span class="mini mono">${A.esc(t.criado_em||'—')}</span>`},
+      {t:'Finalizada em',r:t=>`<span class="mini mono">${A.esc(t.executado_em||'—')}</span>`},
+      {t:'Detalhe',r:detalheTarefa},
+    ],tarefas,{vazio:'Nenhuma solicitação enviada por você ainda.'})}</div>
     <div class="cartao"><h2>Mapa de endpoints</h2>
       <p class="desc">Caminhos, parâmetros e de-para de campos. Ajuste conforme a versão do seu Questor — o sistema não depende de código para isso.</p>
       <textarea id="endpoints" rows="16" class="mono" style="font-size:12px">${A.esc(JSON.stringify(config.endpoints, null, 2))}</textarea>
@@ -698,8 +717,10 @@ Telas.questor = async (el) => {
   document.getElementById('importarApuracaoQuestor').onclick = async () => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
     const r = await A.api(`/empresas/${S.empresaId}/questor/conector/apuracao-pis-cofins`, {metodo:'POST',corpo:{}});
-    A.toast(`Apuração PIS/COFINS solicitada para ${r.periodo.data_inicio} até ${r.periodo.data_fim}.`, 'ok');
+    A.toast(`Apuração PIS/COFINS solicitada para ${r.periodo.data_inicio} até ${r.periodo.data_fim}. Acompanhe em Processamento das solicitações.`, 'ok');
+    A.ir('questor');
   };
+  document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
   const codificar64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
   const decodificar64 = (texto) => Uint8Array.from(atob(texto), (c) => c.charCodeAt(0));
   const chaveDaSenha = async (senha, salt) => {
