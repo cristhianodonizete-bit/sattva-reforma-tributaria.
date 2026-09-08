@@ -1057,7 +1057,25 @@ Telas.mapaOperacional = async (el) => {
   // Uma linha para cada hipótese CBS: a repetição proposital de CNAE e item
   // permite filtrar/exportar como uma consulta de banco de dados, sem células
   // que escondam alternativas tributárias distintas.
-  const linhas = (d.correlacoes || []).flatMap((item) => (item.hipoteses_cbs?.length ? item.hipoteses_cbs : [{ cclasstrib:'—', cst:'—', descricao:'Hipótese CBS não localizada.', reducao:'—', condicao:{ status:'PENDENTE', texto:'Validar item, operação e vigência.', detalhe:'' } }]).map((hipotese) => ({ ...item, hipotese })));
+  const atomicas = (d.correlacoes || []).flatMap((item) => (item.hipoteses_cbs?.length ? item.hipoteses_cbs : [{ cclasstrib:'—', cst:'—', descricao:'Hipótese CBS não localizada.', reducao:'—', condicao:{ texto:'Validar item, operação e vigência.' } }]).map((hipotese) => ({ ...item, hipotese })));
+  // A mesma regra pode trazer mais de um indOp/fato no catálogo. Agrupar
+  // preserva todas as alternativas na última coluna e evita repetir a linha
+  // inteira quando o tratamento tributário é exatamente o mesmo.
+  const agrupadas = new Map();
+  for (const linha of atomicas) {
+    const h = linha.hipotese;
+    const chave = [linha.cnae, linha.tipo, linha.codigo, linha.lc116 || '', (linha.pis_cofins || []).join('|'), h.cclasstrib, h.cst, h.descricao, h.reducao].join('¦');
+    const anterior = agrupadas.get(chave);
+    if (!anterior) {
+      agrupadas.set(chave, { ...linha, hipotese:{ ...h, fatos:[...(h.fatos || [])], operacoes:[h.operacao], condicoes:[h.condicao?.texto], fontes:[h.fonte] } });
+      continue;
+    }
+    anterior.hipotese.fatos = [...new Set([...anterior.hipotese.fatos, ...(h.fatos || [])])];
+    anterior.hipotese.operacoes = [...new Set([...anterior.hipotese.operacoes, h.operacao])];
+    anterior.hipotese.condicoes = [...new Set([...anterior.hipotese.condicoes, h.condicao?.texto])];
+    anterior.hipotese.fontes = [...new Set([...anterior.hipotese.fontes, h.fonte])];
+  }
+  const linhas = [...agrupadas.values()];
   el.innerHTML = cab('DIAGNÓSTICO · MAPA OPERACIONAL', 'Possibilidades tributárias por atividade',
     'CNAE → item potencial → regra atual de PIS/Cofins → CBS e benefícios. Nada desta tela entra no motor até ser confirmado.') +
     `<section class="cartao"><div class="cabecalho-lista"><div><div class="olho">CORRELAÇÕES INDICATIVAS</div><h2>Itens que podem fazer parte da operação</h2><p class="desc">Uma linha por hipótese CBS. A repetição dos dados permite analisar, filtrar e exportar a matriz como uma base de dados.</p></div><span class="tag n">${linhas.length} linha(s)</span></div>
@@ -1066,8 +1084,8 @@ Telas.mapaOperacional = async (el) => {
       {t:'Possível item',r:x=>`<b>${A.esc(x.tipo)}</b> <span class="mono">${A.esc(x.codigo || '—')}${x.lc116?` · LC ${A.esc(x.lc116)}`:''}</span><div class="mini">${A.esc(x.descricao||'Descrição não disponível')}</div>`},
       {t:'PIS/Cofins atual',r:x=>x.pis_cofins?.length?x.pis_cofins.map(A.esc).join('<br>'):A.esc(x.tratamento_atual||'A validar no catálogo')},
       {t:'CBS / cClassTrib',r:x=>`<b class="mono">${A.esc(x.hipotese.cclasstrib)}</b> · CST ${A.esc(x.hipotese.cst||'—')}<br><span class="mini">${A.esc(x.hipotese.descricao||`CBS: ${x.hipotese.reducao}`)}${x.hipotese.descricao?` · ${A.esc(x.hipotese.reducao)}`:''}</span>`},
-      {t:'Operação esperada',r:x=>`<b>${A.esc(x.hipotese.operacao)}</b>`},
-      {t:'Fatos e condições para aplicar',r:x=>`<b>${A.esc(x.hipotese.condicao.texto)}</b>${x.hipotese.fatos?.length ? `<div class="mini" style="margin-top:6px">${x.hipotese.fatos.map(A.esc).join('<br>')}</div>` : '<div class="mini" style="margin-top:6px">Confirmar item, vigência e fatos da operação.</div>'}<div class="mini" style="margin-top:6px">Fonte: ${A.esc(x.hipotese.fonte || 'CATÁLOGO FISCAL')}</div>`},
+      {t:'Operação esperada',r:x=>`<b>${(x.hipotese.operacoes || [x.hipotese.operacao]).map(A.esc).join('<br>')}</b>`},
+      {t:'Fatos e condições para aplicar',r:x=>`<b>${(x.hipotese.condicoes || [x.hipotese.condicao?.texto]).filter(Boolean).map(A.esc).join('<br>')}</b>${x.hipotese.fatos?.length ? `<div class="mini" style="margin-top:6px">${x.hipotese.fatos.map(A.esc).join('<br>')}</div>` : '<div class="mini" style="margin-top:6px">Confirmar item, vigência e fatos da operação.</div>'}<div class="mini" style="margin-top:6px">Fonte: ${(x.hipotese.fontes || [x.hipotese.fonte || 'CATÁLOGO FISCAL']).filter(Boolean).map(A.esc).join(' · ')}</div>`},
     ],linhas) : '<div class="aviso"><b>Não há correlações automáticas seguras para as descrições atuais.</b> Atualize o CNAE/atividade no cadastro ou cadastre os produtos e serviços efetivamente ofertados; o sistema não inventará códigos ou benefícios.</div>'}
     </section><div class="aviso" style="margin-top:16px"><b>Segurança</b> · ${A.esc(d.aviso)}</div>`;
 };
