@@ -977,6 +977,8 @@ Telas.acessos = async (el) => {
 // declara explicitamente os componentes compartilhados de que precisa.
 (() => {
 const A = App;
+const cab = (olho, titulo, texto, acoes = '') =>
+  `<div class="topo"><div><div class="olho">${olho}</div><h1>${titulo}</h1>${texto ? `<p>${texto}</p>` : ''}</div><div class="acoes-topo">${acoes}</div></div>`;
 Telas.atualizacoesReforma = async (el) => {
   const carregar = async () => {
     const d = await A.api('/atualizacoes-reforma');
