@@ -1066,8 +1066,8 @@ Telas.mapaOperacional = async (el) => {
       {t:'Possível item',r:x=>`<b>${A.esc(x.tipo)}</b> <span class="mono">${A.esc(x.codigo || '—')}${x.lc116?` · LC ${A.esc(x.lc116)}`:''}</span><div class="mini">${A.esc(x.descricao||'Descrição não disponível')}</div>`},
       {t:'PIS/Cofins atual',r:x=>x.pis_cofins?.length?x.pis_cofins.map(A.esc).join('<br>'):A.esc(x.tratamento_atual||'A validar no catálogo')},
       {t:'CBS / cClassTrib',r:x=>`<b class="mono">${A.esc(x.hipotese.cclasstrib)}</b> · CST ${A.esc(x.hipotese.cst||'—')}<br><span class="mini">${A.esc(x.hipotese.descricao||`CBS: ${x.hipotese.reducao}`)}${x.hipotese.descricao?` · ${A.esc(x.hipotese.reducao)}`:''}</span>`},
-      {t:'Operação esperada',r:x=>`<b>${A.esc(x.hipotese.operacao)}</b><div class="mini" style="margin-top:5px">Confiança ${A.esc(x.confianca.toLowerCase())}</div>`},
-      {t:'Condição específica',r:x=>{ const c=x.hipotese.condicao; return `<b>${A.esc(c.status)}</b> · ${A.esc(c.texto)}${c.detalhe ? `<br><span class="mini">${A.esc(c.detalhe)}</span>` : ''}`; }},
+      {t:'Operação esperada',r:x=>`<b>${A.esc(x.hipotese.operacao)}</b>`},
+      {t:'Condição específica',r:x=>A.esc(x.hipotese.condicao.texto)},
     ],linhas) : '<div class="aviso"><b>Não há correlações automáticas seguras para as descrições atuais.</b> Atualize o CNAE/atividade no cadastro ou cadastre os produtos e serviços efetivamente ofertados; o sistema não inventará códigos ou benefícios.</div>'}
     </section><div class="aviso" style="margin-top:16px"><b>Segurança</b> · ${A.esc(d.aviso)}</div>`;
 };

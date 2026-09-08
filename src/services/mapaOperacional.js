@@ -1,5 +1,4 @@
 const dbPadrao = require('../db');
-const { qsaEmpresa } = require('./elegibilidadeAnexoXi');
 
 const texto = (v) => String(v || '').trim();
 const chave = (v) => texto(v).replace(/\D/g, '');
@@ -50,15 +49,14 @@ function operacaoEsperada(item, regra) {
   if (item.tipo==='SERVIÇO') return `SAÍDA — prestação do serviço${texto(regra.onerosa) ? ` · operação onerosa: ${texto(regra.onerosa)}` : ''}${texto(regra.exterior) ? ` · exterior: ${texto(regra.exterior)}` : ''}`;
   return `SAÍDA — venda da mercadoria${texto(regra.papel_na_cadeia_necessario) ? ` · papel na cadeia: ${texto(regra.papel_na_cadeia_necessario)}` : ''}`;
 }
-function condicaoCbs(regra, empresaId, item) {
+function condicaoCbs(regra) {
   const codigo=texto(regra.cclasstrib);
   if (codigo==='200044') {
-    const qsa=qsaEmpresa(empresaId);
-    return { texto:'Emitente com sócio brasileiro e participação de, no mínimo, 20% do capital social.', status:qsa.status, detalhe:qsa.motivo };
+    return { texto:'Quadro societário da empresa com sócio brasileiro e participação de, no mínimo, 20% do capital social.' };
   }
-  if (codigo==='200043') return { texto:'Destinatário deve ser ente público elegível (administração direta, autarquia ou fundação pública).', status:'PENDENTE', detalhe:'Confirmar natureza jurídica do destinatário na operação.' };
+  if (codigo==='200043') return { texto:'Venda/prestação destinada a ente público elegível: administração direta, autarquia ou fundação pública.' };
   const condicoes=unico([texto(regra.condicoes_obrigatorias), texto(regra.condicoes), texto(regra.direcao) ? `Operação: ${texto(regra.direcao)}` : '', texto(regra.perfil_adquirente) ? `Destinatário: ${texto(regra.perfil_adquirente)}` : '']);
-  return { texto:condicoes.join(' · ') || 'Sem fato condicional adicional identificado na regra catalogada.', status:condicoes.length ? 'PENDENTE' : 'NAO_APLICAVEL', detalhe:'' };
+  return { texto:condicoes.join(' · ') || 'Regra padrão: sem condição adicional além da identificação correta do item e da vigência.' };
 }
 function hipotesesCbs(db, empresaId, item) {
   const base = item.tipo==='NCM'
@@ -69,7 +67,7 @@ function hipotesesCbs(db, empresaId, item) {
     : db.prepare("SELECT * FROM regras_enquadramento WHERE status='ATIVA' AND ((nbs<>'' AND nbs=?) OR (lc116<>'' AND lc116=?)) ORDER BY prioridade DESC").all(chave(item.nbs),texto(item.lc116));
   const candidatos=[...base,...regras].filter((x)=>texto(x.cclasstrib)); const vistos=new Set();
   return candidatos.filter((x)=>{ const id=texto(x.cclasstrib); if(vistos.has(id)) return false; vistos.add(id); return true; }).map((x)=>{
-    const condicao=condicaoCbs(x,empresaId,item); const reducao=item.tipo==='NCM' ? (x.reducao_cbs ?? x.reducao ?? 'integral') : (x.reducao ?? 'integral');
+    const condicao=condicaoCbs(x); const reducao=item.tipo==='NCM' ? (x.reducao_cbs ?? x.reducao ?? 'integral') : (x.reducao ?? 'integral');
     return { cclasstrib:texto(x.cclasstrib), cst:texto(x.cst) || texto(x.cclasstrib).slice(0,3), descricao:texto(x.classificacao || x.nome_cclasstrib || x.tratamento_resultante), reducao:String(reducao), operacao:operacaoEsperada(item,x), condicao };
   });
 }
