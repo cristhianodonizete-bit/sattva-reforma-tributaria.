@@ -678,7 +678,7 @@ Telas.questor = async (el) => {
         <pre id="rawOut" class="mini" style="max-height:220px;overflow:auto;background:#f4f7f9;padding:10px;border-radius:8px;margin-top:10px"></pre>
       </div>
     </div>
-    <div class="cartao" style="margin-top:16px"><h2>Conector local seguro</h2><p class="desc">Instale somente no computador onde o nWeb está ativo. Ele se conecta ao Sattva por saída HTTPS e não abre porta na sua rede.</p><button class="btn" id="gerarConectorQuestor">Gerar pareamento</button>${conectores.length ? A.tabela([{t:'Nome',r:x=>A.esc(x.nome)},{t:'Situação',r:x=>A.esc(x.status)},{t:'Última conexão',r:x=>A.esc(x.ultima_conexao_em||'Ainda não conectado')}],conectores) : '<p class="mini" style="margin-top:12px">Nenhum conector pareado.</p>'}</div>
+    <div class="cartao" style="margin-top:16px"><h2>Conector local seguro</h2><p class="desc">Instale somente no computador onde o nWeb está ativo. Ele se conecta ao Sattva por saída HTTPS e não abre porta na sua rede. Cada usuário visualiza apenas os próprios pareamentos.</p><button class="btn" id="gerarConectorQuestor">Gerar pareamento</button>${conectores.length ? A.tabela([{t:'Nome',r:x=>A.esc(x.nome)},{t:'Situação',r:x=>A.esc(x.status)},{t:'Última conexão',r:x=>A.esc(x.ultima_conexao_em||'Ainda não conectado')},{t:'Acesso',r:x=>`<button class="btn vazio pq" data-revelar-conector="${A.esc(x.id)}">Ver identificação e segredo</button>`}],conectores) : '<p class="mini" style="margin-top:12px">Nenhum conector pareado.</p>'}</div>
     <div class="cartao"><h2>Mapa de endpoints</h2>
       <p class="desc">Caminhos, parâmetros e de-para de campos. Ajuste conforme a versão do seu Questor — o sistema não depende de código para isso.</p>
       <textarea id="endpoints" rows="16" class="mono" style="font-size:12px">${A.esc(JSON.stringify(config.endpoints, null, 2))}</textarea>
@@ -700,12 +700,34 @@ Telas.questor = async (el) => {
     const r = await A.api(`/empresas/${S.empresaId}/questor/conector/apuracao-pis-cofins`, {metodo:'POST',corpo:{}});
     A.toast(`Apuração PIS/COFINS solicitada para ${r.periodo.data_inicio} até ${r.periodo.data_fim}.`, 'ok');
   };
+  const codificar64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
+  const decodificar64 = (texto) => Uint8Array.from(atob(texto), (c) => c.charCodeAt(0));
+  const chaveDaSenha = async (senha, salt) => {
+    const base = await crypto.subtle.importKey('raw', new TextEncoder().encode(senha), 'PBKDF2', false, ['deriveKey']);
+    return crypto.subtle.deriveKey({name:'PBKDF2',salt,iterations:210000,hash:'SHA-256'},base,{name:'AES-GCM',length:256},false,['encrypt','decrypt']);
+  };
+  const protegerSegredo = async (segredo, senha) => {
+    const salt=crypto.getRandomValues(new Uint8Array(16)), iv=crypto.getRandomValues(new Uint8Array(12));
+    const cifrado=await crypto.subtle.encrypt({name:'AES-GCM',iv},await chaveDaSenha(senha,salt),new TextEncoder().encode(segredo));
+    return {segredo_cifrado:codificar64(cifrado),segredo_iv:codificar64(iv),segredo_salt:codificar64(salt)};
+  };
+  const revelarSegredo = async (c, senha) => new TextDecoder().decode(await crypto.subtle.decrypt({name:'AES-GCM',iv:decodificar64(c.segredo_iv)},await chaveDaSenha(senha,decodificar64(c.segredo_salt)),decodificar64(c.segredo_cifrado)));
   document.getElementById('gerarConectorQuestor').onclick = async () => {
     const nome = prompt('Nome deste computador/conector:', 'Meu computador · Questor'); if (!nome) return;
-    const r = await A.api('/questor/conectores', {metodo:'POST',corpo:{nome}});
-    A.modal({titulo:'Pareamento do conector',confirmar:null,largura:760,descricao:'Copie estes dados apenas para o configurador local. O segredo não será exibido novamente.',corpo:`<p><b>Identificador</b><br><code>${A.esc(r.conector.id)}</code></p><p><b>Segredo</b><br><code style="word-break:break-all">${A.esc(r.segredo)}</code></p><p class="mini">Abra o arquivo configurar-e-iniciar.cmd no pacote baixado, cole esses dois valores e o TokenApi do nWeb.</p>`});
-    A.ir('questor');
+    A.modal({titulo:'Proteção do pareamento',descricao:'Informe sua senha de login. Ela protegerá o segredo e será solicitada quando você quiser vê-lo novamente.',corpo:A.campo('senha','Senha de login','','password','autocomplete="current-password"'),confirmar:'Gerar pareamento',aoConfirmar:async(f)=>{
+      if(!f.senha) throw new Error('Informe sua senha de login.');
+      const r=await A.api('/questor/conectores',{metodo:'POST',corpo:{nome}});
+      await A.api(`/questor/conectores/${r.conector.id}/segredo-protegido`,{metodo:'PUT',corpo:await protegerSegredo(r.segredo,f.senha)});
+      A.modal({titulo:'Pareamento do conector',confirmar:null,largura:760,descricao:'Guarde estes dados para o configurador local. Você poderá vê-los novamente somente com a sua senha de login.',corpo:`<p><b>Identificador</b><br><code>${A.esc(r.conector.id)}</code></p><p><b>Segredo</b><br><code style="word-break:break-all">${A.esc(r.segredo)}</code></p><p class="mini">Abra o arquivo configurar-e-iniciar.cmd no pacote baixado, cole esses dois valores e o TokenApi do nWeb.</p>`});
+      A.ir('questor');
+    }});
   };
+  el.querySelectorAll('[data-revelar-conector]').forEach((botao)=>botao.onclick=()=>A.modal({titulo:'Ver pareamento',descricao:'Confirme sua senha de login para revelar apenas o seu identificador e segredo.',corpo:A.campo('senha','Senha de login','','password','autocomplete="current-password"'),confirmar:'Revelar',aoConfirmar:async(f)=>{
+    if(!f.senha) throw new Error('Informe sua senha de login.');
+    const {conector}=await A.api(`/questor/conectores/${botao.dataset.revelarConector}/segredo-protegido`);
+    let segredo; try { segredo=await revelarSegredo(conector,f.senha); } catch (_) { throw new Error('Senha inválida ou segredo indisponível.'); }
+    A.modal({titulo:'Pareamento do conector',confirmar:null,largura:760,descricao:'Dados revelados para o seu usuário.',corpo:`<p><b>Identificador</b><br><code>${A.esc(conector.id)}</code></p><p><b>Segredo</b><br><code style="word-break:break-all">${A.esc(segredo)}</code></p>`});
+  }}));
   document.getElementById('salvarQ').onclick = async () => {
     await A.api('/questor/config', { metodo: 'POST', corpo: { base_url: val('base_url'), token: val('token'), ativo: !!val('ativo'), endpoints: config.endpoints } });
     A.toast('Conexão salva', 'ok');

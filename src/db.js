@@ -135,6 +135,12 @@ const COLUNAS_NOVAS = {
     obrigatoria: 'INTEGER DEFAULT 0', sla_marco_id: 'INTEGER', prazo_original: 'TEXT',
     prorrogado_em: 'TEXT', justificativa_prorrogacao: 'TEXT',
   },
+  // O segredo do conector não é gravado em claro. Os campos abaixo recebem um
+  // pacote AES-GCM cifrado no navegador com a senha do próprio usuário.
+  // Assim, nem outro usuário nem o servidor conseguem revelá-lo sem a senha.
+  questor_conectores: {
+    usuario_id: 'TEXT', segredo_cifrado: 'TEXT', segredo_iv: 'TEXT', segredo_salt: 'TEXT',
+  },
   contrato_precificacao_vinculos: { pricing_simulacao_id: 'INTEGER' },
 };
 
@@ -1894,6 +1900,7 @@ CREATE TABLE IF NOT EXISTS questor_log (
 );
 CREATE TABLE IF NOT EXISTS questor_conectores (
   id TEXT PRIMARY KEY, nome TEXT NOT NULL, segredo_hash TEXT NOT NULL,
+  usuario_id TEXT, segredo_cifrado TEXT, segredo_iv TEXT, segredo_salt TEXT,
   status TEXT NOT NULL DEFAULT 'ATIVO', ultima_conexao_em TEXT, criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE TABLE IF NOT EXISTS questor_conector_tarefas (

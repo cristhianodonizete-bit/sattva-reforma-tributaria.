@@ -3354,12 +3354,33 @@ router.delete('/acoes/:id', async (req, res) => { try { const acao = await acaoP
 // INTEGRAÇÃO QUESTOR (nWeb)
 // ===========================================================================
 router.get('/questor/config', (_req, res) => ok(res, { config: questor.config() }));
-router.get('/questor/conectores', (_req,res)=>{ try { ok(res,{conectores:db.prepare('SELECT id,nome,status,ultima_conexao_em,criado_em FROM questor_conectores ORDER BY criado_em DESC').all()}); } catch(e){erro(res,e);} });
-router.post('/questor/conectores', (req,res)=>{ try { const id=crypto.randomUUID(); const segredo=crypto.randomBytes(32).toString('base64url'); db.prepare('INSERT INTO questor_conectores (id,nome,segredo_hash) VALUES (?,?,?)').run(id,String(req.body?.nome||'Conector Questor'),crypto.createHash('sha256').update(segredo).digest('hex')); ok(res,{conector:{id,nome:String(req.body?.nome||'Conector Questor')},segredo}); } catch(e){erro(res,e);} });
+const donoConector = (req) => req.usuario?.id || 'sessao-local';
+router.get('/questor/conectores', (req,res)=>{ try {
+  ok(res,{conectores:db.prepare('SELECT id,nome,status,ultima_conexao_em,criado_em,CASE WHEN segredo_cifrado IS NOT NULL THEN 1 ELSE 0 END AS segredo_protegido FROM questor_conectores WHERE usuario_id=? ORDER BY criado_em DESC').all(donoConector(req))});
+} catch(e){erro(res,e);} });
+router.post('/questor/conectores', (req,res)=>{ try {
+  const id=crypto.randomUUID(); const segredo=crypto.randomBytes(32).toString('base64url'); const nome=String(req.body?.nome||'Conector Questor');
+  db.prepare('INSERT INTO questor_conectores (id,nome,segredo_hash,usuario_id) VALUES (?,?,?,?)').run(id,nome,crypto.createHash('sha256').update(segredo).digest('hex'),donoConector(req));
+  auditar(req,{acao:'Criou pareamento Questor',entidade:'questor_conector',entidadeId:id,depois:{nome}});
+  ok(res,{conector:{id,nome},segredo});
+} catch(e){erro(res,e);} });
+router.put('/questor/conectores/:id/segredo-protegido', (req,res)=>{ try {
+  const b=req.body||{}; if(!b.segredo_cifrado||!b.segredo_iv||!b.segredo_salt) throw new Error('Dados de proteção do segredo incompletos.');
+  const r=db.prepare('UPDATE questor_conectores SET segredo_cifrado=?,segredo_iv=?,segredo_salt=? WHERE id=? AND usuario_id=?').run(String(b.segredo_cifrado),String(b.segredo_iv),String(b.segredo_salt),req.params.id,donoConector(req));
+  if(!r.changes) throw new Error('Conector não encontrado para o seu usuário.');
+  ok(res,{});
+} catch(e){erro(res,e);} });
+router.get('/questor/conectores/:id/segredo-protegido', (req,res)=>{ try {
+  const c=db.prepare('SELECT id,nome,segredo_cifrado,segredo_iv,segredo_salt FROM questor_conectores WHERE id=? AND usuario_id=?').get(req.params.id,donoConector(req));
+  if(!c) throw new Error('Conector não encontrado para o seu usuário.');
+  if(!c.segredo_cifrado) throw new Error('Este pareamento é anterior à proteção por senha. Gere um novo pareamento para poder revelá-lo depois.');
+  auditar(req,{acao:'Solicitou revelação do pareamento Questor',entidade:'questor_conector',entidadeId:c.id,depois:{nome:c.nome}});
+  ok(res,{conector:c});
+} catch(e){erro(res,e);} });
 router.post('/questor/conectores/:id/tarefas', (req,res)=>{ try { const tipo=String(req.body?.tipo||''); if(!['TESTAR_NWEB','PARAMETROS_RELATORIO','APURACAO_PIS_COFINS'].includes(tipo)) throw new Error('Tipo de tarefa não permitido.'); const r=db.prepare('INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)').run(req.params.id,req.body?.empresa_id||null,tipo,JSON.stringify(req.body?.payload||{})); ok(res,{tarefa_id:r.lastInsertRowid}); } catch(e){erro(res,e);} });
 router.get('/questor/conectores/:id/tarefas', (req,res)=>{ try { ok(res,{tarefas:db.prepare('SELECT * FROM questor_conector_tarefas WHERE conector_id=? ORDER BY id DESC LIMIT 50').all(req.params.id)}); } catch(e){erro(res,e);} });
 router.post('/empresas/:id/questor/conector/movimentacao', async (req,res)=>{ try { const empresa=db.prepare('SELECT codigo_questor FROM empresas WHERE id=?').get(req.params.id); if(!empresa?.codigo_questor) throw new Error('Informe o Código Questor no cadastro da empresa antes da busca.'); const periodo=await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id)); if(!periodo) throw new Error('Defina o Período analisado antes da busca.'); const c=db.prepare("SELECT id FROM questor_conectores WHERE status='ATIVO' ORDER BY ultima_conexao_em DESC LIMIT 1").get(); if(!c) throw new Error('Gere e inicie um conector Questor antes da busca.'); const tipo=req.body?.tipo==='cliente'?'cliente':'fornecedor'; const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,Number(req.params.id),'IMPORTAR_MOVIMENTACAO',JSON.stringify({tipo,codigo_questor:empresa.codigo_questor,inicio:periodo.data_inicio,fim:periodo.data_fim})); ok(res,{tarefa_id:r.lastInsertRowid,periodo,tipo}); } catch(e){erro(res,e);} });
-router.post('/empresas/:id/questor/conector/apuracao-pis-cofins', async (req,res)=>{ try { const empresa=db.prepare('SELECT codigo_questor FROM empresas WHERE id=?').get(req.params.id); if(!empresa?.codigo_questor) throw new Error('Informe o Código Questor no cadastro da empresa antes da busca.'); const periodo=await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id)); if(!periodo) throw new Error('Defina o Período analisado antes da busca.'); const c=db.prepare("SELECT id FROM questor_conectores WHERE status='ATIVO' ORDER BY ultima_conexao_em DESC LIMIT 1").get(); if(!c) throw new Error('Inicie o conector Questor antes da busca.'); const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,Number(req.params.id),'APURACAO_PIS_COFINS',JSON.stringify({actionName:'nFisRRTotalPISCOFINSProd',parametros:{codigoempresa:empresa.codigo_questor,datainicial:periodo.data_inicio,datafinal:periodo.data_fim}})); ok(res,{tarefa_id:r.lastInsertRowid,periodo}); } catch(e){erro(res,e);} });
+router.post('/empresas/:id/questor/conector/apuracao-pis-cofins', async (req,res)=>{ try { const empresa=db.prepare('SELECT codigo_questor FROM empresas WHERE id=?').get(req.params.id); if(!empresa?.codigo_questor) throw new Error('Informe o Código Questor no cadastro da empresa antes da busca.'); const periodo=await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id)); if(!periodo) throw new Error('Defina o Período analisado antes da busca.'); const c=db.prepare("SELECT id FROM questor_conectores WHERE status='ATIVO' AND usuario_id=? ORDER BY ultima_conexao_em DESC LIMIT 1").get(donoConector(req)); if(!c) throw new Error('Inicie um conector Questor que pertença ao seu usuário antes da busca.'); const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,Number(req.params.id),'APURACAO_PIS_COFINS',JSON.stringify({actionName:'nFisRRTotalPISCOFINSProd',parametros:{codigoempresa:empresa.codigo_questor,datainicial:periodo.data_inicio,datafinal:periodo.data_fim}})); ok(res,{tarefa_id:r.lastInsertRowid,periodo}); } catch(e){erro(res,e);} });
 
 router.post('/questor/config', (req, res) => {
   try { ok(res, { config: questor.salvarConfig(req.body) }); } catch (e) { erro(res, e); }
