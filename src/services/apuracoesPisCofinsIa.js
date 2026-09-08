@@ -227,6 +227,18 @@ function reprocessar(db, empresaId, apuracaoId, camposBrutos, versaoModeloExtrac
   return listarParaRevisao(db, empresaId).find((x) => Number(x.id) === Number(apuracaoId));
 }
 
+function importarRelatorioQuestor(db, empresaId, textoRelatorio) {
+  const campos = normalizarTextoDeterministico(textoRelatorio, { metodo:'QUESTOR_NWEB_RELATORIO_V1' });
+  const competenciaExtraida = campos.competencia?.valor_extraido;
+  if (!competenciaExtraida) throw new Error('O relatório Questor não informou uma competência identificável.');
+  const existente = db.prepare('SELECT id FROM pis_cofins_apuracoes_historicas WHERE empresa_id=? AND competencia=? LIMIT 1').get(empresaId, competenciaExtraida);
+  if (existente) return { ignorado:true, motivo:'Competência já importada; nenhum valor foi sobrescrito.', competencia:competenciaExtraida };
+  return { ignorado:false, ...ingestao(db, empresaId, {
+    nome_original:`Questor — Totais PIS e COFINS por Produto — ${competenciaExtraida}.txt`, tipo_documento:'RELATORIO_ERP', mime_type:'text/plain',
+    conteudo_original:Buffer.from(String(textoRelatorio || ''),'utf8'), versao_modelo_extracao:'QUESTOR_NWEB_RELATORIO_V1',
+  }, campos) };
+}
+
 // A confirmação não recalcula nem altera valores extraídos. Ela apenas registra
 // a revisão humana de campos presentes e preserva NULL/INDETERMINADO.
 function confirmarRevisao(db, empresaId, apuracaoId) {
@@ -248,4 +260,4 @@ function promptExtracao(textoDocumento) {
   return `Extraia apenas valores expressos no documento de apuração PIS/Cofins. Não calcule, não infira e não substitua ausência por zero. Retorne JSON com a chave campos e, para cada campo abaixo, valor_extraido, origem_documento, pagina_ou_localizacao, rotulo_original, confianca (0 a 1), metodo_extracao e status_validacao. Campos: ${CAMPOS.join(', ')}. Se não existir, valor_extraido deve ser null e status_validacao INDETERMINADO. Documento:\n${String(textoDocumento).slice(0, 70000)}`;
 }
 
-module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, reprocessar, confirmarRevisao, promptExtracao, validarConsistencia, normalizarTextoDeterministico };
+module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, reprocessar, importarRelatorioQuestor, confirmarRevisao, promptExtracao, validarConsistencia, normalizarTextoDeterministico };

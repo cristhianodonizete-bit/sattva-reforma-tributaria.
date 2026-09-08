@@ -668,12 +668,8 @@ Telas.questor = async (el) => {
       <div class="cartao"><h2>Buscar dados da empresa</h2>
         <p class="desc">${S.empresa ? `${A.esc(S.empresa.razao_social)} · código Questor: <b class="mono">${A.esc(S.empresa.codigo_questor || 'não informado')}</b>` : 'Selecione uma empresa'}</p>
         <div class="grade g2">${A.campo('inicio', 'Data inicial', '', 'date')}${A.campo('fim', 'Data final', '', 'date')}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn vazio pq" data-q="participantes" data-tipo="fornecedor">Importar fornecedores</button>
-          <button class="btn vazio pq" data-q="participantes" data-tipo="cliente">Importar clientes</button>
-          <button class="btn vazio pq" data-q="movimentacao" data-tipo="fornecedor">Importar entradas</button>
-          <button class="btn vazio pq" data-q="movimentacao" data-tipo="cliente">Importar saídas</button>
-        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button></div>
+        <p class="mini" style="margin-top:8px">Usa o período analisado e o código Questor da empresa. XMLs já importados não são consultados novamente.</p>
         <hr class="sep">
         <h2 style="font-size:13px">Chamada livre</h2>
         <p class="desc">Para descobrir ou validar endpoints da sua instalação</p>
@@ -699,6 +695,11 @@ Telas.questor = async (el) => {
     </div>`;
 
   const val = (n) => (el.querySelector(`[name="${n}"]`) || {}).value || '';
+  document.getElementById('importarApuracaoQuestor').onclick = async () => {
+    if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
+    const r = await A.api(`/empresas/${S.empresaId}/questor/conector/apuracao-pis-cofins`, {metodo:'POST',corpo:{}});
+    A.toast(`Apuração PIS/COFINS solicitada para ${r.periodo.data_inicio} até ${r.periodo.data_fim}.`, 'ok');
+  };
   document.getElementById('gerarConectorQuestor').onclick = async () => {
     const nome = prompt('Nome deste computador/conector:', 'Meu computador · Questor'); if (!nome) return;
     const r = await A.api('/questor/conectores', {metodo:'POST',corpo:{nome}});
