@@ -333,6 +333,10 @@ const App = (() => {
   async function ir(tela) {
     if (!pode(tela)) { toast('Seu perfil não possui acesso a esta área.', 'erro'); return; }
     S.tela = tela;
+    // A abertura da carteira é global. Ocultar o seletor nessa visão evita
+    // transmitir a ideia de que seus dados foram filtrados pela última empresa
+    // analisada; a escolha volta a aparecer ao entrar em um projeto.
+    document.body.classList.toggle('visao-carteira', tela === 'dashboardOperacao');
     location.hash = tela;
     desenharMenu();
     const tituloContexto = document.getElementById('tituloContexto');
