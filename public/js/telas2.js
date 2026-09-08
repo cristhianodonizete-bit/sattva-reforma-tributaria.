@@ -680,7 +680,7 @@ Telas.questor = async (el) => {
       <div class="cartao"><h2>Buscar dados da empresa</h2>
         <p class="desc">${S.empresa ? `${A.esc(S.empresa.razao_social)} · código Questor: <b class="mono">${A.esc(S.empresa.codigo_questor || 'não informado')}</b>` : 'Selecione uma empresa'}</p>
         <div class="grade g2">${A.campo('inicio', 'Data inicial', '', 'date')}${A.campo('fim', 'Data final', '', 'date')}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button><button class="btn vazio" id="consultarParametrosApuracaoQuestor">Consultar parâmetros do relatório</button></div>
         <p class="mini" style="margin-top:8px">Usa o período analisado e o código Questor da empresa. XMLs já importados não são consultados novamente.</p>
         <hr class="sep">
         <h2 style="font-size:13px">Chamada livre</h2>
@@ -721,6 +721,12 @@ Telas.questor = async (el) => {
       ? `${r.quantidade_solicitada} competência(s) de apuração foram solicitadas. Acompanhe em Processamento das solicitações.`
       : 'Não há competência pendente para importar neste período.';
     A.toast(mensagem, 'ok');
+    A.ir('questor');
+  };
+  document.getElementById('consultarParametrosApuracaoQuestor').onclick = async () => {
+    if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
+    await A.api(`/empresas/${S.empresaId}/questor/conector/parametros-relatorio-pis-cofins`, {metodo:'POST',corpo:{}});
+    A.toast('Consulta dos parâmetros solicitada. Atualize a fila em alguns segundos para ver o retorno.', 'ok');
     A.ir('questor');
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');

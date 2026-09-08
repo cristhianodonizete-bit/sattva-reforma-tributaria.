@@ -3418,6 +3418,14 @@ router.post('/empresas/:id/questor/conector/apuracao-pis-cofins', async (req,res
   }
   ok(res,{tarefas_ids:tarefas,quantidade_solicitada:tarefas.length,competencias_ja_importadas:[...existentes],competencias_em_fila:[...emFila],periodo:janela});
 } catch(e){erro(res,e);} });
+router.post('/empresas/:id/questor/conector/parametros-relatorio-pis-cofins', async (req,res)=>{ try {
+  await questorPersistencia.sincronizarUsuario(donoConector(req));
+  const c=db.prepare("SELECT id FROM questor_conectores WHERE status='ATIVO' AND usuario_id=? ORDER BY ultima_conexao_em DESC LIMIT 1").get(donoConector(req));
+  if(!c) throw new Error('Inicie um conector Questor que pertença ao seu usuário antes da consulta.');
+  const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,Number(req.params.id),'PARAMETROS_RELATORIO',JSON.stringify({actionName:'nFisRRTotalPISCOFINSProd'}));
+  const tarefa=db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(r.lastInsertRowid); await questorPersistencia.publicarTarefa(tarefa);
+  ok(res,{tarefa_id:tarefa.id});
+} catch(e){erro(res,e);} });
 
 router.post('/questor/config', (req, res) => {
   try { ok(res, { config: questor.salvarConfig(req.body) }); } catch (e) { erro(res, e); }

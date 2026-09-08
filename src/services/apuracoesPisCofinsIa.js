@@ -244,6 +244,14 @@ function importarRelatorioQuestor(db, empresaId, textoRelatorio, { competenciaSo
   if (!competenciaExtraida) throw new Error('O relatório Questor não informou uma competência identificável.');
   const existente = db.prepare('SELECT id FROM pis_cofins_apuracoes_historicas WHERE empresa_id=? AND competencia=? LIMIT 1').get(empresaId, competenciaExtraida);
   if (existente) return { ignorado:true, motivo:'Competência já importada; nenhum valor foi sobrescrito.', competencia:competenciaExtraida };
+  const hash = crypto.createHash('sha256').update(Buffer.from(String(textoRelatorio || ''), 'utf8')).digest('hex');
+  const documentoIgual = db.prepare(`SELECT a.competencia FROM pis_cofins_apuracao_documentos d
+    JOIN pis_cofins_apuracoes_historicas a ON a.documento_id=d.id
+    WHERE d.empresa_id=? AND d.hash_sha256=? LIMIT 1`).get(empresaId, hash);
+  if (documentoIgual) return {
+    ignorado:true, competencia:competenciaExtraida,
+    motivo:`O Questor retornou o mesmo relatório já usado na competência ${documentoIgual.competencia}. Nenhum valor foi duplicado; consulte os parâmetros do relatório para confirmar os filtros de período.`,
+  };
   return { ignorado:false, ...ingestao(db, empresaId, {
     nome_original:`Questor — Totais PIS e COFINS por Produto — ${competenciaExtraida}.txt`, tipo_documento:'RELATORIO_ERP', mime_type:'text/plain',
     conteudo_original:Buffer.from(String(textoRelatorio || ''),'utf8'), versao_modelo_extracao:'QUESTOR_NWEB_RELATORIO_V1',
