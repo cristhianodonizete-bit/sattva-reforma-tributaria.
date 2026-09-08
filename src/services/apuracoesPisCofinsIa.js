@@ -189,7 +189,7 @@ function ingestao(db, empresaId, documento, camposBrutos) {
 
 function listarParaRevisao(db, empresaId) {
   validarEmpresa(db, empresaId);
-  const apuracoes = db.prepare(`SELECT a.*, d.nome_original,d.tipo_documento,d.hash_sha256,d.versao_modelo_extracao
+  const apuracoes = db.prepare(`SELECT a.*, d.nome_original,d.tipo_documento,d.hash_sha256,d.versao_modelo_extracao,d.data_processamento AS importado_em
     FROM pis_cofins_apuracoes_historicas a JOIN pis_cofins_apuracao_documentos d ON d.id=a.documento_id
     WHERE a.empresa_id=? ORDER BY a.competencia DESC,a.id DESC`).all(empresaId);
   const campos = db.prepare(`SELECT c.* FROM pis_cofins_apuracao_campos c JOIN pis_cofins_apuracoes_historicas a ON a.id=c.apuracao_id
