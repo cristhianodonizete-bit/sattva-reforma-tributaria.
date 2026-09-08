@@ -18,8 +18,8 @@ const VERSAO = '2023-06-01';
 
 // A base jurídica é única (RAG e fontes cadastradas). Estes provedores são
 // apenas modelos de raciocínio: nenhum deles vira fonte normativa por si só.
-// Chaves secundárias permanecem somente em variáveis de ambiente para não
-// ampliar o armazenamento de segredos no banco da aplicação.
+// As chaves cadastradas pela tela nunca voltam para o navegador: apenas o
+// indicador "configurada" é exposto pela API.
 const PROVEDORES_PADRAO = [
   { id: 'anthropic', nome: 'Anthropic', modelo: 'claude-sonnet-5', papel: 'principal', env: 'ANTHROPIC_API_KEY' },
   { id: 'openai', nome: 'OpenAI', modelo: 'gpt-5-mini', papel: 'revisor', env: 'OPENAI_API_KEY' },
@@ -29,13 +29,29 @@ const PROVEDORES_PADRAO = [
 ];
 
 function jsonSeguro(valor, padrao) { try { return JSON.parse(valor); } catch (_) { return padrao; } }
+function provedorSalvo(id, row) {
+  return jsonSeguro(row?.provedores_json, []).find((p) => p?.id === id) || {};
+}
 function chaveDoProvedor(id, row) {
-  if (id === 'anthropic') return process.env.ANTHROPIC_API_KEY || row.api_key || '';
-  if (id === 'openai') return process.env.OPENAI_API_KEY || '';
-  if (id === 'gemini') return process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || '';
-  if (id === 'groq') return process.env.GROQ_API_KEY || '';
-  if (id === 'ollama') return process.env.OLLAMA_BASE_URL || '';
+  const salva = String(provedorSalvo(id, row).chave || '');
+  if (id === 'anthropic') return process.env.ANTHROPIC_API_KEY || row.api_key || salva;
+  if (id === 'openai') return process.env.OPENAI_API_KEY || salva;
+  if (id === 'gemini') return process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY || salva;
+  if (id === 'groq') return process.env.GROQ_API_KEY || salva;
+  if (id === 'ollama') return process.env.OLLAMA_BASE_URL || salva;
   return '';
+}
+function origemDaChave(id, row) {
+  const ambiente = {
+    anthropic: process.env.ANTHROPIC_API_KEY,
+    openai: process.env.OPENAI_API_KEY,
+    gemini: process.env.GOOGLE_AI_API_KEY || process.env.GEMINI_API_KEY,
+    groq: process.env.GROQ_API_KEY,
+    ollama: process.env.OLLAMA_BASE_URL,
+  }[id];
+  if (ambiente) return 'variável de ambiente';
+  if (id === 'anthropic' && row.api_key) return 'configuração do sistema (legada)';
+  return provedorSalvo(id, row).chave ? 'configuração do sistema' : 'não configurada';
 }
 
 function normalizarProvedores(valor, row) {
@@ -65,15 +81,21 @@ function config() {
     especialistaPainelAtivo: Boolean(row.especialista_painel_ativo),
     provedores,
     provedorPrincipal: principal?.id || null,
-    origemChave: process.env.ANTHROPIC_API_KEY ? 'variável de ambiente' : (row.api_key ? 'configuração do sistema' : 'não configurada'),
+    origemChave: principal ? `${principal.nome}: ${origemDaChave(principal.id, row)}` : 'não configurada',
   };
 }
 
-function salvarConfig({ api_key, modelo, especialista_fiscal_ativo, especialista_painel_ativo, provedores }) {
+function salvarConfig({ api_key, modelo, especialista_fiscal_ativo, especialista_painel_ativo, provedores, chaves = {} }) {
   const atual = db.prepare('SELECT api_key,especialista_fiscal_ativo,especialista_painel_ativo,provedores_json FROM ia_config WHERE id=1').get() || {};
-  const lista = Array.isArray(provedores) ? provedores.map((p) => ({
-    id: p.id, modelo: String(p.modelo || ''), papel: ['principal', 'revisor', 'desativado'].includes(p.papel) ? p.papel : 'desativado',
-  })) : jsonSeguro(atual.provedores_json, []);
+  const anteriores = new Map(jsonSeguro(atual.provedores_json, []).filter(Boolean).map((p) => [p.id, p]));
+  const lista = Array.isArray(provedores) ? provedores.map((p) => {
+    const anterior = anteriores.get(p.id) || {};
+    const novaChave = String(chaves?.[p.id] || '').trim();
+    return {
+      id: p.id, modelo: String(p.modelo || ''), papel: ['principal', 'revisor', 'desativado'].includes(p.papel) ? p.papel : 'desativado',
+      chave: novaChave || String(anterior.chave || ''),
+    };
+  }) : jsonSeguro(atual.provedores_json, []);
   const principais = lista.filter((p) => p.papel === 'principal');
   if (principais.length > 1) throw new Error('Escolha somente uma IA principal para o Especialista Fiscal.');
   db.prepare(`UPDATE ia_config SET api_key = ?, modelo = ?, especialista_fiscal_ativo = ?, especialista_painel_ativo = ?, provedores_json = ?, atualizado_em = datetime('now','localtime') WHERE id = 1`)
@@ -116,8 +138,8 @@ async function chamarGemini(mensagens, { sistema, maxTokens, temperatura, proved
   return { texto: dados?.candidates?.[0]?.content?.parts?.map((p) => p.text || '').join('\n') || '', uso: dados.usageMetadata || {} };
 }
 
-async function chamarOllama(mensagens, { sistema, maxTokens, temperatura, provedor }) {
-  const base = (process.env.OLLAMA_BASE_URL || '').replace(/\/$/, '');
+async function chamarOllama(mensagens, { sistema, maxTokens, temperatura, provedor, chave }) {
+  const base = String(chave || '').replace(/\/$/, '');
   const resp = await fetch(`${base}/api/chat`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ model: provedor.modelo, stream: false, options: { num_predict: maxTokens, temperature }, messages: [{ role: 'system', content: sistema }, ...mensagens] }) });
   const dados = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new Error(dados?.error || `Ollama respondeu ${resp.status}`);

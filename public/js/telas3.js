@@ -205,17 +205,15 @@ Telas.conhecimento = async (el) => {
         <label class="check" style="margin:10px 0"><input type="checkbox" name="especialista_fiscal_ativo" ${ia.especialistaFiscalAtivo ? 'checked' : ''}> Ligar Especialista Fiscal Sênior</label>
         <label class="check" style="margin:0 0 10px"><input type="checkbox" name="especialista_painel_ativo" ${ia.especialistaPainelAtivo ? 'checked' : ''}> Revisão cruzada pelos revisores ativos</label>
         <p class="mini">Mesmo ligado, ele apenas responde com fontes e registra a consulta. Não altera cálculos, cadastro, catálogo ou regras fiscais.</p>
-        ${A.campo('api_key', 'Chave da API (sk-ant-...)', '', 'text', 'placeholder="deixe em branco para manter a atual"')}
-        ${A.campo('modelo', 'Modelo', ia.modelo)}
-        <div class="mini" style="margin:10px 0 6px"><b>Painel de provedores</b> — escolha uma principal e, se desejar, revisoras independentes.</div>
-        <div>${provedores.map((p) => `<div class="aviso" style="margin:6px 0;display:grid;grid-template-columns:1fr 125px 165px;gap:8px;align-items:center"><div><b>${A.esc(p.nome)}</b><div class="mini">${p.configurado ? 'Configurada' : `Requer ${A.esc(p.env)}`}</div></div><select data-papel-provedor="${A.esc(p.id)}"><option value="principal" ${p.papel === 'principal' ? 'selected' : ''}>Principal</option><option value="revisor" ${p.papel === 'revisor' ? 'selected' : ''}>Revisora</option><option value="desativado" ${p.papel === 'desativado' ? 'selected' : ''}>Desativada</option></select><input data-modelo-provedor="${A.esc(p.id)}" value="${A.esc(p.modelo)}" aria-label="Modelo ${A.esc(p.nome)}"></div>`).join('')}</div>
+        <div class="mini" style="margin:10px 0 6px"><b>Provedores e credenciais</b> — cada chave fica vinculada ao respectivo provedor. Campos vazios mantêm a credencial já salva.</div>
+        <div>${provedores.map((p) => `<div class="aviso" style="margin:6px 0;display:grid;grid-template-columns:1fr 125px 165px;gap:8px;align-items:center"><div><b>${A.esc(p.nome)}</b><div class="mini">${p.configurado ? '✓ Chave configurada' : `Requer chave (${A.esc(p.env)})`}</div></div><select data-papel-provedor="${A.esc(p.id)}"><option value="principal" ${p.papel === 'principal' ? 'selected' : ''}>Principal</option><option value="revisor" ${p.papel === 'revisor' ? 'selected' : ''}>Revisora</option><option value="desativado" ${p.papel === 'desativado' ? 'selected' : ''}>Desativada</option></select><input data-modelo-provedor="${A.esc(p.id)}" value="${A.esc(p.modelo)}" aria-label="Modelo ${A.esc(p.nome)}"><div style="grid-column:1 / -1"><label class="campo"><span>${p.id === 'ollama' ? 'URL base do Ollama' : `Chave da API ${A.esc(p.nome)}`}</span><input type="${p.id === 'ollama' ? 'url' : 'password'}" data-chave-provedor="${A.esc(p.id)}" autocomplete="off" placeholder="${p.configurado ? 'deixe em branco para manter a atual' : (p.id === 'ollama' ? 'http://localhost:11434' : 'cole a chave deste provedor')}"></label></div></div>`).join('')}</div>
         <div style="display:flex;gap:8px">
           <button class="btn" id="salvarIA">Salvar</button>
           <button class="btn vazio" id="testarIA">Testar conexão</button>
         </div>
         <div id="statusIA" style="margin-top:12px"></div>
         <hr class="sep">
-        <p class="mini">Variáveis aceitas: <span class="mono">ANTHROPIC_API_KEY</span>, <span class="mono">OPENAI_API_KEY</span>, <span class="mono">GOOGLE_AI_API_KEY</span>, <span class="mono">GROQ_API_KEY</span> e <span class="mono">OLLAMA_BASE_URL</span>.</p>
+        <p class="mini">As chaves não são mostradas novamente. Para trocar uma, cole a nova chave na linha do provedor e salve.</p>
       </div>
     </div>
     <div class="cartao"><h2>Documentos indexados</h2>
@@ -295,11 +293,10 @@ Telas.conhecimento = async (el) => {
         <span class="mini">${A.esc(t.conteudo.slice(0, 380))}…</span></div>`).join('') || '<div class="mini">Nada encontrado.</div>';
   };
   document.getElementById('salvarIA').onclick = async () => {
-    const corpo = { modelo: el.querySelector('[name="modelo"]').value, especialista_fiscal_ativo: el.querySelector('[name="especialista_fiscal_ativo"]')?.checked || false,
+    const corpo = { modelo: ia.modelo, especialista_fiscal_ativo: el.querySelector('[name="especialista_fiscal_ativo"]')?.checked || false,
       especialista_painel_ativo: el.querySelector('[name="especialista_painel_ativo"]')?.checked || false,
-      provedores: provedores.map((p) => ({ id: p.id, papel: el.querySelector(`[data-papel-provedor="${p.id}"]`).value, modelo: el.querySelector(`[data-modelo-provedor="${p.id}"]`).value.trim() })) };
-    const k = el.querySelector('[name="api_key"]').value.trim();
-    if (k) corpo.api_key = k;
+      provedores: provedores.map((p) => ({ id: p.id, papel: el.querySelector(`[data-papel-provedor="${p.id}"]`).value, modelo: el.querySelector(`[data-modelo-provedor="${p.id}"]`).value.trim() })),
+      chaves: Object.fromEntries(provedores.map((p) => [p.id, el.querySelector(`[data-chave-provedor="${p.id}"]`).value.trim()])) };
     await A.api('/ia/config', { metodo: 'POST', corpo });
     A.toast('Configuração salva', 'ok'); A.ir('conhecimento');
   };
