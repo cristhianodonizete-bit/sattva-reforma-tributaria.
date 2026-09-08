@@ -917,6 +917,10 @@ CREATE TABLE IF NOT EXISTS projeto_tarefas (
   titulo TEXT NOT NULL, descricao TEXT, status TEXT DEFAULT 'aberta',
   data_abertura TEXT, data_conclusao TEXT,
   envolve_cliente INTEGER DEFAULT 0, pendencia_cliente TEXT, interacoes_cliente TEXT,
+  -- Campos do SLA também fazem parte da criação inicial. Bancos anteriores
+  -- recebem estas colunas em migrarEsquema(), antes de qualquer índice.
+  obrigatoria INTEGER DEFAULT 0, sla_marco_id INTEGER, prazo_original TEXT,
+  prorrogado_em TEXT, justificativa_prorrogacao TEXT,
   criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT
 );
 
