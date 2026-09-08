@@ -11,6 +11,7 @@
  */
 const db = require('../db');
 const rag = require('./rag');
+const supabase = require('./supabase');
 const { CLAUSULAS } = require('../config/conteudo');
 
 const API = 'https://api.anthropic.com/v1/messages';
@@ -103,6 +104,43 @@ function salvarConfig({ api_key, modelo, especialista_fiscal_ativo, especialista
       modelo || 'claude-sonnet-5', especialista_fiscal_ativo === undefined ? Number(atual.especialista_fiscal_ativo || 0) : (especialista_fiscal_ativo ? 1 : 0),
       especialista_painel_ativo === undefined ? Number(atual.especialista_painel_ativo || 0) : (especialista_painel_ativo ? 1 : 0), JSON.stringify(lista));
   return config();
+}
+
+function linhaLocal() {
+  return db.prepare('SELECT api_key,modelo,especialista_fiscal_ativo,especialista_painel_ativo,provedores_json,atualizado_em FROM ia_config WHERE id=1').get() || {};
+}
+function aplicarLinhaCompartilhada(registro) {
+  if (!registro) return;
+  db.prepare(`INSERT INTO ia_config (id,api_key,modelo,especialista_fiscal_ativo,especialista_painel_ativo,provedores_json,atualizado_em)
+    VALUES (1,?,?,?,?,?,?)
+    ON CONFLICT(id) DO UPDATE SET api_key=excluded.api_key,modelo=excluded.modelo,especialista_fiscal_ativo=excluded.especialista_fiscal_ativo,
+      especialista_painel_ativo=excluded.especialista_painel_ativo,provedores_json=excluded.provedores_json,atualizado_em=excluded.atualizado_em`)
+    .run(String(registro.api_key || ''), String(registro.modelo || 'claude-sonnet-5'), registro.especialista_fiscal_ativo ? 1 : 0,
+      registro.especialista_painel_ativo ? 1 : 0, JSON.stringify(registro.provedores_json || []), registro.atualizado_em || new Date().toISOString());
+}
+function registroParaCompartilhar(linha = linhaLocal()) {
+  return { id:1, api_key:String(linha.api_key || ''), modelo:String(linha.modelo || 'claude-sonnet-5'),
+    especialista_fiscal_ativo:Boolean(linha.especialista_fiscal_ativo), especialista_painel_ativo:Boolean(linha.especialista_painel_ativo),
+    provedores_json:jsonSeguro(linha.provedores_json, []), atualizado_em:new Date().toISOString() };
+}
+async function sincronizarCompartilhado() {
+  if (!supabase.configurado()) return config();
+  const remoto = supabase.admin();
+  const { data, error } = await remoto.from('ia_config_compartilhada').select('*').eq('id',1).maybeSingle();
+  if (error) throw new Error(`Não foi possível ler a configuração compartilhada de IA: ${error.message}`);
+  if (data) aplicarLinhaCompartilhada(data);
+  else {
+    const { error: erroSalvar } = await remoto.from('ia_config_compartilhada').upsert(registroParaCompartilhar(), { onConflict:'id' });
+    if (erroSalvar) throw new Error(`Não foi possível iniciar a configuração compartilhada de IA: ${erroSalvar.message}`);
+  }
+  return config();
+}
+async function salvarConfigCompartilhada(dados) {
+  const resultado = salvarConfig(dados);
+  if (!supabase.configurado()) return resultado;
+  const { error } = await supabase.admin().from('ia_config_compartilhada').upsert(registroParaCompartilhar(), { onConflict:'id' });
+  if (error) throw new Error(`A configuração foi salva localmente, mas não pôde ser preservada: ${error.message}`);
+  return resultado;
 }
 
 async function chamarAnthropic(mensagens, { sistema, maxTokens, temperatura, provedor, chave }) {
@@ -313,4 +351,4 @@ Seja direto e técnico. Sem introduções longas.`, maxTokens: 3000, temperatura
   return { resposta: r.texto, fontes: contexto.trechos };
 }
 
-module.exports = { config, salvarConfig, chamar, extrairTexto, analisarContrato, perguntar, classificar };
+module.exports = { config, salvarConfig, sincronizarCompartilhado, salvarConfigCompartilhada, chamar, extrairTexto, analisarContrato, perguntar, classificar };

@@ -3538,9 +3538,10 @@ router.get('/empresas/:id/painel', async (req, res) => {
 // ===========================================================================
 // BASE DE CONHECIMENTO (RAG) E IA
 // ===========================================================================
-router.get('/conhecimento', (_req, res) => ok(res, {
-  documentos: rag.listar(), estatisticas: rag.estatisticas(), ia: { ...ia.config(), chave: undefined },
-}));
+router.get('/conhecimento', async (_req, res) => { try {
+  await ia.sincronizarCompartilhado();
+  ok(res, { documentos: rag.listar(), estatisticas: rag.estatisticas(), ia: { ...ia.config(), chave: undefined } });
+} catch(e) { erro(res,e); } });
 
 router.post('/conhecimento', (req, res) => {
   try {
@@ -3552,6 +3553,7 @@ router.post('/conhecimento', (req, res) => {
 
 router.post('/conhecimento/upload', upload.single('arquivo'), async (req, res) => {
   try {
+    await ia.sincronizarCompartilhado();
     if (!req.file) throw new Error('Envie o arquivo no campo "arquivo".');
     const { tipo } = ia.classificar(req.file.originalname, req.file.mimetype);
     const { texto } = await ia.extrairTexto(req.file);
@@ -3576,24 +3578,24 @@ router.get('/conhecimento/buscar', (req, res) => {
 });
 
 router.post('/conhecimento/perguntar', async (req, res) => {
-  try { ok(res, await ia.perguntar(req.body.pergunta || '')); } catch (e) { erro(res, e); }
+  try { await ia.sincronizarCompartilhado(); ok(res, await ia.perguntar(req.body.pergunta || '')); } catch (e) { erro(res, e); }
 });
 
-router.get('/ia/config', (_req, res) => {
-  const c = ia.config();
+router.get('/ia/config', async (_req, res) => { try {
+  const c = await ia.sincronizarCompartilhado();
   ok(res, { config: { modelo: c.modelo, ativo: c.ativo, origemChave: c.origemChave, especialistaFiscalAtivo: c.especialistaFiscalAtivo,
     especialistaPainelAtivo: c.especialistaPainelAtivo, provedorPrincipal: c.provedorPrincipal, provedores: c.provedores } });
-});
+} catch(e) { erro(res,e); } });
 
-router.post('/ia/config', (req, res) => {
-  try { const c = ia.salvarConfig(req.body); ok(res, { config: { modelo: c.modelo, ativo: c.ativo, origemChave: c.origemChave, especialistaFiscalAtivo: c.especialistaFiscalAtivo,
+router.post('/ia/config', async (req, res) => {
+  try { await ia.sincronizarCompartilhado(); const c = await ia.salvarConfigCompartilhada(req.body); ok(res, { config: { modelo: c.modelo, ativo: c.ativo, origemChave: c.origemChave, especialistaFiscalAtivo: c.especialistaFiscalAtivo,
     especialistaPainelAtivo: c.especialistaPainelAtivo, provedorPrincipal: c.provedorPrincipal, provedores: c.provedores } }); }
   catch (e) { erro(res, e); }
 });
 
-router.get('/especialista-fiscal', (req, res) => {
+router.get('/especialista-fiscal', async (req, res) => {
   try {
-    const c = ia.config();
+    const c = await ia.sincronizarCompartilhado();
     ok(res, { ativo: c.especialistaFiscalAtivo, ia_configurada: c.ativo, modelo: c.modelo, provedor_principal: c.provedorPrincipal,
       painel_ativo: c.especialistaPainelAtivo, provedores: c.provedores,
       interacoes: especialistaFiscalSenior.historico({ empresaId: req.query.empresa_id, limite: req.query.limite }) });
@@ -3602,6 +3604,7 @@ router.get('/especialista-fiscal', (req, res) => {
 
 router.post('/especialista-fiscal/perguntar', async (req, res) => {
   try {
+    await ia.sincronizarCompartilhado();
     const r = await especialistaFiscalSenior.perguntar({ pergunta: req.body?.pergunta, empresaId: req.body?.empresa_id, usuarioId: req.usuario?.id || null });
     auditar(req, { empresaId: req.body?.empresa_id || null, acao: 'especialista_fiscal_consultado', entidade: 'especialista_fiscal_interacoes', entidadeId: r.id, depois: { fontes: r.fontes.length, modelo: r.modelo } });
     ok(res, r);
@@ -3610,6 +3613,7 @@ router.post('/especialista-fiscal/perguntar', async (req, res) => {
 
 router.post('/ia/testar', async (_req, res) => {
   try {
+    await ia.sincronizarCompartilhado();
     const r = await ia.chamar([{ role: 'user', content: 'Responda apenas: conexao ok' }], { maxTokens: 20 });
     ok(res, { resposta: r.texto.trim(), modelo: ia.config().modelo });
   } catch (e) { erro(res, e); }
