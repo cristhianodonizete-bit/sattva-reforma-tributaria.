@@ -3614,8 +3614,10 @@ router.post('/especialista-fiscal/perguntar', async (req, res) => {
 router.post('/ia/testar', async (_req, res) => {
   try {
     await ia.sincronizarCompartilhado();
-    const r = await ia.chamar([{ role: 'user', content: 'Responda apenas: conexao ok' }], { maxTokens: 20 });
-    ok(res, { resposta: r.texto.trim(), modelo: ia.config().modelo });
+    // Teste explícito da principal: não disfarça uma falha da OpenAI com a
+    // resposta de uma revisora em fallback.
+    const r = await ia.chamar([{ role: 'user', content: 'Responda apenas: conexao ok' }], { maxTokens: 20, fallback:false });
+    ok(res, { resposta: r.texto.trim(), modelo: r.modelo, provedor:r.provedor });
   } catch (e) { erro(res, e); }
 });
 

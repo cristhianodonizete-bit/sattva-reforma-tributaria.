@@ -314,7 +314,7 @@ Telas.conhecimento = async (el) => {
     const box = document.getElementById('statusIA');
     box.innerHTML = '<div class="carregando">Testando…</div>';
     try { const r = await A.api('/ia/testar', { metodo: 'POST' });
-      box.innerHTML = `<div class="aviso bom"><b>Conexão ok</b>${A.esc(r.modelo)} respondeu: ${A.esc(r.resposta)}</div>`; }
+      box.innerHTML = `<div class="aviso bom"><b>Conexão ok</b>${A.esc(r.provedor || 'IA principal')} · ${A.esc(r.modelo)} respondeu: ${A.esc(r.resposta)}</div>`; }
     catch (e) { box.innerHTML = `<div class="aviso alto"><b>Falhou</b>${A.esc(e.message)}</div>`; }
   };
   el.querySelectorAll('[data-rd]').forEach((b) => { b.onclick = () => A.confirmar('Remover este documento da base?', async () => {
