@@ -44,7 +44,13 @@ function catalogoServico(db, nbs, lc116) {
   const porNbs = chave(nbs); const porLc = texto(lc116);
   return db.prepare('SELECT * FROM base_servicos WHERE (nbs<>\'\' AND nbs=?) OR (lc116<>\'\' AND lc116=?) ORDER BY id DESC').get(porNbs, porLc) || null;
 }
-function condicaoCbs(regra, empresaId) {
+function operacaoEsperada(item, regra) {
+  const direcao=texto(regra.direcao).toUpperCase(); const tipo=texto(regra.tipo_operacao || regra.operacao_pis_cofins);
+  if (direcao) return `${direcao} — ${tipo || (item.tipo==='SERVIÇO' ? 'prestação do serviço' : 'venda da mercadoria')}`;
+  if (item.tipo==='SERVIÇO') return `SAÍDA — prestação do serviço${texto(regra.onerosa) ? ` · operação onerosa: ${texto(regra.onerosa)}` : ''}${texto(regra.exterior) ? ` · exterior: ${texto(regra.exterior)}` : ''}`;
+  return `SAÍDA — venda da mercadoria${texto(regra.papel_na_cadeia_necessario) ? ` · papel na cadeia: ${texto(regra.papel_na_cadeia_necessario)}` : ''}`;
+}
+function condicaoCbs(regra, empresaId, item) {
   const codigo=texto(regra.cclasstrib);
   if (codigo==='200044') {
     const qsa=qsaEmpresa(empresaId);
@@ -52,7 +58,7 @@ function condicaoCbs(regra, empresaId) {
   }
   if (codigo==='200043') return { texto:'Destinatário deve ser ente público elegível (administração direta, autarquia ou fundação pública).', status:'PENDENTE', detalhe:'Confirmar natureza jurídica do destinatário na operação.' };
   const condicoes=unico([texto(regra.condicoes_obrigatorias), texto(regra.condicoes), texto(regra.direcao) ? `Operação: ${texto(regra.direcao)}` : '', texto(regra.perfil_adquirente) ? `Destinatário: ${texto(regra.perfil_adquirente)}` : '']);
-  return { texto:condicoes.join(' · ') || 'Confirmar item, operação, vigência e demais fatos exigidos.', status:'PENDENTE', detalhe:'' };
+  return { texto:condicoes.join(' · ') || 'Sem fato condicional adicional identificado na regra catalogada.', status:condicoes.length ? 'PENDENTE' : 'NAO_APLICAVEL', detalhe:'' };
 }
 function hipotesesCbs(db, empresaId, item) {
   const base = item.tipo==='NCM'
@@ -63,8 +69,8 @@ function hipotesesCbs(db, empresaId, item) {
     : db.prepare("SELECT * FROM regras_enquadramento WHERE status='ATIVA' AND ((nbs<>'' AND nbs=?) OR (lc116<>'' AND lc116=?)) ORDER BY prioridade DESC").all(chave(item.nbs),texto(item.lc116));
   const candidatos=[...base,...regras].filter((x)=>texto(x.cclasstrib)); const vistos=new Set();
   return candidatos.filter((x)=>{ const id=texto(x.cclasstrib); if(vistos.has(id)) return false; vistos.add(id); return true; }).map((x)=>{
-    const condicao=condicaoCbs(x,empresaId); const reducao=item.tipo==='NCM' ? (x.reducao_cbs ?? x.reducao ?? 'integral') : (x.reducao ?? 'integral');
-    return { cclasstrib:texto(x.cclasstrib), cst:texto(x.cst) || texto(x.cclasstrib).slice(0,3), descricao:texto(x.classificacao || x.nome_cclasstrib || x.tratamento_resultante), reducao:String(reducao), condicao };
+    const condicao=condicaoCbs(x,empresaId,item); const reducao=item.tipo==='NCM' ? (x.reducao_cbs ?? x.reducao ?? 'integral') : (x.reducao ?? 'integral');
+    return { cclasstrib:texto(x.cclasstrib), cst:texto(x.cst) || texto(x.cclasstrib).slice(0,3), descricao:texto(x.classificacao || x.nome_cclasstrib || x.tratamento_resultante), reducao:String(reducao), operacao:operacaoEsperada(item,x), condicao };
   });
 }
 function itemProduto(db, item, empresaId) {
