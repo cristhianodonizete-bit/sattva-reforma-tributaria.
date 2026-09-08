@@ -717,7 +717,10 @@ Telas.questor = async (el) => {
   document.getElementById('importarApuracaoQuestor').onclick = async () => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
     const r = await A.api(`/empresas/${S.empresaId}/questor/conector/apuracao-pis-cofins`, {metodo:'POST',corpo:{}});
-    A.toast(`Apuração PIS/COFINS solicitada para ${r.periodo.data_inicio} até ${r.periodo.data_fim}. Acompanhe em Processamento das solicitações.`, 'ok');
+    const mensagem = r.quantidade_solicitada
+      ? `${r.quantidade_solicitada} competência(s) de apuração foram solicitadas. Acompanhe em Processamento das solicitações.`
+      : 'Não há competência pendente para importar neste período.';
+    A.toast(mensagem, 'ok');
     A.ir('questor');
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');

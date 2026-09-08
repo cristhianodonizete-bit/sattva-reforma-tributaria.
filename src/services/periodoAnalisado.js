@@ -124,4 +124,4 @@ function cobertura(empresaId, { banco = dbPadrao } = {}) {
   return { periodo, competencias:esperadas, cobertas:esperadas.filter((x) => dentro.has(x)), faltantes:esperadas.filter((x) => !dentro.has(x)), fora_do_periodo:encontradas.filter((x) => competenciaValida(x) && !noPeriodo(x, periodo)).length };
 }
 
-module.exports = { obter, salvar, exigir, cobertura, noPeriodo, competenciaValida, dataInicio, dataFim, janelaApuracao, sincronizarCompartilhado, salvarCompartilhado };
+module.exports = { obter, salvar, exigir, cobertura, noPeriodo, competenciaValida, dataInicio, dataFim, deslocarMes, janelaApuracao, sincronizarCompartilhado, salvarCompartilhado };

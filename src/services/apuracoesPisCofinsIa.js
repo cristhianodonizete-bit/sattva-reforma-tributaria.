@@ -227,8 +227,19 @@ function reprocessar(db, empresaId, apuracaoId, camposBrutos, versaoModeloExtrac
   return listarParaRevisao(db, empresaId).find((x) => Number(x.id) === Number(apuracaoId));
 }
 
-function importarRelatorioQuestor(db, empresaId, textoRelatorio) {
+function importarRelatorioQuestor(db, empresaId, textoRelatorio, { competenciaSolicitada = null } = {}) {
   const campos = normalizarTextoDeterministico(textoRelatorio, { metodo:'QUESTOR_NWEB_RELATORIO_V1' });
+  // O relatório de totalização por produto do Questor não exibe a competência
+  // em todos os layouts. Cada solicitação é feita para somente um mês; nesse
+  // caso a competência enviada ao nWeb é uma referência auditável, e não uma
+  // estimativa extraída do valor retornado.
+  if (!campos.competencia?.valor_extraido && competencia(competenciaSolicitada)) {
+    campos.competencia = {
+      valor_extraido: competenciaSolicitada, origem_documento:'SOLICITACAO_QUESTOR', pagina_ou_localizacao:null,
+      rotulo_original:'Competência solicitada ao nWeb', confianca:1, metodo_extracao:'QUESTOR_NWEB_PARAMETRO_V1',
+      status_validacao:'VALIDADO_AUTOMATICAMENTE',
+    };
+  }
   const competenciaExtraida = campos.competencia?.valor_extraido;
   if (!competenciaExtraida) throw new Error('O relatório Questor não informou uma competência identificável.');
   const existente = db.prepare('SELECT id FROM pis_cofins_apuracoes_historicas WHERE empresa_id=? AND competencia=? LIMIT 1').get(empresaId, competenciaExtraida);
