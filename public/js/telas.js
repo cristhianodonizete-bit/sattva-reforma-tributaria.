@@ -1054,16 +1054,20 @@ async function telaCadeia(el, tipo) {
 // itens já presentes no cadastro ou nos documentos para orientar validação.
 Telas.mapaOperacional = async (el) => {
   const d = await A.api(`/empresas/${S.empresaId}/mapa-operacional`);
+  // Uma linha para cada hipótese CBS: a repetição proposital de CNAE e item
+  // permite filtrar/exportar como uma consulta de banco de dados, sem células
+  // que escondam alternativas tributárias distintas.
+  const linhas = (d.correlacoes || []).flatMap((item) => (item.hipoteses_cbs?.length ? item.hipoteses_cbs : [{ cclasstrib:'—', cst:'—', descricao:'Hipótese CBS não localizada.', reducao:'—', condicao:{ status:'PENDENTE', texto:'Validar item, operação e vigência.', detalhe:'' } }]).map((hipotese) => ({ ...item, hipotese })));
   el.innerHTML = cab('DIAGNÓSTICO · MAPA OPERACIONAL', 'Possibilidades tributárias por atividade',
     'CNAE → item potencial → regra atual de PIS/Cofins → CBS e benefícios. Nada desta tela entra no motor até ser confirmado.') +
-    `<section class="cartao"><div class="cabecalho-lista"><div><div class="olho">CORRELAÇÕES INDICATIVAS</div><h2>Itens que podem fazer parte da operação</h2><p class="desc">A relação usa a descrição das atividades cadastradas. Confirme o item e as condições antes de considerá-lo na análise.</p></div><span class="tag n">${d.correlacoes.length} possibilidade(s)</span></div>
-    ${d.correlacoes.length ? A.tabela([
+    `<section class="cartao"><div class="cabecalho-lista"><div><div class="olho">CORRELAÇÕES INDICATIVAS</div><h2>Itens que podem fazer parte da operação</h2><p class="desc">Uma linha por hipótese CBS. A repetição dos dados permite analisar, filtrar e exportar a matriz como uma base de dados.</p></div><span class="tag n">${linhas.length} linha(s)</span></div>
+    ${linhas.length ? A.tabela([
       {t:'Atividade',r:x=>`<b class="mono">${A.esc(x.cnae)}</b><div class="mini">${A.esc(x.atividade)}</div>`},
       {t:'Possível item',r:x=>`<b>${A.esc(x.tipo)}</b> <span class="mono">${A.esc(x.codigo || '—')}${x.lc116?` · LC ${A.esc(x.lc116)}`:''}</span><div class="mini">${A.esc(x.descricao||'Descrição não disponível')}</div>`},
       {t:'PIS/Cofins atual',r:x=>x.pis_cofins?.length?x.pis_cofins.map(A.esc).join('<br>'):A.esc(x.tratamento_atual||'A validar no catálogo')},
-      {t:'CBS / cClassTrib',r:x=>x.hipoteses_cbs?.length?x.hipoteses_cbs.map(h=>`<b class="mono">${A.esc(h.cclasstrib)}</b> · CST ${A.esc(h.cst||'—')}<br><span class="mini">${A.esc(h.descricao||`CBS: ${h.reducao}`)}${h.descricao?` · ${A.esc(h.reducao)}`:''}</span>`).join('<hr class="sep">'):'<span class="mini">Hipótese CBS não localizada.</span>'},
-      {t:'Quando pode aplicar',r:x=>`${x.hipoteses_cbs?.length?x.hipoteses_cbs.map(h=>`<b>${A.esc(h.condicao.status)}</b> · ${A.esc(h.condicao.texto)}${h.condicao.detalhe?`<br><span class="mini">${A.esc(h.condicao.detalhe)}</span>`:''}`).join('<hr class="sep">'):'Validar item, operação e vigência.'}<div class="mini" style="margin-top:5px">Confiança ${A.esc(x.confianca.toLowerCase())}</div>`},
-    ],d.correlacoes) : '<div class="aviso"><b>Não há correlações automáticas seguras para as descrições atuais.</b> Atualize o CNAE/atividade no cadastro ou cadastre os produtos e serviços efetivamente ofertados; o sistema não inventará códigos ou benefícios.</div>'}
+      {t:'CBS / cClassTrib',r:x=>`<b class="mono">${A.esc(x.hipotese.cclasstrib)}</b> · CST ${A.esc(x.hipotese.cst||'—')}<br><span class="mini">${A.esc(x.hipotese.descricao||`CBS: ${x.hipotese.reducao}`)}${x.hipotese.descricao?` · ${A.esc(x.hipotese.reducao)}`:''}</span>`},
+      {t:'Quando pode aplicar',r:x=>`<b>${A.esc(x.hipotese.condicao.status)}</b> · ${A.esc(x.hipotese.condicao.texto)}${x.hipotese.condicao.detalhe?`<br><span class="mini">${A.esc(x.hipotese.condicao.detalhe)}</span>`:''}<div class="mini" style="margin-top:5px">Confiança ${A.esc(x.confianca.toLowerCase())}</div>`},
+    ],linhas) : '<div class="aviso"><b>Não há correlações automáticas seguras para as descrições atuais.</b> Atualize o CNAE/atividade no cadastro ou cadastre os produtos e serviços efetivamente ofertados; o sistema não inventará códigos ou benefícios.</div>'}
     </section><div class="aviso" style="margin-top:16px"><b>Segurança</b> · ${A.esc(d.aviso)}</div>`;
 };
 
