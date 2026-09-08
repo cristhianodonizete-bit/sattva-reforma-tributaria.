@@ -259,7 +259,7 @@ router.get('/cadastros-cnpj', async (req, res) => {
     const tamanho = Math.min(100, Math.max(10, Number(req.query.tamanho) || 25));
     const busca = String(req.query.busca || '').replace(/[^\w\s.\-\/]/g, '').trim();
     let consulta = supabase.admin().from('cadastros_cnpj')
-      .select('cnpj,razao_social,situacao,porte,uf,municipio,regime_derivado,natureza_juridica,codigo_natureza_juridica,efr,fonte,consultado_em', { count: 'exact' })
+      .select('cnpj,razao_social,situacao,porte,cnae,cnae_descricao,cnaes_secundarios,uf,municipio,logradouro,numero,complemento,bairro,cep,regime_derivado,natureza_juridica,codigo_natureza_juridica,efr,fonte,consultado_em', { count: 'exact' })
       .order('consultado_em', { ascending: false });
     if (busca) consulta = consulta.or(`cnpj.ilike.%${busca}%,razao_social.ilike.%${busca}%`);
     const { data, error, count } = await consulta.range((pagina - 1) * tamanho, pagina * tamanho - 1);
@@ -270,8 +270,14 @@ router.get('/cadastros-cnpj', async (req, res) => {
     const cadastros = (data || []).map((x) => {
       const cnpj = String(x.cnpj || '').replace(/\D/g, '');
       const r = rfb.get(cnpj) || rfb.get(cnpj.slice(0, 8));
-      return { ...x, regime_derivado: r?.regime || null,
-        fonte_regime: r ? `RFB ${r.ano}` : 'Sem correspondência na RFB 2024' };
+      // O regime cadastral não é substituído por uma consulta histórica. A
+      // base RFB anual apenas supre o campo quando o CNPJ ainda não possui
+      // regime no cadastro compartilhado, sempre com sua fonte explícita.
+      const regime = x.regime_derivado || r?.regime || null;
+      const fonteRegime = x.regime_derivado
+        ? `RFB — consulta cadastral (${x.fonte || 'fonte não informada'})`
+        : r ? `Base RFB ${r.ano}` : 'Regime ainda não informado';
+      return { ...x, regime, fonte_regime: fonteRegime };
     });
     ok(res, { cadastros, total: count || 0, pagina, tamanho });
   } catch (e) { erro(res, e); }

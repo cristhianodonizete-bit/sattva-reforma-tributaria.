@@ -491,6 +491,11 @@ Telas.configComercial = async (el) => {
 // ===========================================================================
 Telas.cadastrosCnpj = async (el) => {
   let pagina = 1; let busca = '';
+  const cnaesSecundarios = (valor) => {
+    if (Array.isArray(valor)) return valor;
+    try { return JSON.parse(valor || '[]'); } catch (_) { return []; }
+  };
+  const rotuloRegime = (regime) => A.regimeLabel(regime) || regime || 'Não informado';
   const render = async () => {
     const r = await A.api(`/cadastros-cnpj?pagina=${pagina}&busca=${encodeURIComponent(busca)}`);
     const totalPaginas = Math.max(1, Math.ceil(r.total / r.tamanho));
@@ -500,9 +505,11 @@ Telas.cadastrosCnpj = async (el) => {
         <div class="mini" style="margin-top:14px"><b>${r.total.toLocaleString('pt-BR')}</b> cadastro(s) central(is) · página ${pagina} de ${totalPaginas}</div>
         ${A.tabela([
           { t: 'CNPJ / razão social', r: (x) => `<span class="mono">${A.esc(x.cnpj)}</span><div><b>${A.esc(x.razao_social || 'Sem razão social')}</b></div><div class="mini">${A.esc([x.municipio, x.uf].filter(Boolean).join(' / ') || 'localidade não informada')}</div>` },
-          { t: 'Regime na RFB', r: (x) => `<span class="tag">${A.esc(A.regimeLabel(x.regime_derivado) || x.regime_derivado || 'A validar')}</span><div class="mini">${A.esc(x.fonte_regime || '')}</div>` },
+          { t: 'Regime', r: (x) => `<span class="tag">${A.esc(rotuloRegime(x.regime))}</span><div class="mini">${A.esc(x.fonte_regime || '')}</div>` },
+          { t: 'CNAE / endereço', r: (x) => `<span class="mono mini">${A.esc(x.cnae || 'CNAE não informado')}</span><div class="mini">${A.esc(x.cnae_descricao || '')}</div><div class="mini">${A.esc([x.municipio, x.uf].filter(Boolean).join(' / ') || 'Endereço não informado')}</div>` },
           { t: 'Natureza / EFR', r: (x) => `<span class="mini">${A.esc(x.natureza_juridica || 'não informado')}</span>${x.efr ? `<div class="mini">EFR: ${A.esc(x.efr)}</div>` : ''}` },
           { t: 'Fonte', r: (x) => `<span class="mini">${A.esc(x.fonte || '—')}</span><div class="mini">${A.esc(x.consultado_em || '')}</div>` },
+          { t: '', r: (x) => `<button class="btn pq vazio" data-cc-detalhe="${A.esc(x.cnpj)}">Ver cadastro</button>` },
         ], r.cadastros, { vazio: 'Nenhum CNPJ centralizado ainda. Os cadastros são incluídos automaticamente na primeira consulta oficial.' })}
         <div class="acoes-topo" style="margin-top:14px"><button class="btn vazio" id="ccAnterior" ${pagina <= 1 ? 'disabled' : ''}>Anterior</button><button class="btn vazio" id="ccProximo" ${pagina >= totalPaginas ? 'disabled' : ''}>Próxima</button></div></div>`;
     document.getElementById('ccBuscar').onkeydown = (e) => { if (e.key === 'Enter') { busca = e.target.value.trim(); pagina = 1; render(); } };
@@ -510,6 +517,33 @@ Telas.cadastrosCnpj = async (el) => {
     document.getElementById('ccBuscar').closest('.cartao').querySelector('#ccBuscar').onclick = () => { busca = document.getElementById('ccBusca').value.trim(); pagina = 1; render(); };
     document.getElementById('ccAnterior').onclick = () => { pagina--; render(); };
     document.getElementById('ccProximo').onclick = () => { pagina++; render(); };
+    el.querySelectorAll('[data-cc-detalhe]').forEach((botao) => { botao.onclick = () => {
+      const cadastro = r.cadastros.find((x) => String(x.cnpj) === String(botao.dataset.ccDetalhe));
+      if (!cadastro) return;
+      const secundarios = cnaesSecundarios(cadastro.cnaes_secundarios);
+      A.modal({ titulo: `Cadastro CNPJ — ${cadastro.razao_social || cadastro.cnpj}`, largura: 780, confirmar: 'Fechar',
+        corpo: `<div class="grade g3">
+          ${A.kpi('CNPJ', A.esc(cadastro.cnpj || '—'))}
+          ${A.kpi('Situação cadastral', A.esc(cadastro.situacao || 'Não informada'))}
+          ${A.kpi('Porte', A.esc(cadastro.porte || 'Não informado'))}
+        </div>
+        <h3 class="subtitulo-modal">Enquadramento</h3>
+        <table class="tabela compacta"><tbody>
+          <tr><th>Regime</th><td>${A.esc(rotuloRegime(cadastro.regime))}</td></tr>
+          <tr><th>Fonte do regime</th><td>${A.esc(cadastro.fonte_regime || 'Não informada')}</td></tr>
+          <tr><th>Natureza jurídica</th><td>${A.esc([cadastro.codigo_natureza_juridica, cadastro.natureza_juridica].filter(Boolean).join(' · ') || 'Não informada')}</td></tr>
+          <tr><th>Ente federativo responsável</th><td>${A.esc(cadastro.efr || 'Não informado')}</td></tr>
+        </tbody></table>
+        <h3 class="subtitulo-modal">Atividades econômicas</h3>
+        <div class="aviso"><b>${A.esc(cadastro.cnae || 'CNAE principal não informado')}</b>${cadastro.cnae_descricao ? ` · ${A.esc(cadastro.cnae_descricao)}` : ''}<br><span class="mini">CNAE principal</span></div>
+        ${secundarios.length ? `<div class="mini" style="margin-top:10px"><b>Atividades secundárias (${secundarios.length})</b><br>${secundarios.map((item) => `${A.esc(item.codigo || '')}${item.codigo && item.descricao ? ' · ' : ''}${A.esc(item.descricao || '')}`).join('<br>')}</div>` : '<div class="mini" style="margin-top:10px">Nenhuma atividade secundária retornada pela fonte.</div>'}
+        <h3 class="subtitulo-modal">Localização e proveniência</h3>
+        <table class="tabela compacta"><tbody>
+          <tr><th>Endereço</th><td>${A.esc([[cadastro.logradouro, cadastro.numero].filter(Boolean).join(', '), cadastro.complemento, cadastro.bairro, [cadastro.municipio, cadastro.uf].filter(Boolean).join(' / '), cadastro.cep ? `CEP ${cadastro.cep}` : ''].filter(Boolean).join(' · ') || 'Não informado')}</td></tr>
+          <tr><th>Fonte</th><td>${A.esc(cadastro.fonte || 'Não informada')}</td></tr>
+          <tr><th>Consultado em</th><td>${A.esc(cadastro.consultado_em || 'Não informado')}</td></tr>
+        </tbody></table>` });
+    }; });
   };
   await render();
 };

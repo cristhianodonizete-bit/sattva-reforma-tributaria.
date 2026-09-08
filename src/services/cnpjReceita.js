@@ -88,6 +88,8 @@ const PROVEDORES = {
         cnae_descricao: atividade?.descricao || (typeof d.atividade_economica === 'string' ? d.atividade_economica : '') || d.cnae_descricao || '',
         cnaes_secundarios: normalizarCnaesSecundarios(d.atividades_secundarias, d.atividade_economica_secundaria, d.atividade_economica_secundaria_lista, d.cnaes_secundarios),
         uf: d.endereco_uf || d.uf || '', municipio: d.endereco_municipio || d.municipio || '',
+        logradouro: d.endereco_logradouro || d.logradouro || '', numero: d.endereco_numero || d.numero || '',
+        complemento: d.endereco_complemento || d.complemento || '', bairro: d.endereco_bairro || d.bairro || '', cep: d.endereco_cep || d.cep || '',
         natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.natureza_juridica_codigo || ''), efr: d.efr || '',
         // A consulta de CNPJ não confirma opção pelo Simples; não inferir.
         opcao_simples_desconhecida:true, optante_simples:null, optante_mei:null,
@@ -110,7 +112,8 @@ const PROVEDORES = {
       cnae: String(d.cnae_fiscal || ''),
       cnae_descricao: d.cnae_fiscal_descricao || '',
       cnaes_secundarios: normalizarCnaesSecundarios(d.cnaes_secundarios),
-      uf: d.uf || '', municipio: d.municipio || '',
+      uf: d.uf || '', municipio: d.municipio || '', logradouro: d.logradouro || '', numero: d.numero || '',
+      complemento: d.complemento || '', bairro: d.bairro || '', cep: d.cep || '',
       natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.codigo_natureza_juridica || ''),
       efr: d.ente_federativo_responsavel || '',
       optante_simples: d.opcao_pelo_simples === true,
@@ -137,7 +140,8 @@ const PROVEDORES = {
         cnae: String(atividadePrincipal.code || atividadePrincipal.codigo || d.cnae || ''),
         cnae_descricao: atividadePrincipal.text || atividadePrincipal.descricao || d.cnae_descricao || '',
         cnaes_secundarios: normalizarCnaesSecundarios(d.atividades_secundarias),
-        uf: d.uf || '', municipio: d.municipio || '',
+        uf: d.uf || '', municipio: d.municipio || '', logradouro: d.logradouro || '', numero: d.numero || '',
+        complemento: d.complemento || '', bairro: d.bairro || '', cep: d.cep || '',
         natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.codigo_natureza_juridica || ''),
         efr: d.efr || '', opcao_simples_desconhecida:true, optante_simples:null, optante_mei:null,
         qsa: [],
@@ -161,6 +165,8 @@ const PROVEDORES = {
         cnae_descricao: (d.mainActivity && d.mainActivity.text) || '',
         cnaes_secundarios: normalizarCnaesSecundarios(d.sideActivities, d.secondaryActivities),
         uf: (d.address && d.address.state) || '', municipio: (d.address && d.address.city) || '',
+        logradouro: (d.address && d.address.street) || '', numero: String((d.address && d.address.number) || ''),
+        complemento: (d.address && d.address.details) || '', bairro: (d.address && d.address.district) || '', cep: (d.address && d.address.zip) || '',
         optante_simples: s.optant === true,
         data_opcao_simples: s.since || null, data_exclusao_simples: s.until || null,
         optante_mei: m.optant === true,
@@ -182,6 +188,8 @@ const PROVEDORES = {
       porte: (d.porte_empresa && d.porte_empresa.descricao) || '',
       cnae: '', cnae_descricao: '', cnaes_secundarios: normalizarCnaesSecundarios(d.atividades_secundarias, d.cnaes_secundarios),
       uf: (d.endereco && d.endereco.uf) || '', municipio: (d.endereco && d.endereco.municipio) || '',
+      logradouro: (d.endereco && d.endereco.logradouro) || '', numero: String((d.endereco && d.endereco.numero) || ''),
+      complemento: (d.endereco && d.endereco.complemento) || '', bairro: (d.endereco && d.endereco.bairro) || '', cep: (d.endereco && d.endereco.cep) || '',
       // A resposta v4 documentada não contém opção pelo Simples/SIMEI. Nunca
       // interpretar a ausência desses campos como "não optante".
       opcao_simples_desconhecida: true,
@@ -433,13 +441,14 @@ function doCache(cnpj, validadeDias) {
 function gravarCache(cnpj, d, fonte) {
   const reg = derivarRegime(d);
   db().prepare(`INSERT INTO cnpj_cache (cnpj, razao_social, situacao, porte, cnae, cnae_descricao, cnaes_secundarios,
-    uf, municipio, optante_simples, data_opcao_simples, data_exclusao_simples,
+    uf, municipio, logradouro, numero, complemento, bairro, cep, optante_simples, data_opcao_simples, data_exclusao_simples,
     optante_mei, data_opcao_mei, data_exclusao_mei, regime_derivado, justificativa,
     natureza_juridica, codigo_natureza_juridica, efr, fonte, consultado_em)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?, datetime('now','localtime'))
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?, datetime('now','localtime'))
     ON CONFLICT(cnpj) DO UPDATE SET razao_social=excluded.razao_social, situacao=excluded.situacao,
       porte=excluded.porte, cnae=excluded.cnae, cnae_descricao=excluded.cnae_descricao, cnaes_secundarios=excluded.cnaes_secundarios,
-      uf=excluded.uf, municipio=excluded.municipio,
+      uf=excluded.uf, municipio=excluded.municipio, logradouro=excluded.logradouro, numero=excluded.numero,
+      complemento=excluded.complemento, bairro=excluded.bairro, cep=excluded.cep,
       optante_simples=excluded.optante_simples, data_opcao_simples=excluded.data_opcao_simples,
       data_exclusao_simples=excluded.data_exclusao_simples, optante_mei=excluded.optante_mei,
       data_opcao_mei=excluded.data_opcao_mei, data_exclusao_mei=excluded.data_exclusao_mei,
@@ -447,6 +456,7 @@ function gravarCache(cnpj, d, fonte) {
       natureza_juridica=excluded.natureza_juridica, codigo_natureza_juridica=excluded.codigo_natureza_juridica, efr=excluded.efr,
       fonte=excluded.fonte, consultado_em=datetime('now','localtime')`)
     .run(cnpj, d.razao_social, d.situacao, d.porte, d.cnae, d.cnae_descricao, cnaesSecundariosTexto(d.cnaes_secundarios), d.uf, d.municipio,
+      d.logradouro || '', d.numero || '', d.complemento || '', d.bairro || '', d.cep || '',
       d.optante_simples ? 1 : 0, d.data_opcao_simples, d.data_exclusao_simples,
       d.optante_mei ? 1 : 0, d.data_opcao_mei, d.data_exclusao_mei,
       reg.regime, reg.justificativa, d.natureza_juridica || '', d.codigo_natureza_juridica || '', d.efr || '', fonte);

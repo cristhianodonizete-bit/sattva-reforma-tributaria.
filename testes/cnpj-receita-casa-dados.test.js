@@ -88,11 +88,12 @@ const banco = require('../src/db');
   process.env.INFOSIMPLES_API_KEY = 'token-invalido-para-teste'; chamadas.length = 0;
   global.fetch = async (url, opcoes = {}) => {
     chamadas.push({ url:String(url), headers:opcoes.headers || {} });
-    return { ok:true, status:200, json:async()=>({ razao_social:'Empresa com CNAE', cnae_fiscal:6201501, cnae_fiscal_descricao:'Desenvolvimento de programas sob encomenda', cnaes_secundarios:[{ codigo:6202300, descricao:'Programas customizáveis' }] }) };
+    return { ok:true, status:200, json:async()=>({ razao_social:'Empresa com CNAE', cnae_fiscal:6201501, cnae_fiscal_descricao:'Desenvolvimento de programas sob encomenda', cnaes_secundarios:[{ codigo:6202300, descricao:'Programas customizáveis' }], logradouro:'Rua Fiscal', numero:'100', complemento:'Sala 2', bairro:'Centro', cep:'30100000' }) };
   };
   const cnaeFallback = await consultar('11222333000181', { forcar:true, finalidade:'cnae_carteira' });
   assert.equal(cnaeFallback.cnae, '6201501');
   assert.equal(cnaeFallback.cnaes_secundarios.length, 1);
+  assert.deepEqual([cnaeFallback.logradouro, cnaeFallback.numero, cnaeFallback.complemento, cnaeFallback.bairro, cnaeFallback.cep], ['Rua Fiscal', '100', 'Sala 2', 'Centro', '30100000']);
   assert.equal(chamadas.some(({ url }) => /infosimples/.test(url)), false);
   assert.equal(chamadas.some(({ url }) => /brasilapi/.test(url)), true);
   assert.equal(chamadas.find(({ url }) => /brasilapi/.test(url)).headers['User-Agent'], 'Sattva-Reforma-Tributaria/1.0');

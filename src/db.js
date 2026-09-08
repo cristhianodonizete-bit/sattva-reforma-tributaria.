@@ -120,7 +120,8 @@ const COLUNAS_NOVAS = {
     regime_pis_cofins_receita: 'TEXT', tratamento_pis_cofins: 'TEXT', papel_na_cadeia_necessario: 'TEXT', tratamento_efetivo_saida: 'TEXT', natureza_reconstrucao: 'TEXT', percentual_reconstrucao_sugerido: 'REAL', regra_precedencia: 'TEXT',
   },
   empresas: { cnaes_secundarios: 'TEXT' },
-  cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT', cnaes_secundarios: 'TEXT' },
+  cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT', cnaes_secundarios: 'TEXT',
+    logradouro: 'TEXT', numero: 'TEXT', complemento: 'TEXT', bairro: 'TEXT', cep: 'TEXT' },
   contratos: {
     nome: 'TEXT', moeda: "TEXT DEFAULT 'BRL'", periodicidade_reajuste: 'TEXT', tipo_relacao: 'TEXT',
     renovacao: 'TEXT', observacoes: 'TEXT', arquivo_origem: 'TEXT', status_analise: "TEXT DEFAULT 'NAO_INICIADA'", natureza_contrato: "TEXT DEFAULT 'INDETERMINADO'", natureza_contrato_origem: 'TEXT', natureza_contrato_evidencia: 'TEXT',
@@ -986,6 +987,7 @@ CREATE TABLE IF NOT EXISTS cnpj_cache (
   cnpj TEXT PRIMARY KEY,
   razao_social TEXT, situacao TEXT, porte TEXT,
   cnae TEXT, cnae_descricao TEXT, cnaes_secundarios TEXT, uf TEXT, municipio TEXT,
+  logradouro TEXT, numero TEXT, complemento TEXT, bairro TEXT, cep TEXT,
   optante_simples INTEGER DEFAULT 0, data_opcao_simples TEXT, data_exclusao_simples TEXT,
   optante_mei INTEGER DEFAULT 0, data_opcao_mei TEXT, data_exclusao_mei TEXT,
   regime_derivado TEXT, justificativa TEXT,
