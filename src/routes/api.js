@@ -1372,21 +1372,30 @@ router.post('/planejamento/analises/:id/assistente', async (req, res) => {
 // ATUALIZAÇÕES DA REFORMA — mural de monitoramento e governança. Registros
 // aqui são informativos: não chamam o motor nem publicam regras fiscais.
 const STATUS_ATUALIZACAO_REFORMA = new Set(['NOVA', 'EM_ANALISE', 'APLICADA', 'DESCARTADA']);
-router.get('/atualizacoes-reforma', (req, res) => {
+router.get('/atualizacoes-reforma', async (req, res) => {
   try {
     const status = String(req.query.status || '').trim().toUpperCase();
-    const linhas = db.prepare(`SELECT * FROM atualizacoes_reforma ${status ? 'WHERE status=?' : ''} ORDER BY CASE status WHEN 'NOVA' THEN 0 WHEN 'EM_ANALISE' THEN 1 ELSE 2 END, COALESCE(data_publicacao,'') DESC, id DESC`)
-      .all(...(status ? [status] : []));
-    const eventos = db.prepare('SELECT * FROM atualizacoes_reforma_eventos ORDER BY id DESC').all();
+    let linhas, eventos, fontes;
+    if (supabase.configurado()) {
+      let consulta = supabase.admin().from('atualizacoes_reforma').select('*').order('data_publicacao', { ascending:false }).order('id', { ascending:false });
+      if (status) consulta = consulta.eq('status', status);
+      const [a, e, m] = await Promise.all([consulta, supabase.admin().from('atualizacoes_reforma_eventos').select('*').order('id', { ascending:false }), supabase.admin().from('monitoramento_atualizacoes_reforma').select('*').order('fonte_nome')]);
+      if (a.error || e.error || m.error) throw new Error(a.error?.message || e.error?.message || m.error?.message);
+      linhas = a.data || []; eventos = e.data || []; fontes = m.data || [];
+    } else {
+      linhas = db.prepare(`SELECT * FROM atualizacoes_reforma ${status ? 'WHERE status=?' : ''} ORDER BY CASE status WHEN 'NOVA' THEN 0 WHEN 'EM_ANALISE' THEN 1 ELSE 2 END, COALESCE(data_publicacao,'') DESC, id DESC`).all(...(status ? [status] : []));
+      eventos = db.prepare('SELECT * FROM atualizacoes_reforma_eventos ORDER BY id DESC').all();
+      fontes = db.prepare('SELECT * FROM monitoramento_atualizacoes_reforma ORDER BY fonte_nome').all();
+    }
     const porAtualizacao = new Map();
     for (const evento of eventos) {
       const lista = porAtualizacao.get(evento.atualizacao_id) || [];
       lista.push({ ...evento, dados: JSON.parse(evento.dados_json || '{}') }); porAtualizacao.set(evento.atualizacao_id, lista);
     }
-    ok(res, { atualizacoes:linhas.map((x) => ({ ...x, eventos:porAtualizacao.get(x.id) || [] })) });
+    ok(res, { atualizacoes:linhas.map((x) => ({ ...x, eventos:porAtualizacao.get(x.id) || [] })), fontes });
   } catch (e) { erro(res, e); }
 });
-router.post('/atualizacoes-reforma', (req, res) => {
+router.post('/atualizacoes-reforma', async (req, res) => {
   try {
     const b = req.body || {};
     const titulo = String(b.titulo || '').trim();
@@ -1394,28 +1403,39 @@ router.post('/atualizacoes-reforma', (req, res) => {
     const url = String(b.fonte_url || '').trim();
     if (url) { const validada = new URL(url); if (!/^https?:$/.test(validada.protocol)) throw new Error('A fonte deve usar URL HTTP ou HTTPS.'); }
     const status = STATUS_ATUALIZACAO_REFORMA.has(String(b.status || '').toUpperCase()) ? String(b.status).toUpperCase() : 'NOVA';
-    const insercao = db.prepare(`INSERT INTO atualizacoes_reforma (titulo,resumo,fonte_nome,fonte_url,data_publicacao,tema,impacto_potencial,modulos_afetados,status,observacao_analise,criado_por)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(titulo, String(b.resumo || ''), String(b.fonte_nome || ''), url, b.data_publicacao || null,
-      String(b.tema || 'GERAL'), String(b.impacto_potencial || 'EM_ANALISE'), String(b.modulos_afetados || ''), status, String(b.observacao_analise || ''), req.usuario?.id || null);
-    const id = Number(insercao.lastInsertRowid);
-    db.prepare('INSERT INTO atualizacoes_reforma_eventos (atualizacao_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)')
-      .run(id, 'REGISTRADA', req.usuario?.id || null, JSON.stringify({ status, fonte_nome:String(b.fonte_nome || '') }));
+    const registro = { titulo, resumo:String(b.resumo || ''), fonte_nome:String(b.fonte_nome || ''), fonte_url:url, data_publicacao:b.data_publicacao || null, tema:String(b.tema || 'GERAL'), impacto_potencial:String(b.impacto_potencial || 'EM_ANALISE'), modulos_afetados:String(b.modulos_afetados || ''), status, observacao_analise:String(b.observacao_analise || ''), criado_por:req.usuario?.id || null };
+    let id;
+    if (supabase.configurado()) {
+      const remoto = supabase.admin(); const { data, error } = await remoto.from('atualizacoes_reforma').insert(registro).select('id').single();
+      if (error) throw new Error(error.message); id = data.id;
+      const { error: eventoErro } = await remoto.from('atualizacoes_reforma_eventos').insert({ atualizacao_id:id, acao:'REGISTRADA', usuario_id:req.usuario?.id || null, dados_json:{ status, fonte_nome:registro.fonte_nome } });
+      if (eventoErro) throw new Error(eventoErro.message);
+    } else {
+      const insercao = db.prepare(`INSERT INTO atualizacoes_reforma (titulo,resumo,fonte_nome,fonte_url,data_publicacao,tema,impacto_potencial,modulos_afetados,status,observacao_analise,criado_por) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(titulo, registro.resumo, registro.fonte_nome, url, registro.data_publicacao, registro.tema, registro.impacto_potencial, registro.modulos_afetados, status, registro.observacao_analise, registro.criado_por);
+      id = Number(insercao.lastInsertRowid); db.prepare('INSERT INTO atualizacoes_reforma_eventos (atualizacao_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)').run(id, 'REGISTRADA', req.usuario?.id || null, JSON.stringify({ status, fonte_nome:registro.fonte_nome }));
+    }
     auditar(req, { acao:'atualizacao_reforma_registrada', entidade:'atualizacoes_reforma', entidadeId:String(id), depois:{ titulo, status } });
     ok(res, { id });
   } catch (e) { erro(res, e); }
 });
-router.put('/atualizacoes-reforma/:id/status', (req, res) => {
+router.put('/atualizacoes-reforma/:id/status', async (req, res) => {
   try {
     const id = Number(req.params.id); const b = req.body || {};
-    const atual = db.prepare('SELECT * FROM atualizacoes_reforma WHERE id=?').get(id);
+    const remoto = supabase.configurado() ? supabase.admin() : null;
+    let atual;
+    if (remoto) { const { data, error } = await remoto.from('atualizacoes_reforma').select('*').eq('id', id).maybeSingle(); if (error) throw new Error(error.message); atual = data; }
+    else atual = db.prepare('SELECT * FROM atualizacoes_reforma WHERE id=?').get(id);
     if (!atual) throw new Error('Atualização não encontrada.');
     const status = String(b.status || '').toUpperCase();
     if (!STATUS_ATUALIZACAO_REFORMA.has(status)) throw new Error('Status de governança inválido.');
     const observacao = String(b.observacao_analise || '');
-    db.prepare('UPDATE atualizacoes_reforma SET status=?,observacao_analise=?,analisado_por=?,analisado_em=datetime(\'now\',\'localtime\') WHERE id=?')
-      .run(status, observacao, req.usuario?.id || null, id);
-    db.prepare('INSERT INTO atualizacoes_reforma_eventos (atualizacao_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)')
-      .run(id, 'STATUS_ALTERADO', req.usuario?.id || null, JSON.stringify({ anterior:atual.status, atual:status, observacao }));
+    if (remoto) {
+      const { error } = await remoto.from('atualizacoes_reforma').update({ status, observacao_analise:observacao, analisado_por:req.usuario?.id || null, analisado_em:new Date().toISOString() }).eq('id', id); if (error) throw new Error(error.message);
+      const { error: eventoErro } = await remoto.from('atualizacoes_reforma_eventos').insert({ atualizacao_id:id, acao:'STATUS_ALTERADO', usuario_id:req.usuario?.id || null, dados_json:{ anterior:atual.status, atual:status, observacao } }); if (eventoErro) throw new Error(eventoErro.message);
+    } else {
+      db.prepare('UPDATE atualizacoes_reforma SET status=?,observacao_analise=?,analisado_por=?,analisado_em=datetime(\'now\',\'localtime\') WHERE id=?').run(status, observacao, req.usuario?.id || null, id);
+      db.prepare('INSERT INTO atualizacoes_reforma_eventos (atualizacao_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)').run(id, 'STATUS_ALTERADO', req.usuario?.id || null, JSON.stringify({ anterior:atual.status, atual:status, observacao }));
+    }
     auditar(req, { acao:'atualizacao_reforma_status_alterado', entidade:'atualizacoes_reforma', entidadeId:String(id), antes:{ status:atual.status }, depois:{ status, observacao } });
     ok(res, { id, status });
   } catch (e) { erro(res, e); }

@@ -1,4 +1,5 @@
 const crypto = require('crypto');
+const supabase = require('./supabase');
 
 // Lista fechada de fontes públicas e oficiais. Não há URL fornecida pelo
 // usuário, redirecionamento para domínio externo ou extração de conteúdo de
@@ -66,7 +67,25 @@ async function verificarFonte(fonte, { banco, fetcher = fetch, agora = new Date(
   // execução normal, continua usando exatamente o banco da aplicação.
   banco ||= require('../db');
   if (!fontePermitida(fonte.url)) throw new Error(`Fonte não permitida: ${fonte.url}`);
-  const anterior = banco.prepare('SELECT * FROM monitoramento_atualizacoes_reforma WHERE chave=?').get(fonte.chave);
+  const remoto = supabase.configurado() ? supabase.admin() : null;
+  const consultarAnterior = async () => {
+    if (!remoto) return banco.prepare('SELECT * FROM monitoramento_atualizacoes_reforma WHERE chave=?').get(fonte.chave);
+    const { data, error } = await remoto.from('monitoramento_atualizacoes_reforma').select('*').eq('chave', fonte.chave).maybeSingle();
+    if (error) throw new Error(`Estado do monitor: ${error.message}`);
+    return data;
+  };
+  const salvarEstado = async (registro) => {
+    if (!remoto) {
+      banco.prepare(`INSERT INTO monitoramento_atualizacoes_reforma
+        (chave,fonte_nome,fonte_url,ultimo_hash,ultima_consulta_em,ultimo_sucesso_em,ultimo_erro)
+        VALUES (?,?,?,?,?,?,?) ON CONFLICT(chave) DO UPDATE SET fonte_nome=excluded.fonte_nome,fonte_url=excluded.fonte_url,ultimo_hash=excluded.ultimo_hash,ultima_consulta_em=excluded.ultima_consulta_em,ultimo_sucesso_em=excluded.ultimo_sucesso_em,ultimo_erro=excluded.ultimo_erro`)
+        .run(registro.chave, registro.fonte_nome, registro.fonte_url, registro.ultimo_hash || null, registro.ultima_consulta_em || null, registro.ultimo_sucesso_em || null, registro.ultimo_erro || null);
+      return;
+    }
+    const { error } = await remoto.from('monitoramento_atualizacoes_reforma').upsert(registro, { onConflict: 'chave' });
+    if (error) throw new Error(`Estado do monitor: ${error.message}`);
+  };
+  const anterior = await consultarAnterior();
   if (!forcar && anterior?.ultima_consulta_em) {
     const decorrido = agora.getTime() - new Date(`${anterior.ultima_consulta_em.replace(' ', 'T')}Z`).getTime();
     if (Number.isFinite(decorrido) && decorrido < LIMITE_INTERVALO_MS) return { chave: fonte.chave, status: 'NAO_DEVIDO' };
@@ -80,35 +99,39 @@ async function verificarFonte(fonte, { banco, fetcher = fetch, agora = new Date(
     const atualHash = hash(texto);
     const momento = agoraSql(agora);
     if (!anterior) {
-      banco.prepare(`INSERT INTO monitoramento_atualizacoes_reforma
-        (chave,fonte_nome,fonte_url,ultimo_hash,ultima_consulta_em,ultimo_sucesso_em)
-        VALUES (?,?,?,?,?,?)`).run(fonte.chave, fonte.nome, fonte.url, atualHash, momento, momento);
+      await salvarEstado({ chave: fonte.chave, fonte_nome: fonte.nome, fonte_url: fonte.url, ultimo_hash: atualHash, ultima_consulta_em: momento, ultimo_sucesso_em: momento, ultimo_erro: null });
       return { chave: fonte.chave, status: 'LINHA_DE_BASE_CRIADA' };
     }
-    banco.prepare(`UPDATE monitoramento_atualizacoes_reforma
-      SET ultimo_hash=?,ultima_consulta_em=?,ultimo_sucesso_em=?,ultimo_erro=NULL WHERE chave=?`)
-      .run(atualHash, momento, momento, fonte.chave);
+    await salvarEstado({ chave: fonte.chave, fonte_nome: fonte.nome, fonte_url: fonte.url, ultimo_hash: atualHash, ultima_consulta_em: momento, ultimo_sucesso_em: momento, ultimo_erro: null });
     if (anterior.ultimo_hash === atualHash) return { chave: fonte.chave, status: 'SEM_ALTERACAO' };
 
     const titulo = `Alteração detectada automaticamente — ${fonte.nome}`;
-    const existe = banco.prepare(`SELECT id FROM atualizacoes_reforma
-      WHERE titulo=? AND fonte_url=? AND status IN ('NOVA','EM_ANALISE') LIMIT 1`).get(titulo, fonte.url);
+    let existe;
+    if (remoto) {
+      const { data, error } = await remoto.from('atualizacoes_reforma').select('id').eq('titulo', titulo).eq('fonte_url', fonte.url).in('status', ['NOVA', 'EM_ANALISE']).limit(1);
+      if (error) throw new Error(`Atualizações: ${error.message}`);
+      existe = data?.[0];
+    } else existe = banco.prepare(`SELECT id FROM atualizacoes_reforma WHERE titulo=? AND fonte_url=? AND status IN ('NOVA','EM_ANALISE') LIMIT 1`).get(titulo, fonte.url);
     if (!existe) {
       const resumo = `O monitoramento diário identificou mudança no conteúdo publicado. A alteração ainda não foi interpretada nem aplicada ao motor ou ao RAG. Revise a fonte oficial e registre a conclusão.`;
-      const r = banco.prepare(`INSERT INTO atualizacoes_reforma
-        (titulo,resumo,fonte_nome,fonte_url,data_publicacao,tema,impacto_potencial,modulos_afetados,status,observacao_analise,criado_por)
-        VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(titulo, resumo, fonte.nome, fonte.url, agora.toISOString().slice(0, 10), fonte.tema,
-        'EM_ANALISE', 'BASE_DE_CONHECIMENTO', 'NOVA', 'Detecção automática: requer validação humana antes de atualizar RAG, catálogo ou motor.', 'MONITOR_AUTOMATICO');
-      banco.prepare(`INSERT INTO atualizacoes_reforma_eventos (atualizacao_id,acao,usuario_id,dados_json)
-        VALUES (?,?,?,?)`).run(Number(r.lastInsertRowid), 'DETECTADA_AUTOMATICAMENTE', 'MONITOR_AUTOMATICO', JSON.stringify({ chave: fonte.chave, hash_anterior: anterior.ultimo_hash, hash_atual: atualHash }));
-      return { chave: fonte.chave, status: 'ALTERACAO_REGISTRADA', atualizacao_id: Number(r.lastInsertRowid) };
+      let id;
+      if (remoto) {
+        const { data, error } = await remoto.from('atualizacoes_reforma').insert({ titulo, resumo, fonte_nome: fonte.nome, fonte_url: fonte.url, data_publicacao: agora.toISOString().slice(0, 10), tema: fonte.tema, impacto_potencial: 'EM_ANALISE', modulos_afetados: 'BASE_DE_CONHECIMENTO', status: 'NOVA', observacao_analise: 'Detecção automática: requer validação humana antes de atualizar RAG, catálogo ou motor.' }).select('id').single();
+        if (error) throw new Error(`Atualizações: ${error.message}`);
+        id = data.id;
+        const evento = await remoto.from('atualizacoes_reforma_eventos').insert({ atualizacao_id: id, acao: 'DETECTADA_AUTOMATICAMENTE', dados_json: { chave: fonte.chave, hash_anterior: anterior.ultimo_hash, hash_atual: atualHash } });
+        if (evento.error) throw new Error(`Eventos de atualização: ${evento.error.message}`);
+      } else {
+        const r = banco.prepare(`INSERT INTO atualizacoes_reforma (titulo,resumo,fonte_nome,fonte_url,data_publicacao,tema,impacto_potencial,modulos_afetados,status,observacao_analise,criado_por) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(titulo, resumo, fonte.nome, fonte.url, agora.toISOString().slice(0, 10), fonte.tema, 'EM_ANALISE', 'BASE_DE_CONHECIMENTO', 'NOVA', 'Detecção automática: requer validação humana antes de atualizar RAG, catálogo ou motor.', 'MONITOR_AUTOMATICO');
+        id = Number(r.lastInsertRowid);
+        banco.prepare(`INSERT INTO atualizacoes_reforma_eventos (atualizacao_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)`).run(id, 'DETECTADA_AUTOMATICAMENTE', 'MONITOR_AUTOMATICO', JSON.stringify({ chave: fonte.chave, hash_anterior: anterior.ultimo_hash, hash_atual: atualHash }));
+      }
+      return { chave: fonte.chave, status: 'ALTERACAO_REGISTRADA', atualizacao_id: id };
     }
     return { chave: fonte.chave, status: 'ALTERACAO_JA_PENDENTE', atualizacao_id: existe.id };
   } catch (erro) {
     const momento = agoraSql(agora);
-    banco.prepare(`INSERT INTO monitoramento_atualizacoes_reforma (chave,fonte_nome,fonte_url,ultima_consulta_em,ultimo_erro)
-      VALUES (?,?,?,?,?) ON CONFLICT(chave) DO UPDATE SET ultima_consulta_em=excluded.ultima_consulta_em,ultimo_erro=excluded.ultimo_erro`)
-      .run(fonte.chave, fonte.nome, fonte.url, momento, erro.message);
+    await salvarEstado({ chave: fonte.chave, fonte_nome: fonte.nome, fonte_url: fonte.url, ultimo_hash: anterior?.ultimo_hash || null, ultima_consulta_em: momento, ultimo_sucesso_em: anterior?.ultimo_sucesso_em || null, ultimo_erro: erro.message });
     return { chave: fonte.chave, status: 'FALHOU', erro: erro.message };
   }
 }
