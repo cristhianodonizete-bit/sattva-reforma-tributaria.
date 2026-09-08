@@ -26,6 +26,23 @@ async function nweb(rota, params={}, body) {
   const r = await requisitar(u, { method: body ? 'POST' : 'GET', headers:{'Content-Type':'application/json'}, body:body ? JSON.stringify(body) : undefined }, 120000, 'O nWeb');
   const texto=await r.text(); if(!r.ok) throw new Error(`nWeb ${r.status}: ${texto.slice(0,300)}`); return texto;
 }
+// Os metadados do Questor expõem os campos em maiúsculas (PDATAINICIAL), mas
+// o método REST do nWeb desta versão os vincula às propriedades Delphi em
+// camelCase (pDataInicial). Preservamos o contrato interno e traduzimos só na
+// borda do conector.
+function parametrosRelatorioNweb(parametros={}) {
+  const nomes = { PMODELO:'pModelo', PDATAINICIAL:'pDataInicial', PDATAFINAL:'pDataFinal', PTIPOMOVIMENTO:'pTipoMovimento', PDETALHARPRODUTOS:'pDetalharProdutos', PQUEBRAPORMOVIMENTO:'pQuebraPorMovimento', PVALOR:'pValor', PCODIGOEMPRESA:'pCodigoEmpresa', PCODIGOESTAB:'pCodigoEstab', PCODIGOPRODUTO:'pCodigoProduto', PCLASSIFFISCAL:'pClassifFiscal', PCST:'pCst', PCFOP:'pCfop', PTIPOCREDITO:'pTipoCredito', PTIPODEBITO:'pTipoDebito', PAGRUPAR:'pAgrupar', PGERARTOTALIZACAO:'pGerarTotalizacao', PGERARDADOS:'pGerarDados', PORDENAR:'pOrdenar' };
+  return Object.fromEntries(Object.entries(parametros).map(([chave, valor]) => [nomes[chave] || chave, valor]));
+}
+function validarRetornoRelatorio(texto) {
+  try {
+    const dados = JSON.parse(texto);
+    if (dados && typeof dados === 'object' && dados.Erro) throw new Error(`Questor: ${dados.Erro}`);
+  } catch (erro) {
+    if (String(erro.message || '').startsWith('Questor:')) throw erro;
+  }
+  return texto;
+}
 async function executar(t) {
   if(!permitidas.has(t.tipo)) throw new Error('Tarefa não permitida pelo conector.');
   if(t.tipo==='TESTAR_NWEB') return { versao:await nweb('/TnWebDMDadosGerais/PegarVersaoQuestor'), info:await nweb('/TnInfo/Info') };
@@ -34,7 +51,9 @@ async function executar(t) {
   if(t.tipo==='IMPORTAR_MOVIMENTACAO') { const entrada=t.payload?.tipo==='fornecedor'; return { registros:JSON.parse(await nweb(entrada?'/TnWebDMFiscal/PegarLancamentosEntrada':'/TnWebDMFiscal/PegarLancamentosSaida',{codigoempresa:t.payload.codigo_questor,datainicial:t.payload.inicio,datafinal:t.payload.fim})) }; }
   // O roteador nWeb lê os controles do relatório na URL, mas exige POST com
   // corpo JSON para os parâmetros de negócio. GET sem corpo é rejeitado.
-  return { actionName:acao, formato:'nrwexTXT', relatorio:await nweb('/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT'}, t.payload?.parametros || {}) };
+  const parametros = parametrosRelatorioNweb(t.payload?.parametros || {});
+  const relatorio = validarRetornoRelatorio(await nweb('/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT'}, parametros));
+  return { actionName:acao, formato:'nrwexTXT', relatorio };
 }
 async function ciclo(){
   const r=await requisitar(url(cfg.sattvaUrl,'/api/conector-questor/poll'),{method:'POST',headers:cab()},30000,'O Sattva');
