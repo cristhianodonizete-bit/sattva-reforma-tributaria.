@@ -65,7 +65,10 @@ function hipotesesCbs(db, empresaId, item) {
   const regras = item.tipo==='NCM'
     ? db.prepare("SELECT * FROM regras_enquadramento WHERE status='ATIVA' AND ncm=? ORDER BY prioridade DESC").all(chave(item.ncm))
     : db.prepare("SELECT * FROM regras_enquadramento WHERE status='ATIVA' AND ((nbs<>'' AND nbs=?) OR (lc116<>'' AND lc116=?)) ORDER BY prioridade DESC").all(chave(item.nbs),texto(item.lc116));
-  const candidatos=[...base,...regras].filter((x)=>texto(x.cclasstrib)); const vistos=new Set();
+  const governo = item.tipo==='NCM'
+    ? db.prepare("SELECT * FROM regras_governo WHERE cclasstrib<>'' AND (ncm=? OR chave=?)").all(chave(item.ncm),chave(item.ncm))
+    : db.prepare("SELECT * FROM regras_governo WHERE cclasstrib<>'' AND ((nbs<>'' AND REPLACE(REPLACE(REPLACE(nbs,'.',''),'/',''),'-','')=?) OR (lc116<>'' AND REPLACE(REPLACE(REPLACE(lc116,'.',''),'/',''),'-','')=?))").all(chave(item.nbs),chave(item.lc116));
+  const candidatos=[...base,...regras,...governo].filter((x)=>texto(x.cclasstrib)); const vistos=new Set();
   return candidatos.filter((x)=>{ const id=texto(x.cclasstrib); if(vistos.has(id)) return false; vistos.add(id); return true; }).map((x)=>{
     const condicao=condicaoCbs(x); const reducao=item.tipo==='NCM' ? (x.reducao_cbs ?? x.reducao ?? 'integral') : (x.reducao ?? 'integral');
     return { cclasstrib:texto(x.cclasstrib), cst:texto(x.cst) || texto(x.cclasstrib).slice(0,3), descricao:texto(x.classificacao || x.nome_cclasstrib || x.tratamento_resultante), reducao:String(reducao), operacao:operacaoEsperada(item,x), condicao };
@@ -87,10 +90,14 @@ function itemServico(db, item, empresaId) {
 function correlacoesIndicativas(db, empresa) {
   const atividades = cnaes(empresa).filter((x) => x.descricao);
   const servicos = db.prepare('SELECT * FROM base_servicos WHERE TRIM(COALESCE(nbs,\'\'))<>\'\' OR TRIM(COALESCE(lc116,\'\'))<>\'\'').all();
+  // Regras para governo podem ter chave própria no Anexo XI e não repetir a
+  // descrição do catálogo operacional. Elas também compõem possibilidades
+  // do CNAE, sempre com a condição de destinatário público na própria linha.
+  const servicosGoverno = db.prepare("SELECT nbs,lc116,descricao,cclasstrib,reducao,condicoes,\n+    'REGRA_GOVERNO' origem FROM regras_governo WHERE tipo='servico' AND cclasstrib<>'' AND (TRIM(COALESCE(nbs,''))<>'' OR TRIM(COALESCE(lc116,''))<>'')").all();
   const produtos = db.prepare('SELECT * FROM base_ncm WHERE TRIM(COALESCE(ncm,\'\'))<>\'\'').all();
   const candidatos = [];
   for (const atividade of atividades) {
-    for (const regra of servicos) {
+    for (const regra of [...servicos, ...servicosGoverno]) {
       const pontos = pontuar(atividade.descricao, `${regra.descricao_item || ''} ${regra.descricao_nbs || ''}`);
       if (!pontos) continue;
       const item = itemServico(db, { nbs:regra.nbs, lc116:regra.lc116, descricao:regra.descricao_item || regra.descricao_nbs, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo }, empresa.id);
