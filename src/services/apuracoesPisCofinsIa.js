@@ -114,6 +114,39 @@ function normalizarTextoDeterministico(textoDocumento, { localizacoes = [], meto
       };
     }
   }
+
+  // Relatórios de totalização por produto (como os emitidos por ERPs) não
+  // repetem rótulos no formato "PIS débito: R$ ...". Eles exibem uma tabela
+  // consolidada por CST. A leitura abaixo reconhece somente o bloco de total
+  // explicitamente identificado, sem inferir crédito ou pagamento.
+  const preencherSeAusente = (campo, valor, rotulo) => {
+    if (saida[campo].valor_extraido !== null || valor === null || valor === undefined) return;
+    saida[campo] = {
+      valor_extraido: valor, origem_documento: 'OCR_AZURE', pagina_ou_localizacao: null,
+      rotulo_original: rotulo, confianca: 0.9, metodo_extracao: metodo, status_validacao: 'REQUER_VALIDACAO',
+    };
+  };
+  const numerosDoBloco = (bloco) => (String(bloco || '').match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || [])
+    .map(valorNumericoDoTexto).filter((v) => v !== null);
+  const periodo = String(textoDocumento || '').match(/per[ií]odo\s*:\s*(\d{2}\/\d{4})/i);
+  if (periodo) preencherSeAusente('competencia', competenciaDoTexto(periodo[1]), 'Período');
+  if (/contribui[cç][aã]o\s+cumulativa/i.test(String(textoDocumento || ''))) {
+    preencherSeAusente('regime_pis_cofins', 'CUMULATIVO', 'Contribuição Cumulativa Apurada');
+  }
+  const textoCompleto = String(textoDocumento || '');
+  const blocoPis = textoCompleto.match(/c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+pis[\s\S]*?(?=c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+cofins|totaliza[cç][aã]o\s+por\s+tipo)/i)?.[0];
+  const blocoCofins = textoCompleto.match(/c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+cofins[\s\S]*?(?=totaliza[cç][aã]o\s+por\s+tipo|$)/i)?.[0];
+  const valoresPis = numerosDoBloco(blocoPis);
+  const valoresCofins = numerosDoBloco(blocoCofins);
+  // A última tríade da totalização é receita, base de cálculo e contribuição.
+  if (valoresPis.length >= 3) {
+    preencherSeAusente('receita_base', valoresPis.at(-2), 'Totalização por CST PIS');
+    preencherSeAusente('pis_debito', valoresPis.at(-1), 'Totalização por CST PIS');
+  }
+  if (valoresCofins.length >= 3) {
+    preencherSeAusente('receita_base', valoresCofins.at(-2), 'Totalização por CST COFINS');
+    preencherSeAusente('cofins_debito', valoresCofins.at(-1), 'Totalização por CST COFINS');
+  }
   return saida;
 }
 
@@ -166,6 +199,34 @@ function listarParaRevisao(db, empresaId) {
   return apuracoes.map((a) => ({ ...a, campos_extraidos: porApuracao.get(a.id) || [], campos_pendentes: (porApuracao.get(a.id) || []).filter((x) => x.status_validacao !== 'VALIDADO_AUTOMATICAMENTE').map((x) => x.campo) }));
 }
 
+// Releitura do mesmo original, sem permitir duplicação do documento nem
+// inventar novos valores. Serve quando o reconhecimento determinístico ganha
+// suporte para um layout já preservado no histórico.
+function reprocessar(db, empresaId, apuracaoId, camposBrutos, versaoModeloExtracao) {
+  validarEmpresa(db, empresaId);
+  const apuracao = db.prepare(`SELECT a.*, d.id AS documento_id FROM pis_cofins_apuracoes_historicas a
+    JOIN pis_cofins_apuracao_documentos d ON d.id=a.documento_id WHERE a.id=? AND a.empresa_id=?`).get(apuracaoId, empresaId);
+  if (!apuracao) throw new Error('Apuração não encontrada para esta empresa.');
+  const campos = CAMPOS.map((campo) => extracaoCampo(campo, camposBrutos?.[campo]));
+  const valores = Object.fromEntries(campos.map((x) => [x.campo, x.valor_extraido]));
+  const divergencias = validarConsistencia(campos);
+  db.transaction(() => {
+    db.prepare(`UPDATE pis_cofins_apuracoes_historicas SET competencia=?,regime_pis_cofins=?,receita_base=?,pis_debito=?,cofins_debito=?,pis_credito=?,cofins_credito=?,pis_credito_utilizado=?,cofins_credito_utilizado=?,saldo_pis=?,saldo_cofins=?,pis_recolhido=?,cofins_recolhida=?,observacoes=?,status_validacao=?,divergencias=? WHERE id=?`).run(
+      valores.competencia, valores.regime_pis_cofins, valores.receita_base, valores.pis_debito, valores.cofins_debito,
+      valores.pis_credito, valores.cofins_credito, valores.pis_credito_utilizado, valores.cofins_credito_utilizado,
+      valores.saldo_pis, valores.saldo_cofins, valores.pis_recolhido, valores.cofins_recolhida, valores.observacoes,
+      divergencias.length ? 'REQUER_VALIDACAO' : 'PROCESSADO', JSON.stringify(divergencias), apuracaoId);
+    db.prepare('DELETE FROM pis_cofins_apuracao_campos WHERE apuracao_id=?').run(apuracaoId);
+    const inserirCampo = db.prepare(`INSERT INTO pis_cofins_apuracao_campos
+      (apuracao_id,campo,valor_extraido,origem_documento,pagina_ou_localizacao,rotulo_original,confianca,metodo_extracao,status_validacao)
+      VALUES (?,?,?,?,?,?,?,?,?)`);
+    for (const campo of campos) inserirCampo.run(apuracaoId, campo.campo, campo.valor_extraido === null ? null : String(campo.valor_extraido), campo.origem_documento, campo.pagina_ou_localizacao, campo.rotulo_original, campo.confianca, campo.metodo_extracao, campo.status_validacao);
+    db.prepare('UPDATE pis_cofins_apuracao_documentos SET competencia_detectada=?,data_processamento=?,versao_modelo_extracao=?,status_processamento=? WHERE id=?').run(
+      valores.competencia, new Date().toISOString(), versaoModeloExtracao || 'REPROCESSAMENTO_DETERMINISTICO_V1', divergencias.length ? 'REQUER_VALIDACAO' : 'PROCESSADO', apuracao.documento_id);
+  })();
+  return listarParaRevisao(db, empresaId).find((x) => Number(x.id) === Number(apuracaoId));
+}
+
 // A confirmação não recalcula nem altera valores extraídos. Ela apenas registra
 // a revisão humana de campos presentes e preserva NULL/INDETERMINADO.
 function confirmarRevisao(db, empresaId, apuracaoId) {
@@ -187,4 +248,4 @@ function promptExtracao(textoDocumento) {
   return `Extraia apenas valores expressos no documento de apuração PIS/Cofins. Não calcule, não infira e não substitua ausência por zero. Retorne JSON com a chave campos e, para cada campo abaixo, valor_extraido, origem_documento, pagina_ou_localizacao, rotulo_original, confianca (0 a 1), metodo_extracao e status_validacao. Campos: ${CAMPOS.join(', ')}. Se não existir, valor_extraido deve ser null e status_validacao INDETERMINADO. Documento:\n${String(textoDocumento).slice(0, 70000)}`;
 }
 
-module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, confirmarRevisao, promptExtracao, validarConsistencia, normalizarTextoDeterministico };
+module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, reprocessar, confirmarRevisao, promptExtracao, validarConsistencia, normalizarTextoDeterministico };

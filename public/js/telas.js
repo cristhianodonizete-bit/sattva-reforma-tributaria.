@@ -837,9 +837,9 @@ Telas.perfil = async (el) => {
     <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>Apurações importadas</h2><p class="desc">Documentos preservados e auditáveis. Revise os valores antes de usá-los como referência.</p></div></div>
       ${A.tabela([
         { t:'Competência', r:x=>A.esc(x.competencia || 'Não identificada') }, { t:'Documento', r:x=>`<b>${A.esc(x.nome_original)}</b>` },
-        { t:'Receita base', num:true, r:x=>moedaOuIndeterminado(numero(x.receita_base)) }, { t:'PIS recolhido', num:true, r:x=>moedaOuIndeterminado(numero(x.pis_recolhido)) },
-        { t:'Cofins recolhida', num:true, r:x=>moedaOuIndeterminado(numero(x.cofins_recolhida)) }, { t:'Validação', r:x=>A.esc(x.status_validacao || 'INDETERMINADO') },
-        { t:'', r:x=>`<button class="btn pq vazio" data-apuracao-revisar="${x.id}">Revisar</button>` },
+        { t:'Receita base', num:true, r:x=>moedaOuIndeterminado(numero(x.receita_base)) }, { t:'PIS apurado', num:true, r:x=>moedaOuIndeterminado(numero(x.pis_debito)) },
+        { t:'Cofins apurada', num:true, r:x=>moedaOuIndeterminado(numero(x.cofins_debito)) }, { t:'Validação', r:x=>A.esc(x.status_validacao || 'INDETERMINADO') },
+        { t:'', r:x=>`<button class="btn pq vazio" data-apuracao-revisar="${x.id}">Revisar</button><button class="btn pq vazio" data-apuracao-reprocessar="${x.id}">Reprocessar</button>` },
       ], apuracoes, { vazio:'Nenhuma apuração de PIS/Cofins foi importada. Envie o relatório pela Central de Dados.' })}
     </div>`;
 
@@ -849,10 +849,14 @@ Telas.perfil = async (el) => {
     if (!apuracao) return;
     A.modal({ titulo: `Revisar — ${apuracao.nome_original}`, largura: 1100, corpo: A.tabela([
       { t:'Campo', r:x=>A.esc(x.campo) }, { t:'Valor extraído', r:x=>A.esc(x.valor_extraido ?? 'Não identificado') },
-      { t:'Origem', r:x=>`${A.esc(x.origem_documento || 'Não identificada')} · ${A.esc(x.pagina_ou_localizacao || 'localização não identificada')}` },
+      { t:'Origem', r:x=>`${A.esc(x.rotulo_original || 'Não identificado')}<br><span class="mini">${A.esc(x.origem_documento || 'Não identificada')} · ${A.esc(x.pagina_ou_localizacao || 'localização não identificada')} · confiança ${x.confianca === null || x.confianca === undefined ? 'não informada' : `${Math.round(Number(x.confianca) * 100)}%`}</span>` },
       { t:'Validação', r:x=>A.esc(x.status_validacao || 'INDETERMINADO') },
     ], apuracao.campos_extraidos || [], { vazio:'Nenhum campo extraído.' }) });
   }; });
+  el.querySelectorAll('[data-apuracao-reprocessar]').forEach((botao) => { botao.onclick = () => A.confirmar('Reler o mesmo PDF preservado com o reconhecimento atualizado?', async () => {
+    await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins/${botao.dataset.apuracaoReprocessar}/reprocessar`, { metodo:'POST', corpo:{} });
+    A.toast('Documento relido. Revise os valores identificados antes de confirmar.', 'ok'); A.ir('perfil');
+  }); });
 };
 
 const barras = (itens) => itens.map(([rot, v]) => `<div style="margin-bottom:11px">

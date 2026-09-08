@@ -1258,6 +1258,21 @@ router.get('/empresas/:id/apuracoes-pis-cofins', (req, res) => {
   try { ok(res, { apuracoes: apuracoesPisCofinsIa.listarParaRevisao(db, Number(req.params.id)) }); }
   catch (e) { erro(res, e); }
 });
+router.post('/empresas/:id/apuracoes-pis-cofins/:apuracaoId/reprocessar', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id); const apuracaoId = Number(req.params.apuracaoId);
+    const documento = db.prepare(`SELECT d.* FROM pis_cofins_apuracao_documentos d
+      JOIN pis_cofins_apuracoes_historicas a ON a.documento_id=d.id
+      WHERE a.id=? AND a.empresa_id=?`).get(apuracaoId, empresaId);
+    if (!documento?.conteudo_original) throw new Error('Documento original da apuração não foi encontrado.');
+    const extracao = await extrairDocumentoApuracao({ originalname: documento.nome_original, mimetype: documento.mime_type, buffer: documento.conteudo_original }, documento.tipo_documento);
+    const extraido = apuracoesPisCofinsIa.normalizarTextoDeterministico(extracao.texto, {
+      localizacoes: extracao.localizacoes, metodo: 'NORMALIZACAO_DETERMINISTICA_AZURE_V2',
+    });
+    const apuracao = apuracoesPisCofinsIa.reprocessar(db, empresaId, apuracaoId, extraido, `${extracao.modelo} + NORMALIZACAO_DETERMINISTICA_V2`);
+    ok(res, { apuracao, campos_pendentes: apuracao.campos_pendentes || [] });
+  } catch (e) { erro(res, e); }
+});
 router.post('/empresas/:id/apuracoes-pis-cofins/:apuracaoId/confirmar', (req, res) => {
   try { ok(res, { apuracao: apuracoesPisCofinsIa.confirmarRevisao(db, Number(req.params.id), Number(req.params.apuracaoId)) }); }
   catch (e) { erro(res, e); }
