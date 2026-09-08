@@ -122,8 +122,11 @@ async function chamarAnthropic(mensagens, { sistema, maxTokens, temperatura, pro
 
 async function chamarOpenAiCompativel(mensagens, { sistema, maxTokens, temperatura, provedor, chave }) {
   const origem = provedor.id === 'groq' ? 'https://api.groq.com/openai/v1' : 'https://api.openai.com/v1';
+  // A API atual da OpenAI (inclusive GPT-5) substituiu max_tokens por
+  // max_completion_tokens. Groq continua compatível com max_tokens.
+  const limite = provedor.id === 'openai' ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens };
   const resp = await fetch(`${origem}/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${chave}` },
-    body: JSON.stringify({ model: provedor.modelo, max_tokens: maxTokens, temperature: temperatura, messages: [{ role: 'system', content: sistema }, ...mensagens] }) });
+    body: JSON.stringify({ model: provedor.modelo, ...limite, temperature: temperatura, messages: [{ role: 'system', content: sistema }, ...mensagens] }) });
   const dados = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new Error(dados?.error?.message || `${provedor.nome} respondeu ${resp.status}`);
   return { texto: dados?.choices?.[0]?.message?.content || '', uso: dados.usage || {} };
