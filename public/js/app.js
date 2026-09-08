@@ -2,7 +2,7 @@
    NÚCLEO — estado, navegação, chamadas à API e componentes reutilizáveis
    ========================================================================= */
 const App = (() => {
-  const S = { empresas: [], empresaId: null, empresa: null, params: null, tela: 'visaoCarteira', aba: {}, cache: {}, menuAbertos: new Set() };
+  const S = { empresas: [], empresaId: null, empresa: null, params: null, tela: 'visaoCarteira', aba: {}, cache: {}, menuAbertos: new Set(), submenusAbertos: new Set() };
   const temaAtual = () => document.documentElement.classList.contains('tema-escuro') ? 'escuro' : 'claro';
   const aplicarTema = (tema) => {
     const escolhido = tema === 'escuro' ? 'escuro' : 'claro';
@@ -300,11 +300,23 @@ const App = (() => {
       // estado é apenas da sessão atual: não ressuscitamos menus antigos por
       // localStorage, que era a causa de grupos voltarem todos abertos.
       const aberto = S.menuAbertos.has(grupo.id);
+      const renderItem = (item) => `<a data-tela="${item.id}" ${item.centralGrupo ? `data-central-grupo="${item.centralGrupo}"` : ''} title="${item.t}" class="${S.tela === item.id && (!item.centralGrupo || (S.aba.centralDados || 'documentos') === item.centralGrupo) ? 'ativo' : ''}"><i aria-hidden="true" ${item.id==='executarMotor' && S.cache.prontidaoMotor !== undefined ? `style="color:${S.cache.prontidaoMotor?'#138a4b':'#c03532'}"` : ''}>${item.i}</i><span>${item.t}</span></a>`;
+      const secoes = [];
+      let secao = { titulo: null, chave: 'principal', itens: [] };
+      for (const item of itens) {
+        if (item.tipo === 'titulo') { if (secao.itens.length) secoes.push(secao); secao = { titulo: item.t, chave: item.t.toLowerCase().replace(/[^a-z0-9]+/g, '-'), itens: [] }; }
+        else secao.itens.push(item);
+      }
+      if (secao.itens.length) secoes.push(secao);
+      const itensHtml = secoes.map((secao) => {
+        if (!secao.titulo) return secao.itens.map(renderItem).join('');
+        const chaveSubmenu = `${grupo.id}:${secao.chave}`;
+        const subAberto = S.submenusAbertos.has(chaveSubmenu);
+        return `<section class="menu-subgrupo ${subAberto ? 'aberto' : ''}" data-subgrupo="${chaveSubmenu}"><button type="button" class="menu-subtitulo" data-subgrupo-toggle aria-expanded="${subAberto}">${secao.titulo}<span>${subAberto ? '⌃' : '⌄'}</span></button><div class="menu-subgrupo-itens">${secao.itens.map(renderItem).join('')}</div></section>`;
+      }).join('');
       return `<section class="nav-grupo ${aberto ? 'aberto' : ''}" data-grupo="${grupo.id}">
         <button class="grupo-titulo" type="button" data-grupo-toggle aria-expanded="${aberto}" aria-controls="grupo-itens-${grupo.id}">${grupo.titulo}<span>${aberto ? '⌃' : '⌄'}</span></button>
-        <div class="grupo-itens" id="grupo-itens-${grupo.id}">${itens.map((item) => item.tipo === 'titulo'
-          ? `<div class="menu-subtitulo">${item.t}</div>`
-          : `<a data-tela="${item.id}" ${item.centralGrupo ? `data-central-grupo="${item.centralGrupo}"` : ''} title="${item.t}" class="${S.tela === item.id && (!item.centralGrupo || (S.aba.centralDados || 'documentos') === item.centralGrupo) ? 'ativo' : ''}"><i aria-hidden="true" ${item.id==='executarMotor' && S.cache.prontidaoMotor !== undefined ? `style="color:${S.cache.prontidaoMotor?'#138a4b':'#c03532'}"` : ''}>${item.i}</i><span>${item.t}</span></a>`).join('')}</div>
+        <div class="grupo-itens" id="grupo-itens-${grupo.id}">${itensHtml}</div>
       </section>`;
     }).join('') + (S.usuario ? `<section class="nav-grupo sessao aberto"><div class="grupo-titulo">${esc(S.usuario.nome || S.usuario.email)}</div><div class="grupo-itens"><a data-sair title="Sair"><i aria-hidden="true">↪</i><span>Sair</span></a></div></section>` : '');
     menu.onclick = (evento) => {
@@ -318,6 +330,16 @@ const App = (() => {
         if (aberto) S.menuAbertos.add(bloco.dataset.grupo);
         else S.menuAbertos.delete(bloco.dataset.grupo);
         return;
+      }
+      const botaoSubgrupo = evento.target.closest('[data-subgrupo-toggle]');
+      if (botaoSubgrupo && menu.contains(botaoSubgrupo)) {
+        evento.preventDefault();
+        const bloco = botaoSubgrupo.closest('.menu-subgrupo');
+        const aberto = bloco.classList.toggle('aberto');
+        botaoSubgrupo.setAttribute('aria-expanded', String(aberto));
+        botaoSubgrupo.querySelector('span').textContent = aberto ? '⌃' : '⌄';
+        if (aberto) S.submenusAbertos.add(bloco.dataset.subgrupo);
+        else S.submenusAbertos.delete(bloco.dataset.subgrupo);
       }
     };
     menu.querySelectorAll('[data-tela]').forEach((a) => { a.onclick = () => {
