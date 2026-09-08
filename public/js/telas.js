@@ -1074,10 +1074,11 @@ Telas.mapaOperacional = async (el) => {
     const chave = [linha.cnae, linha.tipo, linha.codigo, linha.lc116 || '', (linha.pis_cofins || []).join('|'), h.cclasstrib, h.cst, h.descricao, h.reducao].join('¦');
     const anterior = agrupadas.get(chave);
     if (!anterior) {
-      agrupadas.set(chave, { ...linha, hipotese:{ ...h, fatos:[...(h.fatos || [])], operacoes:[h.operacao], condicoes:[h.condicao?.texto], fontes:[h.fonte] } });
+      agrupadas.set(chave, { ...linha, hipotese:{ ...h, fatos:[...(h.fatos || [])], indops:[...(h.indops || [])], operacoes:[h.operacao], condicoes:[h.condicao?.texto], fontes:[h.fonte] } });
       continue;
     }
     anterior.hipotese.fatos = [...new Set([...anterior.hipotese.fatos, ...(h.fatos || [])])];
+    anterior.hipotese.indops = [...new Set([...anterior.hipotese.indops, ...(h.indops || [])])];
     anterior.hipotese.operacoes = [...new Set([...anterior.hipotese.operacoes, h.operacao])];
     anterior.hipotese.condicoes = [...new Set([...anterior.hipotese.condicoes, h.condicao?.texto])];
     anterior.hipotese.fontes = [...new Set([...anterior.hipotese.fontes, h.fonte])];
@@ -1092,7 +1093,8 @@ Telas.mapaOperacional = async (el) => {
       {t:'PIS/Cofins atual',r:x=>x.pis_cofins?.length?x.pis_cofins.map(A.esc).join('<br>'):A.esc(x.tratamento_atual||'A validar no catálogo')},
       {t:'CBS / cClassTrib',r:x=>`<b class="mono">${A.esc(x.hipotese.cclasstrib)}</b> · CST ${A.esc(x.hipotese.cst||'—')}<br><span class="mini">${A.esc(x.hipotese.descricao||`CBS: ${x.hipotese.reducao}`)}${x.hipotese.descricao?` · ${A.esc(x.hipotese.reducao)}`:''}</span>`},
       {t:'Operação esperada',r:x=>`<b>${(x.hipotese.operacoes || [x.hipotese.operacao]).map(A.esc).join('<br>')}</b>`},
-      {t:'Fatos e condições para aplicar',r:x=>`<b>${(x.hipotese.condicoes || [x.hipotese.condicao?.texto]).filter(Boolean).map(A.esc).join('<br>')}</b>${x.hipotese.fatos?.length ? `<div class="mini" style="margin-top:6px">${x.hipotese.fatos.map(A.esc).join('<br>')}</div>` : '<div class="mini" style="margin-top:6px">Confirmar item, vigência e fatos da operação.</div>'}<div class="mini" style="margin-top:6px">Fonte: ${(x.hipotese.fontes || [x.hipotese.fonte || 'CATÁLOGO FISCAL']).filter(Boolean).map(A.esc).join(' · ')}</div>`},
+      {t:'indOp',r:x=>`<span class="mono">${(x.hipotese.indops || []).length ? x.hipotese.indops.map(A.esc).join('<br>') : '—'}</span>`},
+      {t:'Condição para aplicar',r:x=>`<b>${(x.hipotese.condicoes || [x.hipotese.condicao?.texto]).filter(Boolean).map(A.esc).join('<br>')}</b>${x.hipotese.fatos?.length ? `<div class="mini" style="margin-top:6px">${x.hipotese.fatos.map(A.esc).join('<br>')}</div>` : ''}`},
     ],linhas) : '<div class="aviso"><b>Não há correlações automáticas seguras para as descrições atuais.</b> Atualize o CNAE/atividade no cadastro ou cadastre os produtos e serviços efetivamente ofertados; o sistema não inventará códigos ou benefícios.</div>'}
     </section><div class="aviso" style="margin-top:16px"><b>Segurança</b> · ${A.esc(d.aviso)}</div>`;
 };

@@ -66,7 +66,12 @@ function condicaoCbs(regra) {
 }
 function fatosDaHipotese(regra) {
   const fatos = [];
-  const incluir = (rotulo, valores) => lista(valores).forEach((v) => fatos.push(`${rotulo}: ${v}`));
+  const aplicavel = (v) => {
+    const t = texto(v); const n = t.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+    return t && !['NAO','NÃO','N','0','FALSE','INDETERMINADO','NAO_APLICAVEL'].includes(n)
+      && !/REGRA GERAL|DADO REAL PREVALECE|TRIBUTADO|CUMULATIVIDADE OBRIGATORIA|LOCAL DA PRESTACAO|DOMICILIO PRINCIPAL/.test(n);
+  };
+  const incluir = (rotulo, valores) => lista(valores).filter(aplicavel).forEach((v) => fatos.push(`${rotulo}: ${v}`));
   const codigo = texto(regra.cclasstrib);
   if (codigo === '200044') fatos.push('Quadro societário: sócio brasileiro com participação de, no mínimo, 20% do capital social.');
   if (codigo === '200043') {
@@ -74,8 +79,6 @@ function fatosDaHipotese(regra) {
     fatos.push('Hipótese material: bem ou serviço de soberania/segurança previsto no Anexo XI.');
     fatos.push('Comprovação do destinatário: natureza jurídica cadastrada e matriz Anexo XI vigente.');
   }
-  if (texto(regra.direcao)) fatos.push(`Sentido: ${texto(regra.direcao)}`);
-  if (texto(regra.tipo_operacao || regra.operacao_pis_cofins)) fatos.push(`Operação: ${texto(regra.tipo_operacao || regra.operacao_pis_cofins)}`);
   incluir('CFOP', regra.cfop);
   incluir('Perfil do fornecedor', regra.perfil_fornecedor);
   incluir('Perfil do adquirente', regra.perfil_adquirente || regra.ente_elegivel);
@@ -89,9 +92,7 @@ function fatosDaHipotese(regra) {
   incluir('Condição excludente', regra.condicoes_excludentes);
   incluir('Operação onerosa', regra.onerosa);
   incluir('Operação exterior', regra.exterior);
-  incluir('Indicador da operação', regra.indop);
   incluir('Local de incidência', regra.local_incidencia);
-  if (texto(regra.vigencia_inicio || regra.vigencia) || texto(regra.vigencia_fim)) fatos.push(`Vigência: ${texto(regra.vigencia_inicio || regra.vigencia) || 'início não informado'} até ${texto(regra.vigencia_fim) || 'sem término informado'}`);
   return unico(fatos);
 }
 function hipotesesCbs(db, empresaId, item) {
@@ -110,7 +111,7 @@ function hipotesesCbs(db, empresaId, item) {
     if(vistos.has(id)) return false; vistos.add(id); return true;
   }).map((x)=>{
     const condicao=condicaoCbs(x); const reducao=item.tipo==='NCM' ? (x.reducao_cbs ?? x.reducao ?? 'integral') : (x.reducao ?? 'integral');
-    return { cclasstrib:texto(x.cclasstrib), cst:texto(x.cst) || texto(x.cclasstrib).slice(0,3), descricao:texto(x.classificacao || x.nome_cclasstrib || x.tratamento_resultante || x.tratamento), reducao:String(reducao), operacao:operacaoEsperada(item,x), condicao, fatos:fatosDaHipotese(x), vigencia_inicio:texto(x.vigencia_inicio || x.vigencia), vigencia_fim:texto(x.vigencia_fim), fonte:texto(x.fonte || (governo.includes(x) ? 'REGRAS_GOVERNO' : regras.includes(x) ? 'REGRAS_ENQUADRAMENTO' : 'CATALOGO_FISCAL')) };
+    return { cclasstrib:texto(x.cclasstrib), cst:texto(x.cst) || texto(x.cclasstrib).slice(0,3), descricao:texto(x.classificacao || x.nome_cclasstrib || x.tratamento_resultante || x.tratamento), reducao:String(reducao), operacao:operacaoEsperada(item,x), condicao, fatos:fatosDaHipotese(x), indops:unico(lista(x.indop)), vigencia_inicio:texto(x.vigencia_inicio || x.vigencia), vigencia_fim:texto(x.vigencia_fim), fonte:texto(x.fonte || (governo.includes(x) ? 'REGRAS_GOVERNO' : regras.includes(x) ? 'REGRAS_ENQUADRAMENTO' : 'CATALOGO_FISCAL')) };
   });
 }
 function itemProduto(db, item, empresaId) {
