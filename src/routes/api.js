@@ -1603,8 +1603,9 @@ function vincularRegimes(empresaId) {
 
 function agendarEnriquecimentoAutomatico(empresaId) {
   // Após importar documentos, a fila completa o cadastro compartilhado de
-  // clientes e fornecedores. Etiquetas de destinatário seguem exclusivas dos
-  // clientes; fornecedor comum não recebe etiqueta fiscal.
+  // clientes e fornecedores. A etiqueta é um fato do CNPJ e pode ser
+  // reaproveitada se o fornecedor futuramente também for cliente; o motor só
+  // a consome quando o parceiro for destinatário em uma saída.
   return cnpjReceita.agendarEnriquecimento(Number(empresaId), {
     finalidade: 'cnae_carteira', limite: 500,
   });

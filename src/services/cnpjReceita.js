@@ -697,7 +697,10 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
         rel.atualizados++;
         rel.porRegime[r.regime_derivado] = (rel.porRegime[r.regime_derivado] || 0) + 1;
       }
-      if (p.tipo === 'cliente') {
+      // A natureza jurídica é um fato do CNPJ, não do papel momentâneo na
+      // operação. Mantemos a etiqueta também no fornecedor para reaproveitá-la
+      // quando ele vier a atuar como cliente; o motor só a consome em saídas.
+      if (['cliente', 'fornecedor'].includes(p.tipo)) {
         const gov = classificarEnteGovernamental(r, p.cnpj);
         const perfil = gov.aplicar_regra_compra_governamental === 'SIM' ? 'governo'
           : gov.aplicar_regra_compra_governamental === 'A VALIDAR' ? 'requer_validacao' : 'indeterminado';
