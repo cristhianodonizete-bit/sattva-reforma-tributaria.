@@ -17,11 +17,11 @@ async function nweb(rota, params={}, body) {
 }
 async function executar(t) {
   if(!permitidas.has(t.tipo)) throw new Error('Tarefa não permitida pelo conector.');
-  if(t.tipo==='TESTAR_NWEB') return { versao:await nweb('/TnWebDMDadosGerais/PegarVersaoQuestor'), info:await nweb('/api/TnInfo/Info') };
+  if(t.tipo==='TESTAR_NWEB') return { versao:await nweb('/TnWebDMDadosGerais/PegarVersaoQuestor'), info:await nweb('/TnInfo/Info') };
   const acao=t.payload?.actionName || 'nFisRRTotalPISCOFINSProd';
   if(t.tipo==='PARAMETROS_RELATORIO') return { parametros:await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acao}) };
   if(t.tipo==='IMPORTAR_MOVIMENTACAO') { const entrada=t.payload?.tipo==='fornecedor'; return { registros:JSON.parse(await nweb(entrada?'/TnWebDMFiscal/PegarLancamentosEntrada':'/TnWebDMFiscal/PegarLancamentosSaida',{codigoempresa:t.payload.codigo_questor,datainicial:t.payload.inicio,datafinal:t.payload.fim})) }; }
-  return { actionName:acao, formato:'nrwexTXT', relatorio:await nweb('/api/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT',...(t.payload?.parametros||{})}) };
+  return { actionName:acao, formato:'nrwexTXT', relatorio:await nweb('/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT',...(t.payload?.parametros||{})}) };
 }
 async function ciclo(){
   const r=await fetch(url(cfg.sattvaUrl,'/api/conector-questor/poll'),{method:'POST',headers:cab()});
