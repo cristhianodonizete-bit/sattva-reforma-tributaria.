@@ -17,6 +17,10 @@ const FONTES = [
     url: 'https://cgibs.gov.br/inicial'
   },
   {
+    chave: 'cgibs_noticias', nome: 'CGIBS — notícias e comunicados', tema: 'CBS_IBS',
+    url: 'https://cgibs.gov.br/noticias'
+  },
+  {
     chave: 'cgibs_guia_orientativo', nome: 'CGIBS — Guia orientativo da Reforma Tributária', tema: 'CBS_IBS',
     url: 'https://www.cgibs.gov.br/guia-de-orientacoes-para-impactos-administrativos-da-reforma-tributaria'
   },
