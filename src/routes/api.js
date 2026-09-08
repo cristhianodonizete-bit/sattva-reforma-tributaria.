@@ -530,7 +530,7 @@ router.get('/operacao/dashboard', async (req, res) => {
       return ok(res, { ...emCache.dados, atualizado_em: new Date(emCache.geradoEm).toISOString(), cache: 'leitura_curta' });
     }
     const remoto = supabase.admin();
-    const [{ data: empresas, error: erroEmpresas }, { data: projetos, error: erroProjetos }, { data: entregas, error: erroEntregas }, { data: acompanhamentos, error: erroAcomp }, { data: responsaveis, error: erroResponsaveis }, { data: tarefas, error: erroTarefas }] = await Promise.all([
+    const [{ data: empresas, error: erroEmpresas }, { data: projetos, error: erroProjetos }, { data: entregas, error: erroEntregas }, { data: acompanhamentos, error: erroAcomp }, { data: responsaveis, error: erroResponsaveis }, { data: tarefas, error: erroTarefas }, { data: parceiros, error: erroParceiros }, { data: movimentos, error: erroMovimentos }, { data: perfis, error: erroPerfis }, { data: contratos, error: erroContratos }, { data: turmas, error: erroTurmas }, { data: produtosPreco, error: erroProdutosPreco }, { data: servicosPreco, error: erroServicosPreco }] = await Promise.all([
       // A visão geral não é um editor. Projetar as colunas evita transferir
       // observações, históricos e demais campos grandes seis vezes por carga.
       remoto.from('empresas').select('id,razao_social,ativo'),
@@ -539,8 +539,18 @@ router.get('/operacao/dashboard', async (req, res) => {
       remoto.from('projeto_acompanhamentos').select('projeto_id,competencia,status'),
       remoto.from('projeto_responsaveis').select('projeto_id,entrega_id,lado,nome,usuario_id'),
       remoto.from('projeto_tarefas').select('origem_local_id,projeto_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente,obrigatoria'),
+      // A evolução de análise é calculada a partir dos dados efetivamente
+      // disponíveis, da mesma forma que o Painel do projeto. Ela não pode
+      // ser confundida com o aceite formal das entregas contratadas.
+      remoto.from('parceiros').select('empresa_id'),
+      remoto.from('movimentos').select('empresa_id'),
+      remoto.from('perfil_tributario').select('empresa_id'),
+      remoto.from('contratos').select('empresa_id'),
+      remoto.from('turmas').select('empresa_id'),
+      remoto.from('pricing_products').select('empresa_id'),
+      remoto.from('pricing_services').select('empresa_id'),
     ]);
-    for (const e of [erroEmpresas, erroProjetos, erroEntregas, erroAcomp, erroResponsaveis, erroTarefas]) if (e) throw e;
+    for (const e of [erroEmpresas, erroProjetos, erroEntregas, erroAcomp, erroResponsaveis, erroTarefas, erroParceiros, erroMovimentos, erroPerfis, erroContratos, erroTurmas, erroProdutosPreco, erroServicosPreco]) if (e) throw e;
     const permitidas = await empresasPermitidasUsuario(req.usuario);
     const empresasVisiveis = permitidas === null ? empresas : empresas.filter((e) => permitidas.has(String(e.id)));
     const empresaPorId = new Map(empresasVisiveis.map((e) => [e.id, e]));
@@ -549,6 +559,12 @@ router.get('/operacao/dashboard', async (req, res) => {
     const acompPorProjeto = new Map((acompanhamentos || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const responsaveisPorProjeto = new Map((responsaveis || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
     const tarefasPorProjeto = new Map((tarefas || []).reduce((m, x) => { const a = m.get(x.projeto_id) || []; a.push(x); m.set(x.projeto_id, a); return m; }, new Map()));
+    const empresasComParceiros = new Set((parceiros || []).map((x) => x.empresa_id));
+    const empresasComMovimentos = new Set((movimentos || []).map((x) => x.empresa_id));
+    const empresasComPerfil = new Set((perfis || []).map((x) => x.empresa_id));
+    const empresasComContratos = new Set((contratos || []).map((x) => x.empresa_id));
+    const empresasComTurmas = new Set((turmas || []).map((x) => x.empresa_id));
+    const empresasComPreco = new Set([...(produtosPreco || []), ...(servicosPreco || [])].map((x) => x.empresa_id));
     const responsavelDaEntrega = (projetoId, entregaId, lado = 'sattva') => {
       const lista = responsaveisPorProjeto.get(projetoId) || [];
       // Responsabilidade é da entrega, nunca da empresa inteira. Um contato
@@ -562,6 +578,7 @@ router.get('/operacao/dashboard', async (req, res) => {
       const proximaTarefa = ts.filter((x) => x.status !== 'concluida' && x.data_conclusao).sort((a, b) => String(a.data_conclusao).localeCompare(String(b.data_conclusao)))[0];
       const proximoAcompanhamento = as.filter((x) => x.status !== 'concluido').sort((a, b) => String(a.competencia).localeCompare(String(b.competencia)))[0]?.competencia || null;
       const responsavelSattva = rs.find((x) => x.lado === 'sattva')?.nome || null;
+      const responsaveisSattva = [...new Set(rs.filter((x) => x.lado === 'sattva' && x.nome).map((x) => x.nome))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
       const pendenciasCliente = ts.filter((x) => x.status !== 'concluida' && x.envolve_cliente && String(x.pendencia_cliente || '').trim()).length;
       // O indicador de atraso da carteira considera apenas os marcos
       // obrigatórios criados pelo SLA. Tarefas livres continuam visíveis na
@@ -572,10 +589,16 @@ router.get('/operacao/dashboard', async (req, res) => {
         responsavel: responsavelDaEntrega(p.id, entrega.id), usuario_id: rs.find((x) => x.lado === 'sattva' && x.entrega_id === entrega.id)?.usuario_id || null }));
       if (Number(p.acompanhamento_meses) > 0 || as.length) responsaveisPorEntrega.push({ id: null, chave: 'acompanhamento', titulo: 'Acompanhamento',
         responsavel: responsavelDaEntrega(p.id, null), usuario_id: rs.find((x) => x.lado === 'sattva' && !x.entrega_id)?.usuario_id || null });
+      const etapasAnalise = [
+        empresasComParceiros.has(p.empresa_id), empresasComMovimentos.has(p.empresa_id), empresasComPerfil.has(p.empresa_id),
+        empresasComMovimentos.has(p.empresa_id), empresasComPreco.has(p.empresa_id), empresasComContratos.has(p.empresa_id), empresasComTurmas.has(p.empresa_id),
+      ];
+      const etapasAnaliseConcluidas = etapasAnalise.filter(Boolean).length;
       return { ...p, empresa: empresaPorId.get(p.empresa_id)?.razao_social || 'Cliente não identificado', entregas: es.length,
         entregasConcluidas: feitas, progresso: es.length ? Math.round((feitas / es.length) * 100) : 0,
+        etapasAnaliseConcluidas, etapasAnaliseTotal: etapasAnalise.length, progressoAnalise: Math.round((etapasAnaliseConcluidas / etapasAnalise.length) * 100),
         acompanhamentos: as.length, acompanhamentosConcluidos: as.filter((x) => x.status === 'concluido').length,
-        responsavelSattva, pendenciasCliente, tarefasSlaAtrasadas: tarefasSlaAtrasadas.length, etapasCriticas,
+        responsavelSattva, responsaveisSattva, pendenciasCliente, tarefasSlaAtrasadas: tarefasSlaAtrasadas.length, etapasCriticas,
         proximoAcompanhamento, responsaveisPorEntrega, proximoMarco: proximaTarefa ? { titulo: proximaTarefa.titulo, data: proximaTarefa.data_conclusao, atrasado: proximaTarefa.data_conclusao < hoje, envolveCliente: Boolean(proximaTarefa.envolve_cliente), pendenciaCliente: proximaTarefa.pendencia_cliente || '' } : null };
     }).sort((a, b) => {
       const dataA = a.proximoMarco?.data || a.proximoAcompanhamento || '9999-99';
