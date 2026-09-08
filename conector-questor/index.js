@@ -7,7 +7,7 @@ if (!fs.existsSync(cfgPath)) throw new Error('Crie config.json a partir de confi
 // O configurador do Windows pode gravar UTF-8 com BOM. Remove a marca antes
 // de interpretar o JSON, sem alterar o conteúdo ou expor credenciais.
 const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8').replace(/^\uFEFF/, ''));
-const permitidas = new Set(['TESTAR_NWEB', 'PARAMETROS_RELATORIO', 'APURACAO_PIS_COFINS']);
+const permitidas = new Set(['TESTAR_NWEB', 'PARAMETROS_RELATORIO', 'APURACAO_PIS_COFINS', 'IMPORTAR_MOVIMENTACAO']);
 const cab = () => ({ 'Content-Type':'application/json', 'X-Connector-Id':cfg.connectorId, 'X-Connector-Secret':cfg.connectorSecret });
 const url = (base, rota, params={}) => { const u=new URL(rota, base.replace(/\/$/, '')+'/'); Object.entries(params).forEach(([k,v])=>{if(v!==undefined&&v!==null&&v!=='')u.searchParams.set(k,v);}); return u; };
 async function nweb(rota, params={}, body) {
@@ -20,6 +20,7 @@ async function executar(t) {
   if(t.tipo==='TESTAR_NWEB') return { versao:await nweb('/TnWebDMDadosGerais/PegarVersaoQuestor'), info:await nweb('/api/TnInfo/Info') };
   const acao=t.payload?.actionName || 'nFisRRTotalPISCOFINSProd';
   if(t.tipo==='PARAMETROS_RELATORIO') return { parametros:await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acao}) };
+  if(t.tipo==='IMPORTAR_MOVIMENTACAO') { const entrada=t.payload?.tipo==='fornecedor'; return { registros:JSON.parse(await nweb(entrada?'/TnWebDMFiscal/PegarLancamentosEntrada':'/TnWebDMFiscal/PegarLancamentosSaida',{codigoempresa:t.payload.codigo_questor,datainicial:t.payload.inicio,datafinal:t.payload.fim})) }; }
   return { actionName:acao, formato:'nrwexTXT', relatorio:await nweb('/api/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT',...(t.payload?.parametros||{})}) };
 }
 async function ciclo(){

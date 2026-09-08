@@ -177,4 +177,20 @@ async function importarMovimentacao(empresaId, tipo, ctx) {
   return { importados: n, valorTotal: total, loteId: lote.lastInsertRowid };
 }
 
-module.exports = { config, salvarConfig, chamar, testar, consultar, importarParticipantes, importarMovimentacao, extrairLista, aplicarMapa };
+// Importação idempotente de resposta recebida pelo conector local. A chave de
+// comparação usa os campos disponíveis quando não há chave fiscal no retorno.
+function importarMovimentacaoConector(empresaId, tipo, resposta, contexto = {}) {
+  const chave = tipo === 'cliente' ? 'saidas' : 'entradas'; const ep=config().endpoints[chave] || {};
+  const brutos=extrairLista(resposta?.registros || resposta).map(r=>aplicarMapa(r,ep.mapa));
+  const existentes=db.prepare(`SELECT inscr_federal,descricao,ncm,cfop,competencia,valor FROM movimentos WHERE empresa_id=? AND tipo=?`).all(empresaId,tipo);
+  const assinatura=(r)=>[soDigitos(r.inscr_federal),String(r.descricao||'').trim().toLowerCase(),soDigitos(r.ncm),soDigitos(r.cfop),String(r.competencia||''),Number(numeroBR(r.valor)||0).toFixed(2)].join('|');
+  const vistos=new Set(existentes.map(assinatura)); const novos=[]; let ignorados=0;
+  for(const r of brutos){ const a=assinatura(r); if(vistos.has(a)){ignorados++;continue;} vistos.add(a);novos.push(r); }
+  if(!novos.length) return { encontrados:brutos.length,importados:0,ignorados,divergencias:0 };
+  const lote=db.prepare(`INSERT INTO lotes (empresa_id,tipo,arquivo,registros,origem) VALUES (?,?,?,?, 'questor')`).run(empresaId,tipo,`conector/${chave} ${contexto.inicio||''}-${contexto.fim||''}`,novos.length);
+  const ins=db.prepare(`INSERT INTO movimentos (empresa_id,lote_id,tipo,nome,inscr_federal,descricao,ncm,cfop,cst,competencia,valor,base_calculo,icms,icms_st,ipi,pis,cofins,iss,origem) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'questor')`);
+  let total=0; db.transaction(()=>novos.forEach(r=>{const valor=numeroBR(r.valor);ins.run(empresaId,lote.lastInsertRowid,tipo,String(r.nome||''),soDigitos(r.inscr_federal),String(r.descricao||''),soDigitos(r.ncm),soDigitos(r.cfop),String(r.cst||''),String(r.competencia||''),valor,numeroBR(r.base_calculo)||valor,numeroBR(r.icms),numeroBR(r.icms_st),numeroBR(r.ipi),numeroBR(r.pis),numeroBR(r.cofins),numeroBR(r.iss));total+=valor;}))();
+  db.prepare('UPDATE lotes SET valor_total=? WHERE id=?').run(total,lote.lastInsertRowid); return {encontrados:brutos.length,importados:novos.length,ignorados,divergencias:0,loteId:lote.lastInsertRowid};
+}
+
+module.exports = { config, salvarConfig, chamar, testar, consultar, importarParticipantes, importarMovimentacao, importarMovimentacaoConector, extrairLista, aplicarMapa };

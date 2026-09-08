@@ -735,6 +735,11 @@ Telas.questor = async (el) => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
     b.disabled = true;
     try {
+      if (b.dataset.q === 'movimentacao' && conectores.length) {
+        const r = await A.api(`/empresas/${S.empresaId}/questor/conector/movimentacao`, { metodo: 'POST', corpo: { tipo: b.dataset.tipo } });
+        A.toast(`Busca enviada ao conector para ${r.periodo.data_inicio} até ${r.periodo.data_fim}.`, 'ok');
+        return;
+      }
       const r = await A.api(`/empresas/${S.empresaId}/questor/${b.dataset.q}`, { metodo: 'POST',
         corpo: { tipo: b.dataset.tipo, inicio: val('inicio'), fim: val('fim') } });
       A.toast(`${r.importados} registros importados`, 'ok');
