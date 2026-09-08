@@ -3626,6 +3626,34 @@ router.get('/utilidades-fiscais', (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
+// O Anexo VIII é lido diretamente da publicação governamental no momento da
+// consulta. Ele permanece isolado da matriz do motor: visualizar a tabela não
+// promove regras fiscais nem altera registros de empresas.
+router.get('/utilidades-fiscais/anexo-viii', async (req, res) => {
+  try {
+    const url = 'https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/rtc/anexoviii-correlacaoitemnbsindopcclasstrib_ibscbs_v1-00-00.xlsx/@@download/file';
+    const resposta = await fetch(url, { signal: AbortSignal.timeout(30000), headers: { Accept: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' } });
+    if (!resposta.ok) throw new Error(`A fonte oficial respondeu HTTP ${resposta.status}.`);
+    const livro = XLSX.read(Buffer.from(await resposta.arrayBuffer()));
+    const aba = livro.Sheets['tabela geral'];
+    if (!aba) throw new Error('A publicação oficial não contém a aba “tabela geral”.');
+    const bruto = XLSX.utils.sheet_to_json(aba, { defval: '' });
+    const anteriores = {};
+    const linhas = bruto.map((x) => {
+      const obter = (campo) => {
+        const valor = String(x[campo] ?? '').trim();
+        if (valor) anteriores[campo] = valor;
+        return valor || anteriores[campo] || '';
+      };
+      return { lc116: obter('Item LC 116'), descricao_lc116: obter('Descrição Item'), nbs: String(x.NBS || '').trim(), descricao_nbs: String(x['DESCRIÇÃO NBS'] || '').trim(), indop: obter('INDOP'), local_incidencia: obter('Local incidência IBS'), cclasstrib: obter('cClassTrib'), nome_cclasstrib: obter('nome cClassTrib') };
+    }).filter((x) => x.nbs || x.lc116);
+    const busca = String(req.query.busca || '').trim().toLowerCase();
+    const filtradas = busca ? linhas.filter((x) => Object.values(x).join(' ').toLowerCase().includes(busca)) : linhas;
+    const pagina = Math.max(1, Number(req.query.pagina) || 1); const tamanho = Math.min(100, Math.max(10, Number(req.query.tamanho) || 50));
+    ok(res, { fonte: url, aba: 'tabela geral', total: filtradas.length, pagina, tamanho, itens: filtradas.slice((pagina - 1) * tamanho, pagina * tamanho) });
+  } catch (e) { erro(res, e); }
+});
+
 router.get('/bases', (req, res) => responderBasesEmCache(req, res, () => ({ estatisticas: bases.estatisticas() })));
 
 router.get('/bases/modelo/:tipo', (req, res) => {
