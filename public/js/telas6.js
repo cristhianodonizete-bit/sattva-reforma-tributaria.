@@ -67,11 +67,6 @@ async function controle(box) {
       ${A.kpi('Serviços sem referência fiscal', d.total.servicosSemReferencia, A.moeda(d.total.vendasSemReferencia) + ' em vendas', d.total.servicosSemReferencia ? 'destaque' : '')}
       ${A.kpi('Exceções abertas', d.total.excecoesAbertas || 0, A.moeda(d.total.valorExcecoes || 0) + ' priorizados por materialidade', d.total.excecoesAbertas ? 'destaque' : '')}
     </div>
-    <div class="cartao" style="margin-top:16px"><h2>Ações do projeto</h2>
-      <p class="desc">O enriquecimento consulta apenas CNPJs pendentes e respeita a ordem de custo: fontes abertas antes da Casa dos Dados.</p>
-      <button class="btn" id="ctrlEnriquecer">Enriquecer pendências agora</button>
-      <button class="btn vazio" id="ctrlRecalcular">Recalcular todo o projeto</button>
-      <div id="ctrlStatus" style="margin-top:12px"></div></div>
     ${carteira ? `<div class="cartao" style="margin-top:16px"><h2>Processamento da carteira</h2>
       <p class="desc"><b>${A.esc(carteira.status)}</b> · ${carteira.processadas}/${carteira.total_empresas} empresa(s) · ${carteira.automaticas} automática(s) · ${carteira.com_premissas} com premissas · ${carteira.com_excecoes} com exceções · ${carteira.bloqueadas} bloqueada(s).</p>
       ${carteira.status === 'EXECUTANDO' || carteira.status === 'AGENDADO' ? '<button class="btn vazio" id="atualizarCarteira">Atualizar acompanhamento</button>' : ''}
@@ -88,11 +83,6 @@ async function controle(box) {
         { t: 'Último motor', r: (x) => x.ultimaExecucao ? `${A.esc(x.ultimaExecucao.data || '—')}${ibsAtivo ? ` · ${x.ultimaExecucao.ano}` : ' · CBS'}` : 'não executado' },
         { t: '', r: (x) => x.excecoes?.abertas ? `<button class="btn pq vazio" data-excecoes="${x.id}" data-empresa="${A.esc(x.razao_social)}">Ver exceções</button>` : (x.clientesPendentes || x.classificacoesPendentes || x.servicosSemReferencia) ? `<button class="btn pq vazio" data-corrigir="${x.id}" data-destino="${x.servicosSemReferencia || x.clientesPendentes ? 'dados' : 'bases'}">Corrigir</button>` : '<span class="tag c">sem pendências</span>' },
       ], d.empresas)}</div>`;
-  document.getElementById('ctrlEnriquecer').onclick = async () => {
-    const r = await A.api('/config/controle/enriquecer', { metodo: 'POST' });
-    document.getElementById('ctrlStatus').innerHTML = `<div class="aviso bom"><b>${r.filas.length} fila(s) iniciada(s)</b> O processamento ocorre em segundo plano; esta tela mostra o status ao atualizar.</div>`;
-  };
-  document.getElementById('ctrlRecalcular').onclick = () => document.getElementById('recalcularProjeto').click();
   document.getElementById('atualizarCarteira')?.addEventListener('click', () => A.ir('configuracoes'));
   box.querySelectorAll('[data-corrigir]').forEach((botao) => { botao.onclick = async () => {
     localStorage.setItem('sattva_empresa', botao.dataset.corrigir); await A.carregarEmpresas();
