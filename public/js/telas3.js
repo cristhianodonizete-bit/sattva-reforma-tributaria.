@@ -608,36 +608,34 @@ Telas.gestaoProjetos = async (el) => {
   const statusChecklist = ['NAO_SOLICITADO','SOLICITADO','AGUARDANDO_CLIENTE','RECEBIDO','PARCIAL','COM_PENDENCIA','VALIDADO','CONCLUIDO','NAO_APLICAVEL'].map((v) => ({ v, t: v.replaceAll('_', ' ') }));
   const rotulo = (s) => (statusEntrega.concat(statusAcomp).find((x) => x.v === s) || {}).t || s;
   const tag = (s) => s === 'concluida' || s === 'concluido' ? 'c' : s === 'em_andamento' ? 'b' : 'n';
+  const data = (v) => /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? new Date(`${v}T12:00:00`) : null;
+  const competencia = (v) => /^\d{4}-\d{2}$/.test(String(v || '')) ? new Date(`${v}-01T12:00:00`) : null;
+  const mesSeguinte = (v) => new Date(v.getFullYear(), v.getMonth() + 1, 1);
+  const inicioMes = (v) => new Date(v.getFullYear(), v.getMonth(), 1);
+  const rotuloMes = (v) => v.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' }).replace('.', '');
+  const cronogramaGantt = (p) => {
+    const linhas = [
+      ...p.tarefas.map((t) => ({ titulo: t.titulo, etapa: p.entregas.find((x) => x.id === t.entrega_id)?.titulo || 'Entrega', inicio: data(t.data_abertura) || data(t.data_conclusao), fim: data(t.data_conclusao) || data(t.data_abertura), status: t.status, tipo: 'tarefa' })),
+      ...p.acompanhamentos.map((a) => ({ titulo: a.nome || `Acompanhamento ${a.competencia}`, etapa: 'Acompanhamento', inicio: competencia(a.competencia), fim: competencia(a.competencia), status: a.status, tipo: 'acompanhamento' })),
+    ].filter((x) => x.inicio && x.fim);
+    if (!linhas.length) return `<section class="cronograma-gantt"><div class="cronograma-cabecalho"><div><h3>Cronograma do projeto</h3><p class="mini">O cronograma será desenhado automaticamente quando as tarefas receberem data de abertura e previsão de conclusão.</p></div></div><div class="cronograma-vazio">Ainda não há atividades com prazo. Use <b>Planejar</b> no escopo aprovado para incluir as datas.</div></section>`;
+    const primeiro = inicioMes(new Date(Math.min(...linhas.map((x) => x.inicio.getTime()))));
+    const ultimoFim = Math.max(...linhas.map((x) => x.fim.getTime()));
+    const ultimo = mesSeguinte(inicioMes(new Date(ultimoFim)));
+    const meses = []; for (let m = new Date(primeiro); m < ultimo; m = mesSeguinte(m)) meses.push(new Date(m));
+    const total = Math.max(1, ultimo.getTime() - primeiro.getTime());
+    const barra = (x) => { const ini = Math.max(primeiro.getTime(), x.inicio.getTime()); const fim = Math.min(ultimo.getTime(), mesSeguinte(inicioMes(x.fim)).getTime()); const esquerda = ((ini - primeiro.getTime()) / total) * 100; const largura = Math.max(3, ((fim - ini) / total) * 100); return `<i class="gantt-barra ${x.tipo} ${x.status === 'concluida' || x.status === 'concluido' ? 'concluida' : ''}" style="left:${esquerda}%;width:${largura}%" title="${A.esc(x.titulo)}"></i>`; };
+    return `<section class="cronograma-gantt"><div class="cronograma-cabecalho"><div><h3>Cronograma do projeto</h3><p class="mini">Atualizado automaticamente a partir das tarefas e acompanhamentos com data.</p></div><span class="tag">${linhas.length} atividade(s) programada(s)</span></div><div class="gantt-rolagem"><div class="gantt" style="--gantt-meses:${meses.length}"><div class="gantt-cabecalho"><span>Atividade</span><div class="gantt-meses">${meses.map((m) => `<b>${rotuloMes(m)}</b>`).join('')}</div></div>${linhas.map((x) => `<div class="gantt-linha"><div><b>${A.esc(x.titulo)}</b><small>${A.esc(x.etapa)}</small></div><div class="gantt-faixa">${barra(x)}</div></div>`).join('')}</div></div></section>`;
+  };
 
-  el.innerHTML = cab('Gestão do projeto', 'Escopo, entregas e ações',
-    'O escopo aprovado define o que foi contratado; entregas e ações organizam a execução da empresa. Escolha uma empresa ou veja toda a carteira.') +
+  el.innerHTML = cab('Gestão do projeto', 'Escopo e entregas',
+    'Acompanhe o escopo contratado e o cronograma. As datas informadas no planejamento das entregas desenham a linha do tempo automaticamente.') +
     `<div class="filtros-carteira" style="margin-bottom:16px"><label>Empresa<select id="filtroEmpresaGestao"><option value="">Todas as empresas</option>${empresasFiltro.map((x) => `<option value="${x.id}" ${String(filtroEmpresa) === String(x.id) ? 'selected' : ''}>${A.esc(x.razao_social)}</option>`).join('')}</select></label><span class="mini">O padrão é a empresa selecionada no cabeçalho.</span></div>` +
-    `<div class="grade g3">
-      ${A.kpi('Projetos em execução', projetos.filter((p) => p.status === 'em_execucao').length, 'escopo aprovado')}
-      ${A.kpi('Escopos para aprovar', propostas.length, 'defina entregas e acompanhamento', propostas.length ? 'destaque' : '')}
-      ${A.kpi('Acompanhamentos em aberto', projetos.reduce((n, p) => n + p.acompanhamentos.filter((a) => a.status !== 'concluido').length, 0), 'meses liberados')}
-      ${A.kpi('Ações em aberto', acoes.filter((a) => a.status !== 'concluida').length, 'originadas no diagnóstico ou manuais')}
-    </div>
-    <div class="cartao lista-aprovacoes"><div class="cabecalho-lista"><div><h2>Escopos aguardando aprovação</h2><p class="desc">A aprovação registra a fotografia do plano e libera as etapas contratadas.</p></div><span class="tag">${propostas.length} pendentes</span></div>
-      ${A.tabela([
-        { t: 'Cliente', r: (p) => `<b>${A.esc(p.razao_social)}</b>` },
-        { t: 'Escopo contratado', r: (p) => A.esc(p.combo_nome || 'Escopo personalizado') },
-        { t: 'Criada em', r: (p) => A.esc(p.criado_em || '—') },
-        { t: '', r: (p) => `<button class="btn pq" data-aprovar="${p.id}">Fechar e aprovar</button>` },
-      ], propostas, { vazio: 'Nenhuma proposta aguardando aprovação.' })}</div>
-    <div class="cartao plano-acoes"><div class="cabecalho-lista"><div><h2>Ações de adequação</h2><p class="desc">Providências originadas no diagnóstico ou registradas manualmente. Elas complementam as entregas contratadas sem alterar o escopo.</p></div><button class="btn pq" id="novaAcaoGestao">Nova ação</button></div>${A.tabela([
-      { t:'Empresa', r:a=>`<b>${A.esc(a.razao_social)}</b>` }, { t:'Prioridade', r:a=>`<span class="tag ${a.prioridade==='alta'?'a':a.prioridade==='media'?'b':'n'}">${A.esc(a.prioridade)}</span>` },
-      { t:'Ação', r:a=>`<b>${A.esc(a.titulo)}</b><div class="mini">${A.esc(a.descricao||'')}</div>` }, { t:'Origem', r:a=>A.esc(a.origem || 'manual') }, { t:'Responsável', r:a=>A.esc(a.responsavel||'—') }, { t:'Prazo', r:a=>A.esc(a.prazo||'—') },
-      { t:'Situação', r:a=>`<span class="tag ${a.status==='concluida'?'c':'n'}">${A.esc(a.status)}</span>` }, { t:'', r:a=>`<button class="btn pq vazio" data-editar-acao="${a.id}">Editar</button><button class="btn pq perigo" data-excluir-acao="${a.id}">Excluir</button>` },
-    ], acoes, { vazio:'Nenhuma ação de adequação para este filtro.' })}</div>
-    <div class="projetos-entrega">${projetos.map((p) => `<section class="cartao projeto-entrega-card">
+    `<div class="projetos-entrega">${projetos.map((p) => `<section class="cartao projeto-entrega-card">
       <div class="projeto-entrega-cabecalho"><div>
         <h2>${A.esc(p.razao_social)}</h2><p class="desc">${A.esc(p.combo_nome || 'Plano personalizado')} · aprovado em ${A.esc(p.aprovado_em || '—')}${p.responsavel_implantacao ? ` · responsável: ${A.esc(p.responsavel_implantacao.nome)}` : ' · responsável a definir'}</p>
       </div><div class="projeto-progresso"><b class="mono">${p.progresso}%</b><div class="mini">${p.concluidas}/${p.entregas.length} entregas concluídas</div><button class="btn pq vazio" data-escopo="${p.id}">Alterar escopo</button></div></div>
       <div class="barra-prog projeto-barra"><i style="width:${p.progresso}%"></i></div>
-      <section class="tarefas-projeto"><h3 class="subtitulo-entrega">Implantação por escopo</h3><p class="mini">${p.progresso_implantacao?.concluidos || 0}/${p.progresso_implantacao?.total || 0} itens validados ou concluídos · ${p.progresso_implantacao?.percentual || 0}%${p.proxima_acao_implantacao ? ` · próxima ação: ${A.esc(p.proxima_acao_implantacao.titulo)}` : ' · sem pendências de implantação'}</p>
-        ${(p.checklist || []).map((i) => `<div class="linha-entrega"><span class="tag ${['VALIDADO','CONCLUIDO','NAO_APLICAVEL'].includes(i.status) ? 'c' : ['COM_PENDENCIA','AGUARDANDO_CLIENTE'].includes(i.status) ? 'a' : 'n'}">${A.esc(i.status.replaceAll('_',' '))}</span><span class="linha-entrega-texto"><b>${A.esc(i.titulo)}</b><small class="mini">${A.esc(i.escopo)} · ${A.esc(i.tipo_evidencia || 'sem evidência definida')}${i.origem_tipo ? ` · vínculo: ${A.esc(i.origem_tipo)} ${A.esc(i.origem_id || '')}` : ''}</small></span><button class="btn pq vazio" data-checklist="${i.id}">Atualizar</button></div>`).join('') || '<p class="mini">Nenhum item de implantação aplicável.</p>'}
-      </section>
       <div class="grade g2">
         <div><h3 class="subtitulo-entrega">Escopo aprovado</h3>
           ${p.entregas.map((x) => { const ts=p.tarefas.filter((t)=>t.entrega_id===x.id), rs=p.responsaveis.filter((r)=>r.entrega_id===x.id); return `<div class="linha-entrega"><span class="tag ${tag(x.status)}">${A.esc(rotulo(x.status))}</span><span class="linha-entrega-texto">${A.esc(x.titulo)}<small class="mini">${rs.length ? A.esc(rs.map(r=>r.nome).join(' · ')) : 'Sem responsáveis'} · ${ts.length} tarefa(s)</small></span><button class="btn pq vazio" data-entrega="${x.id}">Planejar</button></div>`; }).join('')}
@@ -646,9 +644,7 @@ Telas.gestaoProjetos = async (el) => {
           ${p.acompanhamentos.length ? p.acompanhamentos.map((a) => `<div class="linha-entrega"><span class="tag ${tag(a.status)}">${A.esc(rotulo(a.status))}</span><span class="linha-entrega-texto">${A.esc(a.nome || a.competencia)}</span><button class="btn pq vazio" data-acomp="${a.id}">Atualizar</button></div>`).join('') : (p.acompanhamento_meses ? `<p class="mini">Aguardando conclusão do Diagnóstico.</p><button class="btn pq" data-liberar="${p.id}">Liberar acompanhamento</button>` : '<p class="mini">Sem acompanhamento contratado.</p>')}
         </div>
       </div>
-      ${p.tarefas.filter((t) => t.status !== 'concluida').length ? `<section class="tarefas-projeto"><h3 class="subtitulo-entrega">Tarefas em andamento</h3>
-        ${p.tarefas.filter((t) => t.status !== 'concluida').map((t) => { const entrega = p.entregas.find((x) => x.id === t.entrega_id); return `<div class="tarefa-projeto-linha"><span class="tag ${tag(t.status)}">${A.esc(rotulo(t.status))}</span><span class="linha-entrega-texto"><b>${A.esc(t.titulo)}</b><small class="mini">${A.esc(entrega?.titulo || 'Etapa não identificada')}${t.data_conclusao ? ` · previsão ${A.esc(t.data_conclusao)}` : ''}${t.envolve_cliente ? ' · envolve cliente' : ''}</small>${t.pendencia_cliente ? `<small class="mini pendencia-cliente">Pendência: ${A.esc(t.pendencia_cliente)}</small>` : ''}</span><button class="btn pq vazio" data-tarefa="${t.id}">Atualizar</button></div>`; }).join('')}
-      </section>` : ''}
+      ${cronogramaGantt(p)}
     </section>`).join('') || A.vazio('Nenhum projeto aprovado', 'Aprove uma proposta para iniciar o controle de execução.')}</div>`;
 
   const formAcao = (a = {}) => A.campo('titulo', 'Ação', a.titulo || '') + A.area('descricao', 'Descrição', a.descricao || '', 2) +
@@ -661,13 +657,13 @@ Telas.gestaoProjetos = async (el) => {
     S.cache.filtroGestaoEmpresa = ev.target.value;
     atualizarTela();
   };
-  el.querySelector('#novaAcaoGestao').onclick = () => {
+  el.querySelector('#novaAcaoGestao')?.addEventListener('click', () => {
     if (!filtroEmpresa) { A.toast('Selecione uma empresa antes de registrar uma ação.', 'erro'); return; }
     A.modal({ titulo: 'Nova ação de adequação', corpo: formAcao(), aoConfirmar: async (form) => {
       await A.api(`/empresas/${filtroEmpresa}/acoes`, { metodo: 'POST', corpo: form });
       A.toast('Ação registrada', 'ok'); atualizarTela();
     } });
-  };
+  });
   el.querySelectorAll('[data-editar-acao]').forEach((b) => { b.onclick = () => {
     const acao = (d.acoes || []).find((x) => x.id === Number(b.dataset.editarAcao));
     if (!acao) return;
