@@ -258,16 +258,25 @@ router.get('/cadastros-cnpj', async (req, res) => {
     const pagina = Math.max(1, Number(req.query.pagina) || 1);
     const tamanho = Math.min(100, Math.max(10, Number(req.query.tamanho) || 25));
     const busca = String(req.query.busca || '').replace(/[^\w\s.\-\/]/g, '').trim();
+    const filtro = (nome) => String(req.query[nome] || '').trim().slice(0, 120);
+    const filtros = { regime: filtro('regime').toLowerCase(), cnae: filtro('cnae').toLowerCase(),
+      natureza: filtro('natureza').toLowerCase(), etiqueta: filtro('etiqueta').toUpperCase(), fonte: filtro('fonte').toLowerCase() };
     let consulta = supabase.admin().from('cadastros_cnpj')
       .select('cnpj,razao_social,situacao,porte,cnae,cnae_descricao,cnaes_secundarios,uf,municipio,logradouro,numero,complemento,bairro,cep,regime_derivado,natureza_juridica,codigo_natureza_juridica,efr,fonte,consultado_em', { count: 'exact' })
       .order('consultado_em', { ascending: false });
     if (busca) consulta = consulta.or(`cnpj.ilike.%${busca}%,razao_social.ilike.%${busca}%`);
-    const { data, error, count } = await consulta.range((pagina - 1) * tamanho, pagina * tamanho - 1);
+    if (filtros.cnae) consulta = consulta.or(`cnae.ilike.%${filtros.cnae}%,cnae_descricao.ilike.%${filtros.cnae}%,municipio.ilike.%${filtros.cnae}%,uf.ilike.%${filtros.cnae}%`);
+    if (filtros.natureza) consulta = consulta.or(`natureza_juridica.ilike.%${filtros.natureza}%,efr.ilike.%${filtros.natureza}%`);
+    if (filtros.fonte) consulta = consulta.ilike('fonte', `%${filtros.fonte}%`);
+    // O filtro de regime pode depender da base anual RFB; por isso a redução
+    // final acontece abaixo da leitura das duas evidências. O teto evita que
+    // uma busca administrativa transforme a tela em exportação ilimitada.
+    const { data, error } = await consulta.limit(5000);
     if (error) throw error;
     // A tela não usa o regime copiado do cadastro operacional. Ela consulta a
     // mesma RFB compartilhada usada pelo motor, para não haver duas verdades.
     const rfb = await baseRegime.consultarCompartilhada((data || []).map((x) => x.cnpj), 2024);
-    const cadastros = (data || []).map((x) => {
+    const cadastrosComEtiquetas = (data || []).map((x) => {
       const cnpj = String(x.cnpj || '').replace(/\D/g, '');
       const r = rfb.get(cnpj) || rfb.get(cnpj.slice(0, 8));
       // O regime cadastral não é substituído por uma consulta histórica. A
@@ -277,9 +286,22 @@ router.get('/cadastros-cnpj', async (req, res) => {
       const fonteRegime = x.regime_derivado
         ? `RFB — consulta cadastral (${x.fonte || 'fonte não informada'})`
         : r ? `Base RFB ${r.ano}` : 'Regime ainda não informado';
-      return { ...x, regime, fonte_regime: fonteRegime };
+      const governo = cnpjReceita.classificarEnteGovernamental(x, cnpj);
+      const etiquetas = governo.aplicar_regra_compra_governamental === 'SIM'
+        ? [{ codigo:'GOVERNO', rotulo:'Ente público elegível', detalhe:governo.tipo_ente_governamental || 'Natureza jurídica elegível' }]
+        : governo.aplicar_regra_compra_governamental === 'A VALIDAR'
+          ? [{ codigo:'PENDENTE_PERFIL_FISCAL', rotulo:'Perfil fiscal pendente', detalhe:'Natureza jurídica não disponível' }]
+          : [];
+      return { ...x, regime, fonte_regime: fonteRegime, etiquetas };
     });
-    ok(res, { cadastros, total: count || 0, pagina, tamanho });
+    const cadastros = cadastrosComEtiquetas.filter((x) => {
+      if (filtros.regime && !`${x.regime || ''} ${x.fonte_regime || ''}`.toLowerCase().includes(filtros.regime)) return false;
+      if (filtros.etiqueta === 'COM_ETIQUETA' && !x.etiquetas.length) return false;
+      if (filtros.etiqueta && filtros.etiqueta !== 'COM_ETIQUETA' && !x.etiquetas.some((e) => e.codigo === filtros.etiqueta)) return false;
+      return true;
+    });
+    const total = cadastros.length;
+    ok(res, { cadastros: cadastros.slice((pagina - 1) * tamanho, pagina * tamanho), total, pagina, tamanho, filtros });
   } catch (e) { erro(res, e); }
 });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });

@@ -491,23 +491,34 @@ Telas.configComercial = async (el) => {
 // ===========================================================================
 Telas.cadastrosCnpj = async (el) => {
   let pagina = 1; let busca = '';
+  let filtros = { regime:'', cnae:'', natureza:'', etiqueta:'', fonte:'' };
   const cnaesSecundarios = (valor) => {
     if (Array.isArray(valor)) return valor;
     try { return JSON.parse(valor || '[]'); } catch (_) { return []; }
   };
   const rotuloRegime = (regime) => A.regimeLabel(regime) || regime || 'Não informado';
   const render = async () => {
-    const r = await A.api(`/cadastros-cnpj?pagina=${pagina}&busca=${encodeURIComponent(busca)}`);
+    const parametros = new URLSearchParams({ pagina:String(pagina), busca, ...filtros });
+    const r = await A.api(`/cadastros-cnpj?${parametros.toString()}`);
     const totalPaginas = Math.max(1, Math.ceil(r.total / r.tamanho));
     el.innerHTML = cab('Cadastro central', 'Cadastros compartilhados',
       'Cada CNPJ é consultado e mantido uma única vez. Nas empresas ficam apenas os vínculos de cliente, fornecedor ou ambos.') +
       `<div class="cartao"><div class="grade g3" style="align-items:end"><label class="campo" style="margin:0;grid-column:span 2"><span>Buscar CNPJ ou razão social</span><input id="ccBusca" value="${A.esc(busca)}" placeholder="Ex.: 12.345.678/0001-90 ou Sattva"></label><button class="btn" id="ccBuscar">Buscar</button></div>
+        <div class="grade g3" style="margin-top:12px;align-items:end">
+          <label class="campo" style="margin:0"><span>Regime</span><input data-cc-filtro="regime" value="${A.esc(filtros.regime)}" placeholder="Ex.: Simples, regular"></label>
+          <label class="campo" style="margin:0"><span>CNAE / endereço</span><input data-cc-filtro="cnae" value="${A.esc(filtros.cnae)}" placeholder="Código, atividade, cidade ou UF"></label>
+          <label class="campo" style="margin:0"><span>Natureza / EFR</span><input data-cc-filtro="natureza" value="${A.esc(filtros.natureza)}" placeholder="Natureza jurídica ou EFR"></label>
+          <label class="campo" style="margin:0"><span>Etiqueta fiscal</span><select data-cc-filtro="etiqueta"><option value="">Todas</option><option value="COM_ETIQUETA" ${filtros.etiqueta==='COM_ETIQUETA'?'selected':''}>Com etiqueta</option><option value="GOVERNO" ${filtros.etiqueta==='GOVERNO'?'selected':''}>Ente público elegível</option><option value="PENDENTE_PERFIL_FISCAL" ${filtros.etiqueta==='PENDENTE_PERFIL_FISCAL'?'selected':''}>Perfil fiscal pendente</option></select></label>
+          <label class="campo" style="margin:0"><span>Fonte</span><input data-cc-filtro="fonte" value="${A.esc(filtros.fonte)}" placeholder="BrasilAPI, ReceitaWS…"></label>
+          <button class="btn vazio" id="ccLimparFiltros">Limpar filtros</button>
+        </div>
         <div class="mini" style="margin-top:14px"><b>${r.total.toLocaleString('pt-BR')}</b> cadastro(s) central(is) · página ${pagina} de ${totalPaginas}</div>
         ${A.tabela([
           { t: 'CNPJ / razão social', r: (x) => `<span class="mono">${A.esc(x.cnpj)}</span><div><b>${A.esc(x.razao_social || 'Sem razão social')}</b></div><div class="mini">${A.esc([x.municipio, x.uf].filter(Boolean).join(' / ') || 'localidade não informada')}</div>` },
           { t: 'Regime', r: (x) => `<span class="tag">${A.esc(rotuloRegime(x.regime))}</span><div class="mini">${A.esc(x.fonte_regime || '')}</div>` },
           { t: 'CNAE / endereço', r: (x) => `<span class="mono mini">${A.esc(x.cnae || 'CNAE não informado')}</span><div class="mini">${A.esc(x.cnae_descricao || '')}</div><div class="mini">${A.esc([x.municipio, x.uf].filter(Boolean).join(' / ') || 'Endereço não informado')}</div>` },
           { t: 'Natureza / EFR', r: (x) => `<span class="mini">${A.esc(x.natureza_juridica || 'não informado')}</span>${x.efr ? `<div class="mini">EFR: ${A.esc(x.efr)}</div>` : ''}` },
+          { t: 'Etiquetas', r: (x) => x.etiquetas?.length ? x.etiquetas.map((e) => `<span class="tag ${e.codigo==='PENDENTE_PERFIL_FISCAL'?'a':'b'}" title="${A.esc(e.detalhe || '')}">${A.esc(e.rotulo)}</span>`).join('<div style="height:4px"></div>') : '<span class="mini">—</span>' },
           { t: 'Fonte', r: (x) => `<span class="mini">${A.esc(x.fonte || '—')}</span><div class="mini">${A.esc(x.consultado_em || '')}</div>` },
           { t: '', r: (x) => `<button class="btn pq vazio" data-cc-detalhe="${A.esc(x.cnpj)}">Ver cadastro</button>` },
         ], r.cadastros, { vazio: 'Nenhum CNPJ centralizado ainda. Os cadastros são incluídos automaticamente na primeira consulta oficial.' })}
@@ -515,6 +526,8 @@ Telas.cadastrosCnpj = async (el) => {
     document.getElementById('ccBuscar').onkeydown = (e) => { if (e.key === 'Enter') { busca = e.target.value.trim(); pagina = 1; render(); } };
     document.getElementById('ccBuscar').oninput = () => {};
     document.getElementById('ccBuscar').closest('.cartao').querySelector('#ccBuscar').onclick = () => { busca = document.getElementById('ccBusca').value.trim(); pagina = 1; render(); };
+    el.querySelectorAll('[data-cc-filtro]').forEach((campo) => { campo.onchange = () => { filtros[campo.dataset.ccFiltro] = campo.value.trim(); pagina = 1; render(); }; campo.onkeydown = (e) => { if (e.key === 'Enter') { filtros[campo.dataset.ccFiltro] = campo.value.trim(); pagina = 1; render(); } }; });
+    document.getElementById('ccLimparFiltros').onclick = () => { filtros = { regime:'', cnae:'', natureza:'', etiqueta:'', fonte:'' }; pagina = 1; render(); };
     document.getElementById('ccAnterior').onclick = () => { pagina--; render(); };
     document.getElementById('ccProximo').onclick = () => { pagina++; render(); };
     el.querySelectorAll('[data-cc-detalhe]').forEach((botao) => { botao.onclick = () => {
@@ -531,6 +544,7 @@ Telas.cadastrosCnpj = async (el) => {
         <table class="tabela compacta"><tbody>
           <tr><th>Regime</th><td>${A.esc(rotuloRegime(cadastro.regime))}</td></tr>
           <tr><th>Fonte do regime</th><td>${A.esc(cadastro.fonte_regime || 'Não informada')}</td></tr>
+          <tr><th>Etiquetas fiscais</th><td>${A.esc(cadastro.etiquetas?.map((e) => e.rotulo).join(' · ') || 'Nenhuma condição fiscal especial identificada')}</td></tr>
           <tr><th>Natureza jurídica</th><td>${A.esc([cadastro.codigo_natureza_juridica, cadastro.natureza_juridica].filter(Boolean).join(' · ') || 'Não informada')}</td></tr>
           <tr><th>Ente federativo responsável</th><td>${A.esc(cadastro.efr || 'Não informado')}</td></tr>
         </tbody></table>
