@@ -71,6 +71,19 @@ const banco = require('../src/db');
   assert.equal(enriquecimento.total, 1, 'Natureza jurídica ausente deve entrar na consulta mesmo com regime informado');
   const natureza = banco.prepare('SELECT codigo_natureza_juridica FROM cnpj_cache WHERE cnpj=?').get('98765432000198');
   assert.equal(natureza.codigo_natureza_juridica, '2062');
+  // Natureza jurídica marca o perfil do destinatário, mas não pode substituir
+  // o regime tributário que governa crédito e demais cálculos econômicos.
+  global.fetch = async () => ({ ok:true, status:200, json:async()=>({
+    razao_social:'Autarquia de teste', codigo_natureza_juridica:'1104', natureza_juridica:'Autarquia Federal',
+    cnae_fiscal:8411600, cnae_fiscal_descricao:'Administração pública em geral', cnaes_secundarios:[],
+  }) });
+  banco.prepare("INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime) VALUES (?,?,?,?,?)")
+    .run(Number(empresa.lastInsertRowid), 'cliente', '33444555000109', 'Autarquia de teste', 'lucro_real');
+  await enriquecerParceiros(Number(empresa.lastInsertRowid));
+  const autarquia = banco.prepare('SELECT regime,perfil_economico,perfil_origem FROM parceiros WHERE cnpj=?').get('33444555000109');
+  assert.equal(autarquia.regime, 'lucro_real');
+  assert.equal(autarquia.perfil_economico, 'governo');
+  assert.equal(autarquia.perfil_origem, 'cadastro_oficial');
   // CNAE não utiliza a InfoSimples: BrasilAPI é a fonte primária gratuita.
   process.env.INFOSIMPLES_API_KEY = 'token-invalido-para-teste'; chamadas.length = 0;
   global.fetch = async (url, opcoes = {}) => {

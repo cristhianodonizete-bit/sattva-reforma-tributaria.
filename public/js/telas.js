@@ -570,14 +570,41 @@ Telas.dados = async (el) => {
     try {
       const r = await A.api(`/empresas/${S.empresaId}/importar/${destino}`, { metodo: 'POST', corpo: fd });
       const cols = Object.entries(r.colunasDetectadas || {}).map(([k, v]) => `<tr><td>${k}</td><td class="mono">${A.esc(v)}</td></tr>`).join('');
-      A.modal({ titulo: 'Importação concluída', largura: 620,
+      const enriquecimento = r.enriquecimento;
+      const blocoEnriquecimento = enriquecimento ? `<div class="aviso" id="enriquecimentoImportacao" style="margin-top:14px">
+        <b>Consulta cadastral de clientes: em processo</b><br>${A.esc(enriquecimento.mensagem || 'A fila foi agendada.')}
+        <div class="mini" style="margin-top:4px">BrasilAPI é a fonte primária; ReceitaWS só é usada em fallback. Nenhuma consulta é repetida quando o CNPJ já existe no cadastro compartilhado.</div>
+      </div>` : '';
+      const modalImportacao = A.modal({ titulo: 'Importação concluída', largura: 620,
         corpo: `<div class="grade g3">${A.kpi('Importados', r.importados)}${A.kpi('Ignorados', r.ignorados || 0)}
           ${r.valorTotal !== undefined ? A.kpi('Valor total', A.moeda(r.valorTotal)) : ''}</div>
           ${r.semRegime ? `<div class="aviso atencao" style="margin-top:14px"><b>${r.semRegime} lançamentos sem regime</b>
             Importe o cadastro de ${rotulo} com a coluna de regime tributário para que o cálculo de crédito fique correto.</div>` : ''}
           ${(r.mensagens || []).map((m) => `<div class="aviso atencao">${A.esc(m)}</div>`).join('')}
+          ${blocoEnriquecimento}
           <hr class="sep"><h3 style="font-size:13px">Colunas reconhecidas</h3>
           <table><thead><tr><th>Campo do sistema</th><th>Coluna da planilha</th></tr></thead><tbody>${cols}</tbody></table>` });
+      if (enriquecimento) {
+        const atualizarFila = async () => {
+          const caixa = modalImportacao.fundo?.querySelector('#enriquecimentoImportacao');
+          if (!caixa) return;
+          try {
+            const estado = await A.api(`/empresas/${S.empresaId}/parceiros/enriquecimento/status`);
+            const fila = estado.fila;
+            if (!fila) { caixa.innerHTML = '<b>Consulta cadastral: aguardando próxima execução</b>'; return; }
+            const p = fila.progresso || fila.resultado || {};
+            const total = Number(p.total || 0); const processados = Number(p.processados || 0);
+            const resumo = `${processados}${total ? ` de ${total}` : ''} parceiro(s) processado(s) · ${Number(p.compartilhado || 0)} reutilizado(s) do cadastro compartilhado · ${Number(p.consultados || 0)} consulta(s) externa(s)`;
+            if (fila.status === 'concluido') {
+              caixa.className = 'aviso bom'; caixa.innerHTML = `<b>Consulta cadastral concluída</b><br>${resumo}`; return;
+            }
+            if (fila.status === 'erro') { caixa.className = 'aviso alto'; caixa.innerHTML = `<b>Consulta cadastral interrompida</b><br>${A.esc(fila.erro || 'Erro não informado.')}`; return; }
+            caixa.innerHTML = `<b>Consulta cadastral em processo</b><br>${resumo}<div class="mini" style="margin-top:4px">Respeitando o intervalo entre consultas do provedor.</div>`;
+            setTimeout(atualizarFila, 1800);
+          } catch (_) { /* a importação já terminou; não interromper a tela por falha de polling */ }
+        };
+        setTimeout(atualizarFila, 300);
+      }
       A.ir('dados');
     } catch (e) { A.toast(e.message, 'erro'); }
   }

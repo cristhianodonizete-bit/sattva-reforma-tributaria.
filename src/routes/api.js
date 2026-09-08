@@ -1473,7 +1473,8 @@ router.post('/empresas/:id/importar/parceiros', upload.single('arquivo'), async 
     vincularRegimes(req.params.id);
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { importados: n, ignorados: r.ignorados, mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas,
-      enriquecimento: { status: enriquecimento.status, qsa: enriquecimento.qsa?.status, mensagem: 'Nenhuma consulta cadastral foi iniciada automaticamente.' } });
+      enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
+        mensagem: 'Consulta cadastral de clientes agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -1507,7 +1508,8 @@ router.post('/empresas/:id/importar/movimentos', upload.single('arquivo'), async
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { importados: r.registros.length, ignorados: r.ignorados, valorTotal: calc.r2(total),
       mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas, classificacao, ...vinc,
-      enriquecimento: { status: enriquecimento.status, qsa: enriquecimento.qsa?.status, mensagem: 'Nenhuma consulta cadastral foi iniciada automaticamente.' } });
+      enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
+        mensagem: 'Consulta cadastral de clientes agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -1594,9 +1596,12 @@ function vincularRegimes(empresaId) {
 }
 
 function agendarEnriquecimentoAutomatico(empresaId) {
-  // Importar e cadastrar não podem disparar consulta externa nem modificar
-  // cadastros. Enriquecimento só ocorre por comando explícito do operador.
-  return { status: 'NAO_EXECUTADO_AUTOMATICAMENTE', empresa_id: Number(empresaId), qsa: { status: 'NAO_CONSULTADO_AUTOMATICAMENTE' } };
+  // Após importar documentos, a fila trata apenas clientes: são eles que
+  // podem ser destinatários de condições fiscais de saída. A consulta usa o
+  // cadastro CNPJ compartilhado antes de qualquer API externa e não toca QSA.
+  return cnpjReceita.agendarEnriquecimento(Number(empresaId), {
+    tipo: 'cliente', finalidade: 'cnae_carteira', limite: 500,
+  });
 }
 
 
@@ -3717,7 +3722,8 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
     } catch (_) { /* segue sem classificar */ }
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { ...relatorio, classificacao, semRegime: vinculo.semRegime,
-      enriquecimento: { status: enriquecimento.status, mensagem: 'Nenhuma consulta cadastral foi iniciada automaticamente.' } });
+      enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
+        mensagem: 'Consulta cadastral de clientes agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -3926,7 +3932,8 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
     const semRegime = db.prepare(`SELECT COUNT(*) c FROM parceiros WHERE empresa_id = ? AND (regime IS NULL OR regime = '')`).get(req.params.id).c;
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { ...rel, classificacao, parceirosSemRegime: semRegime,
-      enriquecimento: { status: enriquecimento.status, mensagem: 'Nenhuma consulta cadastral foi iniciada automaticamente.' } });
+      enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
+        mensagem: 'Consulta cadastral de clientes agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -4544,6 +4551,16 @@ router.get('/cnpj/:cnpj', async (req, res) => {
 /** Quanto falta enriquecer e quanto tempo levaria */
 router.get('/empresas/:id/parceiros/pendencias-regime', (req, res) => {
   try { ok(res, cnpjReceita.pendencias(req.params.id)); } catch (e) { erro(res, e); }
+});
+
+// Estado da fila automática: a tela consulta este endpoint durante a
+// importação para mostrar que a carteira está sendo enriquecida, sem prender
+// a requisição que recebeu os documentos.
+router.get('/empresas/:id/parceiros/enriquecimento/status', (req, res) => {
+  try {
+    const fila = cnpjReceita.statusFila(req.params.id);
+    ok(res, { fila, pendencias: cnpjReceita.pendencias(req.params.id) });
+  } catch (e) { erro(res, e); }
 });
 
 /** Enriquecimento em lote dos parceiros sem regime */

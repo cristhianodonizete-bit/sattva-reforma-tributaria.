@@ -649,12 +649,15 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
     WHERE empresa_id = ? AND cnpj <> '' ${filtro} ${tipoFiltro}
     ORDER BY id`).all(...params).slice(0, Number(opcoes.limite) || 500);
 
-  const rel = { total: alvos.length, atualizados: 0, cache: 0, consultados: 0,
-    naoEncontrados: 0, erros: [], porRegime: {}, tempoEstimado: null, inativos: [] };
+  const rel = { total: alvos.length, processados: 0, atualizados: 0, cache: 0,
+    compartilhado: 0, consultados: 0, naoEncontrados: 0, erros: [], porRegime: {}, tempoEstimado: null, inativos: [] };
   if (!alvos.length) return rel;
 
   const up = db().prepare(`UPDATE parceiros SET regime = ?, regime_resolvido = ?, origem = 'receita' WHERE id = ?`);
-  const upGoverno = db().prepare(`UPDATE parceiros SET perfil_economico=?, perfil_origem='cadastro_oficial', regime=CASE WHEN ?='governo' THEN 'orgao_publico' ELSE regime END WHERE id=?`);
+  // Perfil econômico e regime tributário são fatos diferentes. A natureza
+  // jurídica pode tornar o destinatário um ente público, mas não autoriza
+  // trocar o regime que determina a apropriação de crédito.
+  const upGoverno = db().prepare(`UPDATE parceiros SET perfil_economico=?, perfil_origem=? WHERE id=?`);
   const evidencia = db().prepare(`INSERT INTO contraparte_regime_evidencias
     (parceiro_id, regime, fonte, ano_referencia, natureza, confianca, status, detalhe)
     VALUES (?,?,?,0,'atual','alta','confirmada',?)
@@ -665,15 +668,20 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
   for (let i = 0; i < alvos.length; i++) {
     const p = alvos[i];
     try {
-      const antes = doCache(soDigitos(p.cnpj), cfg.validade_dias);
-      const cacheExistente = doCache(soDigitos(p.cnpj), cfg.validade_dias);
-      const semNatureza = !cacheExistente || !String(cacheExistente.codigo_natureza_juridica || '').trim();
-      const r = await consultar(p.cnpj, { forcar: Boolean(opcoes.forcar || semNatureza) });
+      // Nunca forçar consulta só porque este processo ainda não tem cache
+      // local: consultar() verifica antes o cadastro compartilhado. Forçar
+      // aqui faria um mesmo CNPJ ser consultado novamente em cada empresa.
+      const r = await consultar(p.cnpj, {
+        forcar: Boolean(opcoes.forcar),
+        finalidade: opcoes.finalidade || 'cnae_carteira',
+      });
       if (r.origem === 'cache') rel.cache++;
+      else if (r.origem === 'cadastro_compartilhado') rel.compartilhado++;
       else if (r.origem === 'consulta') rel.consultados++;
       else if (r.origem === 'nao_encontrado') { rel.naoEncontrados++; continue; }
 
-      if (r.regime_derivado) {
+      const regimeAusente = !String(p.regime || '').trim() || p.regime === 'indeterminado';
+      if (r.regime_derivado && (regimeAusente || opcoes.sobrescrever)) {
         up.run(r.regime_derivado, r.regime_derivado, p.id);
         evidencia.run(p.id, r.regime_derivado, r.fonte || cfg.nome, r.justificativa || 'Consulta automática de cadastro público.');
         rel.atualizados++;
@@ -681,17 +689,22 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
       }
       if (p.tipo === 'cliente') {
         const gov = classificarEnteGovernamental(r, p.cnpj);
-        upGoverno.run(gov.aplicar_regra_compra_governamental === 'SIM' ? 'governo' : gov.aplicar_regra_compra_governamental === 'A VALIDAR' ? 'requer_validacao' : 'indeterminado', gov.aplicar_regra_compra_governamental === 'SIM' ? 'governo' : '', p.id);
+        const perfil = gov.aplicar_regra_compra_governamental === 'SIM' ? 'governo'
+          : gov.aplicar_regra_compra_governamental === 'A VALIDAR' ? 'requer_validacao' : 'indeterminado';
+        upGoverno.run(perfil, perfil === 'indeterminado' ? 'nao_aplicavel' : 'cadastro_oficial', p.id);
       }
       // Situação cadastral irregular é informação relevante para o diagnóstico
       if (r.situacao && !/ativa/i.test(r.situacao)) {
         rel.inativos.push({ cnpj: p.cnpj, nome: p.descricao, situacao: r.situacao });
       }
       // respeita o limite do provedor apenas quando houve consulta real
-      if (r.origem === 'consulta' && i < alvos.length - 1) await esperar(r.intervaloUsado || cfg.intervalo);
+      if (r.origem === 'consulta' && i < alvos.length - 1) await esperar(Math.max(Number(r.intervaloUsado) || 0, Number(cfg.intervalo) || 0));
     } catch (e) {
       rel.erros.push(`${p.cnpj} (${p.descricao || ''}): ${e.message}`);
       if (/Limite de consultas/.test(e.message)) break;   // não insiste contra o limite
+    } finally {
+      rel.processados = i + 1;
+      opcoes.aoProgresso?.({ ...rel, atual: i + 1, cnpj: p.cnpj, nome: p.descricao });
     }
   }
 
@@ -714,14 +727,16 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
  */
 function agendarEnriquecimento(empresaId, opcoes = {}) {
   const existente = filasAutomaticas.get(Number(empresaId));
-  if (existente && existente.status === 'executando') return existente;
+  if (existente && ['agendado', 'executando'].includes(existente.status)) return existente;
   const fila = { status: 'agendado', empresa_id: Number(empresaId), inicio: null, fim: null,
-    resultado: null, erro: null };
+    resultado: null, erro: null, progresso: { total: 0, processados: 0, consultados: 0, compartilhado: 0, cache: 0 } };
   filasAutomaticas.set(Number(empresaId), fila);
   setImmediate(async () => {
     fila.status = 'executando'; fila.inicio = new Date().toISOString();
     try {
-      fila.resultado = await enriquecerParceiros(empresaId, { ...opcoes, limite: opcoes.limite || 500 });
+      fila.resultado = await enriquecerParceiros(empresaId, { ...opcoes, limite: opcoes.limite || 500,
+        aoProgresso: (progresso) => { fila.progresso = progresso; } });
+      fila.progresso = fila.resultado;
       fila.status = 'concluido';
     } catch (e) { fila.status = 'erro'; fila.erro = e.message; }
     finally { fila.fim = new Date().toISOString(); }
