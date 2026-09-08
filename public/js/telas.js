@@ -1094,7 +1094,7 @@ Telas.mapaOperacional = async (el) => {
       {t:'CBS / cClassTrib',r:x=>`<b class="mono">${A.esc(x.hipotese.cclasstrib)}</b> · CST ${A.esc(x.hipotese.cst||'—')}<br><span class="mini">${A.esc(x.hipotese.descricao||`CBS: ${x.hipotese.reducao}`)}${x.hipotese.descricao?` · ${A.esc(x.hipotese.reducao)}`:''}</span>`},
       {t:'Operação esperada',r:x=>`<b>${(x.hipotese.operacoes || [x.hipotese.operacao]).map(A.esc).join('<br>')}</b>`},
       {t:'indOp',r:x=>`<span class="mono">${(x.hipotese.indops || []).length ? x.hipotese.indops.map(A.esc).join('<br>') : '—'}</span>`},
-      {t:'Condição para aplicar',r:x=>`<b>${(x.hipotese.condicoes || [x.hipotese.condicao?.texto]).filter(Boolean).map(A.esc).join('<br>')}</b>${x.hipotese.fatos?.length ? `<div class="mini" style="margin-top:6px">${x.hipotese.fatos.map(A.esc).join('<br>')}</div>` : ''}`},
+      {t:'Condição para aplicar',r:x=>`<b>${(x.hipotese.condicoes || [x.hipotese.condicao?.texto]).filter(Boolean).map(A.esc).join('<br>')}</b>`},
     ],linhas) : '<div class="aviso"><b>Não há correlações automáticas seguras para as descrições atuais.</b> Atualize o CNAE/atividade no cadastro ou cadastre os produtos e serviços efetivamente ofertados; o sistema não inventará códigos ou benefícios.</div>'}
     </section><div class="aviso" style="margin-top:16px"><b>Segurança</b> · ${A.esc(d.aviso)}</div>`;
 };
