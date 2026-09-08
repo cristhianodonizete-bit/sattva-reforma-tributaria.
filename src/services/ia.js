@@ -166,8 +166,12 @@ async function chamarOpenAiCompativel(mensagens, { sistema, maxTokens, temperatu
   // max_completion_tokens. Groq continua compatível com max_tokens.
   const limite = provedor.id === 'openai' ? { max_completion_tokens: maxTokens } : { max_tokens: maxTokens };
   const amostragem = provedor.id === 'openai' && /^gpt-5/i.test(provedor.modelo) ? {} : { temperature: temperatura };
+  // O endpoint OpenAI exige conteúdo textual inclusive para a instrução de
+  // sistema. O teste de conexão não fornece um prompt de sistema e, antes,
+  // isso chegava à API como null em algumas versões do serializador.
+  const sistemaSeguro = typeof sistema === 'string' && sistema.trim() ? sistema : 'Você é um assistente técnico. Responda de forma objetiva.';
   const resp = await fetch(`${origem}/chat/completions`, { method: 'POST', headers: { 'content-type': 'application/json', authorization: `Bearer ${chave}` },
-    body: JSON.stringify({ model: provedor.modelo, ...limite, ...amostragem, messages: [{ role: 'system', content: sistema }, ...mensagens] }) });
+    body: JSON.stringify({ model: provedor.modelo, ...limite, ...amostragem, messages: [{ role: 'system', content: sistemaSeguro }, ...mensagens] }) });
   const dados = await resp.json().catch(() => ({}));
   if (!resp.ok) throw new Error(dados?.error?.message || `${provedor.nome} respondeu ${resp.status}`);
   return { texto: dados?.choices?.[0]?.message?.content || '', uso: dados.usage || {} };
