@@ -45,9 +45,20 @@ function quando(regra) {
   ]);
 }
 function catalogoNcm(db, ncm) { return db.prepare('SELECT * FROM base_ncm WHERE ncm=? ORDER BY id DESC').get(chave(ncm)) || null; }
+const normalizarSql = (campo) => `REPLACE(REPLACE(REPLACE(${campo},'.',''),'/',''),'-','')`;
+function linhasServico(db, tabela, nbs, lc116, extra = '') {
+  const nbsNormalizado = chave(nbs); const lcNormalizado = chave(lc116);
+  const filtroExtra = extra ? `${extra} AND ` : '';
+  const nbsSql = normalizarSql('nbs'); const lcSql = normalizarSql('lc116');
+  // NBS + LC é a identidade do serviço. Uma LC compartilhada jamais pode
+  // trazer NBS de outro serviço; linha sem LC é somente fallback da mesma NBS.
+  if (nbsNormalizado && lcNormalizado) return db.prepare(`SELECT * FROM ${tabela} WHERE ${filtroExtra}${nbsSql}=? AND (TRIM(COALESCE(lc116,''))='' OR ${lcSql}=?) ORDER BY CASE WHEN ${lcSql}=? THEN 0 ELSE 1 END, id DESC`).all(nbsNormalizado, lcNormalizado, lcNormalizado);
+  if (nbsNormalizado) return db.prepare(`SELECT * FROM ${tabela} WHERE ${filtroExtra}${nbsSql}=? AND TRIM(COALESCE(lc116,''))='' ORDER BY id DESC`).all(nbsNormalizado);
+  if (lcNormalizado) return db.prepare(`SELECT * FROM ${tabela} WHERE ${filtroExtra}${lcSql}=? ORDER BY id DESC`).all(lcNormalizado);
+  return [];
+}
 function catalogoServico(db, nbs, lc116) {
-  const porNbs = chave(nbs); const porLc = texto(lc116);
-  return db.prepare('SELECT * FROM base_servicos WHERE (nbs<>\'\' AND nbs=?) OR (lc116<>\'\' AND lc116=?) ORDER BY id DESC').get(porNbs, porLc) || null;
+  return linhasServico(db, 'base_servicos', nbs, lc116)[0] || null;
 }
 function operacaoEsperada(item, regra) {
   const direcao=texto(regra.direcao).toUpperCase(); const tipo=texto(regra.tipo_operacao || regra.operacao_pis_cofins);
@@ -98,13 +109,13 @@ function fatosDaHipotese(regra) {
 function hipotesesCbs(db, empresaId, item) {
   const base = item.tipo==='NCM'
     ? db.prepare('SELECT * FROM base_ncm WHERE ncm=? ORDER BY cclasstrib').all(chave(item.ncm))
-    : db.prepare('SELECT * FROM base_servicos WHERE (nbs<>\'\' AND nbs=?) OR (lc116<>\'\' AND lc116=?) ORDER BY cclasstrib').all(chave(item.nbs),texto(item.lc116));
+    : linhasServico(db, 'base_servicos', item.nbs, item.lc116).sort((a,b)=>texto(a.cclasstrib).localeCompare(texto(b.cclasstrib)));
   const regras = item.tipo==='NCM'
     ? db.prepare("SELECT * FROM regras_enquadramento WHERE status='ATIVA' AND ncm=? ORDER BY prioridade DESC").all(chave(item.ncm))
-    : db.prepare("SELECT * FROM regras_enquadramento WHERE status='ATIVA' AND ((nbs<>'' AND nbs=?) OR (lc116<>'' AND lc116=?)) ORDER BY prioridade DESC").all(chave(item.nbs),texto(item.lc116));
+    : linhasServico(db, 'regras_enquadramento', item.nbs, item.lc116, "status='ATIVA'").sort((a,b)=>(Number(b.prioridade)||0)-(Number(a.prioridade)||0));
   const governo = item.tipo==='NCM'
     ? db.prepare("SELECT * FROM regras_governo WHERE cclasstrib<>'' AND (ncm=? OR chave=?)").all(chave(item.ncm),chave(item.ncm))
-    : db.prepare("SELECT * FROM regras_governo WHERE cclasstrib<>'' AND ((nbs<>'' AND REPLACE(REPLACE(REPLACE(nbs,'.',''),'/',''),'-','')=?) OR (lc116<>'' AND REPLACE(REPLACE(REPLACE(lc116,'.',''),'/',''),'-','')=?))").all(chave(item.nbs),chave(item.lc116));
+    : linhasServico(db, 'regras_governo', item.nbs, item.lc116, "cclasstrib<>''");
   const candidatos=[...base,...regras,...governo].filter((x)=>texto(x.cclasstrib)); const vistos=new Set();
   return candidatos.filter((x)=>{
     const id=[texto(x.cclasstrib), texto(x.cst), ...fatosDaHipotese(x)].join('|');
