@@ -320,9 +320,16 @@ const App = (() => {
     S.tela = tela;
     location.hash = tela;
     desenharMenu();
-    const itemMenu = TELAS_MENU.find((item) => item.id === tela);
     const tituloContexto = document.getElementById('tituloContexto');
-    if (tituloContexto) tituloContexto.textContent = itemMenu?.t || 'Visão geral';
+    // Todas as etapas de importação reutilizam a tela "dados". O cabeçalho
+    // não deve escolher o primeiro item desse id (Documentos fiscais), pois
+    // isso duplicava o título no card e ficava incorreto ao abrir Folha,
+    // Apurações etc. A área permanece Central de Dados; o card identifica a
+    // etapa efetivamente selecionada.
+    const itemMenu = TELAS_MENU.find((item) => item.id === tela);
+    if (tituloContexto) tituloContexto.textContent = tela === 'dados'
+      ? 'Central de Dados'
+      : (itemMenu?.t || 'Visão geral');
     const alvo = document.getElementById('tela');
     alvo.innerHTML = '<div class="carregando">Carregando…</div>';
     try {
