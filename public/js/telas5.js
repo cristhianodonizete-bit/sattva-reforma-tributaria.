@@ -42,7 +42,11 @@ function comAbas(nome, abas, padrao, chaveEstado = nome, opcoes = {}) {
       `<button data-t="${a.id}" class="${ativa === a.id ? 'ativo' : ''}">${typeof a.t === 'function' ? a.t() : a.t}</button>`).join('')}</div>`;
     if (ativa === 'atual') {
       await orig(el);
-      el.insertAdjacentHTML('afterbegin', barra);
+      // Em Documentos fiscais, o título e a situação da etapa são o topo da
+      // página. As abas vêm logo abaixo, sem recolocar um cabeçalho genérico.
+      const topoCentral = nome === 'dados' ? el.querySelector('[data-central-topo]') : null;
+      if (topoCentral) topoCentral.insertAdjacentHTML('afterend', barra);
+      else el.insertAdjacentHTML('afterbegin', barra);
     } else {
       el.innerHTML = barra + '<div class="carregando">Carregando projeção…</div>';
       const alvo = document.createElement('div');
