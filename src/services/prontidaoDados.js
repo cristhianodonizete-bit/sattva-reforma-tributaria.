@@ -26,26 +26,26 @@ function obter(empresaId, { banco=dbPadrao } = {}) {
   const receitas = new Set(unicos(banco.prepare("SELECT DISTINCT competencia FROM receitas_sem_dfe WHERE empresa_id=? AND status_validacao<>'POSSIVEL_DUPLICIDADE'").all(empresaId)));
   const receitasFaltam = faltam(receitas,declaracoes(empresaId,'OUTRAS_RECEITAS_NAO_APLICAVEL',banco));
   const folhas = new Set(unicos(banco.prepare('SELECT DISTINCT competencia FROM folhas_pagamento_competencias WHERE empresa_id=?').all(empresaId)));
-  const folhaFaltam = faltam(folhas,declaracoes(empresaId,'FOLHA_SEM_MOVIMENTO',banco));
+  const folhaFaltam = folhas.size || declaracoes(empresaId,'FOLHA_SEM_MOVIMENTO',banco).size ? [] : ['FOLHA_ATUAL'];
   const margem = banco.prepare('SELECT id FROM margens_operacionais_premissas WHERE empresa_id=? AND periodo_inicio<=? AND periodo_fim>=? LIMIT 1').get(empresaId,periodo.competencia_inicio,periodo.competencia_fim);
   const margemDeclarada = declaracoes(empresaId,'MARGEM_NAO_APLICAVEL',banco).has('PERIODO_ANALISADO');
-  const anoFinal = Number(periodo.competencia_fim.slice(0,4)); const anos=[anoFinal,anoFinal-1,anoFinal-2];
+  const janelaApuracao=periodoAnalisado.janelaApuracao(periodo);
+  const competenciasApuracao=esperado(janelaApuracao.competencia_inicio,janelaApuracao.competencia_fim);
   const simples = empresa.regime === 'simples_nacional';
   const linhasApuracao = simples
     ? banco.prepare('SELECT competencia FROM perfil_tributario WHERE empresa_id=? AND COALESCE(das,0)>0').all(empresaId)
     : banco.prepare("SELECT competencia FROM pis_cofins_apuracoes_historicas WHERE empresa_id=? AND status_validacao='VALIDADO_USUARIO'").all(empresaId);
-  const apuracoes = new Set(unicos(linhasApuracao)); const declaradosAnos=declaracoes(empresaId,'APURACAO_HISTORICO_NAO_APLICAVEL',banco);
-  const apuracaoFaltas=[];
-  anos.forEach((ano) => { const meses=Array.from({length:12},(_,i)=>`${ano}-${String(i+1).padStart(2,'0')}`); if (!declaradosAnos.has(String(ano))) meses.filter((c)=>!apuracoes.has(c)).forEach((c)=>apuracaoFaltas.push(c)); });
+  const apuracoes = new Set(unicos(linhasApuracao));
+  const apuracaoFaltas=competenciasApuracao.filter((c)=>!apuracoes.has(c));
   const socios = banco.prepare('SELECT percentual_participacao,brasileiro FROM empresa_qsa WHERE empresa_id=?').all(empresaId);
   const percentual = socios.reduce((s,x)=>s+(Number(x.percentual_participacao)||0),0);
   const pendCadastro=[]; if (!String(empresa.cnae||'').trim()) pendCadastro.push('Informe o CNAE principal.'); if (!socios.length) pendCadastro.push('Preencha o quadro societário.'); if (socios.some((x)=>x.percentual_participacao===null || x.percentual_participacao==='')) pendCadastro.push('Informe a participação de cada sócio.'); if (socios.some((x)=>!([0,1].includes(Number(x.brasileiro))))) pendCadastro.push('Marque brasileiro ou estrangeiro para cada sócio.'); if (socios.length && Math.abs(percentual-100)>0.01) pendCadastro.push(`O quadro societário totaliza ${percentual.toFixed(2)}%; ele deve totalizar 100%.`);
   const etapas=[
     etapa('periodo','Período analisado',[] ,{ periodo,competencias }),
     etapa('documentos','Documentos fiscais',docsFaltam.map((c)=>`Sem documento fiscal ou declaração de ausência em ${c}.`),{ competencias, cobertas:[...docs], declaracao_tipo:'DOCUMENTOS_SEM_MOVIMENTO' }),
-    etapa('folha','Folha',folhaFaltam.map((c)=>`Sem folha/pró-labore ou declaração em ${c}.`),{ competencias, cobertas:[...folhas], declaracao_tipo:'FOLHA_SEM_MOVIMENTO' }),
+    etapa('folha','Folha',folhaFaltam.map(()=>`Informe a última folha/pró-labore ou registre a ausência.`),{ competencias:[...folhas], cobertas:[...folhas], declaracao_tipo:'FOLHA_SEM_MOVIMENTO' }),
     etapa('receitas','Outras receitas',receitasFaltam.map((c)=>`Sem receita complementar ou declaração “não se aplica” em ${c}.`),{ competencias, cobertas:[...receitas], declaracao_tipo:'OUTRAS_RECEITAS_NAO_APLICAVEL' }),
-    etapa('apuracoes','Apurações',apuracaoFaltas.map((c)=>`Apuração de ${simples?'PGDAS':'PIS/Cofins'} ausente em ${c}.`),{ anos, regime:empresa.regime, declaracao_tipo:'APURACAO_HISTORICO_NAO_APLICAVEL' }),
+    etapa('apuracoes','Apurações',apuracaoFaltas.map((c)=>`Apuração de ${simples?'PGDAS':'PIS/Cofins'} ausente em ${c}.`),{ janela:janelaApuracao, regime:empresa.regime, declaracao_tipo:'APURACAO_HISTORICO_NAO_APLICAVEL' }),
     etapa('margem','Margem operacional',margem||margemDeclarada?[]:['Informe a margem operacional ou registre que não se aplica.'],{ declaracao_tipo:'MARGEM_NAO_APLICAVEL' }),
     etapa('empresa','Empresas e estabelecimentos',pendCadastro),
   ];

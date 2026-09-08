@@ -24,3 +24,8 @@ alter table public.empresa_periodo_analisado enable row level security;
 alter table public.empresa_periodo_analisado_eventos enable row level security;
 create policy "periodo_analisado_leitura_autenticada" on public.empresa_periodo_analisado for select to authenticated using (true);
 create policy "periodo_analisado_eventos_leitura_autenticada" on public.empresa_periodo_analisado_eventos for select to authenticated using (true);
+
+-- Janela de apurações por empresa: pelo menos 12 competências. Quando não
+-- inclui o exercício, a janela termina no mês anterior ao início do exercício.
+alter table public.empresa_periodo_analisado add column if not exists apuracao_meses integer not null default 12 check (apuracao_meses >= 12);
+alter table public.empresa_periodo_analisado add column if not exists apuracao_inclui_exercicio boolean not null default true;

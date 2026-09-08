@@ -9,6 +9,15 @@ const dataFim = (competencia) => {
   const [ano, mes] = competencia.split('-').map(Number);
   return new Date(Date.UTC(ano, mes, 0)).toISOString().slice(0, 10);
 };
+const deslocarMes = (competencia, deslocamento) => { const [ano, mes] = competencia.split('-').map(Number); const d = new Date(Date.UTC(ano, mes - 1 + deslocamento, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
+function janelaApuracao(periodo) {
+  if (!periodo) return null;
+  const meses = Math.max(12, Number(periodo.apuracao_meses) || 12);
+  const incluiExercicio = Number(periodo.apuracao_inclui_exercicio) !== 0;
+  const fim = incluiExercicio ? periodo.competencia_fim : deslocarMes(periodo.competencia_inicio, -1);
+  const inicio = deslocarMes(fim, -(meses - 1));
+  return { competencia_inicio: inicio, competencia_fim: fim, data_inicio:dataInicio(inicio), data_fim:dataFim(fim), meses, inclui_exercicio:incluiExercicio };
+}
 
 function obter(empresaId, { banco = dbPadrao } = {}) {
   return banco.prepare('SELECT * FROM empresa_periodo_analisado WHERE empresa_id=?').get(Number(empresaId)) || null;
@@ -19,16 +28,18 @@ function salvar(empresaId, dados, usuarioId = null, { banco = dbPadrao } = {}) {
   if (!competenciaValida(inicio) || !competenciaValida(fim) || inicio > fim) throw new Error('Informe competências válidas, de mm/aaaa inicial até mm/aaaa final.');
   if (!banco.prepare('SELECT id FROM empresas WHERE id=?').get(Number(empresaId))) throw new Error('Empresa não encontrada.');
   const anterior = obter(empresaId, { banco });
+  const apuracaoMeses = Math.max(12, Number(dados.apuracao_meses) || Number(anterior?.apuracao_meses) || 12);
+  const apuracaoIncluiExercicio = dados.apuracao_inclui_exercicio === false || dados.apuracao_inclui_exercicio === '0' ? 0 : 1;
   banco.transaction(() => {
     banco.prepare(`INSERT INTO empresa_periodo_analisado
-      (empresa_id,competencia_inicio,competencia_fim,data_inicio,data_fim,atualizado_por,atualizado_em)
-      VALUES (?,?,?,?,?,?,datetime('now','localtime'))
+      (empresa_id,competencia_inicio,competencia_fim,data_inicio,data_fim,apuracao_meses,apuracao_inclui_exercicio,atualizado_por,atualizado_em)
+      VALUES (?,?,?,?,?,?,?,?,datetime('now','localtime'))
       ON CONFLICT(empresa_id) DO UPDATE SET competencia_inicio=excluded.competencia_inicio,competencia_fim=excluded.competencia_fim,
-        data_inicio=excluded.data_inicio,data_fim=excluded.data_fim,atualizado_por=excluded.atualizado_por,atualizado_em=datetime('now','localtime')`)
-      .run(Number(empresaId), inicio, fim, dataInicio(inicio), dataFim(fim), usuarioId || null);
+        data_inicio=excluded.data_inicio,data_fim=excluded.data_fim,apuracao_meses=excluded.apuracao_meses,apuracao_inclui_exercicio=excluded.apuracao_inclui_exercicio,atualizado_por=excluded.atualizado_por,atualizado_em=datetime('now','localtime')`)
+      .run(Number(empresaId), inicio, fim, dataInicio(inicio), dataFim(fim), apuracaoMeses, apuracaoIncluiExercicio, usuarioId || null);
     banco.prepare(`INSERT INTO empresa_periodo_analisado_eventos
       (empresa_id,acao,usuario_id,antes_json,depois_json) VALUES (?,?,?,?,?)`)
-      .run(Number(empresaId), anterior ? 'ATUALIZADO' : 'DEFINIDO', usuarioId || null, JSON.stringify(anterior || {}), JSON.stringify({ competencia_inicio:inicio, competencia_fim:fim, data_inicio:dataInicio(inicio), data_fim:dataFim(fim) }));
+      .run(Number(empresaId), anterior ? 'ATUALIZADO' : 'DEFINIDO', usuarioId || null, JSON.stringify(anterior || {}), JSON.stringify({ competencia_inicio:inicio, competencia_fim:fim, data_inicio:dataInicio(inicio), data_fim:dataFim(fim), apuracao_meses:apuracaoMeses, apuracao_inclui_exercicio:apuracaoIncluiExercicio }));
   })();
   return obter(empresaId, { banco });
 }
@@ -52,11 +63,11 @@ async function empresaRemota(empresaId, banco) {
 function gravarCache(empresaId, registro, banco) {
   if (!registro) return null;
   banco.prepare(`INSERT INTO empresa_periodo_analisado
-    (empresa_id,competencia_inicio,competencia_fim,data_inicio,data_fim,atualizado_por,atualizado_em)
-    VALUES (?,?,?,?,?,?,?)
+    (empresa_id,competencia_inicio,competencia_fim,data_inicio,data_fim,apuracao_meses,apuracao_inclui_exercicio,atualizado_por,atualizado_em)
+    VALUES (?,?,?,?,?,?,?,?,?)
     ON CONFLICT(empresa_id) DO UPDATE SET competencia_inicio=excluded.competencia_inicio,competencia_fim=excluded.competencia_fim,
-      data_inicio=excluded.data_inicio,data_fim=excluded.data_fim,atualizado_por=excluded.atualizado_por,atualizado_em=excluded.atualizado_em`)
-    .run(Number(empresaId), registro.competencia_inicio, registro.competencia_fim, registro.data_inicio, registro.data_fim,
+      data_inicio=excluded.data_inicio,data_fim=excluded.data_fim,apuracao_meses=excluded.apuracao_meses,apuracao_inclui_exercicio=excluded.apuracao_inclui_exercicio,atualizado_por=excluded.atualizado_por,atualizado_em=excluded.atualizado_em`)
+    .run(Number(empresaId), registro.competencia_inicio, registro.competencia_fim, registro.data_inicio, registro.data_fim, Math.max(12,Number(registro.apuracao_meses)||12), registro.apuracao_inclui_exercicio===false||Number(registro.apuracao_inclui_exercicio)===0?0:1,
       registro.atualizado_por || null, registro.atualizado_em || new Date().toISOString());
   return obter(empresaId, { banco });
 }
@@ -82,7 +93,8 @@ async function salvarCompartilhado(empresaId, dados, usuarioId = null, { banco =
   if (!empresa) throw new Error('Empresa ainda não está disponível na base compartilhada. A configuração não foi gravada para evitar perda de sincronização.');
   const remoto = supabase.admin();
   const anterior = await sincronizarCompartilhado(empresaId, { banco });
-  const registro = { empresa_id:empresa.id, competencia_inicio:inicio, competencia_fim:fim, data_inicio:dataInicio(inicio), data_fim:dataFim(fim), atualizado_por:usuarioId || null, atualizado_em:new Date().toISOString() };
+  const apuracaoMeses=Math.max(12,Number(dados.apuracao_meses)||Number(anterior?.apuracao_meses)||12), apuracaoIncluiExercicio=!(dados.apuracao_inclui_exercicio===false||dados.apuracao_inclui_exercicio==='0');
+  const registro = { empresa_id:empresa.id, competencia_inicio:inicio, competencia_fim:fim, data_inicio:dataInicio(inicio), data_fim:dataFim(fim), apuracao_meses:apuracaoMeses, apuracao_inclui_exercicio:apuracaoIncluiExercicio, atualizado_por:usuarioId || null, atualizado_em:new Date().toISOString() };
   const { data, error } = await remoto.from('empresa_periodo_analisado').upsert(registro, { onConflict:'empresa_id' }).select().single();
   if (error) throw new Error(`Não foi possível gravar o período compartilhado: ${error.message}`);
   const { error:eventError } = await remoto.from('empresa_periodo_analisado_eventos').insert({ empresa_id:empresa.id, acao:anterior ? 'ATUALIZADO' : 'DEFINIDO', usuario_id:usuarioId || null, antes_json:anterior || {}, depois_json:data });
@@ -112,4 +124,4 @@ function cobertura(empresaId, { banco = dbPadrao } = {}) {
   return { periodo, competencias:esperadas, cobertas:esperadas.filter((x) => dentro.has(x)), faltantes:esperadas.filter((x) => !dentro.has(x)), fora_do_periodo:encontradas.filter((x) => competenciaValida(x) && !noPeriodo(x, periodo)).length };
 }
 
-module.exports = { obter, salvar, exigir, cobertura, noPeriodo, competenciaValida, dataInicio, dataFim, sincronizarCompartilhado, salvarCompartilhado };
+module.exports = { obter, salvar, exigir, cobertura, noPeriodo, competenciaValida, dataInicio, dataFim, janelaApuracao, sincronizarCompartilhado, salvarCompartilhado };

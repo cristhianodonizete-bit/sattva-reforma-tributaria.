@@ -86,6 +86,9 @@ const COLUNAS_NOVAS = {
     aprovado_em: 'TEXT', competencia_referencia: 'TEXT',
     acompanhamento_meses: 'INTEGER DEFAULT 0', modulos_json: 'TEXT',
   },
+  empresa_periodo_analisado: {
+    apuracao_meses: 'INTEGER NOT NULL DEFAULT 12', apuracao_inclui_exercicio: 'INTEGER NOT NULL DEFAULT 1',
+  },
   projeto_responsaveis: { usuario_id: 'TEXT' },
   turmas: { limite_participantes: 'INTEGER DEFAULT 30' },
   participantes: { empresa_id: 'INTEGER' },
@@ -1961,6 +1964,8 @@ CREATE TABLE IF NOT EXISTS empresa_periodo_analisado (
   competencia_fim TEXT NOT NULL,
   data_inicio TEXT NOT NULL,
   data_fim TEXT NOT NULL,
+  apuracao_meses INTEGER NOT NULL DEFAULT 12,
+  apuracao_inclui_exercicio INTEGER NOT NULL DEFAULT 1,
   atualizado_por TEXT,
   atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );

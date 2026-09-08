@@ -10,14 +10,15 @@ const NATUREZAS_LP = new Set(['COMERCIO_INDUSTRIA', 'SERVICOS_GERAIS', 'INTERMED
 
 function linhasSeTabelaExiste(db, sql, empresaId) { try { return db.prepare(sql).all(empresaId); } catch (_) { return []; } }
 function contribuicaoPatronalFolha(folhas) {
-  // Contrato explícito de planejamento: folha normal 26,8%; pró-labore 20%.
-  // Não altera folha nem apuração oficial; apenas compõe cenários fora do Simples.
-  if (!folhas.length) return null;
-  const folhaNormal = folhas.reduce((s, x) => s + n(x.valor_folha), 0);
-  const proLabore = folhas.reduce((s, x) => s + n(x.pro_labore), 0);
+  // Para planejamento, somente a competência mais recente é anualizada.
+  const ultima = [...folhas].sort((a,b)=>String(b.competencia).localeCompare(String(a.competencia)))[0];
+  if (!ultima) return null;
+  const folhaNormal = n(ultima.valor_folha) * 12;
+  const proLabore = n(ultima.pro_labore) * 12;
   return { valor: folhaNormal * .268 + proLabore * .20, folha_normal: folhaNormal, pro_labore: proLabore,
     aliquota_folha_normal: .268, aliquota_pro_labore: .20, natureza: 'CALCULADO',
-    origem: 'folhas_pagamento_competencias · premissa INSS patronal de planejamento' };
+    competencia_referencia:ultima.competencia, meses_projetados:12,
+    origem: 'Última folha/pró-labore informados · anualização de 12 meses para planejamento' };
 }
 function margemAplicavel(perfis, margens, receita) {
   if (!perfis.length || !margens.length || !receita) return null;
