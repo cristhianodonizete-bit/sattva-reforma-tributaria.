@@ -70,6 +70,7 @@ const fechamentoModulos = require('../services/fechamentoModulos');
 const periodoAnalisado = require('../services/periodoAnalisado');
 const prontidaoDados = require('../services/prontidaoDados');
 const mapaOperacional = require('../services/mapaOperacional');
+const monitoramentoAtualizacoesReforma = require('../services/monitoramentoAtualizacoesReforma');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -3604,6 +3605,27 @@ router.post('/analises/:id/aplicar', (req, res) => {
 // ===========================================================================
 // BASES DE CLASSIFICAÇÃO TRIBUTÁRIA (NCM e NBS/LC116)
 // ===========================================================================
+// Utilidades fiscais são uma vitrine de consulta: mostram a fonte e sua
+// última verificação, mas não promovem nenhuma tabela para o motor.
+router.get('/utilidades-fiscais', (req, res) => {
+  try {
+    const monitoradas = db.prepare('SELECT * FROM monitoramento_atualizacoes_reforma').all();
+    const porChave = new Map(monitoradas.map((x) => [x.chave, x]));
+    const fontes = monitoramentoAtualizacoesReforma.FONTES.map((fonte) => ({
+      ...fonte,
+      ultima_consulta_em: porChave.get(fonte.chave)?.ultima_consulta_em || null,
+      ultimo_sucesso_em: porChave.get(fonte.chave)?.ultimo_sucesso_em || null,
+      ultimo_erro: porChave.get(fonte.chave)?.ultimo_erro || null,
+    }));
+    const tabelas = {
+      lc116_nbs_indop: db.prepare('SELECT COUNT(*) c FROM base_servicos WHERE COALESCE(lc116,\'\') <> \'\' AND COALESCE(nbs,\'\') <> \'\'').get().c,
+      cclasstrib: db.prepare('SELECT (SELECT COUNT(*) FROM base_ncm) + (SELECT COUNT(*) FROM base_servicos) c').get().c,
+      cbenef_ufs: ['DF', 'GO', 'ES', 'PR', 'RS', 'RJ', 'SC', 'SP'],
+    };
+    ok(res, { fontes, tabelas, referencias: referenciasFiscaisOficiais.resumo() });
+  } catch (e) { erro(res, e); }
+});
+
 router.get('/bases', (req, res) => responderBasesEmCache(req, res, () => ({ estatisticas: bases.estatisticas() })));
 
 router.get('/bases/modelo/:tipo', (req, res) => {

@@ -13,6 +13,18 @@ const FONTES = [
     url: 'https://www.planalto.gov.br/ccivil_03/leis/lcp/lcp214.htm'
   },
   {
+    chave: 'cgibs_portal', nome: 'CGIBS — Comitê Gestor do IBS', tema: 'CBS_IBS',
+    url: 'https://cgibs.gov.br/inicial'
+  },
+  {
+    chave: 'cgibs_guia_orientativo', nome: 'CGIBS — Guia orientativo da Reforma Tributária', tema: 'CBS_IBS',
+    url: 'https://www.cgibs.gov.br/guia-de-orientacoes-para-impactos-administrativos-da-reforma-tributaria'
+  },
+  {
+    chave: 'rfb_legislacao_rtc', nome: 'Receita Federal — legislação da Reforma Tributária', tema: 'CBS_IBS',
+    url: 'https://www.gov.br/receitafederal/pt-br/acesso-a-informacao/acoes-e-programas/programas-e-atividades/reforma-tributaria-do-consumo/legislacao'
+  },
+  {
     chave: 'rfb_normas_pis_cofins', nome: 'Receita Federal — normas PIS/Cofins', tema: 'PIS_COFINS',
     url: 'https://normas.receita.fazenda.gov.br/sijut2consulta/consulta.action?termoBusca=pis+cofins'
   },
@@ -38,7 +50,7 @@ const agoraSql = (agora) => agora.toISOString().slice(0, 19).replace('T', ' ');
 
 function fontePermitida(url) {
   const host = new URL(url).hostname.toLowerCase();
-  return host === 'planalto.gov.br' || host.endsWith('.planalto.gov.br') || host.endsWith('.gov.br');
+  return host === 'planalto.gov.br' || host.endsWith('.planalto.gov.br') || host === 'cgibs.gov.br' || host.endsWith('.gov.br');
 }
 
 async function verificarFonte(fonte, { banco, fetcher = fetch, agora = new Date(), forcar = false } = {}) {

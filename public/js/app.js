@@ -250,7 +250,7 @@ const App = (() => {
   const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens.filter((item) => item.id));
   const PERMISSAO_TELA = {
     painel: 'visao_geral', empresas: 'visao_geral', visaoCarteira: 'visao_geral', dashboardOperacao: 'visao_geral',
-    dados: 'diagnostico', dadosDashboard: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', mapaOperacional: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
+    dados: 'diagnostico', dadosDashboard: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', utilidadesFiscais: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', mapaOperacional: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     planejamento: 'gestao_projetos', entregavelCliente: 'diagnostico',
     servicos: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', sla: 'configuracoes', cadastrosCnpj: 'configuracoes', consultaBaseRegime: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'configuracoes', acessos: 'acessos',
@@ -378,7 +378,7 @@ const App = (() => {
       const tarefasDaTela = TAREFAS_POR_TELA[tela];
       const fn = tarefasDaTela ? ((host) => telaTarefasModulo(host, ...tarefasDaTela)) : Telas[tela];
       if (!fn) { alvo.innerHTML = vazio('Tela não encontrada', 'Escolha uma opção no menu.'); return; }
-      const semEmpresa = ['empresas', 'visaoCarteira', 'dashboardOperacao', 'planejamento', 'gestaoProjetos', 'configComercial', 'sla', 'cadastrosCnpj', 'consultaBaseRegime', 'conhecimento', 'atualizacoesReforma', 'documentacaoSistema', 'questor', 'bases', 'configuracoes', 'controleProjeto', 'acessos'];
+      const semEmpresa = ['empresas', 'visaoCarteira', 'dashboardOperacao', 'planejamento', 'gestaoProjetos', 'configComercial', 'sla', 'cadastrosCnpj', 'consultaBaseRegime', 'conhecimento', 'atualizacoesReforma', 'documentacaoSistema', 'questor', 'bases', 'utilidadesFiscais', 'configuracoes', 'controleProjeto', 'acessos'];
       if (!semEmpresa.includes(tela) && !S.empresaId) {
         alvo.innerHTML = vazio('Selecione uma empresa', 'Este módulo trabalha sobre os dados de uma empresa. Cadastre ou selecione uma no topo do menu.',
           '<button class="btn" onclick="App.ir(\'empresas\')">Ir para empresas</button>');
@@ -475,6 +475,7 @@ const App = (() => {
 
   function configurarAcoesCabecalho() {
     document.getElementById('abrirAtualizacoes')?.addEventListener('click', () => ir('atualizacoesReforma'));
+    document.getElementById('abrirUtilidadesFiscais')?.addEventListener('click', () => ir('utilidadesFiscais'));
     const usuario = document.getElementById('usuarioHeader');
     const menu = document.getElementById('usuarioMenuItens');
     usuario?.addEventListener('click', () => { const aberto = menu?.hidden !== false; if (menu) menu.hidden = !aberto; usuario.setAttribute('aria-expanded', String(aberto)); });

@@ -169,6 +169,14 @@ function iniciar() {
   monitoramentoAtualizacoes.executar().catch((e) => console.error('  monitoramento normativo:', e.message));
   setInterval(() => monitoramentoAtualizacoes.executar()
     .catch((e) => console.error('  monitoramento normativo:', e.message)), 60 * 60 * 1000).unref();
+  // NCM e NBS são referências de consulta: a sincronização diária só inclui
+  // novas versões oficiais e não altera regras, cálculos ou resultados já
+  // fechados para qualquer empresa.
+  const referenciasFiscais = require('./src/services/referenciasFiscaisOficiais');
+  referenciasFiscais.sincronizarReferenciasOficiaisVigentes()
+    .catch((e) => console.error('  referências fiscais oficiais:', e.message));
+  setInterval(() => referenciasFiscais.sincronizarReferenciasOficiaisVigentes()
+    .catch((e) => console.error('  referências fiscais oficiais:', e.message)), 24 * 60 * 60 * 1000).unref();
   // Não aguardar: Render pode considerar a instância indisponível enquanto a
   // primeira carga-base baixa dezenas de coleções.
   iniciarOperacao().catch((e) => console.error('  inicialização operacional não concluída:', e.message));
