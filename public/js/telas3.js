@@ -834,6 +834,64 @@ Telas.dashboardOperacao = async (el) => {
   renderCarteira();
 };
 
+// Visão inicial: não depende da empresa selecionada. A página detalhada de
+// escopo continua em "Escopo, entregas e ações", depois que o usuário entra em
+// um projeto.
+Telas.dashboardOperacao = async (el) => {
+  const d = await A.api('/operacao/dashboard');
+  const projetos = d.projetos || [];
+  const status = {
+    em_execucao: 'Em execução', aguardando_aprovacao: 'Aguardando aprovação', concluido: 'Concluído',
+  };
+  const total = projetos.length || 1;
+  const porStatus = [
+    ['em_execucao', 'Em execução', '#155a7a'],
+    ['aguardando_aprovacao', 'Aguardando aprovação', '#d18b00'],
+    ['concluido', 'Concluídos', '#23845a'],
+  ].map(([chave, titulo, cor]) => ({ chave, titulo, cor, total: projetos.filter((p) => p.status === chave).length }));
+  const entregas = projetos.reduce((n, p) => n + (p.entregas || 0), 0);
+  const entregasConcluidas = projetos.reduce((n, p) => n + (p.entregasConcluidas || 0), 0);
+  const progressoMedio = projetos.length ? Math.round(projetos.reduce((n, p) => n + Number(p.progresso || 0), 0) / projetos.length) : 0;
+  const etapas = (p) => (p.responsaveisPorEntrega || []).filter((e) => e.chave !== 'acompanhamento').map((e) => {
+    const feito = ['concluida', 'nao_aplicavel'].includes(e.status);
+    return `<span class="portfolio-entrega ${feito ? 'feito' : ''}"><i>${feito ? '✓' : '·'}</i>${A.esc(e.titulo || e.chave)}</span>`;
+  }).join('') || '<span class="portfolio-sem-entregas">Escopo ainda não definido</span>';
+  const cardProjeto = (p) => `<article class="portfolio-projeto">
+    <div class="portfolio-projeto-topo"><div><span class="portfolio-micro">PROJETO</span><h3>${A.esc(p.empresa)}</h3></div><span class="portfolio-status ${p.status === 'concluido' ? 'feito' : p.status === 'em_execucao' ? 'ativo' : ''}">${status[p.status] || A.esc(p.status || 'A definir')}</span></div>
+    <p class="portfolio-plano">${A.esc(p.nome_plano || 'Escopo personalizado')}</p>
+    <div class="portfolio-progresso"><div><span>Evolução das entregas</span><b>${p.progresso || 0}%</b></div><div class="portfolio-barra"><i style="width:${Math.max(0, Math.min(100, Number(p.progresso || 0)))}%"></i></div><small>${p.entregasConcluidas || 0} de ${p.entregas || 0} entregas concluídas</small></div>
+    <div class="portfolio-entregas"><span class="portfolio-micro">ESCOPO CONTRATADO</span><div>${etapas(p)}</div></div>
+    <button class="btn pq vazio portfolio-abrir" data-abrir-projeto="${p.empresa_id || ''}">Abrir projeto <span>→</span></button>
+  </article>`;
+  el.innerHTML = `<section class="portfolio-hero">
+    <div><span class="portfolio-eyebrow">SATTVA · REFORMA TRIBUTÁRIA</span><h1>Visão geral da carteira</h1><p>Acompanhe o estágio, a evolução e as entregas de todos os projetos antes de entrar em uma empresa.</p></div>
+    <div class="portfolio-hero-acoes"><span>${d.empresas || 0} empresa${Number(d.empresas) === 1 ? '' : 's'} na carteira</span><button class="btn" id="irProjetos">Ir para projetos <b>→</b></button></div>
+  </section>
+  <section class="portfolio-kpis">
+    <article><span>PROJETOS ATIVOS</span><b>${d.resumo?.emExecucao || 0}</b><small>em execução agora</small></article>
+    <article><span>EVOLUÇÃO MÉDIA</span><b>${progressoMedio}%</b><div class="portfolio-mini-barra"><i style="width:${progressoMedio}%"></i></div></article>
+    <article><span>ENTREGAS CONCLUÍDAS</span><b>${entregasConcluidas}<em>/${entregas}</em></b><small>escopos prontos para entrega</small></article>
+    <article class="portfolio-kpi-atencao"><span>ATENÇÕES ABERTAS</span><b>${(d.resumo?.tarefasAtrasadas || 0) + (d.resumo?.pendenciasCliente || 0)}</b><small>prazos e pendências do cliente</small></article>
+  </section>
+  <section class="portfolio-grade">
+    <article class="portfolio-card portfolio-estagios"><div class="portfolio-card-titulo"><div><span class="portfolio-eyebrow">DISTRIBUIÇÃO</span><h2>Estágio dos projetos</h2></div><span class="portfolio-total">${projetos.length} no total</span></div>
+      <p>Quantidade de projetos em cada momento da jornada.</p>
+      <div class="portfolio-grafico-barras">${porStatus.map((x) => `<div class="portfolio-linha-grafico"><div><span class="portfolio-ponto" style="background:${x.cor}"></span><b>${x.titulo}</b><strong>${x.total}</strong></div><div class="portfolio-trilho"><i style="width:${Math.round((x.total / total) * 100)}%;background:${x.cor}"></i></div></div>`).join('')}</div>
+    </article>
+    <article class="portfolio-card portfolio-leitura"><span class="portfolio-eyebrow">COMO LER</span><h2>Do escopo à entrega</h2><p>As barras mostram quanto do escopo contratado já foi concluído. O <b>✓</b> identifica cada entrega pronta; os demais itens permanecem em andamento.</p><button class="portfolio-link" id="irProjetosSecundario">Ver todos os projetos <span>→</span></button></article>
+  </section>
+  <section class="portfolio-carteira"><div class="portfolio-card-titulo"><div><span class="portfolio-eyebrow">CARTEIRA</span><h2>Projetos e entregas</h2><p>Entre em um projeto para planejar atividades, acompanhar cronograma e fechar as entregas.</p></div><span class="portfolio-total">${projetos.length} projetos</span></div>
+    <div class="portfolio-lista">${projetos.length ? projetos.map(cardProjeto).join('') : A.vazio('Nenhum projeto cadastrado.', 'Crie um escopo para começar a acompanhar a carteira.')}</div>
+  </section>`;
+  const irProjetos = () => A.ir('gestaoProjetos');
+  el.querySelector('#irProjetos').onclick = irProjetos;
+  el.querySelector('#irProjetosSecundario').onclick = irProjetos;
+  el.querySelectorAll('[data-abrir-projeto]').forEach((botao) => { botao.onclick = async () => {
+    if (botao.dataset.abrirProjeto) { localStorage.setItem('sattva_empresa', botao.dataset.abrirProjeto); await A.carregarEmpresas(); }
+    A.ir('gestaoProjetos');
+  }; });
+};
+
 // ===========================================================================
 // USUÁRIOS E ACESSOS
 // ===========================================================================

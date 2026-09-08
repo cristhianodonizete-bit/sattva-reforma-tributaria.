@@ -8,7 +8,9 @@ Este manual descreve a operação da versão atual do Sattva Reforma Tributária
 
 Entre com e-mail e senha. Use **Esqueci minha senha** quando necessário.
 
-Depois do acesso, confirme a empresa no seletor do canto superior direito ou no menu lateral. A empresa selecionada é usada em todos os módulos; confirme-a antes de importar, executar cálculos ou gerar uma entrega.
+Depois do acesso, o sistema abre a **Visão geral da carteira**. Ela não depende de uma empresa selecionada: mostra a quantidade de projetos, seus estágios, evolução e entregas concluídas. Use **Ir para projetos** para acessar a gestão dos escopos ou **Abrir projeto** em um card para abrir diretamente a empresa correspondente.
+
+Depois de entrar em um projeto, confirme a empresa no seletor do canto superior direito ou no menu lateral. A empresa selecionada é usada nos módulos individuais; confirme-a antes de importar, executar cálculos ou gerar uma entrega.
 
 No menu do seu nome, no canto superior direito, estão:
 
@@ -19,6 +21,10 @@ No menu do seu nome, no canto superior direito, estão:
 Os grupos do menu lateral podem ser recolhidos ou expandidos pelo respectivo título.
 
 ## 2. Estrutura do sistema
+
+### Visão geral da carteira
+
+É a porta de entrada do sistema. Os cartões resumem projetos ativos, evolução média, entregas concluídas e atenções abertas. O gráfico de barras distribui os projetos por estágio. Em cada projeto, a barra representa a evolução do escopo e o símbolo **✓** marca entregas já concluídas. Essa tela é somente de acompanhamento: nenhum cálculo ou cadastro é alterado nela.
 
 ### Central de Dados
 

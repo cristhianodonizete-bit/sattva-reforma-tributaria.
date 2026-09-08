@@ -563,7 +563,7 @@ router.get('/operacao/dashboard', async (req, res) => {
       const proximoAcompanhamento = as.filter((x) => x.status !== 'concluido').sort((a, b) => String(a.competencia).localeCompare(String(b.competencia)))[0]?.competencia || null;
       const responsavelSattva = rs.find((x) => x.lado === 'sattva')?.nome || null;
       const pendenciasCliente = ts.filter((x) => x.status !== 'concluida' && x.envolve_cliente && String(x.pendencia_cliente || '').trim()).length;
-      const responsaveisPorEntrega = es.map((entrega) => ({ id: entrega.id, chave: entrega.chave, titulo: entrega.titulo,
+      const responsaveisPorEntrega = es.map((entrega) => ({ id: entrega.id, chave: entrega.chave, titulo: entrega.titulo, status: entrega.status,
         responsavel: responsavelDaEntrega(p.id, entrega.id), usuario_id: rs.find((x) => x.lado === 'sattva' && x.entrega_id === entrega.id)?.usuario_id || null }));
       if (Number(p.acompanhamento_meses) > 0 || as.length) responsaveisPorEntrega.push({ id: null, chave: 'acompanhamento', titulo: 'Acompanhamento',
         responsavel: responsavelDaEntrega(p.id, null), usuario_id: rs.find((x) => x.lado === 'sattva' && !x.entrega_id)?.usuario_id || null });

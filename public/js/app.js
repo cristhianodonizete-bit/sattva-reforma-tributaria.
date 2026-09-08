@@ -2,7 +2,7 @@
    NÚCLEO — estado, navegação, chamadas à API e componentes reutilizáveis
    ========================================================================= */
 const App = (() => {
-  const S = { empresas: [], empresaId: null, empresa: null, params: null, tela: 'painel', aba: {}, cache: {}, menuAbertos: new Set() };
+  const S = { empresas: [], empresaId: null, empresa: null, params: null, tela: 'dashboardOperacao', aba: {}, cache: {}, menuAbertos: new Set() };
   const temaAtual = () => document.documentElement.classList.contains('tema-escuro') ? 'escuro' : 'claro';
   const aplicarTema = (tema) => {
     const escolhido = tema === 'escuro' ? 'escuro' : 'claro';
@@ -185,7 +185,7 @@ const App = (() => {
   const MENU = [
     { id: 'visao-geral', titulo: 'Visão geral', itens: [
       { id: 'painel', t: 'Painel do projeto', i: '◈' },
-      { id: 'dashboardOperacao', t: 'Dashboard operacional', i: '◷' },
+      { id: 'dashboardOperacao', t: 'Visão da carteira', i: '◷' },
     ] },
     { id: 'dados', titulo: 'Central de Dados', itens: [
       { tipo: 'titulo', t: 'Controle da análise' },
