@@ -1,6 +1,12 @@
 @echo off
 setlocal
 where node >nul 2>nul || (echo Node.js 22 ou superior nao foi encontrado.& echo Instale o Node.js e execute este arquivo novamente.& pause & exit /b 1)
+if exist "%~dp0config.json" (
+  echo Este conector ja esta pareado nesta pasta.
+  echo Use iniciar-conector.cmd para iniciar sem informar credenciais novamente.
+  pause
+  exit /b 0
+)
 echo === Conector Sattva - Questor ===
 set /p SATTVA_URL=Endereco do Sattva [https://sattva-reforma-tributaria.onrender.com]: 
 if "%SATTVA_URL%"=="" set SATTVA_URL=https://sattva-reforma-tributaria.onrender.com
