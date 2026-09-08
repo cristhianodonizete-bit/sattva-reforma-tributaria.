@@ -1,4 +1,5 @@
 const dbPadrao = require('../db');
+const prontidaoDados = require('./prontidaoDados');
 
 const texto = (v) => String(v || '').trim();
 const chave = (v) => texto(v).replace(/\D/g, '');
@@ -163,8 +164,16 @@ function correlacoesIndicativas(db, empresa) {
 function listar(empresaId, { banco=dbPadrao } = {}) {
   const empresa = banco.prepare('SELECT id,razao_social,cnpj,cnae,atividade,cnaes_secundarios FROM empresas WHERE id=?').get(Number(empresaId));
   if (!empresa) throw new Error('Empresa não encontrada.');
+  const prontidao = prontidaoDados.obter(empresaId, { banco });
+  const documentos = prontidao.etapas?.find((x) => x.id === 'documentos');
+  if (!documentos || documentos.status !== 'VERDE') {
+    return { empresa, cnaes:cnaes(empresa), itens:[], operacoes_saida:[], correlacoes:[], documentos_prontos:false,
+      pendencias_documentos:documentos?.pendencias || ['Defina o Período analisado e conclua a importação dos documentos fiscais.'],
+      aviso:'O Mapa Operacional é gerado exclusivamente após a conclusão dos documentos fiscais do Período analisado. Ele não usa CNAE para substituir documentos não importados.' };
+  }
   const produtos = [];
   const servicos = [];
+  const itensSaida = [];
   // O cadastro comercial pode conter uma oferta ainda sem NF-e: esta é a
   // fonte segura para antecipar análise sem inventar NCM/NBS pelo CNAE.
   banco.prepare('SELECT ncm,descricao,\'CADASTRO_COMERCIAL\' origem, codigo evidencia FROM pricing_products WHERE empresa_id=? AND TRIM(COALESCE(ncm,\'\'))<>\'\'').all(empresaId)
@@ -173,13 +182,20 @@ function listar(empresaId, { banco=dbPadrao } = {}) {
     .forEach((x) => servicos.push(itemServico(banco, x, empresa.id)));
   banco.prepare('SELECT nbs,\'\' lc116,descricao,\'CADASTRO_FISCAL\' origem,chave evidencia FROM empresa_servicos_fiscais WHERE empresa_id=? AND TRIM(COALESCE(nbs,\'\'))<>\'\' AND ativo=1').all(empresaId)
     .forEach((x) => servicos.push(itemServico(banco, x, empresa.id)));
-  banco.prepare(`SELECT ncm,nbs,lc116,descricao,CASE WHEN tipo='cliente' THEN 'DOCUMENTO_DE_SAIDA' ELSE 'DOCUMENTO_DE_ENTRADA' END origem,
+  banco.prepare(`SELECT ncm,nbs,lc116,descricao,CASE WHEN tipo='cliente' OR lower(COALESCE(sentido,''))='saida' THEN 'DOCUMENTO_DE_SAIDA' ELSE 'DOCUMENTO_DE_ENTRADA' END origem,
     COALESCE(chave,documento,CAST(id AS TEXT)) evidencia FROM movimentos WHERE empresa_id=? AND (TRIM(COALESCE(ncm,''))<>'' OR TRIM(COALESCE(nbs,''))<>'' OR TRIM(COALESCE(lc116,''))<>'')`).all(empresaId)
-    .forEach((x) => { if (chave(x.ncm)) produtos.push(itemProduto(banco,x,empresa.id)); if (chave(x.nbs) || texto(x.lc116)) servicos.push(itemServico(banco,x,empresa.id)); });
+    .forEach((x) => {
+      if (chave(x.ncm)) { const item=itemProduto(banco,x,empresa.id); produtos.push(item); if (x.origem==='DOCUMENTO_DE_SAIDA') itensSaida.push(item); }
+      if (chave(x.nbs) || texto(x.lc116)) { const item=itemServico(banco,x,empresa.id); servicos.push(item); if (x.origem==='DOCUMENTO_DE_SAIDA') itensSaida.push(item); }
+    });
   const deduplicar = (lista) => [...new Map(lista.map((x) => [`${x.tipo}:${x.codigo}:${x.lc116 || ''}`, x])).values()].sort((a,b)=>a.codigo.localeCompare(b.codigo));
   const itens = [...deduplicar(produtos), ...deduplicar(servicos)];
-  const correlacoes = correlacoesIndicativas(banco, empresa);
+  const operacoesSaida = deduplicar(itensSaida).map((x) => ({ ...x, contexto:'DOCUMENTO FISCAL DE SAÍDA', atividade:'Produto/serviço efetivamente vendido pela empresa.' }));
+  // CNAE não é fonte de classificação deste mapa. A função histórica de
+  // correlação permanece isolada para não alterar outros consumidores, mas
+  // esta resposta deliberadamente expõe somente documentos de saída.
+  const correlacoes = [];
   return { empresa, cnaes:cnaes(empresa), itens, resumo:{ itens:itens.length, produtos:deduplicar(produtos).length, servicos:deduplicar(servicos).length, com_regra:itens.filter((x)=>x.regra_encontrada).length, com_beneficio:itens.filter((x)=>x.hipoteses_cbs?.some((h)=>String(h.reducao).toLowerCase()!=='integral')).length },
-    correlacoes, aviso:'O CNAE organiza o contexto econômico. As correlações são indicativas e não aplicam NCM, NBS, LC 116, benefício ou cálculo; confirme o item e os fatos da operação antes de usar qualquer regra.' };
+    operacoes_saida:operacoesSaida, correlacoes, documentos_prontos:true, aviso:'O mapa usa exclusivamente os documentos fiscais de saída do Período analisado: NCM para venda de mercadorias e NBS/LC 116 para prestação de serviços. Nenhuma linha aplica regra, benefício ou cálculo no motor.' };
 }
 module.exports = { listar };

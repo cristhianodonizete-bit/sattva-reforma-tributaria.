@@ -1054,10 +1054,17 @@ async function telaCadeia(el, tipo) {
 // itens já presentes no cadastro ou nos documentos para orientar validação.
 Telas.mapaOperacional = async (el) => {
   const d = await A.api(`/empresas/${S.empresaId}/mapa-operacional`);
+  if (!d.documentos_prontos) {
+    el.innerHTML = cab('DIAGNÓSTICO · MAPA OPERACIONAL', 'Mapa operacional bloqueado', 'Conclua a importação dos documentos fiscais do Período analisado para gerar o mapa por NCM e NBS/LC 116.') +
+      `<section class="cartao"><div class="aviso atencao"><b>Documentos fiscais pendentes.</b><br>${(d.pendencias_documentos || []).map(A.esc).join('<br>')}</div><p class="desc" style="margin-top:16px">O mapa não usa correlação de CNAE enquanto os documentos não estiverem concluídos. Isso impede projetar mercadorias ou serviços que não foram efetivamente documentados.</p></section>`;
+    return;
+  }
   // Uma linha para cada hipótese CBS: a repetição proposital de CNAE e item
   // permite filtrar/exportar como uma consulta de banco de dados, sem células
   // que escondam alternativas tributárias distintas.
-  const atomicas = (d.correlacoes || []).flatMap((item) => (item.hipoteses_cbs?.length ? item.hipoteses_cbs : [{ cclasstrib:'—', cst:'—', descricao:'Hipótese CBS não localizada.', reducao:'—', condicao:{ texto:'Validar item, operação e vigência.' } }]).map((hipotese) => ({ ...item, hipotese })));
+  const possuiSaidas = (d.operacoes_saida || []).length > 0;
+  const baseMapa = d.operacoes_saida || [];
+  const atomicas = baseMapa.flatMap((item) => (item.hipoteses_cbs?.length ? item.hipoteses_cbs : [{ cclasstrib:'—', cst:'—', descricao:'Hipótese CBS não localizada.', reducao:'—', condicao:{ texto:'Validar item, operação e vigência.' } }]).map((hipotese) => ({ ...item, hipotese })));
   // A mesma regra pode trazer mais de um indOp/fato no catálogo. Agrupar
   // preserva todas as alternativas na última coluna e evita repetir a linha
   // inteira quando o tratamento tributário é exatamente o mesmo.
@@ -1078,9 +1085,9 @@ Telas.mapaOperacional = async (el) => {
   const linhas = [...agrupadas.values()];
   el.innerHTML = cab('DIAGNÓSTICO · MAPA OPERACIONAL', 'Possibilidades tributárias por atividade',
     'CNAE → item potencial → regra atual de PIS/Cofins → CBS e benefícios. Nada desta tela entra no motor até ser confirmado.') +
-    `<section class="cartao"><div class="cabecalho-lista"><div><div class="olho">CORRELAÇÕES INDICATIVAS</div><h2>Itens que podem fazer parte da operação</h2><p class="desc">Uma linha por hipótese CBS. A repetição dos dados permite analisar, filtrar e exportar a matriz como uma base de dados.</p></div><span class="tag n">${linhas.length} linha(s)</span></div>
+    `<section class="cartao"><div class="cabecalho-lista"><div><div class="olho">OPERAÇÕES IDENTIFICADAS NAS SAÍDAS</div><h2>${possuiSaidas ? 'Produtos e serviços efetivamente vendidos' : 'Nenhuma saída classificada no período'}</h2><p class="desc">${possuiSaidas ? 'NCM é utilizado para mercadorias e NBS/LC 116 para serviços. Havendo os dois nos documentos de saída, ambos são demonstrados.' : 'Os documentos foram concluídos, mas não há venda de mercadoria com NCM nem prestação de serviço com NBS/LC 116 no período analisado.'}</p></div><span class="tag n">${linhas.length} linha(s)</span></div>
     ${linhas.length ? A.tabela([
-      {t:'Atividade',r:x=>`<b class="mono">${A.esc(x.cnae)}</b><div class="mini">${A.esc(x.atividade)}</div>`},
+      {t:possuiSaidas ? 'Origem' : 'Atividade',r:x=>possuiSaidas ? `<b>DOCUMENTO FISCAL DE SAÍDA</b><div class="mini">${A.esc(x.tipo === 'NCM' ? 'Venda de mercadoria' : 'Prestação de serviço')}</div>` : `<b class="mono">${A.esc(x.cnae)}</b><div class="mini">${A.esc(x.atividade)}</div>`},
       {t:'Possível item',r:x=>`<b>${A.esc(x.tipo)}</b> <span class="mono">${A.esc(x.codigo || '—')}${x.lc116?` · LC ${A.esc(x.lc116)}`:''}</span><div class="mini">${A.esc(x.descricao||'Descrição não disponível')}</div>`},
       {t:'PIS/Cofins atual',r:x=>x.pis_cofins?.length?x.pis_cofins.map(A.esc).join('<br>'):A.esc(x.tratamento_atual||'A validar no catálogo')},
       {t:'CBS / cClassTrib',r:x=>`<b class="mono">${A.esc(x.hipotese.cclasstrib)}</b> · CST ${A.esc(x.hipotese.cst||'—')}<br><span class="mini">${A.esc(x.hipotese.descricao||`CBS: ${x.hipotese.reducao}`)}${x.hipotese.descricao?` · ${A.esc(x.hipotese.reducao)}`:''}</span>`},
