@@ -659,6 +659,7 @@ Telas.questor = async (el) => {
   const detalheTarefa = (t) => {
     if (t.erro) return `<span class="mini" style="color:#b42318"><b>Erro:</b> ${A.esc(t.erro)}</span>`;
     if (t.status !== 'CONCLUIDA') return '<span class="mini">Aguardando atualização.</span>';
+    if (t.tipo === 'PARAMETROS_RELATORIO') return `<button class="btn vazio pq" data-ver-retorno-questor="${t.id}">Ver parâmetros retornados</button>`;
     let resultado = 'Processamento concluído.';
     try { resultado = JSON.stringify(JSON.parse(t.resultado_json || '{}')); } catch (_) { /* mantém o texto padrão */ }
     return `<span class="mini">${A.esc(resultado.slice(0, 240))}</span>`;
@@ -730,6 +731,12 @@ Telas.questor = async (el) => {
     A.ir('questor');
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
+  el.querySelectorAll('[data-ver-retorno-questor]').forEach((botao) => botao.onclick = () => {
+    const tarefa = tarefas.find((t) => String(t.id) === botao.dataset.verRetornoQuestor);
+    let retorno = tarefa?.resultado_json || '{}';
+    try { retorno = JSON.stringify(JSON.parse(retorno), null, 2); } catch (_) { /* exibe a resposta original */ }
+    A.modal({titulo:'Parâmetros retornados pelo Questor',confirmar:null,largura:900,descricao:'Retorno bruto do nWeb para o relatório nFisRRTotalPISCOFINSProd.',corpo:`<pre class="mini" style="white-space:pre-wrap;max-height:520px;overflow:auto;background:#f4f7f9;padding:12px;border-radius:8px">${A.esc(retorno)}</pre>`});
+  });
   const codificar64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
   const decodificar64 = (texto) => Uint8Array.from(atob(texto), (c) => c.charCodeAt(0));
   const chaveDaSenha = async (senha, salt) => {
