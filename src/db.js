@@ -1892,6 +1892,15 @@ CREATE TABLE IF NOT EXISTS questor_log (
   status TEXT, mensagem TEXT, registros INTEGER DEFAULT 0,
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
+CREATE TABLE IF NOT EXISTS questor_conectores (
+  id TEXT PRIMARY KEY, nome TEXT NOT NULL, segredo_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'ATIVO', ultima_conexao_em TEXT, criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS questor_conector_tarefas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, conector_id TEXT NOT NULL REFERENCES questor_conectores(id), empresa_id INTEGER,
+  tipo TEXT NOT NULL, payload_json TEXT NOT NULL DEFAULT '{}', status TEXT NOT NULL DEFAULT 'PENDENTE',
+  resultado_json TEXT, erro TEXT, criado_em TEXT DEFAULT (datetime('now','localtime')), executado_em TEXT
+);
 
 -- ============ PLANEJAMENTO TRIBUTÁRIO ============
 -- Atualizações normativas são uma trilha de governança independente do motor.

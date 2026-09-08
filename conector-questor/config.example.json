@@ -1,0 +1,7 @@
+{
+  "sattvaUrl": "https://sattva-reforma-tributaria.onrender.com",
+  "connectorId": "cole-o-id-gerado-no-sattva",
+  "connectorSecret": "cole-o-segredo-gerado-no-sattva",
+  "nwebUrl": "http://127.0.0.1:8080",
+  "tokenApi": "token-do-nweb"
+}

@@ -3354,6 +3354,10 @@ router.delete('/acoes/:id', async (req, res) => { try { const acao = await acaoP
 // INTEGRAÇÃO QUESTOR (nWeb)
 // ===========================================================================
 router.get('/questor/config', (_req, res) => ok(res, { config: questor.config() }));
+router.get('/questor/conectores', (_req,res)=>{ try { ok(res,{conectores:db.prepare('SELECT id,nome,status,ultima_conexao_em,criado_em FROM questor_conectores ORDER BY criado_em DESC').all()}); } catch(e){erro(res,e);} });
+router.post('/questor/conectores', (req,res)=>{ try { const id=crypto.randomUUID(); const segredo=crypto.randomBytes(32).toString('base64url'); db.prepare('INSERT INTO questor_conectores (id,nome,segredo_hash) VALUES (?,?,?)').run(id,String(req.body?.nome||'Conector Questor'),crypto.createHash('sha256').update(segredo).digest('hex')); ok(res,{conector:{id,nome:String(req.body?.nome||'Conector Questor')},segredo}); } catch(e){erro(res,e);} });
+router.post('/questor/conectores/:id/tarefas', (req,res)=>{ try { const tipo=String(req.body?.tipo||''); if(!['TESTAR_NWEB','PARAMETROS_RELATORIO','APURACAO_PIS_COFINS'].includes(tipo)) throw new Error('Tipo de tarefa não permitido.'); const r=db.prepare('INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)').run(req.params.id,req.body?.empresa_id||null,tipo,JSON.stringify(req.body?.payload||{})); ok(res,{tarefa_id:r.lastInsertRowid}); } catch(e){erro(res,e);} });
+router.get('/questor/conectores/:id/tarefas', (req,res)=>{ try { ok(res,{tarefas:db.prepare('SELECT * FROM questor_conector_tarefas WHERE conector_id=? ORDER BY id DESC LIMIT 50').all(req.params.id)}); } catch(e){erro(res,e);} });
 
 router.post('/questor/config', (req, res) => {
   try { ok(res, { config: questor.salvarConfig(req.body) }); } catch (e) { erro(res, e); }

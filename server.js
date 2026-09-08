@@ -29,6 +29,8 @@ app.use(compression());
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
 app.use(express.static(path.join(__dirname, 'public')));
+// O conector local possui autenticação própria e nunca recebe a sessão web.
+app.use('/api/conector-questor', require('./src/routes/conectorQuestor'));
 
 app.use('/auth', require('./src/routes/auth'));
 app.use('/api', (_req, res, next) => {
