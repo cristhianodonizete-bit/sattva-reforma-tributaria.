@@ -1067,7 +1067,7 @@ Telas.mapaOperacional = async (el) => {
       {t:'PIS/Cofins atual',r:x=>x.pis_cofins?.length?x.pis_cofins.map(A.esc).join('<br>'):A.esc(x.tratamento_atual||'A validar no catálogo')},
       {t:'CBS / cClassTrib',r:x=>`<b class="mono">${A.esc(x.hipotese.cclasstrib)}</b> · CST ${A.esc(x.hipotese.cst||'—')}<br><span class="mini">${A.esc(x.hipotese.descricao||`CBS: ${x.hipotese.reducao}`)}${x.hipotese.descricao?` · ${A.esc(x.hipotese.reducao)}`:''}</span>`},
       {t:'Operação esperada',r:x=>`<b>${A.esc(x.hipotese.operacao)}</b>`},
-      {t:'Condição específica',r:x=>A.esc(x.hipotese.condicao.texto)},
+      {t:'Fatos e condições para aplicar',r:x=>`<b>${A.esc(x.hipotese.condicao.texto)}</b>${x.hipotese.fatos?.length ? `<div class="mini" style="margin-top:6px">${x.hipotese.fatos.map(A.esc).join('<br>')}</div>` : '<div class="mini" style="margin-top:6px">Confirmar item, vigência e fatos da operação.</div>'}<div class="mini" style="margin-top:6px">Fonte: ${A.esc(x.hipotese.fonte || 'CATÁLOGO FISCAL')}</div>`},
     ],linhas) : '<div class="aviso"><b>Não há correlações automáticas seguras para as descrições atuais.</b> Atualize o CNAE/atividade no cadastro ou cadastre os produtos e serviços efetivamente ofertados; o sistema não inventará códigos ou benefícios.</div>'}
     </section><div class="aviso" style="margin-top:16px"><b>Segurança</b> · ${A.esc(d.aviso)}</div>`;
 };

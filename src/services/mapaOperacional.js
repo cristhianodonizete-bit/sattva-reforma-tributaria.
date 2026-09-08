@@ -4,6 +4,11 @@ const texto = (v) => String(v || '').trim();
 const chave = (v) => texto(v).replace(/\D/g, '');
 const valor = (v) => Number(v) || 0;
 const unico = (itens) => [...new Set(itens.filter(Boolean))];
+const lista = (v) => {
+  if (Array.isArray(v)) return v.map(texto).filter(Boolean);
+  const bruto = texto(v); if (!bruto) return [];
+  try { const json = JSON.parse(bruto); return Array.isArray(json) ? json.map(texto).filter(Boolean) : [bruto]; } catch (_) { return bruto.split(/[;|]/).map(texto).filter(Boolean); }
+};
 const PALAVRAS_IGNORADAS = new Set(['atividade','atividades','comercio','comercial','servico','servicos','outros','outras','geral','gerais','empresa','empresas','produtos','produto','mercadoria','mercadorias','industrial','industria','nacional','nacionais','para','com','sem','por','das','dos','des','que','uma','entre']);
 const termos = (v) => unico(texto(v).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').split(/[^a-z0-9]+/).filter((x) => x.length >= 5 && !PALAVRAS_IGNORADAS.has(x)));
 const pontuar = (atividade, descricao) => {
@@ -58,6 +63,36 @@ function condicaoCbs(regra) {
   const condicoes=unico([texto(regra.condicoes_obrigatorias), texto(regra.condicoes), texto(regra.direcao) ? `Operação: ${texto(regra.direcao)}` : '', texto(regra.perfil_adquirente) ? `Destinatário: ${texto(regra.perfil_adquirente)}` : '']);
   return { texto:condicoes.join(' · ') || 'Regra padrão: sem condição adicional além da identificação correta do item e da vigência.' };
 }
+function fatosDaHipotese(regra) {
+  const fatos = [];
+  const incluir = (rotulo, valores) => lista(valores).forEach((v) => fatos.push(`${rotulo}: ${v}`));
+  const codigo = texto(regra.cclasstrib);
+  if (codigo === '200044') fatos.push('Quadro societário: sócio brasileiro com participação de, no mínimo, 20% do capital social.');
+  if (codigo === '200043') {
+    fatos.push('Destinatário: administração direta, autarquia ou fundação pública elegível.');
+    fatos.push('Hipótese material: bem ou serviço de soberania/segurança previsto no Anexo XI.');
+    fatos.push('Comprovação do destinatário: natureza jurídica cadastrada e matriz Anexo XI vigente.');
+  }
+  if (texto(regra.direcao)) fatos.push(`Sentido: ${texto(regra.direcao)}`);
+  if (texto(regra.tipo_operacao || regra.operacao_pis_cofins)) fatos.push(`Operação: ${texto(regra.tipo_operacao || regra.operacao_pis_cofins)}`);
+  incluir('CFOP', regra.cfop);
+  incluir('Perfil do fornecedor', regra.perfil_fornecedor);
+  incluir('Perfil do adquirente', regra.perfil_adquirente || regra.ente_elegivel);
+  incluir('Regime do fornecedor', regra.regime_fornecedor);
+  incluir('Regime do adquirente', regra.regime_adquirente);
+  incluir('Regime PIS/Cofins', regra.regime_pis_cofins || regra.regime_pis_cofins_receita);
+  incluir('Papel na cadeia', regra.papel_cadeia || regra.papel_na_cadeia_necessario);
+  incluir('Unidade', regra.unidade);
+  incluir('Finalidade/natureza', regra.natureza_reconstrucao);
+  incluir('Condição obrigatória', regra.condicoes_obrigatorias || regra.condicoes || regra.condicao_cumulatividade);
+  incluir('Condição excludente', regra.condicoes_excludentes);
+  incluir('Operação onerosa', regra.onerosa);
+  incluir('Operação exterior', regra.exterior);
+  incluir('Indicador da operação', regra.indop);
+  incluir('Local de incidência', regra.local_incidencia);
+  if (texto(regra.vigencia_inicio || regra.vigencia) || texto(regra.vigencia_fim)) fatos.push(`Vigência: ${texto(regra.vigencia_inicio || regra.vigencia) || 'início não informado'} até ${texto(regra.vigencia_fim) || 'sem término informado'}`);
+  return unico(fatos);
+}
 function hipotesesCbs(db, empresaId, item) {
   const base = item.tipo==='NCM'
     ? db.prepare('SELECT * FROM base_ncm WHERE ncm=? ORDER BY cclasstrib').all(chave(item.ncm))
@@ -69,9 +104,12 @@ function hipotesesCbs(db, empresaId, item) {
     ? db.prepare("SELECT * FROM regras_governo WHERE cclasstrib<>'' AND (ncm=? OR chave=?)").all(chave(item.ncm),chave(item.ncm))
     : db.prepare("SELECT * FROM regras_governo WHERE cclasstrib<>'' AND ((nbs<>'' AND REPLACE(REPLACE(REPLACE(nbs,'.',''),'/',''),'-','')=?) OR (lc116<>'' AND REPLACE(REPLACE(REPLACE(lc116,'.',''),'/',''),'-','')=?))").all(chave(item.nbs),chave(item.lc116));
   const candidatos=[...base,...regras,...governo].filter((x)=>texto(x.cclasstrib)); const vistos=new Set();
-  return candidatos.filter((x)=>{ const id=texto(x.cclasstrib); if(vistos.has(id)) return false; vistos.add(id); return true; }).map((x)=>{
+  return candidatos.filter((x)=>{
+    const id=[texto(x.cclasstrib), texto(x.cst), ...fatosDaHipotese(x)].join('|');
+    if(vistos.has(id)) return false; vistos.add(id); return true;
+  }).map((x)=>{
     const condicao=condicaoCbs(x); const reducao=item.tipo==='NCM' ? (x.reducao_cbs ?? x.reducao ?? 'integral') : (x.reducao ?? 'integral');
-    return { cclasstrib:texto(x.cclasstrib), cst:texto(x.cst) || texto(x.cclasstrib).slice(0,3), descricao:texto(x.classificacao || x.nome_cclasstrib || x.tratamento_resultante), reducao:String(reducao), operacao:operacaoEsperada(item,x), condicao };
+    return { cclasstrib:texto(x.cclasstrib), cst:texto(x.cst) || texto(x.cclasstrib).slice(0,3), descricao:texto(x.classificacao || x.nome_cclasstrib || x.tratamento_resultante || x.tratamento), reducao:String(reducao), operacao:operacaoEsperada(item,x), condicao, fatos:fatosDaHipotese(x), vigencia_inicio:texto(x.vigencia_inicio || x.vigencia), vigencia_fim:texto(x.vigencia_fim), fonte:texto(x.fonte || (governo.includes(x) ? 'REGRAS_GOVERNO' : regras.includes(x) ? 'REGRAS_ENQUADRAMENTO' : 'CATALOGO_FISCAL')) };
   });
 }
 function itemProduto(db, item, empresaId) {
