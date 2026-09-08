@@ -1054,21 +1054,17 @@ async function telaCadeia(el, tipo) {
 // itens já presentes no cadastro ou nos documentos para orientar validação.
 Telas.mapaOperacional = async (el) => {
   const d = await A.api(`/empresas/${S.empresaId}/mapa-operacional`);
-  const origem = { CADASTRO_COMERCIAL:'cadastro comercial', CADASTRO_FISCAL:'cadastro fiscal', DOCUMENTO_DE_SAIDA:'documento de saída', DOCUMENTO_DE_ENTRADA:'documento de entrada' };
-  el.innerHTML = cab('DIAGNÓSTICO · MAPA OPERACIONAL', 'Atividades, itens e tratamentos possíveis',
-    'Organize o potencial tributário a partir dos CNAEs e dos itens já conhecidos. Esta tela não cria regra, não altera o catálogo e não executa o motor.') +
-    `<div class="grade g5">${A.kpi('CNAEs', d.cnaes.length, 'principal e secundários')}${A.kpi('Itens mapeados', d.resumo.itens, 'cadastro e documentos')}${A.kpi('Produtos', d.resumo.produtos, 'NCMs conhecidos')}${A.kpi('Serviços', d.resumo.servicos, 'NBS/LC 116 conhecidos')}${A.kpi('Benefícios a validar', d.resumo.com_beneficio, 'não aplicados pelo mapa', 'destaque')}</div>
-    <section class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><div class="olho">ATIVIDADES ECONÔMICAS</div><h2>CNAEs da empresa</h2><p class="desc">O CNAE contextualiza a análise; não substitui a identificação fiscal do serviço ou produto.</p></div></div>
-      ${d.cnaes.length ? `<div class="grade g3">${d.cnaes.map((c) => `<div class="cartao" style="box-shadow:none;background:#f8fbfc"><span class="tag ${c.tipo==='PRINCIPAL'?'c':'n'}">${A.esc(c.tipo)}</span><h3 class="mono" style="margin:10px 0 4px">${A.esc(c.codigo || 'Não informado')}</h3><p class="mini">${A.esc(c.descricao || 'Descrição não disponível no cadastro.')}</p></div>`).join('')}</div>` : '<div class="aviso alto">Cadastre ou consulte o CNAE da empresa para iniciar o mapa operacional.</div>'}</section>
-    <section class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><div class="olho">ITENS POTENCIAIS A VALIDAR</div><h2>Regras e benefícios por item conhecido</h2><p class="desc">Cada linha mostra somente código já presente em cadastro ou documento. Um benefício potencial exige a confirmação das condições indicadas.</p></div></div>
-      ${d.itens.length ? A.tabela([
-        {t:'Origem',r:x=>`<span class="tag n">${A.esc(origem[x.origem]||x.origem)}</span><div class="mini">${A.esc(x.evidencia||'—')}</div>`},
-        {t:'Item',r:x=>`<b>${A.esc(x.tipo)}</b><div class="mono">${A.esc(x.codigo||'—')}${x.lc116?` · LC ${A.esc(x.lc116)}`:''}</div><div class="mini">${A.esc(x.descricao||'Descrição não disponível')}</div>`},
-        {t:'Tratamento possível',r:x=>x.regra_encontrada?`<span class="tag c">REGRA LOCALIZADA</span><div class="mini">${A.esc(x.tratamento_atual||'Tratamento CBS catalogado')}</div>`:'<span class="tag a">SEM REGRA NO CATÁLOGO</span>'},
-        {t:'Benefício / impacto',r:x=>x.beneficios?.length?x.beneficios.map(A.esc).join('<br>'):'<span class="mini">Nenhum benefício específico identificado.</span>'},
-        {t:'Quando pode aplicar',r:x=>x.quando_aplica?.length?x.quando_aplica.map(A.esc).join('<br>'):'<span class="mini">Validar operação, vigência e fatos do item.</span>'},
-      ],d.itens) : '<div class="aviso"><b>Ainda não há itens para cruzar.</b> Cadastre produtos/serviços na precificação ou importe documentos fiscais. O CNAE, por si só, não será usado para inventar NCM, NBS, LC 116 ou benefício.</div>'}
-    </section><div class="aviso" style="margin-top:16px"><b>Regra de segurança</b> · ${A.esc(d.aviso)}</div>`;
+  el.innerHTML = cab('DIAGNÓSTICO · MAPA OPERACIONAL', 'Possibilidades tributárias por atividade',
+    'CNAE → item potencial → regra atual de PIS/Cofins → CBS e benefícios. Nada desta tela entra no motor até ser confirmado.') +
+    `<section class="cartao"><div class="cabecalho-lista"><div><div class="olho">CORRELAÇÕES INDICATIVAS</div><h2>Itens que podem fazer parte da operação</h2><p class="desc">A relação usa a descrição das atividades cadastradas. Confirme o item e as condições antes de considerá-lo na análise.</p></div><span class="tag n">${d.correlacoes.length} possibilidade(s)</span></div>
+    ${d.correlacoes.length ? A.tabela([
+      {t:'Atividade',r:x=>`<b class="mono">${A.esc(x.cnae)}</b><div class="mini">${A.esc(x.atividade)}</div>`},
+      {t:'Possível item',r:x=>`<b>${A.esc(x.tipo)}</b> <span class="mono">${A.esc(x.codigo || '—')}${x.lc116?` · LC ${A.esc(x.lc116)}`:''}</span><div class="mini">${A.esc(x.descricao||'Descrição não disponível')}</div>`},
+      {t:'PIS/Cofins atual',r:x=>A.esc(x.tratamento_atual||'A validar no catálogo')},
+      {t:'CBS / benefício',r:x=>x.beneficios?.length?x.beneficios.map(A.esc).join('<br>'):'<span class="mini">Sem benefício específico identificado.</span>'},
+      {t:'Aplicação',r:x=>`${x.quando_aplica?.length?x.quando_aplica.map(A.esc).join('<br>'):'Validar item, operação e vigência.'}<div class="mini" style="margin-top:5px">Confiança ${A.esc(x.confianca.toLowerCase())}</div>`},
+    ],d.correlacoes) : '<div class="aviso"><b>Não há correlações automáticas seguras para as descrições atuais.</b> Atualize o CNAE/atividade no cadastro ou cadastre os produtos e serviços efetivamente ofertados; o sistema não inventará códigos ou benefícios.</div>'}
+    </section><div class="aviso" style="margin-top:16px"><b>Segurança</b> · ${A.esc(d.aviso)}</div>`;
 };
 
 Telas.fornecedores = (el) => telaCadeia(el, 'fornecedor');
