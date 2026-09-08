@@ -3,6 +3,21 @@
    ========================================================================= */
 const App = (() => {
   const S = { empresas: [], empresaId: null, empresa: null, params: null, tela: 'painel', aba: {}, cache: {}, menuAbertos: new Set() };
+  const temaAtual = () => document.documentElement.classList.contains('tema-escuro') ? 'escuro' : 'claro';
+  const aplicarTema = (tema) => {
+    const escolhido = tema === 'escuro' ? 'escuro' : 'claro';
+    document.documentElement.classList.toggle('tema-escuro', escolhido === 'escuro');
+    document.body.classList.toggle('tema-escuro', escolhido === 'escuro');
+    // A preferência é local ao navegador. Não altera empresa, parâmetros ou
+    // qualquer dado fiscal; somente a apresentação do usuário.
+    localStorage.setItem('sattva_tema', escolhido);
+    if (S.usuario?.id) localStorage.setItem(`sattva_tema_${S.usuario.id}`, escolhido);
+    document.querySelectorAll('[data-tema]').forEach((b) => {
+      const ativo = b.dataset.tema === escolhido;
+      b.classList.toggle('ativo', ativo);
+      b.setAttribute('aria-pressed', String(ativo));
+    });
+  };
 
   // ---------- API ----------
   async function api(caminho, opcoes = {}) {
@@ -436,6 +451,8 @@ const App = (() => {
     const usuario = document.getElementById('usuarioHeader');
     const menu = document.getElementById('usuarioMenuItens');
     usuario?.addEventListener('click', () => { const aberto = menu?.hidden !== false; if (menu) menu.hidden = !aberto; usuario.setAttribute('aria-expanded', String(aberto)); });
+    document.querySelectorAll('[data-tema]').forEach((b) => b.addEventListener('click', () => aplicarTema(b.dataset.tema)));
+    aplicarTema(S.usuario?.id ? (localStorage.getItem(`sattva_tema_${S.usuario.id}`) || localStorage.getItem('sattva_tema') || temaAtual()) : (localStorage.getItem('sattva_tema') || temaAtual()));
     document.querySelector('[data-manual-header]')?.addEventListener('click', () => ir('documentacaoSistema'));
     document.querySelector('[data-redefinir-header]')?.addEventListener('click', () => modal({ titulo: 'Redefinir senha', descricao: 'Enviaremos um link seguro para o e-mail da sua conta.', corpo: `<p>${esc(S.usuario?.email || '')}</p>`, confirmar: 'Enviar link', aoConfirmar: async () => {
       const r = await fetch('/auth/esqueci-senha', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({ email:S.usuario?.email || '' }) }); const j = await r.json(); if (!j.ok) throw new Error(j.erro || 'Não foi possível solicitar a redefinição.'); toast('Se o e-mail estiver cadastrado, você receberá o link de recuperação.', 'ok');
