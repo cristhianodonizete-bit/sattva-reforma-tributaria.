@@ -1050,6 +1050,27 @@ async function telaCadeia(el, tipo) {
     modal.fundo.querySelectorAll('[data-reverter-revisao]').forEach((b) => b.onclick = async () => { await A.api(`/empresas/${S.empresaId}/beneficios-fiscais/revisoes/${b.dataset.reverterRevisao}/reverter`, { metodo: 'POST', corpo: { motivo: 'Reversão solicitada na tela de benefícios.' } }); A.toast('Revisão revertida e itens recalculados.', 'ok'); modal.fechar(); A.ir('clientes'); });
   });
 }
+// Mapa operacional não é uma classificação automática: apresenta CNAEs e
+// itens já presentes no cadastro ou nos documentos para orientar validação.
+Telas.mapaOperacional = async (el) => {
+  const d = await A.api(`/empresas/${S.empresaId}/mapa-operacional`);
+  const origem = { CADASTRO_COMERCIAL:'cadastro comercial', CADASTRO_FISCAL:'cadastro fiscal', DOCUMENTO_DE_SAIDA:'documento de saída', DOCUMENTO_DE_ENTRADA:'documento de entrada' };
+  el.innerHTML = cab('DIAGNÓSTICO · MAPA OPERACIONAL', 'Atividades, itens e tratamentos possíveis',
+    'Organize o potencial tributário a partir dos CNAEs e dos itens já conhecidos. Esta tela não cria regra, não altera o catálogo e não executa o motor.') +
+    `<div class="grade g5">${A.kpi('CNAEs', d.cnaes.length, 'principal e secundários')}${A.kpi('Itens mapeados', d.resumo.itens, 'cadastro e documentos')}${A.kpi('Produtos', d.resumo.produtos, 'NCMs conhecidos')}${A.kpi('Serviços', d.resumo.servicos, 'NBS/LC 116 conhecidos')}${A.kpi('Benefícios a validar', d.resumo.com_beneficio, 'não aplicados pelo mapa', 'destaque')}</div>
+    <section class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><div class="olho">ATIVIDADES ECONÔMICAS</div><h2>CNAEs da empresa</h2><p class="desc">O CNAE contextualiza a análise; não substitui a identificação fiscal do serviço ou produto.</p></div></div>
+      ${d.cnaes.length ? `<div class="grade g3">${d.cnaes.map((c) => `<div class="cartao" style="box-shadow:none;background:#f8fbfc"><span class="tag ${c.tipo==='PRINCIPAL'?'c':'n'}">${A.esc(c.tipo)}</span><h3 class="mono" style="margin:10px 0 4px">${A.esc(c.codigo || 'Não informado')}</h3><p class="mini">${A.esc(c.descricao || 'Descrição não disponível no cadastro.')}</p></div>`).join('')}</div>` : '<div class="aviso alto">Cadastre ou consulte o CNAE da empresa para iniciar o mapa operacional.</div>'}</section>
+    <section class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><div class="olho">ITENS POTENCIAIS A VALIDAR</div><h2>Regras e benefícios por item conhecido</h2><p class="desc">Cada linha mostra somente código já presente em cadastro ou documento. Um benefício potencial exige a confirmação das condições indicadas.</p></div></div>
+      ${d.itens.length ? A.tabela([
+        {t:'Origem',r:x=>`<span class="tag n">${A.esc(origem[x.origem]||x.origem)}</span><div class="mini">${A.esc(x.evidencia||'—')}</div>`},
+        {t:'Item',r:x=>`<b>${A.esc(x.tipo)}</b><div class="mono">${A.esc(x.codigo||'—')}${x.lc116?` · LC ${A.esc(x.lc116)}`:''}</div><div class="mini">${A.esc(x.descricao||'Descrição não disponível')}</div>`},
+        {t:'Tratamento possível',r:x=>x.regra_encontrada?`<span class="tag c">REGRA LOCALIZADA</span><div class="mini">${A.esc(x.tratamento_atual||'Tratamento CBS catalogado')}</div>`:'<span class="tag a">SEM REGRA NO CATÁLOGO</span>'},
+        {t:'Benefício / impacto',r:x=>x.beneficios?.length?x.beneficios.map(A.esc).join('<br>'):'<span class="mini">Nenhum benefício específico identificado.</span>'},
+        {t:'Quando pode aplicar',r:x=>x.quando_aplica?.length?x.quando_aplica.map(A.esc).join('<br>'):'<span class="mini">Validar operação, vigência e fatos do item.</span>'},
+      ],d.itens) : '<div class="aviso"><b>Ainda não há itens para cruzar.</b> Cadastre produtos/serviços na precificação ou importe documentos fiscais. O CNAE, por si só, não será usado para inventar NCM, NBS, LC 116 ou benefício.</div>'}
+    </section><div class="aviso" style="margin-top:16px"><b>Regra de segurança</b> · ${A.esc(d.aviso)}</div>`;
+};
+
 Telas.fornecedores = (el) => telaCadeia(el, 'fornecedor');
 Telas.clientes = (el) => telaCadeia(el, 'cliente');
 

@@ -197,7 +197,7 @@ const App = (() => {
     { id: 'diagnostico', titulo: 'Módulo 1 · Diagnóstico', itens: [
       { id: 'perfil', t: 'Perfil Tributário', i: '◉' }, { id: 'fornecedores', t: 'Cadeia de fornecedores', i: '↙' },
       { id: 'clientes', t: 'Cadeia de clientes', i: '↗' }, { id: 'impactoFinalCbs', t: 'Impacto Final CBS', i: '≋' }, { id: 'cenarios', t: 'Projeção de cenários', i: '⌁' },
-      { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' }, { id: 'conformidadeDocumental', t: 'Conformidade documental', i: '▤' }, { id: 'pendenciasDiagnostico', t: 'Pendências do diagnóstico', i: '!' }, { id: 'tarefasDiagnostico', t: 'Tarefas', i: '✓' },
+      { id: 'mapaOperacional', t: 'Mapa operacional', i: '⌘' }, { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' }, { id: 'conformidadeDocumental', t: 'Conformidade documental', i: '▤' }, { id: 'pendenciasDiagnostico', t: 'Pendências do diagnóstico', i: '!' }, { id: 'tarefasDiagnostico', t: 'Tarefas', i: '✓' },
     ] },
     { id: 'precificacao', titulo: 'Módulo 2 · Precificação', itens: [
       { id: 'precificacao', t: 'Precificação e margem', i: '◫' }, { id: 'formacaoCusto', t: 'Base de formação de custo', i: '⊕' }, { id: 'tarefasPrecificacao', t: 'Tarefas', i: '✓' },
@@ -234,7 +234,7 @@ const App = (() => {
   const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens.filter((item) => item.id));
   const PERMISSAO_TELA = {
     painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
-    dados: 'diagnostico', dadosDashboard: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
+    dados: 'diagnostico', dadosDashboard: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', mapaOperacional: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     planejamento: 'gestao_projetos', entregavelCliente: 'diagnostico',
     servicos: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', consultaBaseRegime: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'configuracoes', acessos: 'acessos',
@@ -249,7 +249,7 @@ const App = (() => {
     tarefasContratos: ['contratos', 'Contratos'], tarefasCapacitacao: ['capacitacao', 'Capacitação'],
   };
   const MODULO_FECHAMENTO_POR_TELA = {
-    perfil:'perfil', fornecedores:'fornecedores', clientes:'clientes', impactoFinalCbs:'impacto_cbs', cenarios:'cenarios', conformidadeDocumental:'conformidade',
+    perfil:'perfil', fornecedores:'fornecedores', clientes:'clientes', impactoFinalCbs:'impacto_cbs', cenarios:'cenarios', conformidadeDocumental:'conformidade', mapaOperacional:'perfil',
     precificacao:'precificacao', formacaoCusto:'formacao_custo', tarefasPrecificacao:'precificacao',
     contratos:'contratos', analise:'contratos', tarefasContratos:'contratos',
     capacitacao:'capacitacao', tarefasCapacitacao:'capacitacao', planejamento:'planejamento', acompanhamento:'acompanhamento',
@@ -339,7 +339,7 @@ const App = (() => {
       // módulos presentes naquela fotografia ficam disponíveis ao projeto.
       const moduloPorTela = {
         dados: 'diagnostico', dadosDashboard: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico',
-        clientes: 'diagnostico', cenarios: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico', entregavelCliente: 'diagnostico',
+        clientes: 'diagnostico', cenarios: 'diagnostico', mapaOperacional: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico', entregavelCliente: 'diagnostico',
         precificacao: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao',
       };
       if (S.empresaId && moduloPorTela[tela]) {

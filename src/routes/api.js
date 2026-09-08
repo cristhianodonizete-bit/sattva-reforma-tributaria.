@@ -69,6 +69,7 @@ const autenticacao = require('../services/autenticacao');
 const fechamentoModulos = require('../services/fechamentoModulos');
 const periodoAnalisado = require('../services/periodoAnalisado');
 const prontidaoDados = require('../services/prontidaoDados');
+const mapaOperacional = require('../services/mapaOperacional');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -1208,6 +1209,13 @@ router.get('/empresas/:id/perfil/analise', (req, res) => {
 // Camada executiva de leitura: não materializa CBS nem executa o motor.
 router.get('/empresas/:id/perfil-tributario-historico', (req, res) => {
   try { ok(res, perfilTributarioHistorico.consolidar(db, Number(req.params.id))); }
+  catch (e) { erro(res, e); }
+});
+
+// Camada consultiva: cruza CNAEs com os itens que a empresa já cadastrou ou
+// evidenciou. Não escreve no catálogo e jamais alimenta o motor tributário.
+router.get('/empresas/:id/mapa-operacional', (req, res) => {
+  try { ok(res, mapaOperacional.listar(Number(req.params.id))); }
   catch (e) { erro(res, e); }
 });
 
