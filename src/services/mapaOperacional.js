@@ -1,4 +1,5 @@
 const dbPadrao = require('../db');
+const { qsaEmpresa } = require('./elegibilidadeAnexoXi');
 
 const texto = (v) => String(v || '').trim();
 const chave = (v) => texto(v).replace(/\D/g, '');
@@ -18,18 +19,10 @@ function cnaes(empresa) {
     .filter((x) => x.codigo || x.descricao);
 }
 
-function beneficioNcm(regra) {
+function pisCofins(regra) {
   const itens = [];
   if (texto(regra.tratamento_pis_cofins) && !['NORMAL', 'TRIBUTADA_INTEGRALMENTE'].includes(texto(regra.tratamento_pis_cofins).toUpperCase())) itens.push(`PIS/Cofins: ${texto(regra.tratamento_pis_cofins)}`);
   if (valor(regra.pis_percentual) || valor(regra.cofins_percentual)) itens.push(`PIS ${valor(regra.pis_percentual).toLocaleString('pt-BR')}% · Cofins ${valor(regra.cofins_percentual).toLocaleString('pt-BR')}%`);
-  if (valor(regra.reducao_cbs) > 0) itens.push(`CBS: redução de ${valor(regra.reducao_cbs).toLocaleString('pt-BR')}%`);
-  return itens;
-}
-function beneficioServico(regra) {
-  const itens = [];
-  if (texto(regra.tratamento_pis_cofins) && !['NORMAL', 'TRIBUTADA_INTEGRMENTE'].includes(texto(regra.tratamento_pis_cofins).toUpperCase())) itens.push(`PIS/Cofins: ${texto(regra.tratamento_pis_cofins)}`);
-  if (valor(regra.pis_percentual) || valor(regra.cofins_percentual)) itens.push(`PIS ${valor(regra.pis_percentual).toLocaleString('pt-BR')}% · Cofins ${valor(regra.cofins_percentual).toLocaleString('pt-BR')}%`);
-  if (texto(regra.reducao) && !['integral', '0%', '0'].includes(texto(regra.reducao).toLowerCase())) itens.push(`CBS: ${texto(regra.reducao)}`);
   return itens;
 }
 function quando(regra) {
@@ -45,16 +38,39 @@ function catalogoServico(db, nbs, lc116) {
   const porNbs = chave(nbs); const porLc = texto(lc116);
   return db.prepare('SELECT * FROM base_servicos WHERE (nbs<>\'\' AND nbs=?) OR (lc116<>\'\' AND lc116=?) ORDER BY id DESC').get(porNbs, porLc) || null;
 }
-function itemProduto(db, item) {
+function condicaoCbs(regra, empresaId) {
+  const codigo=texto(regra.cclasstrib);
+  if (codigo==='200044') {
+    const qsa=qsaEmpresa(empresaId);
+    return { texto:'Emitente com sócio brasileiro e participação de, no mínimo, 20% do capital social.', status:qsa.status, detalhe:qsa.motivo };
+  }
+  if (codigo==='200043') return { texto:'Destinatário deve ser ente público elegível (administração direta, autarquia ou fundação pública).', status:'PENDENTE', detalhe:'Confirmar natureza jurídica do destinatário na operação.' };
+  const condicoes=unico([texto(regra.condicoes_obrigatorias), texto(regra.condicoes), texto(regra.direcao) ? `Operação: ${texto(regra.direcao)}` : '', texto(regra.perfil_adquirente) ? `Destinatário: ${texto(regra.perfil_adquirente)}` : '']);
+  return { texto:condicoes.join(' · ') || 'Confirmar item, operação, vigência e demais fatos exigidos.', status:'PENDENTE', detalhe:'' };
+}
+function hipotesesCbs(db, empresaId, item) {
+  const base = item.tipo==='NCM'
+    ? db.prepare('SELECT * FROM base_ncm WHERE ncm=? ORDER BY cclasstrib').all(chave(item.ncm))
+    : db.prepare('SELECT * FROM base_servicos WHERE (nbs<>\'\' AND nbs=?) OR (lc116<>\'\' AND lc116=?) ORDER BY cclasstrib').all(chave(item.nbs),texto(item.lc116));
+  const regras = item.tipo==='NCM'
+    ? db.prepare("SELECT * FROM regras_enquadramento WHERE status='ATIVA' AND ncm=? ORDER BY prioridade DESC").all(chave(item.ncm))
+    : db.prepare("SELECT * FROM regras_enquadramento WHERE status='ATIVA' AND ((nbs<>'' AND nbs=?) OR (lc116<>'' AND lc116=?)) ORDER BY prioridade DESC").all(chave(item.nbs),texto(item.lc116));
+  const candidatos=[...base,...regras].filter((x)=>texto(x.cclasstrib)); const vistos=new Set();
+  return candidatos.filter((x)=>{ const id=texto(x.cclasstrib); if(vistos.has(id)) return false; vistos.add(id); return true; }).map((x)=>{
+    const condicao=condicaoCbs(x,empresaId); const reducao=item.tipo==='NCM' ? (x.reducao_cbs ?? x.reducao ?? 'integral') : (x.reducao ?? 'integral');
+    return { cclasstrib:texto(x.cclasstrib), cst:texto(x.cst) || texto(x.cclasstrib).slice(0,3), descricao:texto(x.classificacao || x.nome_cclasstrib || x.tratamento_resultante), reducao:String(reducao), condicao };
+  });
+}
+function itemProduto(db, item, empresaId) {
   const regra = catalogoNcm(db, item.ncm);
   return { tipo:'NCM', codigo:chave(item.ncm), descricao:texto(item.descricao) || texto(regra?.descricao), origem:item.origem,
-    evidencia:item.evidencia, regra_encontrada:Boolean(regra), beneficios:regra ? beneficioNcm(regra) : [], quando_aplica:regra ? quando(regra) : [],
+    evidencia:item.evidencia, regra_encontrada:Boolean(regra), pis_cofins:regra ? pisCofins(regra) : [], hipoteses_cbs:hipotesesCbs(db,empresaId,{ tipo:'NCM', ncm:item.ncm }), quando_aplica:regra ? quando(regra) : [],
     tratamento_atual:regra?.tratamento_pis_cofins || null, cclasstrib:regra?.cclasstrib || null, fundamento:regra?.fundamento || regra?.fonte || null };
 }
-function itemServico(db, item) {
+function itemServico(db, item, empresaId) {
   const regra = catalogoServico(db, item.nbs, item.lc116);
   return { tipo:'SERVIÇO', codigo:chave(item.nbs) || texto(item.lc116), nbs:chave(item.nbs), lc116:texto(item.lc116), descricao:texto(item.descricao) || texto(regra?.descricao_item) || texto(regra?.descricao_nbs), origem:item.origem,
-    evidencia:item.evidencia, regra_encontrada:Boolean(regra), beneficios:regra ? beneficioServico(regra) : [], quando_aplica:regra ? quando(regra) : [],
+    evidencia:item.evidencia, regra_encontrada:Boolean(regra), pis_cofins:regra ? pisCofins(regra) : [], hipoteses_cbs:hipotesesCbs(db,empresaId,{ tipo:'SERVIÇO', nbs:item.nbs, lc116:item.lc116 }), quando_aplica:regra ? quando(regra) : [],
     tratamento_atual:regra?.tratamento_pis_cofins || null, cclasstrib:regra?.cclasstrib || null, fundamento:regra?.regra_precedencia || null };
 }
 
@@ -67,7 +83,7 @@ function correlacoesIndicativas(db, empresa) {
     for (const regra of servicos) {
       const pontos = pontuar(atividade.descricao, `${regra.descricao_item || ''} ${regra.descricao_nbs || ''}`);
       if (!pontos) continue;
-      const item = itemServico(db, { nbs:regra.nbs, lc116:regra.lc116, descricao:regra.descricao_item || regra.descricao_nbs, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo });
+      const item = itemServico(db, { nbs:regra.nbs, lc116:regra.lc116, descricao:regra.descricao_item || regra.descricao_nbs, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo }, empresa.id);
       candidatos.push({ ...item, cnae:atividade.codigo, atividade:atividade.descricao, confianca:pontos >= 2 ? 'MEDIA' : 'BAIXA', pontos });
     }
     for (const regra of produtos) {
@@ -75,7 +91,7 @@ function correlacoesIndicativas(db, empresa) {
       // Produto exige no mínimo dois termos em comum: um CNAE não pode
       // sozinho sugerir NCM por coincidência textual ampla.
       if (pontos < 2) continue;
-      const item = itemProduto(db, { ncm:regra.ncm, descricao:regra.descricao || regra.classificacao, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo });
+      const item = itemProduto(db, { ncm:regra.ncm, descricao:regra.descricao || regra.classificacao, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo }, empresa.id);
       candidatos.push({ ...item, cnae:atividade.codigo, atividade:atividade.descricao, confianca:'BAIXA', pontos });
     }
   }
@@ -95,18 +111,18 @@ function listar(empresaId, { banco=dbPadrao } = {}) {
   // O cadastro comercial pode conter uma oferta ainda sem NF-e: esta é a
   // fonte segura para antecipar análise sem inventar NCM/NBS pelo CNAE.
   banco.prepare('SELECT ncm,descricao,\'CADASTRO_COMERCIAL\' origem, codigo evidencia FROM pricing_products WHERE empresa_id=? AND TRIM(COALESCE(ncm,\'\'))<>\'\'').all(empresaId)
-    .forEach((x) => produtos.push(itemProduto(banco, x)));
+    .forEach((x) => produtos.push(itemProduto(banco, x, empresa.id)));
   banco.prepare('SELECT nbs,lc116,descricao,\'CADASTRO_COMERCIAL\' origem, codigo evidencia FROM pricing_services WHERE empresa_id=? AND (TRIM(COALESCE(nbs,\'\'))<>\'\' OR TRIM(COALESCE(lc116,\'\'))<>\'\')').all(empresaId)
-    .forEach((x) => servicos.push(itemServico(banco, x)));
+    .forEach((x) => servicos.push(itemServico(banco, x, empresa.id)));
   banco.prepare('SELECT nbs,\'\' lc116,descricao,\'CADASTRO_FISCAL\' origem,chave evidencia FROM empresa_servicos_fiscais WHERE empresa_id=? AND TRIM(COALESCE(nbs,\'\'))<>\'\' AND ativo=1').all(empresaId)
-    .forEach((x) => servicos.push(itemServico(banco, x)));
+    .forEach((x) => servicos.push(itemServico(banco, x, empresa.id)));
   banco.prepare(`SELECT ncm,nbs,lc116,descricao,CASE WHEN tipo='cliente' THEN 'DOCUMENTO_DE_SAIDA' ELSE 'DOCUMENTO_DE_ENTRADA' END origem,
     COALESCE(chave,documento,CAST(id AS TEXT)) evidencia FROM movimentos WHERE empresa_id=? AND (TRIM(COALESCE(ncm,''))<>'' OR TRIM(COALESCE(nbs,''))<>'' OR TRIM(COALESCE(lc116,''))<>'')`).all(empresaId)
-    .forEach((x) => { if (chave(x.ncm)) produtos.push(itemProduto(banco,x)); if (chave(x.nbs) || texto(x.lc116)) servicos.push(itemServico(banco,x)); });
+    .forEach((x) => { if (chave(x.ncm)) produtos.push(itemProduto(banco,x,empresa.id)); if (chave(x.nbs) || texto(x.lc116)) servicos.push(itemServico(banco,x,empresa.id)); });
   const deduplicar = (lista) => [...new Map(lista.map((x) => [`${x.tipo}:${x.codigo}:${x.lc116 || ''}`, x])).values()].sort((a,b)=>a.codigo.localeCompare(b.codigo));
   const itens = [...deduplicar(produtos), ...deduplicar(servicos)];
   const correlacoes = correlacoesIndicativas(banco, empresa);
-  return { empresa, cnaes:cnaes(empresa), itens, resumo:{ itens:itens.length, produtos:deduplicar(produtos).length, servicos:deduplicar(servicos).length, com_regra:itens.filter((x)=>x.regra_encontrada).length, com_beneficio:itens.filter((x)=>x.beneficios.length).length },
+  return { empresa, cnaes:cnaes(empresa), itens, resumo:{ itens:itens.length, produtos:deduplicar(produtos).length, servicos:deduplicar(servicos).length, com_regra:itens.filter((x)=>x.regra_encontrada).length, com_beneficio:itens.filter((x)=>x.hipoteses_cbs?.some((h)=>String(h.reducao).toLowerCase()!=='integral')).length },
     correlacoes, aviso:'O CNAE organiza o contexto econômico. As correlações são indicativas e não aplicam NCM, NBS, LC 116, benefício ou cálculo; confirme o item e os fatos da operação antes de usar qualquer regra.' };
 }
 module.exports = { listar };
