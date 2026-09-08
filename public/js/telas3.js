@@ -973,6 +973,10 @@ Telas.acessos = async (el) => {
 
 // Monitoramento normativo: é um mural de governança. Nenhuma ação nesta tela
 // altera catálogo, motor, banco fiscal ou resultado já homologado.
+// Esta tela fica após o primeiro bloco isolado deste arquivo; portanto,
+// declara explicitamente os componentes compartilhados de que precisa.
+(() => {
+const A = App;
 Telas.atualizacoesReforma = async (el) => {
   const carregar = async () => {
     const d = await A.api('/atualizacoes-reforma');
@@ -992,3 +996,4 @@ Telas.atualizacoesReforma = async (el) => {
   };
   await carregar();
 };
+})();
