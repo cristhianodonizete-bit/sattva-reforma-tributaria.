@@ -54,7 +54,7 @@ function condicaoCbs(regra) {
   if (codigo==='200044') {
     return { texto:'Quadro societário da empresa com sócio brasileiro e participação de, no mínimo, 20% do capital social.' };
   }
-  if (codigo==='200043') return { texto:'Venda/prestação destinada a ente público elegível: administração direta, autarquia ou fundação pública.' };
+  if (codigo==='200043') return { texto:'Fornecimento a ente público elegível (administração direta, autarquia ou fundação pública) de bem ou serviço previsto para soberania/segurança no Anexo XI.' };
   const condicoes=unico([texto(regra.condicoes_obrigatorias), texto(regra.condicoes), texto(regra.direcao) ? `Operação: ${texto(regra.direcao)}` : '', texto(regra.perfil_adquirente) ? `Destinatário: ${texto(regra.perfil_adquirente)}` : '']);
   return { texto:condicoes.join(' · ') || 'Regra padrão: sem condição adicional além da identificação correta do item e da vigência.' };
 }
@@ -93,21 +93,23 @@ function correlacoesIndicativas(db, empresa) {
   // Regras para governo podem ter chave própria no Anexo XI e não repetir a
   // descrição do catálogo operacional. Elas também compõem possibilidades
   // do CNAE, sempre com a condição de destinatário público na própria linha.
-  const servicosGoverno = db.prepare("SELECT nbs,lc116,descricao,cclasstrib,reducao,condicoes,\n+    'REGRA_GOVERNO' origem FROM regras_governo WHERE tipo='servico' AND cclasstrib<>'' AND (TRIM(COALESCE(nbs,''))<>'' OR TRIM(COALESCE(lc116,''))<>'')").all();
+  const servicosGoverno = db.prepare("SELECT nbs,lc116,descricao,cclasstrib,reducao,condicoes,\n    'REGRA_GOVERNO' origem FROM regras_governo WHERE tipo='servico' AND cclasstrib<>'' AND (TRIM(COALESCE(nbs,''))<>'' OR TRIM(COALESCE(lc116,''))<>'')").all();
   const produtos = db.prepare('SELECT * FROM base_ncm WHERE TRIM(COALESCE(ncm,\'\'))<>\'\'').all();
+  const produtosGoverno = db.prepare("SELECT ncm,descricao,cclasstrib,reducao,condicoes,\n    'REGRA_GOVERNO' origem FROM regras_governo WHERE tipo='produto' AND cclasstrib<>'' AND TRIM(COALESCE(ncm,''))<>''").all();
   const candidatos = [];
   for (const atividade of atividades) {
     for (const regra of [...servicos, ...servicosGoverno]) {
-      const pontos = pontuar(atividade.descricao, `${regra.descricao_item || ''} ${regra.descricao_nbs || ''}`);
+      const pontos = pontuar(atividade.descricao, `${regra.descricao_item || ''} ${regra.descricao_nbs || ''} ${regra.descricao || ''}`);
       if (!pontos) continue;
-      const item = itemServico(db, { nbs:regra.nbs, lc116:regra.lc116, descricao:regra.descricao_item || regra.descricao_nbs, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo }, empresa.id);
+      const item = itemServico(db, { nbs:regra.nbs, lc116:regra.lc116, descricao:regra.descricao_item || regra.descricao_nbs || regra.descricao, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo }, empresa.id);
       candidatos.push({ ...item, cnae:atividade.codigo, atividade:atividade.descricao, confianca:pontos >= 2 ? 'MEDIA' : 'BAIXA', pontos });
     }
-    for (const regra of produtos) {
+    for (const regra of [...produtos, ...produtosGoverno]) {
       const pontos = pontuar(atividade.descricao, regra.descricao || regra.classificacao || '');
-      // Produto exige no mínimo dois termos em comum: um CNAE não pode
-      // sozinho sugerir NCM por coincidência textual ampla.
-      if (pontos < 2) continue;
+      // O mapa deve expor todas as possibilidades catalogadas com vínculo
+      // textual objetivo ao CNAE. A confirmação do item continua obrigatória
+      // antes de qualquer uso pelo motor.
+      if (!pontos) continue;
       const item = itemProduto(db, { ncm:regra.ncm, descricao:regra.descricao || regra.classificacao, origem:'CORRELACAO_CNAE_INDICATIVA', evidencia:atividade.codigo }, empresa.id);
       candidatos.push({ ...item, cnae:atividade.codigo, atividade:atividade.descricao, confianca:'BAIXA', pontos });
     }
@@ -117,7 +119,7 @@ function correlacoesIndicativas(db, empresa) {
     const id=`${candidato.cnae}:${candidato.tipo}:${candidato.codigo}:${candidato.lc116 || ''}`;
     if (!unicos.has(id)) unicos.set(id,candidato);
   }
-  return [...unicos.values()].slice(0, 40);
+  return [...unicos.values()];
 }
 
 function listar(empresaId, { banco=dbPadrao } = {}) {
