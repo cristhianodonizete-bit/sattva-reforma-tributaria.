@@ -2694,6 +2694,62 @@ const tituloCompetencia = (competencia, ordem) => {
   return `Acompanhamento ${ordem} · ${mes}/${ano}`;
 };
 const modulosDaContratacao = (contratacao) => JSON.parse(contratacao.modulos_json || '[]');
+const diaIso = (valor) => String(valor || '').slice(0, 10);
+const somarDias = (data, dias) => {
+  const base = /^\d{4}-\d{2}-\d{2}$/.test(String(data || '')) ? new Date(`${data}T12:00:00`) : new Date();
+  base.setDate(base.getDate() + Math.max(0, Number(dias) || 0));
+  return base.toISOString().slice(0, 10);
+};
+
+// Materializa o SLA como tarefas do projeto. A configuração é uma regra para
+// novos escopos; nada já lançado é apagado ou recalculado automaticamente.
+function aplicarSlaNoProjeto(contratacao, modulos = modulosDaContratacao(contratacao)) {
+  const marcos = db.prepare('SELECT * FROM sla_marcos WHERE ativo=1 ORDER BY ordem,id').all()
+    .filter((m) => modulos.includes(m.chave));
+  if (!marcos.length) return { marcos: 0, tarefas: 0 };
+  const entregas = new Map(db.prepare('SELECT id,chave FROM projeto_entregas WHERE contratacao_id=?').all(contratacao.id).map((e) => [e.chave, e]));
+  const existentes = new Set(db.prepare('SELECT DISTINCT sla_marco_id FROM projeto_tarefas WHERE contratacao_id=? AND sla_marco_id IS NOT NULL').all(contratacao.id).map((t) => Number(t.sla_marco_id)));
+  const porChave = new Map(marcos.map((m) => [m.chave, m]));
+  const agenda = new Map();
+  const base = diaIso(contratacao.aprovado_em) || new Date().toISOString().slice(0, 10);
+  const programar = (marco, trilha = new Set()) => {
+    if (agenda.has(marco.chave)) return agenda.get(marco.chave);
+    if (trilha.has(marco.chave)) throw new Error('A configuração de SLA possui uma precedência circular.');
+    const proximaTrilha = new Set(trilha); proximaTrilha.add(marco.chave);
+    const anterior = marco.precedencia_chave && porChave.get(marco.precedencia_chave);
+    const inicio = anterior ? programar(anterior, proximaTrilha).fim : base;
+    const agendaMarco = { inicio, fim: somarDias(inicio, marco.prazo_dias) };
+    agenda.set(marco.chave, agendaMarco); return agendaMarco;
+  };
+  const inserir = db.prepare(`INSERT INTO projeto_tarefas
+    (contratacao_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,obrigatoria,sla_marco_id,prazo_original,atualizado_em)
+    VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))`);
+  let tarefas = 0, aplicados = 0;
+  db.transaction(() => marcos.forEach((marco) => {
+    const entrega = entregas.get(marco.chave); if (!entrega || existentes.has(Number(marco.id))) return;
+    const datas = programar(marco);
+    const modelos = db.prepare('SELECT * FROM sla_tarefas WHERE marco_id=? AND ativo=1 ORDER BY ordem,id').all(marco.id);
+    modelos.forEach((modelo) => { inserir.run(contratacao.id, entrega.id, modelo.titulo, modelo.descricao || '', 'aberta', datas.inicio, datas.fim, modelo.obrigatoria ? 1 : 0, marco.id, datas.fim); tarefas += 1; });
+    aplicados += 1;
+  }))();
+  return { marcos: aplicados, tarefas };
+}
+
+function propagarPrazoSla(contratacaoId, marcoId, novoPrazo) {
+  const marcos = db.prepare('SELECT * FROM sla_marcos WHERE ativo=1 ORDER BY ordem,id').all();
+  const alvo = marcos.find((m) => Number(m.id) === Number(marcoId));
+  if (!alvo) throw new Error('Marco de SLA não encontrado.');
+  const porChave = new Map(marcos.map((m) => [m.chave, m]));
+  const atualizar = db.prepare(`UPDATE projeto_tarefas SET data_abertura=?,data_conclusao=?,atualizado_em=datetime('now','localtime')
+    WHERE contratacao_id=? AND sla_marco_id=?`);
+  const caminhar = (marco, inicio, fim, visitados = new Set()) => {
+    if (visitados.has(marco.id)) throw new Error('A configuração de SLA possui uma precedência circular.');
+    const proximo = new Set(visitados); proximo.add(marco.id);
+    if (Number(marco.id) !== Number(alvo.id)) atualizar.run(inicio, fim, contratacaoId, marco.id);
+    marcos.filter((m) => m.precedencia_chave === marco.chave).forEach((filho) => caminhar(filho, fim, somarDias(fim, filho.prazo_dias), proximo));
+  };
+  db.transaction(() => caminhar(alvo, null, novoPrazo))();
+}
 
 // O SQLite do Render é somente cache. As telas de projeto não podem concluir
 // que não existe escopo aprovado apenas porque a instância acabou de iniciar
@@ -2795,9 +2851,10 @@ router.post('/contratacoes/:id/aprovar', async (req, res) => {
       modulos.forEach((chave) => insEntrega.run(c.id, chave, ENTREGAS_PROJETO[chave]));
       implantacaoEscopo.gerarChecklist(db, c.id, modulos, meses);
     })();
+    const sla = aplicarSlaNoProjeto({ ...c, id: c.id, aprovado_em: new Date().toISOString(), modulos_json: JSON.stringify(modulos) }, modulos);
     auditar(req, { empresaId: c.empresa_id, acao: 'Aprovou o escopo do projeto', entidade: 'contratacao', entidadeId: c.id,
-      antes: { status: c.status }, depois: { status: 'em_execucao', modulos, acompanhamento_meses: meses } });
-    ok(res, { contratacao_id: c.id, modulos, acompanhamento_meses: meses });
+      antes: { status: c.status }, depois: { status: 'em_execucao', modulos, acompanhamento_meses: meses, sla } });
+    ok(res, { contratacao_id: c.id, modulos, acompanhamento_meses: meses, sla });
     sincronizarGestao();
   } catch (e) { erro(res, e); }
 });
@@ -2822,6 +2879,16 @@ router.post('/contratacoes/:id/liberar-acompanhamento', async (req, res) => {
       depois: { competencia_referencia: competencia, acompanhamento_meses: meses } });
     ok(res, { meses, competencia_referencia: competencia });
     sincronizarGestao();
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/contratacoes/:id/aplicar-sla', async (req, res) => {
+  try {
+    const projeto = await contratacaoPermitida(req, req.params.id);
+    if (!projeto.aprovado_em) throw new Error('Aprove o escopo antes de aplicar o SLA.');
+    const resultado = aplicarSlaNoProjeto(projeto);
+    auditar(req, { empresaId: projeto.empresa_id, acao: 'Aplicou tarefas obrigatórias de SLA', entidade: 'contratacao', entidadeId: projeto.id, depois: resultado });
+    ok(res, resultado); sincronizarGestao();
   } catch (e) { erro(res, e); }
 });
 
@@ -2859,11 +2926,36 @@ router.put('/projeto/tarefas/:id', async (req, res) => {
     const area = areaDaTarefaModulo(tarefa.entrega_chave);
     if (permissoes && !permissoes[area]?.executar) return res.status(403).json({ ok: false, erro: 'Seu perfil não pode atualizar tarefas deste módulo.' });
     const envolveCliente = b.tipo_pendencia ? b.tipo_pendencia === 'cliente' : Boolean(b.envolve_cliente);
+    if (tarefa.obrigatoria && ((b.data_abertura && b.data_abertura !== tarefa.data_abertura) || (b.data_conclusao && b.data_conclusao !== tarefa.data_conclusao))) {
+      throw new Error('O prazo desta tarefa obrigatória segue o SLA. Use “Prorrogar prazo” e informe a justificativa.');
+    }
     db.prepare(`UPDATE projeto_tarefas SET titulo=?,descricao=?,status=?,data_abertura=?,data_conclusao=?,envolve_cliente=?,pendencia_cliente=?,interacoes_cliente=?,atualizado_em=datetime('now','localtime') WHERE id=?`)
-      .run(b.titulo || '', b.descricao || '', b.status || 'aberta', b.data_abertura || null, b.data_conclusao || null, envolveCliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '', req.params.id);
+      .run(b.titulo || '', b.descricao || '', b.status || 'aberta', tarefa.obrigatoria ? tarefa.data_abertura : (b.data_abertura || null), tarefa.obrigatoria ? tarefa.data_conclusao : (b.data_conclusao || null), envolveCliente ? 1 : 0, b.pendencia_cliente || '', b.interacoes_cliente || '', req.params.id);
     auditar(req, { empresaId: tarefa.empresa_id, acao: 'Atualizou tarefa do projeto', entidade: 'tarefa', entidadeId: req.params.id,
       antes: { status: tarefa.status, data_conclusao: tarefa.data_conclusao }, depois: { status: b.status || 'aberta', data_conclusao: b.data_conclusao || null } });
     ok(res, {}); sincronizarGestao();
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/projeto/tarefas/:id/prorrogar', async (req, res) => {
+  try {
+    const tarefa = db.prepare(`SELECT t.*, c.empresa_id FROM projeto_tarefas t JOIN contratacoes c ON c.id=t.contratacao_id WHERE t.id=?`).get(req.params.id);
+    if (!tarefa || !tarefa.obrigatoria || !tarefa.sla_marco_id) throw new Error('Esta tarefa não é um marco obrigatório de SLA.');
+    await garantirEmpresaPermitida(req, tarefa.empresa_id);
+    const novoPrazo = String(req.body.novo_prazo || '');
+    const justificativa = String(req.body.justificativa || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(novoPrazo) || novoPrazo <= String(tarefa.data_conclusao || '')) throw new Error('Informe uma nova data posterior ao prazo atual.');
+    if (!justificativa) throw new Error('Informe a justificativa da prorrogação.');
+    db.transaction(() => {
+      db.prepare(`INSERT INTO projeto_prorrogacoes_sla (contratacao_id,tarefa_id,marco_id,prazo_anterior,novo_prazo,justificativa,usuario_id)
+        VALUES (?,?,?,?,?,?,?)`).run(tarefa.contratacao_id, tarefa.id, tarefa.sla_marco_id, tarefa.data_conclusao, novoPrazo, justificativa, req.usuario?.id || null);
+      db.prepare(`UPDATE projeto_tarefas SET data_conclusao=?,prorrogado_em=datetime('now','localtime'),justificativa_prorrogacao=?,atualizado_em=datetime('now','localtime')
+        WHERE contratacao_id=? AND sla_marco_id=?`).run(novoPrazo, justificativa, tarefa.contratacao_id, tarefa.sla_marco_id);
+    })();
+    propagarPrazoSla(tarefa.contratacao_id, tarefa.sla_marco_id, novoPrazo);
+    auditar(req, { empresaId: tarefa.empresa_id, acao: 'Prorrogou marco obrigatório de SLA', entidade: 'tarefa', entidadeId: tarefa.id,
+      antes: { prazo: tarefa.data_conclusao }, depois: { prazo: novoPrazo, justificativa } });
+    ok(res, { novo_prazo: novoPrazo }); sincronizarGestao();
   } catch (e) { erro(res, e); }
 });
 
@@ -2981,6 +3073,56 @@ router.get('/servicos', (_req, res) => {
   const combos = db.prepare('SELECT * FROM combos WHERE ativo = 1 ORDER BY destaque DESC, id').all()
     .map((c) => ({ ...c, servicos: db.prepare('SELECT servico_id FROM combo_itens WHERE combo_id = ?').all(c.id).map((x) => x.servico_id) }));
   ok(res, { servicos, combos });
+});
+
+router.get('/sla', (_req, res) => {
+  try {
+    const marcos = db.prepare('SELECT * FROM sla_marcos ORDER BY ordem,id').all();
+    const tarefas = db.prepare('SELECT * FROM sla_tarefas ORDER BY marco_id,ordem,id').all();
+    ok(res, { marcos, tarefas });
+  } catch (e) { erro(res, e); }
+});
+router.post('/sla/marcos', (req, res) => {
+  try {
+    const b = req.body, chave = String(b.chave || '').trim();
+    if (!/^[a-z0-9_]+$/.test(chave)) throw new Error('Use uma chave técnica com letras minúsculas, números e _.');
+    if (!String(b.titulo || '').trim()) throw new Error('Informe o nome do marco.');
+    if (b.precedencia_chave === chave) throw new Error('Um marco não pode preceder a si mesmo.');
+    const r = db.prepare('INSERT INTO sla_marcos (chave,titulo,prazo_dias,precedencia_chave,ordem,ativo) VALUES (?,?,?,?,?,?)')
+      .run(chave, b.titulo.trim(), Math.max(0, Number(b.prazo_dias) || 0), b.precedencia_chave || null, Number(b.ordem) || 0, b.ativo === false ? 0 : 1);
+    ok(res, { id: r.lastInsertRowid }); sincronizarGestao();
+  } catch (e) { erro(res, e); }
+});
+router.put('/sla/marcos/:id', (req, res) => {
+  try {
+    const atual = db.prepare('SELECT * FROM sla_marcos WHERE id=?').get(req.params.id);
+    if (!atual) throw new Error('Marco de SLA não encontrado.');
+    const b = req.body, precedente = b.precedencia_chave || null;
+    if (precedente === atual.chave) throw new Error('Um marco não pode preceder a si mesmo.');
+    db.prepare(`UPDATE sla_marcos SET titulo=?,prazo_dias=?,precedencia_chave=?,ordem=?,ativo=?,atualizado_em=datetime('now','localtime') WHERE id=?`)
+      .run(String(b.titulo || atual.titulo).trim(), Math.max(0, Number(b.prazo_dias) || 0), precedente, Number(b.ordem) || 0, b.ativo === undefined ? atual.ativo : (b.ativo ? 1 : 0), atual.id);
+    ok(res, {}); sincronizarGestao();
+  } catch (e) { erro(res, e); }
+});
+router.post('/sla/marcos/:id/tarefas', (req, res) => {
+  try {
+    const marco = db.prepare('SELECT id FROM sla_marcos WHERE id=?').get(req.params.id);
+    if (!marco) throw new Error('Marco de SLA não encontrado.');
+    const b = req.body; if (!String(b.titulo || '').trim()) throw new Error('Informe o título da tarefa obrigatória.');
+    const r = db.prepare('INSERT INTO sla_tarefas (marco_id,titulo,descricao,obrigatoria,ativo,ordem) VALUES (?,?,?,?,?,?)')
+      .run(marco.id, b.titulo.trim(), b.descricao || '', b.obrigatoria === false ? 0 : 1, b.ativo === false ? 0 : 1, Number(b.ordem) || 0);
+    ok(res, { id: r.lastInsertRowid }); sincronizarGestao();
+  } catch (e) { erro(res, e); }
+});
+router.put('/sla/tarefas/:id', (req, res) => {
+  try {
+    const atual = db.prepare('SELECT * FROM sla_tarefas WHERE id=?').get(req.params.id);
+    if (!atual) throw new Error('Tarefa-modelo não encontrada.');
+    const b = req.body; if (!String(b.titulo || atual.titulo).trim()) throw new Error('Informe o título da tarefa.');
+    db.prepare('UPDATE sla_tarefas SET titulo=?,descricao=?,obrigatoria=?,ativo=?,ordem=? WHERE id=?')
+      .run(String(b.titulo || atual.titulo).trim(), b.descricao || '', b.obrigatoria === undefined ? atual.obrigatoria : (b.obrigatoria ? 1 : 0), b.ativo === undefined ? atual.ativo : (b.ativo ? 1 : 0), Number(b.ordem) || 0, atual.id);
+    ok(res, {}); sincronizarGestao();
+  } catch (e) { erro(res, e); }
 });
 
 router.post('/servicos', (req, res) => {

@@ -174,11 +174,12 @@ function gravarEmpresaQsa(linhas, dentroDaTransacao = false) {
   return linhas.length;
 }
 
-function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], tarefas = [], checklist = [], empresas = []) {
+function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], tarefas = [], checklist = [], empresas = [], marcosSla = [], tarefasSla = []) {
   const comboPorNome = new Map(db.prepare('SELECT id,nome FROM combos').all().map((x) => [x.nome, x.id]));
   const empresaLocalPorRemota = mapaEmpresasLocais(empresas);
   const localPorRemoto = new Map();
   const entregaLocalPorRemota = new Map();
+  const marcoLocalPorRemoto = new Map();
   const insProjeto = db.prepare(`INSERT INTO contratacoes (id,empresa_id,combo_id,servicos_json,valor_bruto,desconto,valor_final,status,observacoes,criado_em,aprovado_em,competencia_referencia,acompanhamento_meses,modulos_json)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET empresa_id=excluded.empresa_id,combo_id=excluded.combo_id,servicos_json=excluded.servicos_json,status=excluded.status,aprovado_em=excluded.aprovado_em,competencia_referencia=excluded.competencia_referencia,acompanhamento_meses=excluded.acompanhamento_meses,modulos_json=excluded.modulos_json`);
@@ -208,12 +209,12 @@ function gravarGestao(projetos, entregas, acompanhamentos, responsaveis = [], ta
       if (contratacaoId && id) insAcomp.run(id, contratacaoId, a.competencia, a.nome || '', a.status, a.observacoes || '', a.criado_em || null);
     }
     const insResp = db.prepare('INSERT OR REPLACE INTO projeto_responsaveis (id,contratacao_id,entrega_id,lado,usuario_id,nome,telefone,email,funcao,criado_em) VALUES (?,?,?,?,?,?,?,?,?,?)');
-    const insTarefa = db.prepare('INSERT OR REPLACE INTO projeto_tarefas (id,contratacao_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente,interacoes_cliente,criado_em,atualizado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)');
+    const insTarefa = db.prepare('INSERT OR REPLACE INTO projeto_tarefas (id,contratacao_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente,interacoes_cliente,obrigatoria,sla_marco_id,prazo_original,prorrogado_em,justificativa_prorrogacao,criado_em,atualizado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
     const insChecklist = db.prepare(`INSERT OR REPLACE INTO projeto_checklist_implantacao
       (id,contratacao_id,entrega_id,escopo,chave,titulo,tipo_evidencia,status,responsavel_id,origem_tipo,origem_id,observacoes,ordem,origem,criado_em,atualizado_em)
       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
     for (const r of responsaveis) { const entregaId=entregaLocalPorRemota.get(r.entrega_id); const contratacaoId=localPorRemoto.get(r.projeto_id); const id=Number(r.origem_local_id); if(contratacaoId&&id) insResp.run(id,contratacaoId,entregaId||null,r.lado,r.usuario_id||null,r.nome,r.telefone||'',r.email||'',r.funcao||'',r.criado_em||null); }
-    for (const t of tarefas) { const entregaId=entregaLocalPorRemota.get(t.entrega_id); const contratacaoId=localPorRemoto.get(t.projeto_id); const id=Number(t.origem_local_id); if(contratacaoId&&entregaId&&id) insTarefa.run(id,contratacaoId,entregaId,t.titulo,t.descricao||'',t.status,t.data_abertura||null,t.data_conclusao||null,t.envolve_cliente?1:0,t.pendencia_cliente||'',t.interacoes_cliente||'',t.criado_em||null,t.atualizado_em||null); }
+    for (const t of tarefas) { const entregaId=entregaLocalPorRemota.get(t.entrega_id); const contratacaoId=localPorRemoto.get(t.projeto_id); const id=Number(t.origem_local_id); if(contratacaoId&&entregaId&&id) insTarefa.run(id,contratacaoId,entregaId,t.titulo,t.descricao||'',t.status,t.data_abertura||null,t.data_conclusao||null,t.envolve_cliente?1:0,t.pendencia_cliente||'',t.interacoes_cliente||'',t.obrigatoria?1:0,(t.sla_marco_id && marcoLocalPorRemoto.get(t.sla_marco_id))||null,t.prazo_original||null,t.prorrogado_em||null,t.justificativa_prorrogacao||null,t.criado_em||null,t.atualizado_em||null); }
     for (const i of checklist) { const contratacaoId=localPorRemoto.get(i.projeto_id); const entregaId=i.entrega_id ? entregaLocalPorRemota.get(i.entrega_id) : null; const id=Number(i.origem_local_id); if(contratacaoId&&id) insChecklist.run(id,contratacaoId,entregaId||null,i.escopo,i.chave,i.titulo,i.tipo_evidencia||null,i.status,null,i.origem_tipo||null,i.origem_id||null,i.observacoes||'',Number(i.ordem)||0,i.origem||'AUTOMATICO',i.criado_em||null,i.atualizado_em||null); }
   })();
   return { projetos: localPorRemoto.size, entregas: entregas.length, acompanhamentos: acompanhamentos.length, responsaveis: responsaveis.length, tarefas: tarefas.length, checklist: checklist.length };
@@ -424,6 +425,16 @@ async function aplicarEventosIncrementais(remoto, eventos) {
   exclusoes.sort((a, b) => prioridadeIncremental(b.tabela) - prioridadeIncremental(a.tabela));
   let aplicadas = 0, removidas = 0;
   db.transaction(() => {
+    const insMarcoSla = db.prepare(`INSERT INTO sla_marcos (chave,titulo,prazo_dias,precedencia_chave,ativo,ordem,criado_em,atualizado_em)
+      VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(chave) DO UPDATE SET titulo=excluded.titulo,prazo_dias=excluded.prazo_dias,precedencia_chave=excluded.precedencia_chave,ativo=excluded.ativo,ordem=excluded.ordem,atualizado_em=excluded.atualizado_em`);
+    for (const m of marcosSla) {
+      if (!m?.chave) continue;
+      insMarcoSla.run(m.chave,m.titulo,m.prazo_dias||0,m.precedencia_chave||null,m.ativo===false?0:1,m.ordem||0,m.criado_em||null,m.atualizado_em||null);
+      const local = db.prepare('SELECT id FROM sla_marcos WHERE chave=?').get(m.chave);
+      if (local) marcoLocalPorRemoto.set(m.id, local.id);
+    }
+    const insTarefaSla = db.prepare('INSERT OR REPLACE INTO sla_tarefas (id,marco_id,titulo,descricao,obrigatoria,ativo,ordem) VALUES (?,?,?,?,?,?,?)');
+    for (const t of tarefasSla) { const marcoId=marcoLocalPorRemoto.get(t.marco_id); if (marcoId && t.origem_local_id) insTarefaSla.run(Number(t.origem_local_id),marcoId,t.titulo,t.descricao||'',t.obrigatoria?1:0,t.ativo===false?0:1,t.ordem||0); }
     for (const { evento, linha } of inclusoes) {
       if (CAMPOS[evento.tabela]?.includes('empresa_id') && !empresaLocalPorRemota.has(String(linha.empresa_id))) {
         throw new Error(`Empresa remota ausente para ${evento.tabela}; fotografia incremental recusada.`);
@@ -648,12 +659,12 @@ async function publicarConfiguracao(tabelas = CONFIG_TABELAS) {
 async function baixarGestao(remotoInformado = null) {
   if (!ativo()) return { ativo: false };
   const remoto = remotoInformado || supabase.admin();
-  const [empresas, projetos, entregas, acompanhamentos, responsaveis, tarefas, checklist] = await Promise.all([
+  const [empresas, projetos, entregas, acompanhamentos, responsaveis, tarefas, checklist, marcosSla, tarefasSla] = await Promise.all([
     buscarTudo(remoto, 'empresas'), buscarTudo(remoto, 'projetos'), buscarTudo(remoto, 'projeto_entregas'),
     buscarTudo(remoto, 'projeto_acompanhamentos'), buscarTudo(remoto, 'projeto_responsaveis'),
-    buscarTudo(remoto, 'projeto_tarefas'), buscarTudo(remoto, 'projeto_checklist_implantacao'),
+    buscarTudo(remoto, 'projeto_tarefas'), buscarTudo(remoto, 'projeto_checklist_implantacao'), buscarTudo(remoto, 'sla_marcos'), buscarTudo(remoto, 'sla_tarefas'),
   ]);
-  return gravarGestao(projetos, entregas, acompanhamentos, responsaveis, tarefas, checklist, empresas);
+  return gravarGestao(projetos, entregas, acompanhamentos, responsaveis, tarefas, checklist, empresas, marcosSla, tarefasSla);
 }
 async function publicar() {
   if (!ativo()) return { ativo: false };

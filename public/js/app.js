@@ -237,7 +237,7 @@ const App = (() => {
     ] },
     { id: 'gestao', titulo: 'Gestão do produto', itens: [
       { tipo: 'titulo', t: 'Escopos e combos' },
-      { id: 'servicos', t: 'Serviços e combos', i: '⊞' }, { id: 'configComercial', t: 'Configurar combos', i: '⚙' },
+      { id: 'servicos', t: 'Serviços e combos', i: '⊞' }, { id: 'configComercial', t: 'Configurar combos', i: '⚙' }, { id: 'sla', t: 'SLA e prazos', i: '◷' },
       { tipo: 'titulo', t: 'Conhecimento e integrações' },
       { id: 'conhecimento', t: 'Base de conhecimento', i: '◰' }, { id: 'questor', t: 'Integração Questor', i: '↔' },
       { tipo: 'titulo', t: 'Configuração técnica' },
@@ -252,7 +252,7 @@ const App = (() => {
     dados: 'diagnostico', dadosDashboard: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', mapaOperacional: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     planejamento: 'gestao_projetos', entregavelCliente: 'diagnostico',
-    servicos: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', cadastrosCnpj: 'configuracoes', consultaBaseRegime: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'configuracoes', acessos: 'acessos',
+    servicos: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', sla: 'configuracoes', cadastrosCnpj: 'configuracoes', consultaBaseRegime: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'configuracoes', acessos: 'acessos',
   };
   const pode = (tela, acao = 'ver') => {
     const permissoes = S.usuario?.permissoes;
@@ -355,7 +355,7 @@ const App = (() => {
       const tarefasDaTela = TAREFAS_POR_TELA[tela];
       const fn = tarefasDaTela ? ((host) => telaTarefasModulo(host, ...tarefasDaTela)) : Telas[tela];
       if (!fn) { alvo.innerHTML = vazio('Tela não encontrada', 'Escolha uma opção no menu.'); return; }
-      const semEmpresa = ['empresas', 'dashboardOperacao', 'planejamento', 'gestaoProjetos', 'configComercial', 'cadastrosCnpj', 'consultaBaseRegime', 'conhecimento', 'atualizacoesReforma', 'documentacaoSistema', 'questor', 'bases', 'configuracoes', 'controleProjeto', 'acessos'];
+      const semEmpresa = ['empresas', 'dashboardOperacao', 'planejamento', 'gestaoProjetos', 'configComercial', 'sla', 'cadastrosCnpj', 'consultaBaseRegime', 'conhecimento', 'atualizacoesReforma', 'documentacaoSistema', 'questor', 'bases', 'configuracoes', 'controleProjeto', 'acessos'];
       if (!semEmpresa.includes(tela) && !S.empresaId) {
         alvo.innerHTML = vazio('Selecione uma empresa', 'Este módulo trabalha sobre os dados de uma empresa. Cadastre ou selecione uma no topo do menu.',
           '<button class="btn" onclick="App.ir(\'empresas\')">Ir para empresas</button>');
@@ -566,14 +566,21 @@ const App = (() => {
       host.innerHTML = `<section class="cartao tarefas-modulo"><div class="cabecalho-lista"><div><h2>Tarefas do módulo</h2><p class="desc">Execução de ${esc(tituloModulo)}. As tarefas também aparecem consolidadas no Acompanhamento geral.</p></div>${podeExecutar ? '<button class="btn pq" data-nova-tarefa>Nova tarefa</button>' : `<span class="tag">${tarefas.length} tarefas</span>`}</div><div class="responsaveis-modulo"><div class="mini">RESPONSÁVEIS DO MÓDULO</div>${contatos}</div>${tarefas.length ? tabela([
         { t: 'Situação', r: (t) => `<span class="tag ${t.status === 'concluida' ? 'c' : t.status === 'em_andamento' ? 'b' : 'n'}">${esc(t.status.replace('_', ' '))}</span>` },
         { t: 'Tarefa', r: (t) => `<b>${esc(t.titulo)}</b>${entregas.length > 1 ? `<small class="mini">${esc(t.entrega_titulo || 'Capacitação')}</small>` : ''}${t.pendencia_cliente ? `<small class="mini pendencia-cliente">Pendência: ${esc(t.pendencia_cliente)}</small>` : ''}` },
-        { t: 'Prazo', r: (t) => `<span class="mono mini">${esc(t.data_conclusao || '—')}</span>` },
-        ...(podeExecutar ? [{ t: '', r: (t) => `<button class="btn pq vazio" data-editar-tarefa="${t.id}">Atualizar</button>` }] : []),
+        { t: 'Prazo', r: (t) => `<span class="mono mini">${esc(t.data_conclusao || '—')}</span>${t.prorrogado_em ? '<small class="mini">prorrogado</small>' : ''}` },
+        { t: 'Origem', r: (t) => t.obrigatoria ? '<span class="tag b">SLA obrigatório</span>' : '<span class="mini">Manual</span>' },
+        ...(podeExecutar ? [{ t: '', r: (t) => `${t.obrigatoria ? `<button class="btn pq vazio" data-prorrogar-tarefa="${t.id}">Prorrogar prazo</button>` : ''}<button class="btn pq vazio" data-editar-tarefa="${t.id}">Atualizar</button>` }] : []),
       ], tarefas, { vazio: 'Nenhuma tarefa neste módulo.' }) : vazio('Nenhuma tarefa neste módulo.', podeExecutar ? 'Registre a primeira atividade de execução.' : 'Acompanhe o andamento pelo painel geral.')}</section>`;
       const abrir = (tarefa = null) => modal({ titulo: tarefa ? `Tarefa — ${tarefa.titulo}` : `Nova tarefa — ${tituloModulo}`, largura: 720,
-        corpo: `${!tarefa && entregas.length > 1 ? selecao('entrega_id', 'Entrega de capacitação', entregas.map((e) => ({ v: e.id, t: e.titulo })), '') : ''}${selecao('status', 'Situação', [{ v: 'aberta', t: 'Aberta' }, { v: 'em_andamento', t: 'Em andamento' }, { v: 'concluida', t: 'Concluída' }], tarefa?.status || 'aberta')}${selecao('tipo_pendencia', 'Classificação da pendência', [{ v: 'interna', t: 'Pendência interna' }, { v: 'cliente', t: 'Pendência com cliente' }], tarefa?.envolve_cliente ? 'cliente' : 'interna')}${campo('titulo', 'Título', tarefa?.titulo || '')}<div class="grade g2">${campo('data_abertura', 'Data de abertura', tarefa?.data_abertura || '', 'date')}${campo('data_conclusao', 'Previsão/conclusão', tarefa?.data_conclusao || '', 'date')}</div>${area('pendencia_cliente', 'Descrição da pendência', tarefa?.pendencia_cliente || '', 2)}${area('interacoes_cliente', 'Interações / histórico', tarefa?.interacoes_cliente || '', 2)}${area('descricao', 'Detalhamento da tarefa', tarefa?.descricao || '', 2)}`,
+        corpo: `${!tarefa && entregas.length > 1 ? selecao('entrega_id', 'Entrega de capacitação', entregas.map((e) => ({ v: e.id, t: e.titulo })), '') : ''}${selecao('status', 'Situação', [{ v: 'aberta', t: 'Aberta' }, { v: 'em_andamento', t: 'Em andamento' }, { v: 'concluida', t: 'Concluída' }], tarefa?.status || 'aberta')}${selecao('tipo_pendencia', 'Classificação da pendência', [{ v: 'interna', t: 'Pendência interna' }, { v: 'cliente', t: 'Pendência com cliente' }], tarefa?.envolve_cliente ? 'cliente' : 'interna')}${campo('titulo', 'Título', tarefa?.titulo || '')}${tarefa?.obrigatoria ? `<div class="aviso"><b>Prazo do SLA</b>${esc(tarefa.data_abertura || '—')} até ${esc(tarefa.data_conclusao || '—')}. Use “Prorrogar prazo” para alterar a data com justificativa e reprogramar as etapas seguintes.</div>` : `<div class="grade g2">${campo('data_abertura', 'Data de abertura', tarefa?.data_abertura || '', 'date')}${campo('data_conclusao', 'Previsão/conclusão', tarefa?.data_conclusao || '', 'date')}</div>`}${area('pendencia_cliente', 'Descrição da pendência', tarefa?.pendencia_cliente || '', 2)}${area('interacoes_cliente', 'Interações / histórico', tarefa?.interacoes_cliente || '', 2)}${area('descricao', 'Detalhamento da tarefa', tarefa?.descricao || '', 2)}`,
         aoConfirmar: async (form) => { await api(tarefa ? `/projeto/tarefas/${tarefa.id}` : `/empresas/${S.empresaId}/projeto/tarefas/${chave}`, { metodo: tarefa ? 'PUT' : 'POST', corpo: form }); await carregar(); } });
       host.querySelector('[data-nova-tarefa]')?.addEventListener('click', () => abrir());
       host.querySelectorAll('[data-editar-tarefa]').forEach((b) => b.addEventListener('click', () => abrir(tarefas.find((t) => t.id === Number(b.dataset.editarTarefa)))));
+      host.querySelectorAll('[data-prorrogar-tarefa]').forEach((b) => b.addEventListener('click', () => {
+        const tarefa = tarefas.find((t) => t.id === Number(b.dataset.prorrogarTarefa));
+        modal({ titulo: `Prorrogar prazo — ${tarefa.titulo}`, descricao:'A nova data reprogramará os marcos posteriores que dependem desta entrega. A justificativa ficará registrada no histórico do projeto.', largura:640,
+          corpo: `${campo('novo_prazo', 'Novo prazo', tarefa.data_conclusao || '', 'date')}${area('justificativa', 'Justificativa da prorrogação', '', 3)}`,
+          confirmar:'Prorrogar e reprogramar', aoConfirmar:async(form)=>{await api(`/projeto/tarefas/${tarefa.id}/prorrogar`,{metodo:'POST',corpo:form});toast('Prazo prorrogado e sequência reprogramada.','ok');await carregar();} });
+      }));
       host.querySelectorAll('[data-responsaveis]').forEach((b) => b.addEventListener('click', () => {
         const entrega = entregas.find((e) => e.id === Number(b.dataset.responsaveis));
         const sattva = responsaveisDaEntrega(entrega.id, 'sattva') || {}, cliente = responsaveisDaEntrega(entrega.id, 'cliente') || {};

@@ -225,6 +225,14 @@ No **Módulo 4**, programe turmas, participantes, presença e evidências da cap
 
 No **Módulo 6**, registre tarefas, responsáveis, prazo, baseline, realizado, evidências e pendências do cliente. O acompanhamento não altera o escopo contratado; ele acompanha a execução dele.
 
+### SLA, marcos e tarefas obrigatórias
+
+Em **Gestão do Produto > SLA e prazos**, configure os marcos do projeto, o prazo de cada um em dias e a sua precedência. Um marco sem precedente começa na contratação; os demais começam ao término do marco indicado. No mesmo cadastro, inclua as tarefas-modelo obrigatórias de cada etapa, como importar folha, importar apurações/PGDAS e executar o motor.
+
+Quando um novo escopo é aprovado, essas tarefas são criadas automaticamente dentro da entrega correspondente e recebem as datas do marco. Em projetos já existentes, use **Aplicar SLA** em Escopo e entregas: ele cria somente as tarefas obrigatórias ainda ausentes, sem apagar tarefas ou prazos registrados.
+
+Tarefas marcadas como **SLA obrigatório** não aceitam alteração direta de prazo. Use **Prorrogar prazo**, informe a nova data e a justificativa. A prorrogação é registrada e recalcula as datas dos marcos seguintes que dependem daquela entrega; o Gantt reflete a nova sequência.
+
 ## 13. Entregável ao Cliente
 
 O **Módulo 7 - Entregável ao Cliente** organiza a apresentação final com a seguinte narrativa:

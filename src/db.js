@@ -131,6 +131,10 @@ const COLUNAS_NOVAS = {
     provedores_json: "TEXT DEFAULT '[]'",
     especialista_painel_ativo: 'INTEGER DEFAULT 0',
   },
+  projeto_tarefas: {
+    obrigatoria: 'INTEGER DEFAULT 0', sla_marco_id: 'INTEGER', prazo_original: 'TEXT',
+    prorrogado_em: 'TEXT', justificativa_prorrogacao: 'TEXT',
+  },
   contrato_precificacao_vinculos: { pricing_simulacao_id: 'INTEGER' },
 };
 
@@ -915,6 +919,33 @@ CREATE TABLE IF NOT EXISTS projeto_tarefas (
   envolve_cliente INTEGER DEFAULT 0, pendencia_cliente TEXT, interacoes_cliente TEXT,
   criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT
 );
+
+-- SLA é uma configuração global do produto. Os marcos definem duração e
+-- precedência; as tarefas-modelo são geradas dentro da entrega contratada.
+CREATE TABLE IF NOT EXISTS sla_marcos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  chave TEXT NOT NULL UNIQUE, titulo TEXT NOT NULL,
+  prazo_dias INTEGER NOT NULL DEFAULT 0,
+  precedencia_chave TEXT,
+  ativo INTEGER NOT NULL DEFAULT 1, ordem INTEGER NOT NULL DEFAULT 0,
+  criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT
+);
+CREATE TABLE IF NOT EXISTS sla_tarefas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  marco_id INTEGER NOT NULL REFERENCES sla_marcos(id) ON DELETE CASCADE,
+  titulo TEXT NOT NULL, descricao TEXT,
+  obrigatoria INTEGER NOT NULL DEFAULT 1, ativo INTEGER NOT NULL DEFAULT 1,
+  ordem INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS projeto_prorrogacoes_sla (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  contratacao_id INTEGER NOT NULL REFERENCES contratacoes(id) ON DELETE CASCADE,
+  tarefa_id INTEGER NOT NULL REFERENCES projeto_tarefas(id) ON DELETE CASCADE,
+  marco_id INTEGER NOT NULL REFERENCES sla_marcos(id),
+  prazo_anterior TEXT NOT NULL, novo_prazo TEXT NOT NULL, justificativa TEXT NOT NULL,
+  usuario_id TEXT, criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_projeto_tarefas_sla_marco ON projeto_tarefas(contratacao_id, sla_marco_id);
 
 -- Checklist automático da implantação: diferente de tarefa livre, registra
 -- a evidência solicitada pelo escopo e mantém a pendência auditável.
@@ -2149,6 +2180,30 @@ db.transaction(() => {
 const combosSubstituidos = ['Diagnóstico Completo', 'Implementação Integral', 'Essencial', 'Margem Protegida', 'Blindagem Contratual', 'Time Preparado'];
 const desativaComboSubstituido = db.prepare('UPDATE combos SET ativo=0 WHERE nome=?');
 db.transaction(() => combosSubstituidos.forEach((nome) => desativaComboSubstituido.run(nome)))();
+
+// Fluxo inicial editável. INSERT OR IGNORE garante que uma configuração já
+// ajustada pela equipe nunca seja sobrescrita durante uma atualização.
+const SLA_PADRAO = [
+  ['diagnostico', 'Diagnóstico', 30, null, 1],
+  ['precificacao', 'Precificação', 15, 'diagnostico', 2],
+  ['contratos', 'Revisão de contratos', 15, 'precificacao', 3],
+  ['treinamento_boas_praticas', 'Treinamento Boas Práticas', 10, 'diagnostico', 4],
+];
+const slaMarcoPadrao = db.prepare('INSERT OR IGNORE INTO sla_marcos (chave,titulo,prazo_dias,precedencia_chave,ordem) VALUES (?,?,?,?,?)');
+const slaTarefaPadrao = db.prepare('INSERT OR IGNORE INTO sla_tarefas (marco_id,titulo,descricao,ordem) VALUES (?,?,?,?)');
+db.transaction(() => {
+  SLA_PADRAO.forEach((m) => slaMarcoPadrao.run(...m));
+  const porChave = new Map(db.prepare('SELECT id,chave FROM sla_marcos').all().map((m) => [m.chave, m.id]));
+  [
+    ['diagnostico', 'Importar documentos fiscais', 'Planilhas, XML ou SPED do período analisado.', 1],
+    ['diagnostico', 'Importar folha de pagamento', 'Folha ou declaração auditável das competências analisadas.', 2],
+    ['diagnostico', 'Importar apurações', 'PGDAS ou apuração de PIS/Cofins conforme o regime.', 3],
+    ['diagnostico', 'Executar motor tributário', 'Executar após a prontidão dos documentos e demais dados obrigatórios.', 4],
+    ['precificacao', 'Validar cenários e margem', 'Registrar a simulação e a recomendação de preço.', 1],
+    ['contratos', 'Importar e revisar contratos', 'Analisar cláusulas e registrar as adequações necessárias.', 1],
+    ['treinamento_boas_praticas', 'Planejar treinamento', 'Definir conteúdo, público e data da capacitação.', 1],
+  ].forEach(([chave, titulo, descricao, ordem]) => { if (porChave.has(chave)) slaTarefaPadrao.run(porChave.get(chave), titulo, descricao, ordem); });
+})();
 
 if (!db.prepare('SELECT COUNT(*) c FROM questor_config').get().c) {
   db.prepare(`INSERT INTO questor_config (id, base_url, token, ativo, endpoints, atualizado_em)

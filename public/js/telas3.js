@@ -375,6 +375,29 @@ Telas.documentacaoSistema = async (el) => {
 // ===========================================================================
 // CONFIGURAÇÃO DE ESCOPO — SERVIÇOS E COMBOS
 // ===========================================================================
+Telas.sla = async (el) => {
+  const carregar = async () => {
+    const d = await A.api('/sla');
+    const marcos = d.marcos || [], tarefas = d.tarefas || [];
+    const predecessores = [{ v: '', t: 'Contratação do projeto' }, ...marcos.map((m) => ({ v: m.chave, t: m.titulo }))];
+    const tarefasDoMarco = (m) => tarefas.filter((t) => Number(t.marco_id) === Number(m.id));
+    el.innerHTML = cab('Gestão do produto', 'SLA e prazos',
+      'Defina a sequência do projeto e as tarefas obrigatórias. Em novos projetos, o sistema cria as tarefas com as mesmas datas do marco; prorrogações exigem justificativa e recalculam as etapas seguintes.',
+      '<button class="btn" id="novoMarcoSla">Novo marco</button>') +
+      `<div class="aviso bom"><b>Como o fluxo funciona</b>O primeiro marco conta da contratação. Cada marco seguinte começa com a entrega do seu precedente. Alterar a configuração afeta apenas novos projetos; projetos já aprovados podem receber as tarefas faltantes sem apagar nada.</div>
+      <div class="sla-marcos">${marcos.map((m) => `<article class="cartao sla-marco ${m.ativo ? '' : 'inativo'}"><div class="cabecalho-lista"><div><span class="olho">MARCO ${m.ordem || '—'}</span><h2>${A.esc(m.titulo)}</h2><p class="desc"><b>${m.prazo_dias} dia(s)</b> · começa após ${A.esc(m.precedencia_chave ? (marcos.find((x) => x.chave === m.precedencia_chave)?.titulo || m.precedencia_chave) : 'a contratação')}</p></div><div><span class="tag ${m.ativo ? 'c' : 'n'}">${m.ativo ? 'ATIVO' : 'INATIVO'}</span><button class="btn pq vazio" data-editar-marco="${m.id}">Editar</button></div></div>
+        <div class="sla-tarefas"><h3>Tarefas obrigatórias</h3>${tarefasDoMarco(m).length ? tarefasDoMarco(m).map((t) => `<div class="linha-entrega"><span class="tag ${t.obrigatoria ? 'b' : 'n'}">${t.obrigatoria ? 'OBRIGATÓRIA' : 'OPCIONAL'}</span><span class="linha-entrega-texto">${A.esc(t.titulo)}<small class="mini">${A.esc(t.descricao || 'Sem detalhamento')}</small></span><button class="btn pq vazio" data-editar-tarefa-sla="${t.id}">Editar</button></div>`).join('') : '<p class="mini">Nenhuma tarefa-modelo cadastrada.</p>'}<button class="btn pq" data-nova-tarefa-sla="${m.id}">Adicionar tarefa</button></div>
+      </article>`).join('') || A.vazio('Nenhum marco de SLA', 'Cadastre a primeira etapa do fluxo do projeto.')}</div>`;
+    const formMarco = (m = {}) => `${A.campo('chave', 'Chave do marco', m.chave || '', 'text', m.id ? 'disabled' : 'placeholder="ex.: diagnostico"')}${A.campo('titulo', 'Nome do marco', m.titulo || '')}<div class="grade g2">${A.campo('prazo_dias', 'Prazo em dias após o início', m.prazo_dias ?? 0, 'number', 'min=0')}${A.campo('ordem', 'Ordem visual', m.ordem ?? (marcos.length + 1), 'number', 'min=0')}</div>${A.selecao('precedencia_chave', 'Inicia após', predecessores.filter((x) => x.v !== m.chave), m.precedencia_chave || '')}<label class="check"><input type="checkbox" name="ativo" ${m.ativo === undefined || m.ativo ? 'checked' : ''}> Marco ativo para novos projetos</label>`;
+    const formTarefa = (t = {}) => `${A.campo('titulo', 'Tarefa', t.titulo || '')}${A.area('descricao', 'Orientação da tarefa', t.descricao || '', 2)}<div class="grade g2">${A.campo('ordem', 'Ordem', t.ordem ?? 1, 'number', 'min=0')}<label class="check"><input type="checkbox" name="obrigatoria" ${t.obrigatoria === undefined || t.obrigatoria ? 'checked' : ''}> Obrigatória</label></div><label class="check"><input type="checkbox" name="ativo" ${t.ativo === undefined || t.ativo ? 'checked' : ''}> Ativa para novos projetos</label>`;
+    el.querySelector('#novoMarcoSla').onclick = () => A.modal({ titulo:'Novo marco de SLA', largura:650, corpo:formMarco(), aoConfirmar:async(form)=>{ await A.api('/sla/marcos',{metodo:'POST',corpo:form}); A.toast('Marco de SLA criado.','ok'); carregar(); } });
+    el.querySelectorAll('[data-editar-marco]').forEach((b) => b.onclick = () => { const m=marcos.find((x)=>x.id===Number(b.dataset.editarMarco)); A.modal({titulo:`Editar SLA — ${m.titulo}`,largura:650,corpo:formMarco(m),aoConfirmar:async(form)=>{await A.api(`/sla/marcos/${m.id}`,{metodo:'PUT',corpo:form});A.toast('SLA atualizado.','ok');carregar();}}); });
+    el.querySelectorAll('[data-nova-tarefa-sla]').forEach((b) => b.onclick = () => A.modal({titulo:'Nova tarefa do SLA',largura:650,corpo:formTarefa(),aoConfirmar:async(form)=>{await A.api(`/sla/marcos/${b.dataset.novaTarefaSla}/tarefas`,{metodo:'POST',corpo:form});A.toast('Tarefa-modelo criada.','ok');carregar();}}));
+    el.querySelectorAll('[data-editar-tarefa-sla]').forEach((b) => b.onclick = () => { const t=tarefas.find((x)=>x.id===Number(b.dataset.editarTarefaSla)); A.modal({titulo:`Editar tarefa — ${t.titulo}`,largura:650,corpo:formTarefa(t),aoConfirmar:async(form)=>{await A.api(`/sla/tarefas/${t.id}`,{metodo:'PUT',corpo:form});A.toast('Tarefa-modelo atualizada.','ok');carregar();}}); });
+  };
+  await carregar();
+};
+
 Telas.configComercial = async (el) => {
   const dados = await A.api('/servicos');
   const nomesLegados = new Set(['diagnóstico completo', 'implementação integral', 'essencial', 'margem protegida', 'blindagem contratual', 'time preparado']);
@@ -634,7 +657,7 @@ Telas.gestaoProjetos = async (el) => {
     `<div class="projetos-entrega">${projetos.map((p) => `<section class="cartao projeto-entrega-card">
       <div class="projeto-entrega-cabecalho"><div>
         <h2>${A.esc(p.razao_social)}</h2><p class="desc">${A.esc(p.combo_nome || 'Plano personalizado')} · aprovado em ${A.esc(p.aprovado_em || '—')}${p.responsavel_implantacao ? ` · responsável: ${A.esc(p.responsavel_implantacao.nome)}` : ' · responsável a definir'}</p>
-      </div><div class="projeto-progresso"><b class="mono">${p.progresso}%</b><div class="mini">${p.concluidas}/${p.entregas.length} entregas concluídas</div><button class="btn pq vazio" data-escopo="${p.id}">Alterar escopo</button></div></div>
+      </div><div class="projeto-progresso"><b class="mono">${p.progresso}%</b><div class="mini">${p.concluidas}/${p.entregas.length} entregas concluídas</div><button class="btn pq vazio" data-aplicar-sla="${p.id}">Aplicar SLA</button><button class="btn pq vazio" data-escopo="${p.id}">Alterar escopo</button></div></div>
       <div class="barra-prog projeto-barra"><i style="width:${p.progresso}%"></i></div>
       <div class="grade g2">
         <div><h3 class="subtitulo-entrega">Escopo aprovado</h3>
@@ -693,6 +716,13 @@ Telas.gestaoProjetos = async (el) => {
     const servicos = (d.servicos || []).map((s) => `<label class="check"><input type="checkbox" name="servico_${s.id}" ${selecionados.has(Number(s.id)) ? 'checked' : ''}> <b>${A.esc(s.nome)}</b><span class="mini"> · ${A.esc(s.modulo || s.chave_entrega || '')}</span></label>`).join('');
     A.modal({ titulo: `Alterar escopo — ${p.razao_social}`, largura: 760, corpo: `<div class="aviso"><b>Aditivo de escopo</b>Os serviços selecionados atualizam o contrato. Para projeto já aprovado, novos módulos são liberados sem apagar as entregas já registradas.</div><div class="empresas-acesso">${servicos}</div>${A.area('observacoes', 'Observações do aditivo', p.observacoes || '', 3)}`,
       aoConfirmar: async (form) => { form.servicos = (d.servicos || []).filter((s) => form[`servico_${s.id}`]).map((s) => s.id); await A.api(`/contratacoes/${p.id}`, { metodo: 'PUT', corpo: { servicos: form.servicos, status: p.status, observacoes: form.observacoes } }); A.toast('Escopo do contrato atualizado', 'ok'); A.ir('gestaoProjetos'); } });
+  }; });
+  el.querySelectorAll('[data-aplicar-sla]').forEach((b) => { b.onclick = () => {
+    const p = d.projetos.find((x) => x.id === Number(b.dataset.aplicarSla));
+    A.confirmar(`Aplicar as tarefas obrigatórias do SLA que ainda não existem em “${p.razao_social}”? Tarefas já registradas não serão alteradas.`, async () => {
+      const r = await A.api(`/contratacoes/${p.id}/aplicar-sla`, { metodo:'POST', corpo:{} });
+      A.toast(r.tarefas ? `${r.tarefas} tarefa(s) obrigatória(s) criada(s).` : 'Este projeto já possui as tarefas de SLA aplicáveis.', 'ok'); A.ir('gestaoProjetos');
+    });
   }; });
   el.querySelectorAll('[data-liberar]').forEach((b) => { b.onclick = () => {
     const p = d.projetos.find((x) => x.id === Number(b.dataset.liberar));

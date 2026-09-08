@@ -84,6 +84,19 @@ async function executar() {
   const { data: remotosProjetos, error: erroProjetos } = await supabase.from('projetos').select('id,origem_local_contratacao_id');
   if (erroProjetos) throw erroProjetos;
   const mapaProjeto = new Map(remotosProjetos.map((p) => [Number(p.origem_local_contratacao_id), p.id]));
+  const marcosSla = db.prepare('SELECT * FROM sla_marcos').all().map((m) => ({ origem_local_id:m.id, chave:m.chave, titulo:m.titulo, prazo_dias:m.prazo_dias, precedencia_chave:m.precedencia_chave||null, ativo:!!m.ativo, ordem:m.ordem||0, criado_em:m.criado_em||null, atualizado_em:m.atualizado_em||null }));
+  if (marcosSla.length) {
+    const { error } = await supabase.from('sla_marcos').upsert(marcosSla, { onConflict:'origem_local_id' });
+    if (error) throw new Error(`sla_marcos: ${error.message}`);
+  }
+  const { data: marcosRemotos, error: erroMarcosSla } = await supabase.from('sla_marcos').select('id,origem_local_id');
+  if (erroMarcosSla) throw erroMarcosSla;
+  const mapaMarcoSla = new Map((marcosRemotos || []).map((m) => [Number(m.origem_local_id), m.id]));
+  const tarefasSla = db.prepare('SELECT * FROM sla_tarefas').all().map((t) => ({ origem_local_id:t.id, marco_id:mapaMarcoSla.get(Number(t.marco_id)), titulo:t.titulo, descricao:t.descricao||null, obrigatoria:!!t.obrigatoria, ativo:!!t.ativo, ordem:t.ordem||0 })).filter((t) => t.marco_id);
+  if (tarefasSla.length) {
+    const { error } = await supabase.from('sla_tarefas').upsert(tarefasSla, { onConflict:'origem_local_id' });
+    if (error) throw new Error(`sla_tarefas: ${error.message}`);
+  }
   const entregas = db.prepare('SELECT * FROM projeto_entregas').all().map((e) => ({ origem_local_id: e.id, projeto_id: mapaProjeto.get(e.contratacao_id), chave: e.chave, titulo: e.titulo, status: e.status, concluido_em: e.concluido_em || null, observacoes: e.observacoes || null })).filter((e) => e.projeto_id);
   const acompanhamentos = db.prepare('SELECT * FROM projeto_acompanhamentos').all().map((a) => ({ origem_local_id: a.id, projeto_id: mapaProjeto.get(a.contratacao_id), competencia: a.competencia, nome: a.nome || null, status: a.status, observacoes: a.observacoes || null })).filter((a) => a.projeto_id);
   await upsert('projeto_entregas', entregas);
@@ -98,7 +111,7 @@ async function executar() {
   }).filter((r) => r.projeto_id);
   const tarefas = db.prepare('SELECT * FROM projeto_tarefas').all().map((t) => {
     const entrega = mapaEntrega.get(Number(t.entrega_id)); const projeto = entrega?.projeto_id || mapaProjeto.get(t.contratacao_id);
-    return { origem_local_id:t.id, projeto_id:projeto, entrega_id:entrega?.id, titulo:t.titulo, descricao:t.descricao||null, status:t.status, data_abertura:t.data_abertura||null, data_conclusao:t.data_conclusao||null, envolve_cliente:!!t.envolve_cliente, pendencia_cliente:t.pendencia_cliente||null, interacoes_cliente:t.interacoes_cliente||null, criado_em:t.criado_em||null, atualizado_em:t.atualizado_em||null };
+    return { origem_local_id:t.id, projeto_id:projeto, entrega_id:entrega?.id, titulo:t.titulo, descricao:t.descricao||null, status:t.status, data_abertura:t.data_abertura||null, data_conclusao:t.data_conclusao||null, envolve_cliente:!!t.envolve_cliente, pendencia_cliente:t.pendencia_cliente||null, interacoes_cliente:t.interacoes_cliente||null, obrigatoria:!!t.obrigatoria, sla_marco_id:t.sla_marco_id ? mapaMarcoSla.get(Number(t.sla_marco_id)) || null : null, prazo_original:t.prazo_original||null, prorrogado_em:t.prorrogado_em||null, justificativa_prorrogacao:t.justificativa_prorrogacao||null, criado_em:t.criado_em||null, atualizado_em:t.atualizado_em||null };
   }).filter((t) => t.projeto_id && t.entrega_id);
   const responsaveisRemotos = await supabase.from('projeto_responsaveis').select('id,origem_local_id,projeto_id');
   if (responsaveisRemotos.error) throw responsaveisRemotos.error;
