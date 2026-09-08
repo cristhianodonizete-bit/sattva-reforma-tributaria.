@@ -21,8 +21,14 @@ function cnaes(empresa) {
 
 function pisCofins(regra) {
   const itens = [];
-  if (texto(regra.tratamento_pis_cofins) && !['NORMAL', 'TRIBUTADA_INTEGRALMENTE'].includes(texto(regra.tratamento_pis_cofins).toUpperCase())) itens.push(`PIS/Cofins: ${texto(regra.tratamento_pis_cofins)}`);
-  if (valor(regra.pis_percentual) || valor(regra.cofins_percentual)) itens.push(`PIS ${valor(regra.pis_percentual).toLocaleString('pt-BR')}% · Cofins ${valor(regra.cofins_percentual).toLocaleString('pt-BR')}%`);
+  const tratamento=texto(regra.tratamento_pis_cofins).toUpperCase();
+  const cumulativaObrigatoria=texto(regra.cumulatividade_obrigatoria).toUpperCase();
+  if (cumulativaObrigatoria && !['NAO','NÃO','0','FALSE'].includes(cumulativaObrigatoria)) {
+    itens.push('Cumulatividade obrigatória — prevalece sobre o regime geral da empresa.');
+  } else if (!tratamento || ['NORMAL', 'TRIBUTADA_INTEGRALMENTE'].includes(tratamento)) {
+    itens.push('Normal — aplicar o regime geral da empresa.');
+  } else itens.push(`PIS/Cofins: ${texto(regra.tratamento_pis_cofins)}`);
+  if (valor(regra.pis_percentual) || valor(regra.cofins_percentual)) itens.push(`PIS ${valor(regra.pis_percentual).toLocaleString('pt-BR')}% · Cofins ${valor(regra.cofins_percentual).toLocaleString('pt-BR')}%${cumulativaObrigatoria && !['NAO','NÃO','0','FALSE'].includes(cumulativaObrigatoria) ? ', independentemente do regime geral.' : ''}`);
   return itens;
 }
 function quando(regra) {
