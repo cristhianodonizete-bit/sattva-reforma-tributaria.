@@ -4,7 +4,9 @@ const fs = require('fs');
 const path = require('path');
 const cfgPath = path.join(__dirname, 'config.json');
 if (!fs.existsSync(cfgPath)) throw new Error('Crie config.json a partir de config.example.json.');
-const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+// O configurador do Windows pode gravar UTF-8 com BOM. Remove a marca antes
+// de interpretar o JSON, sem alterar o conteúdo ou expor credenciais.
+const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8').replace(/^\uFEFF/, ''));
 const permitidas = new Set(['TESTAR_NWEB', 'PARAMETROS_RELATORIO', 'APURACAO_PIS_COFINS']);
 const cab = () => ({ 'Content-Type':'application/json', 'X-Connector-Id':cfg.connectorId, 'X-Connector-Secret':cfg.connectorSecret });
 const url = (base, rota, params={}) => { const u=new URL(rota, base.replace(/\/$/, '')+'/'); Object.entries(params).forEach(([k,v])=>{if(v!==undefined&&v!==null&&v!=='')u.searchParams.set(k,v);}); return u; };
