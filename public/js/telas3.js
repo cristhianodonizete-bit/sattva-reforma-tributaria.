@@ -654,6 +654,12 @@ Telas.gestaoProjetos = async (el) => {
   el.innerHTML = cab('Gestão do projeto', 'Escopo e entregas',
     'Acompanhe o escopo contratado e o cronograma. As datas informadas no planejamento das entregas desenham a linha do tempo automaticamente.') +
     `<div class="filtros-carteira" style="margin-bottom:16px"><label>Empresa<select id="filtroEmpresaGestao"><option value="">Todas as empresas</option>${empresasFiltro.map((x) => `<option value="${x.id}" ${String(filtroEmpresa) === String(x.id) ? 'selected' : ''}>${A.esc(x.razao_social)}</option>`).join('')}</select></label><span class="mini">O padrão é a empresa selecionada no cabeçalho.</span></div>` +
+    (propostas.length ? `<section class="cartao" style="margin-bottom:16px;border-left:4px solid var(--ouro)"><div class="cabecalho-lista"><div><h2>Escopos aguardando aprovação</h2><p class="desc">Revise o escopo contratado e aprove para congelar as entregas e liberar os módulos do projeto.</p></div><span class="tag a">${propostas.length} pendente(s)</span></div>${A.tabela([
+      {t:'Empresa',r:p=>`<b>${A.esc(p.razao_social)}</b><br><span class="mini">${A.esc(p.combo_nome || 'Escopo personalizado')}</span>`},
+      {t:'Entregas contratadas',r:p=>`<span class="mini">${A.esc((p.servicos || []).map(s=>s.nome || s.titulo || s).join(' · ') || 'Não informado')}</span>`},
+      {t:'Acompanhamento',r:p=>`${Number(p.acompanhamento_meses || 0)} mês(es)`},
+      {t:'Ação',r:p=>`<button class="btn ouro pq" data-aprovar="${p.id}">Aprovar e liberar</button>`},
+    ],propostas)}</section>` : '') +
     `<div class="projetos-entrega">${projetos.map((p) => `<section class="cartao projeto-entrega-card">
       <div class="projeto-entrega-cabecalho"><div>
         <h2>${A.esc(p.razao_social)}</h2><p class="desc">${A.esc(p.combo_nome || 'Plano personalizado')} · aprovado em ${A.esc(p.aprovado_em || '—')}${p.responsavel_implantacao ? ` · responsável: ${A.esc(p.responsavel_implantacao.nome)}` : ' · responsável a definir'}</p>
