@@ -650,6 +650,7 @@ Telas.servicos = async (el) => {
 Telas.questor = async (el) => {
   const { config } = await A.api('/questor/config');
   const { log } = await A.api('/questor/log');
+  const { conectores } = await A.api('/questor/conectores');
   el.innerHTML = cab('Integração', 'Questor · nWeb',
     'Busca cadastros e movimentação direto do Questor Tributário, sem planilha. O nWeb roda na máquina do servidor Questor, porta 8080 por padrão.') +
     `<div class="grade g2">
@@ -681,6 +682,7 @@ Telas.questor = async (el) => {
         <pre id="rawOut" class="mini" style="max-height:220px;overflow:auto;background:#f4f7f9;padding:10px;border-radius:8px;margin-top:10px"></pre>
       </div>
     </div>
+    <div class="cartao" style="margin-top:16px"><h2>Conector local seguro</h2><p class="desc">Instale somente no computador onde o nWeb está ativo. Ele se conecta ao Sattva por saída HTTPS e não abre porta na sua rede.</p><button class="btn" id="gerarConectorQuestor">Gerar pareamento</button>${conectores.length ? A.tabela([{t:'Nome',r:x=>A.esc(x.nome)},{t:'Situação',r:x=>A.esc(x.status)},{t:'Última conexão',r:x=>A.esc(x.ultima_conexao_em||'Ainda não conectado')}],conectores) : '<p class="mini" style="margin-top:12px">Nenhum conector pareado.</p>'}</div>
     <div class="cartao"><h2>Mapa de endpoints</h2>
       <p class="desc">Caminhos, parâmetros e de-para de campos. Ajuste conforme a versão do seu Questor — o sistema não depende de código para isso.</p>
       <textarea id="endpoints" rows="16" class="mono" style="font-size:12px">${A.esc(JSON.stringify(config.endpoints, null, 2))}</textarea>
@@ -697,6 +699,12 @@ Telas.questor = async (el) => {
     </div>`;
 
   const val = (n) => (el.querySelector(`[name="${n}"]`) || {}).value || '';
+  document.getElementById('gerarConectorQuestor').onclick = async () => {
+    const nome = prompt('Nome deste computador/conector:', 'Meu computador · Questor'); if (!nome) return;
+    const r = await A.api('/questor/conectores', {metodo:'POST',corpo:{nome}});
+    A.modal({titulo:'Pareamento do conector',confirmar:null,largura:760,descricao:'Copie estes dados apenas para o configurador local. O segredo não será exibido novamente.',corpo:`<p><b>Identificador</b><br><code>${A.esc(r.conector.id)}</code></p><p><b>Segredo</b><br><code style="word-break:break-all">${A.esc(r.segredo)}</code></p><p class="mini">Abra o arquivo configurar-e-iniciar.cmd no pacote baixado, cole esses dois valores e o TokenApi do nWeb.</p>`});
+    A.ir('questor');
+  };
   document.getElementById('salvarQ').onclick = async () => {
     await A.api('/questor/config', { metodo: 'POST', corpo: { base_url: val('base_url'), token: val('token'), ativo: !!val('ativo'), endpoints: config.endpoints } });
     A.toast('Conexão salva', 'ok');
