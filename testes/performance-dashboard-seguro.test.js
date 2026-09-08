@@ -18,7 +18,7 @@ assert.match(api, /router\.get\('\/bases\/catalogo',[\s\S]*?responderBasesEmCach
 assert.doesNotMatch(api, /router\.get\('\/empresas\/[^\n]*responderBasesEmCache/, 'cache de bases não pode englobar dados de empresa');
 assert.match(api, /from\('projetos'\)\.select\('id,empresa_id,status,nome_plano,acompanhamento_meses'\)/, 'dashboard deve projetar somente os campos de projetos exibidos');
 assert.doesNotMatch(api, /from\('projetos'\)\.select\('\*'\)/, 'dashboard não deve transferir a linha completa de projetos');
-assert.match(api, /from\('projeto_tarefas'\)\.select\('origem_local_id,projeto_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente'\)/, 'dashboard deve projetar somente os campos de tarefas usados');
+assert.match(api, /from\('projeto_tarefas'\)\.select\('origem_local_id,projeto_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente,obrigatoria'\)/, 'dashboard deve projetar somente os campos de tarefas usados');
 assert.match(api, /const CACHE_QSA_CARTEIRA_MS = 30000;/, 'resumo QSA compartilhado deve ter cache curto');
 assert.match(api, /const RETENTATIVA_QSA_CARTEIRA_MS = 10000;/, 'falha remota de QSA deve ter contenção de retentativas');
 assert.match(api, /atualizarResumoQsaCompartilhado\(\)\.catch/, 'carteira não deve aguardar leitura remota de QSA');

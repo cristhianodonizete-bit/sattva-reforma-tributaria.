@@ -538,7 +538,7 @@ router.get('/operacao/dashboard', async (req, res) => {
       remoto.from('projeto_entregas').select('id,projeto_id,chave,titulo,status'),
       remoto.from('projeto_acompanhamentos').select('projeto_id,competencia,status'),
       remoto.from('projeto_responsaveis').select('projeto_id,entrega_id,lado,nome,usuario_id'),
-      remoto.from('projeto_tarefas').select('origem_local_id,projeto_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente'),
+      remoto.from('projeto_tarefas').select('origem_local_id,projeto_id,entrega_id,titulo,descricao,status,data_abertura,data_conclusao,envolve_cliente,pendencia_cliente,obrigatoria'),
     ]);
     for (const e of [erroEmpresas, erroProjetos, erroEntregas, erroAcomp, erroResponsaveis, erroTarefas]) if (e) throw e;
     const permitidas = await empresasPermitidasUsuario(req.usuario);
@@ -563,6 +563,11 @@ router.get('/operacao/dashboard', async (req, res) => {
       const proximoAcompanhamento = as.filter((x) => x.status !== 'concluido').sort((a, b) => String(a.competencia).localeCompare(String(b.competencia)))[0]?.competencia || null;
       const responsavelSattva = rs.find((x) => x.lado === 'sattva')?.nome || null;
       const pendenciasCliente = ts.filter((x) => x.status !== 'concluida' && x.envolve_cliente && String(x.pendencia_cliente || '').trim()).length;
+      // O indicador de atraso da carteira considera apenas os marcos
+      // obrigatórios criados pelo SLA. Tarefas livres continuam visíveis na
+      // agenda, mas não distorcem o percentual contratual de atraso.
+      const tarefasSlaAtrasadas = ts.filter((x) => x.status !== 'concluida' && x.obrigatoria && x.data_conclusao && x.data_conclusao < hoje);
+      const etapasCriticas = [...new Set(tarefasSlaAtrasadas.map((x) => entregaPorId.get(x.entrega_id)?.titulo || 'Etapa não identificada'))];
       const responsaveisPorEntrega = es.map((entrega) => ({ id: entrega.id, chave: entrega.chave, titulo: entrega.titulo, status: entrega.status,
         responsavel: responsavelDaEntrega(p.id, entrega.id), usuario_id: rs.find((x) => x.lado === 'sattva' && x.entrega_id === entrega.id)?.usuario_id || null }));
       if (Number(p.acompanhamento_meses) > 0 || as.length) responsaveisPorEntrega.push({ id: null, chave: 'acompanhamento', titulo: 'Acompanhamento',
@@ -570,7 +575,7 @@ router.get('/operacao/dashboard', async (req, res) => {
       return { ...p, empresa: empresaPorId.get(p.empresa_id)?.razao_social || 'Cliente não identificado', entregas: es.length,
         entregasConcluidas: feitas, progresso: es.length ? Math.round((feitas / es.length) * 100) : 0,
         acompanhamentos: as.length, acompanhamentosConcluidos: as.filter((x) => x.status === 'concluido').length,
-        responsavelSattva, pendenciasCliente,
+        responsavelSattva, pendenciasCliente, tarefasSlaAtrasadas: tarefasSlaAtrasadas.length, etapasCriticas,
         proximoAcompanhamento, responsaveisPorEntrega, proximoMarco: proximaTarefa ? { titulo: proximaTarefa.titulo, data: proximaTarefa.data_conclusao, atrasado: proximaTarefa.data_conclusao < hoje, envolveCliente: Boolean(proximaTarefa.envolve_cliente), pendenciaCliente: proximaTarefa.pendencia_cliente || '' } : null };
     }).sort((a, b) => {
       const dataA = a.proximoMarco?.data || a.proximoAcompanhamento || '9999-99';
@@ -596,6 +601,12 @@ router.get('/operacao/dashboard', async (req, res) => {
       tarefasAtrasadas: agenda.filter((m) => m.tipo === 'tarefa' && m.atrasado && m.responsavelSattva === nome).length,
     }));
     const escoposDaCarteira = carteira.flatMap((p) => p.responsaveisPorEntrega || []);
+    const projetosAtrasados = carteira.filter((p) => p.tarefasSlaAtrasadas > 0);
+    const contagemEtapasCriticas = carteira.flatMap((p) => p.etapasCriticas || []).reduce((mapa, titulo) => {
+      mapa.set(titulo, (mapa.get(titulo) || 0) + 1);
+      return mapa;
+    }, new Map());
+    const etapasCriticas = [...contagemEtapasCriticas.entries()].map(([titulo, atrasos]) => ({ titulo, atrasos })).sort((a, b) => b.atrasos - a.atrasos || a.titulo.localeCompare(b.titulo, 'pt-BR'));
     const dados = { usuario_atual_id: req.usuario?.id || null, empresas: empresasVisiveis.length, projetos: carteira, agenda, resumo: { emExecucao: carteira.filter((p) => p.status === 'em_execucao').length,
       escoposContratados: escoposDaCarteira.length,
       escoposSemResponsavel: escoposDaCarteira.filter((e) => !e.usuario_id).length,
@@ -603,7 +614,10 @@ router.get('/operacao/dashboard', async (req, res) => {
       entregasPendentes: carteira.reduce((n, p) => n + p.entregas - p.entregasConcluidas, 0),
       tarefasAtrasadas: agenda.filter((m) => m.tipo === 'tarefa' && m.atrasado).length,
       pendenciasCliente: carteira.reduce((n, p) => n + p.pendenciasCliente, 0),
-      projetosSemResponsavel: carteira.filter((p) => p.status !== 'concluido' && !p.responsavelSattva).length }, cargaResponsaveis };
+      projetosSemResponsavel: carteira.filter((p) => p.status !== 'concluido' && !p.responsavelSattva).length,
+      projetosAtrasados: projetosAtrasados.length,
+      percentualProjetosAtrasados: carteira.length ? Math.round((projetosAtrasados.length / carteira.length) * 100) : 0,
+      etapasCriticas }, cargaResponsaveis };
     const geradoEm = Date.now();
     dashboardCache.set(chaveCache, { geradoEm, dados });
     res.set('Cache-Control', 'private, no-store');

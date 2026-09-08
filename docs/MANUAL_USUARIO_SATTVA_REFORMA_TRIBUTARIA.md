@@ -8,7 +8,7 @@ Este manual descreve a operação da versão atual do Sattva Reforma Tributária
 
 Entre com e-mail e senha. Use **Esqueci minha senha** quando necessário.
 
-Depois do acesso, o sistema abre a **Visão geral da carteira**. Ela não depende de uma empresa selecionada: mostra a quantidade de projetos, seus estágios, evolução e entregas concluídas. Use **Ir para projetos** para acessar a gestão dos escopos ou **Abrir projeto** em um card para abrir diretamente a empresa correspondente.
+Depois do acesso, o sistema abre a **Visão geral da carteira**. Ela não depende de uma empresa selecionada: mostra a quantidade de projetos, seus estágios, evolução, responsáveis, entregas concluídas e alertas de SLA. Use **Ir para projetos** para abrir **Projetos e responsáveis**, onde a equipe atribui cada escopo a si própria. Use **Abrir projeto** em um card quando quiser ir diretamente ao escopo da empresa correspondente.
 
 Depois de entrar em um projeto, confirme a empresa no seletor do canto superior direito ou no menu lateral. A empresa selecionada é usada nos módulos individuais; confirme-a antes de importar, executar cálculos ou gerar uma entrega.
 
@@ -24,7 +24,7 @@ Os grupos do menu lateral podem ser recolhidos ou expandidos pelo respectivo tí
 
 ### Visão geral da carteira
 
-É a porta de entrada do sistema. Os cartões resumem projetos ativos, evolução média, entregas concluídas e atenções abertas. O gráfico de barras distribui os projetos por estágio. Em cada projeto, a barra representa a evolução do escopo e o símbolo **✓** marca entregas já concluídas. Essa tela é somente de acompanhamento: nenhum cálculo ou cadastro é alterado nela.
+É a porta de entrada do sistema. Os cartões mostram o total de projetos, projetos e escopos sem responsável, evolução média, entregas concluídas e o percentual de projetos atrasados pelo SLA. O gráfico de barras compara a evolução de todos os projetos; outro gráfico distribui a carteira por estágio. A área **Etapas críticas com atraso** lista somente marcos obrigatórios do SLA com prazo vencido. Em cada projeto, a barra representa a evolução do escopo e o símbolo **✓** marca entregas já concluídas. Essa tela é somente de acompanhamento: nenhum cálculo ou cadastro é alterado nela.
 
 ### Central de Dados
 

@@ -864,10 +864,9 @@ Telas.dashboardOperacao = async (el) => {
   renderCarteira();
 };
 
-// Visão inicial: não depende da empresa selecionada. A página detalhada de
-// escopo continua em "Escopo, entregas e ações", depois que o usuário entra em
-// um projeto.
-Telas.dashboardOperacao = async (el) => {
+// Visão inicial: não depende da empresa selecionada. Ela é separada da tela
+// operacional, que preserva a atribuição de responsáveis por projeto.
+Telas.visaoCarteira = async (el) => {
   const d = await A.api('/operacao/dashboard');
   const projetos = d.projetos || [];
   const status = {
@@ -882,6 +881,9 @@ Telas.dashboardOperacao = async (el) => {
   const entregas = projetos.reduce((n, p) => n + (p.entregas || 0), 0);
   const entregasConcluidas = projetos.reduce((n, p) => n + (p.entregasConcluidas || 0), 0);
   const progressoMedio = projetos.length ? Math.round(projetos.reduce((n, p) => n + Number(p.progresso || 0), 0) / projetos.length) : 0;
+  const projetosAtrasados = d.resumo?.projetosAtrasados || 0;
+  const percentualAtrasados = d.resumo?.percentualProjetosAtrasados || 0;
+  const etapasCriticas = d.resumo?.etapasCriticas || [];
   const etapas = (p) => (p.responsaveisPorEntrega || []).filter((e) => e.chave !== 'acompanhamento').map((e) => {
     const feito = ['concluida', 'nao_aplicavel'].includes(e.status);
     return `<span class="portfolio-entrega ${feito ? 'feito' : ''}"><i>${feito ? '✓' : '·'}</i>${A.esc(e.titulo || e.chave)}</span>`;
@@ -898,22 +900,30 @@ Telas.dashboardOperacao = async (el) => {
     <div class="portfolio-hero-acoes"><span>${d.empresas || 0} empresa${Number(d.empresas) === 1 ? '' : 's'} na carteira</span><button class="btn" id="irProjetos">Ir para projetos <b>→</b></button></div>
   </section>
   <section class="portfolio-kpis">
-    <article><span>PROJETOS ATIVOS</span><b>${d.resumo?.emExecucao || 0}</b><small>em execução agora</small></article>
+    <article><span>TOTAL DE PROJETOS</span><b>${projetos.length}</b><small>${d.resumo?.emExecucao || 0} em execução agora</small></article>
+    <article><span>PROJETOS SEM RESPONSÁVEL</span><b>${d.resumo?.projetosSemResponsavel || 0}</b><small>aguardam um responsável geral</small></article>
+    <article><span>ESCOPOS SEM RESPONSÁVEL</span><b>${d.resumo?.escoposSemResponsavel || 0}</b><small>entregas aguardando atribuição</small></article>
+    <article class="portfolio-kpi-atencao"><span>PROJETOS ATRASADOS · SLA</span><b>${percentualAtrasados}%</b><small>${projetosAtrasados} de ${projetos.length} projeto${projetos.length === 1 ? '' : 's'} com etapa obrigatória vencida</small></article>
     <article><span>EVOLUÇÃO MÉDIA</span><b>${progressoMedio}%</b><div class="portfolio-mini-barra"><i style="width:${progressoMedio}%"></i></div></article>
     <article><span>ENTREGAS CONCLUÍDAS</span><b>${entregasConcluidas}<em>/${entregas}</em></b><small>escopos prontos para entrega</small></article>
-    <article class="portfolio-kpi-atencao"><span>ATENÇÕES ABERTAS</span><b>${(d.resumo?.tarefasAtrasadas || 0) + (d.resumo?.pendenciasCliente || 0)}</b><small>prazos e pendências do cliente</small></article>
   </section>
   <section class="portfolio-grade">
+    <article class="portfolio-card portfolio-evolucao"><div class="portfolio-card-titulo"><div><span class="portfolio-eyebrow">EVOLUÇÃO DO PROJETO</span><h2>Comparativo da carteira</h2></div><span class="portfolio-total">${projetos.length} projetos</span></div>
+      <p>O gráfico compara o percentual de entregas concluídas em cada projeto.</p>
+      <div class="portfolio-evolucao-lista">${projetos.length ? projetos.map((p) => `<div class="portfolio-evolucao-item"><b title="${A.esc(p.empresa)}">${A.esc(p.empresa)}</b><div class="portfolio-trilho"><i style="width:${Math.max(0, Math.min(100, Number(p.progresso || 0)))}%"></i></div><strong>${p.progresso || 0}%</strong></div>`).join('') : '<span class="mini">Nenhum projeto cadastrado.</span>'}</div>
+    </article>
     <article class="portfolio-card portfolio-estagios"><div class="portfolio-card-titulo"><div><span class="portfolio-eyebrow">DISTRIBUIÇÃO</span><h2>Estágio dos projetos</h2></div><span class="portfolio-total">${projetos.length} no total</span></div>
       <p>Quantidade de projetos em cada momento da jornada.</p>
       <div class="portfolio-grafico-barras">${porStatus.map((x) => `<div class="portfolio-linha-grafico"><div><span class="portfolio-ponto" style="background:${x.cor}"></span><b>${x.titulo}</b><strong>${x.total}</strong></div><div class="portfolio-trilho"><i style="width:${Math.round((x.total / total) * 100)}%;background:${x.cor}"></i></div></div>`).join('')}</div>
     </article>
-    <article class="portfolio-card portfolio-leitura"><span class="portfolio-eyebrow">COMO LER</span><h2>Do escopo à entrega</h2><p>As barras mostram quanto do escopo contratado já foi concluído. O <b>✓</b> identifica cada entrega pronta; os demais itens permanecem em andamento.</p><button class="portfolio-link" id="irProjetosSecundario">Ver todos os projetos <span>→</span></button></article>
+    <article class="portfolio-card portfolio-criticos"><div class="portfolio-card-titulo"><div><span class="portfolio-eyebrow">SLA</span><h2>Etapas críticas com atraso</h2></div><span class="portfolio-total ${etapasCriticas.length ? 'atrasado' : ''}">${etapasCriticas.reduce((n, e) => n + Number(e.atrasos || 0), 0)}</span></div>
+      ${etapasCriticas.length ? `<div class="portfolio-criticos-lista">${etapasCriticas.map((e) => `<div><b>${A.esc(e.titulo)}</b><span>${e.atrasos} prazo${e.atrasos === 1 ? '' : 's'} vencido${e.atrasos === 1 ? '' : 's'}</span></div>`).join('')}</div>` : '<p class="portfolio-sem-criticos">Nenhuma etapa obrigatória está em atraso.</p>'}
+      <button class="portfolio-link" id="irProjetosSecundario">Ir para projetos e responsáveis <span>→</span></button></article>
   </section>
   <section class="portfolio-carteira"><div class="portfolio-card-titulo"><div><span class="portfolio-eyebrow">CARTEIRA</span><h2>Projetos e entregas</h2><p>Entre em um projeto para planejar atividades, acompanhar cronograma e fechar as entregas.</p></div><span class="portfolio-total">${projetos.length} projetos</span></div>
     <div class="portfolio-lista">${projetos.length ? projetos.map(cardProjeto).join('') : A.vazio('Nenhum projeto cadastrado.', 'Crie um escopo para começar a acompanhar a carteira.')}</div>
   </section>`;
-  const irProjetos = () => A.ir('gestaoProjetos');
+  const irProjetos = () => A.ir('dashboardOperacao');
   el.querySelector('#irProjetos').onclick = irProjetos;
   el.querySelector('#irProjetosSecundario').onclick = irProjetos;
   el.querySelectorAll('[data-abrir-projeto]').forEach((botao) => { botao.onclick = async () => {

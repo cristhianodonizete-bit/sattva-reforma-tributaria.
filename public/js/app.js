@@ -2,7 +2,7 @@
    NÚCLEO — estado, navegação, chamadas à API e componentes reutilizáveis
    ========================================================================= */
 const App = (() => {
-  const S = { empresas: [], empresaId: null, empresa: null, params: null, tela: 'dashboardOperacao', aba: {}, cache: {}, menuAbertos: new Set() };
+  const S = { empresas: [], empresaId: null, empresa: null, params: null, tela: 'visaoCarteira', aba: {}, cache: {}, menuAbertos: new Set() };
   const temaAtual = () => document.documentElement.classList.contains('tema-escuro') ? 'escuro' : 'claro';
   const aplicarTema = (tema) => {
     const escolhido = tema === 'escuro' ? 'escuro' : 'claro';
@@ -184,8 +184,9 @@ const App = (() => {
   // ---------- NAVEGAÇÃO ----------
   const MENU = [
     { id: 'visao-geral', titulo: 'Visão geral', itens: [
+      { id: 'visaoCarteira', t: 'Visão da carteira', i: '◈' },
+      { id: 'dashboardOperacao', t: 'Projetos e responsáveis', i: '◷' },
       { id: 'painel', t: 'Painel do projeto', i: '◈' },
-      { id: 'dashboardOperacao', t: 'Visão da carteira', i: '◷' },
     ] },
     { id: 'dados', titulo: 'Central de Dados', itens: [
       { tipo: 'titulo', t: 'Controle da análise' },
@@ -248,7 +249,7 @@ const App = (() => {
   ];
   const TELAS_MENU = MENU.flatMap((grupo) => grupo.itens.filter((item) => item.id));
   const PERMISSAO_TELA = {
-    painel: 'visao_geral', empresas: 'visao_geral', dashboardOperacao: 'visao_geral',
+    painel: 'visao_geral', empresas: 'visao_geral', visaoCarteira: 'visao_geral', dashboardOperacao: 'visao_geral',
     dados: 'diagnostico', dadosDashboard: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', mapaOperacional: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     planejamento: 'gestao_projetos', entregavelCliente: 'diagnostico',
@@ -336,7 +337,7 @@ const App = (() => {
     // A abertura da carteira é global. Ocultar o seletor nessa visão evita
     // transmitir a ideia de que seus dados foram filtrados pela última empresa
     // analisada; a escolha volta a aparecer ao entrar em um projeto.
-    document.body.classList.toggle('visao-carteira', tela === 'dashboardOperacao');
+    document.body.classList.toggle('visao-carteira', tela === 'visaoCarteira');
     location.hash = tela;
     desenharMenu();
     const tituloContexto = document.getElementById('tituloContexto');
@@ -355,7 +356,7 @@ const App = (() => {
       const tarefasDaTela = TAREFAS_POR_TELA[tela];
       const fn = tarefasDaTela ? ((host) => telaTarefasModulo(host, ...tarefasDaTela)) : Telas[tela];
       if (!fn) { alvo.innerHTML = vazio('Tela não encontrada', 'Escolha uma opção no menu.'); return; }
-      const semEmpresa = ['empresas', 'dashboardOperacao', 'planejamento', 'gestaoProjetos', 'configComercial', 'sla', 'cadastrosCnpj', 'consultaBaseRegime', 'conhecimento', 'atualizacoesReforma', 'documentacaoSistema', 'questor', 'bases', 'configuracoes', 'controleProjeto', 'acessos'];
+      const semEmpresa = ['empresas', 'visaoCarteira', 'dashboardOperacao', 'planejamento', 'gestaoProjetos', 'configComercial', 'sla', 'cadastrosCnpj', 'consultaBaseRegime', 'conhecimento', 'atualizacoesReforma', 'documentacaoSistema', 'questor', 'bases', 'configuracoes', 'controleProjeto', 'acessos'];
       if (!semEmpresa.includes(tela) && !S.empresaId) {
         alvo.innerHTML = vazio('Selecione uma empresa', 'Este módulo trabalha sobre os dados de uma empresa. Cadastre ou selecione uma no topo do menu.',
           '<button class="btn" onclick="App.ir(\'empresas\')">Ir para empresas</button>');
@@ -489,8 +490,8 @@ const App = (() => {
     const toggleMenu = document.getElementById('menuToggle');
     if (localStorage.getItem('sattva_menu_colapsado') === 'sim') document.body.classList.add('menu-colapsado');
     if (toggleMenu) toggleMenu.onclick = () => { const ativo = document.body.classList.toggle('menu-colapsado'); localStorage.setItem('sattva_menu_colapsado', ativo ? 'sim' : 'nao'); };
-    const inicial = (location.hash || '').replace('#', '') || 'dashboardOperacao';
-    ir(TELAS_MENU.some((m) => m.id === inicial) ? inicial : 'dashboardOperacao');
+    const inicial = (location.hash || '').replace('#', '') || 'visaoCarteira';
+    ir(TELAS_MENU.some((m) => m.id === inicial) ? inicial : 'visaoCarteira');
   }
 
   function telaLogin() {
