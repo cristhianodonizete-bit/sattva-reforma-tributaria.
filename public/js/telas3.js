@@ -710,11 +710,15 @@ Telas.gestaoProjetos = async (el) => {
 
   el.querySelectorAll('[data-aprovar]').forEach((b) => { b.onclick = () => {
     const p = d.propostas.find((x) => x.id === Number(b.dataset.aprovar));
+    const idsAtuais = new Set((p.servicos || []).map(Number));
+    const semEntregas = !idsAtuais.size;
+    const seletorEntregas = semEntregas ? `<div class="aviso atencao"><b>Entregas não identificadas no plano</b>Escolha abaixo o que foi contratado. Essa seleção será gravada no escopo antes da liberação.</div><div class="empresas-acesso">${(d.servicos || []).map((s) => `<label class="check"><input type="checkbox" name="servico_${s.id}"> <b>${A.esc(s.nome)}</b><span class="mini"> · ${A.esc(s.modulo || s.chave_entrega || '')}</span></label>`).join('')}</div>` : '';
     const m = A.modal({ titulo: `Aprovação do escopo — ${p.razao_social}`, largura: 620,
       corpo: `<div class="aviso"><b>O escopo será congelado</b>Os módulos do combo/proposta passam a ser a referência para a evolução deste projeto. Alterações futuras no catálogo não o modificam.</div>
+        ${seletorEntregas}
         ${A.campo('acompanhamento_meses', 'Meses de acompanhamento liberados', p.acompanhamento_meses || 3, 'number', 'min=0 max=36')}
         ${A.area('observacoes', 'Observações do fechamento', p.observacoes || '', 3)}`,
-      aoConfirmar: async (form) => { await A.api(`/contratacoes/${p.id}/aprovar`, { metodo: 'POST', corpo: form }); A.toast('Escopo aprovado e módulos liberados', 'ok'); A.ir('gestaoProjetos'); } });
+      aoConfirmar: async (form) => { if (semEntregas) form.servicos=(d.servicos || []).filter((s)=>form[`servico_${s.id}`]).map((s)=>s.id); await A.api(`/contratacoes/${p.id}/aprovar`, { metodo: 'POST', corpo: form }); A.toast('Escopo aprovado e módulos liberados', 'ok'); A.ir('gestaoProjetos'); } });
   }; });
   el.querySelectorAll('[data-escopo]').forEach((b) => { b.onclick = () => {
     const p = d.projetos.find((x) => x.id === Number(b.dataset.escopo));

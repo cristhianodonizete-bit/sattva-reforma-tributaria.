@@ -2890,15 +2890,20 @@ router.post('/contratacoes/:id/aprovar', async (req, res) => {
     const c = await contratacaoPermitida(req, req.params.id);
     const combo = c.combo_id ? db.prepare('SELECT acompanhamento_meses FROM combos WHERE id=?').get(c.combo_id) : null;
     const meses = Math.max(0, Number(req.body.acompanhamento_meses ?? c.acompanhamento_meses ?? combo?.acompanhamento_meses ?? 0));
-    const ids = JSON.parse(c.servicos_json || '[]');
+    // Contratos criados antes da vinculação dos itens ao combo podem ter
+    // servicos_json vazio. Na aprovação, recuperamos o escopo do próprio
+    // combo; se o aprovador informou itens no modal, estes prevalecem.
+    const idsInformados = Array.isArray(req.body.servicos) ? req.body.servicos.map(Number).filter(Number.isInteger) : [];
+    let ids = idsInformados.length ? idsInformados : JSON.parse(c.servicos_json || '[]').map(Number).filter(Number.isInteger);
+    if (!ids.length && c.combo_id) ids = db.prepare('SELECT servico_id FROM combo_itens WHERE combo_id=?').all(c.combo_id).map((x) => x.servico_id);
     const servicos = ids.length ? db.prepare(`SELECT chave_entrega FROM servicos WHERE id IN (${ids.map(() => '?').join(',')})`).all(...ids) : [];
     const modulos = [...new Set(servicos.map((s) => s.chave_entrega).filter((x) => ENTREGAS_PROJETO[x]))];
-    if (!modulos.length) throw new Error('A proposta não possui módulos de entrega configurados.');
+    if (!modulos.length) throw new Error('O plano não possui entregas configuradas. Selecione as entregas no formulário de aprovação ou configure os itens do combo.');
     const insEntrega = db.prepare('INSERT OR IGNORE INTO projeto_entregas (contratacao_id, chave, titulo) VALUES (?,?,?)');
     db.transaction(() => {
       db.prepare(`UPDATE contratacoes SET status='em_execucao', aprovado_em=datetime('now','localtime'),
-        competencia_referencia=?, acompanhamento_meses=?, modulos_json=?, observacoes=? WHERE id=?`)
-        .run(null, meses, JSON.stringify(modulos), req.body.observacoes || c.observacoes || '', c.id);
+        competencia_referencia=?, acompanhamento_meses=?, modulos_json=?, servicos_json=?, observacoes=? WHERE id=?`)
+        .run(null, meses, JSON.stringify(modulos), JSON.stringify(ids), req.body.observacoes || c.observacoes || '', c.id);
       db.prepare('DELETE FROM projeto_entregas WHERE contratacao_id=?').run(c.id);
       db.prepare('DELETE FROM projeto_acompanhamentos WHERE contratacao_id=?').run(c.id);
       modulos.forEach((chave) => insEntrega.run(c.id, chave, ENTREGAS_PROJETO[chave]));
