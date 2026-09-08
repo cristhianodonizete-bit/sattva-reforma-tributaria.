@@ -1480,7 +1480,7 @@ router.post('/empresas/:id/importar/parceiros', upload.single('arquivo'), async 
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { importados: n, ignorados: r.ignorados, mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas,
       enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
-        mensagem: 'Consulta cadastral de clientes agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
+        mensagem: 'Consulta cadastral de clientes e fornecedores agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -1515,7 +1515,7 @@ router.post('/empresas/:id/importar/movimentos', upload.single('arquivo'), async
     ok(res, { importados: r.registros.length, ignorados: r.ignorados, valorTotal: calc.r2(total),
       mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas, classificacao, ...vinc,
       enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
-        mensagem: 'Consulta cadastral de clientes agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
+        mensagem: 'Consulta cadastral de clientes e fornecedores agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -1602,11 +1602,11 @@ function vincularRegimes(empresaId) {
 }
 
 function agendarEnriquecimentoAutomatico(empresaId) {
-  // Após importar documentos, a fila trata apenas clientes: são eles que
-  // podem ser destinatários de condições fiscais de saída. A consulta usa o
-  // cadastro CNPJ compartilhado antes de qualquer API externa e não toca QSA.
+  // Após importar documentos, a fila completa o cadastro compartilhado de
+  // clientes e fornecedores. Etiquetas de destinatário seguem exclusivas dos
+  // clientes; fornecedor comum não recebe etiqueta fiscal.
   return cnpjReceita.agendarEnriquecimento(Number(empresaId), {
-    tipo: 'cliente', finalidade: 'cnae_carteira', limite: 500,
+    finalidade: 'cnae_carteira', limite: 500,
   });
 }
 
@@ -3729,7 +3729,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { ...relatorio, classificacao, semRegime: vinculo.semRegime,
       enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
-        mensagem: 'Consulta cadastral de clientes agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
+        mensagem: 'Consulta cadastral de clientes e fornecedores agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }
 });
 
@@ -3939,7 +3939,7 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
     ok(res, { ...rel, classificacao, parceirosSemRegime: semRegime,
       enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
-        mensagem: 'Consulta cadastral de clientes agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
+        mensagem: 'Consulta cadastral de clientes e fornecedores agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }
 });
 

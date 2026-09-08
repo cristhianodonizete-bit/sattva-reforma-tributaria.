@@ -572,7 +572,7 @@ Telas.dados = async (el) => {
       const cols = Object.entries(r.colunasDetectadas || {}).map(([k, v]) => `<tr><td>${k}</td><td class="mono">${A.esc(v)}</td></tr>`).join('');
       const enriquecimento = r.enriquecimento;
       const blocoEnriquecimento = enriquecimento ? `<div class="aviso" id="enriquecimentoImportacao" style="margin-top:14px">
-        <b>Consulta cadastral de clientes: em processo</b><br>${A.esc(enriquecimento.mensagem || 'A fila foi agendada.')}
+        <b>Consulta cadastral de parceiros: em processo</b><br>${A.esc(enriquecimento.mensagem || 'A fila foi agendada.')}
         <div class="mini" style="margin-top:4px">BrasilAPI é a fonte primária; ReceitaWS só é usada em fallback. Nenhuma consulta é repetida quando o CNPJ já existe no cadastro compartilhado.</div>
       </div>` : '';
       const modalImportacao = A.modal({ titulo: 'Importação concluída', largura: 620,
