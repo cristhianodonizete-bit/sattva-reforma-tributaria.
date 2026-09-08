@@ -36,6 +36,10 @@ const FONTES = [
     chave: 'nfse_rtc', nome: 'Portal NFS-e — documentação técnica RTC', tema: 'DOCUMENTOS_FISCAIS',
     url: 'https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/rtc'
   }
+  ,{
+    chave: 'nfse_anexo_viii', nome: 'Portal NFS-e — Anexo VIII (LC 116 × NBS × cIndOp × cClassTrib)', tema: 'DOCUMENTOS_FISCAIS',
+    url: 'https://www.gov.br/nfse/pt-br/biblioteca/documentacao-tecnica/rtc/anexoviii-correlacaoitemnbsindopcclasstrib_ibscbs_v1-00-00.xlsx/view'
+  }
 ];
 
 const LIMITE_INTERVALO_MS = 20 * 60 * 60 * 1000;
