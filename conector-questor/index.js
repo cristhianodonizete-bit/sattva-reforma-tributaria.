@@ -49,10 +49,12 @@ async function executar(t) {
   const acao=t.payload?.actionName || 'nFisRRTotalPISCOFINSProd';
   if(t.tipo==='PARAMETROS_RELATORIO') return { parametros:await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acao}) };
   if(t.tipo==='IMPORTAR_MOVIMENTACAO') { const entrada=t.payload?.tipo==='fornecedor'; return { registros:JSON.parse(await nweb(entrada?'/TnWebDMFiscal/PegarLancamentosEntrada':'/TnWebDMFiscal/PegarLancamentosSaida',{codigoempresa:t.payload.codigo_questor,datainicial:t.payload.inicio,datafinal:t.payload.fim})) }; }
-  // O roteador nWeb lê os controles do relatório na URL, mas exige POST com
-  // corpo JSON para os parâmetros de negócio. GET sem corpo é rejeitado.
+  // O roteador REST/SOA do nWeb vincula os parâmetros do relatório pela URL
+  // (como faz com _AActionName). O corpo permanece um objeto JSON vazio só
+  // para manter o POST exigido por Executar; parâmetros no corpo são aceitos
+  // pelo HTTP mas ignorados pelo método Delphi.
   const parametros = parametrosRelatorioNweb(t.payload?.parametros || {});
-  const relatorio = validarRetornoRelatorio(await nweb('/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT'}, parametros));
+  const relatorio = validarRetornoRelatorio(await nweb('/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT', ...parametros}, {}));
   return { actionName:acao, formato:'nrwexTXT', relatorio };
 }
 async function ciclo(){
