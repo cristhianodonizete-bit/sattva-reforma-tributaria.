@@ -6,6 +6,7 @@
  * encontrados no documento, sempre acompanhados de localização e confiança.
  */
 const crypto = require('crypto');
+const supabase = require('./supabase');
 
 const CAMPOS_NUMERICOS = new Set([
   'receita_base', 'pis_debito', 'cofins_debito', 'pis_credito', 'cofins_credito',
@@ -258,6 +259,46 @@ function importarRelatorioQuestor(db, empresaId, textoRelatorio, { competenciaSo
   }, campos) };
 }
 
+async function publicarCompartilhado(db, empresaId) {
+  if (!supabase.configurado()) return { ativo:false };
+  const local = db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId);
+  const cnpj = String(local?.cnpj || '').replace(/\D/g, '');
+  const { data: empresas, error: empresaErro } = await supabase.admin().from('empresas').select('id').or(cnpj ? `origem_local_id.eq.${empresaId},cnpj.eq.${cnpj}` : `origem_local_id.eq.${empresaId}`).limit(2);
+  if (empresaErro || !empresas?.length) throw new Error(`Não foi possível localizar a empresa compartilhada para a apuração: ${empresaErro?.message || 'empresa ausente'}`);
+  const remoto = supabase.admin(), empresaRemota = empresas[0].id;
+  const itens = listarParaRevisao(db, empresaId);
+  for (const item of itens) {
+    const docLocal = db.prepare('SELECT * FROM pis_cofins_apuracao_documentos WHERE id=?').get(item.documento_id);
+    const documento = { empresa_id:empresaRemota, nome_original:docLocal.nome_original, tipo_documento:docLocal.tipo_documento, mime_type:docLocal.mime_type || null, conteudo_original:`\\x${Buffer.from(docLocal.conteudo_original).toString('hex')}`, hash_sha256:docLocal.hash_sha256, competencia_detectada:docLocal.competencia_detectada || null, data_processamento:docLocal.data_processamento, versao_modelo_extracao:docLocal.versao_modelo_extracao, status_processamento:docLocal.status_processamento };
+    let { data: doc, error } = await remoto.from('pis_cofins_apuracao_documentos').upsert(documento, { onConflict:'empresa_id,hash_sha256' }).select('id').single(); if (error) throw new Error(error.message);
+    const apuracao = { empresa_id:empresaRemota, documento_id:doc.id, competencia:item.competencia || null, regime_pis_cofins:item.regime_pis_cofins || null, receita_base:item.receita_base, pis_debito:item.pis_debito, cofins_debito:item.cofins_debito, pis_credito:item.pis_credito, cofins_credito:item.cofins_credito, pis_credito_utilizado:item.pis_credito_utilizado, cofins_credito_utilizado:item.cofins_credito_utilizado, saldo_pis:item.saldo_pis, saldo_cofins:item.saldo_cofins, pis_recolhido:item.pis_recolhido, cofins_recolhida:item.cofins_recolhida, observacoes:item.observacoes || null, status_validacao:item.status_validacao, divergencias:item.divergencias || [] };
+    let r = await remoto.from('pis_cofins_apuracoes_historicas').upsert(apuracao, { onConflict:'documento_id' }).select('id').single(); if (r.error) throw new Error(r.error.message);
+    await remoto.from('pis_cofins_apuracao_campos').delete().eq('apuracao_id', r.data.id);
+    const campos = (item.campos_extraidos || []).map((c) => ({ apuracao_id:r.data.id, campo:c.campo, valor_extraido:c.valor_extraido == null ? null : String(c.valor_extraido), origem_documento:c.origem_documento, pagina_ou_localizacao:c.pagina_ou_localizacao, rotulo_original:c.rotulo_original, confianca:c.confianca, metodo_extracao:c.metodo_extracao, status_validacao:c.status_validacao }));
+    if (campos.length) { const { error: ce } = await remoto.from('pis_cofins_apuracao_campos').insert(campos); if (ce) throw new Error(ce.message); }
+  }
+  return { ativo:true, apuracoes:itens.length };
+}
+
+async function restaurarCompartilhado(db, empresaId) {
+  if (!supabase.configurado()) return { ativo:false };
+  const local = db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId), cnpj = String(local?.cnpj || '').replace(/\D/g, '');
+  const { data: empresas } = await supabase.admin().from('empresas').select('id').or(cnpj ? `origem_local_id.eq.${empresaId},cnpj.eq.${cnpj}` : `origem_local_id.eq.${empresaId}`).limit(1);
+  if (!empresas?.[0]) return { ativo:true, apuracoes:0 };
+  const remoto = supabase.admin(), remotoEmpresa = empresas[0].id;
+  const { data: docs, error } = await remoto.from('pis_cofins_apuracao_documentos').select('*').eq('empresa_id', remotoEmpresa);
+  if (error) throw new Error(error.message); if (!docs?.length) return { ativo:true, apuracoes:0 };
+  // Só repõe o cache se ele estiver vazio; nunca substitui trabalho ainda vivo.
+  if (db.prepare('SELECT 1 FROM pis_cofins_apuracoes_historicas WHERE empresa_id=? LIMIT 1').get(empresaId)) return { ativo:true, apuracoes:0, cache_preservado:true };
+  const ids = docs.map((d) => d.id), { data: aps } = await remoto.from('pis_cofins_apuracoes_historicas').select('*').in('documento_id', ids), apIds = (aps || []).map((a) => a.id), { data: campos } = apIds.length ? await remoto.from('pis_cofins_apuracao_campos').select('*').in('apuracao_id', apIds) : { data:[] };
+  const porDoc = new Map(), porAp = new Map();
+  db.transaction(() => {
+    for (const d of docs) { const r=db.prepare(`INSERT INTO pis_cofins_apuracao_documentos (empresa_id,nome_original,tipo_documento,mime_type,conteudo_original,hash_sha256,competencia_detectada,data_processamento,versao_modelo_extracao,status_processamento) VALUES (?,?,?,?,?,?,?,?,?,?)`).run(empresaId,d.nome_original,d.tipo_documento,d.mime_type,d.conteudo_original ? Buffer.from(String(d.conteudo_original).replace(/^\\x/,''),'hex') : Buffer.alloc(0),d.hash_sha256,d.competencia_detectada,d.data_processamento,d.versao_modelo_extracao,d.status_processamento); porDoc.set(d.id,r.lastInsertRowid); }
+    for (const a of (aps||[])) { const r=db.prepare(`INSERT INTO pis_cofins_apuracoes_historicas (empresa_id,documento_id,competencia,regime_pis_cofins,receita_base,pis_debito,cofins_debito,pis_credito,cofins_credito,pis_credito_utilizado,cofins_credito_utilizado,saldo_pis,saldo_cofins,pis_recolhido,cofins_recolhida,observacoes,status_validacao,divergencias) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(empresaId,porDoc.get(a.documento_id),a.competencia,a.regime_pis_cofins,a.receita_base,a.pis_debito,a.cofins_debito,a.pis_credito,a.cofins_credito,a.pis_credito_utilizado,a.cofins_credito_utilizado,a.saldo_pis,a.saldo_cofins,a.pis_recolhido,a.cofins_recolhida,a.observacoes,a.status_validacao,JSON.stringify(a.divergencias||[])); porAp.set(a.id,r.lastInsertRowid); }
+    for (const c of (campos||[])) db.prepare(`INSERT INTO pis_cofins_apuracao_campos (apuracao_id,campo,valor_extraido,origem_documento,pagina_ou_localizacao,rotulo_original,confianca,metodo_extracao,status_validacao) VALUES (?,?,?,?,?,?,?,?,?)`).run(porAp.get(c.apuracao_id),c.campo,c.valor_extraido,c.origem_documento,c.pagina_ou_localizacao,c.rotulo_original,c.confianca,c.metodo_extracao,c.status_validacao);
+  })(); return { ativo:true, apuracoes:(aps||[]).length };
+}
+
 // A confirmação não recalcula nem altera valores extraídos. Ela apenas registra
 // a revisão humana de campos presentes e preserva NULL/INDETERMINADO.
 function confirmarRevisao(db, empresaId, apuracaoId) {
@@ -279,4 +320,4 @@ function promptExtracao(textoDocumento) {
   return `Extraia apenas valores expressos no documento de apuração PIS/Cofins. Não calcule, não infira e não substitua ausência por zero. Retorne JSON com a chave campos e, para cada campo abaixo, valor_extraido, origem_documento, pagina_ou_localizacao, rotulo_original, confianca (0 a 1), metodo_extracao e status_validacao. Campos: ${CAMPOS.join(', ')}. Se não existir, valor_extraido deve ser null e status_validacao INDETERMINADO. Documento:\n${String(textoDocumento).slice(0, 70000)}`;
 }
 
-module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, reprocessar, importarRelatorioQuestor, confirmarRevisao, promptExtracao, validarConsistencia, normalizarTextoDeterministico };
+module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, reprocessar, importarRelatorioQuestor, confirmarRevisao, publicarCompartilhado, restaurarCompartilhado, promptExtracao, validarConsistencia, normalizarTextoDeterministico };

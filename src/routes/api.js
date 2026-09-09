@@ -1252,11 +1252,12 @@ router.post('/empresas/:id/apuracoes-pis-cofins/ingestao', upload.single('arquiv
       nome_original: req.file.originalname, tipo_documento: tipoDocumento, mime_type: req.file.mimetype,
       conteudo_original: req.file.buffer, versao_modelo_extracao: `${extracaoDocumento.modelo} + NORMALIZACAO_DETERMINISTICA_V1`,
     }, extraido);
+    await apuracoesPisCofinsIa.publicarCompartilhado(db, Number(req.params.id));
     ok(res, { ...resultado, campos_pendentes: resultado.campos.filter((x) => x.status_validacao !== 'VALIDADO_AUTOMATICAMENTE').map((x) => x.campo) });
   } catch (e) { erro(res, e); }
 });
-router.get('/empresas/:id/apuracoes-pis-cofins', (req, res) => {
-  try { ok(res, { apuracoes: apuracoesPisCofinsIa.listarParaRevisao(db, Number(req.params.id)) }); }
+router.get('/empresas/:id/apuracoes-pis-cofins', async (req, res) => {
+  try { await apuracoesPisCofinsIa.restaurarCompartilhado(db, Number(req.params.id)); ok(res, { apuracoes: apuracoesPisCofinsIa.listarParaRevisao(db, Number(req.params.id)) }); }
   catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/apuracoes-pis-cofins/:apuracaoId/reprocessar', async (req, res) => {
