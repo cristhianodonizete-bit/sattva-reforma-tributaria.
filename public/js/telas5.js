@@ -514,11 +514,12 @@ async function projImportacaoXml(el) {
     [...files].forEach((f) => fd.append('arquivos', f));
     try {
       const r = await A.api(`/empresas/${S.empresaId}/importar/xml`, { metodo: 'POST', corpo: fd });
-      box.innerHTML = `<div class="grade g3" style="margin-bottom:10px">
+      box.innerHTML = `<div class="grade g4" style="margin-bottom:10px">
           ${A.kpi('Documentos lidos', r.documentos)}
           ${A.kpi('Itens', r.itens, `${r.entradas} entradas · ${r.saidas} saídas`)}
+          ${A.kpi('Faturamento no período', A.moeda(r.receita_saida_no_periodo || 0), `${r.saidas_no_periodo || 0} item(ns) de saída no período`)}
           ${A.kpi('Regimes sugeridos', r.regimesSugeridos, 'pelo CRT do XML')}
-        </div>
+        </div>${r.saidas_fora_do_periodo ? `<div class="aviso atencao"><b>${r.saidas_fora_do_periodo} item(ns) de saída ficaram fora do período analisado.</b><br>${A.moeda(r.receita_saida_fora_do_periodo || 0)} foi preservado(a) no histórico e não entra no faturamento do Perfil.</div>` : ''}${r.duplicados ? `<div class="aviso"><b>${r.duplicados} item(ns) já existiam.</b><br>Não foram incluídos novamente no faturamento.</div>` : ''}
         ${r.requerValidacao ? `<div class="aviso atencao"><b>${r.requerValidacao} documentos requerem validação</b>
           O CNPJ da empresa não aparece como emitente nem destinatário — confira se o XML pertence a esta empresa.</div>` : ''}
         ${r.classificacao ? `<div class="aviso bom"><b>Classificação automática</b>

@@ -4054,7 +4054,7 @@ router.post('/empresas/:id/bases/decidir', (req, res) => {
 // ---- Importação de XML (fonte principal) ----
 router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (req, res) => {
   try {
-    await exigirPeriodoParaImportacao(req);
+    const periodoImportacao = await exigirPeriodoParaImportacao(req);
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada.');
     const arquivos = req.files || [];
@@ -4078,7 +4078,8 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
       WHERE empresa_id=? AND origem='xml' AND chave=? AND item_numero=? LIMIT 1`);
 
     const relatorio = { arquivos: arquivos.length, documentos: 0, itens: 0, entradas: 0, saidas: 0,
-      requerValidacao: 0, duplicados: 0, erros: [], regimesSugeridos: 0 };
+      requerValidacao: 0, duplicados: 0, receita_saida_no_periodo: 0, receita_saida_fora_do_periodo: 0,
+      saidas_no_periodo: 0, saidas_fora_do_periodo: 0, erros: [], regimesSugeridos: 0 };
 
     db.transaction(() => {
       for (const f of arquivos) {
@@ -4114,7 +4115,17 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
             if (identidade?.produto_empresa_id) db.prepare('UPDATE movimentos SET produto_empresa_id=? WHERE id=?').run(identidade.produto_empresa_id, movimento.lastInsertRowid);
             normalizacaoFiscalXml.validarMovimento(Number(movimento.lastInsertRowid));
             relatorio.itens++;
-            if (i.sentido === 'entrada') relatorio.entradas++; else relatorio.saidas++;
+            if (i.sentido === 'entrada') relatorio.entradas++;
+            else {
+              relatorio.saidas++;
+              if (periodoAnalisado.noPeriodo(i.competencia, periodoImportacao)) {
+                relatorio.saidas_no_periodo++;
+                relatorio.receita_saida_no_periodo += Number(i.valor) || 0;
+              } else {
+                relatorio.saidas_fora_do_periodo++;
+                relatorio.receita_saida_fora_do_periodo += Number(i.valor) || 0;
+              }
+            }
           }
         } catch (e) { relatorio.erros.push(`${f.originalname}: ${e.message}`); }
       }
