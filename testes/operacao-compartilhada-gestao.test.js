@@ -4,8 +4,10 @@ const fs = require('node:fs');
 const path = require('node:path');
 const os = require('node:os');
 const operacaoFonte = fs.readFileSync(path.join(__dirname, '..', 'src', 'services', 'operacaoCompartilhada.js'), 'utf8');
-assert.match(operacaoFonte, /\['empresas', 'empresa_qsa'\]\.includes\(tabela\)/,
+assert.match(operacaoFonte, /\['empresas', 'empresa_qsa', 'regras_enquadramento'\]\.includes\(tabela\)/,
   'empresa e QSA não podem voltar a ser publicados pelo espelho genérico do cache');
+assert.match(operacaoFonte, /movimentos:\s*\[[^\]]*'modelo_documento_fiscal'/s,
+  'o modelo fiscal do XML precisa permanecer na fotografia compartilhada');
 
 process.env.SATTVA_DADOS = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-gestao-cache-'));
 const { mapaEmpresasLocais, normalizarEmpresaIdDoCache } = require('../src/services/operacaoCompartilhada');
@@ -25,10 +27,11 @@ assert.deepEqual(
 );
 const fonteOperacao = fs.readFileSync(path.join(__dirname, '../src/services/operacaoCompartilhada.js'), 'utf8');
 const fonteApi = fs.readFileSync(path.join(__dirname, '../src/routes/api.js'), 'utf8');
-assert.match(fonteOperacao, /ativo: true, execucao_id: x\.execucao_id/, 'nova fotografia deve ser publicada como ativa');
+assert.match(fonteOperacao, /ativo: opcoes\.ativar !== false, execucao_id: x\.execucao_id/,
+  'nova fotografia deve ser publicada como ativa por padrão');
 assert.match(fonteOperacao, /empresasDaFotografia/, 'publicação deve tratar a fotografia completa de cada empresa');
 assert.match(fonteOperacao, /update\(\{ ativo: false \}\).*eq\('empresa_id', idEmpresa\)\.eq\('ativo', true\)/s,
   'fotografia anterior deve ser desativada antes de ativar a substituta');
-assert.match(fonteApi, /await require\('\.\.\/services\/operacaoCompartilhada'\)\.publicarResultadosMotor\(Number\(req\.params\.id\)\)/,
+assert.match(fonteApi, /await require\('\.\.\/services\/operacaoCompartilhada'\)\.publicarResultadosMotor\(empresaId\)/,
   'recalcular motor deve aguardar a publicação compartilhada');
 console.log('operacao-compartilhada-gestao: UUID remoto e fotografia ativa: OK');
