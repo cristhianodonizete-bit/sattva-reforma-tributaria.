@@ -3636,7 +3636,7 @@ router.post('/ia/testar', async (_req, res) => {
     await ia.sincronizarCompartilhado();
     // Teste explícito da principal: não disfarça uma falha da OpenAI com a
     // resposta de uma revisora em fallback.
-    const r = await ia.chamar([{ role: 'user', content: 'Responda apenas: conexao ok' }], { sistema:'Teste de conectividade. Responda apenas: conexao ok.', maxTokens:64, fallback:false });
+    const r = await ia.chamar([{ role: 'user', content: 'Responda apenas: conexao ok' }], { sistema:'Teste de conectividade. Responda apenas: conexao ok.', maxTokens:256, fallback:false });
     if (!String(r.texto || '').trim()) throw new Error(`${r.provedor} respondeu sem conteúdo. Verifique o modelo configurado e a disponibilidade da conta.`);
     ok(res, { resposta: r.texto.trim(), modelo: r.modelo, provedor:r.provedor });
   } catch (e) { erro(res, e); }
