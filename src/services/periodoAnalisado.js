@@ -10,6 +10,13 @@ const dataFim = (competencia) => {
   return new Date(Date.UTC(ano, mes, 0)).toISOString().slice(0, 10);
 };
 const deslocarMes = (competencia, deslocamento) => { const [ano, mes] = competencia.split('-').map(Number); const d = new Date(Date.UTC(ano, mes - 1 + deslocamento, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
+const competenciaAbertura = (data) => /^\d{4}-\d{2}-\d{2}$/.test(String(data || '')) ? String(data).slice(0, 7) : null;
+function validarAbertura(empresaId, inicio, banco) {
+  const empresa = banco.prepare('SELECT data_abertura FROM empresas WHERE id=?').get(Number(empresaId));
+  const abertura = competenciaAbertura(empresa?.data_abertura);
+  if (abertura && inicio < abertura) throw new Error(`O período analisado só pode começar em ${abertura}, competência de abertura da empresa.`);
+  return abertura;
+}
 function janelaApuracao(periodo) {
   if (!periodo) return null;
   const meses = Math.max(12, Number(periodo.apuracao_meses) || 12);
@@ -33,6 +40,7 @@ function salvar(empresaId, dados, usuarioId = null, { banco = dbPadrao } = {}) {
   const inicio = texto(dados.competencia_inicio); const fim = texto(dados.competencia_fim);
   if (!competenciaValida(inicio) || !competenciaValida(fim) || inicio > fim) throw new Error('Informe competências válidas, de mm/aaaa inicial até mm/aaaa final.');
   if (!banco.prepare('SELECT id FROM empresas WHERE id=?').get(Number(empresaId))) throw new Error('Empresa não encontrada.');
+  validarAbertura(empresaId, inicio, banco);
   const anterior = obter(empresaId, { banco });
   const apuracaoMeses = Math.max(12, Number(dados.apuracao_meses) || Number(anterior?.apuracao_meses) || 12);
   const apuracaoIncluiExercicio = dados.apuracao_inclui_exercicio === false || dados.apuracao_inclui_exercicio === '0' ? 0 : 1;
@@ -94,6 +102,7 @@ async function salvarCompartilhado(empresaId, dados, usuarioId = null, { banco =
   const inicio = texto(dados.competencia_inicio); const fim = texto(dados.competencia_fim);
   if (!competenciaValida(inicio) || !competenciaValida(fim) || inicio > fim) throw new Error('Informe competências válidas, de mm/aaaa inicial até mm/aaaa final.');
   if (!banco.prepare('SELECT id FROM empresas WHERE id=?').get(Number(empresaId))) throw new Error('Empresa não encontrada.');
+  validarAbertura(empresaId, inicio, banco);
   if (!supabase.configurado()) return salvar(empresaId, dados, usuarioId, { banco });
   const empresa = await empresaRemota(empresaId, banco);
   if (!empresa) throw new Error('Empresa ainda não está disponível na base compartilhada. A configuração não foi gravada para evitar perda de sincronização.');
@@ -120,14 +129,15 @@ function noPeriodo(competencia, periodo) {
 
 function cobertura(empresaId, { banco = dbPadrao } = {}) {
   const periodo = obter(empresaId, { banco });
-  if (!periodo) return { periodo:null, competencias:[], faltantes:[], fora_do_periodo:0 };
+  const empresa = banco.prepare('SELECT data_abertura FROM empresas WHERE id=?').get(Number(empresaId)) || {};
+  if (!periodo) return { periodo:null, competencias:[], faltantes:[], fora_do_periodo:0, data_abertura:empresa.data_abertura || null, competencia_abertura:competenciaAbertura(empresa.data_abertura) };
   const esperadas = []; for (let c=periodo.competencia_inicio; c<=periodo.competencia_fim;) { esperadas.push(c); const [a,m]=c.split('-').map(Number); c=`${m===12?a+1:a}-${String(m===12?1:m+1).padStart(2,'0')}`; }
   const encontradas = banco.prepare(`SELECT DISTINCT competencia FROM (
     SELECT competencia FROM movimentos WHERE empresa_id=? UNION SELECT competencia FROM perfil_tributario WHERE empresa_id=?
     UNION SELECT competencia FROM folhas_pagamento_competencias WHERE empresa_id=? UNION SELECT competencia FROM receitas_sem_dfe WHERE empresa_id=?
   ) WHERE competencia IS NOT NULL AND competencia<>''`).all(empresaId, empresaId, empresaId, empresaId).map((x) => x.competencia);
   const dentro = new Set(encontradas.filter((x) => noPeriodo(x, periodo)));
-  return { periodo, competencias:esperadas, cobertas:esperadas.filter((x) => dentro.has(x)), faltantes:esperadas.filter((x) => !dentro.has(x)), fora_do_periodo:encontradas.filter((x) => competenciaValida(x) && !noPeriodo(x, periodo)).length };
+  return { periodo, competencias:esperadas, cobertas:esperadas.filter((x) => dentro.has(x)), faltantes:esperadas.filter((x) => !dentro.has(x)), fora_do_periodo:encontradas.filter((x) => competenciaValida(x) && !noPeriodo(x, periodo)).length, data_abertura:empresa.data_abertura || null, competencia_abertura:competenciaAbertura(empresa.data_abertura) };
 }
 
-module.exports = { obter, salvar, exigir, cobertura, noPeriodo, competenciaValida, dataInicio, dataFim, deslocarMes, janelaApuracao, sincronizarCompartilhado, salvarCompartilhado };
+module.exports = { obter, salvar, exigir, cobertura, noPeriodo, competenciaValida, dataInicio, dataFim, deslocarMes, competenciaAbertura, janelaApuracao, sincronizarCompartilhado, salvarCompartilhado };

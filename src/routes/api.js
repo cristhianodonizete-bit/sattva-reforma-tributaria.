@@ -339,7 +339,7 @@ async function publicarCadastroEmpresa(empresaId) {
   // cadastro usa então a identidade remota estável, nunca o id efêmero do
   // cache operacional.
   await sincronizarGestaoSupabase();
-  const empresa = db.prepare('SELECT cnpj,razao_social,nome_fantasia,regime,uf,municipio,cnae,atividade,cnaes_secundarios,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes FROM empresas WHERE id=?').get(empresaId);
+  const empresa = db.prepare('SELECT cnpj,razao_social,nome_fantasia,regime,uf,municipio,cnae,atividade,cnaes_secundarios,data_abertura,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes FROM empresas WHERE id=?').get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada para publicação.');
   const remoto = supabase.admin();
   const { data, error: consultaErro } = await remoto.from('empresas').select('id').eq('origem_local_id', Number(empresaId)).maybeSingle();
@@ -868,10 +868,10 @@ router.post('/empresas', async (req, res) => {
     if (!cnpj) throw new Error('CNPJ obrigatório.');
     if (!b.razao_social) throw new Error('Razão social obrigatória.');
     const r = db.prepare(`INSERT INTO empresas (cnpj, razao_social, nome_fantasia, regime, uf, municipio,
-      cnae, atividade, cnaes_secundarios, faturamento_anual, setor, reducao_padrao, codigo_questor, observacoes)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(cnpj, b.razao_social, b.nome_fantasia || '',
+      cnae, atividade, cnaes_secundarios, data_abertura, faturamento_anual, setor, reducao_padrao, codigo_questor, observacoes)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(cnpj, b.razao_social, b.nome_fantasia || '',
       b.regime || 'lucro_real', b.uf || '', b.municipio || '', b.cnae || '', b.atividade || '',
-      b.cnaes_secundarios || '', Number(b.faturamento_anual) || 0, b.setor || '', b.reducao_padrao || 'integral',
+      b.cnaes_secundarios || '', b.data_abertura || null, Number(b.faturamento_anual) || 0, b.setor || '', b.reducao_padrao || 'integral',
       b.codigo_questor || '', b.observacoes || '');
     // A empresa precisa existir primeiro na fonte compartilhada. Isso evita
     // que dados complementares recém-informados fiquem apenas no cache local
@@ -926,7 +926,7 @@ router.put('/empresas/:id', async (req, res) => {
     if (!antes) throw new Error('Empresa não encontrada.');
     // Não use defaults em um UPDATE. Campo não enviado permanece exatamente
     // como estava, especialmente regime tributário e enquadramento padrão.
-    const campos = ['razao_social','nome_fantasia','regime','uf','municipio','cnae','atividade','cnaes_secundarios','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes'];
+    const campos = ['razao_social','nome_fantasia','regime','uf','municipio','cnae','atividade','cnaes_secundarios','data_abertura','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes'];
     const alteracoes = campos.filter((campo) => Object.prototype.hasOwnProperty.call(b, campo));
     if (!alteracoes.length) throw new Error('Nenhum campo de cadastro foi informado para atualização.');
     const depoisPretendido = { ...antes };

@@ -44,6 +44,13 @@ const percentualBanco = (v) => {
   const normalizado = typeof v === 'number' ? v : Number(String(v).replace('%', '').replace('.', '').replace(',', '.'));
   return Number.isFinite(normalizado) ? normalizado : null;
 };
+const dataAbertura = (v) => {
+  const texto = textoBanco(v).trim();
+  const iso = texto.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  const br = texto.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
+  return br ? `${br[3]}-${br[2]}-${br[1]}` : '';
+};
 const normalizarCnaesSecundarios = (...fontes) => {
   const expandir = (fonte) => {
     if (Array.isArray(fonte)) return fonte.flatMap(expandir);
@@ -91,6 +98,7 @@ const PROVEDORES = {
         logradouro: d.endereco_logradouro || d.logradouro || '', numero: d.endereco_numero || d.numero || '',
         complemento: d.endereco_complemento || d.complemento || '', bairro: d.endereco_bairro || d.bairro || '', cep: d.endereco_cep || d.cep || '',
         natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.natureza_juridica_codigo || ''), efr: d.efr || '',
+        data_abertura: dataAbertura(d.data_inicio_atividade || d.data_abertura || d.abertura),
         // A consulta de CNPJ não confirma opção pelo Simples; não inferir.
         opcao_simples_desconhecida:true, optante_simples:null, optante_mei:null,
         qsa: (d.qsa || []).map((s) => ({ nome:s.nome || '', documento:s.cpf_cnpj || s.documento || '', qualificacao:s.qualificacao || '', pais:s.pais_origem || s.pais || '', percentual_participacao:s.percentual_participacao ?? null, brasileiro:(s.pais_origem || s.pais) ? /brasil/i.test(s.pais_origem || s.pais) : true })),
@@ -116,6 +124,7 @@ const PROVEDORES = {
       complemento: d.complemento || '', bairro: d.bairro || '', cep: d.cep || '',
       natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.codigo_natureza_juridica || ''),
       efr: d.ente_federativo_responsavel || '',
+      data_abertura: dataAbertura(d.data_inicio_atividade || d.data_abertura),
       optante_simples: d.opcao_pelo_simples === true,
       data_opcao_simples: d.data_opcao_pelo_simples || null,
       data_exclusao_simples: d.data_exclusao_do_simples || null,
@@ -144,6 +153,7 @@ const PROVEDORES = {
         complemento: d.complemento || '', bairro: d.bairro || '', cep: d.cep || '',
         natureza_juridica: d.natureza_juridica || '', codigo_natureza_juridica: String(d.codigo_natureza_juridica || ''),
         efr: d.efr || '', opcao_simples_desconhecida:true, optante_simples:null, optante_mei:null,
+        data_abertura: dataAbertura(d.abertura || d.data_inicio_atividade),
         qsa: [],
       };
     },
@@ -172,6 +182,7 @@ const PROVEDORES = {
         optante_mei: m.optant === true,
         data_opcao_mei: m.since || null, data_exclusao_mei: m.until || null,
         natureza_juridica: (d.company && d.company.nature && d.company.nature.text) || '', codigo_natureza_juridica: String((d.company && d.company.nature && d.company.nature.id) || ''),
+        data_abertura: dataAbertura(d.openedAt || d.company?.founded || d.company?.dateOfInception),
         qsa: ((d.company && (d.company.members || d.company.partners)) || []).map((s) => ({ nome: s.person && s.person.name || s.name || '', documento: s.person && s.person.taxId || s.taxId || '', qualificacao: s.role && s.role.text || s.qualification || '', pais: s.person && s.person.country || s.country || '', percentual_participacao: s.percentage ?? s.percentual_participacao ?? null, brasileiro: s.person?.country ? /brasil/i.test(s.person.country) : true })),
       };
     },
@@ -197,6 +208,7 @@ const PROVEDORES = {
       data_opcao_simples: null, data_exclusao_simples: null,
       data_opcao_mei: null, data_exclusao_mei: null,
       natureza_juridica: d.natureza_juridica?.descricao || d.natureza_juridica || '', codigo_natureza_juridica: String(d.natureza_juridica?.codigo || d.codigo_natureza_juridica || ''),
+      data_abertura: dataAbertura(d.data_inicio_atividade || d.data_abertura || d.abertura),
       qsa: (d.qsa || d.socios || []).map((s) => ({ nome: s.nome || s.nome_socio || '', documento: s.cpf_cnpj || s.documento || '', qualificacao: s.qualificacao || '', pais: s.pais || s.nacionalidade || '', percentual_participacao: s.percentual_participacao ?? s.percentual_capital_social ?? null, brasileiro: s.pais || s.nacionalidade ? /brasil/i.test(s.pais || s.nacionalidade) : true })),
     }),
   },
@@ -239,7 +251,7 @@ async function preconsultarCadastroEmpresa(cnpj) {
   const token = crypto.randomUUID();
   preconsultasCadastro.set(token, { cnpj:soDigitos(cnpj), resultado, expira_em:Date.now() + (10 * 60 * 1000) });
   for (const [chave, valor] of preconsultasCadastro) if (valor.expira_em < Date.now()) preconsultasCadastro.delete(chave);
-  return { token, cnpj:soDigitos(cnpj), cadastro:{ razao_social:resultado.razao_social || '', nome_fantasia:resultado.nome_fantasia || '', uf:resultado.uf || '', municipio:resultado.municipio || '', cnae:resultado.cnae || '', atividade:resultado.cnae_descricao || '', cnaes_secundarios:cnaesSecundariosTexto(resultado.cnaes_secundarios) }, qsa:(resultado.qsa || []).map((s) => ({ nome:s.nome || '', qualificacao:s.qualificacao || '', pais:s.pais || '', percentual_participacao:s.percentual_participacao ?? null, brasileiro:s.brasileiro !== false })), fonte:resultado.fonte || '', origem:resultado.origem || '' };
+  return { token, cnpj:soDigitos(cnpj), cadastro:{ razao_social:resultado.razao_social || '', nome_fantasia:resultado.nome_fantasia || '', uf:resultado.uf || '', municipio:resultado.municipio || '', cnae:resultado.cnae || '', atividade:resultado.cnae_descricao || '', cnaes_secundarios:cnaesSecundariosTexto(resultado.cnaes_secundarios), data_abertura:dataAbertura(resultado.data_abertura) }, qsa:(resultado.qsa || []).map((s) => ({ nome:s.nome || '', qualificacao:s.qualificacao || '', pais:s.pais || '', percentual_participacao:s.percentual_participacao ?? null, brasileiro:s.brasileiro !== false })), fonte:resultado.fonte || '', origem:resultado.origem || '' };
 }
 function consumirPreconsultaCadastro(token, cnpj) {
   const r = preconsultasCadastro.get(String(token || ''));
@@ -253,7 +265,7 @@ function consumirPreconsultaCadastro(token, cnpj) {
 // limitada aos quatro campos cadastrais públicos: não toca em regime, QSA,
 // cotas, nacionalidade, motor ou quaisquer campos fiscais.
 function preencherCadastroEmpresaSeVazio(empresaId, resultado) {
-  const atual = db().prepare('SELECT cnae,atividade,uf,municipio,cnaes_secundarios FROM empresas WHERE id=?').get(Number(empresaId));
+  const atual = db().prepare('SELECT cnae,atividade,uf,municipio,cnaes_secundarios,data_abertura FROM empresas WHERE id=?').get(Number(empresaId));
   if (!atual) throw new Error('Empresa não encontrada.');
   const candidatos = {
     cnae: textoBanco(resultado?.cnae).trim(),
@@ -261,6 +273,7 @@ function preencherCadastroEmpresaSeVazio(empresaId, resultado) {
     uf: textoBanco(resultado?.uf).trim(),
     municipio: textoBanco(resultado?.municipio).trim(),
     cnaes_secundarios: cnaesSecundariosTexto(resultado?.cnaes_secundarios),
+    data_abertura: dataAbertura(resultado?.data_abertura),
   };
   const vazio = (valor) => !textoBanco(valor).trim();
   const proximos = {};
@@ -269,8 +282,8 @@ function preencherCadastroEmpresaSeVazio(empresaId, resultado) {
     proximos[campo] = vazio(atual[campo]) && candidatos[campo] ? candidatos[campo] : atual[campo];
     if (vazio(atual[campo]) && candidatos[campo]) preenchidos.push(campo);
   }
-  if (preenchidos.length) db().prepare('UPDATE empresas SET cnae=?,atividade=?,uf=?,municipio=?,cnaes_secundarios=? WHERE id=?')
-    .run(proximos.cnae, proximos.atividade, proximos.uf, proximos.municipio, proximos.cnaes_secundarios, Number(empresaId));
+  if (preenchidos.length) db().prepare('UPDATE empresas SET cnae=?,atividade=?,uf=?,municipio=?,cnaes_secundarios=?,data_abertura=? WHERE id=?')
+    .run(proximos.cnae, proximos.atividade, proximos.uf, proximos.municipio, proximos.cnaes_secundarios, proximos.data_abertura, Number(empresaId));
   return { preenchidos, cnae_encontrado: Boolean(candidatos.cnae) };
 }
 
@@ -443,8 +456,8 @@ function gravarCache(cnpj, d, fonte) {
   db().prepare(`INSERT INTO cnpj_cache (cnpj, razao_social, situacao, porte, cnae, cnae_descricao, cnaes_secundarios,
     uf, municipio, logradouro, numero, complemento, bairro, cep, optante_simples, data_opcao_simples, data_exclusao_simples,
     optante_mei, data_opcao_mei, data_exclusao_mei, regime_derivado, justificativa,
-    natureza_juridica, codigo_natureza_juridica, efr, fonte, consultado_em)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?, datetime('now','localtime'))
+    natureza_juridica, codigo_natureza_juridica, efr, data_abertura, fonte, consultado_em)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, ?, datetime('now','localtime'))
     ON CONFLICT(cnpj) DO UPDATE SET razao_social=excluded.razao_social, situacao=excluded.situacao,
       porte=excluded.porte, cnae=excluded.cnae, cnae_descricao=excluded.cnae_descricao, cnaes_secundarios=excluded.cnaes_secundarios,
       uf=excluded.uf, municipio=excluded.municipio, logradouro=excluded.logradouro, numero=excluded.numero,
@@ -453,13 +466,13 @@ function gravarCache(cnpj, d, fonte) {
       data_exclusao_simples=excluded.data_exclusao_simples, optante_mei=excluded.optante_mei,
       data_opcao_mei=excluded.data_opcao_mei, data_exclusao_mei=excluded.data_exclusao_mei,
       regime_derivado=excluded.regime_derivado, justificativa=excluded.justificativa,
-      natureza_juridica=excluded.natureza_juridica, codigo_natureza_juridica=excluded.codigo_natureza_juridica, efr=excluded.efr,
+      natureza_juridica=excluded.natureza_juridica, codigo_natureza_juridica=excluded.codigo_natureza_juridica, efr=excluded.efr, data_abertura=excluded.data_abertura,
       fonte=excluded.fonte, consultado_em=datetime('now','localtime')`)
     .run(cnpj, d.razao_social, d.situacao, d.porte, d.cnae, d.cnae_descricao, cnaesSecundariosTexto(d.cnaes_secundarios), d.uf, d.municipio,
       d.logradouro || '', d.numero || '', d.complemento || '', d.bairro || '', d.cep || '',
       d.optante_simples ? 1 : 0, d.data_opcao_simples, d.data_exclusao_simples,
       d.optante_mei ? 1 : 0, d.data_opcao_mei, d.data_exclusao_mei,
-      reg.regime, reg.justificativa, d.natureza_juridica || '', d.codigo_natureza_juridica || '', d.efr || '', fonte);
+      reg.regime, reg.justificativa, d.natureza_juridica || '', d.codigo_natureza_juridica || '', d.efr || '', dataAbertura(d.data_abertura), fonte);
   const salvo = db().prepare('SELECT * FROM cnpj_cache WHERE cnpj = ?').get(cnpj);
   const compartilhado = { ...salvo, optante_simples: Boolean(salvo.optante_simples), optante_mei: Boolean(salvo.optante_mei) };
   if (supabase.configurado()) supabase.admin().from('cadastros_cnpj').upsert(compartilhado, { onConflict: 'cnpj' })
