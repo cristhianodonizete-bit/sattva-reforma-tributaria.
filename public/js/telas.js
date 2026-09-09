@@ -1070,19 +1070,13 @@ async function telaCadeia(el, tipo) {
     ${mostrarAbc ? `<div class="cartao" style="margin-top:16px"><h2>Curva ABC — ${eForn ? 'fornecedores' : 'clientes'}</h2>
       <p class="desc">Classe A concentra 80% do volume. É por onde a renegociação começa.</p>
       ${A.tabela([
-        { t: 'ABC', r: (p) => `<span class="tag ${p.classeAbc === 'A' ? 'b' : 'n'}">${p.classeAbc}</span>` },
-        { t: eForn ? 'Fornecedor' : 'Cliente', r: (p) => `${A.esc(p.nome)}<div class="mini mono">${A.cnpjFmt(p.cnpj)}</div>` },
+        { t: eForn ? 'Fornecedor / ABC' : 'Cliente / ABC', r: (p) => `<span class="tag ${p.classeAbc === 'A' ? 'b' : 'n'}">${p.classeAbc}</span> <b>${A.esc(p.nome)}</b><div class="mini mono">${A.cnpjFmt(p.cnpj)}</div>` },
         { t: 'Regime', r: (p) => `<span class="tag ${['simples_nacional', 'mei'].includes(p.regime) ? 'a' : ''}">${A.esc(p.regimeLabel)}</span>` },
-        { t: 'Valor', num: true, r: (p) => A.moeda(p.valor) },
-        { t: 'Part.', num: true, r: (p) => A.pct(p.representatividade, 1) },
-        { t: rotuloBase, num: true, r: (p) => A.moeda(p.baseEconomica) },
-        ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (p) => A.moeda(p.ibs) }] : []),
-        { t: 'CBS', num: true, r: (p) => A.moeda(p.cbs) },
-        { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (p) => A.moeda(p.precoFinal) },
-        { t: 'Impacto', num: true, r: (p) => A.setaR$(p.impactoOperacao) },
+        { t: eForn ? 'Compras atuais' : 'Vendas atuais', num: true, r: (p) => `<b>${A.moeda(p.valor)}</b><div class="mini">${A.pct(p.representatividade, 1)} da carteira</div>` },
+        { t: 'Tributos', num: true, r: (p) => `${ibsAtivo ? `IBS ${A.moeda(p.ibs)} · ` : ''}CBS ${A.moeda(p.cbs)}` },
+        { t: eForn ? 'Compra e impacto' : 'Venda e impacto', num: true, r: (p) => `<b>${A.moeda(p.precoFinal)}</b><div class="mini ${Number(p.impactoOperacao) > 0 ? 'sobe' : Number(p.impactoOperacao) < 0 ? 'desce' : ''}">${A.setaR$(p.impactoOperacao)}</div>` },
         { t: 'Crédito potencial', num: true, r: (p) => A.moeda(p.creditoPotencial) },
-        { t: 'Relevância do crédito', r: (p) => `<span class="tag ${String(p.relevanciaCreditoCliente || '').startsWith('Potencialmente') ? 'c' : 'n'}">${A.esc(p.relevanciaCreditoCliente)}</span>` },
-      ], analise.parceiros)}
+      ], eForn ? analise.parceiros : analise.parceiros.filter((p) => p.regime !== 'regime_regular' && !/^regime regular/i.test(String(p.regimeLabel || ''))), { classe:'curva-abc-tabela' })}
       ${(() => { const p = analise.paginacaoParceiros || {}; return p.totalPaginas > 1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">${p.total} parceiros · página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-cadeia-parceiros="${p.pagina - 1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-cadeia-parceiros="${p.pagina + 1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
     ${mostrarBeneficios ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><h2>Benefícios fiscais aplicados</h2><button class="btn vazio" id="revisarBeneficiosFiscais">Revisar benefício fiscal</button></div>
