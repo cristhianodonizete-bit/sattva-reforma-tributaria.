@@ -589,7 +589,9 @@ Telas.dados = async (el) => {
       }
       A.confirmar('Consultar somente as declarações PGDAS-D já transmitidas no período analisado? O retorno ficará em revisão e nada será transmitido ou alterado na Receita.', async () => {
         const r = await A.api(`/empresas/${S.empresaId}/integra-contador/pgdas/baixar`, { metodo:'POST', corpo:{} });
-        A.toast(`${r.criados?.length || 0} competência(s) retornaram. Revise e confirme cada uma antes de usar no Perfil Tributário.${r.sem_retorno?.length ? ` Sem retorno: ${r.sem_retorno.join(', ')}.` : ''}`, 'ok');
+        const quantidade = r.criados?.length || 0;
+        if (!quantidade) A.toast(`Nenhuma declaração PGDAS-D foi reconhecida no retorno da Receita para o período solicitado. Nada foi importado. Consulte o diagnóstico do Integra Contador e a auditoria da chamada antes de repetir a consulta.`, 'erro');
+        else A.toast(`${quantidade} competência(s) retornaram. Revise e confirme cada uma antes de usar no Perfil Tributário.${r.sem_retorno?.length ? ` Sem retorno: ${r.sem_retorno.join(', ')}.` : ''}`, 'ok');
         A.ir('dados');
       });
     });

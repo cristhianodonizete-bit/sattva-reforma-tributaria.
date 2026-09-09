@@ -179,12 +179,12 @@ function primeiro(obj, nomes) {
   return null;
 }
 function camposDeDeclaracao(declaracao) {
-  const periodo = competencia(primeiro(declaracao, ['periodoApuracao', 'competencia', 'periodo', 'referencia', 'mesAno']));
+  const periodo = competencia(primeiro(declaracao, ['periodoApuracao', 'periodoDeApuracao', 'competencia', 'competenciaDeclaracao', 'periodo', 'referencia', 'mesAno', 'anoMes', 'mesReferencia', 'pa']));
   const mapa = {
     receita_bruta: ['receitaBruta', 'valorReceitaBruta', 'receitaBrutaTotal'],
     receita_mercadorias: ['receitaMercadorias', 'receitaComercio', 'receitaIndustria'],
     receita_servicos: ['receitaServicos', 'receitaServico'], receita_exportacao: ['receitaExportacao'],
-    das: ['valorDas', 'das', 'valorTotalDas', 'valorDevidoDas', 'valorApuradoDas'],
+    das: ['valorDas', 'das', 'valorTotalDas', 'valorDevidoDas', 'valorApuradoDas', 'dasDevido', 'valorDocumentoArrecadacao', 'valorAPagar'],
     pis: ['pis', 'valorPis', 'pisApurado'], cofins: ['cofins', 'valorCofins', 'cofinsApurada'],
   };
   const campos = [{ campo: 'competencia', valor_extraido: periodo, rotulo_original: 'período de apuração (Integra Contador)' }];
@@ -203,4 +203,22 @@ function declaracoesPorCompetencia(resposta, competenciasAlvo = []) {
   return [...encontradas.values()].sort((a, b) => a.competencia.localeCompare(b.competencia));
 }
 
-module.exports = { config, status, consultarDeclaracoes, verificarProcuracao, declaracoesPorCompetencia, camposDeDeclaracao, competencia, numero };
+// Não guarda o retorno bruto da Receita. O resumo permite distinguir: lista
+// realmente vazia, período não reconhecido e declaração sem DAS identificado.
+function diagnosticoDeclaracoes(resposta, competenciasAlvo = []) {
+  const alvo = new Set(competenciasAlvo);
+  const itens = objetos(resposta);
+  let comPeriodo = 0, noPeriodoSolicitado = 0, comDas = 0;
+  for (const item of itens) {
+    const campos = camposDeDeclaracao(item);
+    const competenciaEncontrada = campos.find((x) => x.campo === 'competencia')?.valor_extraido;
+    if (!competenciaEncontrada) continue;
+    comPeriodo++;
+    if (alvo.size && !alvo.has(competenciaEncontrada)) continue;
+    noPeriodoSolicitado++;
+    if (campos.find((x) => x.campo === 'das')?.valor_extraido !== null) comDas++;
+  }
+  return { objetos_analisados: itens.length, objetos_com_competencia: comPeriodo, objetos_no_periodo: noPeriodoSolicitado, objetos_com_das: comDas };
+}
+
+module.exports = { config, status, consultarDeclaracoes, verificarProcuracao, declaracoesPorCompetencia, diagnosticoDeclaracoes, camposDeDeclaracao, competencia, numero };

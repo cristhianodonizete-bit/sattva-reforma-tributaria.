@@ -1746,6 +1746,7 @@ router.post('/empresas/:id/integra-contador/pgdas/baixar', async (req, res) => {
       ano = Number(anoCalendario);
       const retorno = await integraContador.consultarDeclaracoes({ cnpj: empresa.cnpj, anoCalendario: ano });
       const declaracoes = integraContador.declaracoesPorCompetencia(retorno, meses);
+      const diagnosticoRetorno = integraContador.diagnosticoDeclaracoes(retorno, meses);
       const porCompetencia = new Map(declaracoes.map((x) => [x.competencia, x]));
       for (const mes of meses) {
         const declaracao = porCompetencia.get(mes);
@@ -1763,7 +1764,7 @@ router.post('/empresas/:id/integra-contador/pgdas/baixar', async (req, res) => {
         }
       }
       db.prepare(`INSERT INTO integra_contador_log (empresa_id,ano_calendario,competencias_solicitadas,competencias_encontradas,status,mensagem) VALUES (?,?,?,?,?,?)`)
-        .run(empresaId, ano, JSON.stringify(meses), JSON.stringify(declaracoes.map((x) => x.competencia)), 'CONCLUIDA', `Consulta PGDAS-D concluída: ${declaracoes.length} declaração(ões) com DAS.`);
+        .run(empresaId, ano, JSON.stringify(meses), JSON.stringify(declaracoes.map((x) => x.competencia)), declaracoes.length ? 'CONCLUIDA' : 'SEM_RETORNO_RECONHECIDO', `Consulta PGDAS-D: ${declaracoes.length} declaração(ões) reconhecida(s) com DAS. Diagnóstico: ${JSON.stringify(diagnosticoRetorno)}.`);
     }
     auditar(req, { empresaId, acao: 'Consultou PGDAS-D pelo Integra Contador', entidade: 'integra_contador_pgdas', entidadeId: `${empresaId}:${inicio}:${fim}`, depois: { competencias, competencias_encontradas: competenciasEncontradas, criados: criados.length } });
     ok(res, { periodo: { competencia_inicio: inicio, competencia_fim: fim }, criados, encontradas: competenciasEncontradas, sem_retorno: semRetorno, exige_confirmacao: criados.some((x) => !x.duplicado) });
