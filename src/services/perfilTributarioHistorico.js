@@ -76,6 +76,7 @@ function consolidar(db, empresaId) {
   const receitasSemDfe = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId);
   const cbs = db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=?').all(empresaId);
   const documentosPorCompetencia = new Map();
+  const composicaoReceita = new Map();
   // Bases antigas podem ainda não ter recebido as colunas fiscais mais
   // recentes. A leitura continua segura (NULL não presume venda) enquanto a
   // migração local é concluída.
@@ -86,7 +87,12 @@ function consolidar(db, empresaId) {
     .filter((x) => receitaOperacional.ehSaida(x) && noExercicio(x.competencia))
     .forEach((x) => {
       const atual=documentosPorCompetencia.get(x.competencia) || { competencia:x.competencia, receita_documentada:0, quantidade_documentos:0, iss_documentado:0 };
-      if (receitaOperacional.compoeReceita(x)) {
+      const compoe = receitaOperacional.compoeReceita(x);
+      const motivo = receitaOperacional.motivo(x);
+      const chave = [x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', x.cfop || 'SEM_CFOP', motivo].join('|');
+      const linha = composicaoReceita.get(chave) || { modelo_fiscal:x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop:x.cfop || '', motivo, compoe_receita:compoe, itens:0, valor:0 };
+      linha.itens++; linha.valor += numero(x.valor); composicaoReceita.set(chave, linha);
+      if (compoe) {
         atual.receita_documentada += numero(x.valor); atual.quantidade_documentos++; atual.iss_documentado += numero(x.iss);
       }
       documentosPorCompetencia.set(x.competencia,atual);
@@ -190,7 +196,7 @@ function consolidar(db, empresaId) {
     cbs_motor: historico.some((x) => x.cbs_motor_existente.natureza === 'CALCULADO') ? 'DISPONIVEL' : 'INDETERMINADO',
   };
   const auditoria_mensal = montarAuditoriaMensal(documentos, apuracoes, perfis);
-  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal };
+  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal, composicao_receita:[...composicaoReceita.values()].sort((a,b)=>b.valor-a.valor) };
 }
 
 module.exports = { consolidar, montarAuditoriaMensal };

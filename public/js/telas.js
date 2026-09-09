@@ -951,6 +951,7 @@ Telas.perfil = async (el) => {
   };
   const abaPerfil = S.aba.perfilTributario || 'resumo';
   const auditoriaMensal = tributario.auditoria_mensal || [];
+  const composicaoReceita = tributario.composicao_receita || [];
   const simplesCaixa = tributario.empresa?.regime_atual === 'simples_nacional' && tributario.empresa?.regime_reconhecimento_simples === 'caixa';
   const recebimentosCaixa = historico.map((x) => x.receita_recebida?.valor);
   const dasCaixa = historico.map((x) => x.pgdas?.valor);
@@ -979,12 +980,15 @@ Telas.perfil = async (el) => {
     ], auditoriaMensal, { vazio:'Ainda não há documentos ou apurações importadas no período analisado para confrontar.' })}
     <p class="mini" style="margin-top:12px">A comparação usa somente a janela do período analisado. Ela não presume que uma divergência seja erro fiscal: ajustes, retenções e critérios próprios do documento devem ser conferidos na origem.</p>
   </div>`;
+  const conteudoComposicao = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Composição da receita importada</h2><p class="desc">Base do card Receita analisada, agrupada pelo modelo fiscal e CFOP. Documentos excluídos permanecem visíveis para conferência.</p></div><span class="tag">${composicaoReceita.length} grupo(s)</span></div>${A.tabela([
+    {t:'Modelo fiscal',r:x=>A.esc(String(x.modelo_fiscal||'—').toUpperCase())},{t:'CFOP',r:x=>`<span class="mono">${A.esc(x.cfop||'—')}</span>`},{t:'Decisão',r:x=>`<span class="tag ${x.compoe_receita?'c':'a'}">${x.compoe_receita?'Compõe receita':'Fora da receita'}</span><div class="mini">${A.esc(x.motivo||'')}</div>`},{t:'Itens',num:true,r:x=>x.itens},{t:'Valor documental',num:true,r:x=>A.moeda(x.valor)}
+  ],composicaoReceita,{vazio:'Nenhum documento fiscal encontrado no período analisado.'})}</div>`;
 
   el.innerHTML = cab('Módulo 1.a · diagnóstico', 'Perfil Tributário',
     'Raio-X da apuração atual de PIS/Cofins. Esta tela não projeta CBS, não analisa cadeias e não apresenta cenários.',
     '<button class="btn vazio" id="centralDadosPerfil">Central de Dados</button>') +
-    `<div class="abas" style="margin-top:16px"><button class="${abaPerfil === 'resumo' ? 'ativo' : ''}" data-aba-perfil="resumo">Resumo da apuração</button><button class="${abaPerfil === 'auditoria' ? 'ativo' : ''}" data-aba-perfil="auditoria">Auditoria mensal</button></div>` +
-    (abaPerfil === 'auditoria' ? conteudoAuditoria :
+    `<div class="abas" style="margin-top:16px"><button class="${abaPerfil === 'resumo' ? 'ativo' : ''}" data-aba-perfil="resumo">Resumo da apuração</button><button class="${abaPerfil === 'composicao' ? 'ativo' : ''}" data-aba-perfil="composicao">Composição da receita</button><button class="${abaPerfil === 'auditoria' ? 'ativo' : ''}" data-aba-perfil="auditoria">Auditoria mensal</button></div>` +
+    (abaPerfil === 'auditoria' ? conteudoAuditoria : abaPerfil === 'composicao' ? conteudoComposicao :
     `<div class="cartao"><div class="cabecalho-lista"><div><h2>Resumo da apuração atual</h2><p class="desc">Valores efetivamente importados. A alíquota efetiva final é PIS/Cofins apurados ÷ receita analisada.</p></div><span class="tag">${A.esc(origem)}</span></div>
       <div class="grade g4">
         ${A.kpi('Regime atual', A.esc(regimeAtual), historico.length ? `${historico.length} período(s) analisado(s)${periodoPerfil ? ` · ${A.esc(periodoPerfil.competencia_inicio)} a ${A.esc(periodoPerfil.competencia_fim)}` : ''}` : 'sem período analisado')}
