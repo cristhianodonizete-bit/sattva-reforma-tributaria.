@@ -135,7 +135,10 @@ const App = (() => {
     const svg = (corpo) => `<span class="kpi-icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${corpo}</svg></span>`;
     if (/receita|faturamento|valor|preço|exposição|compras|base econ|margem/.test(chave)) return svg('<path d="M4 19h16"/><path d="M6 16V10"/><path d="M10 16V5"/><path d="M14 16v-7"/><path d="M18 16V8"/>');
     if (/pis|cofins|crédito|débito|carga|das|tribut/.test(chave)) return svg('<ellipse cx="12" cy="6" rx="6" ry="3"/><path d="M6 6v6c0 1.7 2.7 3 6 3s6-1.3 6-3V6"/><path d="M6 12v6c0 1.7 2.7 3 6 3s6-1.3 6-3v-6"/>');
-    if (/alíquota|percentual|taxa|redução/.test(chave)) return svg('<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2"/><circle cx="17" cy="17" r="2"/>');
+    // Redução em R$ representa economia monetária; percentual fica reservado
+    // para alíquota/taxa ou redução explicitamente percentual.
+    if (/redução/.test(chave) && !/percentual|%/.test(chave)) return svg('<ellipse cx="11" cy="6" rx="5.5" ry="2.5"/><path d="M5.5 6v6c0 1.4 2.5 2.5 5.5 2.5 1.1 0 2.1-.1 3-.4"/><path d="M16.5 10v2"/><path d="M17 17h5M19.5 14.5v5"/>');
+    if (/alíquota|percentual|taxa/.test(chave)) return svg('<path d="M19 5 5 19"/><circle cx="7" cy="7" r="2"/><circle cx="17" cy="17" r="2"/>');
     if (/documento|xml|lançamento|item|importa/.test(chave)) return svg('<path d="M7 3h7l4 4v14H7z"/><path d="M14 3v5h5"/><path d="M10 13h5M10 17h5"/>');
     if (/período|competência|prazo|tempo|data/.test(chave)) return svg('<rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/>');
     if (/folha|pessoal|cliente|fornecedor|parceiro|empresa/.test(chave)) return svg('<circle cx="12" cy="8" r="3"/><path d="M5 20c.6-3.4 3-5 7-5s6.4 1.6 7 5"/>');
