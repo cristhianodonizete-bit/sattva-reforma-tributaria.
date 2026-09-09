@@ -789,8 +789,14 @@ Telas.perfil = async (el) => {
   // contínua quanto após um reinício do servidor, o Perfil sempre consolida a
   // mesma fotografia persistida, sem depender da ordem de duas requisições.
   const respostaApuracoes = await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`);
+  const respostaPeriodo = await A.api(`/empresas/${S.empresaId}/periodo-analisado`);
   const tributario = await A.api(`/empresas/${S.empresaId}/perfil-tributario-historico`);
-  const historico = tributario.historico || [];
+  const periodoPerfil = respostaPeriodo.periodo || null;
+  // O histórico pode conter XMLs de meses anteriores, pois eles são
+  // preservados para auditoria e projeção. No Perfil Tributário, porém, a
+  // janela contratada é obrigatória: só ela define receita, PIS e COFINS.
+  const noPeriodoDoPerfil = (competencia) => !periodoPerfil || (competencia >= periodoPerfil.competencia_inicio && competencia <= periodoPerfil.competencia_fim);
+  const historico = (tributario.historico || []).filter((x) => noPeriodoDoPerfil(x.competencia));
   const apuracoes = respostaApuracoes.apuracoes || [];
   const numero = (v) => v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
   const somar = (valores) => valores.reduce((total, valor) => total + (numero(valor) || 0), 0);
@@ -806,7 +812,7 @@ Telas.perfil = async (el) => {
   };
   const receitas = historico.map((x) => x.receita?.valor);
   const competenciasDoExercicio = new Set(historico.map((x) => x.competencia).filter(Boolean));
-  const apuracoesValidasDoExercicio = apuracoes.filter((x) => competenciasDoExercicio.has(x.competencia)
+  const apuracoesValidasDoExercicio = apuracoes.filter((x) => noPeriodoDoPerfil(x.competencia) && competenciasDoExercicio.has(x.competencia)
     && ['VALIDADO_AUTOMATICAMENTE', 'VALIDADO_USUARIO'].includes(x.status_validacao));
   // Havendo relatório importado e validado, ele é a fonte prioritária do
   // resumo. A trilha histórica permanece como fallback para cadastros sem
@@ -835,7 +841,7 @@ Telas.perfil = async (el) => {
     '<button class="btn vazio" id="centralDadosPerfil">Central de Dados</button>') +
     `<div class="cartao"><div class="cabecalho-lista"><div><h2>Resumo da apuração atual</h2><p class="desc">Valores efetivamente importados. A alíquota efetiva final é PIS/Cofins apurados ÷ receita analisada.</p></div><span class="tag">${A.esc(origem)}</span></div>
       <div class="grade g4">
-        ${A.kpi('Regime atual', A.esc(regimeAtual), historico.length ? `${historico.length} período(s) analisado(s)` : 'sem período analisado')}
+        ${A.kpi('Regime atual', A.esc(regimeAtual), historico.length ? `${historico.length} período(s) analisado(s)${periodoPerfil ? ` · ${A.esc(periodoPerfil.competencia_inicio)} a ${A.esc(periodoPerfil.competencia_fim)}` : ''}` : 'sem período analisado')}
         ${A.kpi('Receita analisada', receitaTotal ? A.moeda(receitaTotal) : 'INDETERMINADO', 'base dos documentos/importações')}
         ${A.kpi('PIS apurado', informado(valoresPis) ? A.moeda(pisTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
         ${A.kpi('Cofins apurada', informado(valoresCofins) ? A.moeda(cofinsTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
