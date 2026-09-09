@@ -20,6 +20,7 @@ const pendenciasEnriquecimento = require('./pendenciasEnriquecimento');
 const normalizacaoFiscalXml = require('./normalizacaoFiscalXml');
 const revisaoBeneficiosFiscais = require('./revisaoBeneficiosFiscais');
 const motorCondicionalPisCofins = require('./motorCondicionalPisCofins');
+const receitaOperacional = require('./receitaOperacional');
 const registrarErroSombra = (m, oficial, erro) => {
   try { db.prepare(`INSERT INTO motor_condicional_sombra (movimento_id,empresa_id,produto_empresa_id,ncm,status_avaliacao,resultado_oficial,resultado_sombra,motivo) VALUES (?,?,?,?,?,?,?,?)`)
     .run(m.id || null,m.empresa_id,m.produto_empresa_id || null,m.ncm || null,'ERRO',JSON.stringify(oficial),null,`SOMBRA:${String(erro?.message || 'erro').slice(0,300)}`); } catch (_) { /* auditoria não interrompe o oficial */ }
@@ -31,7 +32,7 @@ const crypto = require('crypto');
 // A classificação passa a preservar a evidência complementar do NBS quando
 // não houver chave LC116+NBS exata. A versão invalida resultados anteriores,
 // que poderiam ter descartado indevidamente a exceção 200044 antes do QSA.
-const MOTOR_VERSION = 'motor-cbs-2026-09-02-lc116-nbs-complementares';
+const MOTOR_VERSION = 'motor-cbs-2026-09-09-saidas-somente-vendas';
 const hash = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 24);
 const versoesAtuais = () => {
   const params = regras.tudo();
@@ -180,7 +181,13 @@ function executar(empresaId, opcoes = {}) {
   const elegibilidadeParaAdquirente = (cnpj) => elegibilidadeAnexoXi.naturezaAdquirente(cadastroCnpj.get(String(cnpj || '').replace(/\D/g, '')) || {});
   let movimentoIds = Array.isArray(opcoes.movimentoIds) ? opcoes.movimentoIds.map(Number).filter(Boolean) : null;
   const saidasOriginais = carregar(empresaId, 'saida', movimentoIds);
-  const revisoesPorMovimento = revisaoBeneficiosFiscais.porMovimento(empresaId, saidasOriginais.map((m) => m.id));
+  // Saída física não é faturamento. Transferências, remessas, devoluções e
+  // ativo permanecem no painel fiscal para auditoria, mas não entram no
+  // motor de vendas, nos clientes, na precificação ou nos totais da receita.
+  const saidasElegiveis = saidasOriginais.filter((m) => receitaOperacional.compoeReceita(m));
+  const saidasExcluidasDaReceita = saidasOriginais
+    .filter((m) => !receitaOperacional.compoeReceita(m)).map((m) => m.id).filter(Boolean);
+  const revisoesPorMovimento = revisaoBeneficiosFiscais.porMovimento(empresaId, saidasElegiveis.map((m) => m.id));
   // A referência da empresa continua disponível como terceira precedência,
   // mas serviços sem valor no XML não são mais bloqueados: o catálogo fiscal
   // pode trazer cumulatividade obrigatória, alíquota zero ou indeterminação
@@ -237,7 +244,7 @@ function executar(empresaId, opcoes = {}) {
     : null;
   if (empresaSimples) empresaSimples.origem = num(empresa.faturamento_anual) > 0 ? 'faturamento conhecido' : 'faixa simulada';
 
-  for (const m of saidasOriginais) {
+  for (const m of saidasElegiveis) {
     const regime = m.regime_cadastro || m.regime || null;
     const item = normalizar({ ...m, referenciaFiscal: encontrarReferenciaServico(m, referenciasVenda), revisaoBeneficio: revisoesPorMovimento.get(m.id) || null });
     const dest = m.perfil_cadastro === 'governo'
@@ -314,6 +321,7 @@ function executar(empresaId, opcoes = {}) {
 
   if (opcoes.gravar !== false) gravar(empresaId, ano, resumo, entradas, saidas, {
     incremental: Boolean(movimentoIds),
+    movimentoIdsExcluidos: saidasExcluidasDaReceita,
     publicarAssincrona: opcoes.publicarAssincrona !== false,
   });
   return { empresa, ano, resumo, entradas, saidas, apuracao,
@@ -472,7 +480,9 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
   const id = ex.lastInsertRowid;
   const linhas = [...entradas, ...saidas];
   if (opcoes.incremental) {
-    const ids = linhas.map((x) => x.movimento_id).filter(Boolean);
+    // Também remove a fotografia antiga de uma saída que deixou de ser venda
+    // após a classificação do CFOP; o documento fiscal não é apagado.
+    const ids = [...new Set([...linhas.map((x) => x.movimento_id), ...(opcoes.movimentoIdsExcluidos || [])].filter(Boolean))];
     if (ids.length) db.prepare(`DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN (${ids.map(() => '?').join(',')})`).run(empresaId, ...ids);
   } else db.prepare('DELETE FROM motor_resultados WHERE empresa_id = ?').run(empresaId);
   const ins = db.prepare(`INSERT INTO motor_resultados (empresa_id, movimento_id, execucao_id, sentido, ano,
@@ -629,8 +639,16 @@ function resultados(empresaId, filtros = {}) {
 function resultadoMaterializado(empresa, ano) {
   const execucao = ultimaExecucao(empresa.id);
   if (!execucao) return null;
-  const linhas = db.prepare('SELECT * FROM motor_resultados WHERE empresa_id=?').all(empresa.id)
-    .map((r) => { try { return JSON.parse(r.detalhe || '{}'); } catch (_) { return null; } }).filter(Boolean);
+  // Defesa de leitura para fotografias antigas: enquanto a nova execução não
+  // substitui a fotografia persistida, uma transferência/remessa jamais pode
+  // reaparecer em faturamento por meio de um resumo anteriormente gravado.
+  const registros = db.prepare(`SELECT r.*, m.tipo AS tipo_movimento,
+      m.origem AS origem_movimento, m.cfop, m.nbs, m.lc116,
+      m.modelo_documento_fiscal, m.iss
+    FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
+    WHERE r.empresa_id=?`).all(empresa.id)
+    .filter((r) => r.sentido !== 'saida' || receitaOperacional.compoeReceita({ ...r, tipo:r.tipo_movimento, origem:r.origem_movimento }));
+  const linhas = registros.map((r) => { try { return JSON.parse(r.detalhe || '{}'); } catch (_) { return null; } }).filter(Boolean);
   const entradas = linhas.filter((x) => x.sentido === 'entrada');
   const saidas = linhas.filter((x) => x.sentido === 'saida');
   const apuracao = motor.apurar(saidas, entradas);
@@ -638,7 +656,12 @@ function resultadoMaterializado(empresa, ano) {
   // linhas. Não recalculamos cenários na leitura e também não fingimos que
   // um ano solicitado é diferente da fotografia efetivamente ativa.
   const resumo = { ...(execucao.resumo || {}), ano: execucao.ano, itens: linhas.length,
-    entradas: entradas.length, saidas: saidas.length, apuracao, materializado: true,
+    entradas: entradas.length, saidas: saidas.length,
+    comprasAnalisadas: r2(entradas.reduce((s, x) => s + num(x.precoAtual), 0)),
+    faturamentoAnalisado: r2(saidas.reduce((s, x) => s + num(x.precoAtual), 0)),
+    baseEconomicaEntradas: r2(entradas.reduce((s, x) => s + num(x.baseEconomica), 0)),
+    baseEconomicaSaidas: r2(saidas.reduce((s, x) => s + num(x.baseEconomica), 0)),
+    apuracao, materializado: true,
     observacao: 'Resultados vigentes reutilizados sem novo cálculo.' };
   const cenariosSimples = [...entradas, ...saidas].map((x) => x.cenariosSimples).filter(Boolean);
   return { empresa, ano: execucao.ano, entradas, saidas, apuracao, resumo, cenariosSimples };
