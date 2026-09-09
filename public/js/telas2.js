@@ -718,8 +718,9 @@ Telas.questor = async (el) => {
   document.getElementById('importarApuracaoQuestor').onclick = async () => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
     const r = await A.api(`/empresas/${S.empresaId}/questor/conector/apuracao-pis-cofins`, {metodo:'POST',corpo:{}});
+    const origemParametros = r.perfil_parametros === 'DESCOBERTO_NO_QUESTOR' ? 'Parâmetros confirmados pela sua instalação Questor.' : 'Usando perfil de compatibilidade; consulte os parâmetros para confirmar esta instalação.';
     const mensagem = r.quantidade_solicitada
-      ? `${r.quantidade_solicitada} competência(s) de apuração foram solicitadas. Acompanhe em Processamento das solicitações.`
+      ? `${r.quantidade_solicitada} competência(s) de apuração foram solicitadas. ${origemParametros}`
       : 'Não há competência pendente para importar neste período.';
     A.toast(mensagem, 'ok');
     A.ir('questor');

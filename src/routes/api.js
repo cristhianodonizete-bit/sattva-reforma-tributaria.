@@ -69,6 +69,7 @@ const autenticacao = require('../services/autenticacao');
 const fechamentoModulos = require('../services/fechamentoModulos');
 const periodoAnalisado = require('../services/periodoAnalisado');
 const questorPersistencia = require('../services/questorPersistencia');
+const questorParametrosRelatorio = require('../services/questorParametrosRelatorio');
 const prontidaoDados = require('../services/prontidaoDados');
 const mapaOperacional = require('../services/mapaOperacional');
 const monitoramentoAtualizacoesReforma = require('../services/monitoramentoAtualizacoesReforma');
@@ -3529,24 +3530,21 @@ router.post('/empresas/:id/questor/conector/apuracao-pis-cofins', async (req,res
   const emFila=new Set(db.prepare(`SELECT payload_json FROM questor_conector_tarefas WHERE conector_id=? AND empresa_id=? AND tipo='APURACAO_PIS_COFINS' AND status IN ('PENDENTE','EM_EXECUCAO')`).all(c.id,empresaId)
     .map((x)=>{ try { return JSON.parse(x.payload_json||'{}').competencia; } catch (_) { return null; } }).filter(Boolean));
   const tarefas=[];
+  const ultimaLeitura=db.prepare(`SELECT resultado_json FROM questor_conector_tarefas
+    WHERE conector_id=? AND empresa_id=? AND tipo='PARAMETROS_RELATORIO' AND status='CONCLUIDA'
+    ORDER BY executado_em DESC, id DESC LIMIT 1`).get(c.id,empresaId);
+  const camposQuestor=questorParametrosRelatorio.camposRetornados(ultimaLeitura?.resultado_json || '');
   for(let competencia=janela.competencia_inicio; competencia<=janela.competencia_fim; competencia=periodoAnalisado.deslocarMes(competencia,1)) {
     if(existentes.has(competencia) || emFila.has(competencia)) continue;
     // Campos obtidos do próprio nWeb em TnWebDMDadosObjetos/Pegar.
     // O relatório ignora nomes genéricos como "datainicial"; os parâmetros
     // declarados são PDATAINICIAL, PDATAFINAL e PCODIGOEMPRESA.
-    const parametros={
-      PMODELO:'2', // Sintético: traz a apuração consolidada sem volume desnecessário por item.
-      PDATAINICIAL:periodoAnalisado.dataInicio(competencia),
-      PDATAFINAL:periodoAnalisado.dataFim(competencia),
-      PTIPOMOVIMENTO:'1;2', // Entrada e saída: créditos e débitos.
-      PDETALHARPRODUTOS:'1', PQUEBRAPORMOVIMENTO:'0', PVALOR:'0',
-      PCODIGOEMPRESA:String(empresa.codigo_questor), PORDENAR:'1',
-      PAGRUPAR:'1', PGERARTOTALIZACAO:'1',
-    };
+    const perfil=questorParametrosRelatorio.construir({ competencia, codigoEmpresa:empresa.codigo_questor, campos:camposQuestor });
+    const parametros=perfil.parametros;
     const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,empresaId,'APURACAO_PIS_COFINS',JSON.stringify({actionName:'nFisRRTotalPISCOFINSProd',competencia,parametros}));
     const tarefa=db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(r.lastInsertRowid); await questorPersistencia.publicarTarefa(tarefa); tarefas.push(tarefa.id);
   }
-  ok(res,{tarefas_ids:tarefas,quantidade_solicitada:tarefas.length,competencias_ja_importadas:[...existentes],competencias_em_fila:[...emFila],periodo:janela});
+  ok(res,{tarefas_ids:tarefas,quantidade_solicitada:tarefas.length,competencias_ja_importadas:[...existentes],competencias_em_fila:[...emFila],periodo:janela,perfil_parametros:camposQuestor.length?'DESCOBERTO_NO_QUESTOR':'COMPATIBILIDADE_PADRAO'});
 } catch(e){erro(res,e);} });
 router.post('/empresas/:id/questor/conector/parametros-relatorio-pis-cofins', async (req,res)=>{ try {
   await questorPersistencia.sincronizarUsuario(donoConector(req));
