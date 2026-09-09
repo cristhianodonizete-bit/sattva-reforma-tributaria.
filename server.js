@@ -33,8 +33,27 @@ app.use(express.static(path.join(__dirname, 'public')));
 app.use('/api/conector-questor', require('./src/routes/conectorQuestor'));
 
 app.use('/auth', require('./src/routes/auth'));
-app.use('/api', (_req, res, next) => {
-  if (!estadoOperacao.ativa || estadoOperacao.pronta || estadoOperacao.possuiBaseLocal) return next();
+app.use('/api', (req, res, next) => {
+  // A primeira tabela da carga-base é a carteira de empresas. Assim que ela
+  // chega ao SQLite, a navegação de consulta já pode funcionar, mesmo que
+  // catálogos auxiliares ainda estejam sendo restaurados. Antes, o estado era
+  // verificado somente no boot e permanecia "sem base" até o fim de dezenas
+  // de tabelas, deixando a aplicação inteira em 503 por tempo indeterminado.
+  if (!estadoOperacao.possuiBaseLocal && possuiBaseOperacionalLocal()) {
+    estadoOperacao.possuiBaseLocal = true;
+  }
+  if (!estadoOperacao.ativa || estadoOperacao.pronta || estadoOperacao.possuiBaseLocal) {
+    // Durante a fotografia inicial, somente leituras são liberadas. Isso
+    // evita que uma alteração seja feita sobre uma coleção ainda parcial.
+    if (!estadoOperacao.pronta && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+      return res.status(503).json({
+        ok: false,
+        erro: 'Base operacional ainda está terminando a sincronização. Aguarde alguns instantes para fazer alterações.',
+        codigo: 'BASE_OPERACIONAL_SINCRONIZANDO',
+      });
+    }
+    return next();
+  }
   return res.status(503).json({
     ok: false,
     erro: 'Base operacional em sincronização inicial. Tente novamente em instantes.',
