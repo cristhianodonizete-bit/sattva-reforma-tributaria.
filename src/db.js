@@ -124,6 +124,7 @@ const COLUNAS_NOVAS = {
   },
   empresas: { cnaes_secundarios: 'TEXT', data_abertura: 'TEXT', regime_reconhecimento_simples: "TEXT DEFAULT 'competencia'" },
   perfil_tributario: { receita_recebida: 'REAL' },
+  receitas_sem_dfe: { classificacao_fiscal: 'TEXT', subtipo: 'TEXT', objeto_operacao: 'TEXT', contrato_referencia: 'TEXT', regra_atual: 'TEXT', regra_reforma: 'TEXT', status_comparabilidade: "TEXT DEFAULT 'PENDENTE_CLASSIFICACAO'" },
   cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT', cnaes_secundarios: 'TEXT',
     logradouro: 'TEXT', numero: 'TEXT', complemento: 'TEXT', bairro: 'TEXT', cep: 'TEXT', data_abertura: 'TEXT' },
   contratos: {
@@ -367,6 +368,8 @@ CREATE TABLE IF NOT EXISTS receitas_sem_dfe (
   valor REAL NOT NULL CHECK(valor >= 0),
   origem TEXT NOT NULL DEFAULT 'MANUAL',
   evidencia TEXT,
+  classificacao_fiscal TEXT, subtipo TEXT, objeto_operacao TEXT, contrato_referencia TEXT,
+  regra_atual TEXT, regra_reforma TEXT, status_comparabilidade TEXT DEFAULT 'PENDENTE_CLASSIFICACAO',
   status_validacao TEXT NOT NULL DEFAULT 'PENDENTE',
   chave_deduplicacao TEXT NOT NULL,
   criado_em TEXT DEFAULT (datetime('now','localtime')),

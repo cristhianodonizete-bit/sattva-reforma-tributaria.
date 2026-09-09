@@ -5,6 +5,7 @@
 const crypto = require('crypto');
 
 const STATUS_VALIDACAO = new Set(['PENDENTE', 'VALIDADO', 'POSSIVEL_DUPLICIDADE', 'REJEITADO']);
+const CLASSIFICACOES_RECEITA = new Set(['LOCACAO_IMOVEL','LOCACAO_BEM_MOVEL','CESSAO_DIREITOS','ROYALTIES_LICENCIAMENTO','RECEITA_FINANCEIRA','REEMBOLSO_RESSARCIMENTO','INDENIZACAO_MULTA','SUBVENCAO','ALIENACAO_ATIVO','VENDA_IMOVEL_PROPRIO','INCORPORACAO_IMOBILIARIA','OUTRA']);
 
 function texto(valor) {
   return String(valor ?? '').trim();
@@ -76,6 +77,12 @@ function salvarReceitaSemDfe(db, empresaId, dados) {
   if (!competenciaValida(competencia)) throw new Error('Competência deve estar no formato AAAA-MM.');
   if (!tipoReceita || !descricao) throw new Error('Tipo e descrição da receita são obrigatórios.');
   const valor = numeroObrigatorio(dados.valor, 'Valor da receita');
+  const classificacao = texto(dados.classificacao_fiscal).toUpperCase();
+  // Registros legados e planilhas antigas continuam importáveis, porém ficam
+  // pendentes até receberem a classificação comparável na revisão.
+  const classificacaoValida = CLASSIFICACOES_RECEITA.has(classificacao) ? classificacao : 'OUTRA';
+  const subtipo = texto(dados.subtipo), objeto = texto(dados.objeto_operacao);
+  const subtipoFinal = subtipo || 'A CLASSIFICAR', objetoFinal = objeto || descricao;
   const chave = crypto.createHash('sha256').update([empresaId, competencia, normalizarTexto(tipoReceita), normalizarTexto(descricao), valor.toFixed(2)].join('|')).digest('hex');
   if (db.prepare('SELECT id FROM receitas_sem_dfe WHERE empresa_id=? AND chave_deduplicacao=?').get(empresaId, chave)) throw new Error('Receita complementar duplicada para esta empresa.');
 
@@ -83,10 +90,10 @@ function salvarReceitaSemDfe(db, empresaId, dados) {
   const exato = candidatos.find((x) => normalizarTexto(x.descricao) === normalizarTexto(descricao));
   if (exato) throw new Error('Receita já capturada em documento fiscal; não foi criada uma entrada complementar.');
   const statusValidacao = candidatos.length ? 'POSSIVEL_DUPLICIDADE' : status(dados.status_validacao);
-  const r = db.prepare(`INSERT INTO receitas_sem_dfe
-    (empresa_id,competencia,tipo_receita,descricao,valor,origem,evidencia,status_validacao,chave_deduplicacao)
-    VALUES (?,?,?,?,?,?,?,?,?)`).run(empresaId, competencia, tipoReceita, descricao, valor, texto(dados.origem || 'MANUAL'),
-    texto(dados.evidencia) || null, statusValidacao, chave);
+  const campos = new Set(db.prepare('PRAGMA table_info(receitas_sem_dfe)').all().map((x) => x.name));
+  const r = campos.has('classificacao_fiscal')
+    ? db.prepare(`INSERT INTO receitas_sem_dfe (empresa_id,competencia,tipo_receita,descricao,valor,origem,evidencia,classificacao_fiscal,subtipo,objeto_operacao,contrato_referencia,regra_atual,regra_reforma,status_comparabilidade,status_validacao,chave_deduplicacao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(empresaId, competencia, tipoReceita, descricao, valor, texto(dados.origem || 'MANUAL'), texto(dados.evidencia) || null, classificacaoValida, subtipoFinal, objetoFinal, texto(dados.contrato_referencia) || null, texto(dados.regra_atual) || null, texto(dados.regra_reforma) || null, (texto(dados.regra_atual) && texto(dados.regra_reforma)) ? 'PRONTA_PARA_COMPARAR' : 'PENDENTE_REGRA', statusValidacao, chave)
+    : db.prepare(`INSERT INTO receitas_sem_dfe (empresa_id,competencia,tipo_receita,descricao,valor,origem,evidencia,status_validacao,chave_deduplicacao) VALUES (?,?,?,?,?,?,?,?,?)`).run(empresaId,competencia,tipoReceita,descricao,valor,texto(dados.origem || 'MANUAL'),texto(dados.evidencia) || null,statusValidacao,chave);
   return { id: r.lastInsertRowid, status_validacao: statusValidacao, possivel_duplicidade: candidatos.length > 0 };
 }
 
@@ -99,4 +106,4 @@ function listar(db, empresaId) {
   };
 }
 
-module.exports = { salvarFolha, salvarMargem, salvarReceitaSemDfe, listar, STATUS_VALIDACAO };
+module.exports = { salvarFolha, salvarMargem, salvarReceitaSemDfe, listar, STATUS_VALIDACAO, CLASSIFICACOES_RECEITA };
