@@ -129,7 +129,9 @@ function normalizarTextoDeterministico(textoDocumento, { localizacoes = [], meto
   };
   const numerosDoBloco = (bloco) => (String(bloco || '').match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || [])
     .map(valorNumericoDoTexto).filter((v) => v !== null);
-  const periodo = String(textoDocumento || '').match(/per[ií]odo\s*:\s*(\d{2}\/\d{4})/i);
+  // Alguns layouts escrevem o intervalo completo (01/06/2026 a
+  // 30/06/2026), outros apenas 06/2026. Ambos identificam a competência.
+  const periodo = String(textoDocumento || '').match(/per[ií]odo\s*:\s*(?:\d{2}\/)?(\d{2}\/\d{4})/i);
   if (periodo) preencherSeAusente('competencia', competenciaDoTexto(periodo[1]), 'Período');
   if (/contribui[cç][aã]o\s+cumulativa/i.test(String(textoDocumento || ''))) {
     preencherSeAusente('regime_pis_cofins', 'CUMULATIVO', 'Contribuição Cumulativa Apurada');
@@ -215,6 +217,16 @@ function reprocessar(db, empresaId, apuracaoId, camposBrutos, versaoModeloExtrac
     JOIN pis_cofins_apuracao_documentos d ON d.id=a.documento_id WHERE a.id=? AND a.empresa_id=?`).get(apuracaoId, empresaId);
   if (!apuracao) throw new Error('Apuração não encontrada para esta empresa.');
   const campos = CAMPOS.map((campo) => extracaoCampo(campo, camposBrutos?.[campo]));
+  // Uma nova regra de leitura não pode fazer uma competência antes conhecida
+  // desaparecer caso o texto do ERP venha sem o período em seu layout.
+  const campoCompetencia = campos.find((x) => x.campo === 'competencia');
+  if (campoCompetencia && !campoCompetencia.valor_extraido && apuracao.competencia) {
+    campoCompetencia.valor_extraido = apuracao.competencia;
+    campoCompetencia.origem_documento = 'COMPETENCIA_PRESERVADA_DO_DOCUMENTO';
+    campoCompetencia.rotulo_original = 'Competência preservada na releitura';
+    campoCompetencia.confianca = 1;
+    campoCompetencia.status_validacao = 'VALIDADO_AUTOMATICAMENTE';
+  }
   const valores = Object.fromEntries(campos.map((x) => [x.campo, x.valor_extraido]));
   const divergencias = validarConsistencia(campos);
   db.transaction(() => {
@@ -222,7 +234,7 @@ function reprocessar(db, empresaId, apuracaoId, camposBrutos, versaoModeloExtrac
       valores.competencia, valores.regime_pis_cofins, valores.receita_base, valores.pis_debito, valores.cofins_debito,
       valores.pis_credito, valores.cofins_credito, valores.pis_credito_utilizado, valores.cofins_credito_utilizado,
       valores.saldo_pis, valores.saldo_cofins, valores.pis_recolhido, valores.cofins_recolhida, valores.observacoes,
-      divergencias.length ? 'REQUER_VALIDACAO' : 'PROCESSADO', JSON.stringify(divergencias), apuracaoId);
+      divergencias.length ? 'REQUER_VALIDACAO' : 'VALIDADO_AUTOMATICAMENTE', JSON.stringify(divergencias), apuracaoId);
     db.prepare('DELETE FROM pis_cofins_apuracao_campos WHERE apuracao_id=?').run(apuracaoId);
     const inserirCampo = db.prepare(`INSERT INTO pis_cofins_apuracao_campos
       (apuracao_id,campo,valor_extraido,origem_documento,pagina_ou_localizacao,rotulo_original,confianca,metodo_extracao,status_validacao)

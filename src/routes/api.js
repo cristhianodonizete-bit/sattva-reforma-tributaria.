@@ -1275,6 +1275,7 @@ router.post('/empresas/:id/apuracoes-pis-cofins/:apuracaoId/reprocessar', async 
       localizacoes: extracao.localizacoes, metodo: 'NORMALIZACAO_DETERMINISTICA_AZURE_V2',
     });
     const apuracao = apuracoesPisCofinsIa.reprocessar(db, empresaId, apuracaoId, extraido, `${extracao.modelo} + NORMALIZACAO_DETERMINISTICA_V2`);
+    await apuracoesPisCofinsIa.publicarCompartilhado(db, empresaId);
     ok(res, { apuracao, campos_pendentes: apuracao.campos_pendentes || [] });
   } catch (e) { erro(res, e); }
 });
