@@ -17,11 +17,16 @@ assert.strictEqual(folhas.ignorados, 1);
 assert.deepStrictEqual(folhas.registros[0], { competencia: '2026-01', valor_folha: 12500, pro_labore: 2500, referencia_arquivo: 'Folha janeiro' });
 
 const receitas = importarReceitasSemDfe(planilha([
-  { Competência: '2026-01', 'Tipo de receita': 'Locação', Descrição: 'Locação de equipamento', Valor: '3.500,00', Evidência: 'Contrato 1' },
+  { Competência: '2026-01', 'Tipo de receita': 'Locação', 'Classificação fiscal': 'LOCACAO_BEM_MOVEL', Subtipo: 'Equipamento', 'Objeto da operação': 'Locação de equipamento', Descrição: 'Locação de equipamento', Valor: '3.500,00', 'Contrato / referência': 'Contrato 1', 'Regra atual': 'Sem incidência de ISS', 'Regra reforma': 'Avaliar incidência CBS/IBS', Evidência: 'Contrato 1' },
   { Competência: '2026-01', 'Tipo de receita': '', Descrição: 'Linha inválida', Valor: 100 },
 ]));
 assert.strictEqual(receitas.registros.length, 1);
 assert.strictEqual(receitas.ignorados, 1);
-assert.deepStrictEqual(receitas.registros[0], { competencia: '2026-01', tipo_receita: 'Locação', descricao: 'Locação de equipamento', valor: 3500, evidencia: 'Contrato 1' });
+assert.deepStrictEqual(receitas.registros[0], {
+  competencia: '2026-01', tipo_receita: 'Locação', descricao: 'Locação de equipamento', valor: 3500,
+  evidencia: 'Contrato 1', classificacao_fiscal: 'LOCACAO_BEM_MOVEL', subtipo: 'Equipamento',
+  objeto_operacao: 'Locação de equipamento', contrato_referencia: 'Contrato 1',
+  regra_atual: 'Sem incidência de ISS', regra_reforma: 'Avaliar incidência CBS/IBS',
+});
 
 console.log('Dados complementares: importação de folha e receitas sem DF-e aprovada.');

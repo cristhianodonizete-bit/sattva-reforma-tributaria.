@@ -67,6 +67,8 @@ const CAMPOS_RECEITA_SEM_DFE = {
   descricao: ['descricao', 'historico', 'detalhe'],
   valor: ['valor', 'valorreceita', 'valortotal', 'receita'],
   evidencia: ['evidencia', 'referenciaarquivo', 'referencia', 'documentoorigem'],
+  classificacao_fiscal: ['classificacaofiscal', 'classificacao', 'categoriafiscal'], subtipo: ['subtipo'], objeto_operacao: ['objetooperacao', 'objeto'],
+  contrato_referencia: ['contratoreferencia', 'contrato'], regra_atual: ['regraatual', 'fundamentoatual'], regra_reforma: ['regrareforma', 'regracbsibs', 'fundamentoreforma'],
 };
 
 // Sinônimos de regime tributário no texto da planilha
@@ -205,8 +207,8 @@ function importarReceitasSemDfe(buffer) {
     if (!competencia || !tipo_receita || !descricao || valor === null || valor < 0) {
       mensagens.push(`Linha ${indice + 2} ignorada: competência, tipo, descrição e valor são obrigatórios.`); ignorados++; continue;
     }
-    registros.push({ competencia, tipo_receita, descricao, valor,
-      evidencia: mapa.evidencia ? String(linha[mapa.evidencia] || '').trim() || null : null });
+    const textoCampo=(campo)=>mapa[campo] ? String(linha[mapa[campo]] || '').trim() || null : null;
+    registros.push({ competencia, tipo_receita, descricao, valor, evidencia:textoCampo('evidencia'), classificacao_fiscal:textoCampo('classificacao_fiscal'), subtipo:textoCampo('subtipo'), objeto_operacao:textoCampo('objeto_operacao'), contrato_referencia:textoCampo('contrato_referencia'), regra_atual:textoCampo('regra_atual'), regra_reforma:textoCampo('regra_reforma') });
   }
   return { registros, ignorados, mensagens, aba, mapa, colunas: Object.keys(linhas[0]) };
 }
@@ -339,7 +341,7 @@ function gerarModelo(tipo) {
     dados = [{ 'Competência': '2026-01', 'Valor da Folha': 25000, 'Pró-labore': 5000, 'Referência do arquivo': 'Folha janeiro/2026' }];
   } else if (tipo === 'receitas_sem_dfe') {
     nomeAba = 'Receitas sem DFe';
-    dados = [{ 'Competência': '2026-01', 'Tipo de receita': 'Locação', 'Descrição': 'Locação de equipamentos', Valor: 3500, Evidência: 'Contrato 123' }];
+    dados = [{ 'Competência': '2026-01', 'Tipo de receita': 'Locação', 'Classificação fiscal': 'LOCACAO_BEM_MOVEL', Subtipo: 'Equipamento', 'Objeto da operação': 'Locação mensal de equipamento', 'Descrição': 'Locação de equipamentos', Valor: 3500, 'Contrato / referência': 'Contrato 123', 'Regra atual': 'Informar fundamento', 'Regra reforma': 'Informar regra CBS/IBS', Evidência: 'Contrato assinado' }];
   } else if (tipo === 'participantes') {
     nomeAba = 'Participantes';
     dados = [{ Nome: 'Nome do participante', Área: 'Financeiro', 'E-mail': 'participante@empresa.com', Empresa: 'Empresa vinculada (somente turma compartilhada)', CNPJ: '12.345.678/0001-90' }];
@@ -375,7 +377,7 @@ function gerarModelo(tipo) {
     ...(tipo === 'referencias_servicos' ? [{ Campo: 'Referências fiscais', 'Valores aceitos': 'Informe Descrição do serviço e ao menos PIS/COFINS ou DAS efetivo. As alíquotas aceitam 9,25% ou 0,0925. NBS é opcional.' }] : []),
     ...(tipo === 'pgdas' ? [{ Campo: 'PGDAS', 'Valores aceitos': 'Competência e DAS são obrigatórios. Receita Bruta, PIS e COFINS são opcionais; ausência não é transformada em zero.' }] : []),
     ...(tipo === 'folha' ? [{ Campo: 'Folha', 'Valores aceitos': 'Competência e Valor da Folha são obrigatórios. Pró-labore e Referência do arquivo são opcionais.' }] : []),
-    ...(tipo === 'receitas_sem_dfe' ? [{ Campo: 'Receita sem DF-e', 'Valores aceitos': 'Competência, Tipo de receita, Descrição e Valor são obrigatórios. Evidência é opcional; duplicidades são sinalizadas.' }] : []),
+    ...(tipo === 'receitas_sem_dfe' ? [{ Campo: 'Receita sem DF-e', 'Valores aceitos': 'Competência, Tipo, Descrição e Valor são obrigatórios. Preencha também Classificação fiscal, Subtipo, Objeto, Contrato e regras atual/reforma para comparação tributária.' }] : []),
     ...(tipo === 'participantes' ? [{ Campo: 'Participantes', 'Valores aceitos': 'Nome é obrigatório. Área e E-mail são opcionais. Empresa ou CNPJ só são usados em turmas compartilhadas.' }] : []),
     ...(tipo === 'apuracao_pis_cofins' ? [{ Campo: 'Apuração PIS/Cofins', 'Valores aceitos': 'Use o relatório original quando disponível. A planilha modelo aceita Competência, Receita Base, débitos, créditos, recolhidos e observações; campos sem evidência permanecem não identificados.' }] : []),
   ];
