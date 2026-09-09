@@ -106,6 +106,39 @@ async function consultarDeclaracoes({ cnpj, anoCalendario }, { env = process.env
   return c.serproDireto ? dados : (dados.data ?? dados.dados ?? dados);
 }
 
+// Consulta oficial e somente leitura que permite separar uma procuração e-CAC
+// inexistente de uma credencial Serpro sem permissão no PGDAS-D. Não usa nem
+// grava dados de declaração.
+async function verificarProcuracao({ cnpj }, { env = process.env, fetchImpl = fetch } = {}) {
+  const c = config(env); const situacao = status(env);
+  if (!situacao.configurado) throw new Error(situacao.mensagem);
+  if (!c.serproDireto) return { disponivel: false, motivo: 'A verificação oficial de procuração está disponível no modo Serpro direto.' };
+  const outorgante = apenasDigitos(cnpj);
+  if (outorgante.length !== 14) throw new Error('A empresa precisa ter CNPJ válido para verificar a procuração.');
+  if (!c.contratante.numero || !c.autorPedido.numero) throw new Error('No Serpro direto, informe INTEGRA_CONTADOR_CONTRATANTE_NUMERO e INTEGRA_CONTADOR_AUTOR_NUMERO no ambiente seguro.');
+  const acesso = await token(c, fetchImpl);
+  const headers = { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${acesso.access_token}` };
+  if (acesso.jwt_token) headers.jwt_token = acesso.jwt_token;
+  const corpo = {
+    contratante: c.contratante, autorPedidoDados: c.autorPedido, contribuinte: { tipo: 2, numero: outorgante },
+    pedidoDados: { idSistema: 'PROCURACOES', idServico: 'OBTERPROCURACAO41', versaoSistema: '1', dados: JSON.stringify({ outorgante, tipoOutorgante: '2', outorgado: c.autorPedido.numero, tipoOutorgado: String(c.autorPedido.tipo) }) },
+  };
+  const resposta = await fetchImpl(`${c.baseUrl}/Consultar`, { method: 'POST', headers, body: JSON.stringify(corpo), signal: AbortSignal.timeout(45000) });
+  const texto = await resposta.text(); let dados;
+  try { dados = texto ? JSON.parse(texto) : {}; } catch (_) { throw new Error('O Integra Contador respondeu à verificação de procuração em formato não reconhecido.'); }
+  if (!resposta.ok) {
+    const mensagens = Array.isArray(dados.mensagens) ? dados.mensagens.map((m) => m?.texto || m?.mensagem || '').filter(Boolean) : [];
+    const detalhe = String(dados.message || dados.mensagem || mensagens[0] || '').slice(0, 240);
+    throw new Error(`O Serpro recusou a verificação oficial de procuração (${resposta.status})${detalhe ? `: ${detalhe}` : '.'}`);
+  }
+  if (typeof dados.dados === 'string') { try { dados.dados = JSON.parse(dados.dados); } catch (_) { /* resposta preservada */ } }
+  const lista = objetos(dados);
+  const sistemas = [...new Set(lista.flatMap((x) => Array.isArray(x.sistemas) ? x.sistemas.map(String) : []))];
+  const expiracao = lista.map((x) => x.dtexpiracao || x.dataExpiracao).find(Boolean) || null;
+  return { disponivel: true, consulta_autenticada: true, outorgante, outorgado: c.autorPedido.numero,
+    procuracao_encontrada: lista.some((x) => Array.isArray(x.sistemas) || x.dtexpiracao || x.dataExpiracao), sistemas, expiracao };
+}
+
 function objetos(valor, saida = [], vistos = new Set()) {
   if (typeof valor === 'string' && /^[{\[]/.test(valor.trim())) { try { return objetos(JSON.parse(valor), saida, vistos); } catch (_) { return saida; } }
   if (!valor || typeof valor !== 'object' || vistos.has(valor)) return saida;
@@ -143,4 +176,4 @@ function declaracoesPorCompetencia(resposta, competenciasAlvo = []) {
   return [...encontradas.values()].sort((a, b) => a.competencia.localeCompare(b.competencia));
 }
 
-module.exports = { config, status, consultarDeclaracoes, declaracoesPorCompetencia, camposDeDeclaracao, competencia, numero };
+module.exports = { config, status, consultarDeclaracoes, verificarProcuracao, declaracoesPorCompetencia, camposDeDeclaracao, competencia, numero };

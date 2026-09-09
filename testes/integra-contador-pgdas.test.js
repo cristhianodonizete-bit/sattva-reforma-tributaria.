@@ -23,6 +23,14 @@ const declaracoes = integra.declaracoesPorCompetencia(resposta, ['2026-06']);
   } });
   assert.match(consulta.url, /\/Consultar$/);
   assert.strictEqual(JSON.parse(consulta.opcoes.body).pedidoDados.idServico, 'CONSDECLARACAO13');
+  let procuracao;
+  const diagnostico = await integra.verificarProcuracao({ cnpj: '37605002000114' }, { env: { ...serpro, INTEGRA_CONTADOR_ACCESS_TOKEN: 'teste' }, fetchImpl: async (url, opcoes) => {
+    procuracao = { url, opcoes }; return { ok:true, status:200, text:async()=>JSON.stringify({ dados:'[{"dtexpiracao":"20291231","sistemas":["PGDAS-D - a partir de 01/2018"]}]' }) };
+  } });
+  assert.match(procuracao.url, /\/Consultar$/);
+  assert.strictEqual(JSON.parse(procuracao.opcoes.body).pedidoDados.idServico, 'OBTERPROCURACAO41');
+  assert.strictEqual(diagnostico.procuracao_encontrada, true);
+  assert.match(diagnostico.sistemas[0], /PGDAS-D/);
   await assert.rejects(() => integra.consultarDeclaracoes({ cnpj: '17796012000177', anoCalendario: 2026 }, { env: { ...serpro, INTEGRA_CONTADOR_ACCESS_TOKEN: 'teste' }, fetchImpl: async () => ({ ok:false, status:403, text:async()=>JSON.stringify({ contratante:{ numero:'16967295000100' } }) }) }), /procuração eletrônica e-CAC 00146/);
   console.log('Integra Contador: consulta PGDAS-D somente leitura e normalização auditável aprovadas.');
 })().catch((e) => { console.error(e); process.exit(1); });

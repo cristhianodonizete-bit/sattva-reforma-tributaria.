@@ -1717,6 +1717,17 @@ router.post('/empresas/:id/pgdas/ingestao', upload.single('arquivo'), async (req
 // guarda o retorno estruturado como evidência e exige confirmação humana antes
 // de atualizar o Perfil Tributário.
 router.get('/integra-contador/config', (_req, res) => ok(res, { config: integraContador.status() }));
+router.post('/empresas/:id/integra-contador/diagnostico', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa) throw new Error('Empresa não encontrada.');
+    const resultado = await integraContador.verificarProcuracao({ cnpj: empresa.cnpj });
+    auditar(req, { empresaId, acao: 'Verificou procuração no Integra Contador', entidade: 'integra_contador_procuracao', entidadeId: empresaId,
+      depois: { disponivel: resultado.disponivel, procuracao_encontrada: resultado.procuracao_encontrada, expiracao: resultado.expiracao, sistemas: resultado.sistemas || [] } });
+    ok(res, resultado);
+  } catch (e) { erro(res, e); }
+});
 router.post('/empresas/:id/integra-contador/pgdas/baixar', async (req, res) => {
   const empresaId = Number(req.params.id);
   let ano = null; let competencias = [];
