@@ -411,6 +411,7 @@ Telas.dados = async (el) => {
         { t:'Documento / chave', r:d=>`<b>${A.esc(d.documento)}</b><div class="mini mono">${A.esc(d.chave || d.referencia)}</div>` },
         { t:'Entrada / saída', r:d=>`<span class="tag ${d.tipo === 'cliente' ? 'c' : ''}">${d.tipo === 'cliente' ? 'Saída' : 'Entrada'}</span>` },
         { t:'Natureza', r:d=>{ const n=naturezaDocumento(d); return `<span class="tag ${n[1]}">${n[0]}</span>`; } },
+        { t:'Operação', r:d=>d.operacao_receita ? '<span class="tag c">Compõe receita</span>' : `<span class="tag a">Não compõe receita</span><div class="mini">${A.esc(d.motivo_operacao || '')}</div>` },
         { t:'Itens', num:true, r:d=>d.itens },
         { t:'Valor', num:true, r:d=>A.moeda(d.valor) },
         { t:'Origem', r:d=>A.esc(d.origem || '—') },
@@ -887,7 +888,7 @@ Telas.perfil = async (el) => {
     `<div class="cartao"><div class="cabecalho-lista"><div><h2>Resumo da apuração atual</h2><p class="desc">Valores efetivamente importados. A alíquota efetiva final é PIS/Cofins apurados ÷ receita analisada.</p></div><span class="tag">${A.esc(origem)}</span></div>
       <div class="grade g4">
         ${A.kpi('Regime atual', A.esc(regimeAtual), historico.length ? `${historico.length} período(s) analisado(s)${periodoPerfil ? ` · ${A.esc(periodoPerfil.competencia_inicio)} a ${A.esc(periodoPerfil.competencia_fim)}` : ''}` : 'sem período analisado')}
-        ${A.kpi('Receita analisada', receitaTotal ? A.moeda(receitaTotal) : 'INDETERMINADO', 'XMLs e apurações no período')}
+        ${A.kpi('Receita analisada', receitaTotal ? A.moeda(receitaTotal) : 'INDETERMINADO', 'Vendas e prestações no período')}
         ${A.kpi('PIS apurado', informado(valoresPis) ? A.moeda(pisTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
         ${A.kpi('Cofins apurada', informado(valoresCofins) ? A.moeda(cofinsTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
       </div>

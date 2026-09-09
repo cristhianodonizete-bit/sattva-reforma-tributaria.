@@ -7,6 +7,7 @@
  */
 const numero = (v) => Number(v) || 0;
 const tem = (v) => v !== null && v !== undefined;
+const receitaOperacional = require('./receitaOperacional');
 
 function valor(valor, natureza = 'REAL') {
   return tem(valor) ? { valor: numero(valor), natureza } : { valor: null, natureza: 'INDETERMINADO' };
@@ -28,10 +29,18 @@ function consolidar(db, empresaId) {
   const margens = db.prepare('SELECT * FROM margens_operacionais_premissas WHERE empresa_id=?').all(empresaId);
   const receitasSemDfe = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId);
   const cbs = db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=?').all(empresaId);
-  const documentos = db.prepare(`SELECT competencia, SUM(COALESCE(valor,0)) receita_documentada,
-      COUNT(*) quantidade_documentos, SUM(COALESCE(iss,0)) iss_documentado
-    FROM movimentos WHERE empresa_id=? AND (tipo='cliente' OR sentido='saida')
-      AND COALESCE(competencia,'')<>'' GROUP BY competencia`).all(empresaId).filter((x) => noExercicio(x.competencia));
+  const documentosPorCompetencia = new Map();
+  db.prepare(`SELECT competencia,valor,iss,tipo,sentido,cfop,nbs,lc116
+    FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId)
+    .filter((x) => receitaOperacional.ehSaida(x) && noExercicio(x.competencia))
+    .forEach((x) => {
+      const atual=documentosPorCompetencia.get(x.competencia) || { competencia:x.competencia, receita_documentada:0, quantidade_documentos:0, iss_documentado:0 };
+      if (receitaOperacional.compoeReceita(x)) {
+        atual.receita_documentada += numero(x.valor); atual.quantidade_documentos++; atual.iss_documentado += numero(x.iss);
+      }
+      documentosPorCompetencia.set(x.competencia,atual);
+    });
+  const documentos=[...documentosPorCompetencia.values()];
   const apuracoes = tabelaExiste(db, 'pis_cofins_apuracoes_historicas')
     ? db.prepare(`SELECT a.*, d.nome_original, d.hash_sha256 FROM pis_cofins_apuracoes_historicas a
       JOIN pis_cofins_apuracao_documentos d ON d.id=a.documento_id

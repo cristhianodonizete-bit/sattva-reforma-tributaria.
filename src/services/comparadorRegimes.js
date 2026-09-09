@@ -1,5 +1,6 @@
 /* Comparador: fatos, parâmetros versionados e fotografia CBS existente. */
 const n = (v) => Number(v) || 0;
+const receitaOperacional = require('./receitaOperacional');
 const REGIMES = [
   { chave: 'lucro_real', rotulo: 'Lucro Real' },
   { chave: 'lucro_presumido', rotulo: 'Lucro Presumido' },
@@ -112,7 +113,8 @@ function comparar(db, empresaId, opcoes = {}) {
   if (!empresa) throw new Error('Empresa não encontrada.');
   const perfis = db.prepare("SELECT * FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,'')<>''").all(empresaId);
   const receitasSemDfe = linhasSeTabelaExiste(db, 'SELECT * FROM receitas_sem_dfe WHERE empresa_id=?', empresaId);
-  const receitaDocumento = db.prepare("SELECT SUM(COALESCE(valor,0)) valor FROM movimentos WHERE empresa_id=? AND (tipo='cliente' OR sentido='saida')").get(empresaId).valor;
+  const receitaDocumento = db.prepare('SELECT valor,tipo,sentido,cfop,nbs,lc116,iss FROM movimentos WHERE empresa_id=?').all(empresaId)
+    .filter(receitaOperacional.compoeReceita).reduce((s,x)=>s+n(x.valor),0);
   const receitaPerfil = perfis.length ? perfis.reduce((s, x) => s + n(x.receita_bruta), 0) : null;
   const receitaComplementar = receitasSemDfe.reduce((s, x) => s + n(x.valor), 0), receitaBase = receitaPerfil !== null ? receitaPerfil : (receitaDocumento === null || receitaDocumento === undefined ? null : n(receitaDocumento));
   const receita = receitaBase === null ? null : receitaBase + receitaComplementar, segregacao = receitaSegregada(perfis, receitasSemDfe);

@@ -72,6 +72,7 @@ const questorPersistencia = require('../services/questorPersistencia');
 const prontidaoDados = require('../services/prontidaoDados');
 const mapaOperacional = require('../services/mapaOperacional');
 const monitoramentoAtualizacoesReforma = require('../services/monitoramentoAtualizacoesReforma');
+const receitaOperacional = require('../services/receitaOperacional');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -1762,6 +1763,7 @@ router.get('/empresas/:id/documentos-fiscais', (req, res) => {
         CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END referencia,
         COALESCE(NULLIF(MAX(documento),''), NULLIF(MAX(chave),''), 'Lançamento #' || MIN(id)) documento,
         MIN(competencia) competencia, MIN(data_emissao) data_emissao, MAX(chave) chave, MAX(tipo) tipo, MAX(origem) origem,
+        MAX(cfop) cfop, MAX(nbs) nbs, MAX(lc116) lc116, MAX(iss) iss,
         MAX(nome) parceiro, MAX(inscr_federal) inscr_federal, COUNT(*) itens, SUM(COALESCE(valor,0)) valor,
         SUM(CASE WHEN NULLIF(ncm,'') IS NOT NULL THEN 1 ELSE 0 END) itens_produto,
         SUM(CASE WHEN NULLIF(nbs,'') IS NOT NULL OR NULLIF(lc116,'') IS NOT NULL OR COALESCE(iss,0)<>0 THEN 1 ELSE 0 END) itens_servico,
@@ -1770,7 +1772,7 @@ router.get('/empresas/:id/documentos-fiscais', (req, res) => {
       GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END
       ORDER BY COALESCE(MAX(data_emissao), MAX(competencia), MAX(criado_em)) DESC, MIN(id) DESC LIMIT ?`).all(Number(req.params.id), limite);
     const total=db.prepare(`SELECT COUNT(*) c FROM (SELECT 1 FROM movimentos WHERE empresa_id=? GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END)`).get(Number(req.params.id));
-    ok(res,{ documentos, total:total.c, limitado:documentos.length < total.c });
+    ok(res,{ documentos:documentos.map((d)=>({ ...d, operacao_receita: receitaOperacional.compoeReceita(d), motivo_operacao: receitaOperacional.motivo(d) })), total:total.c, limitado:documentos.length < total.c });
   } catch (e) { erro(res,e); }
 });
 router.get('/empresas/:id/documentos-fiscais/:referencia', (req, res) => {

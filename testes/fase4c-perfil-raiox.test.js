@@ -6,7 +6,7 @@ const db = sqlite.abrir(':memory:');
 db.exec(`
   CREATE TABLE empresas (id INTEGER PRIMARY KEY, razao_social TEXT, regime TEXT);
   CREATE TABLE perfil_tributario (empresa_id INTEGER, competencia TEXT, receita_bruta REAL, receita_mercadorias REAL, receita_servicos REAL, receita_exportacao REAL, icms REAL, iss REAL, ipi REAL, pis REAL, cofins REAL, das REAL, creditos_tomados REAL);
-  CREATE TABLE movimentos (empresa_id INTEGER, competencia TEXT, tipo TEXT, sentido TEXT, valor REAL, iss REAL);
+  CREATE TABLE movimentos (empresa_id INTEGER, competencia TEXT, tipo TEXT, sentido TEXT, cfop TEXT, nbs TEXT, lc116 TEXT, valor REAL, iss REAL);
   CREATE TABLE folhas_pagamento_competencias (empresa_id INTEGER, competencia TEXT, valor_folha REAL);
   CREATE TABLE margens_operacionais_premissas (empresa_id INTEGER, periodo_inicio TEXT, periodo_fim TEXT, margem_operacional_percentual REAL);
   CREATE TABLE receitas_sem_dfe (empresa_id INTEGER, competencia TEXT, valor REAL);
@@ -14,7 +14,7 @@ db.exec(`
 `);
 db.prepare("INSERT INTO empresas VALUES (1,'Empresa Simples','simples_nacional')").run();
 db.prepare('INSERT INTO perfil_tributario VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)').run(1, '2026-07', 1000, 300, 700, 0, 0, 20, 0, 30, 140, 80);
-db.prepare("INSERT INTO movimentos VALUES (1,'2026-07','cliente','saida',900,20)").run();
+db.prepare("INSERT INTO movimentos VALUES (1,'2026-07','cliente','saida','5102','','',900,20)").run();
 db.prepare("INSERT INTO folhas_pagamento_competencias VALUES (1,'2026-07',400)").run();
 db.prepare("INSERT INTO margens_operacionais_premissas VALUES (1,'2026-01','2026-12',12.5)").run();
 db.prepare("INSERT INTO receitas_sem_dfe VALUES (1,'2026-07',100)").run();
