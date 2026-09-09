@@ -8,7 +8,17 @@ const ANO = /^\d{4}$/;
 const esperado = (inicio, fim) => { const r=[]; for (let c=inicio;c<=fim;) { r.push(c); const [a,m]=c.split('-').map(Number); c=`${m===12?a+1:a}-${String(m===12?1:m+1).padStart(2,'0')}`; } return r; };
 const unicos = (linhas) => [...new Set(linhas.map((x) => String(x.competencia || '')).filter((x) => COMPETENCIA.test(x)))];
 
-function declaracoes(empresaId, tipo, banco) { return new Set(banco.prepare('SELECT referencia FROM empresa_prontidao_declaracoes WHERE empresa_id=? AND tipo=?').all(empresaId,tipo).map((x)=>x.referencia)); }
+// Uma declaração anual cobre todas as competências daquele ano que fazem
+// parte da janela analisada. Assim, "2026" não obriga o usuário a repetir
+// doze registros mensais, mas também não cobre competências de outro ano.
+function declaracoes(empresaId, tipo, banco, competencias = []) {
+  const referencias = banco.prepare('SELECT referencia FROM empresa_prontidao_declaracoes WHERE empresa_id=? AND tipo=?').all(empresaId,tipo).map((x)=>String(x.referencia));
+  const cobertas = new Set(referencias.filter((x)=>COMPETENCIA.test(x)));
+  for (const ano of referencias.filter((x)=>ANO.test(x))) {
+    for (const competencia of competencias) if (competencia.startsWith(`${ano}-`)) cobertas.add(competencia);
+  }
+  return cobertas;
+}
 function etapa(id, titulo, pendencias, extras = {}) { return { id, titulo, status:pendencias.length ? 'VERMELHO' : 'VERDE', pendencias, ...extras }; }
 
 function obter(empresaId, { banco=dbPadrao } = {}) {
@@ -22,9 +32,9 @@ function obter(empresaId, { banco=dbPadrao } = {}) {
   const competencias = esperado(periodo.competencia_inicio, periodo.competencia_fim);
   const faltam = (encontradas, declaradas) => competencias.filter((c)=>!encontradas.has(c)&&!declaradas.has(c));
   const docs = new Set(unicos(banco.prepare('SELECT DISTINCT competencia FROM movimentos WHERE empresa_id=?').all(empresaId)));
-  const docsFaltam = faltam(docs,declaracoes(empresaId,'DOCUMENTOS_SEM_MOVIMENTO',banco));
+  const docsFaltam = faltam(docs,declaracoes(empresaId,'DOCUMENTOS_SEM_MOVIMENTO',banco,competencias));
   const receitas = new Set(unicos(banco.prepare("SELECT DISTINCT competencia FROM receitas_sem_dfe WHERE empresa_id=? AND status_validacao<>'POSSIVEL_DUPLICIDADE'").all(empresaId)));
-  const receitasFaltam = faltam(receitas,declaracoes(empresaId,'OUTRAS_RECEITAS_NAO_APLICAVEL',banco));
+  const receitasFaltam = faltam(receitas,declaracoes(empresaId,'OUTRAS_RECEITAS_NAO_APLICAVEL',banco,competencias));
   const folhas = new Set(unicos(banco.prepare('SELECT DISTINCT competencia FROM folhas_pagamento_competencias WHERE empresa_id=?').all(empresaId)));
   const folhaFaltam = folhas.size || declaracoes(empresaId,'FOLHA_SEM_MOVIMENTO',banco).size ? [] : ['FOLHA_ATUAL'];
   const margem = banco.prepare('SELECT id FROM margens_operacionais_premissas WHERE empresa_id=? AND periodo_inicio<=? AND periodo_fim>=? LIMIT 1').get(empresaId,periodo.competencia_inicio,periodo.competencia_fim);
@@ -57,7 +67,8 @@ function declarar(empresaId, dados, usuarioId=null, { banco=dbPadrao } = {}) {
   const tipo=String(dados.tipo||''); const referencia=String(dados.referencia||'').trim(); const motivo=String(dados.motivo||'').trim();
   if (!TIPOS.has(tipo)) throw new Error('Tipo de declaração inválido.');
   if (!motivo) throw new Error('Informe o motivo da declaração.');
-  if ((tipo==='APURACAO_HISTORICO_NAO_APLICAVEL' && !ANO.test(referencia)) || (tipo!=='APURACAO_HISTORICO_NAO_APLICAVEL' && tipo!=='MARGEM_NAO_APLICAVEL' && !COMPETENCIA.test(referencia)) || (tipo==='MARGEM_NAO_APLICAVEL' && referencia!=='PERIODO_ANALISADO')) throw new Error('Referência da declaração inválida.');
+  const cobreAno = tipo==='DOCUMENTOS_SEM_MOVIMENTO' || tipo==='OUTRAS_RECEITAS_NAO_APLICAVEL';
+  if ((tipo==='APURACAO_HISTORICO_NAO_APLICAVEL' && !ANO.test(referencia)) || (cobreAno && !(ANO.test(referencia) || COMPETENCIA.test(referencia))) || (!cobreAno && tipo!=='APURACAO_HISTORICO_NAO_APLICAVEL' && tipo!=='MARGEM_NAO_APLICAVEL' && !COMPETENCIA.test(referencia)) || (tipo==='MARGEM_NAO_APLICAVEL' && referencia!=='PERIODO_ANALISADO')) throw new Error('Referência da declaração inválida. Use AAAA-MM ou, quando aplicável, somente AAAA.');
   banco.prepare(`INSERT INTO empresa_prontidao_declaracoes (empresa_id,tipo,referencia,motivo,justificativa,usuario_id) VALUES (?,?,?,?,?,?) ON CONFLICT(empresa_id,tipo,referencia) DO UPDATE SET motivo=excluded.motivo,justificativa=excluded.justificativa,usuario_id=excluded.usuario_id,criado_em=datetime('now','localtime')`).run(empresaId,tipo,referencia,motivo,String(dados.justificativa||''),usuarioId||null);
   return obter(empresaId,{banco});
 }
@@ -89,7 +100,8 @@ async function declararCompartilhado(empresaId,dados,usuarioId=null,{banco=dbPad
   // Reutiliza toda a validação local em uma base temporária lógica: nenhuma
   // escrita é feita antes de a identidade compartilhada ser confirmada.
   if(!TIPOS.has(tipo) || !motivo) return declarar(empresaId,dados,usuarioId,{banco});
-  if((tipo==='APURACAO_HISTORICO_NAO_APLICAVEL'&&!ANO.test(referencia)) || (tipo!=='APURACAO_HISTORICO_NAO_APLICAVEL'&&tipo!=='MARGEM_NAO_APLICAVEL'&&!COMPETENCIA.test(referencia)) || (tipo==='MARGEM_NAO_APLICAVEL'&&referencia!=='PERIODO_ANALISADO')) return declarar(empresaId,dados,usuarioId,{banco});
+  const cobreAno = tipo==='DOCUMENTOS_SEM_MOVIMENTO' || tipo==='OUTRAS_RECEITAS_NAO_APLICAVEL';
+  if((tipo==='APURACAO_HISTORICO_NAO_APLICAVEL'&&!ANO.test(referencia)) || (cobreAno && !(ANO.test(referencia) || COMPETENCIA.test(referencia))) || (!cobreAno && tipo!=='APURACAO_HISTORICO_NAO_APLICAVEL'&&tipo!=='MARGEM_NAO_APLICAVEL'&&!COMPETENCIA.test(referencia)) || (tipo==='MARGEM_NAO_APLICAVEL'&&referencia!=='PERIODO_ANALISADO')) return declarar(empresaId,dados,usuarioId,{banco});
   const empresa=await empresaRemota(empresaId,banco);
   if(!empresa) throw new Error('Empresa ainda não está disponível na base compartilhada. A declaração não foi gravada para evitar perda de sincronização.');
   const registro={empresa_id:empresa.id,tipo,referencia,motivo,justificativa:String(dados.justificativa||''),usuario_id:usuarioId||null};
