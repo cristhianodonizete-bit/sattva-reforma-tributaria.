@@ -17,7 +17,9 @@ assert.strictEqual(declaracoes.length, 1);
 assert.strictEqual(declaracoes[0].campos.find((x) => x.campo === 'das').valor_extraido, 775.3);
 const variacao = integra.declaracoesPorCompetencia({ retorno: { itens: [{ periodoDeApuracao: '06/2026', valorDocumentoArrecadacao: '775,30' }] } }, ['2026-06']);
 assert.strictEqual(variacao.length, 1);
-assert.strictEqual(integra.diagnosticoDeclaracoes({ retorno: { itens: [{ periodoDeApuracao: '06/2026', valorDocumentoArrecadacao: '775,30' }] } }, ['2026-06']).objetos_com_das, 1);
+const diagnosticoVariacao = integra.diagnosticoDeclaracoes({ retorno: { itens: [{ periodoDeApuracao: '06/2026', valorDocumentoArrecadacao: '775,30' }] } }, ['2026-06']);
+assert.strictEqual(diagnosticoVariacao.objetos_com_das, 1);
+assert.deepStrictEqual(diagnosticoVariacao.campos_identificados, ['periodoDeApuracao', 'valorDocumentoArrecadacao']);
   const serpro = { INTEGRA_CONTADOR_BASE_URL: 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1/', INTEGRA_CONTADOR_ACCESS_TOKEN: 'x', INTEGRA_CONTADOR_JWT_TOKEN: 'y', INTEGRA_CONTADOR_CONTRATANTE_NUMERO: '16967295000100', INTEGRA_CONTADOR_AUTOR_NUMERO: '16967295000100' };
   let consulta;
   await integra.consultarDeclaracoes({ cnpj: '37605002000114', anoCalendario: 2026 }, { env: serpro, fetchImpl: async (url, opcoes) => {

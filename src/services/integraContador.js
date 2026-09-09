@@ -209,6 +209,7 @@ function diagnosticoDeclaracoes(resposta, competenciasAlvo = []) {
   const alvo = new Set(competenciasAlvo);
   const itens = objetos(resposta);
   let comPeriodo = 0, noPeriodoSolicitado = 0, comDas = 0;
+  const camposDoPeriodo = new Set();
   for (const item of itens) {
     const campos = camposDeDeclaracao(item);
     const competenciaEncontrada = campos.find((x) => x.campo === 'competencia')?.valor_extraido;
@@ -216,9 +217,12 @@ function diagnosticoDeclaracoes(resposta, competenciasAlvo = []) {
     comPeriodo++;
     if (alvo.size && !alvo.has(competenciaEncontrada)) continue;
     noPeriodoSolicitado++;
+    // Somente nomes de propriedades: permite evoluir o parser sem armazenar
+    // valores fiscais ou o envelope integral retornado pela Receita.
+    Object.keys(item).forEach((chaveCampo) => camposDoPeriodo.add(String(chaveCampo).slice(0, 80)));
     if (campos.find((x) => x.campo === 'das')?.valor_extraido !== null) comDas++;
   }
-  return { objetos_analisados: itens.length, objetos_com_competencia: comPeriodo, objetos_no_periodo: noPeriodoSolicitado, objetos_com_das: comDas };
+  return { objetos_analisados: itens.length, objetos_com_competencia: comPeriodo, objetos_no_periodo: noPeriodoSolicitado, objetos_com_das: comDas, campos_identificados: [...camposDoPeriodo].sort().slice(0, 40) };
 }
 
 module.exports = { config, status, consultarDeclaracoes, verificarProcuracao, declaracoesPorCompetencia, diagnosticoDeclaracoes, camposDeDeclaracao, competencia, numero };
