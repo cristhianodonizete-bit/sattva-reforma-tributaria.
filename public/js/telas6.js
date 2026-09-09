@@ -302,14 +302,12 @@ function simples(box, d) {
 // -------------------------------------------------------------------- CFOP
 function cfop(box, d) {
   const naturezas = ['venda', 'aquisicao', 'devolucao', 'remessa', 'transferencia',
-    'exportacao', 'importacao', 'ativo_consumo'];
+    'exportacao', 'importacao', 'ativo_consumo', 'outra_saida'];
   const porPrioridade = [1, 2, 3].map((p) => d.cfop.filter((c) => (c.prioridade || 2) === p));
   const rotulo = ['1 — primeiro dígito (avaliado primeiro)', '2 — grupo de três dígitos', '3 — sentido geral'];
-  box.innerHTML = `<div class="aviso"><b>Para que serve este mapa</b> Ele transforma o CFOP do documento em natureza operacional (venda, aquisição, devolução, importação etc.) para orientar a classificação do motor. Não define alíquota nem substitui a leitura do documento.
+  box.innerHTML = `<div class="aviso"><b>Catálogo operacional de CFOP</b> Esta é a mesma fonte usada para decidir se uma operação compõe a receita analisada. CFOP de produto só entra por classificação positiva; código sem regra fica fora do faturamento e é sinalizado para revisão.
       <br><br><b>A ordem de avaliação importa</b>
-      O primeiro dígito do CFOP indica operação com o exterior e precisa ser avaliado antes dos grupos:
-      5102 é venda interna, 3102 é importação — os três últimos dígitos são iguais. Por isso cada regra
-      tem uma prioridade.</div>
+      Uma regra pode valer para o grupo espelhado 5/6 ou para um código específico com prefixo, como 7.101. Por isso grupo e prefixo são avaliados juntos quando ambos existirem.</div>
     ${porPrioridade.map((lista, i) => lista.length ? `<div class="cartao">
       <h2>Prioridade ${rotulo[i]}</h2>
       ${A.tabela([
@@ -317,7 +315,9 @@ function cfop(box, d) {
         { t: 'Grupo', r: (c) => `<span class="mono">${A.esc(c.grupo || '—')}</span>` },
         { t: 'Natureza da operação', r: (c) => `<select data-f="nat" data-i="${c.id}">
             ${naturezas.map((n) => `<option value="${n}" ${c.natureza === n ? 'selected' : ''}>${n}</option>`).join('')}</select>` },
+        { t: 'Receita', r: (c) => c.compoe_receita === 1 ? '<span class="tag c">Compõe</span>' : c.compoe_receita === 0 ? '<span class="tag a">Não compõe</span>' : '<span class="tag b">A revisar</span>' },
         { t: 'Descrição', r: (c) => `<span class="mini">${A.esc(c.descricao || '')}</span>` },
+        { t: 'Fonte', r: (c) => `<span class="mini">${A.esc(c.fonte || 'Configuração interna')}${c.versao ? ` · ${A.esc(c.versao)}` : ''}</span>` },
         { t: '', r: (c) => `<button class="btn pq" data-sc="${c.id}">Salvar</button>` },
       ], lista)}</div>` : '').join('')}
     <div class="cartao"><h2>Testar um CFOP</h2>
@@ -339,13 +339,13 @@ function cfop(box, d) {
     const grupo = c.slice(1);
     let achou = null;
     for (const p of [1, 2, 3]) {
-      achou = d.cfop.find((l) => (l.prioridade || 2) === p &&
-        ((l.grupo && l.grupo === grupo) || (l.prefixo && !l.grupo && c.startsWith(l.prefixo))));
+      achou = d.cfop.find((l) => (l.prioridade || 2) === p && l.ativo !== 0 &&
+        (!l.grupo || l.grupo === grupo) && (!l.prefixo || c.startsWith(l.prefixo)));
       if (achou) break;
     }
     document.getElementById('resCfop').innerHTML = achou
-      ? `<span class="tag c">${A.esc(achou.natureza)}</span> <span class="mini">por ${achou.grupo ? 'grupo ' + achou.grupo : 'prefixo ' + achou.prefixo}</span>`
-      : '<span class="tag b">sem regra cadastrada</span>';
+      ? `<span class="tag ${achou.compoe_receita === 1 ? 'c' : 'a'}">${A.esc(achou.natureza)}</span> <span class="mini">${achou.compoe_receita === 1 ? 'compõe receita' : achou.compoe_receita === 0 ? 'fora da receita' : 'requer decisão de receita'} · por ${achou.grupo ? 'grupo ' + achou.grupo : 'prefixo ' + achou.prefixo}</span>`
+      : '<span class="tag b">sem regra cadastrada · fora da receita até classificação</span>';
   };
 }
 
