@@ -26,14 +26,16 @@ const competencia = (v) => {
 
 function config(env = process.env) {
   const baseUrl = String(env.INTEGRA_CONTADOR_BASE_URL || '').trim().replace(/\/$/, '');
-  const endpoint = String(env.INTEGRA_CONTADOR_PGDAS_CONSULTAR_PATH || '/integra-contador/sn/pgdasd/consultar-declaracoes').trim();
-  const tokenUrl = String(env.INTEGRA_CONTADOR_TOKEN_URL || '').trim();
+  const serproDireto = /apiserpro\.serpro\.gov\.br/i.test(baseUrl) || String(env.INTEGRA_CONTADOR_MODO || '').toUpperCase() === 'SERPRO_DIRETO';
+  const endpoint = String(env.INTEGRA_CONTADOR_PGDAS_CONSULTAR_PATH || (serproDireto ? '/Consultar' : '/integra-contador/sn/pgdasd/consultar-declaracoes')).trim();
+  // No gateway direto do Serpro a mesma URL-base emite o token OAuth.
+  const tokenUrl = String(env.INTEGRA_CONTADOR_TOKEN_URL || (serproDireto ? baseUrl : '')).trim();
   const clientId = String(env.INTEGRA_CONTADOR_CLIENT_ID || '').trim();
   const clientSecret = String(env.INTEGRA_CONTADOR_CLIENT_SECRET || '').trim();
   const apiKey = String(env.INTEGRA_CONTADOR_API_KEY || '').trim();
   const bearer = String(env.INTEGRA_CONTADOR_ACCESS_TOKEN || '').trim();
   return {
-    baseUrl, endpoint: endpoint.startsWith('/') ? endpoint : `/${endpoint}`,
+    baseUrl, endpoint: endpoint.startsWith('/') ? endpoint : `/${endpoint}`, serproDireto,
     tokenUrl, clientId, clientSecret, apiKey, bearer,
     incluirPartes: String(env.INTEGRA_CONTADOR_INCLUIR_PARTES || '').toLowerCase() === 'true',
     contratante: { tipo: Number(env.INTEGRA_CONTADOR_CONTRATANTE_TIPO || 2), numero: apenasDigitos(env.INTEGRA_CONTADOR_CONTRATANTE_NUMERO) },
@@ -46,22 +48,22 @@ function status(env = process.env) {
   const autenticacao = c.bearer ? 'token de acesso' : c.apiKey ? 'chave de API' : c.tokenUrl && c.clientId && c.clientSecret ? 'OAuth client credentials' : null;
   return {
     configurado: Boolean(c.baseUrl && autenticacao), base_url_configurada: Boolean(c.baseUrl),
-    autenticacao, endpoint: c.endpoint, incluir_partes: c.incluirPartes,
+    autenticacao, endpoint: c.endpoint, modo: c.serproDireto ? 'SERPRO_DIRETO' : 'PROVEDOR_COMPATIVEL', incluir_partes: c.incluirPartes,
     mensagem: c.baseUrl && autenticacao ? 'Integra Contador pronto para consultar declarações PGDAS-D já transmitidas.' : 'Defina no ambiente INTEGRA_CONTADOR_BASE_URL e uma credencial (ACCESS_TOKEN, API_KEY ou TOKEN_URL + CLIENT_ID + CLIENT_SECRET).',
   };
 }
 
 let tokenEmMemoria = null;
 async function token(c, fetchImpl = fetch) {
-  if (c.bearer) return c.bearer;
-  if (!c.tokenUrl) return '';
+  if (c.bearer) return { access_token: c.bearer, jwt_token: '' };
+  if (!c.tokenUrl) return { access_token: '', jwt_token: '' };
   if (tokenEmMemoria?.expira_em > Date.now()) return tokenEmMemoria.valor;
   const credencial = Buffer.from(`${c.clientId}:${c.clientSecret}`).toString('base64');
   const resposta = await fetchImpl(c.tokenUrl, { method: 'POST', headers: { Authorization: `Basic ${credencial}`, 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: 'grant_type=client_credentials' });
   const corpo = await resposta.text();
   let dados; try { dados = JSON.parse(corpo); } catch (_) { dados = {}; }
   if (!resposta.ok || !dados.access_token) throw new Error(`Autenticação do Integra Contador falhou (${resposta.status}).`);
-  tokenEmMemoria = { valor: dados.access_token, expira_em: Date.now() + Math.max(60, Number(dados.expires_in || 300) - 30) * 1000 };
+  tokenEmMemoria = { valor: { access_token: dados.access_token, jwt_token: dados.jwt_token || '' }, expira_em: Date.now() + Math.max(60, Number(dados.expires_in || 300) - 30) * 1000 };
   return tokenEmMemoria.valor;
 }
 
@@ -73,10 +75,14 @@ async function consultarDeclaracoes({ cnpj, anoCalendario }, { env = process.env
   if (!Number.isInteger(Number(anoCalendario)) || Number(anoCalendario) < 2012) throw new Error('Informe um ano-calendário válido para consulta do PGDAS-D.');
   const acesso = await token(c, fetchImpl);
   const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
-  if (acesso) headers.Authorization = `Bearer ${acesso}`;
+  if (acesso.access_token) headers.Authorization = `Bearer ${acesso.access_token}`;
+  if (acesso.jwt_token) headers.jwt_token = acesso.jwt_token;
   if (c.apiKey) headers['x-api-key'] = c.apiKey;
-  const corpo = { dados: { anoCalendario: Number(anoCalendario) }, contribuinte: { tipo: 2, numero: documento } };
-  if (c.incluirPartes) {
+  const corpo = c.serproDireto
+    ? { contratante: c.contratante, autorPedidoDados: c.autorPedido, contribuinte: { tipo: 2, numero: documento }, pedidoDados: { idSistema: 'PGDASD', idServico: 'CONSDECLARACAO13', versaoSistema: '1.0', dados: JSON.stringify({ anoCalendario: String(anoCalendario) }) } }
+    : { dados: { anoCalendario: Number(anoCalendario) }, contribuinte: { tipo: 2, numero: documento } };
+  if (c.serproDireto && (!c.contratante.numero || !c.autorPedido.numero)) throw new Error('No Serpro direto, informe INTEGRA_CONTADOR_CONTRATANTE_NUMERO e INTEGRA_CONTADOR_AUTOR_NUMERO no ambiente seguro.');
+  if (!c.serproDireto && c.incluirPartes) {
     if (!c.contratante.numero || !c.autorPedido.numero) throw new Error('Para este contrato, informe os identificadores de contratante e autor do pedido no ambiente.');
     corpo.contratante = c.contratante; corpo.autorPedido = c.autorPedido;
   }
@@ -84,10 +90,15 @@ async function consultarDeclaracoes({ cnpj, anoCalendario }, { env = process.env
   const texto = await resposta.text(); let dados;
   try { dados = texto ? JSON.parse(texto) : {}; } catch (_) { throw new Error('O Integra Contador respondeu em formato não reconhecido.'); }
   if (!resposta.ok || dados.success === false) throw new Error(`Integra Contador respondeu ${resposta.status}: ${String(dados.message || dados.mensagem || texto).slice(0, 280)}`);
-  return dados.data ?? dados.dados ?? dados;
+  // O gateway do Serpro devolve "dados" como JSON serializado; preservar o
+  // envelope e converter esse conteúdo torna a origem auditável sem perder
+  // mensagens e avisos da Receita.
+  if (typeof dados.dados === 'string') { try { dados.dados = JSON.parse(dados.dados); } catch (_) { /* mantém o original */ } }
+  return c.serproDireto ? dados : (dados.data ?? dados.dados ?? dados);
 }
 
 function objetos(valor, saida = [], vistos = new Set()) {
+  if (typeof valor === 'string' && /^[{\[]/.test(valor.trim())) { try { return objetos(JSON.parse(valor), saida, vistos); } catch (_) { return saida; } }
   if (!valor || typeof valor !== 'object' || vistos.has(valor)) return saida;
   vistos.add(valor);
   if (Array.isArray(valor)) { valor.forEach((x) => objetos(x, saida, vistos)); return saida; }
