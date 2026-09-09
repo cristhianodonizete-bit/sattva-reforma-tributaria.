@@ -1756,10 +1756,8 @@ function whereDocumentoFiscal(empresaId, referencia) {
     ? { sql:'empresa_id=? AND chave=?', valores:[Number(empresaId), filtro.chave] }
     : { sql:'empresa_id=? AND id=?', valores:[Number(empresaId), filtro.movimentoId] };
 }
-router.get('/empresas/:id/documentos-fiscais', (req, res) => {
-  try {
-    const limite=Math.min(Math.max(Number(req.query.limite) || 500, 1), 2000);
-    const documentos=db.prepare(`SELECT
+function listarDocumentosFiscais(empresaId, limite = 2000) {
+  const documentos=db.prepare(`SELECT
         CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END referencia,
         COALESCE(NULLIF(MAX(documento),''), NULLIF(MAX(chave),''), 'Lançamento #' || MIN(id)) documento,
         MIN(competencia) competencia, MIN(data_emissao) data_emissao, MAX(chave) chave, MAX(tipo) tipo, MAX(origem) origem,
@@ -1770,10 +1768,44 @@ router.get('/empresas/:id/documentos-fiscais', (req, res) => {
         MAX(criado_em) criado_em
       FROM movimentos WHERE empresa_id=?
       GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END
-      ORDER BY COALESCE(MAX(data_emissao), MAX(competencia), MAX(criado_em)) DESC, MIN(id) DESC LIMIT ?`).all(Number(req.params.id), limite);
-    const total=db.prepare(`SELECT COUNT(*) c FROM (SELECT 1 FROM movimentos WHERE empresa_id=? GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END)`).get(Number(req.params.id));
-    ok(res,{ documentos:documentos.map((d)=>({ ...d, operacao_receita: receitaOperacional.compoeReceita(d), motivo_operacao: receitaOperacional.motivo(d) })), total:total.c, limitado:documentos.length < total.c });
+      ORDER BY COALESCE(MAX(data_emissao), MAX(competencia), MAX(criado_em)) DESC, MIN(id) DESC LIMIT ?`).all(Number(empresaId), limite);
+  const total=db.prepare(`SELECT COUNT(*) c FROM (SELECT 1 FROM movimentos WHERE empresa_id=? GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END)`).get(Number(empresaId));
+  return { documentos:documentos.map((d)=>({ ...d, operacao_receita: receitaOperacional.compoeReceita(d), motivo_operacao: receitaOperacional.motivo(d) })), total:total.c, limitado:documentos.length < total.c };
+}
+function filtrarDocumentosFiscais(documentos, filtros = {}) {
+  const busca=String(filtros.busca || '').trim().toLowerCase();
+  return documentos.filter((d) => (!filtros.competencia || d.competencia===filtros.competencia)
+    && (!filtros.modelo || String(d.modelo_documento_fiscal || 'NAO_IDENTIFICADO').toUpperCase()===String(filtros.modelo).toUpperCase())
+    && (!filtros.sentido || d.tipo===filtros.sentido)
+    && (!filtros.receita || (filtros.receita==='SIM' ? d.operacao_receita : !d.operacao_receita))
+    && (!busca || `${d.documento || ''} ${d.chave || ''} ${d.parceiro || ''}`.toLowerCase().includes(busca)));
+}
+router.get('/empresas/:id/documentos-fiscais', (req, res) => {
+  try {
+    const limite=Math.min(Math.max(Number(req.query.limite) || 500, 1), 2000);
+    ok(res,listarDocumentosFiscais(req.params.id,limite));
   } catch (e) { erro(res,e); }
+});
+router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const resultado=listarDocumentosFiscais(req.params.id,2000);
+    const documentos=filtrarDocumentosFiscais(resultado.documentos,req.query);
+    const linhas=documentos.map((d)=>({
+      'Competência':d.competencia || '', 'Documento':d.documento || '', 'Chave fiscal':d.chave || '',
+      'Modelo fiscal':d.modelo_documento_fiscal || 'Não identificado', 'Entrada / saída':d.tipo==='cliente'?'Saída':'Entrada',
+      'Natureza':d.itens_produto && d.itens_servico?'Misto':d.itens_servico?'Serviço':d.itens_produto?'Produto':'A identificar',
+      'Compõe receita':d.operacao_receita?'Sim':'Não', 'Motivo da operação':d.motivo_operacao || '',
+      'Itens':Number(d.itens || 0), 'Valor':Number(d.valor || 0), 'Origem':d.origem || '', 'Parceiro':d.parceiro || '', 'CNPJ/CPF parceiro':d.inscr_federal || '', 'CFOP':d.cfop || '',
+    }));
+    const ws=XLSX.utils.json_to_sheet(linhas.length ? linhas : [{ Informação:'Nenhum documento atende aos filtros selecionados.' }]);
+    ws['!cols']=[{wch:13},{wch:18},{wch:48},{wch:14},{wch:16},{wch:14},{wch:16},{wch:34},{wch:8},{wch:16},{wch:12},{wch:32},{wch:20},{wch:10}];
+    for(const celula of Object.keys(ws)) if(/^J\d+$/.test(celula) && celula!=='J1') ws[celula].z='R$ #,##0.00';
+    const wb=XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb,ws,'Documentos fiscais');
+    const arquivo=XLSX.write(wb,{type:'buffer',bookType:'xlsx',compression:true});
+    res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition',`attachment; filename="documentos-fiscais-${req.params.id}.xlsx"`); res.send(arquivo);
+  } catch(e) { erro(res,e); }
 });
 router.get('/empresas/:id/documentos-fiscais/:referencia', (req, res) => {
   try {

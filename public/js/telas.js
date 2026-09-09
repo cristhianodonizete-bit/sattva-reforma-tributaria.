@@ -418,7 +418,7 @@ Telas.dados = async (el) => {
       ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}
     ${grupoCentral === 'documentos' ? `<div class="cartao" id="documentosFiscais">
-      <div class="cabecalho-lista"><div><h2>Documentos fiscais importados</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p></div><span class="tag">${documentosFiscaisFiltrados.length} de ${documentosFiscaisResposta.total || 0} documento(s)</span></div>
+      <div class="cabecalho-lista"><div><h2>Documentos fiscais importados</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p></div><div style="display:flex;gap:8px;align-items:center"><button class="btn pq vazio" id="exportarDocumentosFiscais">Exportar Excel</button><span class="tag">${documentosFiscaisFiltrados.length} de ${documentosFiscaisResposta.total || 0} documento(s)</span></div></div>
       ${documentosFiscaisResposta.limitado ? '<div class="aviso info">Mostrando os 2.000 documentos mais recentes.</div>' : ''}
       ${A.tabela([
         { t:`Competência<br><select id="filtroDocumentoCompetencia"><option value="">Todas</option>${[...new Set(documentosFiscais.map((d)=>d.competencia).filter(Boolean))].sort().reverse().map((v)=>`<option value="${A.esc(v)}" ${filtroDocumentos.competencia===v?'selected':''}>${A.esc(v)}</option>`).join('')}</select>`, r:d=>A.esc(d.competencia || 'Não identificada') },
@@ -484,6 +484,11 @@ Telas.dados = async (el) => {
     ['filtroDocumentoCompetencia','filtroDocumentoModelo','filtroDocumentoSentido','filtroDocumentoReceita'].forEach((id) => document.getElementById(id)?.addEventListener('change', atualizarFiltroDocumentos));
     document.getElementById('filtroDocumentoBusca')?.addEventListener('keydown', (evento) => { if (evento.key === 'Enter') { evento.preventDefault(); atualizarFiltroDocumentos(); } });
     document.getElementById('limparFiltrosDocumentos')?.addEventListener('click', () => { S.aba.documentosFiscais = {}; A.ir('dados'); });
+    document.getElementById('exportarDocumentosFiscais')?.addEventListener('click', async () => {
+      const filtros=new URLSearchParams(S.aba.documentosFiscais || {});
+      try { await A.baixarArquivo(`/empresas/${S.empresaId}/documentos-fiscais/exportar${filtros.toString() ? `?${filtros}` : ''}`, 'documentos-fiscais.xlsx'); }
+      catch(e) { A.toast(e.message,'erro'); }
+    });
     el.querySelectorAll('[data-abrir-documento]').forEach((botao) => botao.addEventListener('click', async () => {
       try {
         const r=await A.api(`/empresas/${S.empresaId}/documentos-fiscais/${encodeURIComponent(botao.dataset.abrirDocumento)}`);
