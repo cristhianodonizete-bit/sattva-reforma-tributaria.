@@ -566,7 +566,7 @@ Telas.dados = async (el) => {
             A.toast('Documento lido. Revise os campos e confirme antes de aproveitar o PGDAS.', 'ok');
           } else throw new Error('Use XLSX, XLS, CSV, PDF, PNG ou JPG.');
           A.ir('dados');
-        })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/pgdas').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>` });
+        }, { accept: '.xlsx,.xls,.csv,.pdf,.png,.jpg,.jpeg,application/pdf,image/png,image/jpeg' })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/pgdas').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>` });
     });
     document.getElementById('testarIntegraPgdas')?.addEventListener('click', async (evento) => {
       const botao = evento.currentTarget; const textoOriginal = botao.textContent;

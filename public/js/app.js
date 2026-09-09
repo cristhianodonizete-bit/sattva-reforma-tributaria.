@@ -565,12 +565,16 @@ const App = (() => {
   }
 
   // ---------- UPLOAD ----------
-  function dropzone(id, texto, aoEscolher) {
+  function dropzone(id, texto, aoEscolher, opcoes = {}) {
     setTimeout(() => {
       const z = document.getElementById(id);
       if (!z) return;
       const inp = document.createElement('input');
-      inp.type = 'file'; inp.accept = '.xlsx,.xls,.csv'; inp.style.display = 'none';
+      inp.type = 'file';
+      // A zona pode receber documentos não estruturados em fluxos específicos
+      // (como PGDAS em PDF/imagem). O padrão continua restrito a planilhas.
+      inp.accept = opcoes.accept || '.xlsx,.xls,.csv';
+      inp.style.display = 'none';
       z.appendChild(inp);
       z.onclick = () => inp.click();
       inp.onchange = () => { if (inp.files[0]) aoEscolher(inp.files[0]); inp.value = ''; };
