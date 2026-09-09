@@ -1744,10 +1744,16 @@ router.post('/empresas/:id/integra-contador/pgdas/baixar', async (req, res) => {
     const criados = []; const competenciasEncontradas = []; const semRetorno = []; const diagnosticos = [];
     for (const [anoCalendario, meses] of porAno) {
       ano = Number(anoCalendario);
-      const retorno = await integraContador.consultarDeclaracoes({ cnpj: empresa.cnpj, anoCalendario: ano });
-      const declaracoes = integraContador.declaracoesPorCompetencia(retorno, meses);
-      const diagnosticoRetorno = integraContador.diagnosticoDeclaracoes(retorno, meses);
-      diagnosticos.push({ ano_calendario: ano, ...diagnosticoRetorno });
+      // CONSDECLARACAO13 aceita período de apuração. Consultar cada mês evita
+      // que um envelope anual resumido esconda os valores da declaração.
+      const consultas = [];
+      for (const mes of meses) {
+        const retorno = await integraContador.consultarDeclaracoes({ cnpj: empresa.cnpj, anoCalendario: ano, periodoApuracao: mes.replace('-', '') });
+        consultas.push({ mes, retorno });
+      }
+      const declaracoes = consultas.flatMap(({ retorno, mes }) => integraContador.declaracoesPorCompetencia(retorno, [mes]));
+      const diagnosticoRetorno = consultas.map(({ mes, retorno }) => ({ competencia: mes, ...integraContador.diagnosticoDeclaracoes(retorno, [mes]) }));
+      diagnosticos.push(...diagnosticoRetorno.map((x) => ({ ano_calendario: ano, ...x })));
       const porCompetencia = new Map(declaracoes.map((x) => [x.competencia, x]));
       for (const mes of meses) {
         const declaracao = porCompetencia.get(mes);
@@ -1765,7 +1771,7 @@ router.post('/empresas/:id/integra-contador/pgdas/baixar', async (req, res) => {
         }
       }
       db.prepare(`INSERT INTO integra_contador_log (empresa_id,ano_calendario,competencias_solicitadas,competencias_encontradas,status,mensagem) VALUES (?,?,?,?,?,?)`)
-        .run(empresaId, ano, JSON.stringify(meses), JSON.stringify(declaracoes.map((x) => x.competencia)), declaracoes.length ? 'CONCLUIDA' : 'SEM_RETORNO_RECONHECIDO', `Consulta PGDAS-D: ${declaracoes.length} declaração(ões) reconhecida(s) com DAS. Diagnóstico: ${JSON.stringify(diagnosticoRetorno)}.`);
+        .run(empresaId, ano, JSON.stringify(meses), JSON.stringify(declaracoes.map((x) => x.competencia)), declaracoes.length ? 'CONCLUIDA' : 'SEM_RETORNO_RECONHECIDO', `Consulta PGDAS-D por competência: ${declaracoes.length} declaração(ões) reconhecida(s) com DAS. Diagnóstico: ${JSON.stringify(diagnosticoRetorno)}.`);
     }
     auditar(req, { empresaId, acao: 'Consultou PGDAS-D pelo Integra Contador', entidade: 'integra_contador_pgdas', entidadeId: `${empresaId}:${inicio}:${fim}`, depois: { competencias, competencias_encontradas: competenciasEncontradas, criados: criados.length } });
     ok(res, { periodo: { competencia_inicio: inicio, competencia_fim: fim }, criados, encontradas: competenciasEncontradas, sem_retorno: semRetorno, diagnosticos, exige_confirmacao: criados.some((x) => !x.duplicado) });

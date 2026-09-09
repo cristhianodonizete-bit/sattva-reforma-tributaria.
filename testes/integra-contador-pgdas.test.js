@@ -12,6 +12,11 @@ assert.strictEqual(integra.status({}).configurado, false);
   } });
   assert.match(chamada.url, /consultar-declaracoes$/);
   assert.strictEqual(JSON.parse(chamada.opcoes.body).contribuinte.numero, '37605002000114');
+  let chamadaMensal;
+  await integra.consultarDeclaracoes({ cnpj: '37.605.002/0001-14', anoCalendario: 2026, periodoApuracao: '2026-06' }, { env, fetchImpl: async (_url, opcoes) => {
+    chamadaMensal = opcoes; return { ok:true, status:200, text:async()=>JSON.stringify({ success:true, data:{} }) };
+  } });
+  assert.strictEqual(JSON.parse(chamadaMensal.body).dados.periodoApuracao, '202606');
 const declaracoes = integra.declaracoesPorCompetencia(resposta, ['2026-06']);
 assert.strictEqual(declaracoes.length, 1);
 assert.strictEqual(declaracoes[0].campos.find((x) => x.campo === 'das').valor_extraido, 775.3);

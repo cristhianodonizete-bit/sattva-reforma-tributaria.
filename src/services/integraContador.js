@@ -95,20 +95,23 @@ async function token(c, fetchImpl = fetch) {
   return tokenEmMemoria.valor;
 }
 
-async function consultarDeclaracoes({ cnpj, anoCalendario }, { env = process.env, fetchImpl = fetch } = {}) {
+async function consultarDeclaracoes({ cnpj, anoCalendario, periodoApuracao = null }, { env = process.env, fetchImpl = fetch } = {}) {
   const c = config(env); const situacao = status(env);
   if (!situacao.configurado) throw new Error(situacao.mensagem);
   const documento = apenasDigitos(cnpj);
   if (documento.length !== 14) throw new Error('A empresa precisa ter CNPJ válido para consultar o PGDAS-D.');
   if (!Number.isInteger(Number(anoCalendario)) || Number(anoCalendario) < 2012) throw new Error('Informe um ano-calendário válido para consulta do PGDAS-D.');
+  const periodo = String(periodoApuracao || '').replace(/\D/g, '');
+  if (periodo && !/^\d{6}$/.test(periodo)) throw new Error('O período de apuração deve estar no formato AAAAMM.');
   const acesso = await token(c, fetchImpl);
   const headers = { Accept: 'application/json', 'Content-Type': 'application/json' };
   if (acesso.access_token) headers.Authorization = `Bearer ${acesso.access_token}`;
   if (acesso.jwt_token) headers.jwt_token = acesso.jwt_token;
   if (c.apiKey) headers['x-api-key'] = c.apiKey;
+  const dadosConsulta = periodo ? { periodoApuracao: periodo } : { anoCalendario: String(anoCalendario) };
   const corpo = c.serproDireto
-    ? { contratante: c.contratante, autorPedidoDados: c.autorPedido, contribuinte: { tipo: 2, numero: documento }, pedidoDados: { idSistema: 'PGDASD', idServico: 'CONSDECLARACAO13', versaoSistema: '1.0', dados: JSON.stringify({ anoCalendario: String(anoCalendario) }) } }
-    : { dados: { anoCalendario: Number(anoCalendario) }, contribuinte: { tipo: 2, numero: documento } };
+    ? { contratante: c.contratante, autorPedidoDados: c.autorPedido, contribuinte: { tipo: 2, numero: documento }, pedidoDados: { idSistema: 'PGDASD', idServico: 'CONSDECLARACAO13', versaoSistema: '1.0', dados: JSON.stringify(dadosConsulta) } }
+    : { dados: periodo ? dadosConsulta : { anoCalendario: Number(anoCalendario) }, contribuinte: { tipo: 2, numero: documento } };
   if (c.serproDireto && (!c.contratante.numero || !c.autorPedido.numero)) throw new Error('No Serpro direto, informe INTEGRA_CONTADOR_CONTRATANTE_NUMERO e INTEGRA_CONTADOR_AUTOR_NUMERO no ambiente seguro.');
   if (!c.serproDireto && c.incluirPartes) {
     if (!c.contratante.numero || !c.autorPedido.numero) throw new Error('Para este contrato, informe os identificadores de contratante e autor do pedido no ambiente.');
@@ -209,7 +212,7 @@ function diagnosticoDeclaracoes(resposta, competenciasAlvo = []) {
   const alvo = new Set(competenciasAlvo);
   const itens = objetos(resposta);
   let comPeriodo = 0, noPeriodoSolicitado = 0, comDas = 0;
-  const camposDoPeriodo = new Set();
+  const camposDoPeriodo = new Set(), camposOperacoes = new Set();
   for (const item of itens) {
     const campos = camposDeDeclaracao(item);
     const competenciaEncontrada = campos.find((x) => x.campo === 'competencia')?.valor_extraido;
@@ -220,9 +223,12 @@ function diagnosticoDeclaracoes(resposta, competenciasAlvo = []) {
     // Somente nomes de propriedades: permite evoluir o parser sem armazenar
     // valores fiscais ou o envelope integral retornado pela Receita.
     Object.keys(item).forEach((chaveCampo) => camposDoPeriodo.add(String(chaveCampo).slice(0, 80)));
+    const operacoes = item.operacoes;
+    const listaOperacoes = Array.isArray(operacoes) ? operacoes : operacoes && typeof operacoes === 'object' ? [operacoes] : [];
+    listaOperacoes.forEach((operacao) => Object.keys(operacao || {}).forEach((chaveCampo) => camposOperacoes.add(String(chaveCampo).slice(0, 80))));
     if (campos.find((x) => x.campo === 'das')?.valor_extraido !== null) comDas++;
   }
-  return { objetos_analisados: itens.length, objetos_com_competencia: comPeriodo, objetos_no_periodo: noPeriodoSolicitado, objetos_com_das: comDas, campos_identificados: [...camposDoPeriodo].sort().slice(0, 40) };
+  return { objetos_analisados: itens.length, objetos_com_competencia: comPeriodo, objetos_no_periodo: noPeriodoSolicitado, objetos_com_das: comDas, campos_identificados: [...camposDoPeriodo].sort().slice(0, 40), ...(camposOperacoes.size ? { campos_operacoes: [...camposOperacoes].sort().slice(0, 40) } : {}) };
 }
 
 module.exports = { config, status, consultarDeclaracoes, verificarProcuracao, declaracoesPorCompetencia, diagnosticoDeclaracoes, camposDeDeclaracao, competencia, numero };
