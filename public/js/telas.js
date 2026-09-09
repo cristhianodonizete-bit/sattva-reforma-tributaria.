@@ -982,9 +982,30 @@ Telas.perfil = async (el) => {
     ], auditoriaMensal, { vazio:'Ainda não há documentos ou apurações importadas no período analisado para confrontar.' })}
     <p class="mini" style="margin-top:12px">A comparação usa somente a janela do período analisado. Ela não presume que uma divergência seja erro fiscal: ajustes, retenções e critérios próprios do documento devem ser conferidos na origem.</p>
   </div>`;
-  const conteudoComposicao = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Composição da receita importada</h2><p class="desc">Base do card Receita analisada, agrupada pelo modelo fiscal e CFOP. Documentos excluídos permanecem visíveis para conferência.</p></div><span class="tag">${composicaoReceita.length} grupo(s)</span></div>${A.tabela([
-    {t:'Modelo fiscal',r:x=>A.esc(String(x.modelo_fiscal||'—').toUpperCase())},{t:'CFOP',r:x=>`<span class="mono">${A.esc(x.cfop||'—')}</span>`},{t:'Decisão',r:x=>`<span class="tag ${x.compoe_receita?'c':'a'}">${x.compoe_receita?'Compõe receita':'Fora da receita'}</span><div class="mini">${A.esc(x.motivo||'')}</div>`},{t:'Itens',num:true,r:x=>x.itens},{t:'Valor documental',num:true,r:x=>A.moeda(x.valor)}
-  ],composicaoReceita,{vazio:'Nenhum documento fiscal encontrado no período analisado.'})}</div>`;
+  const rotuloCompetencia = (competencia) => { const [ano, mes] = String(competencia || '').split('-'); return ano && mes ? `${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][Number(mes) - 1]}/${ano.slice(-2)}` : '—'; };
+  const grupoModeloReceita = (modelo) => {
+    const chave = String(modelo || '').toLowerCase();
+    if (['nfe','nfce','55','65'].includes(chave)) return 'nfe';
+    if (chave === 'nfse') return 'nfse';
+    return 'outros';
+  };
+  const linhasComposicaoMensal = (filtro = 'receita') => {
+    const linhas = filtro === 'receita' ? composicaoReceita.filter((x) => x.compoe_receita) : composicaoReceita;
+    const meses = new Map();
+    linhas.forEach((x) => {
+      const linha = meses.get(x.competencia) || { competencia:x.competencia, nfe:0, nfse:0, outros:0, total:0 };
+      const grupo = grupoModeloReceita(x.modelo_fiscal); linha[grupo] += Number(x.valor) || 0; linha.total += Number(x.valor) || 0; meses.set(x.competencia, linha);
+    });
+    let anterior = null;
+    return [...meses.values()].sort((a,b) => String(a.competencia).localeCompare(String(b.competencia))).map((x) => ({ ...x, variacao: anterior === null || !anterior ? null : (x.total / anterior) - 1, anterior: anterior = x.total }));
+  };
+  const tabelaComposicaoMensal = (filtro) => A.tabela([
+    {t:'Competência',r:x=>`<b>${A.esc(rotuloCompetencia(x.competencia))}</b>`}, {t:'NF-e',num:true,r:x=>A.moeda(x.nfe)}, {t:'NFS-e',num:true,r:x=>A.moeda(x.nfse)}, {t:'Outros',num:true,r:x=>A.moeda(x.outros)}, {t:'Faturamento total',num:true,r:x=>`<b>${A.moeda(x.total)}</b>`}, {t:'Var. mês',num:true,r:x=>x.variacao === null ? '—' : `${x.variacao >= 0 ? '+' : ''}${A.pct(x.variacao)}`},
+  ],linhasComposicaoMensal(filtro),{vazio:'Nenhum documento fiscal encontrado neste filtro.'});
+  const tabelaDetalheComposicao = (filtro) => A.tabela([
+    {t:'Competência',r:x=>A.esc(rotuloCompetencia(x.competencia))},{t:'Modelo fiscal',r:x=>A.esc(String(x.modelo_fiscal||'—').toUpperCase())},{t:'CFOP',r:x=>`<span class="mono">${A.esc(x.cfop||'—')}</span>`},{t:'Decisão',r:x=>`<span class="tag ${x.compoe_receita?'c':'a'}">${x.compoe_receita?'Compõe receita':'Fora da receita'}</span><div class="mini">${A.esc(x.motivo||'')}</div>`},{t:'Itens',num:true,r:x=>x.itens},{t:'Valor documental',num:true,r:x=>A.moeda(x.valor)}
+  ], filtro === 'receita' ? composicaoReceita.filter((x)=>x.compoe_receita) : composicaoReceita,{vazio:'Nenhum documento fiscal encontrado no período analisado.'});
+  const conteudoComposicao = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Composição da receita importada</h2><p class="desc">Faturamento mensal por modelo fiscal. A visão de operações que compõem receita é a mesma base do card Receita analisada.</p></div><span class="tag">${composicaoReceita.length} grupo(s)</span></div><div class="abas" style="margin:16px 0 12px"><button class="ativo" data-filtro-composicao="receita">Operações que compõem receita</button><button data-filtro-composicao="geral">Todos os documentos</button></div><div id="tabelaComposicaoMensal">${tabelaComposicaoMensal('receita')}</div><details style="margin-top:16px"><summary><b>Auditoria por competência, modelo e CFOP</b></summary><div id="tabelaDetalheComposicao" style="margin-top:12px">${tabelaDetalheComposicao('receita')}</div></details></div>`;
 
   el.innerHTML = cab('Módulo 1.a · diagnóstico', 'Perfil Tributário',
     'Raio-X da apuração atual de PIS/Cofins. Esta tela não projeta CBS, não analisa cadeias e não apresenta cenários.',
@@ -1030,6 +1051,13 @@ Telas.perfil = async (el) => {
 
   el.querySelector('#centralDadosPerfil').onclick = () => A.ir('dados');
   el.querySelectorAll('[data-aba-perfil]').forEach((botao) => { botao.onclick = () => { S.aba.perfilTributario = botao.dataset.abaPerfil; A.ir('perfil'); }; });
+  el.querySelectorAll('[data-filtro-composicao]').forEach((botao) => { botao.onclick = () => {
+    const filtro = botao.dataset.filtroComposicao;
+    el.querySelectorAll('[data-filtro-composicao]').forEach((x) => x.classList.toggle('ativo', x === botao));
+    const mensal = el.querySelector('#tabelaComposicaoMensal'); const detalhe = el.querySelector('#tabelaDetalheComposicao');
+    if (mensal) mensal.innerHTML = tabelaComposicaoMensal(filtro);
+    if (detalhe) detalhe.innerHTML = tabelaDetalheComposicao(filtro);
+  }; });
   el.querySelectorAll('[data-apuracao-revisar]').forEach((botao) => { botao.onclick = () => {
     const apuracao = apuracoes.find((x) => Number(x.id) === Number(botao.dataset.apuracaoRevisar));
     if (!apuracao) return;

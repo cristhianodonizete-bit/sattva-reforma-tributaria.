@@ -25,12 +25,14 @@ assert.strictEqual(r.empresa.regime_atual, 'simples_nacional');
 assert.strictEqual(r.historico.length, 1);
 const julho = r.historico[0];
 assert.strictEqual(julho.receita.valor, 900, 'XML do período é a fonte primária da receita quando disponível');
-assert.strictEqual(julho.receita.natureza, 'XML_IMPORTADO');
+assert.strictEqual(julho.receita.natureza, 'DOCUMENTO_FISCAL_IMPORTADO');
 assert.strictEqual(julho.pgdas.valor, 80);
 assert.strictEqual(julho.carga_efetiva_historica.natureza, 'CALCULADO');
 assert.strictEqual(julho.cbs_motor_existente.liquida, 80, 'CBS deve ser lida da fotografia materializada');
 assert.strictEqual(julho.cbs_motor_existente.motor_execucao_id, 14);
 assert.strictEqual(julho.receitas_sem_dfe.valor, 100);
+assert.deepStrictEqual(r.composicao_receita[0].competencia, '2026-07');
+assert.strictEqual(r.composicao_receita[0].modelo_fiscal, 'nfe');
 
 db.prepare("INSERT INTO empresas VALUES (2,'Sem dados','lucro_real')").run();
 const vazio = perfil.consolidar(db, 2);

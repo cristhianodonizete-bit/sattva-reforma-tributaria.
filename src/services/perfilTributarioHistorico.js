@@ -64,7 +64,9 @@ function montarAuditoriaMensal(documentos, apuracoes, perfis) {
 }
 
 function consolidar(db, empresaId) {
-  const empresa = db.prepare('SELECT id, razao_social, regime, regime_reconhecimento_simples FROM empresas WHERE id=?').get(empresaId);
+  const colunasEmpresa = new Set(db.prepare('PRAGMA table_info(empresas)').all().map((x) => x.name));
+  const colunaEmpresa = (nome) => colunasEmpresa.has(nome) ? nome : `NULL AS ${nome}`;
+  const empresa = db.prepare(`SELECT id, razao_social, ${colunaEmpresa('regime')}, ${colunaEmpresa('regime_reconhecimento_simples')} FROM empresas WHERE id=?`).get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada.');
   const periodo = tabelaExiste(db, 'empresa_periodo_analisado')
     ? db.prepare('SELECT competencia_inicio,competencia_fim FROM empresa_periodo_analisado WHERE empresa_id=?').get(empresaId) : null;
@@ -89,8 +91,8 @@ function consolidar(db, empresaId) {
       const atual=documentosPorCompetencia.get(x.competencia) || { competencia:x.competencia, receita_documentada:0, quantidade_documentos:0, iss_documentado:0 };
       const compoe = receitaOperacional.compoeReceita(x);
       const motivo = receitaOperacional.motivo(x);
-      const chave = [x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', x.cfop || 'SEM_CFOP', motivo].join('|');
-      const linha = composicaoReceita.get(chave) || { modelo_fiscal:x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop:x.cfop || '', motivo, compoe_receita:compoe, itens:0, valor:0 };
+      const chave = [x.competencia, x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', x.cfop || 'SEM_CFOP', motivo].join('|');
+      const linha = composicaoReceita.get(chave) || { competencia:x.competencia, modelo_fiscal:x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop:x.cfop || '', motivo, compoe_receita:compoe, itens:0, valor:0 };
       linha.itens++; linha.valor += numero(x.valor); composicaoReceita.set(chave, linha);
       if (compoe) {
         atual.receita_documentada += numero(x.valor); atual.quantidade_documentos++; atual.iss_documentado += numero(x.iss);
