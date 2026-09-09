@@ -5,6 +5,8 @@ assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5102'})
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5901'}),false,'remessa não pode compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5202'}),false,'devolução não pode compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5152'}),false,'transferência não pode compor receita');
+assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5949'}),false,'outras saídas 5.949 não podem compor receita');
+assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'6949'}),false,'outras saídas 6.949 não podem compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',nbs:'115013000'}),true,'NFS-e de serviço sem CFOP deve compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',modelo_documento_fiscal:'nfse'}),true,'modelo NFS-e de saída deve ser serviço faturável');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',modelo_documento_fiscal:'nfe',nbs:'115013000'}),false,'NF-e sem CFOP de venda não pode virar serviço por inferência');

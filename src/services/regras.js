@@ -135,6 +135,9 @@ function anos() { return carregar().anos; }
 function naturezaCfop(cfop) {
   const c = String(cfop || '').replace(/\D/g, '');
   if (c.length !== 4) return null;
+  // 5.949/6.949 são "outras saídas". Apesar de iniciarem com 5/6, não são
+  // venda por si só e jamais podem chegar ao faturamento por fallback.
+  if (c === '5949' || c === '6949') return 'outra_saida';
   const grupo = c.slice(1);
   // A ordem importa: o primeiro dígito distingue operação com o exterior e
   // precisa ser avaliado antes do grupo. CFOP 5102 é venda interna; 3102 é

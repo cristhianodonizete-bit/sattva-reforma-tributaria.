@@ -23,6 +23,7 @@ function natureza(movimento = {}) {
     if (['201','202','208','209','210','410','411','412','413','503','553'].includes(cfop.slice(1))) return 'devolucao';
     if (['151','152','153','154','408','409','658','659'].includes(cfop.slice(1))) return 'transferencia';
     if (['406','407','551','552','556','557'].includes(cfop.slice(1))) return 'ativo_consumo';
+    if (cfop === '5949' || cfop === '6949') return 'outra_saida';
     return ['5','6'].includes(cfop[0]) ? 'venda' : null;
   }
 }
