@@ -581,7 +581,10 @@ router.get('/operacao/dashboard', async (req, res) => {
     };
     const hoje = new Date().toISOString().slice(0, 10);
     const carteira = (projetos || [])
-      .filter((p) => empresaPorId.has(p.empresa_id) && p.aprovado_em)
+      // A aprovação é registrada pela transição de status. Algumas linhas
+      // históricas sincronizadas não possuem a data, embora já estejam em
+      // execução; essas linhas continuam sendo projetos válidos.
+      .filter((p) => empresaPorId.has(p.empresa_id) && ['em_execucao', 'concluido'].includes(p.status))
       .map((p) => {
       const es = porProjeto.get(p.id) || [], as = acompPorProjeto.get(p.id) || [], ts = tarefasPorProjeto.get(p.id) || [], rs = responsaveisPorProjeto.get(p.id) || [];
       const feitas = es.filter((x) => ['concluida', 'nao_aplicavel'].includes(x.status)).length;
@@ -3002,9 +3005,17 @@ function propagarPrazoSla(contratacaoId, marcoId, novoPrazo) {
 // O SQLite do Render é somente cache. As telas de projeto não podem concluir
 // que não existe escopo aprovado apenas porque a instância acabou de iniciar
 // antes de carregar a gestão compartilhada.
+function projetoFormalmenteAprovado(projeto) {
+  return Boolean(projeto?.aprovado_em) || ['em_execucao', 'concluido'].includes(projeto?.status);
+}
+
 async function projetoAprovadoNoCache(empresaId) {
-  const buscar = () => db.prepare(`SELECT * FROM contratacoes WHERE empresa_id=? AND aprovado_em IS NOT NULL
-    ORDER BY aprovado_em DESC, id DESC LIMIT 1`).get(empresaId);
+  // `status` é a evidência operacional de aprovação. A data é preservada
+  // quando existe, mas versões antigas da sincronização podem não tê-la
+  // publicado junto com um projeto já em execução.
+  const buscar = () => db.prepare(`SELECT * FROM contratacoes WHERE empresa_id=?
+    AND (aprovado_em IS NOT NULL OR status IN ('em_execucao','concluido'))
+    ORDER BY CASE WHEN aprovado_em IS NULL THEN 1 ELSE 0 END, aprovado_em DESC, id DESC LIMIT 1`).get(empresaId);
   let projeto = buscar();
   if (!projeto && supabase.configurado()) {
     try {
@@ -3048,7 +3059,8 @@ router.get('/gestao/projetos', async (req, res) => {
     const permitidas = await empresasPermitidasUsuario(req.usuario);
     const contratos = db.prepare(`SELECT c.*, e.razao_social, co.nome combo_nome FROM contratacoes c
       JOIN empresas e ON e.id=c.empresa_id LEFT JOIN combos co ON co.id=c.combo_id
-      WHERE c.aprovado_em IS NOT NULL ORDER BY c.aprovado_em DESC, c.id DESC`).all().filter((c) => permitidas === null || permitidas.has(String(c.empresa_id)));
+      WHERE c.aprovado_em IS NOT NULL OR c.status IN ('em_execucao','concluido')
+      ORDER BY CASE WHEN c.aprovado_em IS NULL THEN 1 ELSE 0 END, c.aprovado_em DESC, c.id DESC`).all().filter((c) => permitidas === null || permitidas.has(String(c.empresa_id)));
     const vistos = new Set();
     const projetos = contratos.filter((c) => { if (vistos.has(c.empresa_id)) return false; vistos.add(c.empresa_id); return true; }).map((c) => {
       const entregas = db.prepare('SELECT * FROM projeto_entregas WHERE contratacao_id=?').all(c.id);
@@ -3069,7 +3081,7 @@ router.get('/gestao/projetos', async (req, res) => {
     });
     const propostas = db.prepare(`SELECT c.*, e.razao_social, co.nome combo_nome FROM contratacoes c
       JOIN empresas e ON e.id=c.empresa_id LEFT JOIN combos co ON co.id=c.combo_id
-      WHERE c.aprovado_em IS NULL ORDER BY c.criado_em DESC, c.id DESC`).all()
+      WHERE c.aprovado_em IS NULL AND c.status NOT IN ('em_execucao','concluido') ORDER BY c.criado_em DESC, c.id DESC`).all()
       .filter((c) => permitidas === null || permitidas.has(String(c.empresa_id)))
       .map((c) => ({ ...c, servicos: JSON.parse(c.servicos_json || '[]') }));
     const servicos = db.prepare("SELECT id,nome,modulo,chave_entrega FROM servicos WHERE ativo=1 AND chave_entrega <> 'acompanhamento' ORDER BY ordem,nome").all();
@@ -3115,7 +3127,7 @@ router.post('/contratacoes/:id/aprovar', async (req, res) => {
 router.post('/contratacoes/:id/liberar-acompanhamento', async (req, res) => {
   try {
     const c = await contratacaoPermitida(req, req.params.id);
-    if (!c.aprovado_em) throw new Error('Aprove o plano antes de liberar o acompanhamento.');
+    if (!projetoFormalmenteAprovado(c)) throw new Error('Aprove o plano antes de liberar o acompanhamento.');
     const diagnostico = db.prepare("SELECT status FROM projeto_entregas WHERE contratacao_id=? AND chave='diagnostico'").get(c.id);
     if (!diagnostico || diagnostico.status !== 'concluida') throw new Error('Conclua o Diagnóstico antes de liberar o acompanhamento.');
     const competencia = String(req.body.competencia_referencia || '');
@@ -3138,7 +3150,7 @@ router.post('/contratacoes/:id/liberar-acompanhamento', async (req, res) => {
 router.post('/contratacoes/:id/aplicar-sla', async (req, res) => {
   try {
     const projeto = await contratacaoPermitida(req, req.params.id);
-    if (!projeto.aprovado_em) throw new Error('Aprove o escopo antes de aplicar o SLA.');
+    if (!projetoFormalmenteAprovado(projeto)) throw new Error('Aprove o escopo antes de aplicar o SLA.');
     const resultado = aplicarSlaNoProjeto(projeto);
     auditar(req, { empresaId: projeto.empresa_id, acao: 'Aplicou tarefas obrigatórias de SLA', entidade: 'contratacao', entidadeId: projeto.id, depois: resultado });
     ok(res, resultado); sincronizarGestao();
