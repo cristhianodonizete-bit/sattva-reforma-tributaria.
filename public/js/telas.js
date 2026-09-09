@@ -1042,23 +1042,15 @@ async function telaCadeia(el, tipo) {
       ${!eForn && analise.riscos.some((r) => r.codigo === 'base_estimada_regime') ? '<button class="btn vazio" id="corrigirReferencias" style="margin-top:12px">Corrigir referências fiscais dos serviços</button>' : ''}
     </div>` : ''}
     ${mostrarCarteira ? `<div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Compras por regime do fornecedor' : 'Carteira por perfil de cliente'}</h2>
-        <p class="desc">${eForn ? 'O regime do fornecedor determina o crédito que a empresa toma' : 'O perfil do cliente indica a relevância econômica do crédito potencial; não altera o IBS/CBS da venda'}</p>
+        <p class="desc">${eForn ? 'O regime do fornecedor determina o crédito que a empresa toma' : 'Consolidação da carteira por perfil de cliente, enquadramento CBS e efeito projetado da venda.'}</p>
         ${A.tabela([
           { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}</div>` },
           { t: 'Enquadramento CBS', r: (r) => `<span class="tag ${r.faixaOrdem === 'ALIQUOTA_ZERO' ? 'a' : r.faixaOrdem !== 'INTEGRAL' ? 'c' : 'n'}">${A.esc(r.faixaTributacao || 'Base integral')}</span>` },
-          { t: 'Valor', num: true, r: (r) => A.moeda(r.valor) },
-          { t: 'Part.', num: true, r: (r) => A.pct(r.representatividade, 1) },
-          ...(!eForn ? [
-            { t: ibsAtivo ? 'Base econômica integral' : 'Base econômica CBS', num: true, r: (r) => A.moeda(r.baseEconomica) },
-            { t: 'PIS/COFINS atual', num: true, r: (r) => A.moeda(r.pisCofinsAtual) },
-          ] : []),
-          ...(ibsAtivo ? [{ t: eForn ? 'IBS da compra' : 'IBS da venda', num: true, r: (r) => A.moeda(r.ibs) }] : []),
-          { t: eForn ? 'CBS da compra' : 'CBS da venda', num: true, r: (r) => A.moeda(r.cbs) },
-          { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (r) => A.moeda(r.precoFinal) },
-          { t: eForn ? 'Impacto da compra' : 'Impacto da venda', num: true, r: (r) => A.setaR$(r.impactoOperacao) },
-          { t: 'Crédito potencial da operação', num: true, r: (r) => A.moeda(r.creditoPotencial) },
-          { t: eForn ? 'Relevância para a empresa' : 'Relevância para o cliente', r: (r) => `<span class="tag ${String(r.relevanciaCreditoCliente || '').startsWith('Potencialmente') ? 'c' : 'n'}">${A.esc(r.relevanciaCreditoCliente)}</span>` },
-        ], analise.regimes)}
+          { t: eForn ? 'Compras atuais' : 'Vendas atuais', num: true, r: (r) => `<b>${A.moeda(r.valor)}</b><div class="mini">${A.pct(r.representatividade, 1)} da carteira</div>` },
+          { t: 'Tributos', num: true, r: (r) => `${!eForn ? `<b>PIS/Cofins ${A.moeda(r.pisCofinsAtual)}</b><div class="mini">` : ''}${ibsAtivo ? `IBS ${A.moeda(r.ibs)} · ` : ''}CBS ${A.moeda(r.cbs)}${!eForn ? '</div>' : ''}` },
+          { t: eForn ? 'Compra e impacto' : 'Venda e impacto', num: true, r: (r) => `<b>${A.moeda(r.precoFinal)}</b><div class="mini ${Number(r.impactoOperacao) > 0 ? 'sobe' : Number(r.impactoOperacao) < 0 ? 'desce' : ''}">${A.setaR$(r.impactoOperacao)}</div>` },
+          { t: 'Crédito potencial', num: true, r: (r) => A.moeda(r.creditoPotencial) },
+        ], eForn ? analise.regimes : analise.regimes.filter((r) => !/^regime regular/i.test(String(r.label || ''))), { classe:'carteira-perfil-tabela' })}
       </div>
     <div class="cartao" style="margin-top:16px"><h2>${ibsAtivo ? 'Projeção ano a ano' : 'Referência CBS'}</h2>
       ${ibsAtivo ? A.tabela([

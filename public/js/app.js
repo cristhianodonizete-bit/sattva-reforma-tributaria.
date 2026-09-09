@@ -190,7 +190,7 @@ const App = (() => {
   // ---------- TABELA ----------
   function tabela(colunas, linhas, opcoes = {}) {
     if (!linhas.length) return `<div class="vazio-estado"><p>${esc(opcoes.vazio || 'Nenhum registro.')}</p></div>`;
-    return `<div class="tabela-rolagem"><table><thead><tr>${colunas.map((c) =>
+    return `<div class="tabela-rolagem ${esc(opcoes.classe || '')}"><table><thead><tr>${colunas.map((c) =>
       `<th class="${c.num ? 'num' : ''}">${c.t}</th>`).join('')}</tr></thead><tbody>
       ${linhas.map((l) => `<tr>${colunas.map((c) =>
         `<td class="${c.num ? 'num' : ''}">${c.r(l)}</td>`).join('')}</tr>`).join('')}
