@@ -36,7 +36,7 @@ function assegurarCatalogoReceitaCfop() {
   const fonte = 'Tabela CFOP — IT 2023.002 v2.10';
   const versao = '2023.002-v2.10';
   const gruposVenda = [
-    '101','102','103','104','105','106','109','110','111','112','113','114','115','116','117','118','119','120','122','123','124','125',
+    '101','102','103','104','105','106','108','109','110','111','112','113','114','115','116','117','118','119','120','122','123','124','125',
     '251','252','253','254','255','256','257','258',
     '301','302','303','304','305','306','307',
     '351','352','353','354','355','356','357','359','360',
@@ -49,6 +49,9 @@ function assegurarCatalogoReceitaCfop() {
     db.prepare("DELETE FROM param_cfop WHERE prefixo IN ('5','6') AND grupo IS NULL AND natureza='venda'").run();
     db.prepare("DELETE FROM param_cfop WHERE prefixo='7' AND natureza='exportacao'").run();
     db.prepare("DELETE FROM param_cfop WHERE natureza='venda' AND fonte LIKE 'Tabela CFOP%'").run();
+    // 949 é a família de "outras saídas". Ela precisa estar no catálogo
+    // visível; não pode ser uma exceção escondida no resolvedor de receita.
+    if (!existe.get('949', 'outra_saida')) inserir.run('949', null, 'outra_saida', 2, 'Outras saídas — não representam faturamento', 0, fonte, versao, '2023-04-24');
     for (const grupo of gruposVenda) if (!existe.get(grupo, 'venda')) inserir.run(grupo, null, 'venda', 2, 'Venda / prestação — catálogo positivo', 1, fonte, versao, '2023-04-24');
     for (const grupo of ['101','102','105','106','127','251','301','358','651','654']) if (!existeExato.get(grupo, '7', 'exportacao')) inserir.run(grupo, '7', 'exportacao', 2, 'Exportação / prestação ao exterior — catálogo positivo', 1, fonte, versao, '2023-04-24');
   })();
@@ -164,9 +167,6 @@ function anos() { return carregar().anos; }
 function naturezaCfop(cfop) {
   const c = String(cfop || '').replace(/\D/g, '');
   if (c.length !== 4) return null;
-  // 5.949/6.949 são "outras saídas". Apesar de iniciarem com 5/6, não são
-  // venda por si só e jamais podem chegar ao faturamento por fallback.
-  if (c === '5949' || c === '6949') return 'outra_saida';
   const grupo = c.slice(1);
   // A ordem importa: o primeiro dígito distingue operação com o exterior e
   // precisa ser avaliado antes do grupo. CFOP 5102 é venda interna; 3102 é
@@ -290,18 +290,17 @@ function salvarCfop(id, d, usuario) {
 }
 
 function cadastrarCfop(d, usuario) {
-  const codigo = String(d.cfop || '').replace(/\D/g, '');
+  const grupo = String(d.cfop || '').replace(/\D/g, '');
   const naturezas = new Set(['venda','aquisicao','devolucao','remessa','transferencia','exportacao','importacao','ativo_consumo','outra_saida']);
-  if (!/^\d{4}$/.test(codigo)) throw new Error('Informe um CFOP com quatro dígitos.');
+  if (!/^\d{3}$/.test(grupo)) throw new Error('Informe os três últimos dígitos do CFOP.');
   if (!naturezas.has(d.natureza)) throw new Error('Selecione uma natureza operacional válida.');
   if (d.compoe_receita !== true && d.compoe_receita !== false) throw new Error('Informe se a operação compõe a receita.');
-  const prefixo = codigo[0], grupo = codigo.slice(1);
-  const existente = db.prepare('SELECT id FROM param_cfop WHERE prefixo=? AND grupo=? AND prioridade=2 AND ativo<>0 LIMIT 1').get(prefixo, grupo);
-  if (existente) throw new Error(`O CFOP ${codigo} já possui uma regra específica cadastrada.`);
+  const existente = db.prepare('SELECT id FROM param_cfop WHERE prefixo IS NULL AND grupo=? AND prioridade=2 AND ativo<>0 LIMIT 1').get(grupo);
+  if (existente) throw new Error(`O grupo ${grupo} já possui uma regra cadastrada no mapa.`);
   const r = db.prepare(`INSERT INTO param_cfop (grupo,prefixo,natureza,prioridade,descricao,compoe_receita,fonte,versao,vigencia_inicio,ativo)
-    VALUES (?,?,?,?,?,?,?,?,?,1)`).run(grupo, prefixo, d.natureza, 2, String(d.descricao || '').trim(), d.compoe_receita ? 1 : 0,
+    VALUES (?,?,?,?,?,?,?,?,?,1)`).run(grupo, null, d.natureza, 2, String(d.descricao || '').trim(), d.compoe_receita ? 1 : 0,
     String(d.fonte || 'Cadastro manual').trim(), String(d.versao || 'MANUAL').trim(), new Date().toISOString().slice(0, 10));
-  registrarLog('cfop', `novo:${codigo}`, '', `${d.natureza}; receita=${d.compoe_receita ? 'sim' : 'não'}`, usuario);
+  registrarLog('cfop', `novo-grupo:${grupo}`, '', `${d.natureza}; receita=${d.compoe_receita ? 'sim' : 'não'}`, usuario);
   invalidar();
   return db.prepare('SELECT * FROM param_cfop WHERE id=?').get(r.lastInsertRowid);
 }
