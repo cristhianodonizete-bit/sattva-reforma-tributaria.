@@ -814,11 +814,10 @@ Telas.perfil = async (el) => {
   const apuracoesDoPerfil = apuracoes.filter((x) => noPeriodoDoPerfil(x.competencia));
   const apuracoesValidasDoExercicio = apuracoes.filter((x) => noPeriodoDoPerfil(x.competencia) && competenciasDoExercicio.has(x.competencia)
     && ['VALIDADO_AUTOMATICAMENTE', 'VALIDADO_USUARIO'].includes(x.status_validacao));
-  // Receita, PIS e COFINS precisam nascer da mesma apuração mensal. Usar a
-  // soma genérica dos XMLs aqui permitia que uma competência importada fora
-  // da janela contaminasse somente o cartão de receita.
-  const receitasDoQuestor = apuracoesValidasDoExercicio.map((x) => numero(x.receita_base));
-  const receitas = informado(receitasDoQuestor) ? receitasDoQuestor : historico.map((x) => x.receita?.valor);
+  // A receita é atualizada automaticamente pelos XMLs que entrarem nas
+  // competências do período; o serviço usa a apuração Questor só quando não
+  // houver XML para aquele mês.
+  const receitas = historico.map((x) => x.receita?.valor);
   // Havendo relatório importado e validado, ele é a fonte prioritária do
   // resumo. A trilha histórica permanece como fallback para cadastros sem
   // apuração documental, nunca como substituto do Questor.
@@ -847,7 +846,7 @@ Telas.perfil = async (el) => {
     `<div class="cartao"><div class="cabecalho-lista"><div><h2>Resumo da apuração atual</h2><p class="desc">Valores efetivamente importados. A alíquota efetiva final é PIS/Cofins apurados ÷ receita analisada.</p></div><span class="tag">${A.esc(origem)}</span></div>
       <div class="grade g4">
         ${A.kpi('Regime atual', A.esc(regimeAtual), historico.length ? `${historico.length} período(s) analisado(s)${periodoPerfil ? ` · ${A.esc(periodoPerfil.competencia_inicio)} a ${A.esc(periodoPerfil.competencia_fim)}` : ''}` : 'sem período analisado')}
-        ${A.kpi('Receita analisada', receitaTotal ? A.moeda(receitaTotal) : 'INDETERMINADO', informado(receitasDoQuestor) ? 'base dos relatórios Questor no período' : 'base dos documentos no período')}
+        ${A.kpi('Receita analisada', receitaTotal ? A.moeda(receitaTotal) : 'INDETERMINADO', 'XMLs e apurações no período')}
         ${A.kpi('PIS apurado', informado(valoresPis) ? A.moeda(pisTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
         ${A.kpi('Cofins apurada', informado(valoresCofins) ? A.moeda(cofinsTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
       </div>

@@ -4072,9 +4072,13 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
     const insPar = db.prepare(`INSERT INTO parceiros (empresa_id, tipo, cnpj, descricao, regime, uf, origem)
       VALUES (?,?,?,?,?,?, 'xml')
       ON CONFLICT(empresa_id, tipo, cnpj) DO UPDATE SET descricao = excluded.descricao`);
+    // A chave eletrônica + item é a identidade fiscal do detalhe importado.
+    // Reenviar a mesma pasta não pode duplicar receita, crédito ou débito.
+    const movimentoXmlExistente = db.prepare(`SELECT 1 FROM movimentos
+      WHERE empresa_id=? AND origem='xml' AND chave=? AND item_numero=? LIMIT 1`);
 
     const relatorio = { arquivos: arquivos.length, documentos: 0, itens: 0, entradas: 0, saidas: 0,
-      requerValidacao: 0, erros: [], regimesSugeridos: 0 };
+      requerValidacao: 0, duplicados: 0, erros: [], regimesSugeridos: 0 };
 
     db.transaction(() => {
       for (const f of arquivos) {
@@ -4094,6 +4098,10 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
             if (reg) relatorio.regimesSugeridos++;
           }
           for (const i of r.itens) {
+            if (i.chave && movimentoXmlExistente.get(req.params.id, i.chave, i.item_numero)) {
+              relatorio.duplicados++;
+              continue;
+            }
             const identidade = i.codigo_produto ? identidadeProduto.resolver({ empresa_id:Number(req.params.id), tipo_origem:'XML_CPROD', codigo_origem:i.codigo_produto, ncm:i.ncm, descricao:i.descricao, data:i.data_emissao }) : null;
             const movimento = insMov.run(req.params.id, lote.lastInsertRowid, tipoParceiro, i.sentido, i.nome, i.inscr_federal,
               i.descricao, i.ncm || '', i.nbs || '', i.lc116 || '', i.cfop || '', i.cst || '', i.csosn || '', i.competencia,

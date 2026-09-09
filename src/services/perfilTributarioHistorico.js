@@ -58,7 +58,6 @@ function consolidar(db, empresaId) {
     const receitaDocumentada = linha.documentos ? numero(linha.documentos.receita_documentada) : null;
     const receitaSemDfe = (linha.receitas_sem_dfe || []).reduce((s, x) => s + numero(x.valor), 0);
     const tributosHistoricos = p ? numero(p.icms) + numero(p.iss) + numero(p.ipi) + numero(p.pis) + numero(p.cofins) + numero(p.das) : null;
-    const receitaParaCarga = receitaPerfil !== null ? receitaPerfil : receitaDocumentada;
     const margem = margens.find((x) => x.periodo_inicio <= linha.competencia && x.periodo_fim >= linha.competencia) || null;
     const eSimples = /simples|mei/.test(String(empresa.regime || '').toLowerCase());
     const eLucroReal = /lucro_real|lucro real/.test(String(empresa.regime || '').toLowerCase());
@@ -67,6 +66,14 @@ function consolidar(db, empresaId) {
       + numero(cbsAtual.receita_imunidade_cbs) + numero(cbsAtual.receita_regime_especifico_cbs)
       + numero(cbsAtual.receita_beneficio_governo_cbs) : null;
     const apuracao = linha.apuracao_pis_cofins || null;
+    // Para a receita do Perfil, o XML mensal é a fonte primária quando existe:
+    // ele incorpora documentos novos assim que são importados. A apuração
+    // Questor é fallback; um perfil manual nunca pode sobrescrever XMLs da
+    // mesma competência nem somar meses fora da janela.
+    const receitaApuracao = apuracao?.receita_base != null ? numero(apuracao.receita_base) : null;
+    const receitaAtual = receitaDocumentada !== null ? receitaDocumentada
+      : receitaApuracao !== null ? receitaApuracao : receitaPerfil;
+    const receitaParaCarga = receitaAtual;
     const apuracaoConfirmada = ['VALIDADO_USUARIO','VALIDADO_AUTOMATICAMENTE'].includes(apuracao?.status_validacao)
       && (apuracao.pis_recolhido != null || apuracao.pis_debito != null)
       && (apuracao.cofins_recolhida != null || apuracao.cofins_debito != null);
@@ -77,7 +84,7 @@ function consolidar(db, empresaId) {
     return {
       competencia: linha.competencia,
       regime: empresa.regime || 'INDETERMINADO',
-      receita: valor(receitaPerfil !== null ? receitaPerfil : receitaDocumentada, receitaPerfil !== null ? 'REAL' : receitaDocumentada !== null ? 'EXTRAIDO' : 'INDETERMINADO'),
+      receita: valor(receitaAtual, receitaDocumentada !== null ? 'XML_IMPORTADO' : receitaApuracao !== null ? 'APURACAO_IMPORTADA' : receitaPerfil !== null ? 'REAL' : 'INDETERMINADO'),
       receita_documentada: valor(receitaDocumentada, receitaDocumentada !== null ? 'EXTRAIDO' : 'INDETERMINADO'),
       folha: valor(linha.folha?.valor_folha, linha.folha ? 'REAL' : 'INDETERMINADO'),
       margem_operacional: valor(margem?.margem_operacional_percentual, margem ? 'PREMISSA_INFORMADA' : 'INDETERMINADO'),
