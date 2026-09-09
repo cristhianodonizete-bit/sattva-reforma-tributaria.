@@ -812,6 +812,7 @@ Telas.perfil = async (el) => {
   };
   const receitas = historico.map((x) => x.receita?.valor);
   const competenciasDoExercicio = new Set(historico.map((x) => x.competencia).filter(Boolean));
+  const apuracoesDoPerfil = apuracoes.filter((x) => noPeriodoDoPerfil(x.competencia));
   const apuracoesValidasDoExercicio = apuracoes.filter((x) => noPeriodoDoPerfil(x.competencia) && competenciasDoExercicio.has(x.competencia)
     && ['VALIDADO_AUTOMATICAMENTE', 'VALIDADO_USUARIO'].includes(x.status_validacao));
   // Havendo relatório importado e validado, ele é a fonte prioritária do
@@ -865,13 +866,13 @@ Telas.perfil = async (el) => {
       ], { vazio:'Nenhum tratamento informado.' })}
       <p class="mini" style="margin-top:12px">A ausência de detalhe não é presumida como tributação normal. O detalhamento por operação é analisado nas Cadeias de Fornecedores e Clientes.</p>
     </div>
-    <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>Apurações importadas</h2><p class="desc">Documentos preservados e auditáveis. Revise os valores antes de usá-los como referência.</p></div></div>
+    <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>Apurações importadas</h2><p class="desc">Exibindo somente as competências do período analisado${periodoPerfil ? ` (${A.esc(periodoPerfil.competencia_inicio)} a ${A.esc(periodoPerfil.competencia_fim)})` : ''}. Os demais documentos seguem preservados para o Planejamento Tributário.</p></div><span class="tag">${apuracoesDoPerfil.length} competência(s)</span></div>
       ${A.tabela([
         { t:'Competência', r:x=>A.esc(x.competencia || 'Não identificada') }, { t:'Documento', r:x=>`<b>${A.esc(x.nome_original)}</b>` },
         { t:'Receita base', num:true, r:x=>moedaOuIndeterminado(numero(x.receita_base)) }, { t:'PIS apurado', num:true, r:x=>moedaOuIndeterminado(numero(x.pis_debito)) },
         { t:'Cofins apurada', num:true, r:x=>moedaOuIndeterminado(numero(x.cofins_debito)) }, { t:'Validação', r:x=>A.esc(x.status_validacao || 'INDETERMINADO') },
         { t:'', r:x=>`<button class="btn pq vazio" data-apuracao-revisar="${x.id}">Revisar</button><button class="btn pq vazio" data-apuracao-reprocessar="${x.id}">Reprocessar</button>` },
-      ], apuracoes, { vazio:'Nenhuma apuração de PIS/Cofins foi importada. Envie o relatório pela Central de Dados.' })}
+      ], apuracoesDoPerfil, { vazio:'Nenhuma apuração de PIS/Cofins foi importada no período analisado.' })}
     </div>`;
 
   el.querySelector('#centralDadosPerfil').onclick = () => A.ir('dados');
