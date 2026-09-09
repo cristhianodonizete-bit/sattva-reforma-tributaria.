@@ -21,6 +21,7 @@ const normalizacaoFiscalXml = require('./normalizacaoFiscalXml');
 const revisaoBeneficiosFiscais = require('./revisaoBeneficiosFiscais');
 const motorCondicionalPisCofins = require('./motorCondicionalPisCofins');
 const receitaOperacional = require('./receitaOperacional');
+const motorReceitasSemDfe = require('./motorReceitasSemDfe');
 const registrarErroSombra = (m, oficial, erro) => {
   try { db.prepare(`INSERT INTO motor_condicional_sombra (movimento_id,empresa_id,produto_empresa_id,ncm,status_avaliacao,resultado_oficial,resultado_sombra,motivo) VALUES (?,?,?,?,?,?,?,?)`)
     .run(m.id || null,m.empresa_id,m.produto_empresa_id || null,m.ncm || null,'ERRO',JSON.stringify(oficial),null,`SOMBRA:${String(erro?.message || 'erro').slice(0,300)}`); } catch (_) { /* auditoria não interrompe o oficial */ }
@@ -173,6 +174,9 @@ function executar(empresaId, opcoes = {}) {
   // intactos; a mesma implementação do motor continua sendo utilizada.
   const empresa = opcoes.regimeEmpresa ? { ...empresaPersistida, regime: opcoes.regimeEmpresa } : empresaPersistida;
   const ano = Number(opcoes.ano) || 2027;
+  // Receitas sem DF-e não são movimentos fiscais, mas recebem a mesma
+  // resolução versionada CBS/IBS antes das projeções e comparações de regime.
+  const processamentoReceitasSemDfe = motorReceitasSemDfe.reprocessarEmpresa(db, empresaId);
   const tabelas = motor.anexosSimples();
   const referenciasVenda = new Map(db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId)
     .map((r) => [r.chave, r]));
@@ -324,7 +328,7 @@ function executar(empresaId, opcoes = {}) {
     movimentoIdsExcluidos: saidasExcluidasDaReceita,
     publicarAssincrona: opcoes.publicarAssincrona !== false,
   });
-  return { empresa, ano, resumo, entradas, saidas, apuracao,
+  return { empresa, ano, resumo: { ...resumo, receitas_sem_dfe_processadas: processamentoReceitasSemDfe.processadas, receitas_sem_dfe_pendentes: processamentoReceitasSemDfe.pendentes }, entradas, saidas, apuracao,
     cenariosSimples: [...cenariosPorFornecedor.entries()].map(([k, v]) => ({ fornecedor: k, ...v })) };
 }
 

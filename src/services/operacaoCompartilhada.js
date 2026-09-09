@@ -12,7 +12,8 @@ const CAMPOS = {
   perfil_tributario: ['id','empresa_id','competencia','receita_bruta','receita_recebida','receita_mercadorias','receita_servicos','receita_exportacao','icms','iss','ipi','pis','cofins','das','creditos_tomados','origem','criado_em'],
   folhas_pagamento_competencias: ['id','empresa_id','competencia','valor_folha','pro_labore','origem','referencia_arquivo','status_validacao','criado_em','atualizado_em'],
   margens_operacionais_premissas: ['id','empresa_id','periodo_inicio','periodo_fim','margem_operacional_percentual','origem','natureza','status_validacao','criado_em','atualizado_em'],
-  receitas_sem_dfe: ['id','empresa_id','competencia','tipo_receita','descricao','valor','origem','evidencia','classificacao_fiscal','subtipo','objeto_operacao','contrato_referencia','regra_atual','regra_reforma','status_comparabilidade','status_validacao','chave_deduplicacao','criado_em','atualizado_em'],
+  receitas_sem_dfe: ['id','empresa_id','competencia','tipo_receita','descricao','valor','origem','evidencia','classificacao_fiscal','subtipo','objeto_operacao','contrato_referencia','regra_atual','regra_reforma','status_comparabilidade','status_motor','regra_motor_id','regra_motor_versao','regra_motor_atual','regra_motor_reforma','cst_motor','cclasstrib_motor','fundamento_motor','pendencia_motor','processado_motor_em','status_validacao','chave_deduplicacao','criado_em','atualizado_em'],
+  regras_receitas_sem_dfe: ['id','classificacao_fiscal','subtipo','tratamento_atual','tratamento_reforma','cst','cclasstrib','fundamento','vigencia_inicio','vigencia_fim','prioridade','versao','status','fonte','evidencia','criado_em','atualizado_em'],
   formacao_custo_itens: ['id','empresa_id','codigo','descricao','tipo','sku','gtin','ncm','nbs','unidade','centro_custo','despesas_variaveis','movimento_saida_id','ativo','status_formacao_custo','origem','criado_em','atualizado_em'],
   formacao_custo_componentes: ['id','item_formacao_id','movimento_id','codigo_origem','descricao_origem','relacionamento','criterio_rateio','percentual_rateio','quantidade','unidade','status_alocacao_credito','observacoes','criado_em','atualizado_em'],
   excecoes_motor: ['id','empresa_id','movimento_id','execucao_id','codigo','categoria','gravidade','status','natureza','origem','valor_envolvido','impacto_cbs_estimado','materialidade','detalhe','criado_em','atualizado_em','resolvido_em'],
@@ -305,7 +306,7 @@ const CHAVE_CONFIGURACAO_CERTIFICADA = 'configuracao_fiscal_certificada_v1';
 const TABELAS_INCREMENTAIS_SEGURAS = new Set([
   'empresas', 'empresa_servicos_fiscais', 'parceiros', 'empresa_qsa', 'lotes',
   'movimentos', 'perfil_tributario', 'folhas_pagamento_competencias',
-  'margens_operacionais_premissas', 'receitas_sem_dfe', 'formacao_custo_itens',
+  'margens_operacionais_premissas', 'receitas_sem_dfe', 'regras_receitas_sem_dfe', 'formacao_custo_itens',
   'formacao_custo_componentes', 'excecoes_motor', 'excecoes_motor_execucoes',
   'telemetria_autonomia_execucoes', 'enriquecimento_servicos_evidencias',
   'enriquecimento_pis_cofins_evidencias', 'pendencias_enriquecimento_fiscal',
@@ -315,7 +316,7 @@ const TABELAS_INCREMENTAIS_SEGURAS = new Set([
 const PRIORIDADE_INCREMENTAL = [
   'empresas', 'lotes', 'parceiros', 'empresa_qsa', 'empresa_servicos_fiscais',
   'perfil_tributario', 'folhas_pagamento_competencias', 'margens_operacionais_premissas',
-  'receitas_sem_dfe', 'movimentos', 'formacao_custo_itens', 'formacao_custo_componentes',
+  'regras_receitas_sem_dfe', 'receitas_sem_dfe', 'movimentos', 'formacao_custo_itens', 'formacao_custo_componentes',
   'enriquecimento_servicos_evidencias', 'enriquecimento_pis_cofins_evidencias',
   'pendencias_enriquecimento_fiscal', 'excecoes_motor', 'excecoes_motor_execucoes',
   'telemetria_autonomia_execucoes', 'perfil_cbs_competencias', 'pricing_products',

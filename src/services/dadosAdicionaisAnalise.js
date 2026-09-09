@@ -3,6 +3,7 @@
  * premissas informadas; ela não calcula nem alimenta o motor fiscal.
  */
 const crypto = require('crypto');
+const motorReceitasSemDfe = require('./motorReceitasSemDfe');
 
 const STATUS_VALIDACAO = new Set(['PENDENTE', 'VALIDADO', 'POSSIVEL_DUPLICIDADE', 'REJEITADO']);
 const CLASSIFICACOES_RECEITA = new Set(['LOCACAO_IMOVEL','LOCACAO_BEM_MOVEL','CESSAO_DIREITOS','ROYALTIES_LICENCIAMENTO','RECEITA_FINANCEIRA','REEMBOLSO_RESSARCIMENTO','INDENIZACAO_MULTA','SUBVENCAO','ALIENACAO_ATIVO','VENDA_IMOVEL_PROPRIO','INCORPORACAO_IMOBILIARIA','OUTRA']);
@@ -92,9 +93,12 @@ function salvarReceitaSemDfe(db, empresaId, dados) {
   const statusValidacao = candidatos.length ? 'POSSIVEL_DUPLICIDADE' : status(dados.status_validacao);
   const campos = new Set(db.prepare('PRAGMA table_info(receitas_sem_dfe)').all().map((x) => x.name));
   const r = campos.has('classificacao_fiscal')
-    ? db.prepare(`INSERT INTO receitas_sem_dfe (empresa_id,competencia,tipo_receita,descricao,valor,origem,evidencia,classificacao_fiscal,subtipo,objeto_operacao,contrato_referencia,regra_atual,regra_reforma,status_comparabilidade,status_validacao,chave_deduplicacao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(empresaId, competencia, tipoReceita, descricao, valor, texto(dados.origem || 'MANUAL'), texto(dados.evidencia) || null, classificacaoValida, subtipoFinal, objetoFinal, texto(dados.contrato_referencia) || null, texto(dados.regra_atual) || null, texto(dados.regra_reforma) || null, (texto(dados.regra_atual) && texto(dados.regra_reforma)) ? 'PRONTA_PARA_COMPARAR' : 'PENDENTE_REGRA', statusValidacao, chave)
+    ? db.prepare(`INSERT INTO receitas_sem_dfe (empresa_id,competencia,tipo_receita,descricao,valor,origem,evidencia,classificacao_fiscal,subtipo,objeto_operacao,contrato_referencia,regra_atual,regra_reforma,status_comparabilidade,status_validacao,chave_deduplicacao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(empresaId, competencia, tipoReceita, descricao, valor, texto(dados.origem || 'MANUAL'), texto(dados.evidencia) || null, classificacaoValida, subtipoFinal, objetoFinal, texto(dados.contrato_referencia) || null, texto(dados.regra_atual) || null, texto(dados.regra_reforma) || null, 'PENDENTE_MOTOR', statusValidacao, chave)
     : db.prepare(`INSERT INTO receitas_sem_dfe (empresa_id,competencia,tipo_receita,descricao,valor,origem,evidencia,status_validacao,chave_deduplicacao) VALUES (?,?,?,?,?,?,?,?,?)`).run(empresaId,competencia,tipoReceita,descricao,valor,texto(dados.origem || 'MANUAL'),texto(dados.evidencia) || null,statusValidacao,chave);
-  return { id: r.lastInsertRowid, status_validacao: statusValidacao, possivel_duplicidade: candidatos.length > 0 };
+  const id = r.lastInsertRowid;
+  // A classificação da planilha é fato; a conclusão CBS/IBS é sempre do motor.
+  const motor = campos.has('status_motor') ? motorReceitasSemDfe.aplicar(db, { id, competencia, classificacao_fiscal: classificacaoValida, subtipo: subtipoFinal }) : null;
+  return { id, status_validacao: statusValidacao, possivel_duplicidade: candidatos.length > 0, motor };
 }
 
 function listar(db, empresaId) {

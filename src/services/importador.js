@@ -341,7 +341,7 @@ function gerarModelo(tipo) {
     dados = [{ 'Competência': '2026-01', 'Valor da Folha': 25000, 'Pró-labore': 5000, 'Referência do arquivo': 'Folha janeiro/2026' }];
   } else if (tipo === 'receitas_sem_dfe') {
     nomeAba = 'Receitas sem DFe';
-    dados = [{ 'Competência': '2026-01', 'Tipo de receita': 'Locação', 'Classificação fiscal': 'LOCACAO_BEM_MOVEL', Subtipo: 'Equipamento', 'Objeto da operação': 'Locação mensal de equipamento', 'Descrição': 'Locação de equipamentos', Valor: 3500, 'Contrato / referência': 'Contrato 123', 'Regra atual': 'Informar fundamento', 'Regra reforma': 'Informar regra CBS/IBS', Evidência: 'Contrato assinado' }];
+    dados = [{ 'Competência': '2026-01', 'Tipo de receita': 'Locação', 'Classificação fiscal': 'LOCACAO_BEM_MOVEL', Subtipo: 'Equipamento', 'Objeto da operação': 'Locação mensal de equipamento', 'Descrição': 'Locação de equipamentos', Valor: 3500, 'Contrato / referência': 'Contrato 123', Evidência: 'Contrato assinado' }];
   } else if (tipo === 'participantes') {
     nomeAba = 'Participantes';
     dados = [{ Nome: 'Nome do participante', Área: 'Financeiro', 'E-mail': 'participante@empresa.com', Empresa: 'Empresa vinculada (somente turma compartilhada)', CNPJ: '12.345.678/0001-90' }];
@@ -377,7 +377,7 @@ function gerarModelo(tipo) {
     ...(tipo === 'referencias_servicos' ? [{ Campo: 'Referências fiscais', 'Valores aceitos': 'Informe Descrição do serviço e ao menos PIS/COFINS ou DAS efetivo. As alíquotas aceitam 9,25% ou 0,0925. NBS é opcional.' }] : []),
     ...(tipo === 'pgdas' ? [{ Campo: 'PGDAS', 'Valores aceitos': 'Competência e DAS são obrigatórios. Receita Bruta, PIS e COFINS são opcionais; ausência não é transformada em zero.' }] : []),
     ...(tipo === 'folha' ? [{ Campo: 'Folha', 'Valores aceitos': 'Competência e Valor da Folha são obrigatórios. Pró-labore e Referência do arquivo são opcionais.' }] : []),
-    ...(tipo === 'receitas_sem_dfe' ? [{ Campo: 'Receita sem DF-e', 'Valores aceitos': 'Competência, Tipo, Descrição e Valor são obrigatórios. Preencha também Classificação fiscal, Subtipo, Objeto, Contrato e regras atual/reforma para comparação tributária.' }] : []),
+    ...(tipo === 'receitas_sem_dfe' ? [{ Campo: 'Receita sem DF-e', 'Valores aceitos': 'Competência, Tipo, Descrição e Valor são obrigatórios. Classificação fiscal, Subtipo, Objeto e Contrato qualificam o fato econômico. O motor busca a regra CBS/IBS vigente; não preencha alíquota ou regra da reforma na planilha.' }] : []),
     ...(tipo === 'participantes' ? [{ Campo: 'Participantes', 'Valores aceitos': 'Nome é obrigatório. Área e E-mail são opcionais. Empresa ou CNPJ só são usados em turmas compartilhadas.' }] : []),
     ...(tipo === 'apuracao_pis_cofins' ? [{ Campo: 'Apuração PIS/Cofins', 'Valores aceitos': 'Use o relatório original quando disponível. A planilha modelo aceita Competência, Receita Base, débitos, créditos, recolhidos e observações; campos sem evidência permanecem não identificados.' }] : []),
   ];

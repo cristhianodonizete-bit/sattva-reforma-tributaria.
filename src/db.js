@@ -124,7 +124,10 @@ const COLUNAS_NOVAS = {
   },
   empresas: { cnaes_secundarios: 'TEXT', data_abertura: 'TEXT', regime_reconhecimento_simples: "TEXT DEFAULT 'competencia'" },
   perfil_tributario: { receita_recebida: 'REAL' },
-  receitas_sem_dfe: { classificacao_fiscal: 'TEXT', subtipo: 'TEXT', objeto_operacao: 'TEXT', contrato_referencia: 'TEXT', regra_atual: 'TEXT', regra_reforma: 'TEXT', status_comparabilidade: "TEXT DEFAULT 'PENDENTE_CLASSIFICACAO'" },
+  receitas_sem_dfe: {
+    classificacao_fiscal: 'TEXT', subtipo: 'TEXT', objeto_operacao: 'TEXT', contrato_referencia: 'TEXT', regra_atual: 'TEXT', regra_reforma: 'TEXT', status_comparabilidade: "TEXT DEFAULT 'PENDENTE_CLASSIFICACAO'",
+    status_motor: "TEXT DEFAULT 'PENDENTE_CLASSIFICACAO'", regra_motor_id: 'INTEGER', regra_motor_versao: 'INTEGER', regra_motor_atual: 'TEXT', regra_motor_reforma: 'TEXT', cst_motor: 'TEXT', cclasstrib_motor: 'TEXT', fundamento_motor: 'TEXT', pendencia_motor: 'TEXT', processado_motor_em: 'TEXT',
+  },
   cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT', cnaes_secundarios: 'TEXT',
     logradouro: 'TEXT', numero: 'TEXT', complemento: 'TEXT', bairro: 'TEXT', cep: 'TEXT', data_abertura: 'TEXT' },
   contratos: {
@@ -377,6 +380,18 @@ CREATE TABLE IF NOT EXISTS receitas_sem_dfe (
   UNIQUE(empresa_id, chave_deduplicacao)
 );
 CREATE INDEX IF NOT EXISTS ix_receitas_sem_dfe_empresa_competencia ON receitas_sem_dfe(empresa_id, competencia DESC);
+
+CREATE TABLE IF NOT EXISTS regras_receitas_sem_dfe (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  classificacao_fiscal TEXT NOT NULL, subtipo TEXT,
+  tratamento_atual TEXT, tratamento_reforma TEXT,
+  cst TEXT, cclasstrib TEXT, fundamento TEXT,
+  vigencia_inicio TEXT NOT NULL, vigencia_fim TEXT,
+  prioridade INTEGER NOT NULL DEFAULT 0, versao INTEGER NOT NULL DEFAULT 1,
+  status TEXT NOT NULL DEFAULT 'RASCUNHO', fonte TEXT NOT NULL, evidencia TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_regras_receitas_sem_dfe_motor ON regras_receitas_sem_dfe(status, classificacao_fiscal, subtipo, vigencia_inicio, prioridade DESC);
 
 -- ============ PERFIL CBS (consolidação materializada do motor) ============
 -- Esta tabela não calcula tributos: apenas consolida motor_resultados por
