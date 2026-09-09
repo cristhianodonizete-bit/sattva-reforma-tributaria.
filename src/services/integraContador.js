@@ -6,6 +6,7 @@
  * exclusivamente em variáveis de ambiente; nunca são enviados ao navegador ou
  * gravados no banco de dados da empresa.
  */
+const https = require('https');
 const apenasDigitos = (v) => String(v || '').replace(/\D/g, '');
 const chave = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]/g, '');
 const numero = (v) => {
@@ -28,9 +29,9 @@ function config(env = process.env) {
   const baseUrl = String(env.INTEGRA_CONTADOR_BASE_URL || '').trim().replace(/\/$/, '');
   const serproDireto = /apiserpro\.serpro\.gov\.br/i.test(baseUrl) || String(env.INTEGRA_CONTADOR_MODO || '').toUpperCase() === 'SERPRO_DIRETO';
   const endpoint = String(env.INTEGRA_CONTADOR_PGDAS_CONSULTAR_PATH || (serproDireto ? '/Consultar' : '/integra-contador/sn/pgdasd/consultar-declaracoes')).trim();
-  // O OAuth do gateway Serpro é centralizado em /token, fora da rota v1 da
-  // solução. Usar a URL-base da API aqui provoca 404 antes da consulta.
-  const tokenUrl = String(env.INTEGRA_CONTADOR_TOKEN_URL || (serproDireto ? 'https://gateway.apiserpro.serpro.gov.br/token' : '')).trim();
+  // O Integra Contador exige autenticação SAPI com mTLS: é ela que entrega
+  // o par access_token + jwt_token válido para a Receita/Integra Contador.
+  const tokenUrl = String(env.INTEGRA_CONTADOR_TOKEN_URL || (serproDireto ? 'https://autenticacao.sapi.serpro.gov.br/authenticate' : '')).trim();
   const clientId = String(env.INTEGRA_CONTADOR_CLIENT_ID || '').trim();
   const clientSecret = String(env.INTEGRA_CONTADOR_CLIENT_SECRET || '').trim();
   const apiKey = String(env.INTEGRA_CONTADOR_API_KEY || '').trim();
@@ -38,32 +39,58 @@ function config(env = process.env) {
   return {
     baseUrl, endpoint: endpoint.startsWith('/') ? endpoint : `/${endpoint}`, serproDireto,
     tokenUrl, clientId, clientSecret, apiKey, bearer,
+    jwtToken: String(env.INTEGRA_CONTADOR_JWT_TOKEN || '').trim(),
+    certificadoPfxBase64: String(env.INTEGRA_CONTADOR_CERTIFICADO_PFX_BASE64 || '').trim(),
+    certificadoSenha: String(env.INTEGRA_CONTADOR_CERTIFICADO_SENHA || ''),
     incluirPartes: String(env.INTEGRA_CONTADOR_INCLUIR_PARTES || '').toLowerCase() === 'true',
     contratante: { tipo: Number(env.INTEGRA_CONTADOR_CONTRATANTE_TIPO || 2), numero: apenasDigitos(env.INTEGRA_CONTADOR_CONTRATANTE_NUMERO) },
-    autorPedido: { tipo: Number(env.INTEGRA_CONTADOR_AUTOR_TIPO || 1), numero: apenasDigitos(env.INTEGRA_CONTADOR_AUTOR_NUMERO) },
+    autorPedido: { tipo: Number(env.INTEGRA_CONTADOR_AUTOR_TIPO || 2), numero: apenasDigitos(env.INTEGRA_CONTADOR_AUTOR_NUMERO) },
   };
 }
 
 function status(env = process.env) {
   const c = config(env);
-  const autenticacao = c.bearer ? 'token de acesso' : c.apiKey ? 'chave de API' : c.tokenUrl && c.clientId && c.clientSecret ? 'OAuth client credentials' : null;
+  const autenticacao = c.serproDireto
+    ? (c.bearer && c.jwtToken ? 'tokens Serpro informados' : c.tokenUrl && c.clientId && c.clientSecret && c.certificadoPfxBase64 && c.certificadoSenha ? 'Serpro SAPI com certificado e-CNPJ' : null)
+    : (c.bearer ? 'token de acesso' : c.apiKey ? 'chave de API' : c.tokenUrl && c.clientId && c.clientSecret ? 'OAuth client credentials' : null);
   return {
     configurado: Boolean(c.baseUrl && autenticacao), base_url_configurada: Boolean(c.baseUrl),
     autenticacao, endpoint: c.endpoint, modo: c.serproDireto ? 'SERPRO_DIRETO' : 'PROVEDOR_COMPATIVEL', incluir_partes: c.incluirPartes,
-    mensagem: c.baseUrl && autenticacao ? 'Integra Contador pronto para consultar declarações PGDAS-D já transmitidas.' : 'Defina no ambiente INTEGRA_CONTADOR_BASE_URL e uma credencial (ACCESS_TOKEN, API_KEY ou TOKEN_URL + CLIENT_ID + CLIENT_SECRET).',
+    mensagem: c.baseUrl && autenticacao ? 'Integra Contador pronto para consultar declarações PGDAS-D já transmitidas.' : c.serproDireto ? 'No Serpro direto, configure Consumer Key/Secret e o certificado e-CNPJ da contratante (PFX em Base64 e senha) no ambiente seguro.' : 'Defina no ambiente INTEGRA_CONTADOR_BASE_URL e uma credencial (ACCESS_TOKEN, API_KEY ou TOKEN_URL + CLIENT_ID + CLIENT_SECRET).',
   };
 }
 
 let tokenEmMemoria = null;
+function solicitarTokenSerproComCertificado(c) {
+  return new Promise((resolve, reject) => {
+    let pfx; try { pfx = Buffer.from(c.certificadoPfxBase64, 'base64'); } catch (_) { reject(new Error('O certificado PFX do Integra Contador não está em Base64 válido.')); return; }
+    if (!pfx.length) { reject(new Error('Informe o certificado PFX do Integra Contador em Base64.')); return; }
+    const alvo = new URL(c.tokenUrl);
+    const req = https.request(alvo, { method: 'POST', pfx, passphrase: c.certificadoSenha, rejectUnauthorized: true, timeout: 45000,
+      headers: { Authorization: `Basic ${Buffer.from(`${c.clientId}:${c.clientSecret}`).toString('base64')}`, 'Role-Type': 'TERCEIROS', 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json', 'Content-Length': Buffer.byteLength('grant_type=client_credentials') } }, (resposta) => {
+      let texto = ''; resposta.setEncoding('utf8'); resposta.on('data', (parte) => { texto += parte; }); resposta.on('end', () => {
+        let dados; try { dados = JSON.parse(texto); } catch (_) { dados = {}; }
+        if (resposta.statusCode < 200 || resposta.statusCode >= 300 || !dados.access_token || !dados.jwt_token) return reject(new Error(`Autenticação SAPI do Integra Contador falhou (${resposta.statusCode || 0}). Confirme o certificado e-CNPJ e as credenciais Serpro.`));
+        resolve({ access_token: dados.access_token, jwt_token: dados.jwt_token, expires_in: dados.expires_in });
+      });
+    });
+    req.on('timeout', () => req.destroy(new Error('Tempo esgotado na autenticação SAPI do Integra Contador.')));
+    req.on('error', (e) => reject(new Error(`Não foi possível autenticar no SAPI do Serpro: ${e.message}`)));
+    req.write('grant_type=client_credentials'); req.end();
+  });
+}
 async function token(c, fetchImpl = fetch) {
-  if (c.bearer) return { access_token: c.bearer, jwt_token: '' };
+  if (c.bearer) return { access_token: c.bearer, jwt_token: c.jwtToken || '' };
   if (!c.tokenUrl) return { access_token: '', jwt_token: '' };
   if (tokenEmMemoria?.expira_em > Date.now()) return tokenEmMemoria.valor;
-  const credencial = Buffer.from(`${c.clientId}:${c.clientSecret}`).toString('base64');
-  const resposta = await fetchImpl(c.tokenUrl, { method: 'POST', headers: { Authorization: `Basic ${credencial}`, 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: 'grant_type=client_credentials' });
-  const corpo = await resposta.text();
-  let dados; try { dados = JSON.parse(corpo); } catch (_) { dados = {}; }
-  if (!resposta.ok || !dados.access_token) throw new Error(`Autenticação do Integra Contador falhou (${resposta.status}).`);
+  let dados;
+  if (c.serproDireto) dados = await solicitarTokenSerproComCertificado(c);
+  else {
+    const credencial = Buffer.from(`${c.clientId}:${c.clientSecret}`).toString('base64');
+    const resposta = await fetchImpl(c.tokenUrl, { method: 'POST', headers: { Authorization: `Basic ${credencial}`, 'Content-Type': 'application/x-www-form-urlencoded', Accept: 'application/json' }, body: 'grant_type=client_credentials' });
+    const corpo = await resposta.text(); try { dados = JSON.parse(corpo); } catch (_) { dados = {}; }
+    if (!resposta.ok || !dados.access_token) throw new Error(`Autenticação do Integra Contador falhou (${resposta.status}).`);
+  }
   tokenEmMemoria = { valor: { access_token: dados.access_token, jwt_token: dados.jwt_token || '' }, expira_em: Date.now() + Math.max(60, Number(dados.expires_in || 300) - 30) * 1000 };
   return tokenEmMemoria.valor;
 }
