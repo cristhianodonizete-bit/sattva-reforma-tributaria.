@@ -14,9 +14,15 @@ function janelaApuracao(periodo) {
   if (!periodo) return null;
   const meses = Math.max(12, Number(periodo.apuracao_meses) || 12);
   const incluiExercicio = Number(periodo.apuracao_inclui_exercicio) !== 0;
-  const fim = incluiExercicio ? periodo.competencia_fim : deslocarMes(periodo.competencia_inicio, -1);
-  const inicio = deslocarMes(fim, -(meses - 1));
-  return { competencia_inicio: inicio, competencia_fim: fim, data_inicio:dataInicio(inicio), data_fim:dataFim(fim), meses, inclui_exercicio:incluiExercicio };
+  // "Fora do exercício" soma os meses históricos ao exercício escolhido.
+  // Ex.: exercício jan–jul/2026 + 12 meses anteriores = jan/2025–jul/2026
+  // (19 competências), e não apenas os 12 meses de 2025.
+  const fim = periodo.competencia_fim;
+  const inicio = incluiExercicio
+    ? deslocarMes(fim, -(meses - 1))
+    : deslocarMes(periodo.competencia_inicio, -meses);
+  const totalMeses = (() => { const [ai, mi] = inicio.split('-').map(Number), [af, mf] = fim.split('-').map(Number); return (af - ai) * 12 + mf - mi + 1; })();
+  return { competencia_inicio: inicio, competencia_fim: fim, data_inicio:dataInicio(inicio), data_fim:dataFim(fim), meses:totalMeses, meses_anteriores:meses, inclui_exercicio:incluiExercicio };
 }
 
 function obter(empresaId, { banco = dbPadrao } = {}) {
