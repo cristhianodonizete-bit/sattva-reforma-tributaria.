@@ -223,6 +223,7 @@ Telas.pendenciasDiagnostico = async (el) => {
 Telas.conformidadeDocumental = async (el) => {
   const d = await A.api(`/empresas/${S.empresaId}/conformidade-documental`);
   const itens = d.itens || [];
+  const projecoes = d.projecoes || { cnaes: [], itens: [], aviso: '' };
   const tipos = [...new Set(itens.map((x) => x.tipo))];
   // A regra repetida deixa de ocupar cada linha. Ela recebe um código curto
   // e aparece uma única vez no rodapé da lista.
@@ -270,10 +271,17 @@ Telas.conformidadeDocumental = async (el) => {
     const erros = new Set(grupo.map((x) => [x.tipo, x.lc116 || '', x.nbs || ''].join('|'))).size;
     return A.kpi(tipo.replaceAll('_', ' '), grupo.length, `${erros} erro(s) distinto(s)`);
   }).join('');
+  const tabelaProjecoes = () => A.tabela([
+    { t:'Operação possível', r:x=>`<b>${A.esc(x.descricao || 'Serviço')}</b><div class="mini">LC 116: ${A.esc(x.lc116 || 'a confirmar')} · NBS: ${A.esc(x.nbs || 'a confirmar')}</div>` },
+    { t:'Evidência da projeção', r:x=>`${A.esc(x.fonte)}${x.cnae ? `<div class="mini">CNAE ${A.esc(x.cnae)} · ${A.esc(x.atividade || '')}</div>` : ''}` },
+    { t:'Confiança', r:x=>`<span class="tag ${x.confianca === 'ALTA' ? 'c' : 'b'}">${A.esc(x.confianca)}</span>` },
+    { t:'Documentação', r:x=>x.status === 'DOCUMENTADA' ? '<span class="tag c">Documentada</span>' : '<span class="tag b">Validar antes de usar</span>' },
+  ], projecoes.itens || [], { vazio:'Não há operação projetada. Complete o CNAE/atividade da empresa ou cadastre a referência fiscal de serviço para montar a triagem.' });
   el.innerHTML = cab('DIAGNÓSTICO · QUALIDADE DA EMISSÃO', 'Conformidade documental',
     'Confira erros de emissão e as alternativas compatíveis antes de corrigir o documento ou orientar a contraparte. Esta tela é somente de leitura: não executa o motor e não altera cálculos.') +
     `<div class="grade g3">${A.kpi('Apontamentos documentais', d.resumo?.total || 0, 'itens para conferência')}${A.kpi('Valor relacionado', A.moeda(d.resumo?.valor || 0), 'não altera o diagnóstico')}${A.kpi('Tipos encontrados', tipos.length, 'resumo detalhado abaixo')}</div>
     ${tipos.length ? `<div class="cartao" style="margin-top:16px"><h2>Resumo por tipo</h2><div class="grade g3">${resumoTipos}</div></div>` : ''}
+    <div class="cartao" style="margin-top:16px"><h2>Operações possíveis para validação</h2><p class="desc">Cruzamento indicativo entre CNAEs da empresa, cadastro fiscal e catálogo LC 116/NBS. ${A.esc(projecoes.aviso || 'A projeção é somente leitura.')}</p>${projecoes.cnaes?.length ? `<div class="mini" style="margin:10px 0">CNAEs considerados: ${projecoes.cnaes.map((x) => `${A.esc(x.codigo || 'sem código')} — ${A.esc(x.descricao || x.tipo)}`).join(' · ')}</div>` : ''}${tabelaProjecoes()}</div>
     <div class="cartao" style="margin-top:16px"><div class="filtros-carteira"><label>Tipo de apontamento<select id="filtroConformidade"><option value="">Todos</option>${tipos.map((x)=>`<option value="${A.esc(x)}">${A.esc(x).replaceAll('_',' ')}</option>`).join('')}</select></label></div><p class="desc">A tela aponta qualidade documental. Uma divergência NBS/LC116 só é prioritária quando a análise econômica demonstrar efeito em CBS, crédito ou PIS/Cofins.</p><div id="listaConformidade"></div>${regras.length ? `<div class="cartao" style="margin-top:16px;box-shadow:none"><h3>Regras de uso</h3>${A.tabela([{t:'Código',r:r=>`<span class="tag n">${r.codigo}</span>`},{t:'Quando usar',r:r=>A.esc(r.texto)}],regras)}</div>` : ''}</div>`;
   render();
   el.querySelector('#filtroConformidade').addEventListener('change', (evento) => render(evento.target.value));

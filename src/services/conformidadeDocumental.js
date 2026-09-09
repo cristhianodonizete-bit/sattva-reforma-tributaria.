@@ -7,6 +7,7 @@
  */
 const db = require('../db');
 const bases = require('./basesReforma');
+const { correlacoesIndicativas } = require('./mapaOperacional');
 const NBS_INTERNA_SEM_CORRESPONDENCIA = '999999999';
 
 const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
@@ -99,6 +100,53 @@ function avaliar(movimento) {
   return null;
 }
 
+function dadosCnae(empresa) {
+  let secundarios = [];
+  try { secundarios = JSON.parse(empresa.cnaes_secundarios || '[]'); } catch (_) { secundarios = []; }
+  return [{ codigo: empresa.cnae || '', descricao: empresa.atividade || '', tipo: 'Principal' }, ...secundarios.map((x) => ({
+    codigo: x.codigo || x.cnae || '', descricao: x.descricao || x.texto || '', tipo: 'Secundário',
+  }))].filter((x) => x.codigo || x.descricao);
+}
+
+function projetarOperacoes(empresaId, movimentos) {
+  const empresa = db.prepare('SELECT id,cnae,atividade,cnaes_secundarios FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!empresa) return { cnaes: [], itens: [], aviso: '' };
+  const documentados = new Set(movimentos.map((m) => `${bases.normLc116(m.lc116)}|${bases.normNbs(m.nbs)}`));
+  const referencias = db.prepare(`SELECT chave,nbs,descricao,origem FROM empresa_servicos_fiscais
+    WHERE empresa_id=? AND ativo=1 ORDER BY descricao`).all(Number(empresaId));
+  const cadastrados = referencias.map((r) => {
+    const nbs = bases.normNbs(r.nbs) || null;
+    const chave = String(r.chave || '').trim();
+    const lc116 = /^\d{3,5}$/.test(chave.replace(/\D/g, '')) ? bases.normLc116(chave) : null;
+    return {
+      tipo: 'SERVIÇO', lc116, nbs, descricao: r.descricao || 'Serviço cadastrado',
+      fonte: 'Cadastro fiscal da empresa', confianca: 'ALTA',
+      cnae: null, atividade: null, status: documentados.has(`${lc116 || ''}|${nbs || ''}`) ? 'DOCUMENTADA' : 'A_VALIDAR',
+      impacto_motor: false,
+    };
+  });
+  // Reusa a mesma correlação textual do Mapa Operacional. Ela só oferece
+  // hipóteses quando há correspondência objetiva na descrição do CNAE.
+  const indicados = correlacoesIndicativas(db, empresa, { produto: false, servico: true }).map((x) => ({
+    tipo: 'SERVIÇO', lc116: bases.normLc116(x.lc116) || null, nbs: bases.normNbs(x.nbs) || null,
+    descricao: x.descricao || 'Serviço catalogado', fonte: 'Correlação indicativa CNAE × catálogo LC 116/NBS',
+    confianca: x.confianca || 'BAIXA', cnae: x.cnae || null, atividade: x.atividade || null,
+    status: documentados.has(`${bases.normLc116(x.lc116)}|${bases.normNbs(x.nbs)}`) ? 'DOCUMENTADA' : 'A_VALIDAR',
+    impacto_motor: false,
+  }));
+  const unicos = new Map();
+  for (const item of [...cadastrados, ...indicados]) {
+    const chave = `${item.lc116 || ''}|${item.nbs || ''}|${String(item.descricao).trim().toLowerCase()}`;
+    const atual = unicos.get(chave);
+    if (!atual || item.confianca === 'ALTA') unicos.set(chave, item);
+  }
+  return {
+    cnaes: dadosCnae(empresa),
+    itens: [...unicos.values()].sort((a, b) => `${a.status}:${a.descricao}`.localeCompare(`${b.status}:${b.descricao}`)),
+    aviso: 'São possibilidades de operação para validação humana. CNAE e cadastro não comprovam a prestação; esta tela não cria documento, não altera classificação e não alimenta receita, apuração ou motor tributário.',
+  };
+}
+
 function listar(empresaId) {
   const movimentos = db.prepare(`SELECT id,empresa_id,tipo,nome,inscr_federal,documento,chave,item_numero,data_emissao,competencia,descricao,valor,origem,modelo_documento_fiscal,lc116,nbs,cst,normalizacao_status,normalizacao_pendencia,normalizacao_evidencia
     FROM movimentos WHERE empresa_id=? AND (COALESCE(lc116,'')<>'' OR COALESCE(nbs,'')<>'')
@@ -121,7 +169,8 @@ function listar(empresaId) {
     empresa_id: Number(empresaId),
     resumo: { total: itens.length, valor: r2(itens.reduce((s, x) => s + n(x.valor), 0)), por_tipo: itens.reduce((m, x) => ({ ...m, [x.tipo]: (m[x.tipo] || 0) + 1 }), {}) },
     itens,
+    projecoes: projetarOperacoes(empresaId, movimentos),
   };
 }
 
-module.exports = { listar, avaliar };
+module.exports = { listar, avaliar, projetarOperacoes };

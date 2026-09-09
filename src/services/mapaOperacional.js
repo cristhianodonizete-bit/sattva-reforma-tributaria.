@@ -214,4 +214,7 @@ function listar(empresaId, { banco=dbPadrao } = {}) {
   return { empresa, cnaes:cnaes(empresa), itens, resumo:{ itens:itens.length, produtos:deduplicar(produtos).length, servicos:deduplicar(servicos).length, com_regra:itens.filter((x)=>x.regra_encontrada).length, com_beneficio:itens.filter((x)=>x.hipoteses_cbs?.some((h)=>String(h.reducao).toLowerCase()!=='integral')).length },
     operacoes_saida:operacoesSaida, correlacoes, escopo, documentos_prontos:true, aviso:'O CNAE continua sendo a fonte das possibilidades tributárias. Os documentos fiscais de saída do Período analisado servem exclusivamente para definir o escopo: NCM para mercadorias, NBS/LC 116 para serviços, ou ambos. Nenhuma linha aplica regra, benefício ou cálculo no motor.' };
 }
-module.exports = { listar };
+// A correlação é deliberadamente indicativa: o CNAE delimita atividades
+// possíveis, mas não comprova que um serviço foi prestado nem autoriza cálculo.
+// Outros módulos podem reutilizá-la para triagem, sempre preservando esse limite.
+module.exports = { listar, correlacoesIndicativas };
