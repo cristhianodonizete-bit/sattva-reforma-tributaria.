@@ -2530,10 +2530,9 @@ try {
     WHERE origem='xml' AND COALESCE(modelo_documento_fiscal,'')=''`).run();
   // Corrige somente o vínculo que a versão antiga derivou do CST da NF-e.
   // Não toca em uma eventual informação de serviço trazida por NFS-e.
-  db.prepare(`UPDATE movimentos SET lc116='', normalizacao_status='NAO_APLICAVEL',
+  db.prepare(`UPDATE movimentos SET lc116='', nbs='', normalizacao_status='NAO_APLICAVEL',
       normalizacao_pendencia='', normalizacao_evidencia=''
-    WHERE origem='xml' AND lower(COALESCE(modelo_documento_fiscal,'')) IN ('nfe','nfce')
-      AND COALESCE(lc116,'')=substr(COALESCE(cst,''),1,4)`).run();
+    WHERE origem='xml' AND lower(COALESCE(modelo_documento_fiscal,'')) IN ('nfe','nfce')`).run();
   db.prepare(`UPDATE movimentos
     SET lc116 = substr(cst, 1, 4)
     WHERE origem='xml' AND lower(COALESCE(modelo_documento_fiscal,''))='nfse'
