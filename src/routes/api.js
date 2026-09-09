@@ -1764,7 +1764,7 @@ function listarDocumentosFiscais(empresaId, limite = 2000) {
         MAX(cfop) cfop, MAX(nbs) nbs, MAX(lc116) lc116, MAX(iss) iss, MAX(modelo_documento_fiscal) modelo_documento_fiscal,
         MAX(nome) parceiro, MAX(inscr_federal) inscr_federal, COUNT(*) itens, SUM(COALESCE(valor,0)) valor,
         SUM(CASE WHEN NULLIF(ncm,'') IS NOT NULL THEN 1 ELSE 0 END) itens_produto,
-        SUM(CASE WHEN NULLIF(nbs,'') IS NOT NULL OR NULLIF(lc116,'') IS NOT NULL OR COALESCE(iss,0)<>0 THEN 1 ELSE 0 END) itens_servico,
+        SUM(CASE WHEN lower(COALESCE(modelo_documento_fiscal,''))='nfse' THEN 1 ELSE 0 END) itens_servico,
         MAX(criado_em) criado_em
       FROM movimentos WHERE empresa_id=?
       GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END

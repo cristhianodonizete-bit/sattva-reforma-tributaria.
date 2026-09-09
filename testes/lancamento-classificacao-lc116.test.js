@@ -36,8 +36,8 @@ const empresaId = Number(empresa.lastInsertRowid);
 db.prepare(`INSERT INTO base_servicos (lc116, nbs, descricao_item, cclasstrib, reducao)
   VALUES ('0105', '1140100', 'Licenciamento de software', '000001', 'integral')`).run();
 const movimento = db.prepare(`INSERT INTO movimentos
-  (empresa_id, tipo, sentido, origem, descricao, ncm, nbs, lc116, cst, competencia, valor, base_calculo, iss)
-  VALUES (?, 'fornecedor', 'entrada', 'xml', 'Licenciamento de software', '', '', '0105', '010501', '2026-02', 100, 100, 2)`).run(empresaId);
+  (empresa_id, tipo, sentido, origem, modelo_documento_fiscal, descricao, ncm, nbs, lc116, cst, competencia, valor, base_calculo, iss)
+  VALUES (?, 'fornecedor', 'entrada', 'xml', 'nfse', 'Licenciamento de software', '', '', '0105', '010501', '2026-02', 100, 100, 2)`).run(empresaId);
 
 const resultado = bases.classificarMovimento(empresaId, Number(movimento.lastInsertRowid));
 const pendencia = normalizacao.validarMovimento(Number(movimento.lastInsertRowid));
@@ -52,11 +52,11 @@ assert.deepEqual(pendencia, {
   evidencia: 'Item LC116: 0105 · Código fiscal bruto do XML: 010501',
 });
 
-const completa = normalizacao.avaliar({ origem: 'xml', ncm: '', iss: 2, lc116: '1.05', nbs: '1140100', cst: '010501' });
+const completa = normalizacao.avaliar({ origem: 'xml', modelo_documento_fiscal: 'nfse', ncm: '', iss: 2, lc116: '1.05', nbs: '1140100', cst: '010501' });
 assert.equal(completa.status, 'VALIDADO');
 assert.equal(completa.pendencia, '');
 
-const marcadorInterno = normalizacao.avaliar({ origem: 'xml', ncm: '', iss: 2, lc116: '1.05', nbs: '999999999', cst: '010501' });
+const marcadorInterno = normalizacao.avaliar({ origem: 'xml', modelo_documento_fiscal: 'nfse', ncm: '', iss: 2, lc116: '1.05', nbs: '999999999', cst: '010501' });
 assert.deepEqual(marcadorInterno, {
   status: 'PENDENTE', pendencia: 'NBS_NAO_IDENTIFICADA',
   evidencia: 'Item LC116: 0105 · marcador interno de NBS sem correspondência · Código fiscal bruto do XML: 010501',
@@ -64,11 +64,13 @@ assert.deepEqual(marcadorInterno, {
 
 // Em XMLs cujo item não vem em tag separada, os quatro primeiros dígitos do
 // código fiscal preservado são a evidência do item LC116.
-const apenasCodigoFiscal = normalizacao.avaliar({ origem: 'xml', ncm: '', iss: 0, lc116: '', nbs: '115013000', cst: '010701' });
-assert.equal(normalizacao.lc116DoDocumento({ lc116: '', cst: '010701' }), '0107');
+const apenasCodigoFiscal = normalizacao.avaliar({ origem: 'xml', modelo_documento_fiscal: 'nfse', ncm: '', iss: 0, lc116: '', nbs: '115013000', cst: '010701' });
+assert.equal(normalizacao.lc116DoDocumento({ modelo_documento_fiscal: 'nfse', lc116: '', cst: '010701' }), '0107');
+assert.equal(normalizacao.lc116DoDocumento({ modelo_documento_fiscal: 'nfe', lc116: '', cst: '060' }), '', 'CST de NF-e não pode virar LC116');
+assert.equal(normalizacao.avaliar({ origem:'xml', modelo_documento_fiscal:'nfe', ncm:'', cst:'060', iss:2 }).status, 'NAO_APLICAVEL');
 assert.equal(apenasCodigoFiscal.status, 'VALIDADO');
 assert.equal(motorExec.normalizar({
-  documento: 'x', origem: 'xml', ncm: '', nbs: '115013000', lc116: '', cst: '010701',
+  documento: 'x', origem: 'xml', modelo_documento_fiscal: 'nfse', ncm: '', nbs: '115013000', lc116: '', cst: '010701',
 }).lc116, '0107', 'o motor deve consumir o item LC116 já presente no código fiscal do XML');
 
 // Sem chave composta exata, LC116 e NBS precisam continuar disponíveis como

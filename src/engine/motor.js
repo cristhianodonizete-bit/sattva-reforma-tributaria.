@@ -161,7 +161,7 @@ function contextoAposEquivalencia(item, cls, decisaoExterna = null) {
       ...item,
       // O resolvedor fiscal compara os candidatos e só consome regra quando
       // a assinatura própria de PIS/Cofins também é conclusiva.
-      lc116: item.lc116 || bases.normLc116(item.cst),
+      lc116: item.lc116 || (String(item.modelo_documento_fiscal || '').toLowerCase() === 'nfse' ? bases.normLc116(item.cst) : ''),
       equivalencia_classificatoria: equivalencia,
     },
     decisao,

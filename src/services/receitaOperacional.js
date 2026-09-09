@@ -36,6 +36,8 @@ function compoeReceita(movimento = {}) {
   // faturamento, mesmo que algum campo textual pareça serviço.
   if (['nfe','nfce'].includes(modelo)) return false;
   if (['nfse','cte','nfcom'].includes(modelo)) return true;
+  // XML sem modelo não pode ser presumido como serviço por CST/LC116 legado.
+  if (String(movimento.origem || '').toLowerCase() === 'xml') return false;
   // NFS-e não usa CFOP; NBS, LC 116 ou ISS são a evidência de prestação.
   return Boolean(String(movimento.nbs || '').trim() || String(movimento.lc116 || '').trim() || Number(movimento.iss || 0));
 }
@@ -49,6 +51,7 @@ function motivo(movimento = {}) {
   const modelo=String(movimento.modelo_documento_fiscal || '').toUpperCase();
   if (modelo === 'NFE' || modelo === 'NFCE') return 'MERCADORIA_SEM_CFOP_DE_VENDA';
   if (['NFSE','CTE','NFCOM'].includes(modelo)) return `SERVICO_${modelo}`;
+  if (String(movimento.origem || '').toLowerCase() === 'xml') return 'MODELO_FISCAL_NAO_IDENTIFICADO';
   if (compoeReceita(movimento)) return 'SERVICO_SEM_CFOP';
   return 'OPERACAO_SEM_EVIDENCIA_DE_VENDA';
 }

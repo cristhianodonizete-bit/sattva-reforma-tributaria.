@@ -317,7 +317,7 @@ function buscar(termo, limite = 60) {
  * decisão — o sistema não escolhe sozinho.
  */
 function classificarMovimentos(empresaId) {
-  const movs = db.prepare('SELECT id, ncm, nbs, lc116, cst FROM movimentos WHERE empresa_id = ?').all(empresaId);
+  const movs = db.prepare('SELECT id, ncm, nbs, lc116, cst, origem, modelo_documento_fiscal FROM movimentos WHERE empresa_id = ?').all(empresaId);
   const up = db.prepare('UPDATE movimentos SET reducao = ?, cclasstrib = ?, classificacao_origem = ? WHERE id = ?');
   const r = { total: movs.length, porNcm: 0, porNbs: 0, requerDecisao: 0, naoEncontrado: 0 };
 
@@ -325,7 +325,9 @@ function classificarMovimentos(empresaId) {
     for (const m of movs) {
       let res = null, origem = '';
       if (m.ncm) { res = consultarNcm(m.ncm); origem = 'ncm'; }
-      if ((!res || !res.encontrado) && (m.nbs || m.lc116 || m.cst)) { res = consultarServico(m.lc116 || m.cst, m.nbs); origem = 'nbs'; }
+      const servicoComEvidencia = String(m.modelo_documento_fiscal || '').toLowerCase()==='nfse'
+        || (String(m.origem || '').toLowerCase() !== 'xml' && (m.nbs || m.lc116));
+      if ((!res || !res.encontrado) && servicoComEvidencia) { res = consultarServico(m.lc116, m.nbs); origem = 'nbs'; }
       if (!res || !res.encontrado) { r.naoEncontrado++; up.run('integral', '', 'nao_encontrado', m.id); continue; }
       if (res.requerDecisao) {
         r.requerDecisao++;
@@ -343,11 +345,13 @@ function classificarMovimentos(empresaId) {
 // Reclassifica somente o lançamento revisado pelo usuário. Não executa o
 // motor e não altera nenhuma outra operação da empresa.
 function classificarMovimento(empresaId, movimentoId) {
-  const m = db.prepare('SELECT id, ncm, nbs, lc116, cst FROM movimentos WHERE empresa_id=? AND id=?').get(empresaId, movimentoId);
+  const m = db.prepare('SELECT id, ncm, nbs, lc116, cst, origem, modelo_documento_fiscal FROM movimentos WHERE empresa_id=? AND id=?').get(empresaId, movimentoId);
   if (!m) throw new Error('Lançamento não encontrado para a empresa selecionada.');
   let res = null; let origem = '';
   if (m.ncm) { res = consultarNcm(m.ncm); origem = 'ncm'; }
-  if ((!res || !res.encontrado) && (m.nbs || m.lc116 || m.cst)) { res = consultarServico(m.lc116 || m.cst, m.nbs); origem = 'nbs'; }
+  const servicoComEvidencia = String(m.modelo_documento_fiscal || '').toLowerCase()==='nfse'
+    || (String(m.origem || '').toLowerCase() !== 'xml' && (m.nbs || m.lc116));
+  if ((!res || !res.encontrado) && servicoComEvidencia) { res = consultarServico(m.lc116, m.nbs); origem = 'nbs'; }
   const up = db.prepare('UPDATE movimentos SET reducao=?, cclasstrib=?, classificacao_origem=? WHERE empresa_id=? AND id=?');
   if (!res || !res.encontrado) {
     up.run('integral', '', 'nao_encontrado', empresaId, movimentoId);

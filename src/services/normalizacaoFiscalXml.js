@@ -18,7 +18,11 @@ const normalizarLc116 = (v) => {
 // preservado em `cst`; aqui apenas recuperamos a mesma evidência documental
 // para a chave LC116, sem inventar classificação.
 function lc116DoDocumento(movimento) {
-  return normalizarLc116(movimento.lc116) || normalizarLc116(movimento.cst);
+  const modelo=String(movimento.modelo_documento_fiscal || '').toLowerCase();
+  // CST de ICMS da NF-e/NFC-e não é item da LC 116. Somente a NFS-e pode
+  // usar o código tributário do próprio documento como evidência subsidiária.
+  if (modelo === 'nfse') return normalizarLc116(movimento.lc116) || normalizarLc116(movimento.cst);
+  return normalizarLc116(movimento.lc116);
 }
 
 function avaliar(movimento) {
@@ -26,7 +30,7 @@ function avaliar(movimento) {
   const nbs = somenteDigitos(movimento.nbs);
   const cst = somenteDigitos(movimento.cst);
   const xmlServico = String(movimento.origem || '').toLowerCase() === 'xml'
-    && !somenteDigitos(movimento.ncm) && Boolean(Number(movimento.iss || 0) || nbs || lc116 || cst);
+    && String(movimento.modelo_documento_fiscal || '').toLowerCase() === 'nfse';
 
   if (!xmlServico) return { status: 'NAO_APLICAVEL', pendencia: '', evidencia: '' };
   if (!lc116) {
@@ -57,7 +61,7 @@ function avaliar(movimento) {
 }
 
 function validarMovimento(movimentoId) {
-  const movimento = db.prepare(`SELECT id, origem, ncm, nbs, lc116, cst, iss
+  const movimento = db.prepare(`SELECT id, origem, modelo_documento_fiscal, ncm, nbs, lc116, cst, iss
     FROM movimentos WHERE id=?`).get(movimentoId);
   if (!movimento) throw new Error('Lançamento não encontrado para normalização.');
   const resultado = avaliar(movimento);

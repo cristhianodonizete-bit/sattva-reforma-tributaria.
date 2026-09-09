@@ -2514,14 +2514,30 @@ try {
   // Recupera apenas o que é materialmente inequívoco; os demais ficam como
   // "não identificado" para não transformar inferência em fato fiscal.
   db.prepare(`UPDATE movimentos SET modelo_documento_fiscal = CASE
+      -- A chave de acesso de 44 dígitos contém o modelo nas posições 21-22.
+      -- Isso recupera o lote NF-e/NFC-e mesmo quando um item não guardou NCM.
+      WHEN length(replace(replace(COALESCE(chave,''),' ',''),'-',''))=44
+        AND substr(replace(replace(COALESCE(chave,''),' ',''),'-',''),21,2)='55' THEN 'nfe'
+      WHEN length(replace(replace(COALESCE(chave,''),' ',''),'-',''))=44
+        AND substr(replace(replace(COALESCE(chave,''),' ',''),'-',''),21,2)='65' THEN 'nfce'
+      WHEN length(replace(replace(COALESCE(chave,''),' ',''),'-',''))=44
+        AND substr(replace(replace(COALESCE(chave,''),' ',''),'-',''),21,2)='57' THEN 'cte'
+      WHEN length(replace(replace(COALESCE(chave,''),' ',''),'-',''))=44
+        AND substr(replace(replace(COALESCE(chave,''),' ',''),'-',''),21,2)='62' THEN 'nfcom'
       WHEN COALESCE(ncm,'')<>'' THEN 'nfe'
       WHEN COALESCE(nbs,'')<>'' OR COALESCE(lc116,'')<>'' OR COALESCE(iss,0)<>0 THEN 'nfse'
       ELSE NULL END
     WHERE origem='xml' AND COALESCE(modelo_documento_fiscal,'')=''`).run();
+  // Corrige somente o vínculo que a versão antiga derivou do CST da NF-e.
+  // Não toca em uma eventual informação de serviço trazida por NFS-e.
+  db.prepare(`UPDATE movimentos SET lc116='', normalizacao_status='NAO_APLICAVEL',
+      normalizacao_pendencia='', normalizacao_evidencia=''
+    WHERE origem='xml' AND lower(COALESCE(modelo_documento_fiscal,'')) IN ('nfe','nfce')
+      AND COALESCE(lc116,'')=substr(COALESCE(cst,''),1,4)`).run();
   db.prepare(`UPDATE movimentos
     SET lc116 = substr(cst, 1, 4)
-    WHERE origem='xml' AND (lc116 IS NULL OR lc116='')
-      AND COALESCE(ncm,'')='' AND COALESCE(iss,0)<>0
+    WHERE origem='xml' AND lower(COALESCE(modelo_documento_fiscal,''))='nfse'
+      AND (lc116 IS NULL OR lc116='')
       AND length(COALESCE(cst,'')) >= 4`).run();
   db.prepare(`UPDATE movimentos
     SET normalizacao_status = CASE

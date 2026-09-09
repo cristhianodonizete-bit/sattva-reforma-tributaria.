@@ -25,7 +25,7 @@ function candidatoCompativel(lc116, codigoNbs, cclasstrib) {
 function obterMovimentosBeneficiados(empresaId, movimentoIds) {
   if (!Array.isArray(movimentoIds) || !movimentoIds.length) return [];
   return db.prepare(`SELECT r.movimento_id, r.cclasstrib, r.cst, r.detalhe,
-      m.lc116, m.nbs, m.cst AS cst_documento, m.documento, m.item_numero
+      m.lc116, m.nbs, m.modelo_documento_fiscal, m.documento, m.item_numero
     FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
     WHERE r.empresa_id=? AND r.sentido='saida' AND r.movimento_id IN (${movimentoIds.map(() => '?').join(',')})`)
     .all(empresaId, ...movimentoIds).map((x) => {
@@ -33,18 +33,18 @@ function obterMovimentosBeneficiados(empresaId, movimentoIds) {
       const classificacao = detalhe.classificacao || {};
       const reducao = Number(classificacao.reducaoCbs ?? classificacao.reducao_cbs ?? 0);
       const especial = reducao > 0 || ['zero', 'reducao_100'].includes(String(classificacao.reducao || '').toLowerCase());
-      return { ...x, detalhe, lc116: lc(x.lc116 || classificacao?.candidatos?.[0]?.lc116 || x.cst_documento), nbs: nbs(x.nbs), especial };
+      return { ...x, detalhe, lc116: lc(x.lc116 || classificacao?.candidatos?.[0]?.lc116), nbs: nbs(x.nbs), especial };
     }).filter((x) => x.especial);
 }
 
 function expandirEscopoEmpresa(empresaId, referencia) {
-  const linhas = db.prepare(`SELECT r.movimento_id, r.cclasstrib, r.detalhe, m.lc116, m.nbs, m.cst AS cst_documento
+  const linhas = db.prepare(`SELECT r.movimento_id, r.cclasstrib, r.detalhe, m.lc116, m.nbs, m.modelo_documento_fiscal
     FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
     WHERE r.empresa_id=? AND r.sentido='saida' AND r.cclasstrib=?`).all(empresaId, referencia.cclasstrib);
   return linhas.map((x) => {
     let detalhe = {}; try { detalhe = JSON.parse(x.detalhe || '{}'); } catch (_) { /* inválido */ }
     const classificacao = detalhe.classificacao || {};
-    return { ...x, detalhe, lc116: lc(x.lc116 || classificacao?.candidatos?.[0]?.lc116 || x.cst_documento), nbs: nbs(x.nbs) };
+    return { ...x, detalhe, lc116: lc(x.lc116 || classificacao?.candidatos?.[0]?.lc116), nbs: nbs(x.nbs) };
   }).filter((x) => x.lc116 === referencia.lc116 && x.nbs === referencia.nbs);
 }
 

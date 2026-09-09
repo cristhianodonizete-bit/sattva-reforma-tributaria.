@@ -305,6 +305,7 @@ Telas.dados = async (el) => {
     const modelo=String(d.modelo_documento_fiscal || '').toLowerCase();
     if (['nfse','cte','nfcom'].includes(modelo)) return ['Serviço', 'c'];
     if (['nfe','nfce'].includes(modelo)) return ['Produto', ''];
+    if (String(d.origem || '').toLowerCase() === 'xml') return ['Modelo a identificar', 'a'];
     return d.itens_produto && d.itens_servico ? ['Misto', 'b'] : d.itens_servico ? ['Serviço', 'c'] : d.itens_produto ? ['Produto', ''] : ['A identificar', 'a'];
   };
   const fonteApuracao = (registro) => {
@@ -493,7 +494,7 @@ Telas.dados = async (el) => {
       try {
         const r=await A.api(`/empresas/${S.empresaId}/documentos-fiscais/${encodeURIComponent(botao.dataset.abrirDocumento)}`);
         const d=r.documento;
-        const natureza=(m) => ['nfse','cte','nfcom'].includes(String(m.modelo_documento_fiscal || '').toLowerCase()) ? 'Serviço' : ['nfe','nfce'].includes(String(m.modelo_documento_fiscal || '').toLowerCase()) ? 'Produto' : m.nbs || m.lc116 || Number(m.iss) ? 'Serviço' : m.ncm ? 'Produto' : 'A identificar';
+        const natureza=(m) => ['nfse','cte','nfcom'].includes(String(m.modelo_documento_fiscal || '').toLowerCase()) ? 'Serviço' : ['nfe','nfce'].includes(String(m.modelo_documento_fiscal || '').toLowerCase()) ? 'Produto' : String(m.origem || '').toLowerCase() === 'xml' ? 'Modelo a identificar' : m.nbs || m.lc116 || Number(m.iss) ? 'Serviço' : m.ncm ? 'Produto' : 'A identificar';
         A.modal({ titulo:`Documento fiscal — ${d.numero}`, largura:1100, confirmar:'Fechar',
           descricao:`${d.competencia || 'Competência não identificada'} · ${d.modelo_documento_fiscal || 'modelo não identificado'} · ${d.origem || 'origem não identificada'}${d.chave ? ` · chave ${d.chave}` : ''}`,
           corpo:A.tabela([
