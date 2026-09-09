@@ -1,6 +1,6 @@
 {
   "name": "sattva-conector-questor",
-  "version": "0.2.8",
+  "version": "0.2.9",
   "private": true,
   "description": "Conector local somente leitura entre Sattva e Questor nWeb",
   "main": "index.js",
