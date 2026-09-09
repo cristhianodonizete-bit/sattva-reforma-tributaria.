@@ -1277,6 +1277,14 @@ router.post('/empresas/:id/apuracoes-pis-cofins/:apuracaoId/reprocessar', async 
     ok(res, { apuracao, campos_pendentes: apuracao.campos_pendentes || [] });
   } catch (e) { erro(res, e); }
 });
+router.delete('/empresas/:id/apuracoes-pis-cofins/:apuracaoId', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id); const apuracaoId = Number(req.params.apuracaoId);
+    const resultado = await apuracoesPisCofinsIa.excluirCompartilhado(db, empresaId, apuracaoId);
+    auditar(req, { empresaId, acao:'apuracao_pis_cofins_excluida', entidade:'pis_cofins_apuracoes_historicas', entidadeId:String(apuracaoId), depois:{ nome_original:resultado.nome_original, hash_sha256:resultado.hash_sha256 } });
+    ok(res, resultado);
+  } catch (e) { erro(res, e); }
+});
 router.post('/empresas/:id/apuracoes-pis-cofins/:apuracaoId/confirmar', (req, res) => {
   try { ok(res, { apuracao: apuracoesPisCofinsIa.confirmarRevisao(db, Number(req.params.id), Number(req.params.apuracaoId)) }); }
   catch (e) { erro(res, e); }

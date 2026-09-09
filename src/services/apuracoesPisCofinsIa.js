@@ -135,8 +135,14 @@ function normalizarTextoDeterministico(textoDocumento, { localizacoes = [], meto
     preencherSeAusente('regime_pis_cofins', 'CUMULATIVO', 'Contribuição Cumulativa Apurada');
   }
   const textoCompleto = String(textoDocumento || '');
-  const blocoPis = textoCompleto.match(/c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+pis[\s\S]*?(?=c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+cofins|totaliza[cç][aã]o\s+por\s+tipo)/i)?.[0];
-  const blocoCofins = textoCompleto.match(/c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+cofins[\s\S]*?(?=totaliza[cç][aã]o\s+por\s+tipo|$)/i)?.[0];
+  // Em relatórios por produto, Entradas e Saídas possuem totalizações com os
+  // mesmos rótulos. Para apuração de PIS/Cofins da receita, somente o bloco
+  // posterior a "Saídas" é elegível; retorno, comodato e demais entradas
+  // jamais podem preencher receita-base ou débito.
+  const marcadorSaidas = /(?:^|\n)\s*-\s*sa[ií]das\b/i.exec(textoCompleto);
+  const textoSaidas = marcadorSaidas ? textoCompleto.slice(marcadorSaidas.index) : textoCompleto;
+  const blocoPis = textoSaidas.match(/c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+pis[\s\S]*?(?=c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+cofins|totaliza[cç][aã]o\s+por\s+tipo)/i)?.[0];
+  const blocoCofins = textoSaidas.match(/c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+cofins[\s\S]*?(?=totaliza[cç][aã]o\s+por\s+tipo|$)/i)?.[0];
   const valoresPis = numerosDoBloco(blocoPis);
   const valoresCofins = numerosDoBloco(blocoCofins);
   // A última tríade da totalização é receita, base de cálculo e contribuição.
@@ -280,6 +286,43 @@ async function publicarCompartilhado(db, empresaId) {
   return { ativo:true, apuracoes:itens.length };
 }
 
+function excluir(db, empresaId, apuracaoId) {
+  validarEmpresa(db, empresaId);
+  const apuracao = db.prepare(`SELECT a.id,a.documento_id,d.nome_original,d.hash_sha256 FROM pis_cofins_apuracoes_historicas a
+    JOIN pis_cofins_apuracao_documentos d ON d.id=a.documento_id WHERE a.id=? AND a.empresa_id=?`).get(apuracaoId, empresaId);
+  if (!apuracao) throw new Error('Apuração não encontrada para esta empresa.');
+  db.transaction(() => {
+    db.prepare('DELETE FROM pis_cofins_apuracao_campos WHERE apuracao_id=?').run(apuracao.id);
+    db.prepare('DELETE FROM pis_cofins_apuracoes_historicas WHERE id=? AND empresa_id=?').run(apuracao.id, empresaId);
+    db.prepare('DELETE FROM pis_cofins_apuracao_documentos WHERE id=?').run(apuracao.documento_id);
+  })();
+  return { excluida:true, nome_original:apuracao.nome_original, hash_sha256:apuracao.hash_sha256 };
+}
+
+async function excluirCompartilhado(db, empresaId, apuracaoId) {
+  const apuracao = db.prepare(`SELECT a.documento_id,d.hash_sha256 FROM pis_cofins_apuracoes_historicas a
+    JOIN pis_cofins_apuracao_documentos d ON d.id=a.documento_id WHERE a.id=? AND a.empresa_id=?`).get(apuracaoId, empresaId);
+  if (!apuracao) throw new Error('Apuração não encontrada para esta empresa.');
+  if (supabase.configurado()) {
+    const local = db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId);
+    const cnpj = String(local?.cnpj || '').replace(/\D/g, '');
+    const remoto = supabase.admin();
+    const { data: empresas, error } = await remoto.from('empresas').select('id').or(cnpj ? `origem_local_id.eq.${empresaId},cnpj.eq.${cnpj}` : `origem_local_id.eq.${empresaId}`).limit(2);
+    if (error || !empresas?.length) throw new Error(`Não foi possível localizar a empresa compartilhada para excluir a apuração: ${error?.message || 'empresa ausente'}`);
+    const { data: documento, error: erroDocumento } = await remoto.from('pis_cofins_apuracao_documentos').select('id').eq('empresa_id', empresas[0].id).eq('hash_sha256', apuracao.hash_sha256).maybeSingle();
+    if (erroDocumento) throw new Error(erroDocumento.message);
+    if (documento?.id) {
+      const { data: aps, error: erroAps } = await remoto.from('pis_cofins_apuracoes_historicas').select('id').eq('documento_id', documento.id);
+      if (erroAps) throw new Error(erroAps.message);
+      const ids = (aps || []).map((x) => x.id);
+      if (ids.length) { const { error: erroCampos } = await remoto.from('pis_cofins_apuracao_campos').delete().in('apuracao_id', ids); if (erroCampos) throw new Error(erroCampos.message); }
+      const { error: erroApuracoes } = await remoto.from('pis_cofins_apuracoes_historicas').delete().eq('documento_id', documento.id); if (erroApuracoes) throw new Error(erroApuracoes.message);
+      const { error: erroExcluirDocumento } = await remoto.from('pis_cofins_apuracao_documentos').delete().eq('id', documento.id); if (erroExcluirDocumento) throw new Error(erroExcluirDocumento.message);
+    }
+  }
+  return excluir(db, empresaId, apuracaoId);
+}
+
 async function restaurarCompartilhado(db, empresaId) {
   if (!supabase.configurado()) return { ativo:false };
   const local = db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId), cnpj = String(local?.cnpj || '').replace(/\D/g, '');
@@ -320,4 +363,4 @@ function promptExtracao(textoDocumento) {
   return `Extraia apenas valores expressos no documento de apuração PIS/Cofins. Não calcule, não infira e não substitua ausência por zero. Retorne JSON com a chave campos e, para cada campo abaixo, valor_extraido, origem_documento, pagina_ou_localizacao, rotulo_original, confianca (0 a 1), metodo_extracao e status_validacao. Campos: ${CAMPOS.join(', ')}. Se não existir, valor_extraido deve ser null e status_validacao INDETERMINADO. Documento:\n${String(textoDocumento).slice(0, 70000)}`;
 }
 
-module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, reprocessar, importarRelatorioQuestor, confirmarRevisao, publicarCompartilhado, restaurarCompartilhado, promptExtracao, validarConsistencia, normalizarTextoDeterministico };
+module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, reprocessar, excluir, excluirCompartilhado, importarRelatorioQuestor, confirmarRevisao, publicarCompartilhado, restaurarCompartilhado, promptExtracao, validarConsistencia, normalizarTextoDeterministico };
