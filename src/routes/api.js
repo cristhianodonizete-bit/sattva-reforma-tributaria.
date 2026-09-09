@@ -1290,8 +1290,14 @@ router.get('/empresas/:id/perfil/analise', (req, res) => {
 });
 
 // Camada executiva de leitura: não materializa CBS nem executa o motor.
-router.get('/empresas/:id/perfil-tributario-historico', (req, res) => {
-  try { ok(res, perfilTributarioHistorico.consolidar(db, Number(req.params.id))); }
+router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
+  try {
+    // O período é configurado por empresa no Supabase. Restaurá-lo antes da
+    // leitura impede que uma instância nova consolide todo o histórico local
+    // em vez de somente o exercício selecionado.
+    await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id));
+    ok(res, perfilTributarioHistorico.consolidar(db, Number(req.params.id)));
+  }
   catch (e) { erro(res, e); }
 });
 

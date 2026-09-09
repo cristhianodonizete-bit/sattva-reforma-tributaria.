@@ -794,13 +794,18 @@ Telas.perfil = async (el) => {
   const numero = (v) => v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
   const somar = (valores) => valores.reduce((total, valor) => total + (numero(valor) || 0), 0);
   const informado = (valores) => valores.some((valor) => numero(valor) !== null);
-  const valorDaApuracao = (linha, campo, campoPerfil) => {
-    const extraido = linha.apuracao_pis_cofins_historica?.[campo]?.valor;
+  const valorDaApuracao = (linha, campo, campoAlternativo, campoPerfil) => {
+    // O relatório Questor de totais informa "PIS/COFINS apurado" como
+    // débito; ele não traz necessariamente os campos "recolhido". Ambos
+    // são valores efetivamente extraídos e validados, portanto o débito é o
+    // fallback correto para o resumo — nunca uma estimativa.
+    const extraido = linha.apuracao_pis_cofins_historica?.[campo]?.valor
+      ?? linha.apuracao_pis_cofins_historica?.[campoAlternativo]?.valor;
     return numero(extraido) ?? numero(linha[campoPerfil]?.valor);
   };
   const receitas = historico.map((x) => x.receita?.valor);
-  const valoresPis = historico.map((x) => valorDaApuracao(x, 'pis_recolhido', 'pis_historico'));
-  const valoresCofins = historico.map((x) => valorDaApuracao(x, 'cofins_recolhida', 'cofins_historico'));
+  const valoresPis = historico.map((x) => valorDaApuracao(x, 'pis_recolhido', 'pis_debito', 'pis_historico'));
+  const valoresCofins = historico.map((x) => valorDaApuracao(x, 'cofins_recolhida', 'cofins_debito', 'cofins_historico'));
   const receitaTotal = somar(receitas);
   const pisTotal = somar(valoresPis);
   const cofinsTotal = somar(valoresCofins);
