@@ -538,7 +538,9 @@ router.get('/operacao/dashboard', async (req, res) => {
     const [{ data: empresas, error: erroEmpresas }, { data: projetos, error: erroProjetos }, { data: entregas, error: erroEntregas }, { data: acompanhamentos, error: erroAcomp }, { data: responsaveis, error: erroResponsaveis }, { data: tarefas, error: erroTarefas }, { data: parceiros, error: erroParceiros }, { data: movimentos, error: erroMovimentos }, { data: perfis, error: erroPerfis }, { data: contratos, error: erroContratos }, { data: turmas, error: erroTurmas }, { data: produtosPreco, error: erroProdutosPreco }, { data: servicosPreco, error: erroServicosPreco }] = await Promise.all([
       // A visão geral não é um editor. Projetar as colunas evita transferir
       // observações, históricos e demais campos grandes seis vezes por carga.
-      remoto.from('empresas').select('id,razao_social,ativo'),
+      // `id` é o UUID compartilhado; `origem_local_id` é o identificador
+      // numérico esperado pelas rotas operacionais desta instância.
+      remoto.from('empresas').select('id,origem_local_id,razao_social,ativo'),
       // A matriz de responsáveis é operacional: só pode listar escopos que
       // já foram formalmente aprovados. Propostas podem ter entregas
       // pré-criadas, mas ainda não aceitam responsáveis nem execução.
@@ -607,7 +609,10 @@ router.get('/operacao/dashboard', async (req, res) => {
         empresasComMovimentos.has(p.empresa_id), empresasComPreco.has(p.empresa_id), empresasComContratos.has(p.empresa_id), empresasComTurmas.has(p.empresa_id),
       ];
       const etapasAnaliseConcluidas = etapasAnalise.filter(Boolean).length;
-      return { ...p, empresa: empresaPorId.get(p.empresa_id)?.razao_social || 'Cliente não identificado', entregas: es.length,
+      const empresa = empresaPorId.get(p.empresa_id);
+      return { ...p,
+        empresa_id: empresa?.origem_local_id || p.empresa_id,
+        empresa: empresa?.razao_social || 'Cliente não identificado', entregas: es.length,
         entregasConcluidas: feitas, progresso: es.length ? Math.round((feitas / es.length) * 100) : 0,
         etapasAnaliseConcluidas, etapasAnaliseTotal: etapasAnalise.length, progressoAnalise: Math.round((etapasAnaliseConcluidas / etapasAnalise.length) * 100),
         acompanhamentos: as.length, acompanhamentosConcluidos: as.filter((x) => x.status === 'concluido').length,
