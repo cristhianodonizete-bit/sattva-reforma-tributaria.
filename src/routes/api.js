@@ -1205,6 +1205,7 @@ router.post('/empresas/:id/importar/receitas-sem-dfe', upload.single('arquivo'),
 // valores que a IA localizar. Não cria movimentos e não executa o motor CBS.
 function textoApuracaoArquivo(arquivo, tipoDocumento) {
   if (tipoDocumento === 'CSV') return arquivo.buffer.toString('utf8');
+  if (tipoDocumento === 'RELATORIO_ERP') return arquivo.buffer.toString('utf8');
   if (tipoDocumento === 'XLSX') {
     const livro = XLSX.read(arquivo.buffer, { type: 'buffer' });
     return livro.SheetNames.map((nome) => `## ${nome}\n${XLSX.utils.sheet_to_csv(livro.Sheets[nome])}`).join('\n\n');
@@ -1213,7 +1214,7 @@ function textoApuracaoArquivo(arquivo, tipoDocumento) {
 }
 async function extrairDocumentoApuracao(arquivo, tipoDocumento) {
   const textoEstruturado = textoApuracaoArquivo(arquivo, tipoDocumento);
-  if (textoEstruturado) return { texto: textoEstruturado, metodo: 'LEITURA_ESTRUTURADA_LOCAL', modelo: 'XLSX_CSV' };
+  if (textoEstruturado) return { texto: textoEstruturado, metodo: tipoDocumento === 'RELATORIO_ERP' ? 'LEITURA_TEXTO_QUESTOR' : 'LEITURA_ESTRUTURADA_LOCAL', modelo: tipoDocumento === 'RELATORIO_ERP' ? 'QUESTOR_NWEB_RELATORIO' : 'XLSX_CSV' };
   if (!azureDocumentIntelligence.config().ativo) {
     throw new Error('OCR Azure Document Intelligence não configurado para documentos não estruturados.');
   }

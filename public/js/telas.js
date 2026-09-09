@@ -915,6 +915,14 @@ Telas.perfil = async (el) => {
   const regimeAtual = rotulosRegime[chaveRegime] || A.regimeLabel(chaveRegime) || 'INDETERMINADO';
   const tratamentoSemDetalhe = 'Não discriminado pela fonte importada';
   const moedaOuIndeterminado = (valor) => valor === null || valor === undefined ? 'INDETERMINADO' : A.moeda(valor);
+  const fonteProcessamentoApuracao = (apuracao) => {
+    const tipo = String(apuracao.tipo_documento || '').toUpperCase();
+    const versao = String(apuracao.versao_modelo_extracao || '').toUpperCase();
+    if (tipo === 'RELATORIO_ERP' || versao.includes('QUESTOR') || /^QUESTOR\b/i.test(String(apuracao.nome_original || ''))) return { rotulo:'Questor · conector', detalhe:'Relatório textual retornado pelo Questor', classe:'c' };
+    if (tipo === 'PDF' || versao.includes('PREBUILT-LAYOUT') || versao.includes('AZURE')) return { rotulo:'Azure Document Intelligence', detalhe:'OCR do PDF original', classe:'b' };
+    if (['XLSX', 'XLS', 'CSV'].includes(tipo)) return { rotulo:'Leitura estruturada local', detalhe:'Planilha/arquivo estruturado', classe:'n' };
+    return { rotulo:tipo || 'Não identificada', detalhe:'Método não identificado', classe:'n' };
+  };
   const abaPerfil = S.aba.perfilTributario || 'resumo';
   const auditoriaMensal = tributario.auditoria_mensal || [];
   const rotuloAuditoria = (situacao) => ({
@@ -972,7 +980,8 @@ Telas.perfil = async (el) => {
     </div>
     <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>Apurações importadas</h2><p class="desc">Exibindo somente as competências do período analisado${periodoPerfil ? ` (${A.esc(periodoPerfil.competencia_inicio)} a ${A.esc(periodoPerfil.competencia_fim)})` : ''}. Os demais documentos seguem preservados para o Planejamento Tributário.</p></div><span class="tag">${apuracoesDoPerfil.length} competência(s)</span></div>
       ${A.tabela([
-        { t:'Competência', r:x=>A.esc(x.competencia || 'Não identificada') }, { t:'Documento', r:x=>`<b>${A.esc(x.nome_original)}</b>` },
+        { t:'Competência', r:x=>A.esc(x.competencia || 'Não identificada') }, { t:'Documento utilizado', r:x=>`<b>${A.esc(x.nome_original)}</b><br><span class="mini">${A.esc(x.tipo_documento || 'tipo não identificado')}</span>` },
+        { t:'Fonte de processamento', r:x=>{ const fonte=fonteProcessamentoApuracao(x); return `<span class="tag ${fonte.classe}">${A.esc(fonte.rotulo)}</span><br><span class="mini">${A.esc(fonte.detalhe)}</span>`; } },
         { t:'Receita base', num:true, r:x=>moedaOuIndeterminado(numero(x.receita_base)) }, { t:'PIS apurado', num:true, r:x=>moedaOuIndeterminado(numero(x.pis_debito)) },
         { t:'Cofins apurada', num:true, r:x=>moedaOuIndeterminado(numero(x.cofins_debito)) }, { t:'Validação', r:x=>A.esc(x.status_validacao || 'INDETERMINADO') },
         { t:'', r:x=>`<button class="btn pq vazio" data-apuracao-revisar="${x.id}">Revisar</button><button class="btn pq vazio" data-apuracao-reprocessar="${x.id}">Reprocessar</button><button class="btn pq perigo" data-apuracao-excluir="${x.id}">Excluir</button>` },
