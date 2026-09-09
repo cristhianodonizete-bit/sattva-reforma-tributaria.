@@ -114,11 +114,7 @@ function consolidar(db, empresaId) {
 
   const historico = [...porCompetencia.values()].sort((a, b) => String(a.competencia).localeCompare(String(b.competencia))).map((linha) => {
     const p = linha.perfil;
-    // Para Simples, só PGDAS confirmado/integrado é a fonte da receita do
-    // Perfil. Uma fotografia manual antiga ou documento fiscal não pode
-    // preencher silenciosamente esse indicador.
     const receitaPerfil = p ? numero(p.receita_bruta) : null;
-    const receitaPgdas = p && /^pgdas_/i.test(String(p.origem || '')) ? receitaPerfil : null;
     const receitaDocumentada = linha.documentos ? numero(linha.documentos.receita_documentada) : null;
     const receitaSemDfe = (linha.receitas_sem_dfe || []).reduce((s, x) => s + numero(x.valor), 0);
     const tributosHistoricos = p ? numero(p.icms) + numero(p.iss) + numero(p.ipi) + numero(p.pis) + numero(p.cofins) + numero(p.das) : null;
@@ -135,12 +131,11 @@ function consolidar(db, empresaId) {
     // Questor é fallback; um perfil manual nunca pode sobrescrever XMLs da
     // mesma competência nem somar meses fora da janela.
     const receitaApuracao = apuracao?.receita_base != null ? numero(apuracao.receita_base) : null;
-    // No Simples, a receita-base do Perfil é a competência declarada no
-    // PGDAS. Em caixa, a carga efetiva usa exclusivamente a receita recebida,
-    // sem confundir emissão fiscal com recebimento.
+    // Receita do Perfil é sempre documental (XML, SPED ou planilha fiscal).
+    // PGDAS é evidência de carga e de auditoria; nunca substitui faturamento.
+    // Em caixa, somente o denominador da carga efetiva usa receita recebida.
     const simplesCaixa = eSimples && empresa.regime_reconhecimento_simples === 'caixa';
-    const receitaAtual = eSimples ? receitaPgdas
-      : receitaDocumentada !== null ? receitaDocumentada : receitaApuracao !== null ? receitaApuracao : receitaPerfil;
+    const receitaAtual = receitaDocumentada;
     const receitaRecebida = p?.receita_recebida != null ? numero(p.receita_recebida) : null;
     const receitaParaCarga = simplesCaixa ? receitaRecebida : receitaAtual;
     const apuracaoConfirmada = ['VALIDADO_USUARIO','VALIDADO_AUTOMATICAMENTE'].includes(apuracao?.status_validacao)
@@ -153,7 +148,7 @@ function consolidar(db, empresaId) {
     return {
       competencia: linha.competencia,
       regime: empresa.regime || 'INDETERMINADO',
-      receita: valor(receitaAtual, eSimples ? receitaPgdas !== null ? 'PGDAS_COMPETENCIA' : 'INDETERMINADO' : receitaDocumentada !== null ? 'XML_IMPORTADO' : receitaApuracao !== null ? 'APURACAO_IMPORTADA' : receitaPerfil !== null ? 'REAL' : 'INDETERMINADO'),
+      receita: valor(receitaAtual, receitaDocumentada !== null ? 'DOCUMENTO_FISCAL_IMPORTADO' : 'INDETERMINADO'),
       receita_documentada: valor(receitaDocumentada, receitaDocumentada !== null ? 'EXTRAIDO' : 'INDETERMINADO'),
       receita_recebida: valor(receitaRecebida, receitaRecebida !== null ? 'PGDAS_CAIXA' : simplesCaixa ? 'INDETERMINADO' : 'NAO_APLICAVEL'),
       folha: valor(linha.folha?.valor_folha, linha.folha ? 'REAL' : 'INDETERMINADO'),
