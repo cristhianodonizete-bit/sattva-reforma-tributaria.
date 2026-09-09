@@ -2448,7 +2448,6 @@ if (db.prepare('SELECT COUNT(*) c FROM param_cfop').get().c === 0) {
     // precisa ser avaliado antes dos grupos: 5102 é venda interna, não
     // importação, ainda que os três últimos dígitos coincidam com 3102.
     ins.run(null, '3', 'importacao', 1, 'Entrada do exterior', 0, 'Tabela CFOP', '2023.002', '2023-04-24');
-    ins.run(null, '7', 'exportacao', 1, 'Saída para o exterior', 1, 'Tabela CFOP', '2023.002', '2023-04-24');
     // Prioridade 2 — natureza pelos três últimos dígitos
     const G = {
       remessa: ['901','902','903','904','905','906','907','908','909','910','911','912','913','914','915','916','917','920','921','922','923','924','925'],
@@ -2468,22 +2467,39 @@ if (db.prepare('SELECT COUNT(*) c FROM param_cfop').get().c === 0) {
 // ficam deliberadamente "sem classificação de receita" até serem mapeados.
 // Isso é mais seguro que tratar toda saída como venda.
 {
-  const fonte = 'Tabela CFOP — IT 2023.002';
-  const versao = '2023.002';
+  const fonte = 'Tabela CFOP — IT 2023.002 v2.10';
+  const versao = '2023.002-v2.10';
   const vigencia = '2023-04-24';
   const vendas = [
-    '101','102','103','104','105','106','109','110','111','112','113','114','115','116','117','118','119','120','121','122','123','124','125','126','127','128','129','130','131','132','133','134',
-    '401','402','403','404','405','501','502','504','505','506',
-    '601','602','603','604','605','606','607','608','609','610','611','612','613','614','615','616','617','618','619','620','621','622','623','624','625','626','627','628','629','630','631','632','633','634','635','636','637','638','639','640','641','642','643','644','645','646','647','648','649','650','651','652','653','654','655','656','657',
+    // venda de mercadoria/industrialização; o código é espelhado entre 5 e 6
+    '101','102','103','104','105','106','109','110','111','112','113','114','115','116','117','118','119','120','122','123','124','125',
+    // venda de energia, comunicação e transporte
+    '251','252','253','254','255','256','257','258',
+    '301','302','303','304','305','306','307',
+    '351','352','353','354','355','356','357','359','360',
+    // venda sujeita a substituição tributária e combustíveis
+    '401','402','403','405','651','652','653','654','655','656',
   ];
   const existe = db.prepare('SELECT id FROM param_cfop WHERE grupo = ? AND prefixo IS NULL AND natureza = ? LIMIT 1');
+  const existeExato = db.prepare('SELECT id FROM param_cfop WHERE grupo = ? AND prefixo = ? AND natureza = ? LIMIT 1');
   const ins = db.prepare('INSERT INTO param_cfop (grupo, prefixo, natureza, prioridade, descricao, compoe_receita, fonte, versao, vigencia_inicio) VALUES (?,?,?,?,?,?,?,?,?)');
   db.transaction(() => {
-    // Remove o legado perigoso que classificava qualquer 5xxx/6xxx como venda.
+    // Remove o legado perigoso que classificava qualquer 5xxx/6xxx como venda
+    // e também o catálogo-base da versão anterior, antes de regravar a versão
+    // atual. Registros manuais de outra fonte não são tocados.
     db.prepare("DELETE FROM param_cfop WHERE prefixo IN ('5','6') AND natureza = 'venda'").run();
+    db.prepare("DELETE FROM param_cfop WHERE prefixo = '7' AND natureza = 'exportacao'").run();
+    db.prepare("DELETE FROM param_cfop WHERE natureza = 'venda' AND fonte LIKE 'Tabela CFOP%'").run();
     for (const grupo of vendas) {
       if (!existe.get(grupo, 'venda')) {
         ins.run(grupo, null, 'venda', 2, 'Venda de mercadoria — catálogo positivo', 1, fonte, versao, vigencia);
+      }
+    }
+    // Exportação também é lista positiva. 7.949, remessas para exportação e
+    // outras saídas externas não podem virar receita só porque começam com 7.
+    for (const grupo of ['101','102','105','106','127','251','301','358','651','654']) {
+      if (!existeExato.get(grupo, '7', 'exportacao')) {
+        ins.run(grupo, '7', 'exportacao', 2, 'Exportação / prestação ao exterior — catálogo positivo', 1, fonte, versao, vigencia);
       }
     }
   })();

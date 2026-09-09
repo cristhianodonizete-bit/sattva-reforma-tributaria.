@@ -143,9 +143,15 @@ function naturezaCfop(cfop) {
   // precisa ser avaliado antes do grupo. CFOP 5102 é venda interna; 3102 é
   // importação — os três últimos dígitos são iguais.
   for (const p of [1, 2, 3]) {
-    const linha = carregar().cfop.find((l) => (l.prioridade || 2) === p && (
-      (l.grupo && l.grupo === grupo) || (l.prefixo && !l.grupo && c.startsWith(l.prefixo))
-    ));
+    const linha = carregar().cfop.find((l) => {
+      if ((l.prioridade || 2) !== p || l.ativo === 0) return false;
+      // Um registro pode ser espelhado (grupo sem prefixo) ou específico
+      // de uma origem/destino, como 7.101. Quando ambos existem, os dois
+      // critérios precisam coincidir.
+      const bateGrupo = !l.grupo || l.grupo === grupo;
+      const batePrefixo = !l.prefixo || c.startsWith(l.prefixo);
+      return bateGrupo && batePrefixo;
+    });
     if (linha) return linha.natureza;
   }
   return null;

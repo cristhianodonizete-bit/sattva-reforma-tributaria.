@@ -18,7 +18,6 @@ function natureza(movimento = {}) {
     // Mantém a semântica-base em contextos de leitura isolada/teste sem a
     // base de parâmetros. Na aplicação, a tabela param_cfop prevalece.
     if (!/^\d{4}$/.test(cfop)) return null;
-    if (cfop.startsWith('7')) return 'exportacao';
     if (['901','902','903','904','905','906','907','908','909','910','911','912','913','914','915','916','917','920','921','922','923','924','925'].includes(cfop.slice(1))) return 'remessa';
     if (['201','202','208','209','210','410','411','412','413','503','553'].includes(cfop.slice(1))) return 'devolucao';
     if (['151','152','153','154','408','409','658','659'].includes(cfop.slice(1))) return 'transferencia';
