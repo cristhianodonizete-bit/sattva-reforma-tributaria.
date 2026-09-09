@@ -539,7 +539,10 @@ router.get('/operacao/dashboard', async (req, res) => {
       // A visão geral não é um editor. Projetar as colunas evita transferir
       // observações, históricos e demais campos grandes seis vezes por carga.
       remoto.from('empresas').select('id,razao_social,ativo'),
-      remoto.from('projetos').select('id,empresa_id,status,nome_plano,acompanhamento_meses'),
+      // A matriz de responsáveis é operacional: só pode listar escopos que
+      // já foram formalmente aprovados. Propostas podem ter entregas
+      // pré-criadas, mas ainda não aceitam responsáveis nem execução.
+      remoto.from('projetos').select('id,empresa_id,status,nome_plano,acompanhamento_meses,aprovado_em'),
       remoto.from('projeto_entregas').select('id,projeto_id,chave,titulo,status'),
       remoto.from('projeto_acompanhamentos').select('projeto_id,competencia,status'),
       remoto.from('projeto_responsaveis').select('projeto_id,entrega_id,lado,nome,usuario_id'),
@@ -577,7 +580,9 @@ router.get('/operacao/dashboard', async (req, res) => {
       return lista.find((x) => x.lado === lado && x.entrega_id === entregaId)?.nome || null;
     };
     const hoje = new Date().toISOString().slice(0, 10);
-    const carteira = (projetos || []).filter((p) => empresaPorId.has(p.empresa_id)).map((p) => {
+    const carteira = (projetos || [])
+      .filter((p) => empresaPorId.has(p.empresa_id) && p.aprovado_em)
+      .map((p) => {
       const es = porProjeto.get(p.id) || [], as = acompPorProjeto.get(p.id) || [], ts = tarefasPorProjeto.get(p.id) || [], rs = responsaveisPorProjeto.get(p.id) || [];
       const feitas = es.filter((x) => ['concluida', 'nao_aplicavel'].includes(x.status)).length;
       const proximaTarefa = ts.filter((x) => x.status !== 'concluida' && x.data_conclusao).sort((a, b) => String(a.data_conclusao).localeCompare(String(b.data_conclusao)))[0];
