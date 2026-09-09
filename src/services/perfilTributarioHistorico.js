@@ -19,20 +19,23 @@ function tabelaExiste(db, nome) {
 function consolidar(db, empresaId) {
   const empresa = db.prepare('SELECT id, razao_social, regime FROM empresas WHERE id=?').get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada.');
+  const periodo = tabelaExiste(db, 'empresa_periodo_analisado')
+    ? db.prepare('SELECT competencia_inicio,competencia_fim FROM empresa_periodo_analisado WHERE empresa_id=?').get(empresaId) : null;
+  const noExercicio = (competencia) => !periodo || (competencia >= periodo.competencia_inicio && competencia <= periodo.competencia_fim);
 
-  const perfis = db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,\'\')<>\'\' ORDER BY competencia').all(empresaId);
-  const folhas = db.prepare('SELECT * FROM folhas_pagamento_competencias WHERE empresa_id=?').all(empresaId);
+  const perfis = db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,\'\')<>\'\' ORDER BY competencia').all(empresaId).filter((x) => noExercicio(x.competencia));
+  const folhas = db.prepare('SELECT * FROM folhas_pagamento_competencias WHERE empresa_id=?').all(empresaId).filter((x) => noExercicio(x.competencia));
   const margens = db.prepare('SELECT * FROM margens_operacionais_premissas WHERE empresa_id=?').all(empresaId);
   const receitasSemDfe = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId);
   const cbs = db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=?').all(empresaId);
   const documentos = db.prepare(`SELECT competencia, SUM(COALESCE(valor,0)) receita_documentada,
       COUNT(*) quantidade_documentos, SUM(COALESCE(iss,0)) iss_documentado
     FROM movimentos WHERE empresa_id=? AND (tipo='cliente' OR sentido='saida')
-      AND COALESCE(competencia,'')<>'' GROUP BY competencia`).all(empresaId);
+      AND COALESCE(competencia,'')<>'' GROUP BY competencia`).all(empresaId).filter((x) => noExercicio(x.competencia));
   const apuracoes = tabelaExiste(db, 'pis_cofins_apuracoes_historicas')
     ? db.prepare(`SELECT a.*, d.nome_original, d.hash_sha256 FROM pis_cofins_apuracoes_historicas a
       JOIN pis_cofins_apuracao_documentos d ON d.id=a.documento_id
-      WHERE a.empresa_id=? AND COALESCE(a.competencia,'')<>'' ORDER BY a.id DESC`).all(empresaId)
+      WHERE a.empresa_id=? AND COALESCE(a.competencia,'')<>'' ORDER BY a.id DESC`).all(empresaId).filter((x) => noExercicio(x.competencia))
     : [];
 
   const porCompetencia = new Map();
@@ -64,11 +67,11 @@ function consolidar(db, empresaId) {
       + numero(cbsAtual.receita_imunidade_cbs) + numero(cbsAtual.receita_regime_especifico_cbs)
       + numero(cbsAtual.receita_beneficio_governo_cbs) : null;
     const apuracao = linha.apuracao_pis_cofins || null;
-    const apuracaoConfirmada = apuracao?.status_validacao === 'VALIDADO_USUARIO'
-      && apuracao.pis_recolhido !== null && apuracao.pis_recolhido !== undefined
-      && apuracao.cofins_recolhida !== null && apuracao.cofins_recolhida !== undefined;
+    const apuracaoConfirmada = ['VALIDADO_USUARIO','VALIDADO_AUTOMATICAMENTE'].includes(apuracao?.status_validacao)
+      && (apuracao.pis_recolhido != null || apuracao.pis_debito != null)
+      && (apuracao.cofins_recolhida != null || apuracao.cofins_debito != null);
     const cargaPisCofinsAtual = apuracaoConfirmada
-      ? { valor: numero(apuracao.pis_recolhido) + numero(apuracao.cofins_recolhida), natureza: 'REAL', origem: 'APURACAO_CONFIRMADA' }
+      ? { valor: numero(apuracao.pis_recolhido ?? apuracao.pis_debito) + numero(apuracao.cofins_recolhida ?? apuracao.cofins_debito), natureza: 'REAL', origem: apuracao.status_validacao === 'VALIDADO_USUARIO' ? 'APURACAO_CONFIRMADA' : 'APURACAO_VALIDADA_AUTOMATICAMENTE' }
       : p ? { valor: numero(p.pis) + numero(p.cofins), natureza: 'REAL', origem: 'PERFIL_HISTORICO' }
         : { valor: null, natureza: 'INDETERMINADO', origem: 'INDETERMINADO' };
     return {
