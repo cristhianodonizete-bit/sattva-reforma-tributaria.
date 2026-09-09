@@ -3,13 +3,13 @@ const db = require('../db');
 const supabase = require('./supabase');
 
 const CAMPOS = {
-  empresas: ['id','cnpj','razao_social','nome_fantasia','regime','uf','municipio','cnae','atividade','cnaes_secundarios','data_abertura','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes','criado_em'],
+  empresas: ['id','cnpj','razao_social','nome_fantasia','regime','regime_reconhecimento_simples','uf','municipio','cnae','atividade','cnaes_secundarios','data_abertura','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes','criado_em'],
   empresa_servicos_fiscais: ['id','empresa_id','chave','nbs','descricao','pis_cofins','das_efetivo','iss_aliquota','ativo','origem','criado_em','atualizado_em'],
   parceiros: ['id','empresa_id','tipo','cnpj','descricao','regime','faturamento_anual','uf','municipio','origem','criado_em','regime_resolvido','perfil_economico','perfil_origem','sensibilidade_credito','sensibilidade_origem'],
   empresa_qsa: ['id','empresa_id','nome','documento','qualificacao','pais','percentual_participacao','brasileiro','fonte','consultado_em','origem','criado_em','atualizado_em'],
   lotes: ['id','empresa_id','tipo','arquivo','registros','ignorados','valor_total','mensagens','origem','criado_em'],
   movimentos: ['id','empresa_id','lote_id','tipo','nome','inscr_federal','descricao','ncm','nbs','lc116','normalizacao_status','normalizacao_pendencia','normalizacao_evidencia','cfop','cst','competencia','valor','base_calculo','icms','icms_st','ipi','pis','cofins','pis_cofins_documentado','iss','regime','reducao','aliq_especifica','cclasstrib','classificacao_origem','cst_declarado','cclasstrib_declarado','ibs_declarado','cbs_declarado','modelo_documento_fiscal','documento','item_numero','chave','emitente_cnpj','destinatario_cnpj','codigo_produto','quantidade','unidade','csosn','data_emissao','frete','seguro','outras','desconto','sentido','origem','criado_em'],
-  perfil_tributario: ['id','empresa_id','competencia','receita_bruta','receita_mercadorias','receita_servicos','receita_exportacao','icms','iss','ipi','pis','cofins','das','creditos_tomados','origem','criado_em'],
+  perfil_tributario: ['id','empresa_id','competencia','receita_bruta','receita_recebida','receita_mercadorias','receita_servicos','receita_exportacao','icms','iss','ipi','pis','cofins','das','creditos_tomados','origem','criado_em'],
   folhas_pagamento_competencias: ['id','empresa_id','competencia','valor_folha','pro_labore','origem','referencia_arquivo','status_validacao','criado_em','atualizado_em'],
   margens_operacionais_premissas: ['id','empresa_id','periodo_inicio','periodo_fim','margem_operacional_percentual','origem','natureza','status_validacao','criado_em','atualizado_em'],
   receitas_sem_dfe: ['id','empresa_id','competencia','tipo_receita','descricao','valor','origem','evidencia','status_validacao','chave_deduplicacao','criado_em','atualizado_em'],
@@ -109,10 +109,10 @@ function gravar(tabela, linhas, dentroDaTransacao = false) {
 
 function gravarEmpresas(linhas, dentroDaTransacao = false) {
   const inserir = db.prepare(`INSERT INTO empresas
-    (id,cnpj,razao_social,nome_fantasia,regime,uf,municipio,cnae,atividade,cnaes_secundarios,data_abertura,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes,criado_em)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+    (id,cnpj,razao_social,nome_fantasia,regime,regime_reconhecimento_simples,uf,municipio,cnae,atividade,cnaes_secundarios,data_abertura,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes,criado_em)
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
     ON CONFLICT(id) DO UPDATE SET cnpj=excluded.cnpj,razao_social=excluded.razao_social,nome_fantasia=excluded.nome_fantasia,
-      regime=CASE WHEN excluded.regime IS NULL OR excluded.regime='' THEN empresas.regime ELSE excluded.regime END,
+      regime=CASE WHEN excluded.regime IS NULL OR excluded.regime='' THEN empresas.regime ELSE excluded.regime END,regime_reconhecimento_simples=COALESCE(excluded.regime_reconhecimento_simples,empresas.regime_reconhecimento_simples),
       uf=excluded.uf,municipio=excluded.municipio,cnae=excluded.cnae,atividade=excluded.atividade,cnaes_secundarios=excluded.cnaes_secundarios,data_abertura=excluded.data_abertura,
       faturamento_anual=excluded.faturamento_anual,setor=excluded.setor,reducao_padrao=excluded.reducao_padrao,
       codigo_questor=excluded.codigo_questor,observacoes=excluded.observacoes,criado_em=excluded.criado_em`);
@@ -120,7 +120,7 @@ function gravarEmpresas(linhas, dentroDaTransacao = false) {
     const id = Number(empresa.origem_local_id || empresa.id);
     if (!id) return;
     inserir.run(id, String(empresa.cnpj || '').replace(/\D/g, ''), empresa.razao_social || 'Empresa sem razão social',
-      empresa.nome_fantasia || '', empresa.regime || '', empresa.uf || '', empresa.municipio || '', empresa.cnae || '',
+      empresa.nome_fantasia || '', empresa.regime || '', empresa.regime_reconhecimento_simples || 'competencia', empresa.uf || '', empresa.municipio || '', empresa.cnae || '',
       empresa.atividade || '', empresa.cnaes_secundarios || '', empresa.data_abertura || null, Number(empresa.faturamento_anual) || 0, empresa.setor || '', empresa.reducao_padrao || 'integral',
       empresa.codigo_questor || '', empresa.observacoes || '', empresa.criado_em || null);
   });

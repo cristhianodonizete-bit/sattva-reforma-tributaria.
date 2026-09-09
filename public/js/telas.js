@@ -159,7 +159,7 @@ Telas.empresas = async (el) => {
   const form = (e = {}, nova = false) => A.campo('razao_social', 'Razão social', e.razao_social) +
     `<div class="grade g2">${A.campo('cnpj', 'CNPJ', e.cnpj, 'text', nova ? 'placeholder="Informe os 14 dígitos para consultar CNAE e QSA"' : '')}${A.campo('nome_fantasia', 'Nome fantasia', e.nome_fantasia)}</div>${nova ? '<input type="hidden" name="consulta_cadastro_token"><input type="hidden" name="cnaes_secundarios"><div id="preconsultaCadastro" class="preconsulta-cadastro"><span class="mini">Informe o CNPJ para consultar dados cadastrais, CNAE e quadro societário.</span></div>' : ''}
      <div class="grade g2">${A.selecao('regime', 'Regime tributário', A.opcoesRegime(), e.regime || 'lucro_real')}
-     ${A.selecao('reducao_padrao', 'Enquadramento predominante no IVA', A.opcoesReducao(), e.reducao_padrao || 'integral')}</div>
+     ${A.selecao('reducao_padrao', 'Enquadramento predominante no IVA', A.opcoesReducao(), e.reducao_padrao || 'integral')}</div>${(e.regime === 'simples_nacional' || nova) ? `<div class="grade g2">${A.selecao('regime_reconhecimento_simples', 'Reconhecimento no PGDAS', [{v:'competencia',t:'Competência'}, {v:'caixa',t:'Caixa'}], e.regime_reconhecimento_simples || 'competencia')}<p class="mini" style="align-self:end">No caixa, a carga usa receita recebida; a receita do Perfil continua no mês declarado no PGDAS.</p></div>` : ''}
      <div class="grade g3">${A.campo('uf', 'UF', e.uf)}${A.campo('municipio', 'Município', e.municipio)}${A.campo('cnae', 'CNAE principal', e.cnae)}</div><div class="grade g2">${A.campo('data_abertura', 'Data de abertura', e.data_abertura || '', 'date')}<p class="mini" style="align-self:end">A competência anterior à abertura não poderá ser usada no período analisado.</p></div>${!nova && cnaesSecundarios(e).length ? `<div class="campo"><label>Atividades econômicas secundárias consultadas</label><textarea readonly rows="${Math.min(6, Math.max(2, cnaesSecundarios(e).length))}">${A.esc(textoCnaesSecundarios(e))}</textarea></div>` : ''}
      <div class="grade g2">${A.campo('faturamento_anual', 'Faturamento anual (R$)', e.faturamento_anual, 'number')}
      ${A.campo('codigo_questor', 'Código da empresa no Questor', e.codigo_questor)}</div>
@@ -951,6 +951,12 @@ Telas.perfil = async (el) => {
   };
   const abaPerfil = S.aba.perfilTributario || 'resumo';
   const auditoriaMensal = tributario.auditoria_mensal || [];
+  const simplesCaixa = tributario.empresa?.regime_atual === 'simples_nacional' && tributario.empresa?.regime_reconhecimento_simples === 'caixa';
+  const recebimentosCaixa = historico.map((x) => x.receita_recebida?.valor);
+  const dasCaixa = historico.map((x) => x.pgdas?.valor);
+  const recebidoCaixaTotal = somar(recebimentosCaixa);
+  const impostoPagoCaixa = somar(dasCaixa);
+  const cargaEfetivaCaixa = recebidoCaixaTotal > 0 && informado(dasCaixa) ? impostoPagoCaixa / recebidoCaixaTotal : null;
   const rotuloAuditoria = (situacao) => ({
     CONCILIADO: 'Conciliado', DIVERGENCIA_A_CONFERIR: 'Divergência a conferir',
     SEM_APURACAO_IMPORTADA: 'Sem apuração importada', SEM_DOCUMENTOS_DE_RECEITA: 'Sem documentos de receita',
@@ -967,6 +973,7 @@ Telas.perfil = async (el) => {
       { t:'Documentos importados', num:true, r:x=>x.documentos ? `${A.moeda(x.documentos.valor)}<br><span class="mini">${x.documentos.quantidade} documento(s) de venda/serviço</span>` : '—' },
       { t:'Apuração PIS/Cofins', num:true, r:x=>colunaApuracao(x.pis_cofins) },
       { t:'PGDAS', num:true, r:x=>colunaApuracao(x.pgdas) },
+      ...(simplesCaixa ? [{ t:'Recebido (caixa)', num:true, r:x=>x.receita_recebida ? `${A.moeda(x.receita_recebida.valor)}<br><span class="mini">informativo; base da carga</span>` : '—' }] : []),
       { t:'Diferença', num:true, r:x=>x.diferencas?.length ? x.diferencas.map((d)=>`${A.moeda(d.valor)}<br><span class="mini">${A.esc(d.fonte)}</span>`).join('') : '—' },
       { t:'Situação', r:x=>`<span class="tag ${classeAuditoria(x.situacao)}">${A.esc(rotuloAuditoria(x.situacao))}</span>` },
     ], auditoriaMensal, { vazio:'Ainda não há documentos ou apurações importadas no período analisado para confrontar.' })}
@@ -989,6 +996,7 @@ Telas.perfil = async (el) => {
         ${A.kpi('PIS/Cofins total', informado(valoresPis) || informado(valoresCofins) ? A.moeda(cargaTotal) : 'INDETERMINADO', 'PIS + Cofins')}
         ${A.kpi('Alíquota efetiva atual', aliquotaEfetiva === null ? 'INDETERMINADO' : A.pct(aliquotaEfetiva), 'PIS/Cofins apurados ÷ receita analisada', aliquotaEfetiva === null ? 'destaque' : '')}
       </div>
+      ${simplesCaixa ? `<div class="grade g3" style="margin-top:16px">${A.kpi('Recebido no caixa', recebidoCaixaTotal ? A.moeda(recebidoCaixaTotal) : 'INDETERMINADO', 'PGDAS · informativo')}${A.kpi('Imposto pago (DAS)', informado(dasCaixa) ? A.moeda(impostoPagoCaixa) : 'INDETERMINADO', 'valores do PGDAS')}${A.kpi('Carga efetiva de caixa', cargaEfetivaCaixa === null ? 'INDETERMINADO' : A.pct(cargaEfetivaCaixa), 'DAS pago ÷ receita recebida')}</div>` : ''}
     </div>
     <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>Tratamentos na apuração atual</h2><p class="desc">A fonte atual registra totais de apuração. Tratamentos só são apresentados como identificados quando vierem discriminados no documento.</p></div></div>
       ${A.tabela([

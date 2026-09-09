@@ -5,7 +5,7 @@
  */
 const crypto = require('crypto');
 
-const CAMPOS = ['competencia', 'receita_bruta', 'receita_mercadorias', 'receita_servicos', 'receita_exportacao', 'das', 'pis', 'cofins'];
+const CAMPOS = ['competencia', 'receita_bruta', 'receita_recebida', 'receita_mercadorias', 'receita_servicos', 'receita_exportacao', 'das', 'pis', 'cofins'];
 const NUMERICOS = new Set(CAMPOS.filter((x) => x !== 'competencia'));
 const texto = (v) => String(v ?? '').trim();
 const valorNumero = (v) => {
@@ -24,6 +24,7 @@ function normalizarTexto(textoDocumento, { localizacoes = [], metodo = 'NORMALIZ
   const regras = [
     ['competencia', /^(compet[eê]ncia|per[ií]odo|refer[eê]ncia)\s*[:\-]\s*(.+)$/i, competencia],
     ['receita_bruta', /^(receita\s+bruta(?:\s+total|\s+mensal)?)\s*[:\-]\s*(.+)$/i, valorNumero],
+    ['receita_recebida', /^(receita\s+(?:bruta\s+)?recebida(?:\s+no\s+caixa)?)\s*[:\-]\s*(.+)$/i, valorNumero],
     ['receita_mercadorias', /^(receita\s+(?:de\s+)?(?:mercadorias|com[eé]rcio|ind[uú]stria))\s*[:\-]\s*(.+)$/i, valorNumero],
     ['receita_servicos', /^(receita\s+(?:de\s+)?servi[cç]os?)\s*[:\-]\s*(.+)$/i, valorNumero],
     ['receita_exportacao', /^(receita\s+(?:de\s+)?exporta[cç][aã]o)\s*[:\-]\s*(.+)$/i, valorNumero],
@@ -76,10 +77,10 @@ function confirmar(db, empresaId, documentoId) {
   if (!valores.competencia || !Number.isFinite(valores.das)) throw new Error('Confirme somente quando competência e valor do DAS estiverem identificados no documento.');
   db.transaction(() => {
     const existente = db.prepare('SELECT id FROM perfil_tributario WHERE empresa_id=? AND competencia=? ORDER BY id DESC LIMIT 1').get(empresaId, valores.competencia);
-    const camposPerfil = [valores.receita_bruta, valores.receita_mercadorias, valores.receita_servicos, valores.receita_exportacao, valores.pis, valores.cofins];
+    const camposPerfil = [valores.receita_bruta, valores.receita_recebida, valores.receita_mercadorias, valores.receita_servicos, valores.receita_exportacao, valores.pis, valores.cofins];
     const origem = doc.tipo_documento === 'INTEGRA_CONTADOR_JSON' ? 'pgdas_integra_contador_confirmado' : 'pgdas_azure_confirmado';
-    if (existente) db.prepare(`UPDATE perfil_tributario SET receita_bruta=COALESCE(?,receita_bruta),receita_mercadorias=COALESCE(?,receita_mercadorias),receita_servicos=COALESCE(?,receita_servicos),receita_exportacao=COALESCE(?,receita_exportacao),pis=COALESCE(?,pis),cofins=COALESCE(?,cofins),das=?,origem=? WHERE id=?`).run(...camposPerfil, valores.das, origem, existente.id);
-    else db.prepare(`INSERT INTO perfil_tributario (empresa_id,competencia,receita_bruta,receita_mercadorias,receita_servicos,receita_exportacao,pis,cofins,das,origem) VALUES (?,?,?,?,?,?,?,?,?,?)`).run(empresaId, valores.competencia, ...camposPerfil, valores.das, origem);
+    if (existente) db.prepare(`UPDATE perfil_tributario SET receita_bruta=COALESCE(?,receita_bruta),receita_recebida=COALESCE(?,receita_recebida),receita_mercadorias=COALESCE(?,receita_mercadorias),receita_servicos=COALESCE(?,receita_servicos),receita_exportacao=COALESCE(?,receita_exportacao),pis=COALESCE(?,pis),cofins=COALESCE(?,cofins),das=?,origem=? WHERE id=?`).run(...camposPerfil, valores.das, origem, existente.id);
+    else db.prepare(`INSERT INTO perfil_tributario (empresa_id,competencia,receita_bruta,receita_recebida,receita_mercadorias,receita_servicos,receita_exportacao,pis,cofins,das,origem) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(empresaId, valores.competencia, ...camposPerfil, valores.das, origem);
     db.prepare("UPDATE pgdas_documento_campos SET status_validacao='VALIDADO_USUARIO' WHERE documento_id=? AND valor_extraido IS NOT NULL").run(documentoId);
     db.prepare("UPDATE pgdas_documentos SET status_processamento='VALIDADO_USUARIO' WHERE id=?").run(documentoId);
   })();

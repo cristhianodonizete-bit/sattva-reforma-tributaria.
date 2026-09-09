@@ -48,6 +48,7 @@ const CAMPOS_PGDAS = {
   receita_mercadorias: ['receitamercadorias', 'receitacomercio', 'receitaindustria'],
   receita_servicos: ['receitaservicos', 'receitaservico'],
   receita_exportacao: ['receitaexportacao', 'exportacao'],
+  receita_recebida: ['receitarecebida', 'receitarecebidacaixa', 'receitacaixa', 'valorrecedibo'],
   das: ['das', 'valordas', 'dasapurado', 'valorrecolhido'],
   pis: ['pis', 'valorpis', 'pisrecolhido'],
   cofins: ['cofins', 'valorcofins', 'cofinsrecolhida'],
@@ -331,7 +332,7 @@ function gerarModelo(tipo) {
   } else if (tipo === 'pgdas') {
     nomeAba = 'PGDAS';
     dados = [
-      { 'Competência': '2026-01', 'Receita Bruta': 100000, 'Receita Mercadorias': 25000, 'Receita Serviços': 75000, 'DAS': 8200, 'PIS': 180, 'COFINS': 820 },
+      { 'Competência': '2026-01', 'Receita Bruta': 100000, 'Receita Recebida (caixa)': '', 'Receita Mercadorias': 25000, 'Receita Serviços': 75000, 'DAS': 8200, 'PIS': 180, 'COFINS': 820 },
     ];
   } else if (tipo === 'folha') {
     nomeAba = 'Folha';

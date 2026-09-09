@@ -47,6 +47,7 @@ function montarAuditoriaMensal(documentos, apuracoes, perfis) {
       valor: x.receita_bruta == null ? null : numero(x.receita_bruta), origem: x.origem,
       fonte: 'PGDAS importado',
     };
+    if (x.receita_recebida != null) atual.receita_recebida = { valor: numero(x.receita_recebida), fonte: 'PGDAS — regime de caixa' };
   });
   return [...porCompetencia.values()].sort((a, b) => String(a.competencia).localeCompare(String(b.competencia))).map((linha) => {
     const documentosImportados = linha.documentos?.valor ?? null;
@@ -63,7 +64,7 @@ function montarAuditoriaMensal(documentos, apuracoes, perfis) {
 }
 
 function consolidar(db, empresaId) {
-  const empresa = db.prepare('SELECT id, razao_social, regime FROM empresas WHERE id=?').get(empresaId);
+  const empresa = db.prepare('SELECT id, razao_social, regime, regime_reconhecimento_simples FROM empresas WHERE id=?').get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada.');
   const periodo = tabelaExiste(db, 'empresa_periodo_analisado')
     ? db.prepare('SELECT competencia_inicio,competencia_fim FROM empresa_periodo_analisado WHERE empresa_id=?').get(empresaId) : null;
@@ -130,9 +131,14 @@ function consolidar(db, empresaId) {
     // Questor é fallback; um perfil manual nunca pode sobrescrever XMLs da
     // mesma competência nem somar meses fora da janela.
     const receitaApuracao = apuracao?.receita_base != null ? numero(apuracao.receita_base) : null;
-    const receitaAtual = receitaDocumentada !== null ? receitaDocumentada
-      : receitaApuracao !== null ? receitaApuracao : receitaPerfil;
-    const receitaParaCarga = receitaAtual;
+    // No Simples, a receita-base do Perfil é a competência declarada no
+    // PGDAS. Em caixa, a carga efetiva usa exclusivamente a receita recebida,
+    // sem confundir emissão fiscal com recebimento.
+    const simplesCaixa = eSimples && empresa.regime_reconhecimento_simples === 'caixa';
+    const receitaAtual = eSimples && receitaPerfil !== null ? receitaPerfil
+      : receitaDocumentada !== null ? receitaDocumentada : receitaApuracao !== null ? receitaApuracao : receitaPerfil;
+    const receitaRecebida = p?.receita_recebida != null ? numero(p.receita_recebida) : null;
+    const receitaParaCarga = simplesCaixa ? receitaRecebida : receitaAtual;
     const apuracaoConfirmada = ['VALIDADO_USUARIO','VALIDADO_AUTOMATICAMENTE'].includes(apuracao?.status_validacao)
       && (apuracao.pis_recolhido != null || apuracao.pis_debito != null)
       && (apuracao.cofins_recolhida != null || apuracao.cofins_debito != null);
@@ -145,6 +151,7 @@ function consolidar(db, empresaId) {
       regime: empresa.regime || 'INDETERMINADO',
       receita: valor(receitaAtual, receitaDocumentada !== null ? 'XML_IMPORTADO' : receitaApuracao !== null ? 'APURACAO_IMPORTADA' : receitaPerfil !== null ? 'REAL' : 'INDETERMINADO'),
       receita_documentada: valor(receitaDocumentada, receitaDocumentada !== null ? 'EXTRAIDO' : 'INDETERMINADO'),
+      receita_recebida: valor(receitaRecebida, receitaRecebida !== null ? 'PGDAS_CAIXA' : simplesCaixa ? 'INDETERMINADO' : 'NAO_APLICAVEL'),
       folha: valor(linha.folha?.valor_folha, linha.folha ? 'REAL' : 'INDETERMINADO'),
       margem_operacional: valor(margem?.margem_operacional_percentual, margem ? 'PREMISSA_INFORMADA' : 'INDETERMINADO'),
       composicao_receitas: p ? {
@@ -184,7 +191,7 @@ function consolidar(db, empresaId) {
     cbs_motor: historico.some((x) => x.cbs_motor_existente.natureza === 'CALCULADO') ? 'DISPONIVEL' : 'INDETERMINADO',
   };
   const auditoria_mensal = montarAuditoriaMensal(documentos, apuracoes, perfis);
-  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO' }, cobertura, historico, auditoria_mensal };
+  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal };
 }
 
 module.exports = { consolidar, montarAuditoriaMensal };

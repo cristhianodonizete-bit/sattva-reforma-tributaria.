@@ -1666,10 +1666,10 @@ router.post('/empresas/:id/importar/pgdas', upload.single('arquivo'), async (req
     if (!r.registros.length) throw new Error('Nenhuma apuração PGDAS válida foi encontrada. Informe Competência e DAS em cada linha.');
 
     const existente = db.prepare('SELECT id FROM perfil_tributario WHERE empresa_id=? AND competencia=? ORDER BY id DESC LIMIT 1');
-    const inserir = db.prepare(`INSERT INTO perfil_tributario (empresa_id, competencia, receita_bruta, receita_mercadorias,
+    const inserir = db.prepare(`INSERT INTO perfil_tributario (empresa_id, competencia, receita_bruta, receita_recebida, receita_mercadorias,
       receita_servicos, receita_exportacao, pis, cofins, das, origem)
-      VALUES (?,?,?,?,?,?,?,?,?, 'pgdas_importado')`);
-    const atualizar = db.prepare(`UPDATE perfil_tributario SET receita_bruta=COALESCE(?, receita_bruta),
+      VALUES (?,?,?,?,?,?,?,?,?,?, 'pgdas_importado')`);
+    const atualizar = db.prepare(`UPDATE perfil_tributario SET receita_bruta=COALESCE(?, receita_bruta), receita_recebida=COALESCE(?, receita_recebida),
       receita_mercadorias=COALESCE(?, receita_mercadorias), receita_servicos=COALESCE(?, receita_servicos),
       receita_exportacao=COALESCE(?, receita_exportacao), pis=COALESCE(?, pis), cofins=COALESCE(?, cofins),
       das=?, origem='pgdas_importado' WHERE id=?`);
@@ -1677,7 +1677,7 @@ router.post('/empresas/:id/importar/pgdas', upload.single('arquivo'), async (req
     let atualizados = 0;
     db.transaction(() => {
       for (const p of r.registros) {
-        const valores = [p.receita_bruta, p.receita_mercadorias, p.receita_servicos, p.receita_exportacao, p.pis, p.cofins];
+        const valores = [p.receita_bruta, p.receita_recebida, p.receita_mercadorias, p.receita_servicos, p.receita_exportacao, p.pis, p.cofins];
         const perfil = existente.get(req.params.id, p.competencia);
         if (perfil) {
           atualizar.run(...valores, p.das, perfil.id);
