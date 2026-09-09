@@ -141,6 +141,7 @@ Telas.empresas = async (el) => {
     <div class="cartao empresas-lista"><div class="cabecalho-lista"><div><h2>Carteira de projetos</h2><p class="desc">Abra um projeto para continuar a entrega, importar dados ou acompanhar o diagnóstico.</p></div><span class="tag">${empresas.length} empresas</span></div>${A.tabela([
       { t: 'Razão social', r: (e) => `<b>${A.esc(e.razao_social)}</b><div class="mini">${A.cnpjFmt(e.cnpj)}</div>` },
       { t: 'Regime', r: (e) => `<span class="tag">${A.regimeLabel(e.regime)}</span>` },
+      { t: 'Abertura', r: (e) => e.data_abertura ? `<b>${A.esc(String(e.data_abertura).slice(0, 10).split('-').reverse().join('/'))}</b><div class="mini">data cadastral</div>` : '<span class="mini">Não informada</span>' },
       { t: 'UF', r: (e) => A.esc(e.uf || '—') },
       { t: 'CNAE', r: (e) => e.cnae_exibicao ? `<b class="mono">${A.esc(e.cnae_exibicao)}</b><div class="mini">${A.esc(e.atividade_cnae_exibicao || '')}</div>${cnaesSecundarios(e).length ? `<div class="mini">+ ${cnaesSecundarios(e).length} atividade(s) secundária(s)</div>` : ''}` : '<span class="mini">Não consultado</span>' },
       { t: 'Fornecedores', num: true, r: (e) => e.fornecedores },
