@@ -46,7 +46,7 @@ function assegurarCatalogoReceitaCfop() {
   const existeExato = db.prepare('SELECT id FROM param_cfop WHERE grupo=? AND prefixo=? AND natureza=? LIMIT 1');
   const inserir = db.prepare('INSERT INTO param_cfop (grupo,prefixo,natureza,prioridade,descricao,compoe_receita,fonte,versao,vigencia_inicio) VALUES (?,?,?,?,?,?,?,?,?)');
   db.transaction(() => {
-    db.prepare("DELETE FROM param_cfop WHERE prefixo IN ('5','6') AND natureza='venda'").run();
+    db.prepare("DELETE FROM param_cfop WHERE prefixo IN ('5','6') AND grupo IS NULL AND natureza='venda'").run();
     db.prepare("DELETE FROM param_cfop WHERE prefixo='7' AND natureza='exportacao'").run();
     db.prepare("DELETE FROM param_cfop WHERE natureza='venda' AND fonte LIKE 'Tabela CFOP%'").run();
     for (const grupo of gruposVenda) if (!existe.get(grupo, 'venda')) inserir.run(grupo, null, 'venda', 2, 'Venda / prestação — catálogo positivo', 1, fonte, versao, '2023-04-24');
@@ -282,10 +282,28 @@ function salvarSimples(anexo, faixa, d, usuario) {
 }
 
 function salvarCfop(id, d, usuario) {
-  db.prepare('UPDATE param_cfop SET natureza = ?, descricao = ? WHERE id = ?')
-    .run(d.natureza, d.descricao || '', id);
+  const compoe = d.compoe_receita === undefined ? null : (d.compoe_receita ? 1 : 0);
+  db.prepare('UPDATE param_cfop SET natureza = ?, descricao = ?, compoe_receita = COALESCE(?, compoe_receita) WHERE id = ?')
+    .run(d.natureza, d.descricao || '', compoe, id);
   registrarLog('cfop', String(id), '', d.natureza, usuario);
   invalidar();
+}
+
+function cadastrarCfop(d, usuario) {
+  const codigo = String(d.cfop || '').replace(/\D/g, '');
+  const naturezas = new Set(['venda','aquisicao','devolucao','remessa','transferencia','exportacao','importacao','ativo_consumo','outra_saida']);
+  if (!/^\d{4}$/.test(codigo)) throw new Error('Informe um CFOP com quatro dígitos.');
+  if (!naturezas.has(d.natureza)) throw new Error('Selecione uma natureza operacional válida.');
+  if (d.compoe_receita !== true && d.compoe_receita !== false) throw new Error('Informe se a operação compõe a receita.');
+  const prefixo = codigo[0], grupo = codigo.slice(1);
+  const existente = db.prepare('SELECT id FROM param_cfop WHERE prefixo=? AND grupo=? AND prioridade=2 AND ativo<>0 LIMIT 1').get(prefixo, grupo);
+  if (existente) throw new Error(`O CFOP ${codigo} já possui uma regra específica cadastrada.`);
+  const r = db.prepare(`INSERT INTO param_cfop (grupo,prefixo,natureza,prioridade,descricao,compoe_receita,fonte,versao,vigencia_inicio,ativo)
+    VALUES (?,?,?,?,?,?,?,?,?,1)`).run(grupo, prefixo, d.natureza, 2, String(d.descricao || '').trim(), d.compoe_receita ? 1 : 0,
+    String(d.fonte || 'Cadastro manual').trim(), String(d.versao || 'MANUAL').trim(), new Date().toISOString().slice(0, 10));
+  registrarLog('cfop', `novo:${codigo}`, '', `${d.natureza}; receita=${d.compoe_receita ? 'sim' : 'não'}`, usuario);
+  invalidar();
+  return db.prepare('SELECT * FROM param_cfop WHERE id=?').get(r.lastInsertRowid);
 }
 
 function historico(limite = 100) {
@@ -312,6 +330,6 @@ function tudo() {
 module.exports = {
   carregar, invalidar, tributo, regime, reducao, percentualReducao, limiar, padrao,
   aliquotasAno, anos, naturezaCfop, estimativaPisCofins,
-  salvarRegra, salvarTributo, salvarRegime, salvarReducao, salvarAliquota, salvarSimples, salvarCfop,
+  salvarRegra, salvarTributo, salvarRegime, salvarReducao, salvarAliquota, salvarSimples, salvarCfop, cadastrarCfop,
   historico, tudo,
 };

@@ -308,6 +308,10 @@ function cfop(box, d) {
   box.innerHTML = `<div class="aviso"><b>Catálogo operacional de CFOP</b> Esta é a mesma fonte usada para decidir se uma operação compõe a receita analisada. CFOP de produto só entra por classificação positiva; código sem regra fica fora do faturamento e é sinalizado para revisão.
       <br><br><b>A ordem de avaliação importa</b>
       Uma regra pode valer para o grupo espelhado 5/6 ou para um código específico com prefixo, como 7.101. Por isso grupo e prefixo são avaliados juntos quando ambos existirem.</div>
+    <div class="cartao"><h2>Cadastrar CFOP específico</h2><p class="desc">Use para formalizar um código ainda não catalogado. A nova regra vale somente para os quatro dígitos informados e entra na auditoria do faturamento.</p>
+      <div class="grade g3"><label class="campo"><span>CFOP</span><input id="novoCfopCodigo" inputmode="numeric" maxlength="4" placeholder="Ex.: 5949"></label><label class="campo"><span>Natureza</span><select id="novoCfopNatureza">${naturezas.map((n) => `<option value="${n}">${n}</option>`).join('')}</select></label><label class="campo"><span>Compõe receita?</span><select id="novoCfopReceita"><option value="nao">Não</option><option value="sim">Sim</option></select></label></div>
+      <div class="grade g2"><label class="campo"><span>Descrição / justificativa</span><input id="novoCfopDescricao" placeholder="Descreva a operação e a razão da classificação"></label><label class="campo"><span>Fonte</span><input id="novoCfopFonte" value="Cadastro manual" placeholder="Ex.: Convênio SINIEF / orientação fiscal"></label></div>
+      <button class="btn" id="salvarNovoCfop">Cadastrar CFOP</button></div>
     ${porPrioridade.map((lista, i) => lista.length ? `<div class="cartao">
       <h2>Prioridade ${rotulo[i]}</h2>
       ${A.tabela([
@@ -333,6 +337,16 @@ function cfop(box, d) {
     const c = d.cfop.find((x) => String(x.id) === id);
     salvar(`/config/cfop/${id}`, { natureza: box.querySelector(`[data-f="nat"][data-i="${id}"]`).value, descricao: c.descricao });
   }; });
+  document.getElementById('salvarNovoCfop').onclick = async () => {
+    const cfop = String(document.getElementById('novoCfopCodigo').value || '').replace(/\D/g, '');
+    if (cfop.length !== 4) { A.toast('Informe os quatro dígitos do CFOP.', 'erro'); return; }
+    try {
+      await A.api('/config/cfop', { metodo:'POST', corpo:{ cfop, natureza:document.getElementById('novoCfopNatureza').value,
+        compoe_receita:document.getElementById('novoCfopReceita').value === 'sim', descricao:document.getElementById('novoCfopDescricao').value,
+        fonte:document.getElementById('novoCfopFonte').value } });
+      A.toast(`CFOP ${cfop} cadastrado e publicado na fonte compartilhada.`, 'ok'); A.ir('configuracoes');
+    } catch (e) { A.toast(e.message || 'Não foi possível cadastrar o CFOP.', 'erro'); }
+  };
   document.getElementById('btnCfop').onclick = () => {
     const c = String(document.getElementById('testeCfop').value || '').replace(/\D/g, '');
     if (c.length !== 4) { document.getElementById('resCfop').innerHTML = '<span class="tag a">informe 4 dígitos</span>'; return; }

@@ -4798,6 +4798,11 @@ router.put('/config/cfop/:id', async (req, res) => {
   catch (e) { erro(res, e); }
 });
 
+router.post('/config/cfop', async (req, res) => {
+  try { const cfop = regras.cadastrarCfop(req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { cfop }); }
+  catch (e) { erro(res, e); }
+});
+
 router.get('/config/historico', (req, res) => {
   try { ok(res, { historico: regras.historico(req.query.limite) }); } catch (e) { erro(res, e); }
 });

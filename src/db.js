@@ -2487,7 +2487,7 @@ if (db.prepare('SELECT COUNT(*) c FROM param_cfop').get().c === 0) {
     // Remove o legado perigoso que classificava qualquer 5xxx/6xxx como venda
     // e também o catálogo-base da versão anterior, antes de regravar a versão
     // atual. Registros manuais de outra fonte não são tocados.
-    db.prepare("DELETE FROM param_cfop WHERE prefixo IN ('5','6') AND natureza = 'venda'").run();
+    db.prepare("DELETE FROM param_cfop WHERE prefixo IN ('5','6') AND grupo IS NULL AND natureza = 'venda'").run();
     db.prepare("DELETE FROM param_cfop WHERE prefixo = '7' AND natureza = 'exportacao'").run();
     db.prepare("DELETE FROM param_cfop WHERE natureza = 'venda' AND fonte LIKE 'Tabela CFOP%'").run();
     for (const grupo of vendas) {
