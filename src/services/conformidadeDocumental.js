@@ -100,8 +100,9 @@ function avaliar(movimento) {
 }
 
 function listar(empresaId) {
-  const movimentos = db.prepare(`SELECT id,empresa_id,tipo,nome,inscr_federal,documento,chave,item_numero,data_emissao,competencia,descricao,valor,origem,lc116,nbs,cst,normalizacao_status,normalizacao_pendencia,normalizacao_evidencia
+  const movimentos = db.prepare(`SELECT id,empresa_id,tipo,nome,inscr_federal,documento,chave,item_numero,data_emissao,competencia,descricao,valor,origem,modelo_documento_fiscal,lc116,nbs,cst,normalizacao_status,normalizacao_pendencia,normalizacao_evidencia
     FROM movimentos WHERE empresa_id=? AND (COALESCE(lc116,'')<>'' OR COALESCE(nbs,'')<>'')
+      AND (lower(COALESCE(modelo_documento_fiscal,''))='nfse' OR lower(COALESCE(origem,''))<>'xml')
     ORDER BY valor DESC,id`).all(Number(empresaId));
   const itens = movimentos.map((movimento) => {
     const achado = avaliar(movimento);
