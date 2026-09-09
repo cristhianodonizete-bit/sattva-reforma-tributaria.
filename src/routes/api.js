@@ -1781,6 +1781,25 @@ router.post('/empresas/:id/integra-contador/pgdas/baixar', async (req, res) => {
     erro(res, e);
   }
 });
+// Consulta assistida para revelar o envelope devolvido pelo Serpro em uma
+// competência. O JSON não é persistido: serve para identificar o serviço de
+// detalhe quando a consulta de índice não traz os valores do DAS.
+router.post('/empresas/:id/integra-contador/pgdas/diagnostico-json', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    const empresa = db.prepare('SELECT id,cnpj,regime FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa) throw new Error('Empresa não encontrada.');
+    if (empresa.regime !== 'simples_nacional') throw new Error('A consulta PGDAS-D pelo Integra Contador é disponível somente para empresa do Simples Nacional.');
+    const competencia = String(req.body?.competencia || '').trim();
+    if (!/^\d{4}-\d{2}$/.test(competencia)) throw new Error('Informe a competência no formato AAAA-MM.');
+    const periodo = await exigirPeriodoParaImportacao(req);
+    if (competencia < periodo.competencia_inicio || competencia > periodo.competencia_fim) throw new Error(`A competência deve estar dentro do período analisado (${periodo.competencia_inicio} a ${periodo.competencia_fim}).`);
+    const retorno = await integraContador.consultarDeclaracoes({ cnpj: empresa.cnpj, anoCalendario: Number(competencia.slice(0, 4)), periodoApuracao: competencia.replace('-', '') });
+    const diagnostico = integraContador.diagnosticoDeclaracoes(retorno, [competencia]);
+    auditar(req, { empresaId, acao: 'Consultou JSON de diagnóstico PGDAS-D', entidade: 'integra_contador_pgdas_json', entidadeId: `${empresaId}:${competencia}`, depois: { competencia, diagnostico } });
+    ok(res, { competencia, diagnostico, retorno_serpro: retorno });
+  } catch (e) { erro(res, e); }
+});
 router.get('/empresas/:id/integra-contador/logs', (req, res) => {
   try {
     const empresaId = Number(req.params.id);

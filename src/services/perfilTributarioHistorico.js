@@ -9,6 +9,13 @@ const numero = (v) => Number(v) || 0;
 const tem = (v) => v !== null && v !== undefined;
 const receitaOperacional = require('./receitaOperacional');
 
+// Receita documental não é somente vProd: frete, seguro e outras despesas
+// cobradas na venda compõem o preço; desconto o reduz.
+function valorDocumental(movimento = {}) {
+  return numero(movimento.valor) + numero(movimento.frete) + numero(movimento.seguro)
+    + numero(movimento.outras) - numero(movimento.desconto);
+}
+
 function valor(valor, natureza = 'REAL') {
   return tem(valor) ? { valor: numero(valor), natureza } : { valor: null, natureza: 'INDETERMINADO' };
 }
@@ -84,7 +91,7 @@ function consolidar(db, empresaId) {
   // migração local é concluída.
   const colunasMovimentos = new Set(db.prepare('PRAGMA table_info(movimentos)').all().map((x) => x.name));
   const colunaMovimento = (nome) => colunasMovimentos.has(nome) ? nome : `NULL AS ${nome}`;
-  db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')}
+  db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')}
     FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId)
     .filter((x) => receitaOperacional.ehSaida(x) && noExercicio(x.competencia))
     .forEach((x) => {
@@ -93,9 +100,10 @@ function consolidar(db, empresaId) {
       const motivo = receitaOperacional.motivo(x);
       const chave = [x.competencia, x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', x.cfop || 'SEM_CFOP', motivo].join('|');
       const linha = composicaoReceita.get(chave) || { competencia:x.competencia, modelo_fiscal:x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop:x.cfop || '', motivo, compoe_receita:compoe, itens:0, valor:0 };
-      linha.itens++; linha.valor += numero(x.valor); composicaoReceita.set(chave, linha);
+      const valorDaLinha = valorDocumental(x);
+      linha.itens++; linha.valor += valorDaLinha; composicaoReceita.set(chave, linha);
       if (compoe) {
-        atual.receita_documentada += numero(x.valor); atual.quantidade_documentos++; atual.iss_documentado += numero(x.iss);
+        atual.receita_documentada += valorDaLinha; atual.quantidade_documentos++; atual.iss_documentado += numero(x.iss);
       }
       documentosPorCompetencia.set(x.competencia,atual);
     });

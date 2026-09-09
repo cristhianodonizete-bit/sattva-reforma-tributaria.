@@ -92,6 +92,10 @@ function lerNfe(xml) {
     destinatario_uf: valor(tag(dest, 'enderDest'), 'UF'),
     indIEDest: valor(dest, 'indIEDest'),         // 9 = não contribuinte
     valor_total: numero(valor(total, 'vNF')),
+    frete_total: numero(valor(total, 'vFrete')),
+    seguro_total: numero(valor(total, 'vSeg')),
+    outras_total: numero(valor(total, 'vOutro')),
+    desconto_total: numero(valor(total, 'vDesc')),
   };
 
   const itens = blocos(inf, 'det').map((det, i) => {
@@ -129,6 +133,24 @@ function lerNfe(xml) {
     };
   });
 
+  // A NF-e pode destacar encargos apenas no totalizador ICMSTot. A base é
+  // armazenada por item: rateamos exclusivamente o saldo não informado nos
+  // itens, proporcionalmente ao vProd, sem duplicar valores já detalhados.
+  const ratearTotal = (campo, totalCampo) => {
+    const residual = numero(cabecalho[totalCampo]) - itens.reduce((s, item) => s + numero(item[campo]), 0);
+    const base = itens.reduce((s, item) => s + numero(item.valor), 0);
+    if (!itens.length || Math.abs(residual) < 0.005 || base <= 0) return;
+    let distribuido = 0;
+    itens.forEach((item, indice) => {
+      const parcela = indice === itens.length - 1 ? residual - distribuido : residual * (numero(item.valor) / base);
+      item[campo] = numero(item[campo]) + parcela;
+      distribuido += parcela;
+    });
+  };
+  ratearTotal('frete', 'frete_total');
+  ratearTotal('seguro', 'seguro_total');
+  ratearTotal('outras', 'outras_total');
+  ratearTotal('desconto', 'desconto_total');
   return { cabecalho, itens };
 }
 
