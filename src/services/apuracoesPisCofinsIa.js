@@ -77,10 +77,23 @@ function competenciaDoTexto(valor) {
   return encontrada[1] ? `${encontrada[2]}-${encontrada[1]}` : `${encontrada[3]}-${encontrada[4]}`;
 }
 
+function textoDoRelatorio(textoDocumento) {
+  const bruto = String(textoDocumento || '');
+  // O conector Questor pode devolver o nWeb encapsulado em JSON, no campo
+  // Data. Abrir esse envelope antes de procurar as seções evita que os \r\n
+  // literais impeçam a distinção entre Entradas e Saídas.
+  try {
+    const envelope = JSON.parse(bruto);
+    if (typeof envelope?.Data === 'string') return envelope.Data;
+  } catch (_) { /* relatório textual direto */ }
+  return bruto;
+}
+
 // Normaliza somente rótulos e valores literalmente presentes no texto OCR.
 // Não calcula tributos, não completa ausências e deixa toda extração para revisão.
 function normalizarTextoDeterministico(textoDocumento, { localizacoes = [], metodo = 'NORMALIZACAO_DETERMINISTICA' } = {}) {
-  const linhas = String(textoDocumento || '').split(/\r?\n/).map((linha) => linha.trim()).filter(Boolean);
+  const textoLido = textoDoRelatorio(textoDocumento);
+  const linhas = textoLido.split(/\r?\n/).map((linha) => linha.trim()).filter(Boolean);
   const saida = Object.fromEntries(CAMPOS.map((campo) => [campo, {
     valor_extraido: null, origem_documento: 'OCR_AZURE', pagina_ou_localizacao: null,
     rotulo_original: null, confianca: null, metodo_extracao: metodo, status_validacao: 'INDETERMINADO',
@@ -131,12 +144,12 @@ function normalizarTextoDeterministico(textoDocumento, { localizacoes = [], meto
     .map(valorNumericoDoTexto).filter((v) => v !== null);
   // Alguns layouts escrevem o intervalo completo (01/06/2026 a
   // 30/06/2026), outros apenas 06/2026. Ambos identificam a competência.
-  const periodo = String(textoDocumento || '').match(/per[ií]odo\s*:\s*(?:\d{2}\/)?(\d{2}\/\d{4})/i);
+  const periodo = textoLido.match(/per[ií]odo\s*:\s*(?:\d{2}\/)?(\d{2}\/\d{4})/i);
   if (periodo) preencherSeAusente('competencia', competenciaDoTexto(periodo[1]), 'Período');
-  if (/contribui[cç][aã]o\s+cumulativa/i.test(String(textoDocumento || ''))) {
+  if (/contribui[cç][aã]o\s+cumulativa/i.test(textoLido)) {
     preencherSeAusente('regime_pis_cofins', 'CUMULATIVO', 'Contribuição Cumulativa Apurada');
   }
-  const textoCompleto = String(textoDocumento || '');
+  const textoCompleto = textoLido;
   // Em relatórios por produto, Entradas e Saídas possuem totalizações com os
   // mesmos rótulos. Para apuração de PIS/Cofins da receita, somente o bloco
   // posterior a "Saídas" é elegível; retorno, comodato e demais entradas

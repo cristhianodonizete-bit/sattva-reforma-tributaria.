@@ -17,6 +17,9 @@ Totalização por tipo`;
 
 const campos = normalizarTextoDeterministico(relatorio);
 assert.equal(campos.competencia.valor_extraido, '2026-06');
+const camposEmEnvelopeQuestor = normalizarTextoDeterministico(JSON.stringify({ PageCount:1, Data:relatorio }));
+assert.equal(camposEmEnvelopeQuestor.receita_base.valor_extraido, 254124.34);
+assert.equal(camposEmEnvelopeQuestor.pis_debito.valor_extraido, 1651.82);
 assert.equal(campos.receita_base.valor_extraido, 254124.34);
 assert.equal(campos.pis_debito.valor_extraido, 1651.82);
 assert.equal(campos.cofins_debito.valor_extraido, 7623.77);
