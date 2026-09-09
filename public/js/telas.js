@@ -914,10 +914,35 @@ Telas.perfil = async (el) => {
   const regimeAtual = rotulosRegime[chaveRegime] || A.regimeLabel(chaveRegime) || 'INDETERMINADO';
   const tratamentoSemDetalhe = 'Não discriminado pela fonte importada';
   const moedaOuIndeterminado = (valor) => valor === null || valor === undefined ? 'INDETERMINADO' : A.moeda(valor);
+  const abaPerfil = S.aba.perfilTributario || 'resumo';
+  const auditoriaMensal = tributario.auditoria_mensal || [];
+  const rotuloAuditoria = (situacao) => ({
+    CONCILIADO: 'Conciliado', DIVERGENCIA_A_CONFERIR: 'Divergência a conferir',
+    SEM_APURACAO_IMPORTADA: 'Sem apuração importada', SEM_DOCUMENTOS_DE_RECEITA: 'Sem documentos de receita',
+    RECEITA_NAO_INFORMADA_NA_APURACAO: 'Receita não informada na apuração',
+    SEM_DADOS_PARA_CONFRONTO: 'Sem dados para confronto',
+  })[situacao] || situacao;
+  const classeAuditoria = (situacao) => situacao === 'CONCILIADO' ? 'c' : situacao === 'DIVERGENCIA_A_CONFERIR' ? 'a' : 'n';
+  const colunaApuracao = (apuracao) => !apuracao ? '—' : apuracao.valor === null
+    ? `<span class="mini">Receita não identificada</span>`
+    : `${A.moeda(apuracao.valor)}<br><span class="mini">${A.esc(apuracao.documento || apuracao.origem || apuracao.fonte)}</span>`;
+  const conteudoAuditoria = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Auditoria mensal de receitas</h2><p class="desc">Confronto informativo entre documentos fiscais que compõem receita e as apurações importadas. Diferenças não bloqueiam o sistema nem alteram a apuração.</p></div><span class="tag">${auditoriaMensal.length} competência(s)</span></div>
+    ${A.tabela([
+      { t:'Competência', r:x=>A.esc(x.competencia) },
+      { t:'Documentos importados', num:true, r:x=>x.documentos ? `${A.moeda(x.documentos.valor)}<br><span class="mini">${x.documentos.quantidade} documento(s) de venda/serviço</span>` : '—' },
+      { t:'Apuração PIS/Cofins', num:true, r:x=>colunaApuracao(x.pis_cofins) },
+      { t:'PGDAS', num:true, r:x=>colunaApuracao(x.pgdas) },
+      { t:'Diferença', num:true, r:x=>x.diferencas?.length ? x.diferencas.map((d)=>`${A.moeda(d.valor)}<br><span class="mini">${A.esc(d.fonte)}</span>`).join('') : '—' },
+      { t:'Situação', r:x=>`<span class="tag ${classeAuditoria(x.situacao)}">${A.esc(rotuloAuditoria(x.situacao))}</span>` },
+    ], auditoriaMensal, { vazio:'Ainda não há documentos ou apurações importadas no período analisado para confrontar.' })}
+    <p class="mini" style="margin-top:12px">A comparação usa somente a janela do período analisado. Ela não presume que uma divergência seja erro fiscal: ajustes, retenções e critérios próprios do documento devem ser conferidos na origem.</p>
+  </div>`;
 
   el.innerHTML = cab('Módulo 1.a · diagnóstico', 'Perfil Tributário',
     'Raio-X da apuração atual de PIS/Cofins. Esta tela não projeta CBS, não analisa cadeias e não apresenta cenários.',
     '<button class="btn vazio" id="centralDadosPerfil">Central de Dados</button>') +
+    `<div class="abas" style="margin-top:16px"><button class="${abaPerfil === 'resumo' ? 'ativo' : ''}" data-aba-perfil="resumo">Resumo da apuração</button><button class="${abaPerfil === 'auditoria' ? 'ativo' : ''}" data-aba-perfil="auditoria">Auditoria mensal</button></div>` +
+    (abaPerfil === 'auditoria' ? conteudoAuditoria :
     `<div class="cartao"><div class="cabecalho-lista"><div><h2>Resumo da apuração atual</h2><p class="desc">Valores efetivamente importados. A alíquota efetiva final é PIS/Cofins apurados ÷ receita analisada.</p></div><span class="tag">${A.esc(origem)}</span></div>
       <div class="grade g4">
         ${A.kpi('Regime atual', A.esc(regimeAtual), historico.length ? `${historico.length} período(s) analisado(s)${periodoPerfil ? ` · ${A.esc(periodoPerfil.competencia_inicio)} a ${A.esc(periodoPerfil.competencia_fim)}` : ''}` : 'sem período analisado')}
@@ -951,9 +976,10 @@ Telas.perfil = async (el) => {
         { t:'Cofins apurada', num:true, r:x=>moedaOuIndeterminado(numero(x.cofins_debito)) }, { t:'Validação', r:x=>A.esc(x.status_validacao || 'INDETERMINADO') },
         { t:'', r:x=>`<button class="btn pq vazio" data-apuracao-revisar="${x.id}">Revisar</button><button class="btn pq vazio" data-apuracao-reprocessar="${x.id}">Reprocessar</button>` },
       ], apuracoesDoPerfil, { vazio:'Nenhuma apuração de PIS/Cofins foi importada no período analisado.' })}
-    </div>`;
+    </div>`);
 
   el.querySelector('#centralDadosPerfil').onclick = () => A.ir('dados');
+  el.querySelectorAll('[data-aba-perfil]').forEach((botao) => { botao.onclick = () => { S.aba.perfilTributario = botao.dataset.abaPerfil; A.ir('perfil'); }; });
   el.querySelectorAll('[data-apuracao-revisar]').forEach((botao) => { botao.onclick = () => {
     const apuracao = apuracoes.find((x) => Number(x.id) === Number(botao.dataset.apuracaoRevisar));
     if (!apuracao) return;

@@ -17,6 +17,51 @@ function tabelaExiste(db, nome) {
   return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(nome));
 }
 
+// Confronto estritamente informativo entre as fontes que já foram importadas.
+// Não há estimativa nem alteração de dado fiscal: uma divergência apenas pede
+// conferência do responsável antes de usar os números em uma decisão.
+function montarAuditoriaMensal(documentos, apuracoes, perfis) {
+  const porCompetencia = new Map();
+  const obter = (competencia) => {
+    if (!porCompetencia.has(competencia)) porCompetencia.set(competencia, { competencia, documentos: null, pis_cofins: null, pgdas: null });
+    return porCompetencia.get(competencia);
+  };
+  (documentos || []).forEach((x) => {
+    if (numero(x.quantidade_documentos) > 0) obter(x.competencia).documentos = {
+      valor: numero(x.receita_documentada), quantidade: numero(x.quantidade_documentos), fonte: 'Documentos fiscais importados',
+    };
+  });
+  (apuracoes || []).forEach((x) => {
+    const atual = obter(x.competencia);
+    // Havendo reprocessamentos do mesmo mês, a leitura mais recente é a que
+    // representa a evidência exibida ao usuário.
+    if (!atual.pis_cofins) atual.pis_cofins = {
+      valor: x.receita_base == null ? null : numero(x.receita_base), documento: x.nome_original || null,
+      validacao: x.status_validacao || 'INDETERMINADO', fonte: 'Apuração PIS/Cofins importada',
+    };
+  });
+  (perfis || []).forEach((x) => {
+    if (!/^pgdas_/i.test(String(x.origem || ''))) return;
+    const atual = obter(x.competencia);
+    if (!atual.pgdas) atual.pgdas = {
+      valor: x.receita_bruta == null ? null : numero(x.receita_bruta), origem: x.origem,
+      fonte: 'PGDAS importado',
+    };
+  });
+  return [...porCompetencia.values()].sort((a, b) => String(a.competencia).localeCompare(String(b.competencia))).map((linha) => {
+    const documentosImportados = linha.documentos?.valor ?? null;
+    const bases = [linha.pis_cofins, linha.pgdas].filter(Boolean);
+    const basesComValor = bases.filter((x) => x.valor !== null);
+    const diferencas = basesComValor.map((x) => ({ fonte: x.fonte, valor: x.valor - documentosImportados }));
+    let situacao = 'SEM_APURACAO_IMPORTADA';
+    if (documentosImportados === null) situacao = bases.length ? 'SEM_DOCUMENTOS_DE_RECEITA' : 'SEM_DADOS_PARA_CONFRONTO';
+    else if (bases.length && !basesComValor.length) situacao = 'RECEITA_NAO_INFORMADA_NA_APURACAO';
+    else if (basesComValor.length && diferencas.every((x) => Math.abs(x.valor) < 0.01)) situacao = 'CONCILIADO';
+    else if (basesComValor.length) situacao = 'DIVERGENCIA_A_CONFERIR';
+    return { ...linha, diferencas, situacao };
+  });
+}
+
 function consolidar(db, empresaId) {
   const empresa = db.prepare('SELECT id, razao_social, regime FROM empresas WHERE id=?').get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada.');
@@ -30,7 +75,12 @@ function consolidar(db, empresaId) {
   const receitasSemDfe = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId);
   const cbs = db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=?').all(empresaId);
   const documentosPorCompetencia = new Map();
-  db.prepare(`SELECT competencia,valor,iss,tipo,sentido,cfop,nbs,lc116,modelo_documento_fiscal
+  // Bases antigas podem ainda não ter recebido as colunas fiscais mais
+  // recentes. A leitura continua segura (NULL não presume venda) enquanto a
+  // migração local é concluída.
+  const colunasMovimentos = new Set(db.prepare('PRAGMA table_info(movimentos)').all().map((x) => x.name));
+  const colunaMovimento = (nome) => colunasMovimentos.has(nome) ? nome : `NULL AS ${nome}`;
+  db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')}
     FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId)
     .filter((x) => receitaOperacional.ehSaida(x) && noExercicio(x.competencia))
     .forEach((x) => {
@@ -133,7 +183,8 @@ function consolidar(db, empresaId) {
     margem_operacional: historico.some((x) => x.margem_operacional.natureza !== 'INDETERMINADO') ? 'DISPONIVEL' : 'INDETERMINADO',
     cbs_motor: historico.some((x) => x.cbs_motor_existente.natureza === 'CALCULADO') ? 'DISPONIVEL' : 'INDETERMINADO',
   };
-  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO' }, cobertura, historico };
+  const auditoria_mensal = montarAuditoriaMensal(documentos, apuracoes, perfis);
+  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO' }, cobertura, historico, auditoria_mensal };
 }
 
-module.exports = { consolidar };
+module.exports = { consolidar, montarAuditoriaMensal };
