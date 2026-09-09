@@ -292,6 +292,15 @@ Telas.dados = async (el) => {
   ]);
   const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`);
   const documentosFiscais = documentosFiscaisResposta.documentos || [];
+  const filtroDocumentos = S.aba.documentosFiscais || {};
+  const textoFiltroDocumento = String(filtroDocumentos.busca || '').trim().toLowerCase();
+  const documentosFiscaisFiltrados = documentosFiscais.filter((d) =>
+    (!filtroDocumentos.competencia || d.competencia === filtroDocumentos.competencia) &&
+    (!filtroDocumentos.modelo || String(d.modelo_documento_fiscal || 'NAO_IDENTIFICADO').toUpperCase() === filtroDocumentos.modelo) &&
+    (!filtroDocumentos.sentido || d.tipo === filtroDocumentos.sentido) &&
+    (!filtroDocumentos.receita || (filtroDocumentos.receita === 'SIM' ? d.operacao_receita : !d.operacao_receita)) &&
+    (!textoFiltroDocumento || `${d.documento || ''} ${d.chave || ''} ${d.parceiro || ''}`.toLowerCase().includes(textoFiltroDocumento))
+  );
   const naturezaDocumento = (d) => {
     const modelo=String(d.modelo_documento_fiscal || '').toLowerCase();
     if (['nfse','cte','nfcom'].includes(modelo)) return ['Serviço', 'c'];
@@ -409,7 +418,9 @@ Telas.dados = async (el) => {
       ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}
     ${grupoCentral === 'documentos' ? `<div class="cartao" id="documentosFiscais">
-      <div class="cabecalho-lista"><div><h2>Documentos fiscais importados</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p></div><span class="tag">${documentosFiscaisResposta.total || 0} documento(s)</span></div>
+      <div class="cabecalho-lista"><div><h2>Documentos fiscais importados</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p></div><span class="tag">${documentosFiscaisFiltrados.length} de ${documentosFiscaisResposta.total || 0} documento(s)</span></div>
+      <div class="grade g5" style="margin:12px 0"><label class="campo"><span>Competência</span><select id="filtroDocumentoCompetencia"><option value="">Todas</option>${[...new Set(documentosFiscais.map((d)=>d.competencia).filter(Boolean))].sort().reverse().map((v)=>`<option value="${A.esc(v)}" ${filtroDocumentos.competencia===v?'selected':''}>${A.esc(v)}</option>`).join('')}</select></label><label class="campo"><span>Modelo fiscal</span><select id="filtroDocumentoModelo"><option value="">Todos</option>${[...new Set(documentosFiscais.map((d)=>String(d.modelo_documento_fiscal || 'NAO_IDENTIFICADO').toUpperCase()))].sort().map((v)=>`<option value="${A.esc(v)}" ${filtroDocumentos.modelo===v?'selected':''}>${A.esc(v === 'NAO_IDENTIFICADO' ? 'Não identificado' : v.toUpperCase())}</option>`).join('')}</select></label><label class="campo"><span>Entrada / saída</span><select id="filtroDocumentoSentido"><option value="">Todas</option><option value="cliente" ${filtroDocumentos.sentido==='cliente'?'selected':''}>Saídas</option><option value="fornecedor" ${filtroDocumentos.sentido==='fornecedor'?'selected':''}>Entradas</option></select></label><label class="campo"><span>Compõe receita</span><select id="filtroDocumentoReceita"><option value="">Todas</option><option value="SIM" ${filtroDocumentos.receita==='SIM'?'selected':''}>Sim</option><option value="NAO" ${filtroDocumentos.receita==='NAO'?'selected':''}>Não</option></select></label><label class="campo"><span>Documento, chave ou parceiro</span><input id="filtroDocumentoBusca" value="${A.esc(filtroDocumentos.busca || '')}" placeholder="Buscar"></label></div>
+      <div style="display:flex;justify-content:flex-end;margin:-4px 0 10px"><button class="btn pq vazio" id="limparFiltrosDocumentos">Limpar filtros</button></div>
       ${documentosFiscaisResposta.limitado ? '<div class="aviso info">Mostrando os 2.000 documentos mais recentes.</div>' : ''}
       ${A.tabela([
         { t:'Competência', r:d=>A.esc(d.competencia || 'Não identificada') },
@@ -421,7 +432,7 @@ Telas.dados = async (el) => {
         { t:'Valor', num:true, r:d=>A.moeda(d.valor) },
         { t:'Origem', r:d=>A.esc(d.origem || '—') },
         { t:'', r:d=>`<button class="btn pq vazio" data-abrir-documento="${A.esc(d.referencia)}">Abrir</button> <button class="btn pq perigo" data-excluir-documento="${A.esc(d.referencia)}">Excluir</button>` },
-      ], documentosFiscais, { vazio:'Nenhum documento fiscal importado ainda.' })}
+      ], documentosFiscaisFiltrados, { vazio:'Nenhum documento atende aos filtros selecionados.' })}
     </div>
     <div class="cartao" id="historico">
       <h2>${rotulo[0].toUpperCase() + rotulo.slice(1)} cadastrados</h2>
@@ -462,6 +473,19 @@ Telas.dados = async (el) => {
     </div>` : ''}`;
 
     document.getElementById('tipoDocumentoFiscal')?.addEventListener('change', (evento) => { S.aba.dados = evento.target.value; S.aba.dadosPendencia = null; A.ir('dados'); });
+    const atualizarFiltroDocumentos = () => {
+      S.aba.documentosFiscais = {
+        competencia: document.getElementById('filtroDocumentoCompetencia')?.value || '',
+        modelo: document.getElementById('filtroDocumentoModelo')?.value || '',
+        sentido: document.getElementById('filtroDocumentoSentido')?.value || '',
+        receita: document.getElementById('filtroDocumentoReceita')?.value || '',
+        busca: document.getElementById('filtroDocumentoBusca')?.value || '',
+      };
+      A.ir('dados');
+    };
+    ['filtroDocumentoCompetencia','filtroDocumentoModelo','filtroDocumentoSentido','filtroDocumentoReceita'].forEach((id) => document.getElementById(id)?.addEventListener('change', atualizarFiltroDocumentos));
+    document.getElementById('filtroDocumentoBusca')?.addEventListener('keydown', (evento) => { if (evento.key === 'Enter') { evento.preventDefault(); atualizarFiltroDocumentos(); } });
+    document.getElementById('limparFiltrosDocumentos')?.addEventListener('click', () => { S.aba.documentosFiscais = {}; A.ir('dados'); });
     el.querySelectorAll('[data-abrir-documento]').forEach((botao) => botao.addEventListener('click', async () => {
       try {
         const r=await A.api(`/empresas/${S.empresaId}/documentos-fiscais/${encodeURIComponent(botao.dataset.abrirDocumento)}`);
