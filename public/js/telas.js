@@ -568,11 +568,17 @@ Telas.dados = async (el) => {
           A.ir('dados');
         })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/pgdas').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>` });
     });
-    document.getElementById('testarIntegraPgdas')?.addEventListener('click', async () => {
-      const r = await A.api(`/empresas/${S.empresaId}/integra-contador/diagnostico`, { metodo:'POST', corpo:{} });
-      if (!r.disponivel) { A.toast(r.motivo || 'Diagnóstico indisponível para esta configuração.', 'erro'); return; }
-      const sistemas = (r.sistemas || []).join(', ') || 'nenhum sistema informado';
-      A.modal({ titulo:'Diagnóstico Integra Contador', confirmar:'Fechar', corpo:`<div class="aviso ${r.procuracao_encontrada ? 'bom' : 'atencao'}"><b>${r.procuracao_encontrada ? 'Procuração reconhecida pelo Serpro' : 'Nenhuma procuração foi retornada pelo Serpro'}</b><br><span class="mini">A consulta autenticou a credencial e verificou a relação entre esta empresa e a Sattva. Sistemas retornados: ${A.esc(sistemas)}${r.expiracao ? ` · vigência até ${A.esc(r.expiracao)}` : ''}.</span></div><p class="mini">Este diagnóstico não consulta nem altera declarações PGDAS-D.</p>`, aoConfirmar: async () => {} });
+    document.getElementById('testarIntegraPgdas')?.addEventListener('click', async (evento) => {
+      const botao = evento.currentTarget; const textoOriginal = botao.textContent;
+      botao.disabled = true; botao.textContent = 'Diagnosticando…';
+      try {
+        const r = await A.api(`/empresas/${S.empresaId}/integra-contador/diagnostico`, { metodo:'POST', corpo:{} });
+        if (!r.disponivel) { A.toast(r.motivo || 'Diagnóstico indisponível para esta configuração.', 'erro'); return; }
+        const sistemas = (r.sistemas || []).join(', ') || 'nenhum sistema informado';
+        A.modal({ titulo:'Diagnóstico Integra Contador', confirmar:'Fechar', corpo:`<div class="aviso ${r.procuracao_encontrada ? 'bom' : 'atencao'}"><b>${r.procuracao_encontrada ? 'Procuração reconhecida pelo Serpro' : 'Nenhuma procuração foi retornada pelo Serpro'}</b><br><span class="mini">A consulta autenticou a credencial e verificou a relação entre esta empresa e a Sattva. Sistemas retornados: ${A.esc(sistemas)}${r.expiracao ? ` · vigência até ${A.esc(r.expiracao)}` : ''}.</span></div><p class="mini">Este diagnóstico não consulta nem altera declarações PGDAS-D.</p>`, aoConfirmar: async () => {} });
+      } catch (e) {
+        A.toast(e.message || 'Não foi possível concluir o diagnóstico do Integra Contador.', 'erro');
+      } finally { botao.disabled = false; botao.textContent = textoOriginal; }
     });
     document.getElementById('baixarPgdasIntegra')?.addEventListener('click', async () => {
       const estado = await A.api('/integra-contador/config');
