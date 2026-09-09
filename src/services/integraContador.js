@@ -28,8 +28,9 @@ function config(env = process.env) {
   const baseUrl = String(env.INTEGRA_CONTADOR_BASE_URL || '').trim().replace(/\/$/, '');
   const serproDireto = /apiserpro\.serpro\.gov\.br/i.test(baseUrl) || String(env.INTEGRA_CONTADOR_MODO || '').toUpperCase() === 'SERPRO_DIRETO';
   const endpoint = String(env.INTEGRA_CONTADOR_PGDAS_CONSULTAR_PATH || (serproDireto ? '/Consultar' : '/integra-contador/sn/pgdasd/consultar-declaracoes')).trim();
-  // No gateway direto do Serpro a mesma URL-base emite o token OAuth.
-  const tokenUrl = String(env.INTEGRA_CONTADOR_TOKEN_URL || (serproDireto ? baseUrl : '')).trim();
+  // O OAuth do gateway Serpro é centralizado em /token, fora da rota v1 da
+  // solução. Usar a URL-base da API aqui provoca 404 antes da consulta.
+  const tokenUrl = String(env.INTEGRA_CONTADOR_TOKEN_URL || (serproDireto ? 'https://gateway.apiserpro.serpro.gov.br/token' : '')).trim();
   const clientId = String(env.INTEGRA_CONTADOR_CLIENT_ID || '').trim();
   const clientSecret = String(env.INTEGRA_CONTADOR_CLIENT_SECRET || '').trim();
   const apiKey = String(env.INTEGRA_CONTADOR_API_KEY || '').trim();

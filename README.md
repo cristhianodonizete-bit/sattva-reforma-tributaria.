@@ -51,7 +51,7 @@ INTEGRA_CONTADOR_CONTRATANTE_NUMERO=...
 INTEGRA_CONTADOR_AUTOR_NUMERO=...
 ```
 
-No gateway oficial do Serpro, o Sattva solicita e renova o token OAuth na própria URL-base e consulta `PGDASD/CONSDECLARACAO13` em `/Consultar`. Para um provedor compatível, é possível usar `INTEGRA_CONTADOR_TOKEN_URL` e `INTEGRA_CONTADOR_PGDAS_CONSULTAR_PATH`. As credenciais não são enviadas ao navegador, não são gravadas no SQLite e não aparecem nas telas. Cada retorno fica em revisão com a fonte **Integra Contador**; somente a confirmação do usuário atualiza o Perfil Tributário.
+No gateway oficial do Serpro, o Sattva solicita e renova o token OAuth em `https://gateway.apiserpro.serpro.gov.br/token` e consulta `PGDASD/CONSDECLARACAO13` em `/Consultar`. Para um provedor compatível, é possível usar `INTEGRA_CONTADOR_TOKEN_URL` e `INTEGRA_CONTADOR_PGDAS_CONSULTAR_PATH`. As credenciais não são enviadas ao navegador, não são gravadas no SQLite e não aparecem nas telas. Cada retorno fica em revisão com a fonte **Integra Contador**; somente a confirmação do usuário atualiza o Perfil Tributário.
 
 ## O que o sistema faz
 

@@ -18,7 +18,7 @@ const declaracoes = integra.declaracoesPorCompetencia(resposta, ['2026-06']);
   const serpro = { INTEGRA_CONTADOR_BASE_URL: 'https://gateway.apiserpro.serpro.gov.br/integra-contador/v1/', INTEGRA_CONTADOR_CLIENT_ID: 'id', INTEGRA_CONTADOR_CLIENT_SECRET: 'secret', INTEGRA_CONTADOR_CONTRATANTE_NUMERO: '16967295000100', INTEGRA_CONTADOR_AUTOR_NUMERO: '16967295000100' };
   let tokenChamado = false; let consulta;
   await integra.consultarDeclaracoes({ cnpj: '37605002000114', anoCalendario: 2026 }, { env: serpro, fetchImpl: async (url, opcoes) => {
-    if (!tokenChamado) { tokenChamado = true; assert.strictEqual(url, serpro.INTEGRA_CONTADOR_BASE_URL.replace(/\/$/, '')); return { ok:true, status:200, text:async()=>JSON.stringify({access_token:'x',jwt_token:'y',expires_in:300}) }; }
+    if (!tokenChamado) { tokenChamado = true; assert.strictEqual(url, 'https://gateway.apiserpro.serpro.gov.br/token'); return { ok:true, status:200, text:async()=>JSON.stringify({access_token:'x',jwt_token:'y',expires_in:300}) }; }
     consulta = { url, opcoes }; return { ok:true, status:200, text:async()=>JSON.stringify({dados:'{"declaracoes":[]}',mensagens:[]}) };
   } });
   assert.match(consulta.url, /\/Consultar$/);
