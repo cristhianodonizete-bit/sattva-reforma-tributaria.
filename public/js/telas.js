@@ -785,10 +785,11 @@ Telas.perfilLegado = async (el) => {
 // Perfil Tributário: retrato histórico da apuração atual. CBS, cadeias,
 // cenários, margem e regimes comparados pertencem às telas próprias.
 Telas.perfil = async (el) => {
-  const [tributario, respostaApuracoes] = await Promise.all([
-    A.api(`/empresas/${S.empresaId}/perfil-tributario-historico`),
-    A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`),
-  ]);
+  // A fonte importada é obtida antes do resumo. Assim, tanto em uma sessão
+  // contínua quanto após um reinício do servidor, o Perfil sempre consolida a
+  // mesma fotografia persistida, sem depender da ordem de duas requisições.
+  const respostaApuracoes = await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`);
+  const tributario = await A.api(`/empresas/${S.empresaId}/perfil-tributario-historico`);
   const historico = tributario.historico || [];
   const apuracoes = respostaApuracoes.apuracoes || [];
   const numero = (v) => v === null || v === undefined || !Number.isFinite(Number(v)) ? null : Number(v);
@@ -804,8 +805,18 @@ Telas.perfil = async (el) => {
     return numero(extraido) ?? numero(linha[campoPerfil]?.valor);
   };
   const receitas = historico.map((x) => x.receita?.valor);
-  const valoresPis = historico.map((x) => valorDaApuracao(x, 'pis_recolhido', 'pis_debito', 'pis_historico'));
-  const valoresCofins = historico.map((x) => valorDaApuracao(x, 'cofins_recolhida', 'cofins_debito', 'cofins_historico'));
+  const competenciasDoExercicio = new Set(historico.map((x) => x.competencia).filter(Boolean));
+  const apuracoesValidasDoExercicio = apuracoes.filter((x) => competenciasDoExercicio.has(x.competencia)
+    && ['VALIDADO_AUTOMATICAMENTE', 'VALIDADO_USUARIO'].includes(x.status_validacao));
+  // Havendo relatório importado e validado, ele é a fonte prioritária do
+  // resumo. A trilha histórica permanece como fallback para cadastros sem
+  // apuração documental, nunca como substituto do Questor.
+  const valoresPis = apuracoesValidasDoExercicio.length
+    ? apuracoesValidasDoExercicio.map((x) => numero(x.pis_recolhido) ?? numero(x.pis_debito))
+    : historico.map((x) => valorDaApuracao(x, 'pis_recolhido', 'pis_debito', 'pis_historico'));
+  const valoresCofins = apuracoesValidasDoExercicio.length
+    ? apuracoesValidasDoExercicio.map((x) => numero(x.cofins_recolhida) ?? numero(x.cofins_debito))
+    : historico.map((x) => valorDaApuracao(x, 'cofins_recolhida', 'cofins_debito', 'cofins_historico'));
   const receitaTotal = somar(receitas);
   const pisTotal = somar(valoresPis);
   const cofinsTotal = somar(valoresCofins);

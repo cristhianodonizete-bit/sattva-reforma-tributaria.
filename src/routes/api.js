@@ -1296,6 +1296,11 @@ router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
     // leitura impede que uma instância nova consolide todo o histórico local
     // em vez de somente o exercício selecionado.
     await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id));
+    // O Perfil é dono da sua própria leitura: não pode depender de outra
+    // tela ter aberto a lista de apurações antes. Isso elimina a corrida que
+    // fazia uma instância recém-iniciada mostrar PIS/Cofins indeterminado
+    // apesar de o Questor já ter enviado os relatórios ao armazenamento.
+    await apuracoesPisCofinsIa.restaurarCompartilhado(db, Number(req.params.id));
     ok(res, perfilTributarioHistorico.consolidar(db, Number(req.params.id)));
   }
   catch (e) { erro(res, e); }
