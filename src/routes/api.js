@@ -1961,6 +1961,9 @@ function requerReferenciaFiscalServico(m) {
 
 function prepararCadeia(empresa, tipo, query = {}) {
   let movimentos = carregarMovimentos(empresa.id, tipo);
+  const periodo = periodoAnalisado.obter(empresa.id);
+  if (periodo) movimentos = movimentos.filter((m) => periodoAnalisado.noPeriodo(m.competencia, periodo));
+  if (tipo === 'cliente') movimentos = movimentos.filter((m) => receitaOperacional.compoeReceita(m));
   if (tipo === 'cliente') {
     const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresa.id);
     const mapaRefs = new Map(refs.map((r) => [r.chave, r]));
@@ -2110,6 +2113,7 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
 router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
   try {
     await atualizarConfiguracaoDeCalculo();
+    await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id));
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
     const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';

@@ -10,6 +10,8 @@ const db = require('../db');
 const motorExec = require('./motorExec');
 const perfilCbs = require('./perfilCbs');
 const elegibilidadeAnexoXi = require('./elegibilidadeAnexoXi');
+const periodoAnalisado = require('./periodoAnalisado');
+const receitaOperacional = require('./receitaOperacional');
 
 const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
 const r2 = (v) => Math.round(n(v) * 100) / 100;
@@ -22,6 +24,7 @@ const r4 = (v) => Math.round(n(v) * 10000) / 10000;
 // fiscal anterior. Mantemos poucas fotografias para limitar memória da instância.
 const LIMITE_FOTOGRAFIAS_EM_MEMORIA = 12;
 const linhasPorExecucao = new Map();
+const linhasPorEscopo = new Map();
 const cadeiasPorExecucao = new Map();
 function guardarLinhas(empresaId, execucaoId, dados) {
   const chave = `${empresaId}:${execucaoId}`;
@@ -45,10 +48,18 @@ function ultimaExecucao(empresaId, opcoes = {}) {
 function linhas(empresaId, opcoes = {}) {
   const execucao = ultimaExecucao(empresaId, opcoes);
   if (!execucao) return { execucao: null, linhas: [] };
+  const aplicarEscopo = (dados) => {
+    const periodo = periodoAnalisado.obter(empresaId);
+    const chavePeriodo = periodo ? `${periodo.competencia_inicio}:${periodo.competencia_fim}` : 'sem-periodo';
+    const chaveEscopo = `${empresaId}:${execucao.id}:${opcoes.tipo || 'todos'}:${chavePeriodo}`;
+    if (!linhasPorEscopo.has(chaveEscopo)) linhasPorEscopo.set(chaveEscopo, filtrarLinhasDoEscopo(dados, opcoes.tipo || null, periodo));
+    while (linhasPorEscopo.size > LIMITE_FOTOGRAFIAS_EM_MEMORIA * 4) linhasPorEscopo.delete(linhasPorEscopo.keys().next().value);
+    return { execucao, periodo, linhas: linhasPorEscopo.get(chaveEscopo) };
+  };
   const chave = `${empresaId}:${execucao.id}`;
   const emMemoria = linhasPorExecucao.get(chave);
-  if (emMemoria) return { execucao, linhas: emMemoria };
-  const dados = db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop,
+  if (emMemoria) return aplicarEscopo(emMemoria);
+  const dados = db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.modelo_documento_fiscal,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento, m.origem AS origem_movimento,
       COALESCE(NULLIF(p.regime,''), r.regime_cbs_emitente, 'indeterminado') AS regime_parceiro,
       p.descricao AS parceiro_cadastrado
@@ -60,7 +71,20 @@ function linhas(empresaId, opcoes = {}) {
     let detalhe = {}; try { detalhe = JSON.parse(x.detalhe || '{}'); } catch (_) { /* detalhe inválido vira pendência */ }
     return { ...x, detalhe };
   });
-  return { execucao, linhas: guardarLinhas(empresaId, execucao.id, dados) };
+  return aplicarEscopo(guardarLinhas(empresaId, execucao.id, dados));
+}
+
+function filtrarLinhasDoEscopo(linhas, tipo, periodo) {
+  const lado = tipo === 'fornecedor' ? 'fornecedor' : tipo === 'cliente' ? 'cliente' : null;
+  return (linhas || []).filter((linha) => {
+    if (periodo && !periodoAnalisado.noPeriodo(linha.competencia, periodo)) return false;
+    if (lado === 'cliente' && linha.sentido !== 'saida') return false;
+    if (lado === 'fornecedor' && linha.sentido !== 'entrada') return false;
+    if (lado === 'fornecedor' || linha.sentido !== 'saida') return true;
+    return receitaOperacional.compoeReceita({
+      ...linha, tipo: linha.tipo_movimento || linha.tipo, origem: linha.origem_movimento || linha.origem,
+    });
+  });
 }
 
 function natureza(linha) {
@@ -187,8 +211,9 @@ function leitura200044(linha) {
 function cadeia(empresaId, tipo, opcoes = {}) {
   const lado = tipo === 'cliente' ? 'cliente' : 'fornecedor';
   const sentido = lado === 'cliente' ? 'saida' : 'entrada';
-  const base = linhas(empresaId, opcoes);
-  const chaveCache = `${empresaId}:${base.execucao?.id || 'sem-execucao'}:${tipo}:${opcoes.incluirDetalhes === false ? 0 : 1}:${opcoes.incluirBeneficios === true ? 1 : 0}:${opcoes.paginaDetalhes || 1}:${opcoes.limiteDetalhes || 100}:${opcoes.paginaParceiros || 1}:${opcoes.limiteParceiros || 100}`;
+  const base = linhas(empresaId, { ...opcoes, tipo });
+  const chavePeriodo = base.periodo ? `${base.periodo.competencia_inicio}:${base.periodo.competencia_fim}` : 'sem-periodo';
+  const chaveCache = `${empresaId}:${base.execucao?.id || 'sem-execucao'}:${chavePeriodo}:${tipo}:${opcoes.incluirDetalhes === false ? 0 : 1}:${opcoes.incluirBeneficios === true ? 1 : 0}:${opcoes.paginaDetalhes || 1}:${opcoes.limiteDetalhes || 100}:${opcoes.paginaParceiros || 1}:${opcoes.limiteParceiros || 100}`;
   const cadeiaEmMemoria = cadeiasPorExecucao.get(chaveCache);
   if (cadeiaEmMemoria) return cadeiaEmMemoria;
   const itens = base.linhas.filter((x) => x.sentido === sentido);
@@ -309,7 +334,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const totalPaginasParceiros = Math.max(1, Math.ceil(parceiros.length / limiteParceiros));
   const paginaParceiros = Math.min(totalPaginasParceiros, Math.max(1, Number(opcoes.paginaParceiros) || 1));
   const parceirosPaginados = parceiros.slice((paginaParceiros - 1) * limiteParceiros, paginaParceiros * limiteParceiros);
-  const resultado = { execucao: base.execucao, lado, totais: t, parceiros: parceirosPaginados, regimes, detalhes,
+  const resultado = { execucao: base.execucao, periodo_analisado: base.periodo || null, lado, totais: t, parceiros: parceirosPaginados, regimes, detalhes,
     paginacaoParceiros: { pagina: paginaParceiros, limite: limiteParceiros, total: parceiros.length, totalPaginas: totalPaginasParceiros,
       temAnterior: paginaParceiros > 1, temProxima: paginaParceiros < totalPaginasParceiros },
     paginacaoDetalhes: {
@@ -380,4 +405,4 @@ function impactoFinal(empresaId, opcoes = {}) {
     drill_down: { clientes: 'clientes', fornecedores: 'fornecedores', memoria_atual: 'perfil' } };
 }
 
-module.exports = { linhas, cadeia, impactoFinal, ultimaExecucao, faixaTributacao, leituraBeneficio, leitura200044 };
+module.exports = { linhas, cadeia, impactoFinal, ultimaExecucao, faixaTributacao, leituraBeneficio, leitura200044, filtrarLinhasDoEscopo };

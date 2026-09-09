@@ -1,6 +1,8 @@
 /* Perfil CBS: camada de consolidação. Não executa regra tributária. */
 const db = require('../db');
 const motorExec = require('./motorExec');
+const periodoAnalisado = require('./periodoAnalisado');
+const receitaOperacional = require('./receitaOperacional');
 
 const n = (v) => Number(v) || 0;
 const r2 = (v) => Math.round(n(v) * 100) / 100;
@@ -13,8 +15,8 @@ const soma = (o, k, v) => { o[k] = r2(n(o[k]) + n(v)); };
 // recebe chave nova, portanto um resultado fiscal atualizado nunca é reutilizado.
 const LIMITE_PERFIS_EM_MEMORIA = 12;
 const perfisPorExecucao = new Map();
-function guardarPerfil(empresaId, execucaoId, competencias) {
-  const chave = `${empresaId}:${execucaoId}`;
+function guardarPerfil(empresaId, execucaoId, competencias, escopo = 'sem-periodo') {
+  const chave = `${empresaId}:${execucaoId}:${escopo}`;
   perfisPorExecucao.set(chave, competencias);
   for (const chaveExistente of [...perfisPorExecucao.keys()]) {
     if (chaveExistente !== chave && chaveExistente.startsWith(`${empresaId}:`)) perfisPorExecucao.delete(chaveExistente);
@@ -58,12 +60,14 @@ function grupoCredito(linha, detalhe) {
   return 'compras_credito_indeterminado';
 }
 
-function dadosPorCompetencia(empresaId, _execucaoId) {
-  return db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.origem,
+function dadosPorCompetencia(empresaId, _execucaoId, periodo) {
+  return db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.modelo_documento_fiscal, m.origem,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento
     FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
     WHERE r.empresa_id=? AND COALESCE(m.competencia,'')<>''
-    ORDER BY m.competencia, r.id`).all(empresaId);
+    ORDER BY m.competencia, r.id`).all(empresaId)
+    .filter((x) => !periodo || periodoAnalisado.noPeriodo(x.competencia, periodo))
+    .filter((x) => x.sentido !== 'saida' || receitaOperacional.compoeReceita({ ...x, tipo:x.tipo_movimento }));
 }
 
 function materializar(empresaId, opcoes = {}) {
@@ -76,12 +80,14 @@ function materializar(empresaId, opcoes = {}) {
   // esta leitura nunca pode recalcular a situação-base por conta própria.
   const motorExecutado = false;
   if (!execucao) return { execucao: null, competencias: [] };
-  const chave = `${empresaId}:${execucao.id}`;
+  const periodo = periodoAnalisado.obter(empresaId);
+  const escopo = periodo ? `${periodo.competencia_inicio}:${periodo.competencia_fim}` : 'sem-periodo';
+  const chave = `${empresaId}:${execucao.id}:${escopo}`;
   const emMemoria = perfisPorExecucao.get(chave);
   if (emMemoria) return { execucao, competencias: emMemoria, motorExecutado };
 
   const grupos = new Map();
-  for (const linha of dadosPorCompetencia(empresaId, execucao.id)) {
+  for (const linha of dadosPorCompetencia(empresaId, execucao.id, periodo)) {
     const competencia = linha.competencia;
     if (!grupos.has(competencia)) grupos.set(competencia, { empresa_id: empresaId, competencia,
       receita_bruta: 0, compras_brutas: 0, base_economica_saidas: 0, base_economica_entradas: 0,
@@ -122,7 +128,7 @@ function materializar(empresaId, opcoes = {}) {
     g.quantidade_documentos = g._documentos.size; g.motor_execucao_id = execucao.id;
     ins.run(...colunas.map((c) => g[c] ?? null)); saida.push(g);
   }} )();
-  return { execucao, competencias: guardarPerfil(empresaId, execucao.id, saida), motorExecutado };
+  return { execucao, periodo_analisado:periodo || null, competencias: guardarPerfil(empresaId, execucao.id, saida, escopo), motorExecutado };
 }
 
 function listar(empresaId) { return db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=? ORDER BY competencia DESC').all(empresaId); }

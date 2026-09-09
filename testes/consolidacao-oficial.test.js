@@ -38,7 +38,7 @@ assert.equal(impacto.cbs_liquida, r2(debito - credito), 'CBS líquida deve recon
 assert.equal(impacto.reconciliacao.status, 'RECONCILIADO', 'Perfil CBS e motor_resultados devem reconciliar');
 assert.equal(fotografia.ano, 2027, 'leitura materializada deve informar o ano efetivamente certificado');
 assert.equal(fotografia.resumo.materializado, true, 'leitura de projeção não pode disparar novo cálculo');
-assert.equal(r2(motorExec.porCliente(fotografia).reduce((s, x) => s + x.faturamento, 0)), r2(clientes.totais.valor), 'cliente materializado deve reconciliar com a cadeia oficial');
+assert.equal(r2(linhas.filter((x) => x.sentido === 'saida').reduce((s, x) => s + x.preco_atual, 0)), r2(clientes.totais.valor), 'cliente materializado deve reconciliar com a cadeia oficial no período e escopo de receita');
 assert.equal(clientes.parceiros.some((x) => Object.hasOwn(x, '_linha')), false, 'referência interna da linha não pode vazar no payload');
 assert.equal(Object.hasOwn(clientes, 'operacoes200044'), false, 'benefícios não podem ser duplicados pelo contrato legado');
 assert.strictEqual(clientesReutilizados, clientes, 'mesma execução e mesma página devem reutilizar a agregação da cadeia');

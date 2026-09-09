@@ -29,6 +29,9 @@ function natureza(movimento = {}) {
 
 function compoeReceita(movimento = {}) {
   if (!ehSaida(movimento)) return false;
+  // Registros de massa/validação podem permanecer visíveis para auditoria,
+  // mas jamais representam faturamento da empresa na visão operacional.
+  if (String(movimento.origem || '').trim().toLowerCase() === 'teste') return false;
   const porCfop = natureza(movimento);
   if (porCfop) return porCfop === 'venda' || porCfop === 'exportacao';
   const modelo=String(movimento.modelo_documento_fiscal || '').toLowerCase();
@@ -44,6 +47,7 @@ function compoeReceita(movimento = {}) {
 
 function motivo(movimento = {}) {
   if (!ehSaida(movimento)) return 'ENTRADA';
+  if (String(movimento.origem || '').trim().toLowerCase() === 'teste') return 'REGISTRO_DE_TESTE';
   const porCfop = natureza(movimento);
   if (porCfop === 'venda') return 'VENDA_CFOP';
   if (porCfop === 'exportacao') return 'EXPORTACAO_CFOP';
