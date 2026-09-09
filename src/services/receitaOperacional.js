@@ -24,7 +24,9 @@ function natureza(movimento = {}) {
     if (['151','152','153','154','408','409','658','659'].includes(cfop.slice(1))) return 'transferencia';
     if (['406','407','551','552','556','557'].includes(cfop.slice(1))) return 'ativo_consumo';
     if (cfop === '5949' || cfop === '6949') return 'outra_saida';
-    return ['5','6'].includes(cfop[0]) ? 'venda' : null;
+    // Nunca inferir venda por 5xxx/6xxx: CFOP desconhecido precisa ser
+    // mapeado antes de impactar faturamento.
+    return null;
   }
 }
 
@@ -53,6 +55,8 @@ function motivo(movimento = {}) {
   if (porCfop === 'venda') return 'VENDA_CFOP';
   if (porCfop === 'exportacao') return 'EXPORTACAO_CFOP';
   if (porCfop) return `FORA_RECEITA_${porCfop.toUpperCase()}`;
+  const cfop=String(movimento.cfop || '').replace(/\D/g, '');
+  if (/^\d{4}$/.test(cfop)) return 'CFOP_SEM_MAPEAMENTO_DE_RECEITA';
   const modelo=String(movimento.modelo_documento_fiscal || '').toUpperCase();
   if (modelo === 'NFE' || modelo === 'NFCE') return 'MERCADORIA_SEM_CFOP_DE_VENDA';
   if (['NFSE','CTE','NFCOM'].includes(modelo)) return `SERVICO_${modelo}`;
