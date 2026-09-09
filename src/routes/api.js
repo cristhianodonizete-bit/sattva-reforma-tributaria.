@@ -52,6 +52,7 @@ const perfilTributarioHistorico = require('../services/perfilTributarioHistorico
 const comparadorRegimes = require('../services/comparadorRegimes');
 const apuracoesPisCofinsIa = require('../services/apuracoesPisCofinsIa');
 const pgdasDocumentoIa = require('../services/pgdasDocumentoIa');
+const integraContador = require('../services/integraContador');
 const azureDocumentIntelligence = require('../services/azureDocumentIntelligence');
 const normalizacaoFiscalXml = require('../services/normalizacaoFiscalXml');
 const conformidadeDocumental = require('../services/conformidadeDocumental');
@@ -1699,12 +1700,67 @@ router.post('/empresas/:id/pgdas/ingestao', upload.single('arquivo'), async (req
     ok(res, { ...resultado, campos_pendentes: campos.filter((x) => x.status_validacao !== 'VALIDADO_USUARIO').map((x) => x.campo) });
   } catch (e) { erro(res, e); }
 });
+// A baixa é deliberadamente somente leitura: consulta PGDAS-D já transmitido,
+// guarda o retorno estruturado como evidência e exige confirmação humana antes
+// de atualizar o Perfil Tributário.
+router.get('/integra-contador/config', (_req, res) => ok(res, { config: integraContador.status() }));
+router.post('/empresas/:id/integra-contador/pgdas/baixar', async (req, res) => {
+  const empresaId = Number(req.params.id);
+  let ano = null; let competencias = [];
+  try {
+    const empresa = db.prepare('SELECT id,cnpj,regime FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa) throw new Error('Empresa não encontrada.');
+    if (empresa.regime !== 'simples_nacional') throw new Error('A baixa de PGDAS-D pelo Integra Contador é disponível somente para empresa do Simples Nacional.');
+    const periodo = await exigirPeriodoParaImportacao(req);
+    const inicio = String(req.body?.competencia_inicio || periodo.competencia_inicio || '').slice(0, 7);
+    const fim = String(req.body?.competencia_fim || periodo.competencia_fim || '').slice(0, 7);
+    if (!/^\d{4}-\d{2}$/.test(inicio) || !/^\d{4}-\d{2}$/.test(fim) || inicio > fim) throw new Error('O período analisado precisa ter competências inicial e final válidas.');
+    for (let c = inicio; c <= fim; c = periodoAnalisado.deslocarMes(c, 1)) competencias.push(c);
+    const porAno = new Map(); competencias.forEach((c) => { const a = c.slice(0, 4); porAno.set(a, [...(porAno.get(a) || []), c]); });
+    const criados = []; const encontrados = []; const semRetorno = [];
+    for (const [anoCalendario, meses] of porAno) {
+      ano = Number(anoCalendario);
+      const retorno = await integraContador.consultarDeclaracoes({ cnpj: empresa.cnpj, anoCalendario: ano });
+      const declaracoes = integraContador.declaracoesPorCompetencia(retorno, meses);
+      const porCompetencia = new Map(declaracoes.map((x) => [x.competencia, x]));
+      for (const mes of meses) {
+        const declaracao = porCompetencia.get(mes);
+        if (!declaracao) { semRetorno.push(mes); continue; }
+        encontrados.push(mes);
+        const conteudo = Buffer.from(JSON.stringify(declaracao.declaracao));
+        try {
+          const r = pgdasDocumentoIa.ingerir(db, empresaId, {
+            nome_original: `Integra Contador — PGDAS-D — ${mes}.json`, tipo_documento: 'INTEGRA_CONTADOR_JSON',
+            mime_type: 'application/json', conteudo_original: conteudo, metodo_extracao: 'INTEGRA_CONTADOR_PGDASD_V1',
+          }, declaracao.campos);
+          criados.push({ competencia: mes, documento_id: r.documento_id });
+        } catch (e) {
+          if (/já foi enviado/i.test(e.message)) criados.push({ competencia: mes, duplicado: true }); else throw e;
+        }
+      }
+      db.prepare(`INSERT INTO integra_contador_log (empresa_id,ano_calendario,competencias_solicitadas,competencias_encontradas,status,mensagem) VALUES (?,?,?,?,?,?)`)
+        .run(empresaId, ano, JSON.stringify(meses), JSON.stringify(declaracoes.map((x) => x.competencia)), 'CONCLUIDA', `Consulta PGDAS-D concluída: ${declaracoes.length} declaração(ões) com DAS.`);
+    }
+    auditar(req, { empresaId, acao: 'Consultou PGDAS-D pelo Integra Contador', entidade: 'integra_contador_pgdas', entidadeId: `${empresaId}:${inicio}:${fim}`, depois: { competencias, encontradas, criados: criados.length } });
+    ok(res, { periodo: { competencia_inicio: inicio, competencia_fim: fim }, criados, encontradas, sem_retorno: semRetorno, exige_confirmacao: criados.some((x) => !x.duplicado) });
+  } catch (e) {
+    if (ano) db.prepare(`INSERT INTO integra_contador_log (empresa_id,ano_calendario,competencias_solicitadas,competencias_encontradas,status,mensagem) VALUES (?,?,?,?,?,?)`)
+      .run(empresaId, ano, JSON.stringify(competencias), '[]', 'ERRO', String(e.message || e).slice(0, 500));
+    erro(res, e);
+  }
+});
 router.get('/empresas/:id/pgdas/documentos', (req, res) => {
   try { ok(res, { documentos: pgdasDocumentoIa.listar(db, Number(req.params.id)) }); }
   catch (e) { erro(res, e); }
 });
-router.post('/empresas/:id/pgdas/documentos/:documentoId/confirmar', (req, res) => {
-  try { ok(res, { documento: pgdasDocumentoIa.confirmar(db, Number(req.params.id), Number(req.params.documentoId)) }); }
+router.post('/empresas/:id/pgdas/documentos/:documentoId/confirmar', async (req, res) => {
+  try {
+    const documento = pgdasDocumentoIa.confirmar(db, Number(req.params.id), Number(req.params.documentoId));
+    // O Perfil Tributário confirmado é fato operacional e precisa sobreviver à
+    // instância efêmera. A evidência ainda fica auditável no cache local.
+    try { await sincronizarGestaoSupabase(); } catch (e) { console.error('[pgdas] publicação compartilhada:', e.message); }
+    ok(res, { documento });
+  }
   catch (e) { erro(res, e); }
 });
 

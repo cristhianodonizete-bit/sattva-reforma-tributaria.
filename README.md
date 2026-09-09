@@ -36,6 +36,22 @@ PORTA=3200
 SATTVA_DADOS=C:\Sattva\reforma\dados
 ```
 
+### Integra Contador — baixa de PGDAS-D
+
+O botão **Baixar PGDAS — Integra Contador**, na Central de Dados, consulta apenas declarações PGDAS-D que já foram transmitidas. Ele não transmite, retifica ou gera declaração fiscal. O credenciamento do escritório, a procuração/autorização da empresa e as credenciais devem ser contratados no Integra Contador/Serpro ou no provedor homologado.
+
+No ambiente seguro do servidor (por exemplo, as *Environment Variables* do Render), configure a URL contratada e uma forma de autenticação:
+
+```text
+INTEGRA_CONTADOR_BASE_URL=https://api-do-provedor.exemplo
+# use uma das alternativas abaixo
+INTEGRA_CONTADOR_ACCESS_TOKEN=...
+# ou INTEGRA_CONTADOR_API_KEY=...
+# ou INTEGRA_CONTADOR_TOKEN_URL=... + INTEGRA_CONTADOR_CLIENT_ID=... + INTEGRA_CONTADOR_CLIENT_SECRET=...
+```
+
+Opcionalmente, defina `INTEGRA_CONTADOR_PGDAS_CONSULTAR_PATH` se a rota do contrato for diferente de `/integra-contador/sn/pgdasd/consultar-declaracoes`. As credenciais não são enviadas ao navegador, não são gravadas no SQLite e não aparecem nas telas. Cada retorno fica em revisão com a fonte **Integra Contador**; somente a confirmação do usuário atualiza o Perfil Tributário.
+
 ## O que o sistema faz
 
 ### Módulo 1 — Diagnóstico

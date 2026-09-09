@@ -295,6 +295,19 @@ CREATE TABLE IF NOT EXISTS pgdas_documentos (
 );
 CREATE INDEX IF NOT EXISTS ix_pgdas_documentos_empresa_competencia
   ON pgdas_documentos(empresa_id, competencia_detectada DESC);
+-- Chamadas ao Integra Contador guardam somente metadados auditáveis. Tokens,
+-- certificados e respostas integrais permanecem fora do SQLite.
+CREATE TABLE IF NOT EXISTS integra_contador_log (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER REFERENCES empresas(id) ON DELETE CASCADE,
+  ano_calendario INTEGER NOT NULL,
+  competencias_solicitadas TEXT NOT NULL DEFAULT '[]',
+  competencias_encontradas TEXT NOT NULL DEFAULT '[]',
+  status TEXT NOT NULL,
+  mensagem TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_integra_contador_log_empresa ON integra_contador_log(empresa_id, id DESC);
 CREATE TABLE IF NOT EXISTS pgdas_documento_campos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   documento_id INTEGER NOT NULL REFERENCES pgdas_documentos(id) ON DELETE CASCADE,
