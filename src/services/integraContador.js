@@ -90,7 +90,15 @@ async function consultarDeclaracoes({ cnpj, anoCalendario }, { env = process.env
   const resposta = await fetchImpl(`${c.baseUrl}${c.endpoint}`, { method: 'POST', headers, body: JSON.stringify(corpo), signal: AbortSignal.timeout(45000) });
   const texto = await resposta.text(); let dados;
   try { dados = texto ? JSON.parse(texto) : {}; } catch (_) { throw new Error('O Integra Contador respondeu em formato não reconhecido.'); }
-  if (!resposta.ok || dados.success === false) throw new Error(`Integra Contador respondeu ${resposta.status}: ${String(dados.message || dados.mensagem || texto).slice(0, 280)}`);
+  if (!resposta.ok || dados.success === false) {
+    const mensagens = Array.isArray(dados.mensagens) ? dados.mensagens.map((m) => m?.texto || m?.mensagem || m?.descricao || '').filter(Boolean) : [];
+    const detalhe = String(dados.message || dados.mensagem || dados.error_description || mensagens[0] || '').slice(0, 280);
+    // A resposta direta do Serpro pode repetir o payload enviado em vez de
+    // uma mensagem. Nunca devolvemos esse JSON à tela, pois ele só confunde e
+    // não ajuda a resolver a permissão do cliente.
+    if (resposta.status === 403 && c.serproDireto) throw new Error(`Acesso recusado pelo Serpro (403) para o CNPJ ${documento}. Confirme que o produto PGDAS-D está habilitado nas credenciais da Sattva e que este cliente concedeu procuração eletrônica e-CAC 00146 para a Sattva. ${detalhe && !/^\s*[{[]/.test(detalhe) ? detalhe : ''}`.trim());
+    throw new Error(`Integra Contador respondeu ${resposta.status}${detalhe ? `: ${detalhe}` : '.'}`);
+  }
   // O gateway do Serpro devolve "dados" como JSON serializado; preservar o
   // envelope e converter esse conteúdo torna a origem auditável sem perder
   // mensagens e avisos da Receita.

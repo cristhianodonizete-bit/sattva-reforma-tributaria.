@@ -23,5 +23,6 @@ const declaracoes = integra.declaracoesPorCompetencia(resposta, ['2026-06']);
   } });
   assert.match(consulta.url, /\/Consultar$/);
   assert.strictEqual(JSON.parse(consulta.opcoes.body).pedidoDados.idServico, 'CONSDECLARACAO13');
+  await assert.rejects(() => integra.consultarDeclaracoes({ cnpj: '17796012000177', anoCalendario: 2026 }, { env: { ...serpro, INTEGRA_CONTADOR_ACCESS_TOKEN: 'teste' }, fetchImpl: async () => ({ ok:false, status:403, text:async()=>JSON.stringify({ contratante:{ numero:'16967295000100' } }) }) }), /procuração eletrônica e-CAC 00146/);
   console.log('Integra Contador: consulta PGDAS-D somente leitura e normalização auditável aprovadas.');
 })().catch((e) => { console.error(e); process.exit(1); });
