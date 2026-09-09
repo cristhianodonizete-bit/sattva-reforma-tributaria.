@@ -30,7 +30,7 @@ function consolidar(db, empresaId) {
   const receitasSemDfe = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId);
   const cbs = db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=?').all(empresaId);
   const documentosPorCompetencia = new Map();
-  db.prepare(`SELECT competencia,valor,iss,tipo,sentido,cfop,nbs,lc116
+  db.prepare(`SELECT competencia,valor,iss,tipo,sentido,cfop,nbs,lc116,modelo_documento_fiscal
     FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId)
     .filter((x) => receitaOperacional.ehSaida(x) && noExercicio(x.competencia))
     .forEach((x) => {

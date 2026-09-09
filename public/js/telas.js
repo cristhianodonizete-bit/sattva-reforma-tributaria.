@@ -292,7 +292,12 @@ Telas.dados = async (el) => {
   ]);
   const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`);
   const documentosFiscais = documentosFiscaisResposta.documentos || [];
-  const naturezaDocumento = (d) => d.itens_produto && d.itens_servico ? ['Misto', 'b'] : d.itens_servico ? ['Serviço', 'c'] : d.itens_produto ? ['Produto', ''] : ['A identificar', 'a'];
+  const naturezaDocumento = (d) => {
+    const modelo=String(d.modelo_documento_fiscal || '').toLowerCase();
+    if (['nfse','cte','nfcom'].includes(modelo)) return ['Serviço', 'c'];
+    if (['nfe','nfce'].includes(modelo)) return ['Produto', ''];
+    return d.itens_produto && d.itens_servico ? ['Misto', 'b'] : d.itens_servico ? ['Serviço', 'c'] : d.itens_produto ? ['Produto', ''] : ['A identificar', 'a'];
+  };
   const fonteApuracao = (registro) => {
     const tipo = String(registro.tipo_documento || '').toUpperCase();
     const versao = String(registro.versao_modelo_extracao || '').toUpperCase();
@@ -408,7 +413,7 @@ Telas.dados = async (el) => {
       ${documentosFiscaisResposta.limitado ? '<div class="aviso info">Mostrando os 2.000 documentos mais recentes.</div>' : ''}
       ${A.tabela([
         { t:'Competência', r:d=>A.esc(d.competencia || 'Não identificada') },
-        { t:'Documento / chave', r:d=>`<b>${A.esc(d.documento)}</b><div class="mini mono">${A.esc(d.chave || d.referencia)}</div>` },
+        { t:'Documento / chave', r:d=>`<b>${A.esc(d.documento)}</b><div class="mini mono">${A.esc(d.modelo_documento_fiscal || 'modelo não identificado')} · ${A.esc(d.chave || d.referencia)}</div>` },
         { t:'Entrada / saída', r:d=>`<span class="tag ${d.tipo === 'cliente' ? 'c' : ''}">${d.tipo === 'cliente' ? 'Saída' : 'Entrada'}</span>` },
         { t:'Natureza', r:d=>{ const n=naturezaDocumento(d); return `<span class="tag ${n[1]}">${n[0]}</span>`; } },
         { t:'Operação', r:d=>d.operacao_receita ? '<span class="tag c">Compõe receita</span>' : `<span class="tag a">Não compõe receita</span><div class="mini">${A.esc(d.motivo_operacao || '')}</div>` },
@@ -461,9 +466,9 @@ Telas.dados = async (el) => {
       try {
         const r=await A.api(`/empresas/${S.empresaId}/documentos-fiscais/${encodeURIComponent(botao.dataset.abrirDocumento)}`);
         const d=r.documento;
-        const natureza=(m) => m.nbs || m.lc116 || Number(m.iss) ? 'Serviço' : m.ncm ? 'Produto' : 'A identificar';
+        const natureza=(m) => ['nfse','cte','nfcom'].includes(String(m.modelo_documento_fiscal || '').toLowerCase()) ? 'Serviço' : ['nfe','nfce'].includes(String(m.modelo_documento_fiscal || '').toLowerCase()) ? 'Produto' : m.nbs || m.lc116 || Number(m.iss) ? 'Serviço' : m.ncm ? 'Produto' : 'A identificar';
         A.modal({ titulo:`Documento fiscal — ${d.numero}`, largura:1100, confirmar:'Fechar',
-          descricao:`${d.competencia || 'Competência não identificada'} · ${d.origem || 'origem não identificada'}${d.chave ? ` · chave ${d.chave}` : ''}`,
+          descricao:`${d.competencia || 'Competência não identificada'} · ${d.modelo_documento_fiscal || 'modelo não identificado'} · ${d.origem || 'origem não identificada'}${d.chave ? ` · chave ${d.chave}` : ''}`,
           corpo:A.tabela([
             {t:'Item',r:m=>A.esc(m.item_numero || m.id)}, {t:'Produto / serviço',r:m=>A.esc(m.descricao || 'Não identificado')},
             {t:'Natureza',r:m=>`<span class="tag ${natureza(m)==='Serviço'?'c':natureza(m)==='Produto'?'':'a'}">${natureza(m)}</span>`},

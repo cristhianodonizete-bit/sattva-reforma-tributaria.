@@ -6,5 +6,7 @@ assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5901'})
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5202'}),false,'devolução não pode compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5152'}),false,'transferência não pode compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',nbs:'115013000'}),true,'NFS-e de serviço sem CFOP deve compor receita');
+assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',modelo_documento_fiscal:'nfse'}),true,'modelo NFS-e de saída deve ser serviço faturável');
+assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',modelo_documento_fiscal:'nfe',nbs:'115013000'}),false,'NF-e sem CFOP de venda não pode virar serviço por inferência');
 assert.equal(receita.compoeReceita({tipo:'fornecedor',sentido:'entrada',cfop:'1102'}),false,'entrada não pode compor receita');
 console.log('receita-operacional.test.js: OK');

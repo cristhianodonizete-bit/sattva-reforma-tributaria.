@@ -1763,7 +1763,7 @@ router.get('/empresas/:id/documentos-fiscais', (req, res) => {
         CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END referencia,
         COALESCE(NULLIF(MAX(documento),''), NULLIF(MAX(chave),''), 'Lançamento #' || MIN(id)) documento,
         MIN(competencia) competencia, MIN(data_emissao) data_emissao, MAX(chave) chave, MAX(tipo) tipo, MAX(origem) origem,
-        MAX(cfop) cfop, MAX(nbs) nbs, MAX(lc116) lc116, MAX(iss) iss,
+        MAX(cfop) cfop, MAX(nbs) nbs, MAX(lc116) lc116, MAX(iss) iss, MAX(modelo_documento_fiscal) modelo_documento_fiscal,
         MAX(nome) parceiro, MAX(inscr_federal) inscr_federal, COUNT(*) itens, SUM(COALESCE(valor,0)) valor,
         SUM(CASE WHEN NULLIF(ncm,'') IS NOT NULL THEN 1 ELSE 0 END) itens_produto,
         SUM(CASE WHEN NULLIF(nbs,'') IS NOT NULL OR NULLIF(lc116,'') IS NOT NULL OR COALESCE(iss,0)<>0 THEN 1 ELSE 0 END) itens_servico,
@@ -4121,8 +4121,8 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
       descricao, ncm, nbs, lc116, cfop, cst, csosn, competencia, documento, chave, item_numero, codigo_produto,
       quantidade, unidade, data_emissao, emitente_cnpj, destinatario_cnpj,
       valor, base_calculo, icms, icms_st, ipi, pis, cofins, pis_cofins_documentado, iss, frete, seguro, outras, desconto,
-      cst_declarado, cclasstrib_declarado, ibs_declarado, cbs_declarado, origem)
-      VALUES (${Array.from({ length: 40 }, () => '?').join(',')},'xml')`);
+      cst_declarado, cclasstrib_declarado, ibs_declarado, cbs_declarado, modelo_documento_fiscal, origem)
+      VALUES (${Array.from({ length: 41 }, () => '?').join(',')},'xml')`);
     const insPar = db.prepare(`INSERT INTO parceiros (empresa_id, tipo, cnpj, descricao, regime, uf, origem)
       VALUES (?,?,?,?,?,?, 'xml')
       ON CONFLICT(empresa_id, tipo, cnpj) DO UPDATE SET descricao = excluded.descricao`);
@@ -4165,7 +4165,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
               i.valor, i.base_calculo || i.valor, i.icms || 0, i.icms_st || 0, i.ipi || 0,
               i.pis || 0, i.cofins || 0, i.pis_cofins_documentado ? 1 : 0, i.iss || 0, i.frete || 0, i.seguro || 0, i.outras || 0, i.desconto || 0,
               (i.declarado && i.declarado.cst) || '', (i.declarado && i.declarado.cclasstrib) || '',
-              (i.declarado && i.declarado.ibs) || 0, (i.declarado && i.declarado.cbs) || 0);
+              (i.declarado && i.declarado.ibs) || 0, (i.declarado && i.declarado.cbs) || 0, r.tipoDocumento);
             if (identidade?.produto_empresa_id) db.prepare('UPDATE movimentos SET produto_empresa_id=? WHERE id=?').run(identidade.produto_empresa_id, movimento.lastInsertRowid);
             normalizacaoFiscalXml.validarMovimento(Number(movimento.lastInsertRowid));
             relatorio.itens++;

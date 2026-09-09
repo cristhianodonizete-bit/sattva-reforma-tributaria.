@@ -31,6 +31,11 @@ function compoeReceita(movimento = {}) {
   if (!ehSaida(movimento)) return false;
   const porCfop = natureza(movimento);
   if (porCfop) return porCfop === 'venda' || porCfop === 'exportacao';
+  const modelo=String(movimento.modelo_documento_fiscal || '').toLowerCase();
+  // NF-e/NFC-e é documento de mercadoria: sem CFOP de venda não há prova de
+  // faturamento, mesmo que algum campo textual pareça serviço.
+  if (['nfe','nfce'].includes(modelo)) return false;
+  if (['nfse','cte','nfcom'].includes(modelo)) return true;
   // NFS-e não usa CFOP; NBS, LC 116 ou ISS são a evidência de prestação.
   return Boolean(String(movimento.nbs || '').trim() || String(movimento.lc116 || '').trim() || Number(movimento.iss || 0));
 }
@@ -41,6 +46,9 @@ function motivo(movimento = {}) {
   if (porCfop === 'venda') return 'VENDA_CFOP';
   if (porCfop === 'exportacao') return 'EXPORTACAO_CFOP';
   if (porCfop) return `FORA_RECEITA_${porCfop.toUpperCase()}`;
+  const modelo=String(movimento.modelo_documento_fiscal || '').toUpperCase();
+  if (modelo === 'NFE' || modelo === 'NFCE') return 'MERCADORIA_SEM_CFOP_DE_VENDA';
+  if (['NFSE','CTE','NFCOM'].includes(modelo)) return `SERVICO_${modelo}`;
   if (compoeReceita(movimento)) return 'SERVICO_SEM_CFOP';
   return 'OPERACAO_SEM_EVIDENCIA_DE_VENDA';
 }

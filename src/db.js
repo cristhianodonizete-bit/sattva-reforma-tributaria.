@@ -52,7 +52,7 @@ const COLUNAS_NOVAS = {
     frete: 'REAL DEFAULT 0', seguro: 'REAL DEFAULT 0',
     outras: 'REAL DEFAULT 0', desconto: 'REAL DEFAULT 0',
     sentido: 'TEXT',
-    pis_cofins_documentado: 'INTEGER DEFAULT 0', produto_empresa_id: 'INTEGER',
+    pis_cofins_documentado: 'INTEGER DEFAULT 0', produto_empresa_id: 'INTEGER', modelo_documento_fiscal: 'TEXT',
   },
   motor_resultados: {
     cenario_id: 'INTEGER', grupo_origem: 'TEXT', fracao: 'REAL DEFAULT 1',
@@ -527,6 +527,7 @@ CREATE TABLE IF NOT EXISTS movimentos (
   csosn TEXT, data_emissao TEXT,
   frete REAL DEFAULT 0, seguro REAL DEFAULT 0, outras REAL DEFAULT 0, desconto REAL DEFAULT 0,
   sentido TEXT,
+  modelo_documento_fiscal TEXT,
   origem TEXT DEFAULT 'planilha',
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
@@ -2509,6 +2510,14 @@ migrarEsquema();
 // legado `cst`. A origem não é apagada: apenas espelhamos o item LC116 em seu
 // campo próprio quando o lançamento é claramente um serviço de XML.
 try {
+  // Instalações anteriores não tinham o modelo do documento persistido.
+  // Recupera apenas o que é materialmente inequívoco; os demais ficam como
+  // "não identificado" para não transformar inferência em fato fiscal.
+  db.prepare(`UPDATE movimentos SET modelo_documento_fiscal = CASE
+      WHEN COALESCE(ncm,'')<>'' THEN 'nfe'
+      WHEN COALESCE(nbs,'')<>'' OR COALESCE(lc116,'')<>'' OR COALESCE(iss,0)<>0 THEN 'nfse'
+      ELSE NULL END
+    WHERE origem='xml' AND COALESCE(modelo_documento_fiscal,'')=''`).run();
   db.prepare(`UPDATE movimentos
     SET lc116 = substr(cst, 1, 4)
     WHERE origem='xml' AND (lc116 IS NULL OR lc116='')
