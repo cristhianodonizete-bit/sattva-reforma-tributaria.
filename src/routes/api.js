@@ -1741,6 +1741,58 @@ router.get('/empresas/:id/movimentos', (req, res) => {
   });
 });
 
+// Painel auditável de documentos: agrupa os itens XML pela chave e mantém
+// lançamentos de planilha individualizados quando não há chave fiscal.
+function referenciaDocumentoFiscal(referencia) {
+  const valor=String(referencia || '');
+  if (valor.startsWith('chave:') && valor.length > 6) return { chave: valor.slice(6) };
+  if (/^movimento:\d+$/.test(valor)) return { movimentoId: Number(valor.slice(10)) };
+  throw new Error('Referência de documento fiscal inválida.');
+}
+function whereDocumentoFiscal(empresaId, referencia) {
+  const filtro=referenciaDocumentoFiscal(referencia);
+  return filtro.chave
+    ? { sql:'empresa_id=? AND chave=?', valores:[Number(empresaId), filtro.chave] }
+    : { sql:'empresa_id=? AND id=?', valores:[Number(empresaId), filtro.movimentoId] };
+}
+router.get('/empresas/:id/documentos-fiscais', (req, res) => {
+  try {
+    const limite=Math.min(Math.max(Number(req.query.limite) || 500, 1), 2000);
+    const documentos=db.prepare(`SELECT
+        CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END referencia,
+        COALESCE(NULLIF(MAX(documento),''), NULLIF(MAX(chave),''), 'Lançamento #' || MIN(id)) documento,
+        MIN(competencia) competencia, MIN(data_emissao) data_emissao, MAX(chave) chave, MAX(tipo) tipo, MAX(origem) origem,
+        MAX(nome) parceiro, MAX(inscr_federal) inscr_federal, COUNT(*) itens, SUM(COALESCE(valor,0)) valor,
+        SUM(CASE WHEN NULLIF(ncm,'') IS NOT NULL THEN 1 ELSE 0 END) itens_produto,
+        SUM(CASE WHEN NULLIF(nbs,'') IS NOT NULL OR NULLIF(lc116,'') IS NOT NULL OR COALESCE(iss,0)<>0 THEN 1 ELSE 0 END) itens_servico,
+        MAX(criado_em) criado_em
+      FROM movimentos WHERE empresa_id=?
+      GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END
+      ORDER BY COALESCE(MAX(data_emissao), MAX(competencia), MAX(criado_em)) DESC, MIN(id) DESC LIMIT ?`).all(Number(req.params.id), limite);
+    const total=db.prepare(`SELECT COUNT(*) c FROM (SELECT 1 FROM movimentos WHERE empresa_id=? GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END)`).get(Number(req.params.id));
+    ok(res,{ documentos, total:total.c, limitado:documentos.length < total.c });
+  } catch (e) { erro(res,e); }
+});
+router.get('/empresas/:id/documentos-fiscais/:referencia', (req, res) => {
+  try {
+    const filtro=whereDocumentoFiscal(req.params.id,req.params.referencia);
+    const itens=db.prepare(`SELECT * FROM movimentos WHERE ${filtro.sql} ORDER BY item_numero, id`).all(...filtro.valores);
+    if (!itens.length) throw new Error('Documento fiscal não encontrado para a empresa selecionada.');
+    ok(res,{ documento:{ referencia:req.params.referencia, numero:itens[0].documento || itens[0].chave || `Lançamento #${itens[0].id}`, competencia:itens[0].competencia, data_emissao:itens[0].data_emissao, origem:itens[0].origem, chave:itens[0].chave, itens } });
+  } catch (e) { erro(res,e); }
+});
+router.delete('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const filtro=whereDocumentoFiscal(req.params.id,req.params.referencia);
+    const antes=db.prepare(`SELECT id,documento,chave,valor FROM movimentos WHERE ${filtro.sql}`).all(...filtro.valores);
+    if (!antes.length) throw new Error('Documento fiscal não encontrado para a empresa selecionada.');
+    db.prepare(`DELETE FROM movimentos WHERE ${filtro.sql}`).run(...filtro.valores);
+    auditar(req,{ empresaId:Number(req.params.id), acao:'DOCUMENTO_FISCAL_EXCLUIDO', entidade:'movimentos', entidadeId:req.params.referencia, antes:{ itens:antes.length, documento:antes[0].documento || antes[0].chave, valor:antes.reduce((s,x)=>s+(Number(x.valor)||0),0) } });
+    ok(res,{ excluidos:antes.length });
+  } catch (e) { erro(res,e); }
+});
+
 // Leitura isolada da qualidade dos documentos. Não grava, não reclassifica e
 // não chama o motor: a finalidade é orientar a correção na origem.
 router.get('/empresas/:id/conformidade-documental', (req, res) => {

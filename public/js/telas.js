@@ -280,7 +280,7 @@ Telas.dados = async (el) => {
   const regimeEmpresa = S.empresa?.regime || '';
   const simplesNacional = regimeEmpresa === 'simples_nacional';
   const exigeApuracaoPisCofins = ['lucro_presumido', 'lucro_real'].includes(regimeEmpresa);
-  const [{ parceiros }, { lotes }, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, prontidao] = await Promise.all([
+  const [{ parceiros }, { lotes }, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, prontidao, documentosFiscaisResposta] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/parceiros?tipo=${aba}`),
     A.api(`/empresas/${S.empresaId}/lotes`),
     A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`),
@@ -288,8 +288,11 @@ Telas.dados = async (el) => {
     A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`),
     simplesNacional ? A.api(`/empresas/${S.empresaId}/pgdas/documentos`) : Promise.resolve({ documentos: [] }),
     A.api(`/empresas/${S.empresaId}/prontidao-dados`),
+    A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=2000`),
   ]);
   const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`);
+  const documentosFiscais = documentosFiscaisResposta.documentos || [];
+  const naturezaDocumento = (d) => d.itens_produto && d.itens_servico ? ['Misto', 'b'] : d.itens_servico ? ['Serviço', 'c'] : d.itens_produto ? ['Produto', ''] : ['A identificar', 'a'];
   const fonteApuracao = (registro) => {
     const tipo = String(registro.tipo_documento || '').toUpperCase();
     const versao = String(registro.versao_modelo_extracao || '').toUpperCase();
@@ -400,7 +403,21 @@ Telas.dados = async (el) => {
         { t: '', r: (s) => `<button class="btn pq ${s.configurado ? 'vazio' : ''}" data-ref-servico="${A.esc(s.chave)}">${s.configurado ? 'Editar' : s.exigeReferencia ? 'Definir referência' : 'Cadastrar referência'}</button>` },
       ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}
-    ${grupoCentral === 'documentos' ? `<div class="cartao" id="historico">
+    ${grupoCentral === 'documentos' ? `<div class="cartao" id="documentosFiscais">
+      <div class="cabecalho-lista"><div><h2>Documentos fiscais importados</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p></div><span class="tag">${documentosFiscaisResposta.total || 0} documento(s)</span></div>
+      ${documentosFiscaisResposta.limitado ? '<div class="aviso info">Mostrando os 2.000 documentos mais recentes.</div>' : ''}
+      ${A.tabela([
+        { t:'Competência', r:d=>A.esc(d.competencia || 'Não identificada') },
+        { t:'Documento / chave', r:d=>`<b>${A.esc(d.documento)}</b><div class="mini mono">${A.esc(d.chave || d.referencia)}</div>` },
+        { t:'Entrada / saída', r:d=>`<span class="tag ${d.tipo === 'cliente' ? 'c' : ''}">${d.tipo === 'cliente' ? 'Saída' : 'Entrada'}</span>` },
+        { t:'Natureza', r:d=>{ const n=naturezaDocumento(d); return `<span class="tag ${n[1]}">${n[0]}</span>`; } },
+        { t:'Itens', num:true, r:d=>d.itens },
+        { t:'Valor', num:true, r:d=>A.moeda(d.valor) },
+        { t:'Origem', r:d=>A.esc(d.origem || '—') },
+        { t:'', r:d=>`<button class="btn pq vazio" data-abrir-documento="${A.esc(d.referencia)}">Abrir</button> <button class="btn pq perigo" data-excluir-documento="${A.esc(d.referencia)}">Excluir</button>` },
+      ], documentosFiscais, { vazio:'Nenhum documento fiscal importado ainda.' })}
+    </div>
+    <div class="cartao" id="historico">
       <h2>${rotulo[0].toUpperCase() + rotulo.slice(1)} cadastrados</h2>
       ${A.tabela([
         { t: 'CNPJ/CPF', r: (p) => `<span class="mono">${A.cnpjFmt(p.cnpj)}</span>` },
@@ -439,6 +456,30 @@ Telas.dados = async (el) => {
     </div>` : ''}`;
 
     document.getElementById('tipoDocumentoFiscal')?.addEventListener('change', (evento) => { S.aba.dados = evento.target.value; S.aba.dadosPendencia = null; A.ir('dados'); });
+    el.querySelectorAll('[data-abrir-documento]').forEach((botao) => botao.addEventListener('click', async () => {
+      try {
+        const r=await A.api(`/empresas/${S.empresaId}/documentos-fiscais/${encodeURIComponent(botao.dataset.abrirDocumento)}`);
+        const d=r.documento;
+        const natureza=(m) => m.nbs || m.lc116 || Number(m.iss) ? 'Serviço' : m.ncm ? 'Produto' : 'A identificar';
+        A.modal({ titulo:`Documento fiscal — ${d.numero}`, largura:1100, confirmar:'Fechar',
+          descricao:`${d.competencia || 'Competência não identificada'} · ${d.origem || 'origem não identificada'}${d.chave ? ` · chave ${d.chave}` : ''}`,
+          corpo:A.tabela([
+            {t:'Item',r:m=>A.esc(m.item_numero || m.id)}, {t:'Produto / serviço',r:m=>A.esc(m.descricao || 'Não identificado')},
+            {t:'Natureza',r:m=>`<span class="tag ${natureza(m)==='Serviço'?'c':natureza(m)==='Produto'?'':'a'}">${natureza(m)}</span>`},
+            {t:'NCM / NBS',r:m=>`<span class="mono mini">${A.esc(m.ncm || m.nbs || m.lc116 || '—')}</span>`},
+            {t:'Quantidade',num:true,r:m=>m.quantidade == null ? '—' : A.esc(m.quantidade)}, {t:'Valor',num:true,r:m=>A.moeda(m.valor)},
+            {t:'CFOP / CST',r:m=>`<span class="mono mini">${A.esc(m.cfop || '—')} / ${A.esc(m.cst || '—')}</span>`},
+          ],d.itens || [],{vazio:'Nenhum item encontrado.'}), aoConfirmar:async()=>{} });
+      } catch(e) { A.toast(e.message,'erro'); }
+    }));
+    el.querySelectorAll('[data-excluir-documento]').forEach((botao) => botao.addEventListener('click', () => {
+      const doc=documentosFiscais.find((d)=>d.referencia===botao.dataset.excluirDocumento);
+      if (!doc) return;
+      A.confirmar(`Excluir “${doc.documento}” e os ${doc.itens} item(ns) da base desta empresa? Esta ação remove esses dados das análises.`, async () => {
+        const r=await A.api(`/empresas/${S.empresaId}/documentos-fiscais/${encodeURIComponent(doc.referencia)}`,{metodo:'DELETE'});
+        A.toast(`${r.excluidos} item(ns) removido(s) da base.`, 'ok'); A.ir('dados');
+      });
+    }));
     el.querySelectorAll('[data-prontidao]').forEach((botao) => botao.addEventListener('click', () => {
       const p=itemProntidao(botao.dataset.prontidao); if (!p) return;
       const destino=botao.dataset.prontidaoDestino;
