@@ -1741,12 +1741,13 @@ router.post('/empresas/:id/integra-contador/pgdas/baixar', async (req, res) => {
     if (!/^\d{4}-\d{2}$/.test(inicio) || !/^\d{4}-\d{2}$/.test(fim) || inicio > fim) throw new Error('O período analisado precisa ter competências inicial e final válidas.');
     for (let c = inicio; c <= fim; c = periodoAnalisado.deslocarMes(c, 1)) competencias.push(c);
     const porAno = new Map(); competencias.forEach((c) => { const a = c.slice(0, 4); porAno.set(a, [...(porAno.get(a) || []), c]); });
-    const criados = []; const competenciasEncontradas = []; const semRetorno = [];
+    const criados = []; const competenciasEncontradas = []; const semRetorno = []; const diagnosticos = [];
     for (const [anoCalendario, meses] of porAno) {
       ano = Number(anoCalendario);
       const retorno = await integraContador.consultarDeclaracoes({ cnpj: empresa.cnpj, anoCalendario: ano });
       const declaracoes = integraContador.declaracoesPorCompetencia(retorno, meses);
       const diagnosticoRetorno = integraContador.diagnosticoDeclaracoes(retorno, meses);
+      diagnosticos.push({ ano_calendario: ano, ...diagnosticoRetorno });
       const porCompetencia = new Map(declaracoes.map((x) => [x.competencia, x]));
       for (const mes of meses) {
         const declaracao = porCompetencia.get(mes);
@@ -1767,12 +1768,21 @@ router.post('/empresas/:id/integra-contador/pgdas/baixar', async (req, res) => {
         .run(empresaId, ano, JSON.stringify(meses), JSON.stringify(declaracoes.map((x) => x.competencia)), declaracoes.length ? 'CONCLUIDA' : 'SEM_RETORNO_RECONHECIDO', `Consulta PGDAS-D: ${declaracoes.length} declaração(ões) reconhecida(s) com DAS. Diagnóstico: ${JSON.stringify(diagnosticoRetorno)}.`);
     }
     auditar(req, { empresaId, acao: 'Consultou PGDAS-D pelo Integra Contador', entidade: 'integra_contador_pgdas', entidadeId: `${empresaId}:${inicio}:${fim}`, depois: { competencias, competencias_encontradas: competenciasEncontradas, criados: criados.length } });
-    ok(res, { periodo: { competencia_inicio: inicio, competencia_fim: fim }, criados, encontradas: competenciasEncontradas, sem_retorno: semRetorno, exige_confirmacao: criados.some((x) => !x.duplicado) });
+    ok(res, { periodo: { competencia_inicio: inicio, competencia_fim: fim }, criados, encontradas: competenciasEncontradas, sem_retorno: semRetorno, diagnosticos, exige_confirmacao: criados.some((x) => !x.duplicado) });
   } catch (e) {
     if (ano) db.prepare(`INSERT INTO integra_contador_log (empresa_id,ano_calendario,competencias_solicitadas,competencias_encontradas,status,mensagem) VALUES (?,?,?,?,?,?)`)
       .run(empresaId, ano, JSON.stringify(competencias), '[]', 'ERRO', String(e.message || e).slice(0, 500));
     erro(res, e);
   }
+});
+router.get('/empresas/:id/integra-contador/logs', (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    if (!db.prepare('SELECT 1 FROM empresas WHERE id=?').get(empresaId)) throw new Error('Empresa não encontrada.');
+    const logs = db.prepare(`SELECT ano_calendario,competencias_solicitadas,competencias_encontradas,status,mensagem,criado_em
+      FROM integra_contador_log WHERE empresa_id=? ORDER BY id DESC LIMIT 12`).all(empresaId);
+    ok(res, { logs });
+  } catch (e) { erro(res, e); }
 });
 router.get('/empresas/:id/pgdas/documentos', (req, res) => {
   try { ok(res, { documentos: pgdasDocumentoIa.listar(db, Number(req.params.id)) }); }
