@@ -114,7 +114,11 @@ function consolidar(db, empresaId) {
 
   const historico = [...porCompetencia.values()].sort((a, b) => String(a.competencia).localeCompare(String(b.competencia))).map((linha) => {
     const p = linha.perfil;
+    // Para Simples, só PGDAS confirmado/integrado é a fonte da receita do
+    // Perfil. Uma fotografia manual antiga ou documento fiscal não pode
+    // preencher silenciosamente esse indicador.
     const receitaPerfil = p ? numero(p.receita_bruta) : null;
+    const receitaPgdas = p && /^pgdas_/i.test(String(p.origem || '')) ? receitaPerfil : null;
     const receitaDocumentada = linha.documentos ? numero(linha.documentos.receita_documentada) : null;
     const receitaSemDfe = (linha.receitas_sem_dfe || []).reduce((s, x) => s + numero(x.valor), 0);
     const tributosHistoricos = p ? numero(p.icms) + numero(p.iss) + numero(p.ipi) + numero(p.pis) + numero(p.cofins) + numero(p.das) : null;
@@ -135,7 +139,7 @@ function consolidar(db, empresaId) {
     // PGDAS. Em caixa, a carga efetiva usa exclusivamente a receita recebida,
     // sem confundir emissão fiscal com recebimento.
     const simplesCaixa = eSimples && empresa.regime_reconhecimento_simples === 'caixa';
-    const receitaAtual = eSimples && receitaPerfil !== null ? receitaPerfil
+    const receitaAtual = eSimples ? receitaPgdas
       : receitaDocumentada !== null ? receitaDocumentada : receitaApuracao !== null ? receitaApuracao : receitaPerfil;
     const receitaRecebida = p?.receita_recebida != null ? numero(p.receita_recebida) : null;
     const receitaParaCarga = simplesCaixa ? receitaRecebida : receitaAtual;
@@ -149,7 +153,7 @@ function consolidar(db, empresaId) {
     return {
       competencia: linha.competencia,
       regime: empresa.regime || 'INDETERMINADO',
-      receita: valor(receitaAtual, receitaDocumentada !== null ? 'XML_IMPORTADO' : receitaApuracao !== null ? 'APURACAO_IMPORTADA' : receitaPerfil !== null ? 'REAL' : 'INDETERMINADO'),
+      receita: valor(receitaAtual, eSimples ? receitaPgdas !== null ? 'PGDAS_COMPETENCIA' : 'INDETERMINADO' : receitaDocumentada !== null ? 'XML_IMPORTADO' : receitaApuracao !== null ? 'APURACAO_IMPORTADA' : receitaPerfil !== null ? 'REAL' : 'INDETERMINADO'),
       receita_documentada: valor(receitaDocumentada, receitaDocumentada !== null ? 'EXTRAIDO' : 'INDETERMINADO'),
       receita_recebida: valor(receitaRecebida, receitaRecebida !== null ? 'PGDAS_CAIXA' : simplesCaixa ? 'INDETERMINADO' : 'NAO_APLICAVEL'),
       folha: valor(linha.folha?.valor_folha, linha.folha ? 'REAL' : 'INDETERMINADO'),
