@@ -1795,6 +1795,25 @@ router.post('/empresas/:id/integra-contador/pgdas/diagnostico-json', async (req,
     ok(res, { competencia, diagnostico, retorno_serpro: retorno });
   } catch (e) { erro(res, e); }
 });
+// Consulta explícita e cobrável da última declaração/recibo da competência.
+// Não usa o DAS e não atualiza o Perfil até o parser da resposta real ser
+// homologado. A resposta é preservada para extrair os campos sem reconsultar.
+router.post('/empresas/:id/integra-contador/pgdas/apuracao-vigente', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id); const competencia = String(req.body?.competencia || '').trim();
+    const empresa = db.prepare('SELECT id,cnpj,regime FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa || empresa.regime !== 'simples_nacional') throw new Error('Empresa do Simples Nacional não encontrada.');
+    if (!/^\d{4}-\d{2}$/.test(competencia)) throw new Error('Informe a competência no formato AAAA-MM.');
+    const periodo = await exigirPeriodoParaImportacao(req);
+    if (competencia < periodo.competencia_inicio || competencia > periodo.competencia_fim) throw new Error('A competência está fora do período analisado.');
+    const retorno = await integraContador.consultarUltimaDeclaracao({ cnpj:empresa.cnpj, periodoApuracao:competencia.replace('-', '') });
+    const bruto = JSON.stringify(retorno); const hash = crypto.createHash('sha256').update(bruto).digest('hex');
+    db.prepare(`INSERT OR IGNORE INTO integra_contador_respostas (empresa_id,competencia,id_servico,versao_servico,resposta_json,hash_resposta,consultado_em) VALUES (?,?,?,?,?,?,?)`)
+      .run(empresaId, competencia, 'CONSULTIMADECREC14', '1.0', bruto, hash, new Date().toISOString());
+    auditar(req, { empresaId, acao:'Consultou apuração PGDAS-D vigente', entidade:'integra_contador_pgdas_apuracao', entidadeId:`${empresaId}:${competencia}`, depois:{ competencia, servico:'CONSULTIMADECREC14', hash_resposta:hash } });
+    ok(res, { competencia, servico:'CONSULTIMADECREC14', retorno_serpro:retorno, pendente_normalizacao:true });
+  } catch (e) { erro(res, e); }
+});
 router.get('/empresas/:id/integra-contador/logs', (req, res) => {
   try {
     const empresaId = Number(req.params.id);

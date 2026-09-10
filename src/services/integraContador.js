@@ -136,6 +136,30 @@ async function consultarDeclaracoes({ cnpj, anoCalendario, periodoApuracao = nul
   return c.serproDireto ? dados : (dados.data ?? dados.dados ?? dados);
 }
 
+// CONSULTIMADECREC14 consulta a última declaração/recibo transmitida para a
+// competência. É a fonte correta para a apuração vigente quando há
+// retificadoras; o índice CONSDECLARACAO13 continua preservando o histórico.
+async function consultarUltimaDeclaracao({ cnpj, periodoApuracao }, { env = process.env, fetchImpl = fetch } = {}) {
+  const c = config(env); const situacao = status(env);
+  if (!situacao.configurado) throw new Error(situacao.mensagem);
+  const documento = apenasDigitos(cnpj); const periodo = String(periodoApuracao || '').replace(/\D/g, '');
+  if (documento.length !== 14 || !/^\d{6}$/.test(periodo)) throw new Error('Informe CNPJ e competência AAAAMM válidos para consultar a declaração vigente.');
+  const acesso = await token(c, fetchImpl);
+  const headers = { Accept: 'application/json', 'Content-Type': 'application/json', Authorization: `Bearer ${acesso.access_token}` };
+  if (acesso.jwt_token) headers.jwt_token = acesso.jwt_token;
+  if (c.apiKey) headers['x-api-key'] = c.apiKey;
+  const dadosConsulta = { periodoApuracao: periodo };
+  const corpo = c.serproDireto
+    ? { contratante:c.contratante, autorPedidoDados:c.autorPedido, contribuinte:{ tipo:2, numero:documento }, pedidoDados:{ idSistema:'PGDASD', idServico:'CONSULTIMADECREC14', versaoSistema:'1.0', dados:JSON.stringify(dadosConsulta) } }
+    : { dados:dadosConsulta, contribuinte:{ tipo:2, numero:documento } };
+  if (c.serproDireto && (!c.contratante.numero || !c.autorPedido.numero)) throw new Error('No Serpro direto, informe contratante e autor do pedido no ambiente seguro.');
+  const resposta = await fetchImpl(`${c.baseUrl}${c.endpoint}`, { method:'POST', headers, body:JSON.stringify(corpo), signal:AbortSignal.timeout(45000) });
+  const texto = await resposta.text(); let dados; try { dados = texto ? JSON.parse(texto) : {}; } catch (_) { throw new Error('O Integra Contador respondeu em formato não reconhecido.'); }
+  if (!resposta.ok || dados.success === false) throw new Error(`Integra Contador respondeu ${resposta.status}: ${String(dados.message || dados.mensagem || '').slice(0, 240)}`);
+  if (typeof dados.dados === 'string') { try { dados.dados = JSON.parse(dados.dados); } catch (_) {} }
+  return c.serproDireto ? dados : (dados.data ?? dados.dados ?? dados);
+}
+
 // Consulta oficial e somente leitura que permite separar uma procuração e-CAC
 // inexistente de uma credencial Serpro sem permissão no PGDAS-D. Não usa nem
 // grava dados de declaração.
@@ -235,4 +259,4 @@ function diagnosticoDeclaracoes(resposta, competenciasAlvo = []) {
   return { objetos_analisados: itens.length, objetos_com_competencia: comPeriodo, objetos_no_periodo: noPeriodoSolicitado, objetos_com_das: comDas, operacoes_com_indice_declaracao: indicesDeclaracao, operacoes_com_indice_das: indicesDas, campos_identificados: [...camposDoPeriodo].sort().slice(0, 40), ...(camposOperacoes.size ? { campos_operacoes: [...camposOperacoes].sort().slice(0, 40) } : {}) };
 }
 
-module.exports = { config, status, consultarDeclaracoes, verificarProcuracao, declaracoesPorCompetencia, diagnosticoDeclaracoes, camposDeDeclaracao, competencia, numero };
+module.exports = { config, status, consultarDeclaracoes, consultarUltimaDeclaracao, verificarProcuracao, declaracoesPorCompetencia, diagnosticoDeclaracoes, camposDeDeclaracao, competencia, numero };

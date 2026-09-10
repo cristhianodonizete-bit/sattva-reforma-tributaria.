@@ -593,6 +593,15 @@ Telas.dados = async (el) => {
           aoConfirmar: async () => {} });
       },
     }));
+    document.getElementById('verJsonIntegra')?.insertAdjacentHTML('afterend', '<button class="btn vazio" id="baixarApuracaoVigente">Baixar apuração vigente</button>');
+    document.getElementById('baixarApuracaoVigente')?.addEventListener('click', () => A.modal({
+      titulo:'Baixar apuração PGDAS-D vigente', descricao:'Consulta a última declaração/recibo transmitida para uma competência. Esta chamada pode ser cobrada pelo Serpro e não depende da situação do DAS.',
+      corpo:A.campo('competencia','Competência (AAAA-MM)','','text','placeholder="2026-06"'), confirmar:'Consultar apuração',
+      aoConfirmar: async (dados) => {
+        const r = await A.api(`/empresas/${S.empresaId}/integra-contador/pgdas/apuracao-vigente`, { metodo:'POST', corpo:dados });
+        A.modal({ titulo:`Apuração vigente — ${r.competencia}`, largura:1100, confirmar:'Fechar', descricao:'Retorno oficial armazenado para normalização. Nenhum valor foi assumido automaticamente no Perfil Tributário.', corpo:`<pre style="max-height:62vh;overflow:auto;padding:14px;background:#091b2c;color:#dbeafe;border-radius:8px;white-space:pre-wrap;word-break:break-word">${A.esc(JSON.stringify(r.retorno_serpro,null,2))}</pre>`, aoConfirmar:async()=>{} });
+      },
+    }));
     document.getElementById('verLogsIntegra')?.addEventListener('click', async () => {
       try {
         const r = await A.api(`/empresas/${S.empresaId}/integra-contador/logs`);
