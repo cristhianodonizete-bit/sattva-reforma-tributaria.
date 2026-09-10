@@ -6,11 +6,18 @@
 const { PDFParse } = require('pdf-parse');
 
 async function extrair(arquivo) {
-  if (!arquivo?.buffer || !Buffer.isBuffer(arquivo.buffer)) throw new Error('Arquivo PDF ausente para extração local.');
-  if (!arquivo.buffer.subarray(0, 4).equals(Buffer.from('%PDF'))) throw new Error('O arquivo informado não é um PDF válido.');
+  // better-sqlite3/SQLite devolve BLOB restaurado como Uint8Array em algumas
+  // versões do Node. O conteúdo existe (e vem do bytea do Supabase), mas não
+  // satisfaz Buffer.isBuffer. Normalizar aqui evita que um PDF durável seja
+  // incorretamente reportado como ausente após reinício do Render.
+  const buffer=Buffer.isBuffer(arquivo?.buffer) ? arquivo.buffer
+    : arquivo?.buffer instanceof Uint8Array ? Buffer.from(arquivo.buffer)
+      : null;
+  if (!buffer?.length) throw new Error('Arquivo PDF ausente para extração local.');
+  if (!buffer.subarray(0, 4).equals(Buffer.from('%PDF'))) throw new Error('O arquivo informado não é um PDF válido.');
   let parser;
   try {
-    parser = new PDFParse({ data: arquivo.buffer });
+    parser = new PDFParse({ data: buffer });
     const resultado = await parser.getText();
     const texto = String(resultado?.text || '').trim();
     if (!texto) throw new Error('TEXT_EXTRACTION_FAILED');
