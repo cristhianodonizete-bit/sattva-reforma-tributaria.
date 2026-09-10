@@ -1879,20 +1879,38 @@ router.get('/empresas/:id/pgdas/documentos', async (req, res) => {
   try { const restauracao = await pgdasCompartilhado.restaurar(Number(req.params.id)); ok(res, { documentos: pgdasDocumentoIa.listar(db, Number(req.params.id)), restauracao }); }
   catch (e) { erro(res, e); }
 });
+async function reprocessarDocumentoPgdasDuravel(empresaId, referencia) {
+  const doc = await pgdasCompartilhado.localizarLocal(empresaId, referencia);
+  if (!doc) throw new Error('Documento PGDAS não localizado na fonte durável para esta empresa.');
+  // O PDF vem diretamente do Supabase: o cache SQLite guarda somente os
+  // campos reprocessados e não participa da leitura do original.
+  const original=await pgdasCompartilhado.obterOriginal(empresaId, referencia);
+  const extraido = await pgdasNativePdfText.extrair({ buffer:original.conteudo_original, mimetype:original.mime_type, originalname:original.nome_original });
+  const campos = pgdasDocumentoIa.normalizarTexto(extraido.texto, { localizacoes:extraido.localizacoes, metodo:'NATIVE_PDF_TEXT + PGDAS_DETERMINISTICO_V2_REPROCESSADO' });
+  const documento = pgdasDocumentoIa.reprocessarCampos(db, empresaId, doc.id, campos, `REPROCESSAMENTO LOCAL + ${extraido.modelo}`);
+  const publicacao = await pgdasCompartilhado.publicar(empresaId, doc.id);
+  return { documento, publicacao, competencia:documento.competencia_detectada, campos:campos.length };
+}
 router.post('/empresas/:id/pgdas/documentos/:documentoId/reprocessar', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
-    const doc = await pgdasCompartilhado.localizarLocal(empresaId, req.params.documentoId);
-    if (!doc) throw new Error('Documento PGDAS não localizado na fonte durável para esta empresa.');
-    // A leitura nunca depende do BLOB do SQLite efêmero. O original é lido
-    // diretamente da fonte durável, inclusive em uma instância recém-criada.
-    const original=await pgdasCompartilhado.obterOriginal(empresaId, req.params.documentoId);
-    const extraido = await pgdasNativePdfText.extrair({ buffer:original.conteudo_original, mimetype:original.mime_type, originalname:original.nome_original });
-    const campos = pgdasDocumentoIa.normalizarTexto(extraido.texto, { localizacoes:extraido.localizacoes, metodo:'NATIVE_PDF_TEXT + PGDAS_DETERMINISTICO_V2_REPROCESSADO' });
-    const documento = pgdasDocumentoIa.reprocessarCampos(db, empresaId, doc.id, campos, `REPROCESSAMENTO LOCAL + ${extraido.modelo}`);
-    const publicacao = await pgdasCompartilhado.publicar(empresaId, doc.id);
-    ok(res, { documento, publicacao, nova_consulta_integra_contador:false });
+    const resultado=await reprocessarDocumentoPgdasDuravel(empresaId, req.params.documentoId);
+    ok(res, { ...resultado, nova_consulta_integra_contador:false });
   } catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/pgdas/documentos/reprocessar-lote', async (req, res) => {
+  try {
+    const empresaId=Number(req.params.id), referencias=[...new Set((req.body?.documentos||[]).map(String).filter(Boolean))];
+    if(!referencias.length) throw new Error('Selecione ao menos um documento PGDAS para reprocessar.');
+    const resultados=[];
+    // Sequencial e rastreável: evita concorrência sobre o SQLite e fornece o
+    // resultado de cada competência em uma única resposta à tela.
+    for(const referencia of referencias){
+      try { resultados.push({referencia,ok:true,...await reprocessarDocumentoPgdasDuravel(empresaId,referencia)}); }
+      catch(e){ resultados.push({referencia,ok:false,erro:e.message}); }
+    }
+    ok(res,{resultados,nova_consulta_integra_contador:false});
+  } catch(e){erro(res,e);}
 });
 router.post('/empresas/:id/pgdas/documentos/:documentoId/confirmar', async (req, res) => {
   try {
