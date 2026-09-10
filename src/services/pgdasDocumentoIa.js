@@ -21,6 +21,11 @@ const competencia = (v) => {
 
 function normalizarTexto(textoDocumento, { localizacoes = [], metodo = 'NORMALIZACAO_DETERMINISTICA_AZURE' } = {}) {
   const saida = Object.fromEntries(CAMPOS.map((campo) => [campo, { campo, valor_extraido: null, rotulo_original: null, pagina_ou_localizacao: null, confianca: null, metodo_extracao: metodo, status_validacao: 'INDETERMINADO' }]));
+  const reconhecer = (campo, valor, rotulo, confianca = 0.9) => {
+    if (saida[campo].valor_extraido !== null || valor === null) return;
+    const local = localizacoes.find((x) => String(x.texto || '').includes(rotulo));
+    saida[campo] = { campo, valor_extraido: valor, rotulo_original: rotulo.slice(0, 180), pagina_ou_localizacao: local?.pagina ? `p. ${local.pagina}` : null, confianca, metodo_extracao: metodo, status_validacao: 'REQUER_VALIDACAO' };
+  };
   const regras = [
     ['competencia', /^(compet[eê]ncia|per[ií]odo|refer[eê]ncia)\s*[:\-]\s*(.+)$/i, competencia],
     ['receita_bruta', /^(receita\s+bruta(?:\s+total|\s+mensal)?)\s*[:\-]\s*(.+)$/i, valorNumero],
@@ -41,17 +46,39 @@ function normalizarTexto(textoDocumento, { localizacoes = [], metodo = 'NORMALIZ
       saida[campo] = { campo, valor_extraido: valor, rotulo_original: encontrado[1], pagina_ou_localizacao: local?.pagina ? `p. ${local.pagina}` : null, confianca: local?.confianca ?? 0.9, metodo_extracao: metodo, status_validacao: 'REQUER_VALIDACAO' };
     }
   }
+  const linhas = String(textoDocumento || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  const moedasNaLinha = (linha) => (String(linha || '').match(/(?:R\$\s*)?\d{1,3}(?:\.\d{3})*,\d{2}/g) || []).map(valorNumero).filter((x) => x !== null);
+  // Layout oficial PGDAS-D: o resumo traz competência, caixa e débito na
+  // mesma tabela. Não confundir esses números com o sublimite anual.
+  const indiceResumo = linhas.findIndex((linha) => /receita\s+bruta\s+auferida/i.test(linha) && /receita\s+bruta\s+recebida/i.test(linha) && /d[eé]bito\s+declarado/i.test(linha));
+  if (indiceResumo >= 0) {
+    const valores = moedasNaLinha(linhas.slice(indiceResumo + 1, indiceResumo + 3).join(' | '));
+    if (valores.length >= 3) {
+      reconhecer('receita_bruta', valores[0], linhas[indiceResumo], 0.95);
+      reconhecer('receita_recebida', valores[1], linhas[indiceResumo], 0.95);
+      reconhecer('das', valores[2], linhas[indiceResumo], 0.95);
+    }
+  }
+  // A última grade de "Total do Débito" é o consolidado da empresa. As
+  // colunas são fixas no documento oficial: COFINS é a terceira e PIS a quarta.
+  const cabecalhosTributos = linhas.map((linha, indice) => ({ linha, indice })).filter(({ linha }) => /IRPJ.*CSLL.*COFINS.*PIS\/Pasep/i.test(linha));
+  for (const { linha, indice } of cabecalhosTributos) {
+    const valores = moedasNaLinha(linhas.slice(indice + 1, indice + 3).join(' | '));
+    if (valores.length >= 4) {
+      reconhecer('cofins', valores[2], linha, 0.9);
+      reconhecer('pis', valores[3], linha, 0.9);
+    }
+  }
   // Tabelas do PGDAS podem trazer o rótulo e o número em células/linhas
   // diferentes. Esta segunda passagem é intencionalmente conservadora: só
   // aceita moeda brasileira explícita e mantém o resultado para revisão.
-  const linhas = String(textoDocumento || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
   const rotulosTabela = {
     receita_bruta:/receita\s+bruta|receita\s+total/i,
     receita_recebida:/receita\s+recebida|regime\s+de\s+caixa/i,
     receita_mercadorias:/receita.*(?:mercadoria|com[eé]rcio|ind[uú]stria)/i,
     receita_servicos:/receita.*servi[cç]/i,
     receita_exportacao:/receita.*exporta|mercado\s+externo/i,
-    das:/\b(?:valor\s+)?das\b|total\s+(?:a\s+)?recolher/i,
+    das:/valor\s+total\s+do\s+d[eé]bito\s+declarado|total\s+do\s+d[eé]bito\s+exig[ií]vel|valor\s+(?:do\s+)?das\b|das\s+(?:a\s+recolher|apurado|recolhido)/i,
     pis:/\bpis(?:\/pasep)?\b/i,
     cofins:/\bcofins\b/i,
   };
