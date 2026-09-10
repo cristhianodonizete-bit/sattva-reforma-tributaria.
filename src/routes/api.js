@@ -53,6 +53,7 @@ const comparadorRegimes = require('../services/comparadorRegimes');
 const apuracoesPisCofinsIa = require('../services/apuracoesPisCofinsIa');
 const pgdasDocumentoIa = require('../services/pgdasDocumentoIa');
 const pgdasNativePdfText = require('../services/pgdasNativePdfText');
+const pgdasCompartilhado = require('../services/pgdasCompartilhado');
 const pgdasIndiceSerpro = require('../services/pgdasIndiceSerpro');
 const integraContador = require('../services/integraContador');
 const azureDocumentIntelligence = require('../services/azureDocumentIntelligence');
@@ -1737,6 +1738,7 @@ router.post('/empresas/:id/pgdas/ingestao', upload.single('arquivo'), async (req
       nome_original: req.file.originalname, tipo_documento: tipoDocumento, mime_type: req.file.mimetype,
       conteudo_original: req.file.buffer, metodo_extracao: `${extraido.modelo} + PGDAS_DETERMINISTICO_V2`,
     }, campos);
+    await pgdasCompartilhado.publicar(Number(req.params.id), resultado.documento_id);
     ok(res, { ...resultado, campos_pendentes: campos.filter((x) => x.status_validacao !== 'VALIDADO_USUARIO').map((x) => x.campo) });
   } catch (e) { erro(res, e); }
 });
@@ -1859,6 +1861,7 @@ router.post('/empresas/:id/integra-contador/pgdas/apuracao-vigente', async (req,
       documento = pgdasDocumentoIa.reprocessarCampos(db, empresaId, existente.id, campos, `INTEGRA_CONTADOR CONSULTIMADECREC14 + ${extraido.modelo}`);
       documento.duplicado = true;
     }
+    await pgdasCompartilhado.publicar(empresaId, documento.documento_id || documento.id);
     auditar(req, { empresaId, acao:'Consultou apuração PGDAS-D vigente', entidade:'integra_contador_pgdas_apuracao', entidadeId:`${empresaId}:${competencia}`, depois:{ competencia, servico:'CONSULTIMADECREC14', hash_resposta:hash } });
     ok(res, { competencia, servico:'CONSULTIMADECREC14', documento, campos, pendente_confirmacao:true });
   } catch (e) { erro(res, e); }
@@ -1881,7 +1884,8 @@ router.post('/empresas/:id/pgdas/documentos/:documentoId/confirmar', async (req,
     const documento = pgdasDocumentoIa.confirmar(db, Number(req.params.id), Number(req.params.documentoId));
     // Não delegar ao espelho de gestão: ele não contém dados fiscais.
     const publicacao = await publicarPerfilTributarioCompartilhado(Number(req.params.id));
-    ok(res, { documento, publicacao });
+    const documentoDuravel = await pgdasCompartilhado.publicar(Number(req.params.id), Number(req.params.documentoId));
+    ok(res, { documento, publicacao, documento_duravel:documentoDuravel });
   }
   catch (e) { erro(res, e); }
 });
