@@ -59,11 +59,17 @@ assert.equal(campos.find((x) => x.campo === 'receita_recebida').valor_extraido, 
 const blocos = JSON.parse(campos.find((x) => x.campo === 'revenue_blocks').valor_extraido);
 assert.equal(blocos.length, 4);
 assert.equal(blocos[0].anexo, 'I'); assert.equal(blocos[2].anexo, 'III');
+assert.equal(blocos[2].factor_r_applicable, false, '"não sujeitos ao fator r" não pode acionar fator r');
+assert.equal(blocos[2].iss_withheld, false, '"sem retenção" deve prevalecer');
+assert.equal(blocos[3].factor_r_applicable, false);
+assert.equal(blocos[3].iss_withheld, true, '"com retenção" deve ser ISS retido');
 const valores = Object.fromEntries(campos.map((x) => [x.campo, x.campo === 'competencia' ? x.valor_extraido : Number(x.valor_extraido)]));
 const validacao = pgdas.validarRegraBlocos(db, valores, blocos);
 assert.equal(validacao.validada, true, validacao.motivo);
 assert.equal(validacao.blocos[0].pgdas_validation.calculated_pis, 54.66);
 assert.equal(validacao.blocos[2].pgdas_validation.calculated_cofins, 1379.77);
+assert.equal(validacao.blocos[3].aceite_tributario.iss_withheld, undefined, 'retenção é classificação, não taxa calculada');
+assert.equal(validacao.blocos[3].aceite_tributario.cofins_match, true);
 
 // A competência vem dos DFe classificados: nunca se reaproveita a distribuição do caixa.
 db.prepare("INSERT INTO movimentos VALUES (1,'2026-06','saida',50000,'12345678','',''),(1,'2026-06','saida',70000,'','1.01.01','')").run();
@@ -78,4 +84,5 @@ const desconhecido=pgdas.normalizarTexto('arquivo sem âncoras fiscais');
 assert.equal(desconhecido.find((x)=>x.campo==='document_type').status_validacao,'INVALID_DOCUMENT');
 assert.throws(()=>pgdas.ingerir(db,2,{nome_original:'x.pdf',tipo_documento:'PDF',conteudo_original:Buffer.from('x'),metodo_extracao:'teste'},campos),/Simples Nacional/);
 db.close();
+console.log(JSON.stringify(validacao.blocos.map((x) => ({ descricao:x.description_raw.slice(0, 55), factor_r_applicable:x.factor_r_applicable, iss_withheld:x.iss_withheld, ...x.aceite_tributario })), null, 2));
 console.log('PGDAS: parser determinístico, blocos, validação tributária e competência aprovados.');
