@@ -1881,22 +1881,25 @@ router.get('/empresas/:id/pgdas/documentos', async (req, res) => {
 });
 router.post('/empresas/:id/pgdas/documentos/:documentoId/reprocessar', async (req, res) => {
   try {
-    const empresaId = Number(req.params.id), documentoId = Number(req.params.documentoId);
-    const doc = db.prepare('SELECT * FROM pgdas_documentos WHERE id=? AND empresa_id=?').get(documentoId, empresaId);
-    if (!doc) throw new Error('Documento PGDAS não encontrado. Atualize a lista para restaurá-lo do Supabase.');
+    const empresaId = Number(req.params.id);
+    const doc = await pgdasCompartilhado.localizarLocal(empresaId, req.params.documentoId);
+    if (!doc) throw new Error('Documento PGDAS não localizado na fonte durável para esta empresa.');
     const extraido = await pgdasNativePdfText.extrair({ buffer:doc.conteudo_original, mimetype:doc.mime_type, originalname:doc.nome_original });
     const campos = pgdasDocumentoIa.normalizarTexto(extraido.texto, { localizacoes:extraido.localizacoes, metodo:'NATIVE_PDF_TEXT + PGDAS_DETERMINISTICO_V2_REPROCESSADO' });
-    const documento = pgdasDocumentoIa.reprocessarCampos(db, empresaId, documentoId, campos, `REPROCESSAMENTO LOCAL + ${extraido.modelo}`);
-    const publicacao = await pgdasCompartilhado.publicar(empresaId, documentoId);
+    const documento = pgdasDocumentoIa.reprocessarCampos(db, empresaId, doc.id, campos, `REPROCESSAMENTO LOCAL + ${extraido.modelo}`);
+    const publicacao = await pgdasCompartilhado.publicar(empresaId, doc.id);
     ok(res, { documento, publicacao, nova_consulta_integra_contador:false });
   } catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/pgdas/documentos/:documentoId/confirmar', async (req, res) => {
   try {
-    const documento = pgdasDocumentoIa.confirmar(db, Number(req.params.id), Number(req.params.documentoId));
+    const empresaId=Number(req.params.id);
+    const doc=await pgdasCompartilhado.localizarLocal(empresaId, req.params.documentoId);
+    if (!doc) throw new Error('Documento PGDAS não localizado na fonte durável para esta empresa.');
+    const documento = pgdasDocumentoIa.confirmar(db, empresaId, doc.id);
     // Não delegar ao espelho de gestão: ele não contém dados fiscais.
-    const publicacao = await publicarPerfilTributarioCompartilhado(Number(req.params.id));
-    const documentoDuravel = await pgdasCompartilhado.publicar(Number(req.params.id), Number(req.params.documentoId));
+    const publicacao = await publicarPerfilTributarioCompartilhado(empresaId);
+    const documentoDuravel = await pgdasCompartilhado.publicar(empresaId, doc.id);
     ok(res, { documento, publicacao, documento_duravel:documentoDuravel });
   }
   catch (e) { erro(res, e); }

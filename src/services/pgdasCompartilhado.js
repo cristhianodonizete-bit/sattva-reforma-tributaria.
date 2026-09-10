@@ -35,7 +35,9 @@ async function publicar(empresaLocalId, documentoLocalId) {
   });
 }
 async function restaurar(empresaLocalId) {
-  if (db.prepare('SELECT 1 FROM pgdas_documentos WHERE empresa_id=? LIMIT 1').get(empresaLocalId)) return { restaurados:0, cache_local:true };
+  // Não usar "há algum documento no cache" como critério de restauração. Em
+  // uma instância nova o SQLite pode conter somente parte da empresa; esse
+  // atalho era justamente o que fazia a lista e os botões divergirem.
   return comCliente(async (client) => {
     const empresaId = await empresaRemota(client, empresaLocalId);
     const docs = await client.query('SELECT * FROM public.pgdas_documentos WHERE empresa_id=$1 ORDER BY id', [empresaId]);
@@ -58,4 +60,26 @@ async function restaurar(empresaLocalId) {
     return { restaurados };
   });
 }
-module.exports = { publicar, restaurar };
+async function localizarLocal(empresaLocalId, referencia) {
+  const ref=String(referencia || '');
+  const porReferencia=()=>db.prepare(`SELECT * FROM pgdas_documentos
+    WHERE empresa_id=? AND (hash_sha256=? OR CAST(id AS TEXT)=?) ORDER BY id DESC LIMIT 1`).get(empresaLocalId,ref,ref);
+  let documento=porReferencia();
+  if(documento)return documento;
+  // A restauração idempotente por hash traz todos os PDFs persistidos e cobre
+  // reinício, troca de instância e cache local parcial.
+  await restaurar(empresaLocalId);
+  documento=porReferencia();
+  if(documento)return documento;
+  // Compatibilidade com páginas já abertas que ainda enviem o antigo id local:
+  // origem_local_id no Supabase aponta para aquele id e permite localizar seu
+  // hash estável antes de qualquer operação.
+  return comCliente(async(client)=>{
+    const empresaId=await empresaRemota(client,empresaLocalId);
+    const remoto=await client.query(`SELECT hash_sha256 FROM public.pgdas_documentos
+      WHERE empresa_id=$1 AND (CAST(id AS TEXT)=$2 OR CAST(origem_local_id AS TEXT)=$2) ORDER BY id DESC LIMIT 1`,[empresaId,ref]);
+    if(!remoto.rows[0])return null;
+    return db.prepare('SELECT * FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaLocalId,remoto.rows[0].hash_sha256)||null;
+  });
+}
+module.exports = { publicar, restaurar, localizarLocal };
