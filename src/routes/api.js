@@ -1810,8 +1810,26 @@ router.post('/empresas/:id/integra-contador/pgdas/apuracao-vigente', async (req,
     const bruto = JSON.stringify(retorno); const hash = crypto.createHash('sha256').update(bruto).digest('hex');
     db.prepare(`INSERT OR IGNORE INTO integra_contador_respostas (empresa_id,competencia,id_servico,versao_servico,resposta_json,hash_resposta,consultado_em) VALUES (?,?,?,?,?,?,?)`)
       .run(empresaId, competencia, 'CONSULTIMADECREC14', '1.0', bruto, hash, new Date().toISOString());
+    const declaracao = retorno?.dados?.declaracao;
+    if (!declaracao?.pdf || !declaracao?.nomeArquivo) throw new Error('O Integra Contador não retornou o PDF da declaração PGDAS-D.');
+    const arquivo = { buffer:Buffer.from(String(declaracao.pdf), 'base64'), mimetype:'application/pdf', originalname:String(declaracao.nomeArquivo) };
+    if (!arquivo.buffer.length || !arquivo.buffer.subarray(0, 4).equals(Buffer.from('%PDF'))) throw new Error('O PDF da declaração retornado pelo Integra Contador é inválido.');
+    if (!azureDocumentIntelligence.config().ativo) throw new Error('PDF oficial recuperado, mas o Azure Document Intelligence não está configurado para fazer a leitura.');
+    const extraido = await azureDocumentIntelligence.extrair(arquivo);
+    if (!String(extraido.texto || '').trim()) throw new Error('O Azure não encontrou texto legível na declaração PGDAS-D oficial.');
+    const campos = pgdasDocumentoIa.normalizarTexto(extraido.texto, { localizacoes:extraido.localizacoes, metodo:'INTEGRA_CONTADOR + NORMALIZACAO_DETERMINISTICA_AZURE' });
+    // A competência é conhecida pela consulta, mas a extração continua
+    // registrando somente fatos presentes no PDF para os demais campos.
+    const campoCompetencia = campos.find((x) => x.campo === 'competencia');
+    if (campoCompetencia && !campoCompetencia.valor_extraido) { campoCompetencia.valor_extraido=competencia; campoCompetencia.rotulo_original='competência da consulta oficial Integra Contador'; campoCompetencia.confianca=1; campoCompetencia.status_validacao='REQUER_VALIDACAO'; }
+    let documento;
+    try { documento = pgdasDocumentoIa.ingerir(db, empresaId, { nome_original:arquivo.originalname, tipo_documento:'INTEGRA_CONTADOR_PDF', mime_type:arquivo.mimetype, conteudo_original:arquivo.buffer, metodo_extracao:`INTEGRA_CONTADOR CONSULTIMADECREC14 + ${extraido.modelo}` }, campos); }
+    catch (e) {
+      if (!/já foi enviado/i.test(String(e.message))) throw e;
+      documento = { documento_id:db.prepare('SELECT id FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaId, crypto.createHash('sha256').update(arquivo.buffer).digest('hex'))?.id, duplicado:true, campos };
+    }
     auditar(req, { empresaId, acao:'Consultou apuração PGDAS-D vigente', entidade:'integra_contador_pgdas_apuracao', entidadeId:`${empresaId}:${competencia}`, depois:{ competencia, servico:'CONSULTIMADECREC14', hash_resposta:hash } });
-    ok(res, { competencia, servico:'CONSULTIMADECREC14', retorno_serpro:retorno, pendente_normalizacao:true });
+    ok(res, { competencia, servico:'CONSULTIMADECREC14', documento, campos, pendente_confirmacao:true });
   } catch (e) { erro(res, e); }
 });
 router.get('/empresas/:id/integra-contador/logs', (req, res) => {

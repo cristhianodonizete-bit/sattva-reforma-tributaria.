@@ -599,7 +599,8 @@ Telas.dados = async (el) => {
       corpo:A.campo('competencia','Competência (AAAA-MM)','','text','placeholder="2026-06"'), confirmar:'Consultar apuração',
       aoConfirmar: async (dados) => {
         const r = await A.api(`/empresas/${S.empresaId}/integra-contador/pgdas/apuracao-vigente`, { metodo:'POST', corpo:dados });
-        A.modal({ titulo:`Apuração vigente — ${r.competencia}`, largura:1100, confirmar:'Fechar', descricao:'Retorno oficial armazenado para normalização. Nenhum valor foi assumido automaticamente no Perfil Tributário.', corpo:`<pre style="max-height:62vh;overflow:auto;padding:14px;background:#091b2c;color:#dbeafe;border-radius:8px;white-space:pre-wrap;word-break:break-word">${A.esc(JSON.stringify(r.retorno_serpro,null,2))}</pre>`, aoConfirmar:async()=>{} });
+        const campos = (r.campos || []).map((x) => `<tr><td>${A.esc(x.campo)}</td><td>${A.esc(x.valor_extraido ?? 'Não identificado')}</td><td>${A.esc(x.rotulo_original || '—')}</td></tr>`).join('');
+        A.modal({ titulo:`Apuração vigente — ${r.competencia}`, largura:1100, confirmar:'Fechar', descricao:'PDF oficial lido pelo Azure e salvo para revisão. Nenhum valor foi assumido automaticamente no Perfil Tributário.', corpo:`<table><thead><tr><th>Campo</th><th>Valor extraído</th><th>Evidência</th></tr></thead><tbody>${campos}</tbody></table><p class="mini" style="margin-top:12px">Documento #${A.esc(r.documento?.documento_id || '—')}${r.documento?.duplicado ? ' · arquivo já processado anteriormente' : ''}. Revise e confirme nos Documentos PGDAS em revisão.</p>`, aoConfirmar:async()=>{ A.ir('dados'); } });
       },
     }));
     document.getElementById('verLogsIntegra')?.addEventListener('click', async () => {
