@@ -684,20 +684,29 @@ Telas.dados = async (el) => {
     el.querySelectorAll('[data-pgdas-confirmar]').forEach((b) => { b.onclick = () => A.confirmar('Confirmar os valores identificados? A confirmação grava somente os campos encontrados no documento.', async () => {
       await A.api(`/empresas/${S.empresaId}/pgdas/documentos/${b.dataset.pgdasConfirmar}/confirmar`, {metodo:'POST',corpo:{}}); A.toast('PGDAS confirmado e incluído no histórico.', 'ok'); A.ir('dados');
     }); });
-    const botoesConfirmacaoPgdas = [...el.querySelectorAll('[data-pgdas-confirmar]')];
-    if (botoesConfirmacaoPgdas.length) {
-      botoesConfirmacaoPgdas.forEach((botao) => botao.insertAdjacentHTML('beforebegin', `<input type="checkbox" data-pgdas-selecionar="${A.esc(botao.dataset.pgdasConfirmar)}" aria-label="Selecionar documento PGDAS" style="margin-right:7px">`));
-      const tabelaPgdas = botoesConfirmacaoPgdas[0].closest('table');
-      if (tabelaPgdas) tabelaPgdas.insertAdjacentHTML('beforebegin', '<div style="display:flex;justify-content:flex-end;margin:0 0 10px"><button class="btn pq" id="confirmarPgdasSelecionados" disabled>Confirmar selecionados</button></div>');
-      const atualizarConfirmacaoLote = () => {
-        const selecionados = el.querySelectorAll('[data-pgdas-selecionar]:checked').length;
-        const botao = el.querySelector('#confirmarPgdasSelecionados'); if (botao) { botao.disabled = !selecionados; botao.textContent = `Confirmar selecionados${selecionados ? ` (${selecionados})` : ''}`; }
+    const botoesReprocessamentoPgdas = [...el.querySelectorAll('[data-pgdas-reprocessar]')];
+    if (botoesReprocessamentoPgdas.length) {
+      // A seleção pertence ao documento (hash durável), não ao botão de
+      // confirmação: assim documentos já confirmados também podem ser
+      // relidos em lote após evolução de regra, sem consultar o Serpro.
+      botoesReprocessamentoPgdas.forEach((botao) => botao.insertAdjacentHTML('beforebegin', `<input type="checkbox" data-pgdas-selecionar="${A.esc(botao.dataset.pgdasReprocessar)}" aria-label="Selecionar documento PGDAS" style="margin-right:7px">`));
+      const tabelaPgdas = botoesReprocessamentoPgdas[0].closest('table');
+      if (tabelaPgdas) tabelaPgdas.insertAdjacentHTML('beforebegin', `<div style="display:flex;justify-content:flex-end;align-items:center;gap:8px;margin:0 0 10px"><label class="mini" style="display:flex;gap:5px;align-items:center"><input type="checkbox" id="selecionarTodosPgdas"> Selecionar todos</label><button class="btn pq vazio" id="reprocessarPgdasSelecionados" disabled>Reprocessar selecionados</button><button class="btn pq" id="confirmarPgdasSelecionados" disabled>Confirmar selecionados</button></div>`);
+      const selecionados=()=>[...el.querySelectorAll('[data-pgdas-selecionar]:checked')].map((x)=>x.dataset.pgdasSelecionar);
+      const atualizarLote=()=>{
+        const quantidade=selecionados().length, total=el.querySelectorAll('[data-pgdas-selecionar]').length;
+        const marcarTodos=el.querySelector('#selecionarTodosPgdas'); if(marcarTodos){marcarTodos.checked=quantidade===total&&total>0;marcarTodos.indeterminate=quantidade>0&&quantidade<total;}
+        for(const id of ['reprocessarPgdasSelecionados','confirmarPgdasSelecionados']){const botao=el.querySelector(`#${id}`);if(botao){botao.disabled=!quantidade;botao.textContent=`${id.startsWith('reprocessar')?'Reprocessar':'Confirmar'} selecionados${quantidade?` (${quantidade})`:''}`;}}
       };
-      el.querySelectorAll('[data-pgdas-selecionar]').forEach((check) => check.addEventListener('change', atualizarConfirmacaoLote));
-      el.querySelector('#confirmarPgdasSelecionados')?.addEventListener('click', () => A.confirmar('Confirmar os documentos PGDAS selecionados? Apenas documentos com competência e DAS identificados serão aproveitados.', async () => {
-        const ids = [...el.querySelectorAll('[data-pgdas-selecionar]:checked')].map((x) => x.dataset.pgdasSelecionar); const falhas=[];
-        for (const id of ids) { try { await A.api(`/empresas/${S.empresaId}/pgdas/documentos/${id}/confirmar`, {metodo:'POST',corpo:{}}); } catch (e) { falhas.push(e.message || `Documento ${id}`); } }
-        A.toast(falhas.length ? `${ids.length-falhas.length} confirmado(s); ${falhas.length} permaneceu(ram) em revisão.` : `${ids.length} documento(s) confirmado(s).`, falhas.length ? 'erro' : 'ok'); A.ir('dados');
+      el.querySelectorAll('[data-pgdas-selecionar]').forEach((check)=>check.addEventListener('change',atualizarLote));
+      el.querySelector('#selecionarTodosPgdas')?.addEventListener('change',(evento)=>{el.querySelectorAll('[data-pgdas-selecionar]').forEach((check)=>{check.checked=evento.target.checked;});atualizarLote();});
+      el.querySelector('#reprocessarPgdasSelecionados')?.addEventListener('click',()=>A.confirmar('Reler os PDFs PGDAS selecionados com as regras atuais? Não haverá nova consulta ao Integra Contador.',async()=>{
+        const ids=selecionados(),falhas=[];for(const id of ids){try{await A.api(`/empresas/${S.empresaId}/pgdas/documentos/${id}/reprocessar`,{metodo:'POST',corpo:{}});}catch(e){falhas.push(e.message||`Documento ${id}`);}}
+        A.toast(falhas.length?`${ids.length-falhas.length} reprocessado(s); ${falhas.length} falhou(aram).`:`${ids.length} documento(s) reprocessado(s) sem consulta ao Serpro.`,falhas.length?'erro':'ok');A.ir('dados');
+      }));
+      el.querySelector('#confirmarPgdasSelecionados')?.addEventListener('click',()=>A.confirmar('Confirmar os documentos PGDAS selecionados? Apenas documentos com competência e DAS identificados serão aproveitados.',async()=>{
+        const ids=selecionados(),falhas=[];for(const id of ids){try{await A.api(`/empresas/${S.empresaId}/pgdas/documentos/${id}/confirmar`,{metodo:'POST',corpo:{}});}catch(e){falhas.push(e.message||`Documento ${id}`);}}
+        A.toast(falhas.length?`${ids.length-falhas.length} confirmado(s); ${falhas.length} permaneceu(ram) em revisão.`:`${ids.length} documento(s) confirmado(s).`,falhas.length?'erro':'ok');A.ir('dados');
       }));
     }
     document.getElementById('centralApuracao')?.addEventListener('click', () => abrirIngestaoApuracao(() => A.ir('dados')));
