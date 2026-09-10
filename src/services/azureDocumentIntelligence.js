@@ -28,6 +28,18 @@ function diagnosticoSeguro() {
 }
 
 function espera(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
+async function requisitarComEspera(url, opcoes, contexto) {
+  // 429 é controle de taxa do Azure, não falha do PDF. Respeita o prazo que
+  // o serviço informar antes de continuar o lote automaticamente.
+  for (let tentativa = 0; tentativa < 6; tentativa++) {
+    const resposta = await fetch(url, opcoes);
+    if (resposta.status !== 429 || tentativa === 5) return resposta;
+    const retryAfter = Number(resposta.headers.get('retry-after'));
+    const segundos = Number.isFinite(retryAfter) && retryAfter > 0 ? retryAfter : Math.min(30, 5 * (tentativa + 1));
+    await espera(segundos * 1000);
+  }
+  throw new Error(`${contexto} excedeu o limite de tentativas.`);
+}
 function textoResultado(resultado) {
   const paragrafos = resultado?.analyzeResult?.paragraphs || [];
   const tabelas = (resultado?.analyzeResult?.tables || []).flatMap((tabela) => {
@@ -55,7 +67,7 @@ function textoResultado(resultado) {
 async function extrair(arquivo) {
   const cfg = config();
   if (!cfg.ativo) throw new Error('Azure Document Intelligence não configurado.');
-  const iniciar = await fetch(`${cfg.endpoint}/documentintelligence/documentModels/${cfg.modelo}:analyze?api-version=${cfg.versao}`, {
+  const iniciar = await requisitarComEspera(`${cfg.endpoint}/documentintelligence/documentModels/${cfg.modelo}:analyze?api-version=${cfg.versao}`, {
     method: 'POST', headers: { 'Ocp-Apim-Subscription-Key': cfg.key, 'Content-Type': arquivo.mimetype || 'application/octet-stream' }, body: arquivo.buffer,
   });
   if (!iniciar.ok) throw new Error(`Azure Document Intelligence respondeu ${iniciar.status}.`);
@@ -63,7 +75,7 @@ async function extrair(arquivo) {
   if (!operacao) throw new Error('Azure Document Intelligence não retornou operação de análise.');
   for (let tentativa = 0; tentativa < 45; tentativa++) {
     await espera(1000);
-    const consulta = await fetch(operacao, { headers: { 'Ocp-Apim-Subscription-Key': cfg.key } });
+    const consulta = await requisitarComEspera(operacao, { headers: { 'Ocp-Apim-Subscription-Key': cfg.key } }, 'Consulta Azure Document Intelligence');
     if (!consulta.ok) throw new Error(`Consulta Azure Document Intelligence respondeu ${consulta.status}.`);
     const resultado = await consulta.json();
     if (resultado.status === 'succeeded') return { ...textoResultado(resultado), metodo: 'AZURE_DOCUMENT_INTELLIGENCE', modelo: cfg.modelo };
