@@ -3,7 +3,9 @@ const { Client } = require('pg');
 const db = require('../db');
 
 async function comCliente(acao) {
-  if (!process.env.SUPABASE_DB_URL) return { ativo:false };
+  // Nunca aceite sucesso local para evidência fiscal. Sem esta conexão a
+  // instância do Render perderia o PDF no reinício; interromper é obrigatório.
+  if (!process.env.SUPABASE_DB_URL) throw new Error('Persistência PGDAS indisponível: configure SUPABASE_DB_URL no Render antes de baixar ou confirmar documentos.');
   const client = new Client({ connectionString:process.env.SUPABASE_DB_URL, ssl:{ rejectUnauthorized:false } });
   await client.connect();
   try { return await acao(client); } finally { await client.end(); }

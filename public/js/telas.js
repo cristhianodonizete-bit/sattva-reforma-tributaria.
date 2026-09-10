@@ -570,13 +570,13 @@ Telas.dados = async (el) => {
     });
     document.getElementById('centralIntegra')?.addEventListener('click', () => A.modal({
       titulo:'Integra Contador',
-      descricao:'Baixe as declarações PGDAS-D da janela de apurações ou acesse ferramentas de conferência.',
+      descricao:'A opção de baixa recupera e guarda o PDF oficial no Supabase, permitindo revisão e reprocessamento posterior. Consultas de índice são apenas diagnóstico e não criam documento.',
       corpo:A.selecao('acao','Ação',[
-        { v:'lote', t:'Baixar apurações da janela configurada' },
+        { v:'lote', t:'Baixar PDFs oficiais da janela (permite reprocessar)' },
         { v:'diagnostico', t:'Diagnosticar acesso e procuração' },
         { v:'consultas', t:'Ver últimas consultas' },
         { v:'individual', t:'Consultar uma competência' },
-        { v:'json', t:'Ver JSON técnico de uma competência' },
+        { v:'json', t:'Ver índice técnico de uma competência (não baixa PDF)' },
       ],'lote'),
       confirmar:'Continuar',
       aoConfirmar:async({ acao }) => {
@@ -616,7 +616,7 @@ Telas.dados = async (el) => {
       aoConfirmar: async (dados) => {
         const r = await A.api(`/empresas/${S.empresaId}/integra-contador/pgdas/apuracao-vigente`, { metodo:'POST', corpo:dados });
         const campos = (r.campos || []).map((x) => `<tr><td>${A.esc(x.campo)}</td><td>${A.esc(x.valor_extraido ?? 'Não identificado')}</td><td>${A.esc(x.rotulo_original || '—')}</td></tr>`).join('');
-        A.modal({ titulo:`Apuração vigente — ${r.competencia}`, largura:1100, confirmar:'Fechar', descricao:'PDF oficial lido pelo Azure e salvo para revisão. Nenhum valor foi assumido automaticamente no Perfil Tributário.', corpo:`<table><thead><tr><th>Campo</th><th>Valor extraído</th><th>Evidência</th></tr></thead><tbody>${campos}</tbody></table><p class="mini" style="margin-top:12px">Documento #${A.esc(r.documento?.documento_id || '—')}${r.documento?.duplicado ? ' · arquivo já processado anteriormente' : ''}. Revise e confirme nos Documentos PGDAS em revisão.</p>`, aoConfirmar:async()=>{ A.ir('dados'); } });
+        A.modal({ titulo:`Apuração vigente — ${r.competencia}`, largura:1100, confirmar:'Fechar', descricao:'PDF oficial lido localmente e salvo no Supabase para revisão e reprocessamento. Nenhum valor foi assumido automaticamente no Perfil Tributário.', corpo:`<table><thead><tr><th>Campo</th><th>Valor extraído</th><th>Evidência</th></tr></thead><tbody>${campos}</tbody></table><p class="mini" style="margin-top:12px">Documento #${A.esc(r.documento?.documento_id || '—')}${r.documento?.duplicado ? ' · arquivo já processado anteriormente' : ''}. Revise e confirme nos Documentos PGDAS em revisão.</p>`, aoConfirmar:async()=>{ A.ir('dados'); } });
       },
     }));
     document.getElementById('baixarApuracoesPeriodo')?.addEventListener('click', async () => {
