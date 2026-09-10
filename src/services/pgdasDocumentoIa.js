@@ -58,14 +58,18 @@ function normalizarTexto(textoDocumento, { localizacoes = [], metodo = 'NORMALIZ
   const moeda = /(?:R\$\s*)?\d{1,3}(?:\.\d{3})*,\d{2}/g;
   for (const [campo, rotulo] of Object.entries(rotulosTabela)) {
     if (saida[campo].valor_extraido !== null) continue;
-    const indice = linhas.findIndex((linha) => rotulo.test(linha));
+    // Nunca use o bloco integral da página: ele reúne rótulos de várias
+    // colunas e permitiria associar um "0,00" de outra rubrica à receita.
+    const indice = linhas.findIndex((linha) => linha.length <= 240 && rotulo.test(linha));
     if (indice < 0) continue;
     // Em tabelas serializadas pelo Azure, rótulo e valor normalmente ficam
     // na mesma linha. Só olha as duas linhas seguintes se a própria linha
     // não trouxer uma moeda; isso impede, por exemplo, PIS virar receita.
     const valoresDaLinha = linhas[indice].match(moeda) || [];
-    const contexto = valoresDaLinha.length ? linhas[indice] : linhas.slice(indice, indice + 3).join(' | ');
-    const valores = valoresDaLinha.length ? valoresDaLinha : (contexto.match(moeda) || []);
+    const proximaLinha = linhas[indice + 1] || '';
+    // Só admite continuação em uma única linha numérica. Isso cobre tabelas
+    // em que rótulo e valor estão em células separadas sem cruzar rubricas.
+    const valores = valoresDaLinha.length ? valoresDaLinha : (/^(?:R\$\s*)?\d{1,3}(?:\.\d{3})*,\d{2}$/.test(proximaLinha) ? [proximaLinha] : []);
     if (!valores.length) continue;
     const extraido = valorNumero(valores.at(-1));
     if (extraido === null) continue;

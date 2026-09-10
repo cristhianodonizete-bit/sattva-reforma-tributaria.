@@ -40,7 +40,10 @@ function textoResultado(resultado) {
   });
   // Em PGDAS o layout costuma estar em tabela. O conteúdo integral e as
   // linhas de tabela complementam os parágrafos, sem perder o OCR original.
-  const blocos = [resultado?.analyzeResult?.content || '', ...paragrafos.map((p) => p.content), ...tabelas].filter(Boolean);
+  // Prioriza linhas da tabela. O conteúdo integral pode juntar toda a página
+  // numa só linha e, por isso, não é uma evidência segura para associar
+  // rótulo e valor.
+  const blocos = [...tabelas, ...paragrafos.map((p) => p.content), resultado?.analyzeResult?.content || ''].filter(Boolean);
   const texto = [...new Set(blocos)].join('\n');
   const localizacoes = paragrafos.map((p) => ({
     texto: p.content || '', pagina: p.boundingRegions?.[0]?.pageNumber || null,
