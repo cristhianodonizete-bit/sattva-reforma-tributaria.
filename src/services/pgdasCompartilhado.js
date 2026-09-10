@@ -32,4 +32,28 @@ async function publicar(empresaLocalId, documentoLocalId) {
     } catch (e) { await client.query('ROLLBACK'); throw e; }
   });
 }
-module.exports = { publicar };
+async function restaurar(empresaLocalId) {
+  if (db.prepare('SELECT 1 FROM pgdas_documentos WHERE empresa_id=? LIMIT 1').get(empresaLocalId)) return { restaurados:0, cache_local:true };
+  return comCliente(async (client) => {
+    const empresaId = await empresaRemota(client, empresaLocalId);
+    const docs = await client.query('SELECT * FROM public.pgdas_documentos WHERE empresa_id=$1 ORDER BY id', [empresaId]);
+    const camposPorDocumento = new Map();
+    for (const remoto of docs.rows) {
+      const campos = await client.query('SELECT * FROM public.pgdas_documento_campos WHERE documento_id=$1 ORDER BY id', [remoto.id]);
+      camposPorDocumento.set(remoto.id, campos.rows);
+    }
+    const inserirDocumento = db.prepare(`INSERT INTO pgdas_documentos (empresa_id,nome_original,tipo_documento,mime_type,conteudo_original,hash_sha256,competencia_detectada,data_processamento,metodo_extracao,status_processamento) VALUES (?,?,?,?,?,?,?,?,?,?)`);
+    const inserirCampo = db.prepare(`INSERT INTO pgdas_documento_campos (documento_id,campo,valor_extraido,rotulo_original,pagina_ou_localizacao,confianca,metodo_extracao,status_validacao) VALUES (?,?,?,?,?,?,?,?)`);
+    let restaurados = 0;
+    db.transaction(() => {
+      for (const remoto of docs.rows) {
+        if (db.prepare('SELECT 1 FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaLocalId, remoto.hash_sha256)) continue;
+        const local = inserirDocumento.run(empresaLocalId, remoto.nome_original, remoto.tipo_documento, remoto.mime_type, remoto.conteudo_original, remoto.hash_sha256, remoto.competencia_detectada, remoto.data_processamento, remoto.metodo_extracao, remoto.status_processamento);
+        for (const campo of camposPorDocumento.get(remoto.id) || []) inserirCampo.run(local.lastInsertRowid, campo.campo, campo.valor_extraido, campo.rotulo_original, campo.pagina_ou_localizacao, campo.confianca, campo.metodo_extracao, campo.status_validacao);
+        restaurados += 1;
+      }
+    })();
+    return { restaurados };
+  });
+}
+module.exports = { publicar, restaurar };

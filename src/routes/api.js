@@ -1875,9 +1875,21 @@ router.get('/empresas/:id/integra-contador/logs', (req, res) => {
     ok(res, { logs });
   } catch (e) { erro(res, e); }
 });
-router.get('/empresas/:id/pgdas/documentos', (req, res) => {
-  try { ok(res, { documentos: pgdasDocumentoIa.listar(db, Number(req.params.id)) }); }
+router.get('/empresas/:id/pgdas/documentos', async (req, res) => {
+  try { const restauracao = await pgdasCompartilhado.restaurar(Number(req.params.id)); ok(res, { documentos: pgdasDocumentoIa.listar(db, Number(req.params.id)), restauracao }); }
   catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/pgdas/documentos/:documentoId/reprocessar', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id), documentoId = Number(req.params.documentoId);
+    const doc = db.prepare('SELECT * FROM pgdas_documentos WHERE id=? AND empresa_id=?').get(documentoId, empresaId);
+    if (!doc) throw new Error('Documento PGDAS não encontrado. Atualize a lista para restaurá-lo do Supabase.');
+    const extraido = await pgdasNativePdfText.extrair({ buffer:doc.conteudo_original, mimetype:doc.mime_type, originalname:doc.nome_original });
+    const campos = pgdasDocumentoIa.normalizarTexto(extraido.texto, { localizacoes:extraido.localizacoes, metodo:'NATIVE_PDF_TEXT + PGDAS_DETERMINISTICO_V2_REPROCESSADO' });
+    const documento = pgdasDocumentoIa.reprocessarCampos(db, empresaId, documentoId, campos, `REPROCESSAMENTO LOCAL + ${extraido.modelo}`);
+    const publicacao = await pgdasCompartilhado.publicar(empresaId, documentoId);
+    ok(res, { documento, publicacao, nova_consulta_integra_contador:false });
+  } catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/pgdas/documentos/:documentoId/confirmar', async (req, res) => {
   try {
