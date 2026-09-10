@@ -25,7 +25,7 @@ async function publicar(empresaLocalId, documentoLocalId) {
     try {
       const q = await client.query(`INSERT INTO public.pgdas_documentos (empresa_id,origem_local_id,nome_original,tipo_documento,mime_type,conteudo_original,hash_sha256,competencia_detectada,data_processamento,metodo_extracao,status_processamento)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-        ON CONFLICT (empresa_id,hash_sha256) DO UPDATE SET origem_local_id=EXCLUDED.origem_local_id,nome_original=EXCLUDED.nome_original,mime_type=EXCLUDED.mime_type,conteudo_original=EXCLUDED.conteudo_original,competencia_detectada=EXCLUDED.competencia_detectada,data_processamento=EXCLUDED.data_processamento,metodo_extracao=EXCLUDED.metodo_extracao,status_processamento=EXCLUDED.status_processamento
+        ON CONFLICT (empresa_id,hash_sha256) DO UPDATE SET nome_original=EXCLUDED.nome_original,mime_type=EXCLUDED.mime_type,conteudo_original=EXCLUDED.conteudo_original,competencia_detectada=EXCLUDED.competencia_detectada,data_processamento=EXCLUDED.data_processamento,metodo_extracao=EXCLUDED.metodo_extracao,status_processamento=EXCLUDED.status_processamento
         RETURNING id`, [empresaId,documento.id,documento.nome_original,documento.tipo_documento,documento.mime_type,documento.conteudo_original,documento.hash_sha256,documento.competencia_detectada,documento.data_processamento,documento.metodo_extracao,documento.status_processamento]);
       const remotoId = q.rows[0].id;
       for (const c of campos) await client.query(`INSERT INTO public.pgdas_documento_campos (documento_id,campo,valor_extraido,rotulo_original,pagina_ou_localizacao,confianca,metodo_extracao,status_validacao)
