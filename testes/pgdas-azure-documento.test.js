@@ -101,6 +101,9 @@ assert.equal(confirmado.validacao_regra_simples.validada,true);
 assert.equal(confirmado.calculo_competencia.status,'REVIEW_REQUIRED');
 assert.equal(confirmado.calculo_competencia.pis,null, 'não presume rateio entre serviços com e sem retenção');
 assert.equal(confirmado.status_processamento,'VALIDADO_USUARIO');
+const perfilConfirmado=db.prepare('SELECT pis,cofins FROM perfil_tributario WHERE empresa_id=1 AND competencia=?').get('2026-06');
+assert.equal(perfilConfirmado.pis,387.18, 'Perfil recebe PIS efetivamente apurado no PGDAS validado');
+assert.equal(perfilConfirmado.cofins,1784.61, 'Perfil recebe COFINS efetivamente apurada no PGDAS validado');
 
 const desconhecido=pgdas.normalizarTexto('arquivo sem âncoras fiscais');
 assert.equal(desconhecido.find((x)=>x.campo==='document_type').status_validacao,'INVALID_DOCUMENT');
