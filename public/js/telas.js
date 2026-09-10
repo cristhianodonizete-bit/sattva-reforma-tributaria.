@@ -593,7 +593,7 @@ Telas.dados = async (el) => {
           aoConfirmar: async () => {} });
       },
     }));
-    document.getElementById('verJsonIntegra')?.insertAdjacentHTML('afterend', '<button class="btn vazio" id="baixarApuracaoVigente">Baixar apuração vigente</button>');
+    document.getElementById('verJsonIntegra')?.insertAdjacentHTML('afterend', '<button class="btn vazio" id="baixarApuracaoVigente">Baixar apuração vigente</button><button class="btn vazio" id="baixarApuracoesPeriodo">Baixar todas do período</button>');
     document.getElementById('baixarApuracaoVigente')?.addEventListener('click', () => A.modal({
       titulo:'Baixar apuração PGDAS-D vigente', descricao:'Consulta a última declaração/recibo transmitida para uma competência. Esta chamada pode ser cobrada pelo Serpro e não depende da situação do DAS.',
       corpo:A.campo('competencia','Competência (AAAA-MM)','','text','placeholder="2026-06"'), confirmar:'Consultar apuração',
@@ -603,6 +603,21 @@ Telas.dados = async (el) => {
         A.modal({ titulo:`Apuração vigente — ${r.competencia}`, largura:1100, confirmar:'Fechar', descricao:'PDF oficial lido pelo Azure e salvo para revisão. Nenhum valor foi assumido automaticamente no Perfil Tributário.', corpo:`<table><thead><tr><th>Campo</th><th>Valor extraído</th><th>Evidência</th></tr></thead><tbody>${campos}</tbody></table><p class="mini" style="margin-top:12px">Documento #${A.esc(r.documento?.documento_id || '—')}${r.documento?.duplicado ? ' · arquivo já processado anteriormente' : ''}. Revise e confirme nos Documentos PGDAS em revisão.</p>`, aoConfirmar:async()=>{ A.ir('dados'); } });
       },
     }));
+    document.getElementById('baixarApuracoesPeriodo')?.addEventListener('click', async () => {
+      const { periodo } = await A.api(`/empresas/${S.empresaId}/periodo-analisado`);
+      if (!periodo?.competencia_inicio || !periodo?.competencia_fim) { A.toast('Defina o período analisado antes de baixar as apurações.', 'erro'); return; }
+      A.modal({ titulo:'Baixar apurações PGDAS-D do período', descricao:`Serão consultadas as últimas declarações transmitidas de ${periodo.competencia_inicio} a ${periodo.competencia_fim}, uma competência por vez. Cada PDF será salvo para revisão e nada entrará automaticamente no Perfil Tributário.`, confirmar:'Baixar todas', corpo:'<div class="aviso atencao">A consulta de cada competência pode ser cobrada pelo Serpro. O sistema continuará as demais mesmo que uma competência não tenha declaração.</div>', aoConfirmar:async()=>{
+        const competencias=[]; let cursor=new Date(`${periodo.competencia_inicio}-01T12:00:00`); const limite=new Date(`${periodo.competencia_fim}-01T12:00:00`);
+        while(cursor<=limite) { competencias.push(`${cursor.getFullYear()}-${String(cursor.getMonth()+1).padStart(2,'0')}`); cursor.setMonth(cursor.getMonth()+1); }
+        const resultado=[];
+        for (const competencia of competencias) {
+          try { await A.api(`/empresas/${S.empresaId}/integra-contador/pgdas/apuracao-vigente`, { metodo:'POST', corpo:{ competencia } }); resultado.push({ competencia, ok:true }); A.toast(`PGDAS ${competencia} processado (${resultado.length}/${competencias.length}).`, 'ok'); }
+          catch (e) { resultado.push({ competencia, ok:false, erro:e.message || 'Falha na consulta' }); }
+        }
+        const falhas=resultado.filter((x)=>!x.ok);
+        A.modal({ titulo:'Importação PGDAS-D concluída', confirmar:'Ver documentos em revisão', descricao:`${resultado.length-falhas.length} de ${resultado.length} competência(s) foram processadas.`, corpo:falhas.length ? `<div class="aviso atencao"><b>Competências sem retorno:</b><br>${falhas.map((x)=>`${A.esc(x.competencia)} — ${A.esc(x.erro)}`).join('<br>')}</div>` : '<div class="aviso bom">Todos os PDFs foram lidos e aguardam sua revisão.</div>', aoConfirmar:async()=>A.ir('dados') });
+      }});
+    });
     document.getElementById('verLogsIntegra')?.addEventListener('click', async () => {
       try {
         const r = await A.api(`/empresas/${S.empresaId}/integra-contador/logs`);
