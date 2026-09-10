@@ -53,6 +53,7 @@ const COLUNAS_NOVAS = {
     outras: 'REAL DEFAULT 0', desconto: 'REAL DEFAULT 0',
     sentido: 'TEXT',
     pis_cofins_documentado: 'INTEGER DEFAULT 0', produto_empresa_id: 'INTEGER', modelo_documento_fiscal: 'TEXT',
+    situacao_documento: "TEXT DEFAULT 'AUTORIZADO'", cancelado_em: 'TEXT', cancelamento_motivo: 'TEXT', cancelamento_origem: 'TEXT',
   },
   motor_resultados: {
     cenario_id: 'INTEGER', grupo_origem: 'TEXT', fracao: 'REAL DEFAULT 1',
@@ -625,6 +626,8 @@ CREATE TABLE IF NOT EXISTS movimentos (
   frete REAL DEFAULT 0, seguro REAL DEFAULT 0, outras REAL DEFAULT 0, desconto REAL DEFAULT 0,
   sentido TEXT,
   modelo_documento_fiscal TEXT,
+  situacao_documento TEXT DEFAULT 'AUTORIZADO',
+  cancelado_em TEXT, cancelamento_motivo TEXT, cancelamento_origem TEXT,
   origem TEXT DEFAULT 'planilha',
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );

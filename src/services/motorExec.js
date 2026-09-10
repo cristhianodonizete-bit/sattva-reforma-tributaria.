@@ -152,7 +152,7 @@ function carregar(empresaId, sentido, movimentoIds = null) {
       p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro
     FROM movimentos m
     LEFT JOIN parceiros p ON p.empresa_id = m.empresa_id AND p.tipo = m.tipo AND p.cnpj = m.inscr_federal
-    WHERE m.empresa_id = ? AND m.tipo = ?`;
+    WHERE m.empresa_id = ? AND m.tipo = ? AND COALESCE(m.situacao_documento,'AUTORIZADO') <> 'CANCELADO'`;
   const p = [empresaId, tipo];
   if (Array.isArray(movimentoIds)) {
     if (!movimentoIds.length) return [];
@@ -674,7 +674,7 @@ function resultadoMaterializado(empresa, ano) {
 /** Identifica apenas operações cuja entrada ou dependência mudou. */
 function pendentesIncrementais(empresaId, opcoes = {}) {
   prepararFilaIncremental();
-  if (opcoes.forcar) return db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(empresaId).map((m) => m.id);
+  if (opcoes.forcar) return db.prepare("SELECT id FROM movimentos WHERE empresa_id=? AND COALESCE(situacao_documento,'AUTORIZADO') <> 'CANCELADO'").all(empresaId).map((m) => m.id);
   return db.prepare('SELECT movimento_id FROM motor_pendencias WHERE empresa_id=? ORDER BY atualizado_em,movimento_id').all(empresaId)
     .map((x) => Number(x.movimento_id)).filter(Boolean);
 }

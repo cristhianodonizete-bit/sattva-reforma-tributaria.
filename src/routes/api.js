@@ -4401,15 +4401,32 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
     // Reenviar a mesma pasta não pode duplicar receita, crédito ou débito.
     const movimentoXmlExistente = db.prepare(`SELECT 1 FROM movimentos
       WHERE empresa_id=? AND origem='xml' AND chave=? AND item_numero=? LIMIT 1`);
+    const cancelarPorChave = db.prepare(`UPDATE movimentos SET situacao_documento='CANCELADO', cancelado_em=?, cancelamento_motivo=?, cancelamento_origem='XML_EVENTO_CANCELAMENTO'
+      WHERE empresa_id=? AND chave=? AND COALESCE(situacao_documento,'AUTORIZADO') <> 'CANCELADO'`);
+    const cancelarPorNumero = db.prepare(`UPDATE movimentos SET situacao_documento='CANCELADO', cancelado_em=?, cancelamento_motivo=?, cancelamento_origem='XML_EVENTO_CANCELAMENTO'
+      WHERE empresa_id=? AND modelo_documento_fiscal=? AND (documento=? OR documento LIKE ?) AND COALESCE(situacao_documento,'AUTORIZADO') <> 'CANCELADO'`);
 
     const relatorio = { arquivos: arquivos.length, documentos: 0, itens: 0, entradas: 0, saidas: 0,
       requerValidacao: 0, duplicados: 0, receita_saida_no_periodo: 0, receita_saida_fora_do_periodo: 0,
-      saidas_no_periodo: 0, saidas_fora_do_periodo: 0, erros: [], regimesSugeridos: 0 };
+      saidas_no_periodo: 0, saidas_fora_do_periodo: 0, erros: [], regimesSugeridos: 0, cancelamentos: 0, documentos_cancelados: 0 };
 
     db.transaction(() => {
       for (const f of arquivos) {
         try {
           const r = xml.lerXml(f.buffer.toString('utf8'), empresa.cnpj);
+          if (r.tipoDocumento === 'cancelamento') {
+            const c = r.cancelamento;
+            let alterados = 0;
+            if (c.chave) alterados = cancelarPorChave.run(c.data_cancelamento || null, c.motivo, req.params.id, c.chave).changes;
+            if (!alterados && c.documento) {
+              alterados = cancelarPorNumero.run(c.data_cancelamento || null, c.motivo, req.params.id, c.tipoDocumento,
+                c.documento, `%/${c.documento}`).changes;
+            }
+            relatorio.cancelamentos++;
+            relatorio.documentos_cancelados += alterados;
+            if (!alterados) relatorio.erros.push(`${f.originalname}: cancelamento reconhecido, mas o documento original não foi localizado nesta empresa.`);
+            continue;
+          }
           relatorio.documentos++;
           if (r.sentido === 'requer_validacao') {
             relatorio.requerValidacao++;

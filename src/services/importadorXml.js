@@ -56,12 +56,47 @@ function blocos(xml, nome) {
 
 /** Identifica o tipo de documento pelo elemento raiz */
 function identificar(xml) {
+  if (ehEventoCancelamento(xml)) return 'cancelamento';
   if (/<(?:[\w.-]+:)?infNFe\b/i.test(xml)) return /<mod>65<\/mod>/i.test(xml) ? 'nfce' : 'nfe';
   if (/<(?:[\w.-]+:)?infCte\b/i.test(xml)) return 'cte';
   if (/<(?:[\w.-]+:)?infNFSe\b/i.test(xml) || /<(?:[\w.-]+:)?InfDPS\b/i.test(xml)
       || /<(?:[\w.-]+:)?NFSe\b/i.test(xml)) return 'nfse';
   if (/<(?:[\w.-]+:)?infNFCom\b/i.test(xml)) return 'nfcom';
   return 'desconhecido';
+}
+
+// Eventos de cancelamento não possuem a estrutura de uma nota. NF-e usa
+// procEventoNFe/evento (tpEvento 110111); NFS-e municipais possuem diversos
+// leiautes, mas todos trazem uma âncora textual de cancelamento e a referência
+// da nota. Eles precisam ser tratados antes da identificação genérica.
+function ehEventoCancelamento(xml) {
+  const texto = String(xml || '');
+  const ancora = /<(?:[\w.-]+:)?procEventoNFe\b|<(?:[\w.-]+:)?evento\b|<(?:[\w.-]+:)?Cancelamento|<(?:[\w.-]+:)?PedidoCancelamento|<(?:[\w.-]+:)?ConfirmacaoCancelamento/i.test(texto);
+  return ancora && (/cancelamento|cancelad[ao]/i.test(texto) || /<tpEvento>110111<\/tpEvento>/i.test(texto));
+}
+function ehNfeCanceladaNoProprioXml(xml) {
+  if (!/<(?:[\w.-]+:)?infNFe\b/i.test(xml)) return false;
+  const protocolo = tag(xml, 'protNFe') || tag(xml, 'infProt');
+  return ['101', '151', '155'].includes(valor(protocolo, 'cStat')) && /cancel/i.test(valor(protocolo, 'xMotivo'));
+}
+function lerCancelamento(xml) {
+  const chave = primeiro(xml, ['chNFe', 'ChaveNFe', 'chNFSe', 'ChaveNfse', 'CodigoVerificacao']);
+  const numeroDocumento = primeiro(xml, ['nNFSe', 'NumeroNfse', 'NumeroNota', 'Numero', 'nNF']);
+  const tpEvento = valor(xml, 'tpEvento');
+  const cStat = valor(xml, 'cStat');
+  // Para NF-e, somente evento de cancelamento homologado pode baixar a nota.
+  if (/procEventoNFe|evento/i.test(xml) && tpEvento && tpEvento !== '110111') {
+    throw new Error(`Evento NF-e ${tpEvento} não é cancelamento.`);
+  }
+  if (/procEventoNFe|evento/i.test(xml) && cStat && !['101', '135', '151', '155'].includes(cStat)) {
+    throw new Error(`Cancelamento NF-e não homologado (cStat ${cStat}).`);
+  }
+  return {
+    tipoDocumento: /NFe|nfe/i.test(`${chave} ${xml}`) && !/NFSe|Nfse|nfse/i.test(xml) ? 'nfe' : 'nfse',
+    chave: soDigitos(chave), documento: String(numeroDocumento || '').trim(),
+    data_cancelamento: (primeiro(xml, ['dhRegEvento', 'DataHora', 'DataCancelamento', 'dhEvento']) || '').slice(0, 19),
+    motivo: primeiro(xml, ['xMotivo', 'MotivoCancelamento', 'xJust', 'Justificativa']) || 'Cancelamento informado no arquivo fiscal',
+  };
 }
 
 // ==========================================================================
@@ -350,6 +385,16 @@ function lerNfse(xml) {
  */
 function lerXml(conteudo, cnpjEmpresa) {
   const tipo = identificar(conteudo);
+  if (tipo === 'cancelamento') return { tipoDocumento: 'cancelamento', cancelamento: lerCancelamento(conteudo), itens: [] };
+  if (ehNfeCanceladaNoProprioXml(conteudo)) {
+    const chaveM = conteudo.match(/Id="?NFe(\d{44})"?/i);
+    const protocolo = tag(conteudo, 'protNFe') || tag(conteudo, 'infProt');
+    return { tipoDocumento: 'cancelamento', cancelamento: {
+      tipoDocumento: 'nfe', chave: chaveM ? chaveM[1] : '', documento: '',
+      data_cancelamento: (valor(protocolo, 'dhRecbto') || '').slice(0, 19),
+      motivo: valor(protocolo, 'xMotivo') || 'NF-e cancelada no XML autorizado',
+    }, itens: [] };
+  }
   let doc;
   if (tipo === 'nfe' || tipo === 'nfce') doc = lerNfe(conteudo);
   else if (tipo === 'cte') doc = lerCte(conteudo);
