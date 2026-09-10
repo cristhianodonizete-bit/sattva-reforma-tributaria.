@@ -4409,6 +4409,7 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
     const relatorio = { arquivos: arquivos.length, documentos: 0, itens: 0, entradas: 0, saidas: 0,
       requerValidacao: 0, duplicados: 0, receita_saida_no_periodo: 0, receita_saida_fora_do_periodo: 0,
       saidas_no_periodo: 0, saidas_fora_do_periodo: 0, erros: [], regimesSugeridos: 0, cancelamentos: 0, documentos_cancelados: 0 };
+    const movimentosCancelados = new Set();
 
     db.transaction(() => {
       for (const f of arquivos) {
@@ -4422,6 +4423,14 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
               alterados = cancelarPorNumero.run(c.data_cancelamento || null, c.motivo, req.params.id, c.tipoDocumento,
                 c.documento, `%/${c.documento}`).changes;
             }
+            // A fotografia do motor não pode continuar exibindo o resultado
+            // de uma nota que acabou de ser cancelada. A próxima execução
+            // recria os demais resultados normalmente; o original fiscal é
+            // preservado no movimento, apenas marcado como cancelado.
+            if (alterados) db.prepare(`DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN
+              (SELECT id FROM movimentos WHERE empresa_id=? AND situacao_documento='CANCELADO')`).run(req.params.id, req.params.id);
+            if (alterados) db.prepare(`SELECT id FROM movimentos WHERE empresa_id=? AND situacao_documento='CANCELADO'`).all(req.params.id)
+              .forEach((m) => movimentosCancelados.add(Number(m.id)));
             relatorio.cancelamentos++;
             relatorio.documentos_cancelados += alterados;
             if (!alterados) relatorio.erros.push(`${f.originalname}: cancelamento reconhecido, mas o documento original não foi localizado nesta empresa.`);
@@ -4472,6 +4481,15 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
         } catch (e) { relatorio.erros.push(`${f.originalname}: ${e.message}`); }
       }
     })();
+
+    // A fotografia remota ativa é desativada no mesmo pedido. Assim, um
+    // reinício do Render não ressuscita o cálculo de uma nota cancelada antes
+    // da próxima execução completa do motor.
+    if (movimentosCancelados.size && supabase.configurado()) {
+      const { error } = await supabase.admin().from('motor_resultados_operacionais')
+        .update({ ativo: false }).eq('empresa_id', Number(req.params.id)).in('movimento_id', [...movimentosCancelados]);
+      if (error) throw new Error(`Não foi possível invalidar a fotografia do motor para os documentos cancelados: ${error.message}`);
+    }
 
     db.prepare('UPDATE lotes SET registros = ? WHERE id = ?').run(relatorio.itens, lote.lastInsertRowid);
     const vinculo = vincularRegimes(req.params.id);
