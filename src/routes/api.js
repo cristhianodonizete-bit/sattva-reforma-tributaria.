@@ -52,6 +52,7 @@ const perfilTributarioHistorico = require('../services/perfilTributarioHistorico
 const comparadorRegimes = require('../services/comparadorRegimes');
 const apuracoesPisCofinsIa = require('../services/apuracoesPisCofinsIa');
 const pgdasDocumentoIa = require('../services/pgdasDocumentoIa');
+const pgdasNativePdfText = require('../services/pgdasNativePdfText');
 const pgdasIndiceSerpro = require('../services/pgdasIndiceSerpro');
 const integraContador = require('../services/integraContador');
 const azureDocumentIntelligence = require('../services/azureDocumentIntelligence');
@@ -1694,22 +1695,21 @@ router.post('/empresas/:id/importar/pgdas', upload.single('arquivo'), async (req
   } catch (e) { erro(res, e); }
 });
 
-// PGDAS em PDF/imagem: Azure torna o documento legível e a normalização só
-// aproveita rótulos explicitamente presentes. O perfil não é alterado antes
-// de o usuário revisar e confirmar competência e DAS.
+// PGDAS digital: a camada textual é extraída localmente. O PDF fiscal não é
+// enviado ao Azure; documentos escaneados ficam explicitamente pendentes de
+// um fallback futuro, sem OCR silencioso.
 router.post('/empresas/:id/pgdas/ingestao', upload.single('arquivo'), async (req, res) => {
   try {
     await exigirPeriodoParaImportacao(req);
     if (!req.file?.buffer) throw new Error('Envie o documento PGDAS no campo "arquivo".');
     const tipoDocumento = String(req.body?.tipo_documento || '').toUpperCase();
-    if (!['PDF', 'IMAGEM'].includes(tipoDocumento)) throw new Error('Para leitura Azure do PGDAS, informe PDF ou IMAGEM. Planilhas XLSX, XLS e CSV usam a importação estruturada.');
-    if (!azureDocumentIntelligence.config().ativo) throw new Error('Azure Document Intelligence não configurado para leitura de PGDAS em PDF ou imagem.');
-    const extraido = await azureDocumentIntelligence.extrair(req.file);
-    if (!String(extraido.texto || '').trim()) throw new Error('Não foi possível obter texto do documento PGDAS.');
-    const campos = pgdasDocumentoIa.normalizarTexto(extraido.texto, { localizacoes: extraido.localizacoes, metodo: 'NORMALIZACAO_DETERMINISTICA_AZURE' });
+    if (tipoDocumento !== 'PDF') throw new Error('O parser PGDAS atual aceita PDF digital. Imagens serão suportadas apenas por fallback OCR explícito.');
+    const extraido = await pgdasNativePdfText.extrair(req.file);
+    const campos = pgdasDocumentoIa.normalizarTexto(extraido.texto, { localizacoes: extraido.localizacoes, metodo: 'NATIVE_PDF_TEXT + PGDAS_DETERMINISTICO_V2' });
+    if (campos.find((x) => x.campo === 'document_type')?.valor_extraido !== 'PGDAS_D') throw new Error('INVALID_DOCUMENT: o arquivo não contém as âncoras “PGDAS-D” e “Simples Nacional”.');
     const resultado = pgdasDocumentoIa.ingerir(db, Number(req.params.id), {
       nome_original: req.file.originalname, tipo_documento: tipoDocumento, mime_type: req.file.mimetype,
-      conteudo_original: req.file.buffer, metodo_extracao: `${extraido.modelo} + NORMALIZACAO_DETERMINISTICA_V1`,
+      conteudo_original: req.file.buffer, metodo_extracao: `${extraido.modelo} + PGDAS_DETERMINISTICO_V2`,
     }, campos);
     ok(res, { ...resultado, campos_pendentes: campos.filter((x) => x.status_validacao !== 'VALIDADO_USUARIO').map((x) => x.campo) });
   } catch (e) { erro(res, e); }
@@ -1815,10 +1815,9 @@ router.post('/empresas/:id/integra-contador/pgdas/apuracao-vigente', async (req,
     if (!declaracao?.pdf || !declaracao?.nomeArquivo) throw new Error('O Integra Contador não retornou o PDF da declaração PGDAS-D.');
     const arquivo = { buffer:Buffer.from(String(declaracao.pdf), 'base64'), mimetype:'application/pdf', originalname:String(declaracao.nomeArquivo) };
     if (!arquivo.buffer.length || !arquivo.buffer.subarray(0, 4).equals(Buffer.from('%PDF'))) throw new Error('O PDF da declaração retornado pelo Integra Contador é inválido.');
-    if (!azureDocumentIntelligence.config().ativo) throw new Error('PDF oficial recuperado, mas o Azure Document Intelligence não está configurado para fazer a leitura.');
-    const extraido = await azureDocumentIntelligence.extrair(arquivo);
-    if (!String(extraido.texto || '').trim()) throw new Error('O Azure não encontrou texto legível na declaração PGDAS-D oficial.');
-    const campos = pgdasDocumentoIa.normalizarTexto(extraido.texto, { localizacoes:extraido.localizacoes, metodo:'INTEGRA_CONTADOR + NORMALIZACAO_DETERMINISTICA_AZURE' });
+    const extraido = await pgdasNativePdfText.extrair(arquivo);
+    const campos = pgdasDocumentoIa.normalizarTexto(extraido.texto, { localizacoes:extraido.localizacoes, metodo:'INTEGRA_CONTADOR + NATIVE_PDF_TEXT + PGDAS_DETERMINISTICO_V2' });
+    if (campos.find((x) => x.campo === 'document_type')?.valor_extraido !== 'PGDAS_D') throw new Error('INVALID_DOCUMENT: o retorno do Integra Contador não contém as âncoras do PGDAS-D.');
     // A competência é conhecida pela consulta, mas a extração continua
     // registrando somente fatos presentes no PDF para os demais campos.
     const campoCompetencia = campos.find((x) => x.campo === 'competencia');

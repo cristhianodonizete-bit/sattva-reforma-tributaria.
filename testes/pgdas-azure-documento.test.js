@@ -4,61 +4,78 @@ const pgdas = require('../src/services/pgdasDocumentoIa');
 
 const db = sqlite.abrir(':memory:');
 db.exec(`
-  CREATE TABLE empresas (id INTEGER PRIMARY KEY, regime TEXT);
-  CREATE TABLE perfil_tributario (id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER, competencia TEXT, receita_bruta REAL, receita_recebida REAL, receita_mercadorias REAL, receita_servicos REAL, receita_exportacao REAL, pis REAL, cofins REAL, das REAL, origem TEXT);
-  CREATE TABLE pgdas_documentos (id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER, nome_original TEXT, tipo_documento TEXT, mime_type TEXT, conteudo_original BLOB, hash_sha256 TEXT, competencia_detectada TEXT, data_processamento TEXT, metodo_extracao TEXT, status_processamento TEXT);
-  CREATE TABLE pgdas_documento_campos (id INTEGER PRIMARY KEY AUTOINCREMENT, documento_id INTEGER, campo TEXT, valor_extraido TEXT, rotulo_original TEXT, pagina_ou_localizacao TEXT, confianca REAL, metodo_extracao TEXT, status_validacao TEXT);
-  CREATE TABLE movimentos (empresa_id INTEGER, competencia TEXT, sentido TEXT, valor REAL, ncm TEXT, nbs TEXT, lc116 TEXT);
-  CREATE TABLE param_simples (anexo TEXT, faixa INTEGER, limite REAL, aliquota_nominal REAL, parcela_deduzir REAL, rep_cofins REAL, rep_pis REAL);
-  INSERT INTO empresas VALUES (1, 'simples_nacional'), (2, 'lucro_presumido');
-  INSERT INTO param_simples VALUES ('I',1,180000,0.04,0,0.1274,0.0276), ('III',1,180000,0.06,0,0.1282,0.0278);
+ CREATE TABLE empresas (id INTEGER PRIMARY KEY, regime TEXT);
+ CREATE TABLE perfil_tributario (id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER, competencia TEXT, receita_bruta REAL, receita_recebida REAL, receita_mercadorias REAL, receita_servicos REAL, receita_exportacao REAL, pis REAL, cofins REAL, das REAL, origem TEXT);
+ CREATE TABLE pgdas_documentos (id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER, nome_original TEXT, tipo_documento TEXT, mime_type TEXT, conteudo_original BLOB, hash_sha256 TEXT, competencia_detectada TEXT, data_processamento TEXT, metodo_extracao TEXT, status_processamento TEXT);
+ CREATE TABLE pgdas_documento_campos (id INTEGER PRIMARY KEY AUTOINCREMENT, documento_id INTEGER, campo TEXT, valor_extraido TEXT, rotulo_original TEXT, pagina_ou_localizacao TEXT, confianca REAL, metodo_extracao TEXT, status_validacao TEXT);
+ CREATE TABLE movimentos (empresa_id INTEGER, competencia TEXT, sentido TEXT, valor REAL, ncm TEXT, nbs TEXT, lc116 TEXT);
+ CREATE TABLE param_simples (anexo TEXT, faixa INTEGER, limite REAL, aliquota_nominal REAL, parcela_deduzir REAL, rep_cofins REAL, rep_pis REAL);
+ INSERT INTO empresas VALUES (1,'simples_nacional'),(2,'lucro_presumido');
+ INSERT INTO param_simples VALUES
+ ('I',4,1800000,.107,22500,.1274,.0276),
+ ('III',4,1800000,.16,35640,.1364,.0296);
 `);
 
-const campos = pgdas.normalizarTexto(`Competência: 02/2026\nReceita Bruta: R$ 12.500,00\nValor DAS: R$ 775,30\nPIS: R$ 12,00`, { localizacoes: [{ texto: 'Valor DAS: R$ 775,30', pagina: 2, confianca: .91 }] });
-assert.strictEqual(campos.find((x) => x.campo === 'competencia').valor_extraido, '2026-02');
-assert.strictEqual(campos.find((x) => x.campo === 'das').valor_extraido, 775.3);
-assert.strictEqual(campos.find((x) => x.campo === 'cofins').valor_extraido, null, 'ausência não pode virar zero');
-const tabela = pgdas.normalizarTexto('Receita Bruta Total | R$ 100.000,00\nValor do DAS | R$ 6.500,00\nPIS/Pasep | R$ 100,00\nCofins | R$ 450,00');
-assert.strictEqual(tabela.find((x) => x.campo === 'receita_bruta').valor_extraido, 100000);
-assert.strictEqual(tabela.find((x) => x.campo === 'das').valor_extraido, 6500);
-assert.strictEqual(tabela.find((x) => x.campo === 'pis').valor_extraido, 100);
-assert.strictEqual(tabela.find((x) => x.campo === 'cofins').valor_extraido, 450);
-const ambigua = pgdas.normalizarTexto(`Receita Bruta do PA (RPA) - Competência | DAS | PIS\n0,00 | 7.000,00 | 100,00\nDocumento completo Receita Bruta DAS PIS Cofins R$ 900.000,00 R$ 0,00`);
-assert.strictEqual(ambigua.find((x) => x.campo === 'receita_bruta').valor_extraido, null, 'linha com várias colunas não pode atribuir valor à receita');
-const oficial = pgdas.normalizarTexto(`Receita Bruta Auferida (regime competência) | Receita Bruta Recebida (regime caixa) | Valor Total do Débito Declarado (R$)\n112.476,41 | 102.292,29 | 12.850,97\nSublimite de Receita Anual (R$): 3.600.000,00 | Impedido de recolher ICMS/ISS no DAS: Não\nIRPJ | CSLL | COFINS | PIS/Pasep | INSS/CPP | ICMS | IPI | ISS | Total\n558,28 | 462,51 | 1.784,61 | 387,18 | 5.707,32 | 663,49 | 0,00 | 3.287,58 | 12.850,97`);
-assert.strictEqual(oficial.find((x) => x.campo === 'receita_bruta').valor_extraido, 112476.41);
-assert.strictEqual(oficial.find((x) => x.campo === 'receita_recebida').valor_extraido, 102292.29);
-assert.strictEqual(oficial.find((x) => x.campo === 'das').valor_extraido, 12850.97);
-assert.strictEqual(oficial.find((x) => x.campo === 'pis').valor_extraido, 387.18);
-assert.strictEqual(oficial.find((x) => x.campo === 'cofins').valor_extraido, 1784.61);
-const oficialCompetencia = pgdas.normalizarTexto(`Receita Bruta Auferida (regime competência) | Valor Total do Débito Declarado (R$)\n111.375,75 | 5.200,10\nIRPJ | CSLL | COFINS | PIS/Pasep | INSS/CPP | ICMS | IPI | ISS | Total\n10,00 | 10,00 | 409,34 | 88,68 | 0,00 | 0,00 | 0,00 | 0,00 | 518,02\nIRPJ | CSLL | COFINS | PIS/Pasep | INSS/CPP | ICMS | IPI | ISS | Total\n20,00 | 20,00 | 1.900,00 | 400,00 | 0,00 | 0,00 | 0,00 | 0,00 | 2.340,00`);
-assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'receita_bruta').valor_extraido, 111375.75);
-assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'receita_recebida').valor_extraido, null);
-assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'das').valor_extraido, 5200.1);
-assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'pis').valor_extraido, 400);
-assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'cofins').valor_extraido, 1900);
-const r = pgdas.ingerir(db, 1, { nome_original: 'pgdas.pdf', tipo_documento: 'PDF', mime_type: 'application/pdf', conteudo_original: Buffer.from('pgdas fevereiro'), metodo_extracao: 'prebuilt-layout + NORMALIZACAO' }, campos);
-assert.strictEqual(db.prepare('SELECT COUNT(*) c FROM perfil_tributario').get().c, 0, 'OCR pendente nunca entra no histórico antes da confirmação');
-assert.strictEqual(pgdas.listar(db, 1)[0].campos_extraidos.length, 10);
-const confirmado = pgdas.confirmar(db, 1, r.documento_id);
-assert.strictEqual(confirmado.status_processamento, 'VALIDADO_USUARIO');
-const perfil = db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id=1').get();
-assert.strictEqual(perfil.competencia, '2026-02');
-assert.strictEqual(perfil.das, 775.3);
-assert.strictEqual(perfil.cofins, null);
-const camposCaixa = pgdas.normalizarTexto(`Competência: 03/2026\nReceita Bruta Auferida (regime competência) | Receita Bruta Recebida (regime caixa) | Valor Total do Débito Declarado (R$)\n100.000,00 | 80.000,00 | 5.000,00\nIRPJ | CSLL | COFINS | PIS/Pasep | INSS/CPP | ICMS | IPI | ISS | Total\n1,00 | 1,00 | 800,00 | 200,00 | 0,00 | 0,00 | 0,00 | 0,00 | 1.002,00`);
-const caixa = pgdas.ingerir(db, 1, { nome_original:'caixa.pdf', tipo_documento:'INTEGRA_CONTADOR_PDF', conteudo_original:Buffer.from('pgdas caixa'), metodo_extracao:'teste' }, camposCaixa);
-const caixaConfirmado = pgdas.confirmar(db, 1, caixa.documento_id);
-const perfilCaixa = db.prepare("SELECT * FROM perfil_tributario WHERE empresa_id=1 AND competencia='2026-03'").get();
-assert.strictEqual(perfilCaixa.pis, 250);
-assert.strictEqual(perfilCaixa.cofins, 1000);
-assert.strictEqual(caixaConfirmado.ajuste_caixa.fator_competencia, 1.25);
-db.prepare("INSERT INTO movimentos VALUES (1,'2026-04','saida',100000,'12345678','','')").run();
-const camposTabela = camposCaixa.map((x) => x.campo === 'competencia' ? { ...x, valor_extraido:'2026-04' } : x).concat([{ campo:'rbt12', valor_extraido:100000, rotulo_original:'RBT12', pagina_ou_localizacao:null, confianca:1, metodo_extracao:'teste', status_validacao:'REQUER_VALIDACAO' }]);
-const tabelaDoc = pgdas.ingerir(db, 1, { nome_original:'tabela.pdf', tipo_documento:'INTEGRA_CONTADOR_PDF', conteudo_original:Buffer.from('pgdas tabela'), metodo_extracao:'teste' }, camposTabela);
-const tabelaConfirmada = pgdas.confirmar(db, 1, tabelaDoc.documento_id);
-assert.strictEqual(tabelaConfirmada.calculo_tabela_simples.pis, 110.4);
-assert.strictEqual(tabelaConfirmada.calculo_tabela_simples.cofins, 509.6);
-assert.throws(() => pgdas.ingerir(db, 2, { nome_original: 'x.pdf', tipo_documento: 'PDF', conteudo_original: Buffer.from('x'), metodo_extracao: 'teste' }, campos), /Simples Nacional/);
+const extrato = `Programa Gerador do Documento de Arrecadação do Simples Nacional - Declaratório
+PGDAS-D 2018
+Versão: 2.2.29
+Período de Apuração: 01/06/2026 a 30/06/2026
+Regime de Apuração: Caixa
+2.6) Resumo da Declaração
+Receita Bruta Auferida (regime competência) Receita Bruta Recebida (regime caixa) Valor Total do Débito Declarado (R$)
+112.476,41 102.292,29 12.850,97
+Receita bruta acumulada nos doze meses anteriores ao PA (RBT12) 1.659.529,60 0,00 1.659.529,60
+Valor do Débito por Tributo para a Atividade (R$):
+Revenda de mercadorias, exceto para o exterior - Sem substituição tributária/tributação monofásica/antecipação com encerramento de tributação
+Receita Bruta Informada: R$ 21.195,83
+IRPJ CSLL COFINS PIS/Pasep INSS/CPP ICMS IPI ISS Total
+108,93 69,32 252,33 54,66 831,84 663,49 0,00 0,00 1.980,57
+Valor do Débito por Tributo para a Atividade (R$):
+Locação de bens móveis, exceto para o exterior
+Receita Bruta Informada: R$ 4.182,32
+IRPJ CSLL COFINS PIS/Pasep INSS/CPP ICMS IPI ISS Total
+23,17 20,28 79,02 17,15 251,44 0,00 0,00 0,00 391,06
+Valor do Débito por Tributo para a Atividade (R$):
+Prestação de Serviços, exceto para o exterior - Não sujeitos ao fator r e tributados pelo Anexo III, sem retenção/substituição tributária de ISS
+Receita Bruta Informada: R$ 73.024,43
+IRPJ CSLL COFINS PIS/Pasep INSS/CPP ICMS IPI ISS Total
+404,63 354,05 1.379,77 299,42 4.390,19 0,00 0,00 3.287,58 10.115,64
+Valor do Débito por Tributo para a Atividade (R$):
+Prestação de Serviços, exceto para o exterior - Não sujeitos ao fator r e tributados pelo Anexo III, com retenção/substituição tributária de ISS
+Receita Bruta Informada: R$ 3.889,71
+IRPJ CSLL COFINS PIS/Pasep INSS/CPP ICMS IPI ISS Total
+21,55 18,86 73,49 15,95 233,85 0,00 0,00 0,00 363,70
+Totais do Estabelecimento
+Total do Débito Declarado (exigível + suspenso)
+IRPJ CSLL COFINS PIS/Pasep INSS/CPP ICMS IPI ISS Total
+558,28 462,51 1.784,61 387,18 5.707,32 663,49 0,00 3.287,58 12.850,97`;
+
+const campos = pgdas.normalizarTexto(extrato);
+assert.equal(campos.find((x) => x.campo === 'document_type').valor_extraido, 'PGDAS_D');
+assert.equal(campos.find((x) => x.campo === 'competencia').valor_extraido, '2026-06');
+assert.equal(campos.find((x) => x.campo === 'rbt12').valor_extraido, 1659529.60);
+assert.equal(campos.find((x) => x.campo === 'receita_bruta').valor_extraido, 112476.41);
+assert.equal(campos.find((x) => x.campo === 'receita_recebida').valor_extraido, 102292.29);
+const blocos = JSON.parse(campos.find((x) => x.campo === 'revenue_blocks').valor_extraido);
+assert.equal(blocos.length, 4);
+assert.equal(blocos[0].anexo, 'I'); assert.equal(blocos[2].anexo, 'III');
+const valores = Object.fromEntries(campos.map((x) => [x.campo, x.campo === 'competencia' ? x.valor_extraido : Number(x.valor_extraido)]));
+const validacao = pgdas.validarRegraBlocos(db, valores, blocos);
+assert.equal(validacao.validada, true, validacao.motivo);
+assert.equal(validacao.blocos[0].pgdas_validation.calculated_pis, 54.66);
+assert.equal(validacao.blocos[2].pgdas_validation.calculated_cofins, 1379.77);
+
+// A competência vem dos DFe classificados: nunca se reaproveita a distribuição do caixa.
+db.prepare("INSERT INTO movimentos VALUES (1,'2026-06','saida',50000,'12345678','',''),(1,'2026-06','saida',70000,'','1.01.01','')").run();
+const doc = pgdas.ingerir(db,1,{nome_original:'pgdas.pdf',tipo_documento:'INTEGRA_CONTADOR_PDF',mime_type:'application/pdf',conteudo_original:Buffer.from('pgdas junho'),metodo_extracao:'teste'},campos);
+const confirmado=pgdas.confirmar(db,1,doc.documento_id);
+assert.equal(confirmado.validacao_regra_simples.validada,true);
+assert.equal(confirmado.calculo_competencia.status,'REVIEW_REQUIRED');
+assert.equal(confirmado.calculo_competencia.pis,null, 'não presume rateio entre serviços com e sem retenção');
+assert.equal(confirmado.status_processamento,'VALIDADO_USUARIO');
+
+const desconhecido=pgdas.normalizarTexto('arquivo sem âncoras fiscais');
+assert.equal(desconhecido.find((x)=>x.campo==='document_type').status_validacao,'INVALID_DOCUMENT');
+assert.throws(()=>pgdas.ingerir(db,2,{nome_original:'x.pdf',tipo_documento:'PDF',conteudo_original:Buffer.from('x'),metodo_extracao:'teste'},campos),/Simples Nacional/);
 db.close();
-console.log('PGDAS Azure: leitura determinística, revisão, confirmação e ausência preservada aprovadas.');
+console.log('PGDAS: parser determinístico, blocos, validação tributária e competência aprovados.');
