@@ -664,10 +664,18 @@ Telas.dados = async (el) => {
     el.querySelectorAll('[data-pgdas-revisar]').forEach((b) => { b.onclick = () => {
       const doc = (pgdasResposta.documentos || []).find((x) => Number(x.id) === Number(b.dataset.pgdasRevisar));
       if (!doc) return;
+      const blocos = doc.validacao_regra_simples?.blocos || [];
+      const auditoria = blocos.length ? `<h3>Validação tributária por bloco</h3>${A.tabela([
+        {t:'Bloco / Anexo',r:x=>`${A.esc(x.description_raw || '—')}<br><span class="mini">Anexo ${A.esc(x.anexo)} · faixa ${A.esc(x.calculation?.faixa)} · RBT12 ${A.moeda(x.calculation?.rbt12 || 0)}</span>`},
+        {t:'Regra do Simples',r:x=>`Nominal ${A.pct(x.calculation?.aliquota_nominal || 0)} · dedução ${A.moeda(x.calculation?.parcela_deduzir || 0)}<br><span class="mini">Efetiva ${A.pct(x.calculation?.aliquota_efetiva_simples || 0)} · PIS ${A.pct(x.calculation?.pis_distribution_percentage || 0)} · COFINS ${A.pct(x.calculation?.cofins_distribution_percentage || 0)}</span>`},
+        {t:'PIS',r:x=>`PGDAS ${A.moeda(x.pgdas_validation?.pgdas_pis || 0)} · calculado ${A.moeda(x.pgdas_validation?.calculated_pis || 0)}<br><span class="mini">diferença ${A.moeda(x.pgdas_validation?.pis_difference || 0)} · ${x.pgdas_validation?.pis_match ? 'confere' : 'revisar'}</span>`},
+        {t:'COFINS',r:x=>`PGDAS ${A.moeda(x.pgdas_validation?.pgdas_cofins || 0)} · calculado ${A.moeda(x.pgdas_validation?.calculated_cofins || 0)}<br><span class="mini">diferença ${A.moeda(x.pgdas_validation?.cofins_difference || 0)} · ${x.pgdas_validation?.cofins_match ? 'confere' : 'revisar'}</span>`},
+        {t:'Status',r:x=>A.esc(x.pgdas_validation?.calculation_status || 'REVIEW_REQUIRED')}
+      ], blocos, {vazio:'Não foi possível derivar a regra tributária deste documento.'})}` : '<div class="aviso atencao">A regra tributária ainda não pôde ser derivada: confira RBT12 e os blocos de receita.</div>';
       A.modal({ titulo: `Revisar PGDAS — ${doc.nome_original}`, largura: 1050, confirmar: 'Fechar', corpo: A.tabela([
         {t:'Campo',r:x=>A.esc(x.campo)}, {t:'Valor',r:x=>x.valor_extraido === null ? 'Não identificado' : A.esc(x.valor_extraido)},
         {t:'Confiança',r:x=>x.confianca === null ? 'Não identificada' : `${Math.round(Number(x.confianca) * 100)}%`}, {t:'Origem',r:x=>`${A.esc(x.rotulo_original || 'Não identificado')} · ${A.esc(x.pagina_ou_localizacao || 'sem página')}`}, {t:'Validação',r:x=>A.esc(x.status_validacao)}
-      ], doc.campos_extraidos || [], {vazio:'Nenhum campo identificado.'}), aoConfirmar: async () => {} });
+      ], doc.campos_extraidos || [], {vazio:'Nenhum campo identificado.'}) + auditoria, aoConfirmar: async () => {} });
     }; });
     el.querySelectorAll('[data-pgdas-reprocessar]').forEach((b) => { b.onclick = () => A.confirmar('Reler este PDF PGDAS já armazenado com as regras atuais? Isso não fará nova consulta ao Integra Contador.', async () => {
       await A.api(`/empresas/${S.empresaId}/pgdas/documentos/${b.dataset.pgdasReprocessar}/reprocessar`, {metodo:'POST',corpo:{}});

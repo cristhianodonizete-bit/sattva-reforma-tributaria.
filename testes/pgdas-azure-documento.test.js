@@ -1,6 +1,7 @@
 const assert = require('assert');
 const sqlite = require('../src/sqlite');
 const pgdas = require('../src/services/pgdasDocumentoIa');
+const r2 = (v) => Math.round((Number(v) + Number.EPSILON) * 10000) / 10000;
 
 const db = sqlite.abrir(':memory:');
 db.exec(`
@@ -64,12 +65,33 @@ assert.equal(blocos[2].iss_withheld, false, '"sem retenção" deve prevalecer');
 assert.equal(blocos[3].factor_r_applicable, false);
 assert.equal(blocos[3].iss_withheld, true, '"com retenção" deve ser ISS retido');
 const valores = Object.fromEntries(campos.map((x) => [x.campo, x.campo === 'competencia' ? x.valor_extraido : Number(x.valor_extraido)]));
+// Funções unitárias do motor: nenhuma deriva taxa de PIS/Cofins a partir do
+// valor lido no PDF. A origem é sempre faixa + repartição de param_simples.
+const faixaIII=pgdas.findSimplesBracket(db,{anexo:'III',rbt12:1659529.60,periodo_apuracao:'2026-06'});
+assert.equal(faixaIII.faixa,4);
+assert.equal(faixaIII.rbt12_max,1800000);
+const efetivaIII=pgdas.calculateSimplesEffectiveRate({rbt12:1659529.60,aliquota_nominal:faixaIII.aliquota_nominal,parcela_deduzir:faixaIII.parcela_deduzir});
+assert.equal(r2(efetivaIII),0.1385);
+const distribuicaoIII=pgdas.getTaxDistribution(faixaIII);
+assert.equal(distribuicaoIII.pis_distribution_percentage,.0296);
+assert.equal(distribuicaoIII.cofins_distribution_percentage,.1364);
+assert.equal(r2(pgdas.calculatePisEffectiveRate(efetivaIII,distribuicaoIII.pis_distribution_percentage)),.0041);
+assert.equal(r2(pgdas.calculateCofinsEffectiveRate(efetivaIII,distribuicaoIII.cofins_distribution_percentage)),.0189);
+const reproducao=pgdas.reproducePgdasTaxes({revenue_amount:73024.43,pis_effective_rate:efetivaIII*distribuicaoIII.pis_distribution_percentage,cofins_effective_rate:efetivaIII*distribuicaoIII.cofins_distribution_percentage,pgdas_pis:299.42,pgdas_cofins:1379.77});
+assert.equal(reproducao.tax_rule_validated,true);
+assert.equal(reproducao.calculation_status,'MATHEMATICALLY_VALIDATED');
+assert.equal(campos.find((x)=>x.campo==='rpa_competencia').valor_extraido,112476.41);
+assert.equal(campos.find((x)=>x.campo==='rpa_caixa').valor_extraido,102292.29);
+assert.equal(campos.find((x)=>x.campo==='receita_mercadorias').valor_extraido,21195.83);
+assert.equal(campos.find((x)=>x.campo==='receita_servicos').valor_extraido,76914.14);
+assert.equal(campos.find((x)=>x.campo==='receita_locacao').valor_extraido,4182.32);
 const validacao = pgdas.validarRegraBlocos(db, valores, blocos);
 assert.equal(validacao.validada, true, validacao.motivo);
 assert.equal(validacao.blocos[0].pgdas_validation.calculated_pis, 54.66);
 assert.equal(validacao.blocos[2].pgdas_validation.calculated_cofins, 1379.77);
 assert.equal(validacao.blocos[3].aceite_tributario.iss_withheld, undefined, 'retenção é classificação, não taxa calculada');
 assert.equal(validacao.blocos[3].aceite_tributario.cofins_match, true);
+assert.equal(validacao.blocos.every((b)=>b.pgdas_validation.tax_rule_validated),true);
 
 // A competência vem dos DFe classificados: nunca se reaproveita a distribuição do caixa.
 db.prepare("INSERT INTO movimentos VALUES (1,'2026-06','saida',50000,'12345678','',''),(1,'2026-06','saida',70000,'','1.01.01','')").run();
