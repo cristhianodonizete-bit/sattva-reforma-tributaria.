@@ -28,6 +28,12 @@ assert.strictEqual(oficial.find((x) => x.campo === 'receita_recebida').valor_ext
 assert.strictEqual(oficial.find((x) => x.campo === 'das').valor_extraido, 12850.97);
 assert.strictEqual(oficial.find((x) => x.campo === 'pis').valor_extraido, 387.18);
 assert.strictEqual(oficial.find((x) => x.campo === 'cofins').valor_extraido, 1784.61);
+const oficialCompetencia = pgdas.normalizarTexto(`Receita Bruta Auferida (regime competência) | Valor Total do Débito Declarado (R$)\n111.375,75 | 5.200,10\nIRPJ | CSLL | COFINS | PIS/Pasep | INSS/CPP | ICMS | IPI | ISS | Total\n10,00 | 10,00 | 409,34 | 88,68 | 0,00 | 0,00 | 0,00 | 0,00 | 518,02\nIRPJ | CSLL | COFINS | PIS/Pasep | INSS/CPP | ICMS | IPI | ISS | Total\n20,00 | 20,00 | 1.900,00 | 400,00 | 0,00 | 0,00 | 0,00 | 0,00 | 2.340,00`);
+assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'receita_bruta').valor_extraido, 111375.75);
+assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'receita_recebida').valor_extraido, null);
+assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'das').valor_extraido, 5200.1);
+assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'pis').valor_extraido, 400);
+assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'cofins').valor_extraido, 1900);
 const r = pgdas.ingerir(db, 1, { nome_original: 'pgdas.pdf', tipo_documento: 'PDF', mime_type: 'application/pdf', conteudo_original: Buffer.from('pgdas fevereiro'), metodo_extracao: 'prebuilt-layout + NORMALIZACAO' }, campos);
 assert.strictEqual(db.prepare('SELECT COUNT(*) c FROM perfil_tributario').get().c, 0, 'OCR pendente nunca entra no histórico antes da confirmação');
 assert.strictEqual(pgdas.listar(db, 1)[0].campos_extraidos.length, 9);

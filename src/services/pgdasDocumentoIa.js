@@ -50,19 +50,23 @@ function normalizarTexto(textoDocumento, { localizacoes = [], metodo = 'NORMALIZ
   const moedasNaLinha = (linha) => (String(linha || '').match(/(?:R\$\s*)?\d{1,3}(?:\.\d{3})*,\d{2}/g) || []).map(valorNumero).filter((x) => x !== null);
   // Layout oficial PGDAS-D: o resumo traz competência, caixa e débito na
   // mesma tabela. Não confundir esses números com o sublimite anual.
-  const indiceResumo = linhas.findIndex((linha) => /receita\s+bruta\s+auferida/i.test(linha) && /receita\s+bruta\s+recebida/i.test(linha) && /d[eé]bito\s+declarado/i.test(linha));
+  const indiceResumo = linhas.findIndex((linha) => /receita\s+bruta\s+auferida/i.test(linha) && /d[eé]bito\s+declarado/i.test(linha));
   if (indiceResumo >= 0) {
     const valores = moedasNaLinha(linhas.slice(indiceResumo + 1, indiceResumo + 3).join(' | '));
-    if (valores.length >= 3) {
+    const possuiCaixa = /receita\s+bruta\s+recebida/i.test(linhas[indiceResumo]);
+    if (possuiCaixa && valores.length >= 3) {
       reconhecer('receita_bruta', valores[0], linhas[indiceResumo], 0.95);
       reconhecer('receita_recebida', valores[1], linhas[indiceResumo], 0.95);
       reconhecer('das', valores[2], linhas[indiceResumo], 0.95);
+    } else if (!possuiCaixa && valores.length >= 2) {
+      reconhecer('receita_bruta', valores[0], linhas[indiceResumo], 0.95);
+      reconhecer('das', valores[1], linhas[indiceResumo], 0.95);
     }
   }
   // A última grade de "Total do Débito" é o consolidado da empresa. As
   // colunas são fixas no documento oficial: COFINS é a terceira e PIS a quarta.
   const cabecalhosTributos = linhas.map((linha, indice) => ({ linha, indice })).filter(({ linha }) => /IRPJ.*CSLL.*COFINS.*PIS\/Pasep/i.test(linha));
-  for (const { linha, indice } of cabecalhosTributos) {
+  for (const { linha, indice } of [...cabecalhosTributos].reverse()) {
     const valores = moedasNaLinha(linhas.slice(indice + 1, indice + 3).join(' | '));
     if (valores.length >= 4) {
       reconhecer('cofins', valores[2], linha, 0.9);
