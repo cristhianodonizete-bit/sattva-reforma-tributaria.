@@ -211,7 +211,7 @@ function declaracoesPorCompetencia(resposta, competenciasAlvo = []) {
 function diagnosticoDeclaracoes(resposta, competenciasAlvo = []) {
   const alvo = new Set(competenciasAlvo);
   const itens = objetos(resposta);
-  let comPeriodo = 0, noPeriodoSolicitado = 0, comDas = 0;
+  let comPeriodo = 0, noPeriodoSolicitado = 0, comDas = 0, indicesDas = 0, indicesDeclaracao = 0;
   const camposDoPeriodo = new Set(), camposOperacoes = new Set();
   for (const item of itens) {
     const campos = camposDeDeclaracao(item);
@@ -225,10 +225,14 @@ function diagnosticoDeclaracoes(resposta, competenciasAlvo = []) {
     Object.keys(item).forEach((chaveCampo) => camposDoPeriodo.add(String(chaveCampo).slice(0, 80)));
     const operacoes = item.operacoes;
     const listaOperacoes = Array.isArray(operacoes) ? operacoes : operacoes && typeof operacoes === 'object' ? [operacoes] : [];
-    listaOperacoes.forEach((operacao) => Object.keys(operacao || {}).forEach((chaveCampo) => camposOperacoes.add(String(chaveCampo).slice(0, 80))));
+    listaOperacoes.forEach((operacao) => {
+      Object.keys(operacao || {}).forEach((chaveCampo) => camposOperacoes.add(String(chaveCampo).slice(0, 80)));
+      if (operacao?.indiceDas) indicesDas++;
+      if (operacao?.indiceDeclaracao) indicesDeclaracao++;
+    });
     if (campos.find((x) => x.campo === 'das')?.valor_extraido !== null) comDas++;
   }
-  return { objetos_analisados: itens.length, objetos_com_competencia: comPeriodo, objetos_no_periodo: noPeriodoSolicitado, objetos_com_das: comDas, campos_identificados: [...camposDoPeriodo].sort().slice(0, 40), ...(camposOperacoes.size ? { campos_operacoes: [...camposOperacoes].sort().slice(0, 40) } : {}) };
+  return { objetos_analisados: itens.length, objetos_com_competencia: comPeriodo, objetos_no_periodo: noPeriodoSolicitado, objetos_com_das: comDas, operacoes_com_indice_declaracao: indicesDeclaracao, operacoes_com_indice_das: indicesDas, campos_identificados: [...camposDoPeriodo].sort().slice(0, 40), ...(camposOperacoes.size ? { campos_operacoes: [...camposOperacoes].sort().slice(0, 40) } : {}) };
 }
 
 module.exports = { config, status, consultarDeclaracoes, verificarProcuracao, declaracoesPorCompetencia, diagnosticoDeclaracoes, camposDeDeclaracao, competencia, numero };

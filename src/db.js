@@ -320,6 +320,64 @@ CREATE TABLE IF NOT EXISTS integra_contador_log (
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_integra_contador_log_empresa ON integra_contador_log(empresa_id, id DESC);
+-- Índice PGDAS-D retornado pelo CONSDECLARACAO13. A declaração e o DAS podem
+-- estar em operações diferentes; estas tabelas preservam ambos sem supor que
+-- o índice contenha a memória de cálculo.
+CREATE TABLE IF NOT EXISTS pgdas_apuracoes_serpro (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  competencia TEXT NOT NULL,
+  status_declaracao TEXT NOT NULL DEFAULT 'SEM_DECLARACAO',
+  status_das TEXT NOT NULL DEFAULT 'NAO_GERADO',
+  status_pagamento TEXT NOT NULL DEFAULT 'NAO_IDENTIFICADO',
+  declaracao_vigente_numero TEXT,
+  das_vigente_numero TEXT,
+  ultima_consulta_em TEXT NOT NULL,
+  UNIQUE(empresa_id, competencia)
+);
+CREATE TABLE IF NOT EXISTS pgdas_declaracoes_serpro (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  apuracao_id INTEGER NOT NULL REFERENCES pgdas_apuracoes_serpro(id) ON DELETE CASCADE,
+  numero_declaracao TEXT NOT NULL UNIQUE,
+  tipo_operacao TEXT,
+  data_transmissao TEXT,
+  vigente INTEGER NOT NULL DEFAULT 0,
+  status TEXT NOT NULL DEFAULT 'TRANSMITIDA',
+  indice_json TEXT NOT NULL,
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS pgdas_das_serpro (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  apuracao_id INTEGER NOT NULL REFERENCES pgdas_apuracoes_serpro(id) ON DELETE CASCADE,
+  numero_das TEXT NOT NULL UNIQUE,
+  data_emissao TEXT,
+  pago INTEGER,
+  status TEXT NOT NULL DEFAULT 'GERADO',
+  indice_json TEXT NOT NULL,
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS pgdas_operacoes_serpro (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  apuracao_id INTEGER NOT NULL REFERENCES pgdas_apuracoes_serpro(id) ON DELETE CASCADE,
+  tipo_operacao TEXT NOT NULL,
+  numero_referencia TEXT NOT NULL,
+  indice_json TEXT NOT NULL,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(apuracao_id, tipo_operacao, numero_referencia)
+);
+CREATE TABLE IF NOT EXISTS integra_contador_respostas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  competencia TEXT NOT NULL,
+  id_servico TEXT NOT NULL,
+  versao_servico TEXT NOT NULL,
+  resposta_json TEXT NOT NULL,
+  hash_resposta TEXT NOT NULL,
+  consultado_em TEXT NOT NULL,
+  UNIQUE(empresa_id, competencia, id_servico, hash_resposta)
+);
+CREATE INDEX IF NOT EXISTS ix_pgdas_apuracoes_serpro_empresa ON pgdas_apuracoes_serpro(empresa_id, competencia DESC);
+CREATE INDEX IF NOT EXISTS ix_integra_respostas_empresa ON integra_contador_respostas(empresa_id, competencia DESC);
 CREATE TABLE IF NOT EXISTS pgdas_documento_campos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   documento_id INTEGER NOT NULL REFERENCES pgdas_documentos(id) ON DELETE CASCADE,

@@ -52,6 +52,7 @@ const perfilTributarioHistorico = require('../services/perfilTributarioHistorico
 const comparadorRegimes = require('../services/comparadorRegimes');
 const apuracoesPisCofinsIa = require('../services/apuracoesPisCofinsIa');
 const pgdasDocumentoIa = require('../services/pgdasDocumentoIa');
+const pgdasIndiceSerpro = require('../services/pgdasIndiceSerpro');
 const integraContador = require('../services/integraContador');
 const azureDocumentIntelligence = require('../services/azureDocumentIntelligence');
 const normalizacaoFiscalXml = require('../services/normalizacaoFiscalXml');
@@ -1751,27 +1752,21 @@ router.post('/empresas/:id/integra-contador/pgdas/baixar', async (req, res) => {
         const retorno = await integraContador.consultarDeclaracoes({ cnpj: empresa.cnpj, anoCalendario: ano, periodoApuracao: mes.replace('-', '') });
         consultas.push({ mes, retorno });
       }
-      const declaracoes = consultas.flatMap(({ retorno, mes }) => integraContador.declaracoesPorCompetencia(retorno, [mes]));
+      // CONSDECLARACAO13 é um índice: declaração e DAS podem estar em
+      // operações diferentes. Persistimos o índice e o histórico, sem
+      // tratá-lo como memória de cálculo nem alimentar o Perfil Tributário.
+      const indices = consultas.flatMap(({ retorno, mes }) => pgdasIndiceSerpro.persistir(db, empresaId, retorno, mes));
       const diagnosticoRetorno = consultas.map(({ mes, retorno }) => ({ competencia: mes, ...integraContador.diagnosticoDeclaracoes(retorno, [mes]) }));
       diagnosticos.push(...diagnosticoRetorno.map((x) => ({ ano_calendario: ano, ...x })));
-      const porCompetencia = new Map(declaracoes.map((x) => [x.competencia, x]));
+      const porCompetencia = new Map(indices.map((x) => [x.competencia, x]));
       for (const mes of meses) {
-        const declaracao = porCompetencia.get(mes);
-        if (!declaracao) { semRetorno.push(mes); continue; }
+        const indice = porCompetencia.get(mes);
+        if (!indice || (!indice.declaracoes.length && !indice.das.length)) { semRetorno.push(mes); continue; }
         competenciasEncontradas.push(mes);
-        const conteudo = Buffer.from(JSON.stringify(declaracao.declaracao));
-        try {
-          const r = pgdasDocumentoIa.ingerir(db, empresaId, {
-            nome_original: `Integra Contador — PGDAS-D — ${mes}.json`, tipo_documento: 'INTEGRA_CONTADOR_JSON',
-            mime_type: 'application/json', conteudo_original: conteudo, metodo_extracao: 'INTEGRA_CONTADOR_PGDASD_V1',
-          }, declaracao.campos);
-          criados.push({ competencia: mes, documento_id: r.documento_id });
-        } catch (e) {
-          if (/já foi enviado/i.test(e.message)) criados.push({ competencia: mes, duplicado: true }); else throw e;
-        }
+        criados.push({ competencia: mes, indice_salvo: true, declaracoes: indice.declaracoes.length, das: indice.das.length });
       }
       db.prepare(`INSERT INTO integra_contador_log (empresa_id,ano_calendario,competencias_solicitadas,competencias_encontradas,status,mensagem) VALUES (?,?,?,?,?,?)`)
-        .run(empresaId, ano, JSON.stringify(meses), JSON.stringify(declaracoes.map((x) => x.competencia)), declaracoes.length ? 'CONCLUIDA' : 'SEM_RETORNO_RECONHECIDO', `Consulta PGDAS-D por competência: ${declaracoes.length} declaração(ões) reconhecida(s) com DAS. Diagnóstico: ${JSON.stringify(diagnosticoRetorno)}.`);
+        .run(empresaId, ano, JSON.stringify(meses), JSON.stringify(indices.map((x) => x.competencia)), indices.some((x) => x.declaracoes.length || x.das.length) ? 'INDICE_RECONHECIDO' : 'SEM_RETORNO_RECONHECIDO', `Consulta PGDAS-D por competência: índice reconhecido em ${indices.filter((x) => x.declaracoes.length || x.das.length).length} competência(s). A memória de cálculo ainda não foi consultada. Diagnóstico: ${JSON.stringify(diagnosticoRetorno)}.`);
     }
     auditar(req, { empresaId, acao: 'Consultou PGDAS-D pelo Integra Contador', entidade: 'integra_contador_pgdas', entidadeId: `${empresaId}:${inicio}:${fim}`, depois: { competencias, competencias_encontradas: competenciasEncontradas, criados: criados.length } });
     ok(res, { periodo: { competencia_inicio: inicio, competencia_fim: fim }, criados, encontradas: competenciasEncontradas, sem_retorno: semRetorno, diagnosticos, exige_confirmacao: criados.some((x) => !x.duplicado) });
