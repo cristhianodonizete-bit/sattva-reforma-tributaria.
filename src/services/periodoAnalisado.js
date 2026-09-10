@@ -137,7 +137,7 @@ function cobertura(empresaId, { banco = dbPadrao } = {}) {
     UNION SELECT competencia FROM folhas_pagamento_competencias WHERE empresa_id=? UNION SELECT competencia FROM receitas_sem_dfe WHERE empresa_id=?
   ) WHERE competencia IS NOT NULL AND competencia<>''`).all(empresaId, empresaId, empresaId, empresaId).map((x) => x.competencia);
   const dentro = new Set(encontradas.filter((x) => noPeriodo(x, periodo)));
-  return { periodo, competencias:esperadas, cobertas:esperadas.filter((x) => dentro.has(x)), faltantes:esperadas.filter((x) => !dentro.has(x)), fora_do_periodo:encontradas.filter((x) => competenciaValida(x) && !noPeriodo(x, periodo)).length, data_abertura:empresa.data_abertura || null, competencia_abertura:competenciaAbertura(empresa.data_abertura) };
+  return { periodo, janela_apuracao:janelaApuracao(periodo), competencias:esperadas, cobertas:esperadas.filter((x) => dentro.has(x)), faltantes:esperadas.filter((x) => !dentro.has(x)), fora_do_periodo:encontradas.filter((x) => competenciaValida(x) && !noPeriodo(x, periodo)).length, data_abertura:empresa.data_abertura || null, competencia_abertura:competenciaAbertura(empresa.data_abertura) };
 }
 
 module.exports = { obter, salvar, exigir, cobertura, noPeriodo, competenciaValida, dataInicio, dataFim, deslocarMes, competenciaAbertura, janelaApuracao, sincronizarCompartilhado, salvarCompartilhado };

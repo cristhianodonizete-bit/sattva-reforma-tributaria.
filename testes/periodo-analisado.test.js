@@ -9,6 +9,8 @@ assert.equal(salvo.data_inicio, '2026-01-01'); assert.equal(salvo.data_fim, '202
 assert.equal(periodo.noPeriodo('2026-02', salvo), true); assert.equal(periodo.noPeriodo('2025-12', salvo), false);
 db.prepare('INSERT INTO perfil_tributario (empresa_id,competencia,receita_bruta) VALUES (?,?,?)').run(empresa,'2026-01',1);
 const cobertura = periodo.cobertura(empresa); assert.deepEqual(cobertura.faltantes, ['2026-02','2026-03']);
+const janelaHistorica = periodo.janelaApuracao({ competencia_inicio:'2026-01', competencia_fim:'2026-07', apuracao_meses:12, apuracao_inclui_exercicio:0 });
+assert.deepEqual(janelaHistorica, { competencia_inicio:'2025-01', competencia_fim:'2026-07', data_inicio:'2025-01-01', data_fim:'2026-07-31', meses:19, meses_anteriores:12, inclui_exercicio:false });
 assert.throws(() => periodo.salvar(empresa, { competencia_inicio:'2026-13', competencia_fim:'2026-12' }), /competências válidas/);
 const abertaDepois = Number(db.prepare('INSERT INTO empresas (cnpj,razao_social,regime,data_abertura) VALUES (?,?,?,?)').run('20000000000002','Empresa nova','lucro_presumido','2026-05-18').lastInsertRowid);
 assert.throws(() => periodo.salvar(abertaDepois, { competencia_inicio:'2026-04', competencia_fim:'2026-06' }), /só pode começar em 2026-05/);
