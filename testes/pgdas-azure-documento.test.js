@@ -8,7 +8,10 @@ db.exec(`
   CREATE TABLE perfil_tributario (id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER, competencia TEXT, receita_bruta REAL, receita_recebida REAL, receita_mercadorias REAL, receita_servicos REAL, receita_exportacao REAL, pis REAL, cofins REAL, das REAL, origem TEXT);
   CREATE TABLE pgdas_documentos (id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER, nome_original TEXT, tipo_documento TEXT, mime_type TEXT, conteudo_original BLOB, hash_sha256 TEXT, competencia_detectada TEXT, data_processamento TEXT, metodo_extracao TEXT, status_processamento TEXT);
   CREATE TABLE pgdas_documento_campos (id INTEGER PRIMARY KEY AUTOINCREMENT, documento_id INTEGER, campo TEXT, valor_extraido TEXT, rotulo_original TEXT, pagina_ou_localizacao TEXT, confianca REAL, metodo_extracao TEXT, status_validacao TEXT);
+  CREATE TABLE movimentos (empresa_id INTEGER, competencia TEXT, sentido TEXT, valor REAL, ncm TEXT, nbs TEXT, lc116 TEXT);
+  CREATE TABLE param_simples (anexo TEXT, faixa INTEGER, limite REAL, aliquota_nominal REAL, parcela_deduzir REAL, rep_cofins REAL, rep_pis REAL);
   INSERT INTO empresas VALUES (1, 'simples_nacional'), (2, 'lucro_presumido');
+  INSERT INTO param_simples VALUES ('I',1,180000,0.04,0,0.1274,0.0276), ('III',1,180000,0.06,0,0.1282,0.0278);
 `);
 
 const campos = pgdas.normalizarTexto(`Competência: 02/2026\nReceita Bruta: R$ 12.500,00\nValor DAS: R$ 775,30\nPIS: R$ 12,00`, { localizacoes: [{ texto: 'Valor DAS: R$ 775,30', pagina: 2, confianca: .91 }] });
@@ -36,7 +39,7 @@ assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'pis').valor_extra
 assert.strictEqual(oficialCompetencia.find((x) => x.campo === 'cofins').valor_extraido, 1900);
 const r = pgdas.ingerir(db, 1, { nome_original: 'pgdas.pdf', tipo_documento: 'PDF', mime_type: 'application/pdf', conteudo_original: Buffer.from('pgdas fevereiro'), metodo_extracao: 'prebuilt-layout + NORMALIZACAO' }, campos);
 assert.strictEqual(db.prepare('SELECT COUNT(*) c FROM perfil_tributario').get().c, 0, 'OCR pendente nunca entra no histórico antes da confirmação');
-assert.strictEqual(pgdas.listar(db, 1)[0].campos_extraidos.length, 9);
+assert.strictEqual(pgdas.listar(db, 1)[0].campos_extraidos.length, 10);
 const confirmado = pgdas.confirmar(db, 1, r.documento_id);
 assert.strictEqual(confirmado.status_processamento, 'VALIDADO_USUARIO');
 const perfil = db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id=1').get();
@@ -50,6 +53,12 @@ const perfilCaixa = db.prepare("SELECT * FROM perfil_tributario WHERE empresa_id
 assert.strictEqual(perfilCaixa.pis, 250);
 assert.strictEqual(perfilCaixa.cofins, 1000);
 assert.strictEqual(caixaConfirmado.ajuste_caixa.fator_competencia, 1.25);
+db.prepare("INSERT INTO movimentos VALUES (1,'2026-04','saida',100000,'12345678','','')").run();
+const camposTabela = camposCaixa.map((x) => x.campo === 'competencia' ? { ...x, valor_extraido:'2026-04' } : x).concat([{ campo:'rbt12', valor_extraido:100000, rotulo_original:'RBT12', pagina_ou_localizacao:null, confianca:1, metodo_extracao:'teste', status_validacao:'REQUER_VALIDACAO' }]);
+const tabelaDoc = pgdas.ingerir(db, 1, { nome_original:'tabela.pdf', tipo_documento:'INTEGRA_CONTADOR_PDF', conteudo_original:Buffer.from('pgdas tabela'), metodo_extracao:'teste' }, camposTabela);
+const tabelaConfirmada = pgdas.confirmar(db, 1, tabelaDoc.documento_id);
+assert.strictEqual(tabelaConfirmada.calculo_tabela_simples.pis, 110.4);
+assert.strictEqual(tabelaConfirmada.calculo_tabela_simples.cofins, 509.6);
 assert.throws(() => pgdas.ingerir(db, 2, { nome_original: 'x.pdf', tipo_documento: 'PDF', conteudo_original: Buffer.from('x'), metodo_extracao: 'teste' }, campos), /Simples Nacional/);
 db.close();
 console.log('PGDAS Azure: leitura determinística, revisão, confirmação e ausência preservada aprovadas.');

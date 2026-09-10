@@ -5,7 +5,7 @@
  */
 const crypto = require('crypto');
 
-const CAMPOS = ['competencia', 'receita_bruta', 'receita_recebida', 'receita_mercadorias', 'receita_servicos', 'receita_exportacao', 'das', 'pis', 'cofins'];
+const CAMPOS = ['competencia', 'rbt12', 'receita_bruta', 'receita_recebida', 'receita_mercadorias', 'receita_servicos', 'receita_exportacao', 'das', 'pis', 'cofins'];
 const NUMERICOS = new Set(CAMPOS.filter((x) => x !== 'competencia'));
 const texto = (v) => String(v ?? '').trim();
 const valorNumero = (v) => {
@@ -78,6 +78,7 @@ function normalizarTexto(textoDocumento, { localizacoes = [], metodo = 'NORMALIZ
   // diferentes. Esta segunda passagem é intencionalmente conservadora: só
   // aceita moeda brasileira explícita e mantém o resultado para revisão.
   const rotulosTabela = {
+    rbt12:/receita\s+bruta\s+acumulada.*\bRBT12\b/i,
     receita_bruta:/receita\s+bruta|receita\s+total/i,
     receita_recebida:/receita\s+recebida|regime\s+de\s+caixa/i,
     receita_mercadorias:/receita.*(?:mercadoria|com[eé]rcio|ind[uú]stria)/i,
@@ -109,6 +110,34 @@ function normalizarTexto(textoDocumento, { localizacoes = [], metodo = 'NORMALIZ
     saida[campo] = { campo, valor_extraido:extraido, rotulo_original:linhas[indice].slice(0, 180), pagina_ou_localizacao:local?.pagina ? `p. ${local.pagina}` : null, confianca:0.6, metodo_extracao:metodo, status_validacao:'REQUER_VALIDACAO' };
   }
   return CAMPOS.map((campo) => saida[campo]);
+}
+
+function calcularPisCofinsTabelaSimples(db, empresaId, valores) {
+  if (!Number.isFinite(valores.rbt12) || valores.rbt12 <= 0 || !Number.isFinite(valores.receita_bruta) || valores.receita_bruta <= 0) return null;
+  if (Number(db.prepare("SELECT COUNT(*) AS total FROM sqlite_master WHERE type='table' AND name IN ('movimentos','param_simples')").get()?.total) !== 2) return null;
+  const movimentos = db.prepare(`SELECT valor,ncm,nbs,lc116 FROM movimentos WHERE empresa_id=? AND competencia=? AND sentido='saida'`).all(empresaId, valores.competencia);
+  if (!movimentos.length) return null;
+  const porAnexo = { I:0, III:0 }; let indeterminados = 0;
+  movimentos.forEach((m) => {
+    const valor = Number(m.valor) || 0;
+    if (m.ncm) porAnexo.I += valor;
+    else if (m.nbs || m.lc116) porAnexo.III += valor;
+    else indeterminados += valor;
+  });
+  const totalDocumentos = porAnexo.I + porAnexo.III + indeterminados;
+  if (indeterminados > .01 || Math.abs(totalDocumentos - valores.receita_bruta) > .02) return null;
+  const faixas = db.prepare('SELECT anexo,faixa,limite,aliquota_nominal,parcela_deduzir,rep_cofins,rep_pis FROM param_simples WHERE anexo IN (?,?) ORDER BY anexo,faixa').all('I','III');
+  let pis = 0, cofins = 0; const memoria = [];
+  for (const anexo of ['I','III']) {
+    const receita = porAnexo[anexo]; if (!receita) continue;
+    const faixa = faixas.filter((x) => x.anexo === anexo).find((x) => valores.rbt12 <= Number(x.limite)) || faixas.filter((x) => x.anexo === anexo).at(-1);
+    if (!faixa) return null;
+    const efetiva = Math.max(0, (valores.rbt12 * Number(faixa.aliquota_nominal) - Number(faixa.parcela_deduzir)) / valores.rbt12);
+    const pisItem = receita * efetiva * Number(faixa.rep_pis); const cofinsItem = receita * efetiva * Number(faixa.rep_cofins);
+    pis += pisItem; cofins += cofinsItem;
+    memoria.push({ anexo, faixa:Number(faixa.faixa), receita:r2(receita), aliquota_efetiva:efetiva, rep_pis:Number(faixa.rep_pis), rep_cofins:Number(faixa.rep_cofins), pis:r2(pisItem), cofins:r2(cofinsItem) });
+  }
+  return { pis:r2(pis), cofins:r2(cofins), rbt12:valores.rbt12, memoria };
 }
 
 function ingerir(db, empresaId, documento, campos) {
@@ -154,13 +183,14 @@ function confirmar(db, empresaId, documentoId) {
   const campos = db.prepare('SELECT * FROM pgdas_documento_campos WHERE documento_id=?').all(documentoId);
   const valores = Object.fromEntries(campos.map((x) => [x.campo, x.valor_extraido === null ? null : (x.campo === 'competencia' ? x.valor_extraido : Number(x.valor_extraido))]));
   if (!valores.competencia || !Number.isFinite(valores.das)) throw new Error('Confirme somente quando competência e valor do DAS estiverem identificados no documento.');
-  const regimeCaixa = Number.isFinite(valores.receita_bruta) && valores.receita_bruta > 0 && Number.isFinite(valores.receita_recebida) && valores.receita_recebida > 0;
+  const tabelaSimples = calcularPisCofinsTabelaSimples(db, empresaId, valores);
+  const regimeCaixa = !tabelaSimples && Number.isFinite(valores.receita_bruta) && valores.receita_bruta > 0 && Number.isFinite(valores.receita_recebida) && valores.receita_recebida > 0;
   // No PGDAS em caixa, PIS/Cofins informados no extrato são os tributos
   // efetivamente pagos sobre o recebido. O Perfil compara cargas sobre a
   // receita de competência, portanto conserva a carga e transpõe a base.
   const fatorCompetencia = regimeCaixa ? valores.receita_bruta / valores.receita_recebida : 1;
-  const pisPerfil = Number.isFinite(valores.pis) ? r2(valores.pis * fatorCompetencia) : valores.pis;
-  const cofinsPerfil = Number.isFinite(valores.cofins) ? r2(valores.cofins * fatorCompetencia) : valores.cofins;
+  const pisPerfil = tabelaSimples ? tabelaSimples.pis : Number.isFinite(valores.pis) ? r2(valores.pis * fatorCompetencia) : valores.pis;
+  const cofinsPerfil = tabelaSimples ? tabelaSimples.cofins : Number.isFinite(valores.cofins) ? r2(valores.cofins * fatorCompetencia) : valores.cofins;
   db.transaction(() => {
     const existente = db.prepare('SELECT id FROM perfil_tributario WHERE empresa_id=? AND competencia=? ORDER BY id DESC LIMIT 1').get(empresaId, valores.competencia);
     const camposPerfil = [valores.receita_bruta, valores.receita_recebida, valores.receita_mercadorias, valores.receita_servicos, valores.receita_exportacao, pisPerfil, cofinsPerfil];
@@ -170,7 +200,7 @@ function confirmar(db, empresaId, documentoId) {
     db.prepare("UPDATE pgdas_documento_campos SET status_validacao='VALIDADO_USUARIO' WHERE documento_id=? AND valor_extraido IS NOT NULL").run(documentoId);
     db.prepare("UPDATE pgdas_documentos SET status_processamento='VALIDADO_USUARIO' WHERE id=?").run(documentoId);
   })();
-  return { ...listar(db, empresaId).find((x) => x.id === Number(documentoId)), ajuste_caixa: regimeCaixa ? { receita_recebida:valores.receita_recebida, receita_competencia:valores.receita_bruta, fator_competencia:fatorCompetencia, pis_pago_caixa:valores.pis, cofins_paga_caixa:valores.cofins, pis_competencia:pisPerfil, cofins_competencia:cofinsPerfil } : null };
+  return { ...listar(db, empresaId).find((x) => x.id === Number(documentoId)), calculo_tabela_simples:tabelaSimples, ajuste_caixa: regimeCaixa ? { receita_recebida:valores.receita_recebida, receita_competencia:valores.receita_bruta, fator_competencia:fatorCompetencia, pis_apurado_caixa:valores.pis, cofins_apurada_caixa:valores.cofins, pis_competencia:pisPerfil, cofins_competencia:cofinsPerfil } : null };
 }
 
 module.exports = { CAMPOS, normalizarTexto, ingerir, listar, reprocessarCampos, confirmar };
