@@ -43,6 +43,13 @@ const perfil = db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id=1').
 assert.strictEqual(perfil.competencia, '2026-02');
 assert.strictEqual(perfil.das, 775.3);
 assert.strictEqual(perfil.cofins, null);
+const camposCaixa = pgdas.normalizarTexto(`Competência: 03/2026\nReceita Bruta Auferida (regime competência) | Receita Bruta Recebida (regime caixa) | Valor Total do Débito Declarado (R$)\n100.000,00 | 80.000,00 | 5.000,00\nIRPJ | CSLL | COFINS | PIS/Pasep | INSS/CPP | ICMS | IPI | ISS | Total\n1,00 | 1,00 | 800,00 | 200,00 | 0,00 | 0,00 | 0,00 | 0,00 | 1.002,00`);
+const caixa = pgdas.ingerir(db, 1, { nome_original:'caixa.pdf', tipo_documento:'INTEGRA_CONTADOR_PDF', conteudo_original:Buffer.from('pgdas caixa'), metodo_extracao:'teste' }, camposCaixa);
+const caixaConfirmado = pgdas.confirmar(db, 1, caixa.documento_id);
+const perfilCaixa = db.prepare("SELECT * FROM perfil_tributario WHERE empresa_id=1 AND competencia='2026-03'").get();
+assert.strictEqual(perfilCaixa.pis, 250);
+assert.strictEqual(perfilCaixa.cofins, 1000);
+assert.strictEqual(caixaConfirmado.ajuste_caixa.fator_competencia, 1.25);
 assert.throws(() => pgdas.ingerir(db, 2, { nome_original: 'x.pdf', tipo_documento: 'PDF', conteudo_original: Buffer.from('x'), metodo_extracao: 'teste' }, campos), /Simples Nacional/);
 db.close();
 console.log('PGDAS Azure: leitura determinística, revisão, confirmação e ausência preservada aprovadas.');

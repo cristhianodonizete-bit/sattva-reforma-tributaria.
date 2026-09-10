@@ -672,6 +672,22 @@ Telas.dados = async (el) => {
     el.querySelectorAll('[data-pgdas-confirmar]').forEach((b) => { b.onclick = () => A.confirmar('Confirmar os valores identificados? A confirmação grava somente os campos encontrados no documento.', async () => {
       await A.api(`/empresas/${S.empresaId}/pgdas/documentos/${b.dataset.pgdasConfirmar}/confirmar`, {metodo:'POST',corpo:{}}); A.toast('PGDAS confirmado e incluído no histórico.', 'ok'); A.ir('dados');
     }); });
+    const botoesConfirmacaoPgdas = [...el.querySelectorAll('[data-pgdas-confirmar]')];
+    if (botoesConfirmacaoPgdas.length) {
+      botoesConfirmacaoPgdas.forEach((botao) => botao.insertAdjacentHTML('beforebegin', `<input type="checkbox" data-pgdas-selecionar="${A.esc(botao.dataset.pgdasConfirmar)}" aria-label="Selecionar documento PGDAS" style="margin-right:7px">`));
+      const tabelaPgdas = botoesConfirmacaoPgdas[0].closest('table');
+      if (tabelaPgdas) tabelaPgdas.insertAdjacentHTML('beforebegin', '<div style="display:flex;justify-content:flex-end;margin:0 0 10px"><button class="btn pq" id="confirmarPgdasSelecionados" disabled>Confirmar selecionados</button></div>');
+      const atualizarConfirmacaoLote = () => {
+        const selecionados = el.querySelectorAll('[data-pgdas-selecionar]:checked').length;
+        const botao = el.querySelector('#confirmarPgdasSelecionados'); if (botao) { botao.disabled = !selecionados; botao.textContent = `Confirmar selecionados${selecionados ? ` (${selecionados})` : ''}`; }
+      };
+      el.querySelectorAll('[data-pgdas-selecionar]').forEach((check) => check.addEventListener('change', atualizarConfirmacaoLote));
+      el.querySelector('#confirmarPgdasSelecionados')?.addEventListener('click', () => A.confirmar('Confirmar os documentos PGDAS selecionados? Apenas documentos com competência e DAS identificados serão aproveitados.', async () => {
+        const ids = [...el.querySelectorAll('[data-pgdas-selecionar]:checked')].map((x) => x.dataset.pgdasSelecionar); const falhas=[];
+        for (const id of ids) { try { await A.api(`/empresas/${S.empresaId}/pgdas/documentos/${id}/confirmar`, {metodo:'POST',corpo:{}}); } catch (e) { falhas.push(e.message || `Documento ${id}`); } }
+        A.toast(falhas.length ? `${ids.length-falhas.length} confirmado(s); ${falhas.length} permaneceu(ram) em revisão.` : `${ids.length} documento(s) confirmado(s).`, falhas.length ? 'erro' : 'ok'); A.ir('dados');
+      }));
+    }
     document.getElementById('centralApuracao')?.addEventListener('click', () => abrirIngestaoApuracao(() => A.ir('dados')));
     document.getElementById('centralReferencias')?.addEventListener('click', () => {
       S.aba.dados = 'cliente'; S.aba.dadosMotor = 'atual'; A.ir('dados');

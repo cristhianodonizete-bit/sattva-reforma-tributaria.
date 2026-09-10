@@ -14,6 +14,7 @@ const valorNumero = (v) => {
   const normalizado = bruto.includes(',') ? bruto.replace(/\./g, '').replace(',', '.') : bruto;
   const n = Number(normalizado); return Number.isFinite(n) ? n : null;
 };
+const r2 = (v) => Math.round((Number(v) + Number.EPSILON) * 100) / 100;
 const competencia = (v) => {
   const m = texto(v).match(/(\d{2})\/(\d{4})|(\d{4})-(\d{2})/);
   return !m ? null : m[1] ? `${m[2]}-${m[1]}` : `${m[3]}-${m[4]}`;
@@ -153,16 +154,23 @@ function confirmar(db, empresaId, documentoId) {
   const campos = db.prepare('SELECT * FROM pgdas_documento_campos WHERE documento_id=?').all(documentoId);
   const valores = Object.fromEntries(campos.map((x) => [x.campo, x.valor_extraido === null ? null : (x.campo === 'competencia' ? x.valor_extraido : Number(x.valor_extraido))]));
   if (!valores.competencia || !Number.isFinite(valores.das)) throw new Error('Confirme somente quando competência e valor do DAS estiverem identificados no documento.');
+  const regimeCaixa = Number.isFinite(valores.receita_bruta) && valores.receita_bruta > 0 && Number.isFinite(valores.receita_recebida) && valores.receita_recebida > 0;
+  // No PGDAS em caixa, PIS/Cofins informados no extrato são os tributos
+  // efetivamente pagos sobre o recebido. O Perfil compara cargas sobre a
+  // receita de competência, portanto conserva a carga e transpõe a base.
+  const fatorCompetencia = regimeCaixa ? valores.receita_bruta / valores.receita_recebida : 1;
+  const pisPerfil = Number.isFinite(valores.pis) ? r2(valores.pis * fatorCompetencia) : valores.pis;
+  const cofinsPerfil = Number.isFinite(valores.cofins) ? r2(valores.cofins * fatorCompetencia) : valores.cofins;
   db.transaction(() => {
     const existente = db.prepare('SELECT id FROM perfil_tributario WHERE empresa_id=? AND competencia=? ORDER BY id DESC LIMIT 1').get(empresaId, valores.competencia);
-    const camposPerfil = [valores.receita_bruta, valores.receita_recebida, valores.receita_mercadorias, valores.receita_servicos, valores.receita_exportacao, valores.pis, valores.cofins];
+    const camposPerfil = [valores.receita_bruta, valores.receita_recebida, valores.receita_mercadorias, valores.receita_servicos, valores.receita_exportacao, pisPerfil, cofinsPerfil];
     const origem = String(doc.tipo_documento || '').startsWith('INTEGRA_CONTADOR') ? 'pgdas_integra_contador_confirmado' : 'pgdas_azure_confirmado';
     if (existente) db.prepare(`UPDATE perfil_tributario SET receita_bruta=COALESCE(?,receita_bruta),receita_recebida=COALESCE(?,receita_recebida),receita_mercadorias=COALESCE(?,receita_mercadorias),receita_servicos=COALESCE(?,receita_servicos),receita_exportacao=COALESCE(?,receita_exportacao),pis=COALESCE(?,pis),cofins=COALESCE(?,cofins),das=?,origem=? WHERE id=?`).run(...camposPerfil, valores.das, origem, existente.id);
     else db.prepare(`INSERT INTO perfil_tributario (empresa_id,competencia,receita_bruta,receita_recebida,receita_mercadorias,receita_servicos,receita_exportacao,pis,cofins,das,origem) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(empresaId, valores.competencia, ...camposPerfil, valores.das, origem);
     db.prepare("UPDATE pgdas_documento_campos SET status_validacao='VALIDADO_USUARIO' WHERE documento_id=? AND valor_extraido IS NOT NULL").run(documentoId);
     db.prepare("UPDATE pgdas_documentos SET status_processamento='VALIDADO_USUARIO' WHERE id=?").run(documentoId);
   })();
-  return listar(db, empresaId).find((x) => x.id === Number(documentoId));
+  return { ...listar(db, empresaId).find((x) => x.id === Number(documentoId)), ajuste_caixa: regimeCaixa ? { receita_recebida:valores.receita_recebida, receita_competencia:valores.receita_bruta, fator_competencia:fatorCompetencia, pis_pago_caixa:valores.pis, cofins_paga_caixa:valores.cofins, pis_competencia:pisPerfil, cofins_competencia:cofinsPerfil } : null };
 }
 
 module.exports = { CAMPOS, normalizarTexto, ingerir, listar, reprocessarCampos, confirmar };
