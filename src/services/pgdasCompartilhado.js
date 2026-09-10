@@ -25,7 +25,7 @@ async function publicar(empresaLocalId, documentoLocalId) {
     try {
       const q = await client.query(`INSERT INTO public.pgdas_documentos (empresa_id,origem_local_id,nome_original,tipo_documento,mime_type,conteudo_original,hash_sha256,competencia_detectada,data_processamento,metodo_extracao,status_processamento)
         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)
-        ON CONFLICT (empresa_id,hash_sha256) DO UPDATE SET origem_local_id=EXCLUDED.origem_local_id,nome_original=EXCLUDED.nome_original,mime_type=EXCLUDED.mime_type,competencia_detectada=EXCLUDED.competencia_detectada,data_processamento=EXCLUDED.data_processamento,metodo_extracao=EXCLUDED.metodo_extracao,status_processamento=EXCLUDED.status_processamento
+        ON CONFLICT (empresa_id,hash_sha256) DO UPDATE SET origem_local_id=EXCLUDED.origem_local_id,nome_original=EXCLUDED.nome_original,mime_type=EXCLUDED.mime_type,conteudo_original=EXCLUDED.conteudo_original,competencia_detectada=EXCLUDED.competencia_detectada,data_processamento=EXCLUDED.data_processamento,metodo_extracao=EXCLUDED.metodo_extracao,status_processamento=EXCLUDED.status_processamento
         RETURNING id`, [empresaId,documento.id,documento.nome_original,documento.tipo_documento,documento.mime_type,documento.conteudo_original,documento.hash_sha256,documento.competencia_detectada,documento.data_processamento,documento.metodo_extracao,documento.status_processamento]);
       const remotoId = q.rows[0].id;
       for (const c of campos) await client.query(`INSERT INTO public.pgdas_documento_campos (documento_id,campo,valor_extraido,rotulo_original,pagina_ou_localizacao,confianca,metodo_extracao,status_validacao)
@@ -51,7 +51,16 @@ async function restaurar(empresaLocalId) {
     let restaurados = 0;
     db.transaction(() => {
       for (const remoto of docs.rows) {
-        if (db.prepare('SELECT 1 FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaLocalId, remoto.hash_sha256)) continue;
+        const existente=db.prepare('SELECT id FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaLocalId, remoto.hash_sha256);
+        // A versão anterior restaurava somente registros ausentes. Se um
+        // metadado legado já existisse no SQLite sem o bytea, o PDF nunca era
+        // reposto e o botão de reprocessar falhava. O Supabase é a fonte do
+        // original: sempre atualizamos o binário e os metadados do cache.
+        if (existente) {
+          db.prepare(`UPDATE pgdas_documentos SET nome_original=?,tipo_documento=?,mime_type=?,conteudo_original=?,competencia_detectada=?,data_processamento=?,metodo_extracao=?,status_processamento=? WHERE id=?`).run(remoto.nome_original,remoto.tipo_documento,remoto.mime_type,remoto.conteudo_original,remoto.competencia_detectada,remoto.data_processamento,remoto.metodo_extracao,remoto.status_processamento,existente.id);
+          restaurados += 1;
+          continue;
+        }
         const local = inserirDocumento.run(empresaLocalId, remoto.nome_original, remoto.tipo_documento, remoto.mime_type, remoto.conteudo_original, remoto.hash_sha256, remoto.competencia_detectada, remoto.data_processamento, remoto.metodo_extracao, remoto.status_processamento);
         for (const campo of camposPorDocumento.get(remoto.id) || []) inserirCampo.run(local.lastInsertRowid, campo.campo, campo.valor_extraido, campo.rotulo_original, campo.pagina_ou_localizacao, campo.confianca, campo.metodo_extracao, campo.status_validacao);
         restaurados += 1;
@@ -65,12 +74,12 @@ async function localizarLocal(empresaLocalId, referencia) {
   const porReferencia=()=>db.prepare(`SELECT * FROM pgdas_documentos
     WHERE empresa_id=? AND (hash_sha256=? OR CAST(id AS TEXT)=?) ORDER BY id DESC LIMIT 1`).get(empresaLocalId,ref,ref);
   let documento=porReferencia();
-  if(documento)return documento;
+  if(documento?.conteudo_original?.length)return documento;
   // A restauração idempotente por hash traz todos os PDFs persistidos e cobre
   // reinício, troca de instância e cache local parcial.
   await restaurar(empresaLocalId);
   documento=porReferencia();
-  if(documento)return documento;
+  if(documento?.conteudo_original?.length)return documento;
   // Compatibilidade com páginas já abertas que ainda enviem o antigo id local:
   // origem_local_id no Supabase aponta para aquele id e permite localizar seu
   // hash estável antes de qualquer operação.

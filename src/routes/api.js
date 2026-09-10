@@ -1883,7 +1883,7 @@ router.post('/empresas/:id/pgdas/documentos/:documentoId/reprocessar', async (re
   try {
     const empresaId = Number(req.params.id);
     const doc = await pgdasCompartilhado.localizarLocal(empresaId, req.params.documentoId);
-    if (!doc) throw new Error('Documento PGDAS não localizado na fonte durável para esta empresa.');
+    if (!doc?.conteudo_original?.length) throw new Error('O PDF original não está disponível no armazenamento durável. Este documento legado precisa ser baixado uma única vez para recompor o arquivo.');
     const extraido = await pgdasNativePdfText.extrair({ buffer:doc.conteudo_original, mimetype:doc.mime_type, originalname:doc.nome_original });
     const campos = pgdasDocumentoIa.normalizarTexto(extraido.texto, { localizacoes:extraido.localizacoes, metodo:'NATIVE_PDF_TEXT + PGDAS_DETERMINISTICO_V2_REPROCESSADO' });
     const documento = pgdasDocumentoIa.reprocessarCampos(db, empresaId, doc.id, campos, `REPROCESSAMENTO LOCAL + ${extraido.modelo}`);
