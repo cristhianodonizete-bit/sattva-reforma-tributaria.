@@ -41,6 +41,37 @@ function normalizarTexto(textoDocumento, { localizacoes = [], metodo = 'NORMALIZ
       saida[campo] = { campo, valor_extraido: valor, rotulo_original: encontrado[1], pagina_ou_localizacao: local?.pagina ? `p. ${local.pagina}` : null, confianca: local?.confianca ?? 0.9, metodo_extracao: metodo, status_validacao: 'REQUER_VALIDACAO' };
     }
   }
+  // Tabelas do PGDAS podem trazer o rótulo e o número em células/linhas
+  // diferentes. Esta segunda passagem é intencionalmente conservadora: só
+  // aceita moeda brasileira explícita e mantém o resultado para revisão.
+  const linhas = String(textoDocumento || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean);
+  const rotulosTabela = {
+    receita_bruta:/receita\s+bruta|receita\s+total/i,
+    receita_recebida:/receita\s+recebida|regime\s+de\s+caixa/i,
+    receita_mercadorias:/receita.*(?:mercadoria|com[eé]rcio|ind[uú]stria)/i,
+    receita_servicos:/receita.*servi[cç]/i,
+    receita_exportacao:/receita.*exporta|mercado\s+externo/i,
+    das:/\b(?:valor\s+)?das\b|total\s+(?:a\s+)?recolher/i,
+    pis:/\bpis(?:\/pasep)?\b/i,
+    cofins:/\bcofins\b/i,
+  };
+  const moeda = /(?:R\$\s*)?\d{1,3}(?:\.\d{3})*,\d{2}/g;
+  for (const [campo, rotulo] of Object.entries(rotulosTabela)) {
+    if (saida[campo].valor_extraido !== null) continue;
+    const indice = linhas.findIndex((linha) => rotulo.test(linha));
+    if (indice < 0) continue;
+    // Em tabelas serializadas pelo Azure, rótulo e valor normalmente ficam
+    // na mesma linha. Só olha as duas linhas seguintes se a própria linha
+    // não trouxer uma moeda; isso impede, por exemplo, PIS virar receita.
+    const valoresDaLinha = linhas[indice].match(moeda) || [];
+    const contexto = valoresDaLinha.length ? linhas[indice] : linhas.slice(indice, indice + 3).join(' | ');
+    const valores = valoresDaLinha.length ? valoresDaLinha : (contexto.match(moeda) || []);
+    if (!valores.length) continue;
+    const extraido = valorNumero(valores.at(-1));
+    if (extraido === null) continue;
+    const local = localizacoes.find((x) => String(x.texto || '').includes(linhas[indice]));
+    saida[campo] = { campo, valor_extraido:extraido, rotulo_original:linhas[indice].slice(0, 180), pagina_ou_localizacao:local?.pagina ? `p. ${local.pagina}` : null, confianca:0.6, metodo_extracao:metodo, status_validacao:'REQUER_VALIDACAO' };
+  }
   return CAMPOS.map((campo) => saida[campo]);
 }
 
@@ -69,6 +100,18 @@ function listar(db, empresaId) {
   return docs.map((d) => ({ ...d, campos_extraidos: campos.filter((c) => c.documento_id === d.id), campos_pendentes: campos.filter((c) => c.documento_id === d.id && c.status_validacao !== 'VALIDADO_USUARIO').map((c) => c.campo) }));
 }
 
+function reprocessarCampos(db, empresaId, documentoId, campos, metodo) {
+  const doc = db.prepare('SELECT * FROM pgdas_documentos WHERE id=? AND empresa_id=?').get(documentoId, empresaId);
+  if (!doc) throw new Error('Documento PGDAS não encontrado para reprocessamento.');
+  db.transaction(() => {
+    db.prepare('DELETE FROM pgdas_documento_campos WHERE documento_id=?').run(documentoId);
+    const inserir = db.prepare(`INSERT INTO pgdas_documento_campos (documento_id,campo,valor_extraido,rotulo_original,pagina_ou_localizacao,confianca,metodo_extracao,status_validacao) VALUES (?,?,?,?,?,?,?,?)`);
+    campos.forEach((x) => inserir.run(documentoId, x.campo, x.valor_extraido === null ? null : String(x.valor_extraido), x.rotulo_original, x.pagina_ou_localizacao, x.confianca, x.metodo_extracao, x.status_validacao));
+    db.prepare("UPDATE pgdas_documentos SET metodo_extracao=?,data_processamento=?,status_processamento='REQUER_VALIDACAO' WHERE id=?").run(metodo || doc.metodo_extracao, new Date().toISOString(), documentoId);
+  })();
+  return listar(db, empresaId).find((x) => x.id === Number(documentoId));
+}
+
 function confirmar(db, empresaId, documentoId) {
   const doc = db.prepare('SELECT * FROM pgdas_documentos WHERE id=? AND empresa_id=?').get(documentoId, empresaId);
   if (!doc) throw new Error('Documento PGDAS não encontrado para a empresa.');
@@ -78,7 +121,7 @@ function confirmar(db, empresaId, documentoId) {
   db.transaction(() => {
     const existente = db.prepare('SELECT id FROM perfil_tributario WHERE empresa_id=? AND competencia=? ORDER BY id DESC LIMIT 1').get(empresaId, valores.competencia);
     const camposPerfil = [valores.receita_bruta, valores.receita_recebida, valores.receita_mercadorias, valores.receita_servicos, valores.receita_exportacao, valores.pis, valores.cofins];
-    const origem = doc.tipo_documento === 'INTEGRA_CONTADOR_JSON' ? 'pgdas_integra_contador_confirmado' : 'pgdas_azure_confirmado';
+    const origem = String(doc.tipo_documento || '').startsWith('INTEGRA_CONTADOR') ? 'pgdas_integra_contador_confirmado' : 'pgdas_azure_confirmado';
     if (existente) db.prepare(`UPDATE perfil_tributario SET receita_bruta=COALESCE(?,receita_bruta),receita_recebida=COALESCE(?,receita_recebida),receita_mercadorias=COALESCE(?,receita_mercadorias),receita_servicos=COALESCE(?,receita_servicos),receita_exportacao=COALESCE(?,receita_exportacao),pis=COALESCE(?,pis),cofins=COALESCE(?,cofins),das=?,origem=? WHERE id=?`).run(...camposPerfil, valores.das, origem, existente.id);
     else db.prepare(`INSERT INTO perfil_tributario (empresa_id,competencia,receita_bruta,receita_recebida,receita_mercadorias,receita_servicos,receita_exportacao,pis,cofins,das,origem) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(empresaId, valores.competencia, ...camposPerfil, valores.das, origem);
     db.prepare("UPDATE pgdas_documento_campos SET status_validacao='VALIDADO_USUARIO' WHERE documento_id=? AND valor_extraido IS NOT NULL").run(documentoId);
@@ -87,4 +130,4 @@ function confirmar(db, empresaId, documentoId) {
   return listar(db, empresaId).find((x) => x.id === Number(documentoId));
 }
 
-module.exports = { CAMPOS, normalizarTexto, ingerir, listar, confirmar };
+module.exports = { CAMPOS, normalizarTexto, ingerir, listar, reprocessarCampos, confirmar };

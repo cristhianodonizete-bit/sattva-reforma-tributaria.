@@ -15,6 +15,11 @@ const campos = pgdas.normalizarTexto(`Competência: 02/2026\nReceita Bruta: R$ 1
 assert.strictEqual(campos.find((x) => x.campo === 'competencia').valor_extraido, '2026-02');
 assert.strictEqual(campos.find((x) => x.campo === 'das').valor_extraido, 775.3);
 assert.strictEqual(campos.find((x) => x.campo === 'cofins').valor_extraido, null, 'ausência não pode virar zero');
+const tabela = pgdas.normalizarTexto('Receita Bruta Total | R$ 100.000,00\nValor do DAS | R$ 6.500,00\nPIS/Pasep | R$ 100,00\nCofins | R$ 450,00');
+assert.strictEqual(tabela.find((x) => x.campo === 'receita_bruta').valor_extraido, 100000);
+assert.strictEqual(tabela.find((x) => x.campo === 'das').valor_extraido, 6500);
+assert.strictEqual(tabela.find((x) => x.campo === 'pis').valor_extraido, 100);
+assert.strictEqual(tabela.find((x) => x.campo === 'cofins').valor_extraido, 450);
 const r = pgdas.ingerir(db, 1, { nome_original: 'pgdas.pdf', tipo_documento: 'PDF', mime_type: 'application/pdf', conteudo_original: Buffer.from('pgdas fevereiro'), metodo_extracao: 'prebuilt-layout + NORMALIZACAO' }, campos);
 assert.strictEqual(db.prepare('SELECT COUNT(*) c FROM perfil_tributario').get().c, 0, 'OCR pendente nunca entra no histórico antes da confirmação');
 assert.strictEqual(pgdas.listar(db, 1)[0].campos_extraidos.length, 9);

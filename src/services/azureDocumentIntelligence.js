@@ -30,7 +30,18 @@ function diagnosticoSeguro() {
 function espera(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
 function textoResultado(resultado) {
   const paragrafos = resultado?.analyzeResult?.paragraphs || [];
-  const texto = paragrafos.map((p) => p.content).filter(Boolean).join('\n');
+  const tabelas = (resultado?.analyzeResult?.tables || []).flatMap((tabela) => {
+    const linhas = new Map();
+    (tabela.cells || []).forEach((celula) => {
+      const indice = Number(celula.rowIndex || 0); if (!linhas.has(indice)) linhas.set(indice, []);
+      linhas.get(indice).push(celula);
+    });
+    return [...linhas.entries()].sort((a,b) => a[0] - b[0]).map(([, celulas]) => celulas.sort((a,b) => Number(a.columnIndex || 0) - Number(b.columnIndex || 0)).map((c) => c.content || '').filter(Boolean).join(' | '));
+  });
+  // Em PGDAS o layout costuma estar em tabela. O conteúdo integral e as
+  // linhas de tabela complementam os parágrafos, sem perder o OCR original.
+  const blocos = [resultado?.analyzeResult?.content || '', ...paragrafos.map((p) => p.content), ...tabelas].filter(Boolean);
+  const texto = [...new Set(blocos)].join('\n');
   const localizacoes = paragrafos.map((p) => ({
     texto: p.content || '', pagina: p.boundingRegions?.[0]?.pageNumber || null,
     confianca: p.confidence ?? null,

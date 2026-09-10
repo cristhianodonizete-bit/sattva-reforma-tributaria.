@@ -1826,7 +1826,12 @@ router.post('/empresas/:id/integra-contador/pgdas/apuracao-vigente', async (req,
     try { documento = pgdasDocumentoIa.ingerir(db, empresaId, { nome_original:arquivo.originalname, tipo_documento:'INTEGRA_CONTADOR_PDF', mime_type:arquivo.mimetype, conteudo_original:arquivo.buffer, metodo_extracao:`INTEGRA_CONTADOR CONSULTIMADECREC14 + ${extraido.modelo}` }, campos); }
     catch (e) {
       if (!/já foi enviado/i.test(String(e.message))) throw e;
-      documento = { documento_id:db.prepare('SELECT id FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaId, crypto.createHash('sha256').update(arquivo.buffer).digest('hex'))?.id, duplicado:true, campos };
+      const existente = db.prepare('SELECT id FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaId, crypto.createHash('sha256').update(arquivo.buffer).digest('hex'));
+      if (!existente) throw e;
+      // Uma nova leitura do mesmo PDF deve substituir a extração anterior,
+      // mantendo o documento único e devolvendo-o novamente para revisão.
+      documento = pgdasDocumentoIa.reprocessarCampos(db, empresaId, existente.id, campos, `INTEGRA_CONTADOR CONSULTIMADECREC14 + ${extraido.modelo}`);
+      documento.duplicado = true;
     }
     auditar(req, { empresaId, acao:'Consultou apuração PGDAS-D vigente', entidade:'integra_contador_pgdas_apuracao', entidadeId:`${empresaId}:${competencia}`, depois:{ competencia, servico:'CONSULTIMADECREC14', hash_resposta:hash } });
     ok(res, { competencia, servico:'CONSULTIMADECREC14', documento, campos, pendente_confirmacao:true });
