@@ -91,4 +91,19 @@ async function localizarLocal(empresaLocalId, referencia) {
     return db.prepare('SELECT * FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaLocalId,remoto.rows[0].hash_sha256)||null;
   });
 }
-module.exports = { publicar, restaurar, localizarLocal };
+async function obterOriginal(empresaLocalId, referencia) {
+  const ref=String(referencia || '');
+  return comCliente(async(client)=>{
+    const empresaId=await empresaRemota(client,empresaLocalId);
+    const remoto=await client.query(`SELECT nome_original,mime_type,conteudo_original,hash_sha256
+      FROM public.pgdas_documentos WHERE empresa_id=$1
+      AND (hash_sha256=$2 OR CAST(id AS TEXT)=$2 OR CAST(origem_local_id AS TEXT)=$2)
+      ORDER BY id DESC LIMIT 1`,[empresaId,ref]);
+    const documento=remoto.rows[0];
+    if(!documento?.conteudo_original?.length) throw new Error('PDF PGDAS não encontrado no armazenamento durável.');
+    // O driver pg entrega bytea como Buffer; Buffer.from também cobre a
+    // representação Uint8Array sem delegar a leitura ao cache efêmero.
+    return {...documento,conteudo_original:Buffer.from(documento.conteudo_original)};
+  });
+}
+module.exports = { publicar, restaurar, localizarLocal, obterOriginal };
