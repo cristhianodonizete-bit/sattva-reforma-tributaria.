@@ -1124,6 +1124,32 @@ async function publicarDadosAdicionais(empresaLocalId) {
     if (error) throw new Error(`${tabela}: ${error.message}`);
   }
 }
+
+// O Perfil Tributário é fato fiscal operacional. A sincronização de gestão
+// publica empresas/projetos, mas não pode ser usada para garantir este dado:
+// em Render o SQLite é efêmero e uma confirmação precisa chegar ao Supabase
+// antes de a resposta ser devolvida ao usuário.
+async function publicarPerfilTributarioCompartilhado(empresaLocalId) {
+  if (!supabase.configurado()) return { ativo: false };
+  const remoto = supabase.admin();
+  const { data: empresas, error: erroEmpresa } = await remoto.from('empresas')
+    .select('id,origem_local_id').or(`origem_local_id.eq.${Number(empresaLocalId)},id.eq.${Number(empresaLocalId)}`);
+  if (erroEmpresa) throw erroEmpresa;
+  if (empresas?.length !== 1) throw new Error('Empresa remota não localizada de forma única para publicar o Perfil Tributário.');
+  const empresaRemotaId = empresas[0].id;
+  const linhas = db.prepare(`SELECT competencia,receita_bruta,receita_recebida,receita_mercadorias,receita_servicos,receita_exportacao,icms,iss,ipi,pis,cofins,das,creditos_tomados,origem,criado_em FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaLocalId);
+  for (const linha of linhas) {
+    const dados = { ...linha, empresa_id: empresaRemotaId };
+    const { data: existentes, error: erroBusca } = await remoto.from('perfil_tributario').select('id').eq('empresa_id', empresaRemotaId).eq('competencia', linha.competencia);
+    if (erroBusca) throw new Error(`perfil_tributario: ${erroBusca.message}`);
+    if (existentes?.length > 1) throw new Error(`Perfil Tributário remoto duplicado na competência ${linha.competencia}; publicação cancelada.`);
+    const resposta = existentes?.length
+      ? await remoto.from('perfil_tributario').update(dados).eq('id', existentes[0].id)
+      : await remoto.from('perfil_tributario').insert(dados);
+    if (resposta.error) throw new Error(`perfil_tributario: ${resposta.error.message}`);
+  }
+  return { publicado: linhas.length, empresa_id: empresaRemotaId };
+}
 router.post('/empresas/:id/folhas-pagamento', async (req, res) => {
   try {
     const resultado = dadosAdicionaisAnalise.salvarFolha(db, Number(req.params.id), req.body || {});
@@ -1853,10 +1879,9 @@ router.get('/empresas/:id/pgdas/documentos', (req, res) => {
 router.post('/empresas/:id/pgdas/documentos/:documentoId/confirmar', async (req, res) => {
   try {
     const documento = pgdasDocumentoIa.confirmar(db, Number(req.params.id), Number(req.params.documentoId));
-    // O Perfil Tributário confirmado é fato operacional e precisa sobreviver à
-    // instância efêmera. A evidência ainda fica auditável no cache local.
-    try { await sincronizarGestaoSupabase(); } catch (e) { console.error('[pgdas] publicação compartilhada:', e.message); }
-    ok(res, { documento });
+    // Não delegar ao espelho de gestão: ele não contém dados fiscais.
+    const publicacao = await publicarPerfilTributarioCompartilhado(Number(req.params.id));
+    ok(res, { documento, publicacao });
   }
   catch (e) { erro(res, e); }
 });
