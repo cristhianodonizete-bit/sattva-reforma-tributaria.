@@ -461,14 +461,14 @@ async function sincronizarIncremental() {
   if (!temSequenciaIncremental()) {
     const inicio = await maiorSequenciaIncremental(remoto);
     const completo = await baixar();
-    if (completo.falhas) throw new Error(`Carga-base incremental incompleta: ${Object.entries(completo.falhas).map(([tabela, causa]) => `${tabela}: ${causa}`).join(' | ')}.`);
+    validarCargaBase(completo, 'Carga-base incremental');
     const pendentes = await buscarEventosIncrementais(remoto, inicio);
     const aplicado = pendentes.length ? await aplicarEventosIncrementais(remoto, pendentes) : { fallback: false, eventos: 0, aplicadas: 0, removidas: 0 };
     let marcoAplicado = pendentes.at(-1)?.sequencia || inicio;
     if (aplicado.fallback) {
       const marcoCobertoPeloFallback = await maiorSequenciaIncremental(remoto);
       const recuperacao = await baixar();
-      if (recuperacao.falhas) throw new Error(`Recuperação incremental incompleta: ${Object.entries(recuperacao.falhas).map(([tabela, causa]) => `${tabela}: ${causa}`).join(' | ')}.`);
+      validarCargaBase(recuperacao, 'Recuperação incremental');
       marcoAplicado = marcoCobertoPeloFallback;
     }
     // O marco não pode avançar além de um evento efetivamente aplicado. Eventos
@@ -484,9 +484,33 @@ async function sincronizarIncremental() {
   // o evento é sensível. Nada do lote foi aplicado antes desta decisão.
   const marcoCobertoPeloFallback = await maiorSequenciaIncremental(remoto);
   const completo = await baixar();
-  if (completo.falhas) throw new Error(`Fallback incremental incompleto: ${Object.entries(completo.falhas).map(([tabela, causa]) => `${tabela}: ${causa}`).join(' | ')}.`);
+  validarCargaBase(completo, 'Fallback incremental');
   db.transaction(() => salvarSequenciaIncremental(marcoCobertoPeloFallback))();
   return { modo: 'fallback_completo', sequencia: Number(marcoCobertoPeloFallback), eventos: eventos.length, ...aplicado };
+}
+
+// A fotografia do motor (resultados CBS e telemetria) é uma camada derivada.
+// Se ela estiver temporariamente indisponível no Supabase, não se pode
+// bloquear a operação fiscal primária — empresas, documentos e PGDAS — nem
+// induzir o usuário a repetir uma consulta paga ao Serpro. A carga continua
+// sendo rejeitada para qualquer falha da base-fonte; somente as três tabelas
+// derivadas são degradáveis e ficam registradas como aviso técnico.
+const TABELAS_FOTOGRAFIA_MOTOR = new Set([
+  'motor', 'excecoes_motor_execucoes', 'telemetria_autonomia_execucoes',
+]);
+function validarCargaBase(resultado, contexto) {
+  const falhas = Object.entries(resultado?.falhas || {});
+  const criticas = falhas.filter(([tabela]) => !TABELAS_FOTOGRAFIA_MOTOR.has(tabela));
+  const derivadas = falhas.filter(([tabela]) => TABELAS_FOTOGRAFIA_MOTOR.has(tabela));
+  if (derivadas.length) {
+    resultado.avisos = (resultado.avisos || []).concat(
+      derivadas.map(([tabela, causa]) => `Fotografia do motor adiada (${tabela}): ${causa}`),
+    );
+    console.warn(`  ${contexto}: fotografia do motor indisponível; operação fiscal liberada.`);
+  }
+  if (criticas.length) {
+    throw new Error(`${contexto} incompleta: ${criticas.map(([tabela, causa]) => `${tabela}: ${causa}`).join(' | ')}.`);
+  }
 }
 
 // Fotografia técnica compartilhada: reiniciar uma instância não pode significar
