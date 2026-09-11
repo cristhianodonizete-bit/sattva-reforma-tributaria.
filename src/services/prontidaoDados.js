@@ -46,7 +46,8 @@ function obter(empresaId, { banco=dbPadrao } = {}) {
     ? banco.prepare('SELECT competencia FROM perfil_tributario WHERE empresa_id=? AND COALESCE(das,0)>0').all(empresaId)
     : banco.prepare("SELECT competencia FROM pis_cofins_apuracoes_historicas WHERE empresa_id=? AND status_validacao='VALIDADO_USUARIO'").all(empresaId);
   const apuracoes = new Set(unicos(linhasApuracao));
-  const apuracaoFaltas=competenciasApuracao.filter((c)=>!apuracoes.has(c));
+  const apuracoesDeclaradas=declaracoes(empresaId,'APURACAO_HISTORICO_NAO_APLICAVEL',banco,competenciasApuracao);
+  const apuracaoFaltas=competenciasApuracao.filter((c)=>!apuracoes.has(c)&&!apuracoesDeclaradas.has(c));
   const socios = banco.prepare('SELECT percentual_participacao,brasileiro FROM empresa_qsa WHERE empresa_id=?').all(empresaId);
   const percentual = socios.reduce((s,x)=>s+(Number(x.percentual_participacao)||0),0);
   const pendCadastro=[]; if (!String(empresa.cnae||'').trim()) pendCadastro.push('Informe o CNAE principal.'); if (!socios.length) pendCadastro.push('Preencha o quadro societário.'); if (socios.some((x)=>x.percentual_participacao===null || x.percentual_participacao==='')) pendCadastro.push('Informe a participação de cada sócio.'); if (socios.some((x)=>!([0,1].includes(Number(x.brasileiro))))) pendCadastro.push('Marque brasileiro ou estrangeiro para cada sócio.'); if (socios.length && Math.abs(percentual-100)>0.01) pendCadastro.push(`O quadro societário totaliza ${percentual.toFixed(2)}%; ele deve totalizar 100%.`);
@@ -55,7 +56,7 @@ function obter(empresaId, { banco=dbPadrao } = {}) {
     etapa('documentos','Documentos fiscais',docsFaltam.map((c)=>`Sem documento fiscal ou declaração de ausência em ${c}.`),{ competencias, cobertas:[...docs], declaracao_tipo:'DOCUMENTOS_SEM_MOVIMENTO' }),
     etapa('folha','Folha',folhaFaltam.map(()=>`Informe a última folha/pró-labore ou registre a ausência.`),{ competencias:[...folhas], cobertas:[...folhas], declaracao_tipo:'FOLHA_SEM_MOVIMENTO' }),
     etapa('receitas','Outras receitas',receitasFaltam.map((c)=>`Sem receita complementar ou declaração “não se aplica” em ${c}.`),{ competencias, cobertas:[...receitas], declaracao_tipo:'OUTRAS_RECEITAS_NAO_APLICAVEL' }),
-    etapa('apuracoes','Apurações',apuracaoFaltas.map((c)=>`Apuração de ${simples?'PGDAS':'PIS/Cofins'} ausente em ${c}.`),{ janela:janelaApuracao, regime:empresa.regime, declaracao_tipo:'APURACAO_HISTORICO_NAO_APLICAVEL' }),
+    etapa('apuracoes','Apurações',apuracaoFaltas.map((c)=>`Apuração de ${simples?'PGDAS':'PIS/Cofins'} ausente em ${c}.`),{ janela:janelaApuracao, regime:empresa.regime, cobertas:[...apuracoes,...apuracoesDeclaradas], declaracao_tipo:'APURACAO_HISTORICO_NAO_APLICAVEL' }),
     etapa('margem','Margem operacional',margem||margemDeclarada?[]:['Informe a margem operacional ou registre que não se aplica.'],{ declaracao_tipo:'MARGEM_NAO_APLICAVEL' }),
     etapa('empresa','Empresas e estabelecimentos',pendCadastro),
   ];
@@ -67,8 +68,8 @@ function declarar(empresaId, dados, usuarioId=null, { banco=dbPadrao } = {}) {
   const tipo=String(dados.tipo||''); const referencia=String(dados.referencia||'').trim(); const motivo=String(dados.motivo||'').trim();
   if (!TIPOS.has(tipo)) throw new Error('Tipo de declaração inválido.');
   if (!motivo) throw new Error('Informe o motivo da declaração.');
-  const cobreAno = tipo==='DOCUMENTOS_SEM_MOVIMENTO' || tipo==='OUTRAS_RECEITAS_NAO_APLICAVEL';
-  if ((tipo==='APURACAO_HISTORICO_NAO_APLICAVEL' && !ANO.test(referencia)) || (cobreAno && !(ANO.test(referencia) || COMPETENCIA.test(referencia))) || (!cobreAno && tipo!=='APURACAO_HISTORICO_NAO_APLICAVEL' && tipo!=='MARGEM_NAO_APLICAVEL' && !COMPETENCIA.test(referencia)) || (tipo==='MARGEM_NAO_APLICAVEL' && referencia!=='PERIODO_ANALISADO')) throw new Error('Referência da declaração inválida. Use AAAA-MM ou, quando aplicável, somente AAAA.');
+  const cobreAno = tipo==='DOCUMENTOS_SEM_MOVIMENTO' || tipo==='OUTRAS_RECEITAS_NAO_APLICAVEL' || tipo==='APURACAO_HISTORICO_NAO_APLICAVEL';
+  if ((cobreAno && !(ANO.test(referencia) || COMPETENCIA.test(referencia))) || (!cobreAno && tipo!=='MARGEM_NAO_APLICAVEL' && !COMPETENCIA.test(referencia)) || (tipo==='MARGEM_NAO_APLICAVEL' && referencia!=='PERIODO_ANALISADO')) throw new Error('Referência da declaração inválida. Use AAAA-MM ou, quando aplicável, somente AAAA.');
   banco.prepare(`INSERT INTO empresa_prontidao_declaracoes (empresa_id,tipo,referencia,motivo,justificativa,usuario_id) VALUES (?,?,?,?,?,?) ON CONFLICT(empresa_id,tipo,referencia) DO UPDATE SET motivo=excluded.motivo,justificativa=excluded.justificativa,usuario_id=excluded.usuario_id,criado_em=datetime('now','localtime')`).run(empresaId,tipo,referencia,motivo,String(dados.justificativa||''),usuarioId||null);
   return obter(empresaId,{banco});
 }
@@ -100,8 +101,8 @@ async function declararCompartilhado(empresaId,dados,usuarioId=null,{banco=dbPad
   // Reutiliza toda a validação local em uma base temporária lógica: nenhuma
   // escrita é feita antes de a identidade compartilhada ser confirmada.
   if(!TIPOS.has(tipo) || !motivo) return declarar(empresaId,dados,usuarioId,{banco});
-  const cobreAno = tipo==='DOCUMENTOS_SEM_MOVIMENTO' || tipo==='OUTRAS_RECEITAS_NAO_APLICAVEL';
-  if((tipo==='APURACAO_HISTORICO_NAO_APLICAVEL'&&!ANO.test(referencia)) || (cobreAno && !(ANO.test(referencia) || COMPETENCIA.test(referencia))) || (!cobreAno && tipo!=='APURACAO_HISTORICO_NAO_APLICAVEL'&&tipo!=='MARGEM_NAO_APLICAVEL'&&!COMPETENCIA.test(referencia)) || (tipo==='MARGEM_NAO_APLICAVEL'&&referencia!=='PERIODO_ANALISADO')) return declarar(empresaId,dados,usuarioId,{banco});
+  const cobreAno = tipo==='DOCUMENTOS_SEM_MOVIMENTO' || tipo==='OUTRAS_RECEITAS_NAO_APLICAVEL' || tipo==='APURACAO_HISTORICO_NAO_APLICAVEL';
+  if((cobreAno && !(ANO.test(referencia) || COMPETENCIA.test(referencia))) || (!cobreAno && tipo!=='MARGEM_NAO_APLICAVEL'&&!COMPETENCIA.test(referencia)) || (tipo==='MARGEM_NAO_APLICAVEL'&&referencia!=='PERIODO_ANALISADO')) return declarar(empresaId,dados,usuarioId,{banco});
   const empresa=await empresaRemota(empresaId,banco);
   if(!empresa) throw new Error('Empresa ainda não está disponível na base compartilhada. A declaração não foi gravada para evitar perda de sincronização.');
   const registro={empresa_id:empresa.id,tipo,referencia,motivo,justificativa:String(dados.justificativa||''),usuario_id:usuarioId||null};

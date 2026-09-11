@@ -8,5 +8,7 @@ prontidao.declarar(empresa,{tipo:'DOCUMENTOS_SEM_MOVIMENTO',referencia:'2026',mo
 prontidao.declarar(empresa,{tipo:'OUTRAS_RECEITAS_NAO_APLICAVEL',referencia:'2026',motivo:'Não se aplica'},'teste');
 r=prontidao.obter(empresa); assert.equal(r.motor.status,'VERDE'); assert.equal(r.motor.liberado,true);
 prontidao.declarar(empresa,{tipo:'APURACAO_HISTORICO_NAO_APLICAVEL',referencia:'2024',motivo:'Empresa nova'},'teste');
+prontidao.declarar(empresa,{tipo:'APURACAO_HISTORICO_NAO_APLICAVEL',referencia:'2026-01',motivo:'Sem movimento'},'teste');
+assert.ok(!prontidao.obter(empresa).etapas.find(x=>x.id==='apuracoes').pendencias.some(x=>x.includes('2026-01')));
 assert.throws(()=>prontidao.declarar(empresa,{tipo:'DOCUMENTOS_SEM_MOVIMENTO',referencia:'2026-13',motivo:'x'}),/Referência/);
 db.close(); fs.rmSync(pasta,{recursive:true,force:true}); console.log('prontidao-dados.test.js: OK');
