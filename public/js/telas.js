@@ -143,14 +143,12 @@ Telas.empresas = async (el) => {
       { t: 'Regime', r: (e) => `<span class="tag">${A.regimeLabel(e.regime)}</span>` },
       { t: 'Abertura', r: (e) => e.data_abertura ? `<b>${A.esc(String(e.data_abertura).slice(0, 10).split('-').reverse().join('/'))}</b><div class="mini">data cadastral</div>` : '<span class="mini">Não informada</span>' },
       { t: 'UF', r: (e) => A.esc(e.uf || '—') },
-      { t: 'CNAE', r: (e) => e.cnae_exibicao ? `<b class="mono">${A.esc(e.cnae_exibicao)}</b><div class="mini">${A.esc(e.atividade_cnae_exibicao || '')}</div>${cnaesSecundarios(e).length ? `<div class="mini">+ ${cnaesSecundarios(e).length} atividade(s) secundária(s)</div>` : ''}` : '<span class="mini">Não consultado</span>' },
       { t: 'Fornecedores', num: true, r: (e) => e.fornecedores },
       { t: 'Clientes', num: true, r: (e) => e.clientes },
       { t: 'Lançamentos', num: true, r: (e) => e.movimentos },
       { t: 'QSA', r: (e) => situacaoQsa(e) },
       { t: 'Código Questor', r: (e) => `<span class="mono mini">${A.esc(e.codigo_questor || '—')}</span>` },
-      { t: '', r: (e) => `<button class="btn pq" data-abrir="${e.id}">Abrir projeto</button><button class="btn pq vazio" data-qsa="${e.id}">Quadro societário</button><button class="btn pq vazio" data-cnpj-consultar="${e.id}">Consultar CNPJ</button><button class="btn pq vazio" data-ed="${e.id}">Editar</button>
-        <button class="btn pq perigo" data-rm="${e.id}">Excluir</button>` },
+      { t: '', r: (e) => `<button class="btn pq" data-acoes-empresa="${e.id}">Ações ▾</button><span hidden><button data-abrir="${e.id}"></button><button data-qsa="${e.id}"></button><button data-cnpj-consultar="${e.id}"></button><button data-ed="${e.id}"></button><button data-rm="${e.id}"></button></span>` },
     ], empresas, { vazio: 'Nenhuma empresa cadastrada. Comece cadastrando a primeira.' })}</div>
     <div class="cartao grupos-empresas"><div class="cabecalho-lista"><div><h2>Grupos de empresas para análise</h2><p class="desc">Organize empresas por carteira, segmento ou projeto para conduzir análises conjuntas.</p></div><span class="tag">${grupos.length} grupo${grupos.length === 1 ? '' : 's'}</span></div>
       ${grupos.length ? `<div class="lista-grupos">${grupos.map((g) => { const nomes = empresas.filter((e) => (g.empresa_ids || []).map(Number).includes(Number(e.id))).map((e) => e.razao_social); return `<article class="grupo-empresas-item"><div><b>${A.esc(g.nome)}</b><p class="mini">${A.esc(g.descricao || 'Sem descrição')} · ${nomes.length} empresa(s)</p><p class="mini">${A.esc(nomes.join(' · ') || 'Nenhuma empresa vinculada')}</p></div><div><button class="btn pq vazio" data-grupo-ed="${g.id}">Editar</button><button class="btn pq perigo" data-grupo-rm="${g.id}">Excluir</button></div></article>`; }).join('')}</div>` : A.vazio('Nenhum grupo criado.', 'Crie um grupo para organizar empresas que serão analisadas em conjunto.')}
@@ -267,6 +265,17 @@ Telas.empresas = async (el) => {
   }; });
   el.querySelectorAll('[data-rm]').forEach((b) => { b.onclick = () => A.confirmar('Excluir a empresa apaga também parceiros, movimentação, contratos e turmas. Confirma?', async () => {
     await A.api(`/empresas/${b.dataset.rm}`, { metodo: 'DELETE' }); A.toast('Empresa excluída', 'ok'); await A.carregarEmpresas(); A.ir('empresas'); }); });
+  el.querySelectorAll('[data-acoes-empresa]').forEach((botao) => { botao.onclick = () => {
+    const id = Number(botao.dataset.acoesEmpresa); const empresa = empresas.find((x) => x.id === id);
+    const menu = A.modal({ titulo:`Ações — ${empresa?.razao_social || 'empresa'}`, confirmar:null, largura:480,
+      descricao:'Escolha a ação que deseja executar para esta empresa.',
+      corpo:`<div style="display:grid;gap:8px"><button class="btn" data-menu-empresa="abrir">Abrir projeto</button><button class="btn vazio" data-menu-empresa="qsa">Quadro societário</button><button class="btn vazio" data-menu-empresa="consultar">Consultar CNPJ</button><button class="btn vazio" data-menu-empresa="editar">Editar empresa</button><button class="btn perigo" data-menu-empresa="excluir">Excluir empresa</button></div>` });
+    menu.fundo.querySelectorAll('[data-menu-empresa]').forEach((acao) => { acao.onclick = () => {
+      menu.fechar();
+      const destino = { abrir:'data-abrir', qsa:'data-qsa', consultar:'data-cnpj-consultar', editar:'data-ed', excluir:'data-rm' }[acao.dataset.menuEmpresa];
+      el.querySelector(`[${destino}="${id}"]`)?.click();
+    }; });
+  }; });
   el.querySelectorAll('[data-grupo-ed]').forEach((b) => { b.onclick = () => { const g = grupos.find((x) => x.id === b.dataset.grupoEd); A.modal({ titulo: 'Editar grupo de empresas', largura: 720, corpo: formGrupo(g), aoConfirmar: async (d) => { d.empresa_ids = empresas.filter((empresa) => d[`empresa_${empresa.id}`]).map((empresa) => empresa.id); await A.api(`/grupos-empresas/${g.id}`, { metodo: 'PUT', corpo: d }); A.toast('Grupo atualizado', 'ok'); A.ir('empresas'); } }); }; });
   el.querySelectorAll('[data-grupo-rm]').forEach((b) => { b.onclick = () => A.confirmar('Excluir este grupo não exclui as empresas. Confirma?', async () => { await A.api(`/grupos-empresas/${b.dataset.grupoRm}`, { metodo: 'DELETE' }); A.toast('Grupo excluído', 'ok'); A.ir('empresas'); }); });
 };
