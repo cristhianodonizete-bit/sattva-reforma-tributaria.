@@ -109,6 +109,16 @@ function gravar(tabela, linhas, dentroDaTransacao = false) {
 }
 
 function gravarEmpresas(linhas, dentroDaTransacao = false) {
+  // PostgREST devolve colunas json/jsonb como objetos. O cache local usa
+  // TEXT para os campos do cadastro; sem esta conversão a próxima tela que
+  // lê CNAEs secundários tenta fazer JSON.parse de "[object Object]".
+  // Aceitamos também texto já serializado para manter compatibilidade com
+  // cadastros criados antes da sincronização compartilhada.
+  const textoPersistivel = (valor, padrao = '') => {
+    if (valor === null || valor === undefined) return padrao;
+    if (typeof valor === 'object' && !Buffer.isBuffer(valor) && !(valor instanceof Date)) return JSON.stringify(valor);
+    return valor;
+  };
   const inserir = db.prepare(`INSERT INTO empresas
     (id,cnpj,razao_social,nome_fantasia,regime,regime_reconhecimento_simples,uf,municipio,cnae,atividade,cnaes_secundarios,data_abertura,faturamento_anual,setor,reducao_padrao,codigo_questor,observacoes,criado_em)
     VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
@@ -121,9 +131,9 @@ function gravarEmpresas(linhas, dentroDaTransacao = false) {
     const id = Number(empresa.origem_local_id || empresa.id);
     if (!id) return;
     inserir.run(id, String(empresa.cnpj || '').replace(/\D/g, ''), empresa.razao_social || 'Empresa sem razão social',
-      empresa.nome_fantasia || '', empresa.regime || '', empresa.regime_reconhecimento_simples || 'competencia', empresa.uf || '', empresa.municipio || '', empresa.cnae || '',
-      empresa.atividade || '', empresa.cnaes_secundarios || '', empresa.data_abertura || null, Number(empresa.faturamento_anual) || 0, empresa.setor || '', empresa.reducao_padrao || 'integral',
-      empresa.codigo_questor || '', empresa.observacoes || '', empresa.criado_em || null);
+      textoPersistivel(empresa.nome_fantasia), textoPersistivel(empresa.regime), textoPersistivel(empresa.regime_reconhecimento_simples, 'competencia'), textoPersistivel(empresa.uf), textoPersistivel(empresa.municipio), textoPersistivel(empresa.cnae),
+      textoPersistivel(empresa.atividade), textoPersistivel(empresa.cnaes_secundarios), textoPersistivel(empresa.data_abertura, null), Number(empresa.faturamento_anual) || 0, textoPersistivel(empresa.setor), textoPersistivel(empresa.reducao_padrao, 'integral'),
+      textoPersistivel(empresa.codigo_questor), textoPersistivel(empresa.observacoes), textoPersistivel(empresa.criado_em, null));
   });
   if (dentroDaTransacao) persistir(); else db.transaction(persistir)();
   return linhas.length;
