@@ -58,6 +58,11 @@ async function restaurar(empresaLocalId) {
         // original: sempre atualizamos o binário e os metadados do cache.
         if (existente) {
           db.prepare(`UPDATE pgdas_documentos SET nome_original=?,tipo_documento=?,mime_type=?,conteudo_original=?,competencia_detectada=?,data_processamento=?,metodo_extracao=?,status_processamento=? WHERE id=?`).run(remoto.nome_original,remoto.tipo_documento,remoto.mime_type,remoto.conteudo_original,remoto.competencia_detectada,remoto.data_processamento,remoto.metodo_extracao,remoto.status_processamento,existente.id);
+          // A memória dos campos também é evidência durável. Sem repô-la, o
+          // PDF reaparecia depois de um reinício, mas a composição tributária
+          // do Perfil ficava vazia ou desatualizada.
+          db.prepare('DELETE FROM pgdas_documento_campos WHERE documento_id=?').run(existente.id);
+          for (const campo of camposPorDocumento.get(remoto.id) || []) inserirCampo.run(existente.id, campo.campo, campo.valor_extraido, campo.rotulo_original, campo.pagina_ou_localizacao, campo.confianca, campo.metodo_extracao, campo.status_validacao);
           restaurados += 1;
           continue;
         }

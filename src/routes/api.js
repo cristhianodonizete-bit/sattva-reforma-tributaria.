@@ -1351,6 +1351,11 @@ router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
     // leitura impede que uma instância nova consolide todo o histórico local
     // em vez de somente o exercício selecionado.
     await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id));
+    // A restauração só complementa o cache com os PDFs/evidências duráveis;
+    // uma indisponibilidade transitória não pode derrubar toda a leitura do
+    // Perfil Tributário já persistido.
+    try { await pgdasCompartilhado.restaurar(Number(req.params.id)); }
+    catch (e) { console.warn(`[pgdas] restauração do Perfil adiada: ${e.message}`); }
     // O Perfil é dono da sua própria leitura: não pode depender de outra
     // tela ter aberto a lista de apurações antes. Isso elimina a corrida que
     // fazia uma instância recém-iniciada mostrar PIS/Cofins indeterminado
@@ -3765,7 +3770,11 @@ router.post('/empresas/:id/questor/conector/movimentacao', async (req,res)=>{ tr
 router.post('/empresas/:id/questor/conector/apuracao-pis-cofins', async (req,res)=>{ try {
   const empresa=db.prepare('SELECT codigo_questor FROM empresas WHERE id=?').get(req.params.id); if(!empresa?.codigo_questor) throw new Error('Informe o Código Questor no cadastro da empresa antes da busca.');
   const empresaId=Number(req.params.id), periodo=await periodoAnalisado.sincronizarCompartilhado(empresaId); if(!periodo) throw new Error('Defina o Período analisado antes da busca.');
-  const janela=periodoAnalisado.janelaApuracao(periodo); await questorPersistencia.sincronizarUsuario(donoConector(req));
+  const inicioInformado=String(req.body?.inicio||''), fimInformado=String(req.body?.fim||'');
+  const competenciaDeData=(data)=>/^\d{4}-\d{2}-\d{2}$/.test(data)?data.slice(0,7):null;
+  const inicioCompetencia=competenciaDeData(inicioInformado), fimCompetencia=competenciaDeData(fimInformado);
+  if ((inicioInformado || fimInformado) && (!inicioCompetencia || !fimCompetencia || inicioCompetencia>fimCompetencia)) throw new Error('Informe datas inicial e final válidas.');
+  const janela=inicioCompetencia ? {competencia_inicio:inicioCompetencia,competencia_fim:fimCompetencia,data_inicio:inicioInformado,data_fim:fimInformado} : periodoAnalisado.janelaApuracao(periodo); await questorPersistencia.sincronizarUsuario(donoConector(req));
   const c=db.prepare("SELECT id FROM questor_conectores WHERE status='ATIVO' AND usuario_id=? ORDER BY ultima_conexao_em DESC LIMIT 1").get(donoConector(req)); if(!c) throw new Error('Inicie um conector Questor que pertença ao seu usuário antes da busca.');
   const existentes=new Set(db.prepare(`SELECT competencia FROM pis_cofins_apuracoes_historicas WHERE empresa_id=? AND competencia IS NOT NULL AND (receita_base IS NOT NULL OR pis_debito IS NOT NULL OR cofins_debito IS NOT NULL OR pis_recolhido IS NOT NULL OR cofins_recolhida IS NOT NULL)`).all(empresaId).map((x)=>x.competencia));
   const emFila=new Set(db.prepare(`SELECT payload_json FROM questor_conector_tarefas WHERE conector_id=? AND empresa_id=? AND tipo='APURACAO_PIS_COFINS' AND status IN ('PENDENTE','EM_EXECUCAO')`).all(c.id,empresaId)

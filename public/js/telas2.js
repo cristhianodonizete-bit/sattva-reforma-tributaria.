@@ -682,6 +682,7 @@ Telas.questor = async (el) => {
         <p class="desc">${S.empresa ? `${A.esc(S.empresa.razao_social)} · código Questor: <b class="mono">${A.esc(S.empresa.codigo_questor || 'não informado')}</b>` : 'Selecione uma empresa'}</p>
         <div class="grade g2">${A.campo('inicio', 'Data inicial', '', 'date')}${A.campo('fim', 'Data final', '', 'date')}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button><button class="btn vazio" id="consultarParametrosApuracaoQuestor">Consultar parâmetros do relatório</button></div>
+        <div id="statusImportacaoQuestor" class="mini" role="status" style="margin-top:10px"></div>
         <p class="mini" style="margin-top:8px">Usa o período analisado e o código Questor da empresa. XMLs já importados não são consultados novamente.</p>
         <hr class="sep">
         <h2 style="font-size:13px">Chamada livre</h2>
@@ -715,15 +716,26 @@ Telas.questor = async (el) => {
     </div>`;
 
   const val = (n) => (el.querySelector(`[name="${n}"]`) || {}).value || '';
-  document.getElementById('importarApuracaoQuestor').onclick = async () => {
+  document.getElementById('importarApuracaoQuestor').onclick = async (evento) => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
-    const r = await A.api(`/empresas/${S.empresaId}/questor/conector/apuracao-pis-cofins`, {metodo:'POST',corpo:{}});
-    const origemParametros = r.perfil_parametros === 'DESCOBERTO_NO_QUESTOR' ? 'Parâmetros confirmados pela sua instalação Questor.' : 'Usando perfil de compatibilidade; consulte os parâmetros para confirmar esta instalação.';
-    const mensagem = r.quantidade_solicitada
-      ? `${r.quantidade_solicitada} competência(s) de apuração foram solicitadas. ${origemParametros}`
-      : 'Não há competência pendente para importar neste período.';
-    A.toast(mensagem, 'ok');
-    A.ir('questor');
+    const botao = evento.currentTarget, status = el.querySelector('#statusImportacaoQuestor');
+    const inicio = val('inicio'), fim = val('fim');
+    if (!inicio || !fim) return A.toast('Informe data inicial e final.', 'erro');
+    if (inicio > fim) return A.toast('A data inicial não pode ser posterior à final.', 'erro');
+    botao.disabled = true; botao.textContent = 'Importando…';
+    status.innerHTML = '<span class="tag a">Solicitando importação ao conector Questor…</span><div class="mini" style="margin-top:6px">Acompanhe a execução na fila abaixo; o conector local processará cada competência.</div>';
+    try {
+      const r = await A.api(`/empresas/${S.empresaId}/questor/conector/apuracao-pis-cofins`, {metodo:'POST',corpo:{inicio,fim}});
+      const origemParametros = r.perfil_parametros === 'DESCOBERTO_NO_QUESTOR' ? 'Parâmetros confirmados pela sua instalação Questor.' : 'Usando perfil de compatibilidade; consulte os parâmetros para confirmar esta instalação.';
+      const mensagem = r.quantidade_solicitada
+        ? `${r.quantidade_solicitada} competência(s) foram enviadas à fila.`
+        : 'Não há competência pendente para importar neste intervalo.';
+      status.innerHTML = `<span class="tag c">Solicitação registrada</span><div class="mini" style="margin-top:6px">${A.esc(mensagem)} ${A.esc(origemParametros)} Atualize a fila abaixo para acompanhar.</div>`;
+      A.toast(mensagem, 'ok');
+    } catch (e) {
+      status.innerHTML = `<span class="tag alto">Falha ao solicitar</span><div class="mini" style="margin-top:6px">${A.esc(e.message)}</div>`;
+      A.toast(e.message, 'erro');
+    } finally { botao.disabled = false; botao.textContent = 'Importar apuração PIS/COFINS'; }
   };
   document.getElementById('consultarParametrosApuracaoQuestor').onclick = async () => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');

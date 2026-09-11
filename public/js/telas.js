@@ -1057,6 +1057,7 @@ Telas.perfil = async (el) => {
   const abaPerfil = S.aba.perfilTributario || 'resumo';
   const auditoriaMensal = tributario.auditoria_mensal || [];
   const composicaoReceita = tributario.composicao_receita || [];
+  const composicaoPisCofinsPgdas = tributario.composicao_pis_cofins_pgdas || [];
   const simplesCaixa = tributario.empresa?.regime_atual === 'simples_nacional' && tributario.empresa?.regime_reconhecimento_simples === 'caixa';
   const recebimentosCaixa = historico.map((x) => x.receita_recebida?.valor);
   const dasCaixa = historico.map((x) => x.pgdas?.valor);
@@ -1109,12 +1110,22 @@ Telas.perfil = async (el) => {
     {t:'Competência',r:x=>A.esc(rotuloCompetencia(x.competencia))},{t:'Modelo fiscal',r:x=>A.esc(String(x.modelo_fiscal||'—').toUpperCase())},{t:'CFOP',r:x=>`<span class="mono">${A.esc(x.cfop||'—')}</span>`},{t:'Decisão',r:x=>`<span class="tag ${x.compoe_receita?'c':'a'}">${x.compoe_receita?'Compõe receita':'Fora da receita'}</span><div class="mini">${A.esc(x.motivo||'')}</div>`},{t:'Itens',num:true,r:x=>x.itens},{t:'Valor documental',num:true,r:x=>A.moeda(x.valor)}
   ], filtro === 'receita' ? composicaoReceita.filter((x)=>x.compoe_receita) : composicaoReceita,{vazio:'Nenhum documento fiscal encontrado no período analisado.'});
   const conteudoComposicao = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Composição da receita importada</h2><p class="desc">Faturamento mensal por modelo fiscal. A visão de operações que compõem receita é a mesma base do card Receita analisada.</p></div><span class="tag">${composicaoReceita.length} grupo(s)</span></div><div class="abas" style="margin:16px 0 12px"><button class="ativo" data-filtro-composicao="receita">Operações que compõem receita</button><button data-filtro-composicao="geral">Todos os documentos</button></div><div id="tabelaComposicaoMensal">${tabelaComposicaoMensal('receita')}</div><details style="margin-top:16px"><summary><b>Auditoria por competência, modelo e CFOP</b></summary><div id="tabelaDetalheComposicao" style="margin-top:12px">${tabelaDetalheComposicao('receita')}</div></details></div>`;
+  const taxa = (v) => numero(v) === null ? '—' : A.pct(numero(v));
+  const conteudoPisCofinsPgdas = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Composição do cálculo PIS/Cofins — PGDAS</h2><p class="desc">Memória mensal que valida o PGDAS pelo caminho tributário correto e demonstra os valores transferidos ao Perfil Tributário. A receita de competência não é presumida a partir dos buckets de caixa.</p></div><span class="tag">${composicaoPisCofinsPgdas.length} bloco(s)</span></div>
+    ${A.tabela([
+      {t:'Competência / bloco',r:x=>`<b>${A.esc(rotuloCompetencia(x.competencia))}</b><br><span class="mini">${A.esc(x.descricao_bloco || '—')}</span>`},
+      {t:'Regra do Simples',r:x=>`Anexo ${A.esc(x.anexo || '—')} · faixa ${A.esc(x.faixa ?? '—')}<br><span class="mini">RBT12 ${A.moeda(x.rbt12 || 0)} · nominal ${taxa(x.aliquota_nominal)} · dedução ${A.moeda(x.parcela_deduzir || 0)}</span>`},
+      {t:'Alíquotas',r:x=>`Simples: <b>${taxa(x.simples_effective_rate)}</b><br><span class="mini">PIS: repartição ${taxa(x.pis_distribution_percentage)} · efetiva ${taxa(x.pis_effective_rate)}<br>COFINS: repartição ${taxa(x.cofins_distribution_percentage)} · efetiva ${taxa(x.cofins_effective_rate)}</span>`},
+      {t:'Validação PGDAS',num:true,r:x=>`PIS ${A.moeda(x.pgdas_pis)} → ${A.moeda(x.calculated_pis)} ${x.pis_match ? '✓' : '✕'}<br>COFINS ${A.moeda(x.pgdas_cofins)} → ${A.moeda(x.calculated_cofins)} ${x.cofins_match ? '✓' : '✕'}`},
+      {t:'Perfil Tributário',num:true,r:x=>`PIS: <b>${A.moeda(x.pis_perfil)}</b><br>COFINS: <b>${A.moeda(x.cofins_perfil)}</b><br><span class="mini">competência: ${A.esc(x.calculo_competencia_status)}</span>`},
+    ], composicaoPisCofinsPgdas, {vazio:'Nenhum PGDAS confirmado e validado foi encontrado na janela analisada.'})}
+    <p class="mini" style="margin-top:12px">“PIS/COFINS no Perfil” são os valores declarados no PGDAS após validação. O cálculo de competência só é usado quando os documentos conseguem ser associados de forma segura aos buckets do PGDAS.</p></div>`;
 
   el.innerHTML = cab('Módulo 1.a · diagnóstico', 'Perfil Tributário',
     'Raio-X da apuração atual de PIS/Cofins. Esta tela não projeta CBS, não analisa cadeias e não apresenta cenários.',
     '<button class="btn vazio" id="centralDadosPerfil">Central de Dados</button>') +
-    `<div class="abas" style="margin-top:16px"><button class="${abaPerfil === 'resumo' ? 'ativo' : ''}" data-aba-perfil="resumo">Resumo da apuração</button><button class="${abaPerfil === 'composicao' ? 'ativo' : ''}" data-aba-perfil="composicao">Composição da receita</button><button class="${abaPerfil === 'auditoria' ? 'ativo' : ''}" data-aba-perfil="auditoria">Auditoria mensal</button></div>` +
-    (abaPerfil === 'auditoria' ? conteudoAuditoria : abaPerfil === 'composicao' ? conteudoComposicao :
+    `<div class="abas" style="margin-top:16px"><button class="${abaPerfil === 'resumo' ? 'ativo' : ''}" data-aba-perfil="resumo">Resumo da apuração</button><button class="${abaPerfil === 'composicao' ? 'ativo' : ''}" data-aba-perfil="composicao">Composição da receita</button><button class="${abaPerfil === 'pis-cofins-pgdas' ? 'ativo' : ''}" data-aba-perfil="pis-cofins-pgdas">Composição PIS/Cofins</button><button class="${abaPerfil === 'auditoria' ? 'ativo' : ''}" data-aba-perfil="auditoria">Auditoria mensal</button></div>` +
+    (abaPerfil === 'auditoria' ? conteudoAuditoria : abaPerfil === 'composicao' ? conteudoComposicao : abaPerfil === 'pis-cofins-pgdas' ? conteudoPisCofinsPgdas :
     `<div class="cartao"><div class="cabecalho-lista"><div><h2>Resumo da apuração atual</h2><p class="desc">Valores efetivamente importados. A alíquota efetiva final é PIS/Cofins apurados ÷ receita analisada.</p></div><span class="tag">${A.esc(origem)}</span></div>
       <div class="grade g4">
         ${A.kpi('Regime atual', A.esc(regimeAtual), historico.length ? `${historico.length} período(s) analisado(s)${periodoPerfil ? ` · ${A.esc(periodoPerfil.competencia_inicio)} a ${A.esc(periodoPerfil.competencia_fim)}` : ''}` : 'sem período analisado')}

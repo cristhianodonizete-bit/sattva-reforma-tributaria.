@@ -8,6 +8,7 @@
 const numero = (v) => Number(v) || 0;
 const tem = (v) => v !== null && v !== undefined;
 const receitaOperacional = require('./receitaOperacional');
+const pgdasDocumentoIa = require('./pgdasDocumentoIa');
 
 // Receita documental não é somente vProd: frete, seguro e outras despesas
 // cobradas na venda compõem o preço; desconto o reduz.
@@ -22,6 +23,46 @@ function valor(valor, natureza = 'REAL') {
 
 function tabelaExiste(db, nome) {
   return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(nome));
+}
+
+// Demonstra, por competência, a memória que validou a transferência do
+// PGDAS para o Perfil Tributário. Os valores do perfil continuam sendo os
+// declarados no PGDAS; o cálculo de competência é apresentado separadamente.
+function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
+  if (!tabelaExiste(db, 'pgdas_documentos') || !tabelaExiste(db, 'pgdas_documento_campos')) return [];
+  const documentos = db.prepare(`SELECT * FROM pgdas_documentos WHERE empresa_id=? AND status_processamento='VALIDADO_USUARIO' ORDER BY id DESC`).all(empresaId);
+  const campos = db.prepare(`SELECT c.* FROM pgdas_documento_campos c JOIN pgdas_documentos d ON d.id=c.documento_id WHERE d.empresa_id=?`).all(empresaId);
+  const perfilPorCompetencia = new Map(perfis.map((x) => [x.competencia, x]));
+  const vistos = new Set(), linhas = [];
+  for (const documento of documentos) {
+    const camposDocumento = campos.filter((x) => Number(x.documento_id) === Number(documento.id));
+    const bruto = Object.fromEntries(camposDocumento.map((x) => [x.campo, x.valor_extraido]));
+    const competencia = bruto.competencia || documento.competencia_detectada;
+    if (!competencia || vistos.has(competencia) || !noExercicio(competencia)) continue;
+    vistos.add(competencia);
+    let blocos = [];
+    try { blocos = JSON.parse(bruto.revenue_blocks || '[]'); } catch (_) { continue; }
+    const valores = { ...bruto, competencia, rbt12: numero(bruto.rbt12), receita_bruta: numero(bruto.receita_bruta), receita_recebida: bruto.receita_recebida == null ? null : numero(bruto.receita_recebida), pis: numero(bruto.pis), cofins: numero(bruto.cofins) };
+    const validacao = pgdasDocumentoIa.validarRegraBlocos(db, valores, blocos);
+    const calculoCompetencia = pgdasDocumentoIa.calcularCompetenciaPisCofins(db, empresaId, valores, validacao);
+    const perfil = perfilPorCompetencia.get(competencia) || {};
+    for (const bloco of validacao.blocos || []) {
+      const regra = bloco.calculation || {}, aceite = bloco.aceite_tributario || {};
+      linhas.push({ competencia, documento: documento.nome_original, status: validacao.validada ? 'VALIDADO' : 'REVISAR',
+        descricao_bloco: bloco.description_raw, receita_pgdas: numero(bloco.revenue_amount), receita_competencia: (calculoCompetencia?.memoria || []).find((x) => x.anexo === bloco.anexo)?.receita_competencia ?? null,
+        anexo: aceite.anexo, rbt12: aceite.rbt12, faixa: aceite.faixa, aliquota_nominal: aceite.aliquota_nominal,
+        parcela_deduzir: aceite.parcela_deduzir, simples_effective_rate: aceite.aliquota_efetiva_simples,
+        pis_distribution_percentage: aceite.pis_distribution_percentage, pis_effective_rate: aceite.pis_effective_rate,
+        cofins_distribution_percentage: aceite.cofins_distribution_percentage, cofins_effective_rate: aceite.cofins_effective_rate,
+        pgdas_pis: aceite.pgdas_pis, calculated_pis: aceite.calculated_pis, pis_match: aceite.pis_match,
+        pgdas_cofins: aceite.pgdas_cofins, calculated_cofins: aceite.calculated_cofins, cofins_match: aceite.cofins_match,
+        pis_perfil: perfil.pis ?? null, cofins_perfil: perfil.cofins ?? null,
+        calculo_competencia_status: calculoCompetencia?.status || 'NAO_CALCULADO',
+        pis_competencia: calculoCompetencia?.pis ?? null, cofins_competencia: calculoCompetencia?.cofins ?? null,
+      });
+    }
+  }
+  return linhas.sort((a, b) => String(a.competencia).localeCompare(String(b.competencia)) || String(a.descricao_bloco).localeCompare(String(b.descricao_bloco)));
 }
 
 // Confronto estritamente informativo entre as fontes que já foram importadas.
@@ -91,7 +132,7 @@ function consolidar(db, empresaId) {
   // migração local é concluída.
   const colunasMovimentos = new Set(db.prepare('PRAGMA table_info(movimentos)').all().map((x) => x.name));
   const colunaMovimento = (nome) => colunasMovimentos.has(nome) ? nome : `NULL AS ${nome}`;
-  db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')}
+  db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')},${colunaMovimento('situacao_documento')}
     FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId)
     .filter((x) => receitaOperacional.ehSaida(x) && noExercicio(x.competencia))
     .forEach((x) => {
@@ -206,7 +247,8 @@ function consolidar(db, empresaId) {
     cbs_motor: historico.some((x) => x.cbs_motor_existente.natureza === 'CALCULADO') ? 'DISPONIVEL' : 'INDETERMINADO',
   };
   const auditoria_mensal = montarAuditoriaMensal(documentos, apuracoes, perfis);
-  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal, composicao_receita:[...composicaoReceita.values()].sort((a,b)=>b.valor-a.valor) };
+  const composicao_pis_cofins_pgdas = montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio);
+  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal, composicao_receita:[...composicaoReceita.values()].sort((a,b)=>b.valor-a.valor), composicao_pis_cofins_pgdas };
 }
 
-module.exports = { consolidar, montarAuditoriaMensal };
+module.exports = { consolidar, montarAuditoriaMensal, montarComposicaoPisCofinsPgdas };
