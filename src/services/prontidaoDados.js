@@ -56,7 +56,7 @@ function obter(empresaId, { banco=dbPadrao } = {}) {
     etapa('documentos','Documentos fiscais',docsFaltam.map((c)=>`Sem documento fiscal ou declaração de ausência em ${c}.`),{ competencias, cobertas:[...docs], declaracao_tipo:'DOCUMENTOS_SEM_MOVIMENTO' }),
     etapa('folha','Folha',folhaFaltam.map(()=>`Informe a última folha/pró-labore ou registre a ausência.`),{ competencias:[...folhas], cobertas:[...folhas], declaracao_tipo:'FOLHA_SEM_MOVIMENTO' }),
     etapa('receitas','Outras receitas',receitasFaltam.map((c)=>`Sem receita complementar ou declaração “não se aplica” em ${c}.`),{ competencias, cobertas:[...receitas], declaracao_tipo:'OUTRAS_RECEITAS_NAO_APLICAVEL' }),
-    etapa('apuracoes','Apurações',apuracaoFaltas.map((c)=>`Apuração de ${simples?'PGDAS':'PIS/Cofins'} ausente em ${c}.`),{ janela:janelaApuracao, regime:empresa.regime, cobertas:[...apuracoes,...apuracoesDeclaradas], declaracao_tipo:'APURACAO_HISTORICO_NAO_APLICAVEL' }),
+    etapa('apuracoes','Apurações',apuracaoFaltas.map((c)=>`Apuração de ${simples?'PGDAS':'PIS/Cofins'} ausente em ${c}.`),{ janela:janelaApuracao, regime:empresa.regime, cobertas:[...apuracoes,...apuracoesDeclaradas], declaracoes_historico:[...apuracoesDeclaradas].sort(), declaracao_tipo:'APURACAO_HISTORICO_NAO_APLICAVEL' }),
     etapa('margem','Margem operacional',margem||margemDeclarada?[]:['Informe a margem operacional ou registre que não se aplica.'],{ declaracao_tipo:'MARGEM_NAO_APLICAVEL' }),
     etapa('empresa','Empresas e estabelecimentos',pendCadastro),
   ];
