@@ -1444,6 +1444,13 @@ router.post('/planejamento/analises/:id/assistente', async (req, res) => {
 // ATUALIZAÇÕES DA REFORMA — mural de monitoramento e governança. Registros
 // aqui são informativos: não chamam o motor nem publicam regras fiscais.
 const STATUS_ATUALIZACAO_REFORMA = new Set(['NOVA', 'EM_ANALISE', 'APLICADA', 'DESCARTADA']);
+// No Supabase, dados_json (jsonb) já chega como objeto; no SQLite, chega
+// como texto. A tela de Atualizações é apenas leitora e deve aceitar ambos
+// os formatos, sem transformar um histórico válido em erro de carregamento.
+const dadosEventoAtualizacao = (valor) => {
+  if (valor && typeof valor === 'object') return valor;
+  try { return valor ? JSON.parse(valor) : {}; } catch (_) { return {}; }
+};
 router.get('/atualizacoes-reforma', async (req, res) => {
   try {
     const status = String(req.query.status || '').trim().toUpperCase();
@@ -1462,7 +1469,7 @@ router.get('/atualizacoes-reforma', async (req, res) => {
     const porAtualizacao = new Map();
     for (const evento of eventos) {
       const lista = porAtualizacao.get(evento.atualizacao_id) || [];
-      lista.push({ ...evento, dados: JSON.parse(evento.dados_json || '{}') }); porAtualizacao.set(evento.atualizacao_id, lista);
+      lista.push({ ...evento, dados: dadosEventoAtualizacao(evento.dados_json) }); porAtualizacao.set(evento.atualizacao_id, lista);
     }
     ok(res, { atualizacoes:linhas.map((x) => ({ ...x, eventos:porAtualizacao.get(x.id) || [] })), fontes });
   } catch (e) { erro(res, e); }
