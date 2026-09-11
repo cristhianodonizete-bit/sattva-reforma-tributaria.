@@ -57,6 +57,41 @@ const textoLimpo = (html) => String(html || '')
 const hash = (texto) => crypto.createHash('sha256').update(texto).digest('hex');
 const agoraSql = (agora) => agora.toISOString().slice(0, 19).replace('T', ' ');
 
+function trechoRepresentativo(texto, limite = 900) {
+  const frases = String(texto || '').match(/[^.!?]+[.!?]+/g) || [];
+  const uteis = frases.map((x) => x.trim()).filter((x) => x.length > 45)
+    .filter((x) => /reforma|tribut|ibs|cbs|pis|cofins|lei complementar|nota fiscal|class/i.test(x));
+  const escolhido = (uteis.length ? uteis : frases.map((x) => x.trim()).filter((x) => x.length > 45)).slice(0, 3).join(' ');
+  return (escolhido || String(texto || '').slice(0, limite)).slice(0, limite).trim();
+}
+
+async function resumirConteudoOficial(fonte, texto, { chamarIa = null } = {}) {
+  const trecho = trechoRepresentativo(texto, 12_000);
+  if (!trecho) throw new Error('A fonte oficial não apresentou texto suficiente para resumo.');
+  const chamar = chamarIa || (async (...args) => {
+    const ia = require('./ia');
+    if (!ia.config().ativo) return null;
+    return ia.chamar(...args);
+  });
+  const resposta = await chamar([{ role: 'user', content: `Fonte: ${fonte.nome}\nURL: ${fonte.url}\n\nConteúdo oficial lido:\n${trecho}` }], {
+    sistema: 'Você resume exclusivamente conteúdo oficial brasileiro sobre a reforma tributária. Produza 3 a 5 frases objetivas, em português, descrevendo o que a publicação informa e seus temas práticos. Não invente fatos, não conclua efeito tributário, não altere regra alguma e deixe explícito quando o conteúdo for apenas informativo.',
+    maxTokens: 500, temperatura: 0, fallback: true,
+  });
+  const resumo = String(resposta?.texto || '').replace(/\s+/g, ' ').trim();
+  return { resumo: resumo || trechoRepresentativo(texto), metodo: resposta ? 'IA_SOBRE_FONTE_OFICIAL' : 'TRECHO_OFICIAL' };
+}
+
+async function lerEResumirFonte(url, { fetcher = fetch, chamarIa = null } = {}) {
+  const fonte = FONTES.find((item) => item.url === url);
+  if (!fonte) throw new Error('A fonte da atualização não pertence ao monitor oficial.');
+  if (!fontePermitida(fonte.url)) throw new Error(`Fonte não permitida: ${fonte.url}`);
+  const resposta = await fetcher(fonte.url, { headers: { 'user-agent': 'Sattva-Reforma-Monitor/1.0' }, signal: AbortSignal.timeout(20_000) });
+  if (!resposta.ok) throw new Error(`Não foi possível ler a fonte oficial (HTTP ${resposta.status}).`);
+  const texto = textoLimpo(await resposta.text());
+  if (texto.length < 80) throw new Error('Conteúdo oficial insuficiente para gerar resumo.');
+  return { fonte, ...(await resumirConteudoOficial(fonte, texto, { chamarIa })) };
+}
+
 function fontePermitida(url) {
   const host = new URL(url).hostname.toLowerCase();
   return host === 'planalto.gov.br' || host.endsWith('.planalto.gov.br') || host === 'cgibs.gov.br' || host.endsWith('.gov.br');
@@ -113,18 +148,22 @@ async function verificarFonte(fonte, { banco, fetcher = fetch, agora = new Date(
       existe = data?.[0];
     } else existe = banco.prepare(`SELECT id FROM atualizacoes_reforma WHERE titulo=? AND fonte_url=? AND status IN ('NOVA','EM_ANALISE') LIMIT 1`).get(titulo, fonte.url);
     if (!existe) {
-      const resumo = `O monitoramento diário identificou mudança no conteúdo publicado. A alteração ainda não foi interpretada nem aplicada ao motor ou ao RAG. Revise a fonte oficial e registre a conclusão.`;
+      // A mudança só entra no mural depois de a própria fonte ser lida. O
+      // resumo não produz regra, parecer ou cálculo: serve exclusivamente
+      // para orientar a revisão humana antes de abrir a publicação oficial.
+      const leitura = await resumirConteudoOficial(fonte, texto);
+      const resumo = leitura.resumo;
       let id;
       if (remoto) {
         const { data, error } = await remoto.from('atualizacoes_reforma').insert({ titulo, resumo, fonte_nome: fonte.nome, fonte_url: fonte.url, data_publicacao: agora.toISOString().slice(0, 10), tema: fonte.tema, impacto_potencial: 'EM_ANALISE', modulos_afetados: 'BASE_DE_CONHECIMENTO', status: 'NOVA', observacao_analise: 'Detecção automática: requer validação humana antes de atualizar RAG, catálogo ou motor.' }).select('id').single();
         if (error) throw new Error(`Atualizações: ${error.message}`);
         id = data.id;
-        const evento = await remoto.from('atualizacoes_reforma_eventos').insert({ atualizacao_id: id, acao: 'DETECTADA_AUTOMATICAMENTE', dados_json: { chave: fonte.chave, hash_anterior: anterior.ultimo_hash, hash_atual: atualHash } });
+        const evento = await remoto.from('atualizacoes_reforma_eventos').insert({ atualizacao_id: id, acao: 'DETECTADA_AUTOMATICAMENTE', dados_json: { chave: fonte.chave, hash_anterior: anterior.ultimo_hash, hash_atual: atualHash, metodo_resumo: leitura.metodo } });
         if (evento.error) throw new Error(`Eventos de atualização: ${evento.error.message}`);
       } else {
         const r = banco.prepare(`INSERT INTO atualizacoes_reforma (titulo,resumo,fonte_nome,fonte_url,data_publicacao,tema,impacto_potencial,modulos_afetados,status,observacao_analise,criado_por) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(titulo, resumo, fonte.nome, fonte.url, agora.toISOString().slice(0, 10), fonte.tema, 'EM_ANALISE', 'BASE_DE_CONHECIMENTO', 'NOVA', 'Detecção automática: requer validação humana antes de atualizar RAG, catálogo ou motor.', 'MONITOR_AUTOMATICO');
         id = Number(r.lastInsertRowid);
-        banco.prepare(`INSERT INTO atualizacoes_reforma_eventos (atualizacao_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)`).run(id, 'DETECTADA_AUTOMATICAMENTE', 'MONITOR_AUTOMATICO', JSON.stringify({ chave: fonte.chave, hash_anterior: anterior.ultimo_hash, hash_atual: atualHash }));
+        banco.prepare(`INSERT INTO atualizacoes_reforma_eventos (atualizacao_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)`).run(id, 'DETECTADA_AUTOMATICAMENTE', 'MONITOR_AUTOMATICO', JSON.stringify({ chave: fonte.chave, hash_anterior: anterior.ultimo_hash, hash_atual: atualHash, metodo_resumo: leitura.metodo }));
       }
       return { chave: fonte.chave, status: 'ALTERACAO_REGISTRADA', atualizacao_id: id };
     }
@@ -143,4 +182,4 @@ async function executar({ banco, fetcher = fetch, agora = new Date(), forcar = f
   return resultados;
 }
 
-module.exports = { FONTES, executar, verificarFonte, textoLimpo, fontePermitida };
+module.exports = { FONTES, executar, verificarFonte, textoLimpo, fontePermitida, trechoRepresentativo, resumirConteudoOficial, lerEResumirFonte };

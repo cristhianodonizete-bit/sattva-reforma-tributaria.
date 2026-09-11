@@ -1497,6 +1497,31 @@ router.post('/atualizacoes-reforma', async (req, res) => {
     ok(res, { id });
   } catch (e) { erro(res, e); }
 });
+router.post('/atualizacoes-reforma/:id/ler-fonte', async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const remoto = supabase.configurado() ? supabase.admin() : null;
+    let atual;
+    if (remoto) {
+      const { data, error } = await remoto.from('atualizacoes_reforma').select('*').eq('id', id).maybeSingle();
+      if (error) throw new Error(error.message);
+      atual = data;
+    } else atual = db.prepare('SELECT * FROM atualizacoes_reforma WHERE id=?').get(id);
+    if (!atual) throw new Error('Atualização não encontrada.');
+    const leitura = await monitoramentoAtualizacoesReforma.lerEResumirFonte(atual.fonte_url);
+    if (remoto) {
+      const { error } = await remoto.from('atualizacoes_reforma').update({ resumo: leitura.resumo }).eq('id', id);
+      if (error) throw new Error(error.message);
+      const { error: eventoErro } = await remoto.from('atualizacoes_reforma_eventos').insert({ atualizacao_id:id, acao:'FONTE_LIDA_E_RESUMIDA', usuario_id:req.usuario?.id || null, dados_json:{ metodo:leitura.metodo, fonte:leitura.fonte.chave } });
+      if (eventoErro) throw new Error(eventoErro.message);
+    } else {
+      db.prepare('UPDATE atualizacoes_reforma SET resumo=? WHERE id=?').run(leitura.resumo, id);
+      db.prepare('INSERT INTO atualizacoes_reforma_eventos (atualizacao_id,acao,usuario_id,dados_json) VALUES (?,?,?,?)').run(id, 'FONTE_LIDA_E_RESUMIDA', req.usuario?.id || null, JSON.stringify({ metodo:leitura.metodo, fonte:leitura.fonte.chave }));
+    }
+    auditar(req, { acao:'Leu e resumiu fonte oficial', entidade:'atualizacao_reforma', entidadeId:String(id), depois:{ metodo:leitura.metodo, fonte:leitura.fonte.chave } });
+    ok(res, { id, resumo:leitura.resumo, metodo:leitura.metodo });
+  } catch (e) { erro(res, e); }
+});
 router.put('/atualizacoes-reforma/:id/status', async (req, res) => {
   try {
     const id = Number(req.params.id); const b = req.body || {};
