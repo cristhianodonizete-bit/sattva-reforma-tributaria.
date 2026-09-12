@@ -44,6 +44,8 @@ const CAMPOS = {
   pricing_calculos: ['id','empresa_id','pricing_item_id','versao','status','modalidade','parametros_json','resultado_json','evidencia_json','origem','calculado_em','aprovado_em','vigente_em','substituido_por_id'],
   pricing_calculo_tratamentos: ['id','pricing_calculo_id','tratamento','aliquota_efetiva_cbs','preserva_credito','estorna_credito','resultado_json','status'],
   pricing_import_linhas: ['id','lote_id','linha','aba','codigo_item','status','erro','dados_json','pricing_item_id','criado_em'],
+  pricing_base_operacional: ['id','empresa_id','codigo','descricao','modelo','fornecedor_cnpj','regime_fornecedor','pis','cofins','valor_aquisicao','prazo_depreciacao_meses','valor_residual','origem','evidencia','ativo','criado_em','atualizado_em'],
+  pricing_base_estrutura: ['id','base_operacional_id','codigo_componente','descricao','tipo_componente','valor','pis','cofins','fornecedor_cnpj','regime_fornecedor','origem','evidencia','criado_em'],
   // Fotografia imutável do simulador, lida por Contratos somente mediante
   // vínculo explícito. Ela é sincronizada como resultado já produzido.
   pricing_simulacoes: ['id','empresa_id','modo','parametros_json','resultados_json','origem','natureza','criado_em'],
@@ -66,7 +68,7 @@ const CAMPOS = {
   monitoring_actions: ['id','empresa_id','desvio_id','acao','responsavel','prazo','prioridade','status','evidencia','origem','criado_em','atualizado_em'],
 };
 const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','param_naturezas_juridicas_anexo_xi','servicos','combos','combo_itens'];
-const TABELAS_PRECIFICACAO = ['pricing_products','pricing_services','pricing_components','pricing_import_batches','pricing_itens','pricing_creditos_globais','pricing_calculos','pricing_calculo_tratamentos','pricing_import_linhas'];
+const TABELAS_PRECIFICACAO = ['pricing_products','pricing_services','pricing_components','pricing_import_batches','pricing_itens','pricing_creditos_globais','pricing_calculos','pricing_calculo_tratamentos','pricing_import_linhas','pricing_base_operacional','pricing_base_estrutura'];
 const TABELAS_CONTRATOS = ['contratos','contrato_checklist','contrato_documentos','contrato_clausulas_extraidas','contrato_riscos_iniciais','contrato_precificacao_vinculos','contrato_recomendacoes','contrato_sugestoes_clausulas'];
 const TABELAS_ACOMPANHAMENTO = ['monitoring_baselines','monitoring_snapshots','monitoring_comparisons','monitoring_deviations','monitoring_alerts','monitoring_actions'];
 

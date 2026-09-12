@@ -886,6 +886,24 @@ CREATE TABLE IF NOT EXISTS pricing_import_linhas (
 );
 CREATE INDEX IF NOT EXISTS ix_pricing_import_linhas_lote ON pricing_import_linhas(lote_id,status);
 
+-- Base operacional da empresa para Precificação. Não classifica custo versus
+-- despesa: registra aquisição, locação ou estrutura econômica do item.
+CREATE TABLE IF NOT EXISTS pricing_base_operacional (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  codigo TEXT NOT NULL, descricao TEXT NOT NULL, modelo TEXT NOT NULL,
+  fornecedor_cnpj TEXT, regime_fornecedor TEXT, pis REAL, cofins REAL,
+  valor_aquisicao REAL, prazo_depreciacao_meses INTEGER, valor_residual REAL,
+  origem TEXT NOT NULL DEFAULT 'IMPORTACAO', evidencia TEXT, ativo INTEGER DEFAULT 1,
+  criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id,codigo,modelo)
+);
+CREATE TABLE IF NOT EXISTS pricing_base_estrutura (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, base_operacional_id INTEGER NOT NULL REFERENCES pricing_base_operacional(id) ON DELETE CASCADE,
+  codigo_componente TEXT NOT NULL, descricao TEXT NOT NULL, tipo_componente TEXT NOT NULL,
+  valor REAL NOT NULL DEFAULT 0, pis REAL, cofins REAL, fornecedor_cnpj TEXT, regime_fornecedor TEXT,
+  origem TEXT NOT NULL DEFAULT 'IMPORTACAO', evidencia TEXT, criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+
 -- Backfill não destrutivo dos cadastros independentes já existentes.
 INSERT OR IGNORE INTO pricing_itens (empresa_id,codigo,descricao,modalidade,natureza_item,ncm,nbs,lc116,unidade,perfil_cliente,preco_atual,origem,origem_tipo,origem_id)
 SELECT empresa_id,codigo,descricao,'REVENDA','produto',ncm,nbs,lc116,unidade,perfil_cliente,valor_venda_atual,'MIGRACAO','pricing_products',id FROM pricing_products;
