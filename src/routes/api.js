@@ -2707,10 +2707,10 @@ router.get('/empresas/:id/precificacao', (req, res) => {
 // vir acompanhada da evidência do motor fiscal; a Precificação não a deduz.
 router.get('/empresas/:id/precificacao/itens', (req, res) => {
   try {
-    const itens = db.prepare(`SELECT i.*, c.id calculo_id, c.versao, c.status calculo_status, c.resultado_json
+    const itens = db.prepare(`SELECT i.*, c.id calculo_id, c.versao, c.status calculo_status, c.resultado_json, c.parametros_json, c.evidencia_json
       FROM pricing_itens i LEFT JOIN pricing_calculos c ON c.id=(SELECT id FROM pricing_calculos x WHERE x.pricing_item_id=i.id ORDER BY x.versao DESC LIMIT 1)
       WHERE i.empresa_id=? ORDER BY i.ativo DESC,i.descricao`).all(req.params.id);
-    ok(res, { itens: itens.map((x) => ({ ...x, resultado: x.resultado_json ? JSON.parse(x.resultado_json) : null })) });
+    ok(res, { itens: itens.map((x) => ({ ...x, resultado: x.resultado_json ? JSON.parse(x.resultado_json) : null, parametros: x.parametros_json ? JSON.parse(x.parametros_json) : null })) });
   } catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/precificacao/itens', (req, res) => {
@@ -2754,7 +2754,9 @@ router.post('/precificacao/itens/:id/calcular', async (req,res) => {
 router.post('/precificacao/itens/:id/cenarios', (req,res) => {
   try {
     const item=db.prepare('SELECT * FROM pricing_itens WHERE id=?').get(req.params.id); if(!item) throw new Error('Item de Precificação não encontrado.');
-    const b=req.body || {}; if(!b.evidencia_fiscal) throw new Error('Informe a evidência do motor fiscal para projetar os cenários.');
+    const ultimo=db.prepare('SELECT parametros_json,evidencia_json FROM pricing_calculos WHERE pricing_item_id=? ORDER BY versao DESC LIMIT 1').get(item.id);
+    const b={ ...(ultimo?.parametros_json ? JSON.parse(ultimo.parametros_json) : {}), ...(req.body || {}) };
+    if(!b.evidencia_fiscal && !ultimo?.evidencia_json) throw new Error('Calcule uma versão com evidência do motor fiscal antes de projetar cenários.');
     ok(res,{ origem_catalogo:'cenarios/templates', item_id:item.id, cenarios:projecoesPrecificacaoCenarios.projetar({ ...item,...b }) });
   } catch(e){erro(res,e);}
 });
