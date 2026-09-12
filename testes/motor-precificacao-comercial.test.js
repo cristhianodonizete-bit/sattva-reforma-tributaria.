@@ -5,4 +5,6 @@ assert.equal(r.status, 'CALCULATED'); assert.equal(r.preco_base, 857.14); assert
 assert.equal(r.custo_liquido,600); assert.equal(r.credito_global_rateado,30);
 assert.equal(motor.calcular({ custo_liquido:100, percentuais_por_dentro:.8, margem_contribuicao:.2 }).status, 'INCOMPLETO');
 assert.equal(motor.tratamentos({ custo_liquido:100, margem_contribuicao:.2 }, [{ tratamento:'ALIQUOTA_ZERO', aliquota_efetiva_cbs:0, preserva_credito:true }])[0].cbs, 0);
+for (const modalidade of ['REVENDA','LOCACAO','PRODUCAO_COMPOSICAO','MISTO_CONTRATO']) assert.equal(motor.calcular({ modalidade,custo_liquido:100,margem_contribuicao:.2,aliquota_efetiva_cbs:.09 }).status,'CALCULATED');
+for (const tratamento of ['INTEGRAL','REDUCAO_60','REDUCAO_30','ALIQUOTA_ZERO','ISENCAO']) assert.equal(motor.tratamentos({ custo_liquido:100,margem_contribuicao:.2 },[{tratamento,aliquota_efetiva_cbs:0}])[0].status,'CALCULATED');
 console.log('motor-precificacao-comercial: markup, CBS por fora e bloqueio aprovados.');
