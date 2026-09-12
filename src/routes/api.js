@@ -12,6 +12,7 @@ const calc = require('../engine/calculadora');
 const prec = require('../engine/precificacao');
 const precificacaoIndependente = require('../services/precificacaoIndependente');
 const precificacaoCenarios = require('../services/precificacaoCenarios');
+const motorPrecificacaoComercial = require('../services/motorPrecificacaoComercial');
 const precificacaoExecutiva = require('../services/precificacaoExecutiva');
 const acompanhamentoExecutivo = require('../services/acompanhamentoExecutivo');
 const contratosEntrega1 = require('../services/contratosEntrega1');
@@ -2696,6 +2697,54 @@ router.get('/empresas/:id/precificacao', (req, res) => {
       legado: db.prepare('SELECT COUNT(*) AS total FROM itens_precificacao WHERE empresa_id=?').get(req.params.id).total,
     });
   } catch (e) { erro(res, e); }
+});
+
+// Cadastro canônico e cálculo comercial versionado. A alíquota de CBS deve
+// vir acompanhada da evidência do motor fiscal; a Precificação não a deduz.
+router.get('/empresas/:id/precificacao/itens', (req, res) => {
+  try {
+    const itens = db.prepare(`SELECT i.*, c.id calculo_id, c.versao, c.status calculo_status, c.resultado_json
+      FROM pricing_itens i LEFT JOIN pricing_calculos c ON c.id=(SELECT id FROM pricing_calculos x WHERE x.pricing_item_id=i.id ORDER BY x.versao DESC LIMIT 1)
+      WHERE i.empresa_id=? ORDER BY i.ativo DESC,i.descricao`).all(req.params.id);
+    ok(res, { itens: itens.map((x) => ({ ...x, resultado: x.resultado_json ? JSON.parse(x.resultado_json) : null })) });
+  } catch (e) { erro(res, e); }
+});
+router.post('/empresas/:id/precificacao/itens', (req, res) => {
+  try {
+    const b=req.body || {}; const modalidade=['REVENDA','LOCACAO','PRODUCAO_COMPOSICAO','MISTO_CONTRATO'].includes(b.modalidade) ? b.modalidade : 'REVENDA';
+    if (!String(b.codigo || '').trim() || !String(b.descricao || '').trim()) throw new Error('Código e descrição são obrigatórios.');
+    const r=db.prepare(`INSERT INTO pricing_itens (empresa_id,codigo,descricao,modalidade,natureza_item,ncm,nbs,lc116,unidade,perfil_cliente,preco_atual,margem_contribuicao,percentuais_por_dentro,origem,origem_tipo,origem_id)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(req.params.id,String(b.codigo).trim(),String(b.descricao).trim(),modalidade,b.natureza_item || 'produto',b.ncm || '',b.nbs || '',b.lc116 || '',b.unidade || '',b.perfil_cliente || '',Number(b.preco_atual) || 0,Number(b.margem_contribuicao) || 0,Number(b.percentuais_por_dentro) || 0,'MANUAL','pricing_itens',null);
+    auditar(req,{empresaId:Number(req.params.id),acao:'Criou item canônico de Precificação',entidade:'pricing_item',entidadeId:r.lastInsertRowid,depois:b}); ok(res,{id:r.lastInsertRowid});
+  } catch(e){erro(res,e);}
+});
+router.post('/precificacao/itens/:id/calcular', async (req,res) => {
+  try {
+    const item=db.prepare('SELECT * FROM pricing_itens WHERE id=?').get(req.params.id); if(!item) throw new Error('Item de Precificação não encontrado.');
+    const b=req.body || {}; if (!b.evidencia_fiscal) throw new Error('Informe a evidência do motor fiscal para a alíquota efetiva de CBS.');
+    const resultado=motorPrecificacaoComercial.calcular({ ...item, ...b, modalidade:item.modalidade });
+    if(resultado.status!=='CALCULATED') return ok(res,{ gravado:false, resultado });
+    const versao=(db.prepare('SELECT COALESCE(MAX(versao),0)+1 versao FROM pricing_calculos WHERE pricing_item_id=?').get(item.id).versao);
+    const r=db.prepare(`INSERT INTO pricing_calculos (empresa_id,pricing_item_id,versao,status,modalidade,parametros_json,resultado_json,evidencia_json)
+      VALUES (?,?,?,?,?,?,?,?)`).run(item.empresa_id,item.id,versao,'CALCULATED',item.modalidade,JSON.stringify({ custo_liquido:b.custo_liquido,percentuais_por_dentro:b.percentuais_por_dentro ?? item.percentuais_por_dentro,margem_contribuicao:b.margem_contribuicao ?? item.margem_contribuicao,aliquota_efetiva_cbs:b.aliquota_efetiva_cbs }),JSON.stringify(resultado),JSON.stringify(b.evidencia_fiscal));
+    const tratamentos=motorPrecificacaoComercial.tratamentos({ ...item,...b,modalidade:item.modalidade },Array.isArray(b.tratamentos)?b.tratamentos:[]);
+    const inserir=db.prepare('INSERT INTO pricing_calculo_tratamentos (pricing_calculo_id,tratamento,aliquota_efetiva_cbs,preserva_credito,estorna_credito,resultado_json,status) VALUES (?,?,?,?,?,?,?)');
+    tratamentos.forEach((t)=>inserir.run(r.lastInsertRowid,t.tratamento,t.aliquota_efetiva_cbs,t.preserva_credito?1:0,t.estorna_credito?1:0,JSON.stringify(t),t.status));
+    await require('../services/operacaoCompartilhada').publicar();
+    auditar(req,{empresaId:item.empresa_id,acao:'Calculou versão de Precificação',entidade:'pricing_calculo',entidadeId:r.lastInsertRowid,depois:{item_id:item.id,versao,resultado}});
+    ok(res,{gravado:true,calculo_id:r.lastInsertRowid,versao,resultado,tratamentos});
+  } catch(e){erro(res,e);}
+});
+router.post('/precificacao/calculos/:id/status', async (req,res) => {
+  try {
+    const c=db.prepare('SELECT * FROM pricing_calculos WHERE id=?').get(req.params.id); if(!c) throw new Error('Cálculo não encontrado.');
+    const alvo=String(req.body?.status || '').toUpperCase(); const permitidos={ CALCULATED:['VALIDATION'], VALIDATION:['APPROVED'], APPROVED:['VIGENT'], VIGENT:['SUPERSEDED'] };
+    if(!permitidos[c.status]?.includes(alvo)) throw new Error(`Transição inválida: ${c.status} para ${alvo}.`);
+    if(alvo==='VIGENT') db.prepare("UPDATE pricing_calculos SET status='SUPERSEDED',substituido_por_id=? WHERE pricing_item_id=? AND status='VIGENT'").run(c.id,c.pricing_item_id);
+    const campo=alvo==='APPROVED'?'aprovado_em':alvo==='VIGENT'?'vigente_em':null;
+    db.prepare(`UPDATE pricing_calculos SET status=?, ${campo ? `${campo}=datetime('now','localtime')` : 'calculado_em=calculado_em'} WHERE id=?`).run(alvo,c.id);
+    await require('../services/operacaoCompartilhada').publicar(); ok(res,{id:c.id,status:alvo});
+  } catch(e){erro(res,e);}
 });
 
 router.get('/empresas/:id/formacao-custo', (req, res) => {

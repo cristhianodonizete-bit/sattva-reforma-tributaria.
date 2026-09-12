@@ -843,6 +843,55 @@ CREATE TABLE IF NOT EXISTS pricing_simulacoes (
 );
 CREATE INDEX IF NOT EXISTS ix_pricing_simulacoes_empresa ON pricing_simulacoes(empresa_id, id DESC);
 
+-- Precificação canônica: não substitui nem apaga os cadastros legados.
+-- Cada cálculo é uma versão imutável e aponta para o item comercial unificado.
+CREATE TABLE IF NOT EXISTS pricing_itens (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  codigo TEXT NOT NULL, descricao TEXT NOT NULL, modalidade TEXT NOT NULL DEFAULT 'REVENDA',
+  natureza_item TEXT NOT NULL DEFAULT 'produto', ncm TEXT, nbs TEXT, lc116 TEXT, unidade TEXT,
+  perfil_cliente TEXT, preco_atual REAL DEFAULT 0, margem_contribuicao REAL DEFAULT 0,
+  percentuais_por_dentro REAL DEFAULT 0, ativo INTEGER DEFAULT 1, origem TEXT NOT NULL DEFAULT 'MIGRACAO',
+  origem_tipo TEXT, origem_id INTEGER, criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id,codigo,modalidade)
+);
+CREATE INDEX IF NOT EXISTS ix_pricing_itens_empresa ON pricing_itens(empresa_id,ativo);
+CREATE TABLE IF NOT EXISTS pricing_creditos_globais (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  descricao TEXT NOT NULL, natureza TEXT NOT NULL DEFAULT 'GERENCIAL', valor REAL NOT NULL DEFAULT 0,
+  criterio_rateio TEXT, percentual_rateio REAL, vigencia_inicio TEXT, vigencia_fim TEXT,
+  evidencia TEXT, origem TEXT NOT NULL DEFAULT 'MANUAL', ativo INTEGER DEFAULT 1,
+  criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS pricing_calculos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  pricing_item_id INTEGER NOT NULL REFERENCES pricing_itens(id) ON DELETE RESTRICT,
+  versao INTEGER NOT NULL, status TEXT NOT NULL DEFAULT 'DRAFT', modalidade TEXT NOT NULL,
+  parametros_json TEXT NOT NULL, resultado_json TEXT NOT NULL, evidencia_json TEXT,
+  origem TEXT NOT NULL DEFAULT 'MOTOR_PRECIFICACAO', calculado_em TEXT DEFAULT (datetime('now','localtime')),
+  aprovado_em TEXT, vigente_em TEXT, substituido_por_id INTEGER REFERENCES pricing_calculos(id),
+  UNIQUE(pricing_item_id,versao)
+);
+CREATE INDEX IF NOT EXISTS ix_pricing_calculos_item ON pricing_calculos(pricing_item_id,versao DESC);
+CREATE TABLE IF NOT EXISTS pricing_calculo_tratamentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, pricing_calculo_id INTEGER NOT NULL REFERENCES pricing_calculos(id) ON DELETE CASCADE,
+  tratamento TEXT NOT NULL, aliquota_efetiva_cbs REAL, preserva_credito INTEGER, estorna_credito INTEGER,
+  resultado_json TEXT NOT NULL, status TEXT NOT NULL DEFAULT 'CALCULATED', UNIQUE(pricing_calculo_id,tratamento)
+);
+CREATE TABLE IF NOT EXISTS pricing_import_linhas (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, lote_id INTEGER NOT NULL REFERENCES pricing_import_batches(id) ON DELETE CASCADE,
+  linha INTEGER NOT NULL, aba TEXT, codigo_item TEXT, status TEXT NOT NULL, erro TEXT, dados_json TEXT,
+  pricing_item_id INTEGER REFERENCES pricing_itens(id), criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_pricing_import_linhas_lote ON pricing_import_linhas(lote_id,status);
+
+-- Backfill não destrutivo dos cadastros independentes já existentes.
+INSERT OR IGNORE INTO pricing_itens (empresa_id,codigo,descricao,modalidade,natureza_item,ncm,nbs,lc116,unidade,perfil_cliente,preco_atual,origem,origem_tipo,origem_id)
+SELECT empresa_id,codigo,descricao,'REVENDA','produto',ncm,nbs,lc116,unidade,perfil_cliente,valor_venda_atual,'MIGRACAO','pricing_products',id FROM pricing_products;
+INSERT OR IGNORE INTO pricing_itens (empresa_id,codigo,descricao,modalidade,natureza_item,ncm,nbs,lc116,unidade,perfil_cliente,preco_atual,origem,origem_tipo,origem_id)
+SELECT empresa_id,codigo,descricao,'REVENDA','servico','',nbs,lc116,unidade,perfil_cliente,valor_venda_atual,'MIGRACAO','pricing_services',id FROM pricing_services;
+
 -- ============ MÓDULO 3 — CONTRATOS ============
 CREATE TABLE IF NOT EXISTS contratos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
