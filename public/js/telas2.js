@@ -16,6 +16,7 @@ Telas.precificacao = async (el) => {
   el.innerHTML = cab('Módulo 2', 'Precificação e margem',
     'A precificação comercial usa somente a saída oficial de motor_resultados e a composição de custo explicitamente cadastrada. NCM, NBS e descrição não criam vínculos automáticos.',
     `<button class="btn" id="abrirIndependente">Base independente</button>
+     <button class="btn" id="abrirVersionada">Precificação versionada</button>
      <button class="btn" id="abrirFormacao">Gerenciar formação de custo</button>
      <button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/precificacao')">Exportar Excel</button>`) +
     `<div class="grade g3">${A.kpi('Itens em formação', itens.length)}${A.kpi('Resultados definitivos', completos)}${A.kpi('Itens legados desativados', legado, 'não entram no cálculo oficial')}</div>
@@ -36,12 +37,29 @@ Telas.precificacao = async (el) => {
     </div>`;
   document.getElementById('abrirFormacao').onclick = () => A.ir('formacaoCusto');
   document.getElementById('abrirIndependente').onclick = () => telaPrecificacaoIndependente(el);
+  document.getElementById('abrirVersionada').onclick = () => telaPrecificacaoVersionada(el);
   el.querySelectorAll('[data-detalhe]').forEach((b) => b.onclick = () => {
     const i = itens.find((x) => x.item.id === Number(b.dataset.detalhe));
     const cenarios=(i.cenarios||[]).map(c=>`<tr><td><b>${A.esc(c.codigo)} — ${A.esc(c.nome)}</b></td><td>${c.aplicavel?'<span class="tag c">APLICÁVEL</span>':'<span class="tag a">PENDENTE</span>'}</td><td>${A.esc(c.motivo_nao_aplicabilidade || 'Pronto para projeção pelo motor.')}</td></tr>`).join('');
     A.modal({ titulo: `Memória — ${i.item.descricao || 'item'}`, largura: 920, corpo: `${blocoResultadoOficial(i)}<hr class="sep"><h3>Cenários do módulo de origem</h3><table><thead><tr><th>Cenário</th><th>Situação</th><th>Condição</th></tr></thead><tbody>${cenarios}</tbody></table>` });
   });
 };
+
+async function telaPrecificacaoVersionada(el) {
+  const d=await A.api(`/empresas/${S.empresaId}/precificacao/itens`); const itens=d.itens || [];
+  el.innerHTML=cab('Módulo 2','Precificação versionada','Cada cálculo gera uma versão auditável. A alíquota da CBS é sempre acompanhada da evidência do motor tributário.',`<button class="btn" id="novoItemPrec">Novo item</button><button class="btn vazio" id="voltarPrecVersionada">Voltar</button>`) +
+    `<div class="grade g3">${A.kpi('Itens ativos',itens.filter(x=>x.ativo).length)}${A.kpi('Versões calculadas',itens.filter(x=>x.calculo_id).length)}${A.kpi('Vigentes',itens.filter(x=>x.calculo_status==='VIGENT').length)}</div><div class="cartao"><h2>Itens e cálculos</h2>${A.tabela([
+      {t:'Item',r:x=>`<b>${A.esc(x.codigo)}</b> · ${A.esc(x.descricao)}<div class="mini">${A.esc(x.modalidade)}</div>`},
+      {t:'Status',r:x=>A.esc(x.calculo_status || 'DRAFT')},
+      {t:'Preço-base',num:true,r:x=>x.resultado?A.moeda(x.resultado.preco_base):'—'},
+      {t:'CBS',num:true,r:x=>x.resultado?A.moeda(x.resultado.cbs):'—'},
+      {t:'Preço final',num:true,r:x=>x.resultado?A.moeda(x.resultado.preco_final):'—'},
+      {t:'',r:x=>`<button class="btn pq vazio" data-calcular-prec="${x.id}">Calcular</button>`},
+    ],itens,{vazio:'Nenhum item versionado.'})}</div>`;
+  document.getElementById('voltarPrecVersionada').onclick=()=>Telas.precificacao(el);
+  document.getElementById('novoItemPrec').onclick=()=>A.modal({titulo:'Novo item de Precificação',corpo:A.campo('codigo','Código','')+A.campo('descricao','Descrição','')+A.selecao('modalidade','Modalidade',[{v:'REVENDA',t:'Revenda'},{v:'LOCACAO',t:'Locação'},{v:'PRODUCAO_COMPOSICAO',t:'Produção/composição'},{v:'MISTO_CONTRATO',t:'Misto/contrato'}])+A.campo('margem_contribuicao','Margem de contribuição (ex.: 0,20)','0','number')+A.campo('percentuais_por_dentro','Percentuais por dentro (ex.: 0,10)','0','number'),aoConfirmar:async b=>{await A.api(`/empresas/${S.empresaId}/precificacao/itens`,{metodo:'POST',corpo:b});telaPrecificacaoVersionada(el);}});
+  el.querySelectorAll('[data-calcular-prec]').forEach(b=>b.onclick=()=>A.modal({titulo:'Calcular versão',descricao:'A CBS deve ter origem identificável no motor tributário.',corpo:A.campo('custo_liquido','Custo líquido','0','number')+A.campo('aliquota_efetiva_cbs','Alíquota efetiva CBS (ex.: 0,09)','0','number')+A.area('evidencia_fiscal','Evidência do motor fiscal',''),aoConfirmar:async dados=>{await A.api(`/precificacao/itens/${b.dataset.calcularPrec}/calcular`,{metodo:'POST',corpo:{...dados,evidencia_fiscal:dados.evidencia_fiscal}});telaPrecificacaoVersionada(el);}}));
+}
 
 async function telaPrecificacaoIndependente(el) {
   const d = await A.api(`/empresas/${S.empresaId}/precificacao-independente`);
