@@ -11,6 +11,7 @@ const { CLAUSULAS, TRILHAS } = require('../config/conteudo');
 const calc = require('../engine/calculadora');
 const prec = require('../engine/precificacao');
 const precificacaoIndependente = require('../services/precificacaoIndependente');
+const precificacaoCenarios = require('../services/precificacaoCenarios');
 const precificacaoExecutiva = require('../services/precificacaoExecutiva');
 const acompanhamentoExecutivo = require('../services/acompanhamentoExecutivo');
 const contratosEntrega1 = require('../services/contratosEntrega1');
@@ -2674,6 +2675,8 @@ function resumoFormacaoCusto(empresaId, item) {
 
 router.get('/empresas/:id/precificacao', (req, res) => {
   try {
+    const empresa = db.prepare('SELECT id,regime FROM empresas WHERE id=?').get(req.params.id);
+    if (!empresa) throw new Error('Empresa não encontrada.');
     const itens = db.prepare('SELECT * FROM formacao_custo_itens WHERE empresa_id=? AND ativo=1 ORDER BY descricao,id').all(req.params.id);
     const porMovimento = db.prepare(`SELECT m.id AS movimento_id,m.descricao,m.codigo_produto,m.ncm,m.nbs,
       r.preco_atual,r.base_economica,r.cbs,r.ibs,r.credito_cbs,r.preco_projetado,
@@ -2683,9 +2686,15 @@ router.get('/empresas/:id/precificacao', (req, res) => {
     const resultado = itens.map((item) => {
       const formacao = resumoFormacaoCusto(req.params.id, item);
       const saida = item.movimento_saida_id ? porMovimento.get(req.params.id, item.movimento_saida_id) : null;
-      return prec.analisarItemOficial({ item, saida, formacao, despesasVariaveis: Number(item.despesas_variaveis) || 0 });
+      const analise = prec.analisarItemOficial({ item, saida, formacao, despesasVariaveis: Number(item.despesas_variaveis) || 0 });
+      return precificacaoCenarios.enriquecerItem(analise, { regimeEmpresa: empresa.regime });
     });
-    ok(res, { itens: resultado, fonte: 'motor_resultados', legado: db.prepare('SELECT COUNT(*) AS total FROM itens_precificacao WHERE empresa_id=?').get(req.params.id).total });
+    ok(res, {
+      itens: resultado,
+      catalogo_cenarios_origem: 'cenarios/templates',
+      fonte: 'motor_resultados',
+      legado: db.prepare('SELECT COUNT(*) AS total FROM itens_precificacao WHERE empresa_id=?').get(req.params.id).total,
+    });
   } catch (e) { erro(res, e); }
 });
 
