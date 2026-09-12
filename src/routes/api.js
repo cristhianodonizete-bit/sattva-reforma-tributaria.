@@ -13,6 +13,7 @@ const prec = require('../engine/precificacao');
 const precificacaoIndependente = require('../services/precificacaoIndependente');
 const precificacaoCenarios = require('../services/precificacaoCenarios');
 const motorPrecificacaoComercial = require('../services/motorPrecificacaoComercial');
+const projecoesPrecificacaoCenarios = require('../services/projecoesPrecificacaoCenarios');
 const precificacaoExecutiva = require('../services/precificacaoExecutiva');
 const acompanhamentoExecutivo = require('../services/acompanhamentoExecutivo');
 const contratosEntrega1 = require('../services/contratosEntrega1');
@@ -2748,6 +2749,13 @@ router.post('/precificacao/itens/:id/calcular', async (req,res) => {
     await require('../services/operacaoCompartilhada').publicar();
     auditar(req,{empresaId:item.empresa_id,acao:'Calculou versão de Precificação',entidade:'pricing_calculo',entidadeId:r.lastInsertRowid,depois:{item_id:item.id,versao,resultado}});
     ok(res,{gravado:true,calculo_id:r.lastInsertRowid,versao,resultado,tratamentos});
+  } catch(e){erro(res,e);}
+});
+router.post('/precificacao/itens/:id/cenarios', (req,res) => {
+  try {
+    const item=db.prepare('SELECT * FROM pricing_itens WHERE id=?').get(req.params.id); if(!item) throw new Error('Item de Precificação não encontrado.');
+    const b=req.body || {}; if(!b.evidencia_fiscal) throw new Error('Informe a evidência do motor fiscal para projetar os cenários.');
+    ok(res,{ origem_catalogo:'cenarios/templates', item_id:item.id, cenarios:projecoesPrecificacaoCenarios.projetar({ ...item,...b }) });
   } catch(e){erro(res,e);}
 });
 router.post('/precificacao/calculos/:id/status', async (req,res) => {
