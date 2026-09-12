@@ -2748,11 +2748,13 @@ router.post('/precificacao/itens/:id/calcular', async (req,res) => {
   try {
     const item=db.prepare('SELECT * FROM pricing_itens WHERE id=?').get(req.params.id); if(!item) throw new Error('Item de Precificação não encontrado.');
     const b=req.body || {}; if (!b.evidencia_fiscal) throw new Error('Informe a evidência do motor fiscal para a alíquota efetiva de CBS.');
-    const resultado=motorPrecificacaoComercial.calcular({ ...item, ...b, modalidade:item.modalidade });
+    const creditosGlobais=b.aplicar_creditos_globais ? db.prepare(`SELECT id,descricao,natureza,valor,criterio_rateio,percentual_rateio,evidencia FROM pricing_creditos_globais WHERE empresa_id=? AND ativo=1 AND criterio_rateio IS NOT NULL AND percentual_rateio>0`).all(item.empresa_id) : [];
+    const creditoGlobalAutomatico=creditosGlobais.reduce((s,c)=>s+(Number(c.valor)||0)*Math.min(1,Number(c.percentual_rateio)||0),0);
+    const resultado=motorPrecificacaoComercial.calcular({ ...item, ...b, credito_global_rateado:b.aplicar_creditos_globais?creditoGlobalAutomatico:b.credito_global_rateado, modalidade:item.modalidade });
     if(resultado.status!=='CALCULATED') return ok(res,{ gravado:false, resultado });
     const versao=(db.prepare('SELECT COALESCE(MAX(versao),0)+1 versao FROM pricing_calculos WHERE pricing_item_id=?').get(item.id).versao);
     const r=db.prepare(`INSERT INTO pricing_calculos (empresa_id,pricing_item_id,versao,status,modalidade,parametros_json,resultado_json,evidencia_json)
-      VALUES (?,?,?,?,?,?,?,?)`).run(item.empresa_id,item.id,versao,'CALCULATED',item.modalidade,JSON.stringify({ custo_liquido:b.custo_liquido,percentuais_por_dentro:b.percentuais_por_dentro ?? item.percentuais_por_dentro,margem_contribuicao:b.margem_contribuicao ?? item.margem_contribuicao,aliquota_efetiva_cbs:b.aliquota_efetiva_cbs }),JSON.stringify(resultado),JSON.stringify(b.evidencia_fiscal));
+      VALUES (?,?,?,?,?,?,?,?)`).run(item.empresa_id,item.id,versao,'CALCULATED',item.modalidade,JSON.stringify({ custo_liquido:b.custo_liquido,custo_bruto:b.custo_bruto,credito_direto:b.credito_direto,credito_global_rateado:resultado.credito_global_rateado,percentuais_por_dentro:b.percentuais_por_dentro ?? item.percentuais_por_dentro,margem_contribuicao:b.margem_contribuicao ?? item.margem_contribuicao,aliquota_efetiva_cbs:b.aliquota_efetiva_cbs }),JSON.stringify(resultado),JSON.stringify({ fiscal:b.evidencia_fiscal,creditos_globais:creditosGlobais }));
     const tratamentos=motorPrecificacaoComercial.tratamentos({ ...item,...b,modalidade:item.modalidade },Array.isArray(b.tratamentos)?b.tratamentos:[]);
     const inserir=db.prepare('INSERT INTO pricing_calculo_tratamentos (pricing_calculo_id,tratamento,aliquota_efetiva_cbs,preserva_credito,estorna_credito,resultado_json,status) VALUES (?,?,?,?,?,?,?)');
     tratamentos.forEach((t)=>inserir.run(r.lastInsertRowid,t.tratamento,t.aliquota_efetiva_cbs,t.preserva_credito?1:0,t.estorna_credito?1:0,JSON.stringify(t),t.status));
