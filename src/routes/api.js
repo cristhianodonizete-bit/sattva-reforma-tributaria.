@@ -2721,6 +2721,18 @@ router.post('/empresas/:id/precificacao/itens', (req, res) => {
     auditar(req,{empresaId:Number(req.params.id),acao:'Criou item canônico de Precificação',entidade:'pricing_item',entidadeId:r.lastInsertRowid,depois:b}); ok(res,{id:r.lastInsertRowid});
   } catch(e){erro(res,e);}
 });
+router.get('/empresas/:id/precificacao/creditos-globais', (req,res) => {
+  try { ok(res,{ creditos:db.prepare('SELECT * FROM pricing_creditos_globais WHERE empresa_id=? AND ativo=1 ORDER BY descricao').all(req.params.id) }); } catch(e){erro(res,e);}
+});
+router.post('/empresas/:id/precificacao/creditos-globais', async (req,res) => {
+  try {
+    const b=req.body || {}; const natureza=['REAL','GERENCIAL','SIMULADO'].includes(String(b.natureza||'').toUpperCase()) ? String(b.natureza).toUpperCase() : 'GERENCIAL';
+    if(!String(b.descricao||'').trim() || !(Number(b.valor)>0)) throw new Error('Informe descrição e valor positivo do crédito global.');
+    if(natureza==='REAL' && !String(b.evidencia||'').trim()) throw new Error('Crédito real exige evidência de origem.');
+    const r=db.prepare('INSERT INTO pricing_creditos_globais (empresa_id,descricao,natureza,valor,criterio_rateio,percentual_rateio,vigencia_inicio,vigencia_fim,evidencia,origem) VALUES (?,?,?,?,?,?,?,?,?,?)').run(req.params.id,String(b.descricao).trim(),natureza,Number(b.valor),b.criterio_rateio||null,Number(b.percentual_rateio)||null,b.vigencia_inicio||null,b.vigencia_fim||null,b.evidencia||null,'MANUAL');
+    await require('../services/operacaoCompartilhada').publicar(); auditar(req,{empresaId:Number(req.params.id),acao:'Registrou crédito global de Precificação',entidade:'pricing_credito_global',entidadeId:r.lastInsertRowid,depois:b}); ok(res,{id:r.lastInsertRowid,natureza});
+  } catch(e){erro(res,e);}
+});
 router.post('/precificacao/itens/:id/calcular', async (req,res) => {
   try {
     const item=db.prepare('SELECT * FROM pricing_itens WHERE id=?').get(req.params.id); if(!item) throw new Error('Item de Precificação não encontrado.');
