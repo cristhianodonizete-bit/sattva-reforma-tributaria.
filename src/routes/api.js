@@ -2713,6 +2713,13 @@ router.get('/empresas/:id/precificacao/itens', (req, res) => {
     ok(res, { itens: itens.map((x) => ({ ...x, resultado: x.resultado_json ? JSON.parse(x.resultado_json) : null, parametros: x.parametros_json ? JSON.parse(x.parametros_json) : null })) });
   } catch (e) { erro(res, e); }
 });
+router.get('/precificacao/itens/:id/historico', (req,res) => {
+  try { const item=db.prepare('SELECT * FROM pricing_itens WHERE id=?').get(req.params.id); if(!item) throw new Error('Item de Precificação não encontrado.'); const versoes=db.prepare('SELECT * FROM pricing_calculos WHERE pricing_item_id=? ORDER BY versao DESC').all(item.id).map(x=>({...x,parametros:JSON.parse(x.parametros_json||'{}'),resultado:JSON.parse(x.resultado_json||'{}')})); ok(res,{item,versoes}); }catch(e){erro(res,e);}
+});
+router.get('/empresas/:id/precificacao/importacoes', (req,res) => {
+  try { const lotes=db.prepare(`SELECT b.*,COUNT(l.id) linhas,SUM(CASE WHEN l.status='ERRO' THEN 1 ELSE 0 END) erros FROM pricing_import_batches b LEFT JOIN pricing_import_linhas l ON l.lote_id=b.id WHERE b.empresa_id=? GROUP BY b.id ORDER BY b.id DESC LIMIT 50`).all(req.params.id); ok(res,{lotes}); }catch(e){erro(res,e);}
+});
+router.get('/precificacao/importacoes/:id/linhas', (req,res) => { try { ok(res,{linhas:db.prepare('SELECT * FROM pricing_import_linhas WHERE lote_id=? ORDER BY aba,linha').all(req.params.id).map(x=>({...x,dados:x.dados_json?JSON.parse(x.dados_json):null}))}); }catch(e){erro(res,e);} });
 router.post('/empresas/:id/precificacao/itens', (req, res) => {
   try {
     const b=req.body || {}; const modalidade=['REVENDA','LOCACAO','PRODUCAO_COMPOSICAO','MISTO_CONTRATO'].includes(b.modalidade) ? b.modalidade : 'REVENDA';
