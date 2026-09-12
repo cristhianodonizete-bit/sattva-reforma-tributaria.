@@ -2771,6 +2771,15 @@ router.post('/precificacao/calculos/:id/status', async (req,res) => {
     await require('../services/operacaoCompartilhada').publicar(); ok(res,{id:c.id,status:alvo});
   } catch(e){erro(res,e);}
 });
+router.post('/empresas/:id/precificacao/reprocessar', async (req,res) => {
+  try {
+    const ids=[...new Set((req.body?.item_ids || []).map(Number).filter(Boolean))]; if(!ids.length) throw new Error('Selecione ao menos um item para reprocessar.');
+    const empresaId=Number(req.params.id); const buscarItem=db.prepare('SELECT * FROM pricing_itens WHERE id=? AND empresa_id=?'); const ultimo=db.prepare('SELECT * FROM pricing_calculos WHERE pricing_item_id=? ORDER BY versao DESC LIMIT 1');
+    const proximo=db.prepare('SELECT COALESCE(MAX(versao),0)+1 versao FROM pricing_calculos WHERE pricing_item_id=?'); const inserir=db.prepare('INSERT INTO pricing_calculos (empresa_id,pricing_item_id,versao,status,modalidade,parametros_json,resultado_json,evidencia_json,origem) VALUES (?,?,?,?,?,?,?,?,?)');
+    const resultado=[]; db.transaction(()=>ids.forEach((id)=>{const item=buscarItem.get(id,empresaId); const anterior=item && ultimo.get(id); if(!item || !anterior) {resultado.push({item_id:id,status:'IGNORADO',motivo:'Item sem versão anterior.'});return;} const p=JSON.parse(anterior.parametros_json||'{}'); const r=motorPrecificacaoComercial.calcular({...item,...p,modalidade:item.modalidade}); if(r.status!=='CALCULATED'){resultado.push({item_id:id,status:'BLOQUEADO',motivo:r.bloqueio});return;} const v=proximo.get(id).versao; inserir.run(empresaId,id,v,'CALCULATED',item.modalidade,JSON.stringify(p),JSON.stringify(r),anterior.evidencia_json,'REPROCESSAMENTO');resultado.push({item_id:id,status:'REPROCESSADO',versao:v});} ))();
+    await require('../services/operacaoCompartilhada').publicar(); ok(res,{resultado});
+  } catch(e){erro(res,e);}
+});
 
 router.get('/empresas/:id/formacao-custo', (req, res) => {
   try {
