@@ -2778,6 +2778,15 @@ router.post('/precificacao/calculos/:id/status', async (req,res) => {
     await require('../services/operacaoCompartilhada').publicar(); ok(res,{id:c.id,status:alvo});
   } catch(e){erro(res,e);}
 });
+router.post('/empresas/:id/precificacao/status-lote', async (req,res) => {
+  try {
+    const alvo=String(req.body?.status||'').toUpperCase(); const de=alvo==='VALIDATION'?'CALCULATED':alvo==='APPROVED'?'VALIDATION':null;
+    if(!de) throw new Error('Ação em lote permitida apenas para validar ou aprovar.');
+    const empresaId=Number(req.params.id); const ids=(req.body?.calculo_ids||[]).map(Number).filter(Boolean);
+    const where=ids.length?`AND id IN (${ids.map(()=>'?').join(',')})`:''; const alterados=db.prepare(`UPDATE pricing_calculos SET status=?, ${alvo==='APPROVED'?'aprovado_em=datetime(\'now\',\'localtime\')':'calculado_em=calculado_em'} WHERE empresa_id=? AND status=? ${where}`).run(alvo,empresaId,de,...ids).changes;
+    await require('../services/operacaoCompartilhada').publicar(); ok(res,{alterados,status:alvo});
+  }catch(e){erro(res,e);}
+});
 router.post('/empresas/:id/precificacao/reprocessar', async (req,res) => {
   try {
     const ids=[...new Set((req.body?.item_ids || []).map(Number).filter(Boolean))]; if(!ids.length) throw new Error('Selecione ao menos um item para reprocessar.');
