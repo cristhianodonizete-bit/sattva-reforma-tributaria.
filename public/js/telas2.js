@@ -26,9 +26,11 @@ Telas.precificacao = async (el) => {
         {t:'Preço atual',num:true,r:i=>A.moeda(i.saida?.preco_atual)},
         {t:'Base econômica',num:true,r:i=>A.moeda(i.saida?.base_economica)},
         {t:'CBS da saída',num:true,r:i=>A.moeda(i.saida?.cbs)},
+        {t:'Preço final CBS',num:true,r:i=>A.moeda(i.impacto_final_cbs?.preco_final)},
         {t:'Custo líquido',num:true,r:i=>A.moeda(i.formacao?.custo_liquido)},
         {t:'Margem atual',num:true,r:i=>i.comercial ? `${A.moeda(i.comercial.margem_atual)}<div class="mini">${A.pct(i.comercial.margem_atual_percentual)}</div>` : '—'},
         {t:'Margem projetada',num:true,r:i=>i.comercial ? `${A.moeda(i.comercial.margem_projetada)}<div class="mini">${A.pct(i.comercial.margem_projetada_percentual)}</div>` : '—'},
+        {t:'Cenários',r:i=>{const aplicaveis=(i.cenarios||[]).filter(x=>x.aplicavel);return `${aplicaveis.length}/8 aplicáveis<div class="mini">${A.esc(aplicaveis.map(x=>x.codigo).join(' · ') || 'aguardando dados')}</div>`;}},
         {t:'',r:i=>`<button class="btn pq vazio" data-detalhe="${i.item.id}">Memória</button>`},
       ], itens, {vazio:'Nenhum item de formação de custo cadastrado.'})}
     </div>`;
@@ -36,7 +38,8 @@ Telas.precificacao = async (el) => {
   document.getElementById('abrirIndependente').onclick = () => telaPrecificacaoIndependente(el);
   el.querySelectorAll('[data-detalhe]').forEach((b) => b.onclick = () => {
     const i = itens.find((x) => x.item.id === Number(b.dataset.detalhe));
-    A.modal({ titulo: `Memória — ${i.item.descricao || 'item'}`, largura: 920, corpo: blocoResultadoOficial(i) });
+    const cenarios=(i.cenarios||[]).map(c=>`<tr><td><b>${A.esc(c.codigo)} — ${A.esc(c.nome)}</b></td><td>${c.aplicavel?'<span class="tag c">APLICÁVEL</span>':'<span class="tag a">PENDENTE</span>'}</td><td>${A.esc(c.motivo_nao_aplicabilidade || 'Pronto para projeção pelo motor.')}</td></tr>`).join('');
+    A.modal({ titulo: `Memória — ${i.item.descricao || 'item'}`, largura: 920, corpo: `${blocoResultadoOficial(i)}<hr class="sep"><h3>Cenários do módulo de origem</h3><table><thead><tr><th>Cenário</th><th>Situação</th><th>Condição</th></tr></thead><tbody>${cenarios}</tbody></table>` });
   });
 };
 
