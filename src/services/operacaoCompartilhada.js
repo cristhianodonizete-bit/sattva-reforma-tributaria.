@@ -44,8 +44,8 @@ const CAMPOS = {
   pricing_calculos: ['id','empresa_id','pricing_item_id','versao','status','modalidade','parametros_json','resultado_json','evidencia_json','origem','calculado_em','aprovado_em','vigente_em','substituido_por_id'],
   pricing_calculo_tratamentos: ['id','pricing_calculo_id','tratamento','aliquota_efetiva_cbs','preserva_credito','estorna_credito','resultado_json','status'],
   pricing_import_linhas: ['id','lote_id','linha','aba','codigo_item','status','erro','dados_json','pricing_item_id','criado_em'],
-  pricing_base_operacional: ['id','empresa_id','codigo','descricao','modelo','fornecedor_cnpj','regime_fornecedor','pis','cofins','valor_aquisicao','prazo_depreciacao_meses','valor_residual','origem','evidencia','ativo','criado_em','atualizado_em'],
-  pricing_base_estrutura: ['id','base_operacional_id','codigo_componente','descricao','tipo_componente','valor','pis','cofins','fornecedor_cnpj','regime_fornecedor','origem','evidencia','criado_em'],
+  pricing_base_operacional: ['id','empresa_id','codigo','descricao','modelo','ncm_compra','nbs_compra','lc116_compra','ncm_venda','nbs_venda','lc116_venda','fornecedor_cnpj','regime_fornecedor','pis','cofins','valor_aquisicao','prazo_depreciacao_meses','valor_residual','origem','evidencia','ativo','criado_em','atualizado_em'],
+  pricing_base_estrutura: ['id','base_operacional_id','codigo_componente','descricao','tipo_componente','valor','pis','cofins','fornecedor_cnpj','regime_fornecedor','ncm','nbs','lc116','origem','evidencia','criado_em'],
   // Fotografia imutável do simulador, lida por Contratos somente mediante
   // vínculo explícito. Ela é sincronizada como resultado já produzido.
   pricing_simulacoes: ['id','empresa_id','modo','parametros_json','resultados_json','origem','natureza','criado_em'],

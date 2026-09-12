@@ -106,6 +106,8 @@ const COLUNAS_NOVAS = {
   pendencias_fiscais_produtos: { produto_empresa_id: 'INTEGER', regra_id: 'TEXT' },
   conflitos_fatos_fiscais: { produto_empresa_id: 'INTEGER' },
   formacao_custo_itens: { movimento_saida_id: 'INTEGER', despesas_variaveis: 'REAL DEFAULT 0' },
+  pricing_base_operacional: { ncm_compra:'TEXT', nbs_compra:'TEXT', lc116_compra:'TEXT', ncm_venda:'TEXT', nbs_venda:'TEXT', lc116_venda:'TEXT' },
+  pricing_base_estrutura: { ncm:'TEXT', nbs:'TEXT', lc116:'TEXT' },
   regras_governo: { origem_linha: 'TEXT' },
   regras_enquadramento: {
     // A tabela já existia antes da chave de serviço. Acrescentar essas
@@ -891,6 +893,7 @@ CREATE INDEX IF NOT EXISTS ix_pricing_import_linhas_lote ON pricing_import_linha
 CREATE TABLE IF NOT EXISTS pricing_base_operacional (
   id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
   codigo TEXT NOT NULL, descricao TEXT NOT NULL, modelo TEXT NOT NULL,
+  ncm_compra TEXT, nbs_compra TEXT, lc116_compra TEXT, ncm_venda TEXT, nbs_venda TEXT, lc116_venda TEXT,
   fornecedor_cnpj TEXT, regime_fornecedor TEXT, pis REAL, cofins REAL,
   valor_aquisicao REAL, prazo_depreciacao_meses INTEGER, valor_residual REAL,
   origem TEXT NOT NULL DEFAULT 'IMPORTACAO', evidencia TEXT, ativo INTEGER DEFAULT 1,
@@ -900,7 +903,7 @@ CREATE TABLE IF NOT EXISTS pricing_base_operacional (
 CREATE TABLE IF NOT EXISTS pricing_base_estrutura (
   id INTEGER PRIMARY KEY AUTOINCREMENT, base_operacional_id INTEGER NOT NULL REFERENCES pricing_base_operacional(id) ON DELETE CASCADE,
   codigo_componente TEXT NOT NULL, descricao TEXT NOT NULL, tipo_componente TEXT NOT NULL,
-  valor REAL NOT NULL DEFAULT 0, pis REAL, cofins REAL, fornecedor_cnpj TEXT, regime_fornecedor TEXT,
+  valor REAL NOT NULL DEFAULT 0, pis REAL, cofins REAL, fornecedor_cnpj TEXT, regime_fornecedor TEXT, ncm TEXT, nbs TEXT, lc116 TEXT,
   origem TEXT NOT NULL DEFAULT 'IMPORTACAO', evidencia TEXT, criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
