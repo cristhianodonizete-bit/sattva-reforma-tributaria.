@@ -106,6 +106,7 @@ const COLUNAS_NOVAS = {
   pendencias_fiscais_produtos: { produto_empresa_id: 'INTEGER', regra_id: 'TEXT' },
   conflitos_fatos_fiscais: { produto_empresa_id: 'INTEGER' },
   formacao_custo_itens: { movimento_saida_id: 'INTEGER', despesas_variaveis: 'REAL DEFAULT 0' },
+  pricing_itens: { base_operacional_id:'INTEGER' },
   pricing_base_operacional: { ncm_compra:'TEXT', nbs_compra:'TEXT', lc116_compra:'TEXT', ncm_venda:'TEXT', nbs_venda:'TEXT', lc116_venda:'TEXT', classificacao_compra:'TEXT', classificacao_venda:'TEXT', classificacao_compra_detalhe:'TEXT', classificacao_venda_detalhe:'TEXT' },
   pricing_base_estrutura: { ncm:'TEXT', nbs:'TEXT', lc116:'TEXT', classificacao:'TEXT', classificacao_detalhe:'TEXT' },
   regras_governo: { origem_linha: 'TEXT' },
@@ -854,7 +855,7 @@ CREATE TABLE IF NOT EXISTS pricing_itens (
   natureza_item TEXT NOT NULL DEFAULT 'produto', ncm TEXT, nbs TEXT, lc116 TEXT, unidade TEXT,
   perfil_cliente TEXT, preco_atual REAL DEFAULT 0, margem_contribuicao REAL DEFAULT 0,
   percentuais_por_dentro REAL DEFAULT 0, ativo INTEGER DEFAULT 1, origem TEXT NOT NULL DEFAULT 'MIGRACAO',
-  origem_tipo TEXT, origem_id INTEGER, criado_em TEXT DEFAULT (datetime('now','localtime')),
+  origem_tipo TEXT, origem_id INTEGER, base_operacional_id INTEGER REFERENCES pricing_base_operacional(id), criado_em TEXT DEFAULT (datetime('now','localtime')),
   atualizado_em TEXT DEFAULT (datetime('now','localtime')),
   UNIQUE(empresa_id,codigo,modalidade)
 );

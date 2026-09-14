@@ -39,7 +39,7 @@ const CAMPOS = {
   pricing_services: ['id','empresa_id','codigo','descricao','lc116','nbs','unidade','quantidade_producao','valor_venda_atual','custo_direto','perfil_cliente','ativo','origem','criado_em','atualizado_em'],
   pricing_components: ['id','empresa_id','produto_saida_id','servico_saida_id','codigo_componente','descricao','tipo_componente','ncm','nbs','lc116','cnpj_fornecedor','regime_fornecedor','quantidade','custo_unitario_bruto','perda_percentual','ativo','origem','criado_em','atualizado_em'],
   pricing_import_batches: ['id','empresa_id','arquivo','status','resumo','criado_em'],
-  pricing_itens: ['id','empresa_id','codigo','descricao','modalidade','natureza_item','ncm','nbs','lc116','unidade','perfil_cliente','preco_atual','margem_contribuicao','percentuais_por_dentro','ativo','origem','origem_tipo','origem_id','criado_em','atualizado_em'],
+  pricing_itens: ['id','empresa_id','codigo','descricao','modalidade','natureza_item','ncm','nbs','lc116','unidade','perfil_cliente','preco_atual','margem_contribuicao','percentuais_por_dentro','ativo','origem','origem_tipo','origem_id','base_operacional_id','criado_em','atualizado_em'],
   pricing_creditos_globais: ['id','empresa_id','descricao','natureza','valor','criterio_rateio','percentual_rateio','vigencia_inicio','vigencia_fim','evidencia','origem','ativo','criado_em','atualizado_em'],
   pricing_calculos: ['id','empresa_id','pricing_item_id','versao','status','modalidade','parametros_json','resultado_json','evidencia_json','origem','calculado_em','aprovado_em','vigente_em','substituido_por_id'],
   pricing_calculo_tratamentos: ['id','pricing_calculo_id','tratamento','aliquota_efetiva_cbs','preserva_credito','estorna_credito','resultado_json','status'],
