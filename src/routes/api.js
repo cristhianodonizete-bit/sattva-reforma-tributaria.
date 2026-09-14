@@ -2817,8 +2817,8 @@ router.get('/empresas/:id/precificacao/creditos-globais', (req,res) => {
 router.get('/empresas/:id/precificacao/premissas-comerciais', (req,res) => {
   try {
     const empresaId=Number(req.params.id);
-    if(!db.prepare('SELECT 1 FROM pricing_premissas_comerciais WHERE empresa_id=?').get(empresaId)) db.prepare("INSERT INTO pricing_premissas_comerciais (empresa_id,nome,padrao) VALUES (?, 'Base', 1)").run(empresaId);
-    ok(res,{premissas:db.prepare('SELECT * FROM pricing_premissas_comerciais WHERE empresa_id=? AND ativo=1 ORDER BY padrao DESC,nome').all(empresaId)});
+    if(!db.prepare('SELECT 1 FROM pricing_premissas_comerciais WHERE empresa_id=?').get(empresaId)){const base=cenarioMotor.obterOuCriarBase(empresaId,2027);db.prepare("INSERT INTO pricing_premissas_comerciais (empresa_id,nome,padrao,cenario_operacional_id) VALUES (?, 'Base', 1, ?)").run(empresaId,base.id);}
+    ok(res,{premissas:db.prepare(`SELECT p.*,c.nome cenario_operacional_nome,c.ano cenario_operacional_ano,c.status cenario_operacional_status FROM pricing_premissas_comerciais p LEFT JOIN cenarios c ON c.id=p.cenario_operacional_id WHERE p.empresa_id=? AND p.ativo=1 ORDER BY p.padrao DESC,p.nome`).all(empresaId)});
   }catch(e){erro(res,e);}
 });
 router.post('/empresas/:id/precificacao/premissas-comerciais', async (req,res) => {
@@ -2826,8 +2826,9 @@ router.post('/empresas/:id/precificacao/premissas-comerciais', async (req,res) =
     const empresaId=Number(req.params.id),b=req.body||{}; const nome=String(b.nome||'').trim();
     const margem=Number(b.margem_contribuicao),porDentro=Number(b.percentuais_por_dentro);
     if(!nome||!Number.isFinite(margem)||!Number.isFinite(porDentro)||margem<0||porDentro<0||margem+porDentro>=1) throw new Error('Informe nome e percentuais válidos; margem mais percentuais por dentro deve ser menor que 100%.');
+    const cenarioId=Number(b.cenario_operacional_id); if(!cenarioId||!db.prepare('SELECT 1 FROM cenarios WHERE id=? AND empresa_id=?').get(cenarioId,empresaId)) throw new Error('Selecione um cenário operacional da própria empresa.');
     if(b.padrao) db.prepare('UPDATE pricing_premissas_comerciais SET padrao=0 WHERE empresa_id=?').run(empresaId);
-    db.prepare(`INSERT INTO pricing_premissas_comerciais (empresa_id,nome,margem_contribuicao,percentuais_por_dentro,padrao) VALUES (?,?,?,?,?) ON CONFLICT(empresa_id,nome) DO UPDATE SET margem_contribuicao=excluded.margem_contribuicao,percentuais_por_dentro=excluded.percentuais_por_dentro,padrao=excluded.padrao,ativo=1,atualizado_em=datetime('now','localtime')`).run(empresaId,nome,margem,porDentro,b.padrao?1:0);
+    db.prepare(`INSERT INTO pricing_premissas_comerciais (empresa_id,nome,margem_contribuicao,percentuais_por_dentro,cenario_operacional_id,padrao) VALUES (?,?,?,?,?,?) ON CONFLICT(empresa_id,nome) DO UPDATE SET margem_contribuicao=excluded.margem_contribuicao,percentuais_por_dentro=excluded.percentuais_por_dentro,cenario_operacional_id=excluded.cenario_operacional_id,padrao=excluded.padrao,ativo=1,atualizado_em=datetime('now','localtime')`).run(empresaId,nome,margem,porDentro,cenarioId,b.padrao?1:0);
     await require('../services/operacaoCompartilhada').publicar();ok(res,{gravado:true});
   }catch(e){erro(res,e);}
 });
@@ -2845,6 +2846,9 @@ router.post('/precificacao/itens/:id/calcular', async (req,res) => {
     const item=db.prepare('SELECT * FROM pricing_itens WHERE id=?').get(req.params.id); if(!item) throw new Error('Item de Precificação não encontrado.');
     const b=req.body || {};
     const premissa=b.premissa_id?db.prepare('SELECT * FROM pricing_premissas_comerciais WHERE id=? AND empresa_id=? AND ativo=1').get(Number(b.premissa_id),item.empresa_id):null;
+    const cenarioOperacional=premissa?.cenario_operacional_id?db.prepare('SELECT id,nome,ano,status FROM cenarios WHERE id=? AND empresa_id=?').get(premissa.cenario_operacional_id,item.empresa_id):null;
+    if(premissa&&!cenarioOperacional) throw new Error('A premissa comercial não possui cenário operacional válido.');
+    if(cenarioOperacional&&cenarioOperacional.status!=='calculado') cenarioMotor.executarCenario(cenarioOperacional.id);
     const base=item.base_operacional_id?db.prepare('SELECT * FROM pricing_base_operacional WHERE id=? AND empresa_id=? AND ativo=1').get(item.base_operacional_id,item.empresa_id):null;
     const componentes=base?db.prepare('SELECT * FROM pricing_base_estrutura WHERE base_operacional_id=?').all(base.id):[];
     const json=x=>{try{return JSON.parse(x||'{}');}catch(_){return {};}};
@@ -2852,7 +2856,7 @@ router.post('/precificacao/itens/:id/calcular', async (req,res) => {
     if(base){
       if(base.classificacao_venda==='PENDENTE_DE_ENQUADRAMENTO') throw new Error('O item de venda da base operacional está pendente de enquadramento fiscal. Revise NCM ou LC 116 + NBS antes de calcular.');
       const venda=json(base.classificacao_venda_detalhe);
-      const aliquotas=motor.aliquotasEfetivas(Number(b.ano)||2027,{reducao:venda.reducao||'integral',reducaoIbs:venda.reducaoIbs,reducaoCbs:venda.reducaoCbs,tratamento:venda.tratamento,origemRegra:venda.origem_regra});
+      const aliquotas=motor.aliquotasEfetivas(Number(cenarioOperacional?.ano)||Number(b.ano)||2027,{reducao:venda.reducao||'integral',reducaoIbs:venda.reducaoIbs,reducaoCbs:venda.reducaoCbs,tratamento:venda.tratamento,origemRegra:venda.origem_regra});
       const componentesValor=componentes.reduce((s,x)=>s+(Number(x.valor)||0),0);
       const modelo=String(base.modelo||'');
       const custoBruto=modelo==='LOCACAO'?(Math.max(0,(Number(base.valor_aquisicao)||0)-(Number(base.valor_residual)||0))/Math.max(1,Number(base.prazo_depreciacao_meses)||1)):modelo==='PRODUCAO_COMPOSICAO_SERVICO'?componentesValor:modelo==='MISTO_CONTRATO'?(Number(base.valor_aquisicao)||0)+componentesValor:(Number(base.valor_aquisicao)||0);
@@ -2867,7 +2871,7 @@ router.post('/precificacao/itens/:id/calcular', async (req,res) => {
     if(resultado.status!=='CALCULATED') return ok(res,{ gravado:false, resultado });
     const versao=(db.prepare('SELECT COALESCE(MAX(versao),0)+1 versao FROM pricing_calculos WHERE pricing_item_id=?').get(item.id).versao);
     const r=db.prepare(`INSERT INTO pricing_calculos (empresa_id,pricing_item_id,versao,status,modalidade,parametros_json,resultado_json,evidencia_json)
-      VALUES (?,?,?,?,?,?,?,?)`).run(item.empresa_id,item.id,versao,'CALCULATED',item.modalidade,JSON.stringify({ custo_liquido:entrada.custo_liquido,custo_bruto:entrada.custo_bruto,credito_direto:entrada.credito_direto,credito_global_rateado:resultado.credito_global_rateado,percentuais_por_dentro:b.percentuais_por_dentro ?? item.percentuais_por_dentro,margem_contribuicao:b.margem_contribuicao ?? item.margem_contribuicao,aliquota_efetiva_cbs:entrada.aliquota_efetiva_cbs,base_operacional_id:base?.id||null,ano:Number(b.ano)||2027 }),JSON.stringify(resultado),JSON.stringify({ fiscal:dadosBase?.evidencia_fiscal||b.evidencia_fiscal,creditos_globais:creditosGlobais }));
+      VALUES (?,?,?,?,?,?,?,?)`).run(item.empresa_id,item.id,versao,'CALCULATED',item.modalidade,JSON.stringify({ custo_liquido:entrada.custo_liquido,custo_bruto:entrada.custo_bruto,credito_direto:entrada.credito_direto,credito_global_rateado:resultado.credito_global_rateado,percentuais_por_dentro:b.percentuais_por_dentro ?? item.percentuais_por_dentro,margem_contribuicao:b.margem_contribuicao ?? item.margem_contribuicao,aliquota_efetiva_cbs:entrada.aliquota_efetiva_cbs,base_operacional_id:base?.id||null,premissa_id:premissa?.id||null,cenario_operacional_id:cenarioOperacional?.id||null,ano:Number(cenarioOperacional?.ano)||Number(b.ano)||2027 }),JSON.stringify(resultado),JSON.stringify({ fiscal:dadosBase?.evidencia_fiscal||b.evidencia_fiscal,cenario_operacional:cenarioOperacional||null,creditos_globais:creditosGlobais }));
     const tratamentos=motorPrecificacaoComercial.tratamentos(entrada,Array.isArray(b.tratamentos)?b.tratamentos:[]);
     const inserir=db.prepare('INSERT INTO pricing_calculo_tratamentos (pricing_calculo_id,tratamento,aliquota_efetiva_cbs,preserva_credito,estorna_credito,resultado_json,status) VALUES (?,?,?,?,?,?,?)');
     tratamentos.forEach((t)=>inserir.run(r.lastInsertRowid,t.tratamento,t.aliquota_efetiva_cbs,t.preserva_credito?1:0,t.estorna_credito?1:0,JSON.stringify(t),t.status));
@@ -2878,9 +2882,13 @@ router.post('/precificacao/itens/:id/calcular', async (req,res) => {
 });
 router.post('/empresas/:id/precificacao/calcular-base-lote', async (req,res) => {
   try {
-    const empresaId=Number(req.params.id),b=req.body||{},ano=Number(b.ano)||2027;
+    const empresaId=Number(req.params.id),b=req.body||{};
     const premissa=db.prepare('SELECT * FROM pricing_premissas_comerciais WHERE id=? AND empresa_id=? AND ativo=1').get(Number(b.premissa_id),empresaId);
     if(!premissa) throw new Error('Selecione uma premissa comercial válida.');
+    const cenarioOperacional=db.prepare('SELECT id,nome,ano,status FROM cenarios WHERE id=? AND empresa_id=?').get(premissa.cenario_operacional_id,empresaId);
+    if(!cenarioOperacional) throw new Error('A premissa não possui cenário operacional válido.');
+    if(cenarioOperacional.status!=='calculado') cenarioMotor.executarCenario(cenarioOperacional.id);
+    const ano=Number(cenarioOperacional.ano)||Number(b.ano)||2027;
     const ids=[...new Set((b.item_ids||[]).map(Number).filter(Boolean))];
     const filtro=ids.length?` AND i.id IN (${ids.map(()=>'?').join(',')})`:'';
     const itens=db.prepare(`SELECT i.* FROM pricing_itens i WHERE i.empresa_id=? AND i.ativo=1 AND i.base_operacional_id IS NOT NULL${filtro} ORDER BY i.descricao`).all(empresaId,...ids);
@@ -2905,7 +2913,7 @@ router.post('/empresas/:id/precificacao/calcular-base-lote', async (req,res) => 
         if(calculo.status!=='CALCULATED') throw new Error(calculo.bloqueio||'Cálculo incompleto.');
         calculo.memoria_base={modelo,base_operacional_id:base.id,valor_aquisicao:Number(base.valor_aquisicao)||0,valor_residual:Number(base.valor_residual)||0,prazo_depreciacao_meses:Number(base.prazo_depreciacao_meses)||null,componentes_valor:valorComponentes,custo_normalizado:custoBruto};
         const versao=proxima.get(item.id).versao;
-        inserir.run(empresaId,item.id,versao,'CALCULATED',item.modalidade,JSON.stringify({base_operacional_id:base.id,premissa_id:premissa.id,ano,custo_bruto:custoBruto,credito_global_rateado:creditoGlobal,margem_contribuicao:Number(premissa.margem_contribuicao),percentuais_por_dentro:Number(premissa.percentuais_por_dentro),aliquota_efetiva_cbs:aliquotas.cbs}),JSON.stringify(calculo),JSON.stringify({fiscal:{fonte:'motor tributário',classificacao_venda:base.classificacao_venda,cst:venda.cst,cclasstrib:venda.cclasstrib,tratamento:venda.tratamento,origem_regra:venda.origem_regra,aliquota_cbs:aliquotas.cbs},premissa:{id:premissa.id,nome:premissa.nome},creditos_globais:creditos}),'CALCULO_LOTE_BASE');
+        inserir.run(empresaId,item.id,versao,'CALCULATED',item.modalidade,JSON.stringify({base_operacional_id:base.id,premissa_id:premissa.id,cenario_operacional_id:cenarioOperacional.id,ano,custo_bruto:custoBruto,credito_global_rateado:creditoGlobal,margem_contribuicao:Number(premissa.margem_contribuicao),percentuais_por_dentro:Number(premissa.percentuais_por_dentro),aliquota_efetiva_cbs:aliquotas.cbs}),JSON.stringify(calculo),JSON.stringify({fiscal:{fonte:'motor tributário',classificacao_venda:base.classificacao_venda,cst:venda.cst,cclasstrib:venda.cclasstrib,tratamento:venda.tratamento,origem_regra:venda.origem_regra,aliquota_cbs:aliquotas.cbs},cenario_operacional:cenarioOperacional,premissa:{id:premissa.id,nome:premissa.nome},creditos_globais:creditos}),'CALCULO_LOTE_BASE');
         resultado.push({item_id:item.id,codigo:item.codigo,status:'CALCULADO',versao,preco_final:calculo.preco_final});
       } catch(e) { resultado.push({item_id:item.id,codigo:item.codigo,status:'BLOQUEADO',motivo:e.message}); }
     }))();

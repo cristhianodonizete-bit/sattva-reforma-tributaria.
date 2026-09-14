@@ -107,6 +107,7 @@ const COLUNAS_NOVAS = {
   conflitos_fatos_fiscais: { produto_empresa_id: 'INTEGER' },
   formacao_custo_itens: { movimento_saida_id: 'INTEGER', despesas_variaveis: 'REAL DEFAULT 0' },
   pricing_itens: { base_operacional_id:'INTEGER' },
+  pricing_premissas_comerciais: { cenario_operacional_id:'INTEGER' },
   pricing_base_operacional: { ncm_compra:'TEXT', nbs_compra:'TEXT', lc116_compra:'TEXT', ncm_venda:'TEXT', nbs_venda:'TEXT', lc116_venda:'TEXT', classificacao_compra:'TEXT', classificacao_venda:'TEXT', classificacao_compra_detalhe:'TEXT', classificacao_venda_detalhe:'TEXT' },
   pricing_base_estrutura: { ncm:'TEXT', nbs:'TEXT', lc116:'TEXT', classificacao:'TEXT', classificacao_detalhe:'TEXT' },
   regras_governo: { origem_linha: 'TEXT' },
@@ -862,7 +863,7 @@ CREATE TABLE IF NOT EXISTS pricing_itens (
 CREATE INDEX IF NOT EXISTS ix_pricing_itens_empresa ON pricing_itens(empresa_id,ativo);
 CREATE TABLE IF NOT EXISTS pricing_premissas_comerciais (
   id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
-  nome TEXT NOT NULL, margem_contribuicao REAL NOT NULL DEFAULT 0, percentuais_por_dentro REAL NOT NULL DEFAULT 0,
+  nome TEXT NOT NULL, margem_contribuicao REAL NOT NULL DEFAULT 0, percentuais_por_dentro REAL NOT NULL DEFAULT 0, cenario_operacional_id INTEGER REFERENCES cenarios(id),
   ativo INTEGER NOT NULL DEFAULT 1, padrao INTEGER NOT NULL DEFAULT 0, criado_em TEXT DEFAULT (datetime('now','localtime')),
   atualizado_em TEXT DEFAULT (datetime('now','localtime')), UNIQUE(empresa_id,nome)
 );
