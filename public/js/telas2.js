@@ -724,6 +724,7 @@ Telas.questor = async (el) => {
         <p class="desc">${S.empresa ? `${A.esc(S.empresa.razao_social)} · código Questor: <b class="mono">${A.esc(S.empresa.codigo_questor || 'não informado')}</b>` : 'Selecione uma empresa'}</p>
         <div class="grade g2">${A.campo('inicio', 'Data inicial', '', 'date')}${A.campo('fim', 'Data final', '', 'date')}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button><button class="btn vazio" id="consultarParametrosApuracaoQuestor">Consultar parâmetros do relatório</button></div>
+        <div style="margin-top:10px"><button class="btn vazio" id="conciliarCancelamentosQuestor">Conciliar cancelamentos pelo relatório Questor</button></div>
         <div id="statusImportacaoQuestor" class="mini" role="status" style="margin-top:10px"></div>
         <p class="mini" style="margin-top:8px">Usa o período analisado e o código Questor da empresa. XMLs já importados não são consultados novamente.</p>
         <hr class="sep">
@@ -784,6 +785,10 @@ Telas.questor = async (el) => {
     await A.api(`/empresas/${S.empresaId}/questor/conector/parametros-relatorio-pis-cofins`, {metodo:'POST',corpo:{}});
     A.toast('Consulta dos parâmetros solicitada. Atualize a fila em alguns segundos para ver o retorno.', 'ok');
     A.ir('questor');
+  };
+  document.getElementById('conciliarCancelamentosQuestor').onclick = () => {
+    if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
+    A.modal({titulo:'Conciliar documentos fiscais do Questor',descricao:'Envie a exportação XLSX, XLS ou CSV do relatório “Documentos Fiscais Cancelados/Denegados/Inutilizados — Saídas”. O sistema só altera documentos com correspondência única por número, modelo, série e data.',corpo:'<input type="file" id="arquivoCancelamentosQuestor" accept=".xlsx,.xls,.csv" required>',confirmar:'Conciliar relatório',aoConfirmar:async()=>{const arq=document.getElementById('arquivoCancelamentosQuestor').files[0];if(!arq)throw new Error('Selecione o relatório exportado pelo Questor.');const fd=new FormData();fd.append('arquivo',arq);const r=await A.api(`/empresas/${S.empresaId}/questor/documentos-fiscais/conciliar`,{metodo:'POST',corpo:fd,formData:true});const pendentes=(r.ambiguos||[]).length+(r.nao_localizados||[]).length;A.toast(`${r.atualizados} documento(s) atualizado(s). ${pendentes?`${pendentes} linha(s) ficaram em revisão.`:'Nenhuma divergência encontrada.'}`,'ok');A.ir('questor');}});
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
   el.querySelectorAll('[data-ver-retorno-questor]').forEach((botao) => botao.onclick = () => {

@@ -30,7 +30,7 @@ function natureza(movimento = {}) {
 }
 
 function compoeReceita(movimento = {}) {
-  if (String(movimento.situacao_documento || '').toUpperCase() === 'CANCELADO') return false;
+  if (['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(movimento.situacao_documento || '').toUpperCase())) return false;
   if (!ehSaida(movimento)) return false;
   // Registros de massa/validação podem permanecer visíveis para auditoria,
   // mas jamais representam faturamento da empresa na visão operacional.

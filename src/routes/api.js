@@ -4688,6 +4688,47 @@ router.post('/empresas/:id/bases/decidir', (req, res) => {
 // MOTOR DE ANÁLISE E PROJEÇÃO TRIBUTÁRIA
 // ===========================================================================
 
+// ---- Conciliação Questor: documentos cancelados/denegados/inutilizados ----
+// O XML é a fotografia da emissão. Esta rotina recebe o relatório fiscal
+// posterior do Questor e preserva a nota original, alterando somente sua
+// situação quando houver identidade documental inequívoca.
+router.post('/empresas/:id/questor/documentos-fiscais/conciliar', upload.single('arquivo'), async (req, res) => {
+  try {
+    const empresaId=Number(req.params.id);
+    if (!db.prepare('SELECT 1 FROM empresas WHERE id=?').get(empresaId)) throw new Error('Empresa não encontrada.');
+    if (!req.file?.buffer) throw new Error('Envie o relatório exportado pelo Questor em XLSX, XLS ou CSV.');
+    const ext=(req.file.originalname.split('.').pop()||'').toLowerCase();
+    if (!['xlsx','xls','csv'].includes(ext)) throw new Error('Exporte o relatório do Questor em XLSX, XLS ou CSV. PDF não preserva as colunas necessárias para uma conciliação segura.');
+    const wb=XLSX.read(req.file.buffer,{type:'buffer',raw:false});
+    const bruto=wb.SheetNames.flatMap((nome)=>XLSX.utils.sheet_to_json(wb.Sheets[nome],{defval:'',raw:false}));
+    const chave=(v)=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+    const obter=(linha,...nomes)=>{ const indice=Object.fromEntries(Object.keys(linha).map(k=>[chave(k),linha[k]])); for(const n of nomes){const v=indice[chave(n)];if(v!==undefined&&v!==null&&String(v).trim()!=='')return String(v).trim();} return ''; };
+    const situacao=(v)=>{const s=chave(v); if(s.includes('cancel'))return 'CANCELADO'; if(s.includes('deneg'))return 'DENEGADO'; if(s.includes('inutil'))return 'INUTILIZADO'; return '';};
+    const dataIso=(v)=>{const s=String(v||'').trim(); const m=s.match(/^(\d{2})\/(\d{2})\/(\d{4})/); return m?`${m[3]}-${m[2]}-${m[1]}`:s.slice(0,10);};
+    const numero=(v)=>String(v||'').replace(/\s+(?:NFE|NFSE|NFCE|CTE)\b.*$/i,'').replace(/\D/g,'');
+    const modelo=(v)=>{const s=String(v||'').toUpperCase(); return /NFSE/.test(s)?'nfse':/NFCE/.test(s)?'nfce':/CTE/.test(s)?'cte':/NFE/.test(s)?'nfe':'';};
+    const documentos=db.prepare("SELECT * FROM movimentos WHERE empresa_id=? AND tipo='cliente'").all(empresaId);
+    const resposta={linhas_lidas:bruto.length, reconhecidas:0, atualizados:0, ambiguos:[], nao_localizados:[]}; const ids=new Set();
+    db.transaction(()=>{ for(const linha of bruto){
+      const status=situacao(obter(linha,'Situação','Situacao','Status')); if(!status) continue; resposta.reconhecidas++;
+      const esp=obter(linha,'Número Esp.','Numero Esp','Número Espécie','Numero Especie','Documento');
+      const doc=numero(esp||obter(linha,'Número','Numero')); const mod=modelo(esp||obter(linha,'Modelo','Espécie','Especie'));
+      const serie=String(obter(linha,'Série','Serie')).replace(/\D/g,''); const data=dataIso(obter(linha,'Data Lcto','Data','Data Emissão','Data Emissao'));
+      let candidatos=documentos.filter(m=>{const md=String(m.documento||''); const nm=md.includes('/')?md.split('/').pop().replace(/\D/g,''):md.replace(/\D/g,''); const ms=md.includes('/')?md.split('/')[0].replace(/\D/g,''):''; return nm===doc && (!mod||String(m.modelo_documento_fiscal||'').toLowerCase()===mod) && (!serie||!ms||ms===serie) && (!data||String(m.data_emissao||'').slice(0,10)===data);});
+      const identidade={documento:doc,modelo:mod||'não informado',serie:serie||'não informada',data:data||'não informada',situacao:status};
+      const documentosCandidatos=new Set(candidatos.map(m=>m.chave ? `chave:${m.chave}` : `doc:${m.documento}`));
+      if(documentsCandidatos.size!==1){ (candidatos.length?resposta.ambiguos:resposta.nao_localizados).push(identidade); continue; }
+      const houveMudanca=candidatos.some(m=>(m.situacao_documento||'AUTORIZADO')!==status);
+      const idsDoDocumento=candidatos.map(m=>m.id);
+      db.prepare(`UPDATE movimentos SET situacao_documento=?, cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')), cancelamento_motivo=?, cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE empresa_id=? AND id IN (${idsDoDocumento.map(()=>'?').join(',')})`).run(status,`Situação ${status} informada no relatório Questor`,empresaId,...idsDoDocumento);
+      if(houveMudanca) { resposta.atualizados++; idsDoDocumento.forEach(id=>ids.add(id)); }
+    }} )();
+    if(ids.size) { db.prepare(`DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN (${[...ids].map(()=>'?').join(',')})`).run(empresaId,...ids); if(supabase.configurado()){ const {error}=await supabase.admin().from('motor_resultados_operacionais').update({ativo:false}).eq('empresa_id',empresaId).in('movimento_id',[...ids]); if(error) throw error; } }
+    auditar(req,{empresaId,acao:'CONCILIACAO_DOCUMENTOS_QUESTOR',entidade:'movimentos',entidadeId:req.file.originalname,depois:{...resposta,ids:[...ids]}});
+    ok(res,resposta);
+  } catch(e){ erro(res,e); }
+});
+
 // ---- Importação de XML (fonte principal) ----
 router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (req, res) => {
   try {
