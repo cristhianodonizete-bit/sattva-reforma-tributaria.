@@ -793,8 +793,13 @@ Telas.questor = async (el) => {
   document.getElementById('buscarCancelamentosQuestor').onclick = async () => {
     if(!S.empresaId) return A.toast('Selecione uma empresa','erro'); const inicio=val('inicio'), fim=val('fim');
     if(!inicio||!fim||inicio>fim) return A.toast('Informe data inicial e final válidas.','erro');
-    const r=await A.api(`/empresas/${S.empresaId}/questor/conector/documentos-fiscais-cancelados`,{metodo:'POST',corpo:{inicio,fim}});
-    A.toast(`Busca de cancelamentos enviada ao conector (solicitação ${r.tarefa_id}).`,'ok'); A.ir('questor');
+    const botao=document.getElementById('buscarCancelamentosQuestor'), status=el.querySelector('#statusImportacaoQuestor');
+    botao.disabled=true; botao.textContent='Solicitando busca…'; status.innerHTML='<span class="tag a">Solicitando relatório de cancelamentos ao Questor…</span><div class="mini" style="margin-top:6px">Acompanhe a execução na fila abaixo.</div>';
+    try { const r=await A.api(`/empresas/${S.empresaId}/questor/conector/documentos-fiscais-cancelados`,{metodo:'POST',corpo:{inicio,fim}});
+      status.innerHTML=`<span class="tag c">Solicitação registrada</span><div class="mini" style="margin-top:6px">Busca de cancelamentos enviada ao conector (solicitação ${A.esc(r.tarefa_id)}). Atualize a fila abaixo para acompanhar.</div>`;
+      A.toast('Busca de cancelamentos enviada ao conector.','ok');
+    } catch(e) { status.innerHTML=`<span class="tag alto">Não foi possível solicitar</span><div class="mini" style="margin-top:6px">${A.esc(e.message)}</div>`; A.toast(e.message,'erro');
+    } finally { botao.disabled=false; botao.textContent='Buscar cancelamentos no Questor'; }
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
   el.querySelectorAll('[data-ver-retorno-questor]').forEach((botao) => botao.onclick = () => {
