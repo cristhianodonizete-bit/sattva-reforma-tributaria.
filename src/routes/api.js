@@ -4722,6 +4722,21 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
       requerValidacao: 0, duplicados: 0, receita_saida_no_periodo: 0, receita_saida_fora_do_periodo: 0,
       saidas_no_periodo: 0, saidas_fora_do_periodo: 0, erros: [], regimesSugeridos: 0, cancelamentos: 0, documentos_cancelados: 0 };
     const movimentosCancelados = new Set();
+    // O evento de cancelamento pode estar antes ou depois da NF na pasta.
+    // Mapeamos todos os eventos primeiro para impedir que uma NF cancelada
+    // seja incluída como autorizada apenas por causa da ordem dos arquivos.
+    const cancelamentosNoLote = new Map();
+    for (const f of arquivos) {
+      try {
+        const leitura=xml.lerXml(f.buffer.toString('utf8'), empresa.cnpj);
+        if(leitura.tipoDocumento!=='cancelamento') continue;
+        const c=leitura.cancelamento||{};
+        if(c.chave) cancelamentosNoLote.set(`chave:${c.chave}`,c);
+        if(c.documento) cancelamentosNoLote.set(`numero:${c.tipoDocumento}:${c.documento}`,c);
+      } catch (_) { /* o erro detalhado permanece no processamento principal */ }
+    }
+    const cancelarPorId = db.prepare(`UPDATE movimentos SET situacao_documento='CANCELADO', cancelado_em=?, cancelamento_motivo=?, cancelamento_origem='XML_EVENTO_CANCELAMENTO_LOTE' WHERE id=?`);
+    const guardarValorProduto = db.prepare('UPDATE movimentos SET valor_produto=? WHERE id=?');
 
     db.transaction(() => {
       for (const f of arquivos) {
@@ -4755,6 +4770,9 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
             continue;
           }
           const tipoParceiro = r.sentido === 'entrada' ? 'fornecedor' : 'cliente';
+          const cancelamentoNoLote = cancelamentosNoLote.get(`chave:${r.cabecalho?.chave||''}`)
+            || cancelamentosNoLote.get(`numero:${r.tipoDocumento}:${r.cabecalho?.numero||''}`)
+            || null;
           if (r.parceiro.cnpj) {
             const reg = (r.regimeSugerido && r.regimeSugerido.regime) || '';
             insPar.run(req.params.id, tipoParceiro, r.parceiro.cnpj, r.parceiro.nome || r.parceiro.cnpj,
@@ -4775,11 +4793,17 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
               i.pis || 0, i.cofins || 0, i.pis_cofins_documentado ? 1 : 0, i.iss || 0, i.frete || 0, i.seguro || 0, i.outras || 0, i.desconto || 0,
               (i.declarado && i.declarado.cst) || '', (i.declarado && i.declarado.cclasstrib) || '',
               (i.declarado && i.declarado.ibs) || 0, (i.declarado && i.declarado.cbs) || 0, r.tipoDocumento);
+            guardarValorProduto.run(i.valor_produto == null ? i.valor : i.valor_produto,movimento.lastInsertRowid);
+            if(cancelamentoNoLote) {
+              cancelarPorId.run(cancelamentoNoLote.data_cancelamento||null,cancelamentoNoLote.motivo||'Cancelamento informado no mesmo lote XML',movimento.lastInsertRowid);
+              movimentosCancelados.add(Number(movimento.lastInsertRowid));
+              relatorio.documentos_cancelados++;
+            }
             if (identidade?.produto_empresa_id) db.prepare('UPDATE movimentos SET produto_empresa_id=? WHERE id=?').run(identidade.produto_empresa_id, movimento.lastInsertRowid);
             normalizacaoFiscalXml.validarMovimento(Number(movimento.lastInsertRowid));
             relatorio.itens++;
             if (i.sentido === 'entrada') relatorio.entradas++;
-            else {
+            else if(!cancelamentoNoLote) {
               relatorio.saidas++;
               if (periodoAnalisado.noPeriodo(i.competencia, periodoImportacao)) {
                 relatorio.saidas_no_periodo++;

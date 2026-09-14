@@ -49,7 +49,7 @@ const COLUNAS_NOVAS = {
     emitente_cnpj: 'TEXT', destinatario_cnpj: 'TEXT',
     codigo_produto: 'TEXT', quantidade: 'REAL', unidade: 'TEXT',
     csosn: 'TEXT', data_emissao: 'TEXT',
-    frete: 'REAL DEFAULT 0', seguro: 'REAL DEFAULT 0',
+    frete: 'REAL DEFAULT 0', seguro: 'REAL DEFAULT 0', valor_produto: 'REAL',
     outras: 'REAL DEFAULT 0', desconto: 'REAL DEFAULT 0',
     sentido: 'TEXT',
     pis_cofins_documentado: 'INTEGER DEFAULT 0', produto_empresa_id: 'INTEGER', modelo_documento_fiscal: 'TEXT',
@@ -181,6 +181,15 @@ function migrarEsquema() {
   }
   if (aplicadas.length) {
     console.log(`  banco atualizado: ${aplicadas.length} colunas acrescentadas (${aplicadas.slice(0, 6).join(', ')}${aplicadas.length > 6 ? '…' : ''})`);
+  }
+  // Migração idempotente dos XMLs já carregados antes da separação entre
+  // valor do produto e valor econômico documental.
+  if (existe('movimentos')) {
+    const colunas = new Set(db.prepare('PRAGMA table_info(movimentos)').all().map((c) => c.name));
+    if (colunas.has('valor_produto')) db.prepare(`UPDATE movimentos
+      SET valor_produto=valor,
+          valor=COALESCE(valor,0)+COALESCE(frete,0)+COALESCE(seguro,0)+COALESCE(outras,0)-COALESCE(desconto,0)
+      WHERE origem='xml' AND valor_produto IS NULL`).run();
   }
 }
 migrarEsquema();
@@ -614,7 +623,7 @@ CREATE TABLE IF NOT EXISTS movimentos (
   nome TEXT, inscr_federal TEXT,
   descricao TEXT, ncm TEXT, nbs TEXT, lc116 TEXT, normalizacao_status TEXT, normalizacao_pendencia TEXT, normalizacao_evidencia TEXT, cfop TEXT, cst TEXT,
   competencia TEXT,
-  valor REAL DEFAULT 0, base_calculo REAL DEFAULT 0,
+  valor REAL DEFAULT 0, valor_produto REAL, base_calculo REAL DEFAULT 0,
   icms REAL DEFAULT 0, icms_st REAL DEFAULT 0, ipi REAL DEFAULT 0,
   pis REAL DEFAULT 0, cofins REAL DEFAULT 0, pis_cofins_documentado INTEGER DEFAULT 0, iss REAL DEFAULT 0,
   regime TEXT,                          -- resolvido a partir do cadastro de parceiros

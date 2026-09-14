@@ -186,6 +186,13 @@ function lerNfe(xml) {
   ratearTotal('seguro', 'seguro_total');
   ratearTotal('outras', 'outras_total');
   ratearTotal('desconto', 'desconto_total');
+  // O valor econômico da saída não é apenas o vProd. Frete, seguro e outras
+  // despesas cobradas do destinatário compõem o valor da NF; desconto reduz.
+  // Os componentes continuam preservados em campos próprios para auditoria.
+  itens.forEach((item) => {
+    item.valor_produto = numero(item.valor);
+    item.valor = numero(item.valor) + numero(item.frete) + numero(item.seguro) + numero(item.outras) - numero(item.desconto);
+  });
   return { cabecalho, itens };
 }
 

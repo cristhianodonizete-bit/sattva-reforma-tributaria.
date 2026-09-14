@@ -14,4 +14,10 @@ const nfse = xml.lerXml(eventoNfse, '12345678000199');
 assert.equal(nfse.tipoDocumento, 'cancelamento');
 assert.equal(nfse.cancelamento.tipoDocumento, 'nfse');
 assert.equal(nfse.cancelamento.documento, '987');
+
+const nfeComFrete = `<nfeProc><NFe><infNFe Id="NFe31260112345678000199550010000000011000000010"><ide><mod>55</mod><serie>1</serie><nNF>1</nNF><dhEmi>2026-01-10T12:00:00-03:00</dhEmi><tpNF>1</tpNF></ide><emit><CNPJ>12345678000199</CNPJ><xNome>Emitente</xNome></emit><dest><CNPJ>99887766000155</CNPJ><xNome>Cliente</xNome></dest><det nItem="1"><prod><cProd>A</cProd><xProd>Produto</xProd><NCM>12345678</NCM><CFOP>5102</CFOP><uCom>UN</uCom><qCom>1</qCom><vProd>100.00</vProd></prod><imposto/></det><total><ICMSTot><vNF>120.00</vNF><vFrete>20.00</vFrete></ICMSTot></total></infNFe></NFe></nfeProc>`;
+const comFrete = xml.lerXml(nfeComFrete, '12345678000199');
+assert.equal(comFrete.itens[0].valor_produto, 100);
+assert.equal(comFrete.itens[0].frete, 20);
+assert.equal(comFrete.itens[0].valor, 120);
 console.log('ok cancelamento XML');

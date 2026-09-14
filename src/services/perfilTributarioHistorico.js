@@ -10,11 +10,11 @@ const tem = (v) => v !== null && v !== undefined;
 const receitaOperacional = require('./receitaOperacional');
 const pgdasDocumentoIa = require('./pgdasDocumentoIa');
 
-// Receita documental não é somente vProd: frete, seguro e outras despesas
-// cobradas na venda compõem o preço; desconto o reduz.
+// O importador de XML já persiste `valor` como valor econômico documental:
+// vProd + frete + seguro + outras despesas − desconto. Os campos separados
+// ficam disponíveis somente para evidência e auditoria, sem dupla contagem.
 function valorDocumental(movimento = {}) {
-  return numero(movimento.valor) + numero(movimento.frete) + numero(movimento.seguro)
-    + numero(movimento.outras) - numero(movimento.desconto);
+  return numero(movimento.valor);
 }
 
 function valor(valor, natureza = 'REAL') {
