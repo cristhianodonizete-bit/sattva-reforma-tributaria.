@@ -697,7 +697,7 @@ Telas.questor = async (el) => {
   const estadoTarefa = (t) => ({
     PENDENTE: ['Aguardando conector', 'a'], EM_EXECUCAO: ['Processando', ''], CONCLUIDA: ['Concluída', 'c'], ERRO: ['Falhou', 'alto'],
   }[t.status] || [t.status, '']);
-  const tipoTarefa = (t) => ({ APURACAO_PIS_COFINS: 'Apuração PIS/COFINS', PARAMETROS_RELATORIO: 'Leitura dos parâmetros do relatório', TESTAR_NWEB: 'Teste do nWeb' }[t.tipo] || t.tipo);
+  const tipoTarefa = (t) => ({ APURACAO_PIS_COFINS: 'Apuração PIS/COFINS', PARAMETROS_RELATORIO: 'Leitura dos parâmetros do relatório', DOCUMENTOS_FISCAIS_CANCELADOS: 'Conciliação de documentos fiscais', TESTAR_NWEB: 'Teste do nWeb' }[t.tipo] || t.tipo);
   const detalheTarefa = (t) => {
     if (t.erro) return `<span class="mini" style="color:#b42318"><b>Erro:</b> ${A.esc(t.erro)}</span>`;
     if (t.status !== 'CONCLUIDA') return '<span class="mini">Aguardando atualização.</span>';
@@ -706,6 +706,8 @@ Telas.questor = async (el) => {
     try { resultado = JSON.stringify(JSON.parse(t.resultado_json || '{}')); } catch (_) { /* mantém o texto padrão */ }
     return `<span class="mini">${A.esc(resultado.slice(0, 240))}</span>`;
   };
+  const conciliacoes=(tarefas||[]).filter(t=>t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS');
+  const resumoConciliacao=(t)=>{try{const r=JSON.parse(t.resultado_json||'{}');return `${r.atualizados||0} atualizado(s) · ${r.ambiguos||0} ambíguo(s) · ${r.nao_localizados||0} não localizado(s)`;}catch(_){return t.erro||'Aguardando retorno do conector.';}};
   el.innerHTML = cab('Integração', 'Questor · nWeb',
     'Busca cadastros e movimentação direto do Questor Tributário, sem planilha. O nWeb roda na máquina do servidor Questor, porta 8080 por padrão.') +
     `<div class="grade g2">
@@ -743,6 +745,12 @@ Telas.questor = async (el) => {
       {t:'Finalizada em',r:t=>`<span class="mini mono">${A.esc(t.executado_em||'—')}</span>`},
       {t:'Detalhe',r:detalheTarefa},
     ],tarefas,{vazio:'Nenhuma solicitação enviada por você ainda.'})}</div>
+    <div class="cartao" style="margin-top:16px"><h2>Conciliações fiscais</h2><p class="desc">Histórico das buscas de documentos cancelados, denegados e inutilizados no Questor.</p>${A.tabela([
+      {t:'Empresa',r:t=>A.esc(t.empresa_nome||'—')},
+      {t:'Solicitada em',r:t=>A.esc(t.criado_em||'—')},
+      {t:'Situação',r:t=>{const [rot,classe]=estadoTarefa(t);return `<span class="tag ${classe}">${A.esc(rot)}</span>`;}},
+      {t:'Resultado',r:t=>`<span class="mini">${A.esc(resumoConciliacao(t))}</span>`},
+    ],conciliacoes,{vazio:'Nenhuma conciliação solicitada ainda.'})}</div>
     <div class="cartao"><h2>Mapa de endpoints</h2>
       <p class="desc">Caminhos, parâmetros e de-para de campos. Ajuste conforme a versão do seu Questor — o sistema não depende de código para isso.</p>
       <textarea id="endpoints" rows="16" class="mono" style="font-size:12px">${A.esc(JSON.stringify(config.endpoints, null, 2))}</textarea>
