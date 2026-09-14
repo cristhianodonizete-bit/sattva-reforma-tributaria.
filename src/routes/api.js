@@ -2850,6 +2850,43 @@ router.post('/precificacao/itens/:id/calcular', async (req,res) => {
     ok(res,{gravado:true,calculo_id:r.lastInsertRowid,versao,resultado,tratamentos});
   } catch(e){erro(res,e);}
 });
+router.post('/empresas/:id/precificacao/calcular-base-lote', async (req,res) => {
+  try {
+    const empresaId=Number(req.params.id),b=req.body||{},ano=Number(b.ano)||2027;
+    const premissa=db.prepare('SELECT * FROM pricing_premissas_comerciais WHERE id=? AND empresa_id=? AND ativo=1').get(Number(b.premissa_id),empresaId);
+    if(!premissa) throw new Error('Selecione uma premissa comercial válida.');
+    const ids=[...new Set((b.item_ids||[]).map(Number).filter(Boolean))];
+    const filtro=ids.length?` AND i.id IN (${ids.map(()=>'?').join(',')})`:'';
+    const itens=db.prepare(`SELECT i.* FROM pricing_itens i WHERE i.empresa_id=? AND i.ativo=1 AND i.base_operacional_id IS NOT NULL${filtro} ORDER BY i.descricao`).all(empresaId,...ids);
+    const buscarBase=db.prepare('SELECT * FROM pricing_base_operacional WHERE id=? AND empresa_id=? AND ativo=1');
+    const buscarComponentes=db.prepare('SELECT * FROM pricing_base_estrutura WHERE base_operacional_id=?');
+    const proxima=db.prepare('SELECT COALESCE(MAX(versao),0)+1 versao FROM pricing_calculos WHERE pricing_item_id=?');
+    const inserir=db.prepare('INSERT INTO pricing_calculos (empresa_id,pricing_item_id,versao,status,modalidade,parametros_json,resultado_json,evidencia_json,origem) VALUES (?,?,?,?,?,?,?,?,?)');
+    const json=x=>{try{return JSON.parse(x||'{}');}catch(_){return {};}};
+    const creditos=b.aplicar_creditos_globais?db.prepare(`SELECT id,descricao,natureza,valor,criterio_rateio,percentual_rateio,evidencia FROM pricing_creditos_globais WHERE empresa_id=? AND ativo=1 AND criterio_rateio IS NOT NULL AND percentual_rateio>0`).all(empresaId):[];
+    const creditoGlobal=creditos.reduce((s,c)=>s+(Number(c.valor)||0)*Math.min(1,Number(c.percentual_rateio)||0),0);
+    const resultado=[];
+    db.transaction(()=>itens.forEach(item=>{
+      try {
+        const base=buscarBase.get(item.base_operacional_id,empresaId);
+        if(!base) throw new Error('Base operacional não encontrada.');
+        if(base.classificacao_venda==='PENDENTE_DE_ENQUADRAMENTO') throw new Error('Venda pendente de enquadramento fiscal.');
+        const venda=json(base.classificacao_venda_detalhe);
+        const aliquotas=motor.aliquotasEfetivas(ano,{reducao:venda.reducao||'integral',reducaoIbs:venda.reducaoIbs,reducaoCbs:venda.reducaoCbs,tratamento:venda.tratamento,origemRegra:venda.origem_regra});
+        const componentes=buscarComponentes.all(base.id),valorComponentes=componentes.reduce((s,x)=>s+(Number(x.valor)||0),0),modelo=String(base.modelo||'');
+        const custoBruto=modelo==='LOCACAO'?Math.max(0,(Number(base.valor_aquisicao)||0)-(Number(base.valor_residual)||0))/Math.max(1,Number(base.prazo_depreciacao_meses)||1):modelo==='PRODUCAO_COMPOSICAO_SERVICO'?valorComponentes:modelo==='MISTO_CONTRATO'?(Number(base.valor_aquisicao)||0)+valorComponentes:(Number(base.valor_aquisicao)||0);
+        const calculo=motorPrecificacaoComercial.calcular({...item,custo_bruto:custoBruto,credito_global_rateado:creditoGlobal,margem_contribuicao:Number(premissa.margem_contribuicao),percentuais_por_dentro:Number(premissa.percentuais_por_dentro),aliquota_efetiva_cbs:aliquotas.cbs,modalidade:item.modalidade});
+        if(calculo.status!=='CALCULATED') throw new Error(calculo.bloqueio||'Cálculo incompleto.');
+        calculo.memoria_base={modelo,base_operacional_id:base.id,valor_aquisicao:Number(base.valor_aquisicao)||0,valor_residual:Number(base.valor_residual)||0,prazo_depreciacao_meses:Number(base.prazo_depreciacao_meses)||null,componentes_valor:valorComponentes,custo_normalizado:custoBruto};
+        const versao=proxima.get(item.id).versao;
+        inserir.run(empresaId,item.id,versao,'CALCULATED',item.modalidade,JSON.stringify({base_operacional_id:base.id,premissa_id:premissa.id,ano,custo_bruto:custoBruto,credito_global_rateado:creditoGlobal,margem_contribuicao:Number(premissa.margem_contribuicao),percentuais_por_dentro:Number(premissa.percentuais_por_dentro),aliquota_efetiva_cbs:aliquotas.cbs}),JSON.stringify(calculo),JSON.stringify({fiscal:{fonte:'motor tributário',classificacao_venda:base.classificacao_venda,cst:venda.cst,cclasstrib:venda.cclasstrib,tratamento:venda.tratamento,origem_regra:venda.origem_regra,aliquota_cbs:aliquotas.cbs},premissa:{id:premissa.id,nome:premissa.nome},creditos_globais:creditos}),'CALCULO_LOTE_BASE');
+        resultado.push({item_id:item.id,codigo:item.codigo,status:'CALCULADO',versao,preco_final:calculo.preco_final});
+      } catch(e) { resultado.push({item_id:item.id,codigo:item.codigo,status:'BLOQUEADO',motivo:e.message}); }
+    }))();
+    await require('../services/operacaoCompartilhada').publicar();
+    ok(res,{resultado,premissa:{id:premissa.id,nome:premissa.nome},calculados:resultado.filter(x=>x.status==='CALCULADO').length,bloqueados:resultado.filter(x=>x.status==='BLOQUEADO')});
+  }catch(e){erro(res,e);}
+});
 router.post('/precificacao/itens/:id/cenarios', (req,res) => {
   try {
     const item=db.prepare('SELECT * FROM pricing_itens WHERE id=?').get(req.params.id); if(!item) throw new Error('Item de Precificação não encontrado.');
