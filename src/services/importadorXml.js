@@ -77,7 +77,11 @@ function ehEventoCancelamento(xml) {
 function ehNfeCanceladaNoProprioXml(xml) {
   if (!/<(?:[\w.-]+:)?infNFe\b/i.test(xml)) return false;
   const protocolo = tag(xml, 'protNFe') || tag(xml, 'infProt');
-  return ['101', '151', '155'].includes(valor(protocolo, 'cStat')) && /cancel/i.test(valor(protocolo, 'xMotivo'));
+  // Algumas NF-e autorizadas trazem somente o código do protocolo, sem o
+  // texto completo de xMotivo. Os códigos 101, 151 e 155 são, por si, o
+  // registro oficial de cancelamento; não podemos depender da descrição.
+  const codigos = [...String(protocolo || '').matchAll(/<(?:[\w.-]+:)?(?:cStat|cSitNFe)(?:\s[^>]*)?>(\d+)<\/(?:[\w.-]+:)?(?:cStat|cSitNFe)>/gi)].map((m) => m[1]);
+  return codigos.some((codigo) => ['101', '151', '155'].includes(codigo));
 }
 function lerCancelamento(xml) {
   const chave = primeiro(xml, ['chNFe', 'ChaveNFe', 'chNFSe', 'ChaveNfse', 'CodigoVerificacao']);

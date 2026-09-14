@@ -20,4 +20,9 @@ const comFrete = xml.lerXml(nfeComFrete, '12345678000199');
 assert.equal(comFrete.itens[0].valor_produto, 100);
 assert.equal(comFrete.itens[0].frete, 20);
 assert.equal(comFrete.itens[0].valor, 120);
+
+const nfeCanceladaNoProtocolo = `<nfeProc><NFe><infNFe Id="NFe31260112345678000199550010000000011000000010"><ide><mod>55</mod><serie>1</serie><nNF>1</nNF></ide></infNFe></NFe><protNFe><infProt><cStat>101</cStat></infProt></protNFe></nfeProc>`;
+const canceladaNoProtocolo = xml.lerXml(nfeCanceladaNoProtocolo, '12345678000199');
+assert.equal(canceladaNoProtocolo.tipoDocumento, 'cancelamento');
+assert.equal(canceladaNoProtocolo.cancelamento.chave.length, 44);
 console.log('ok cancelamento XML');
