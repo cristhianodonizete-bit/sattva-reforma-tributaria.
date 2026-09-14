@@ -4055,7 +4055,7 @@ router.get('/questor/conectores/:id/segredo-protegido', async (req,res)=>{ try {
   auditar(req,{acao:'Solicitou revelação do pareamento Questor',entidade:'questor_conector',entidadeId:c.id,depois:{nome:c.nome}});
   ok(res,{conector:c});
 } catch(e){erro(res,e);} });
-router.post('/questor/conectores/:id/tarefas', async (req,res)=>{ try { const tipo=String(req.body?.tipo||''); if(!['TESTAR_NWEB','PARAMETROS_RELATORIO','APURACAO_PIS_COFINS'].includes(tipo)) throw new Error('Tipo de tarefa não permitido.'); const r=db.prepare('INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)').run(req.params.id,req.body?.empresa_id||null,tipo,JSON.stringify(req.body?.payload||{})); await questorPersistencia.publicarTarefa(db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(r.lastInsertRowid)); ok(res,{tarefa_id:r.lastInsertRowid}); } catch(e){erro(res,e);} });
+router.post('/questor/conectores/:id/tarefas', async (req,res)=>{ try { const tipo=String(req.body?.tipo||''); if(!['TESTAR_NWEB','PARAMETROS_RELATORIO','APURACAO_PIS_COFINS','DOCUMENTOS_FISCAIS_CANCELADOS'].includes(tipo)) throw new Error('Tipo de tarefa não permitido.'); const r=db.prepare('INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)').run(req.params.id,req.body?.empresa_id||null,tipo,JSON.stringify(req.body?.payload||{})); await questorPersistencia.publicarTarefa(db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(r.lastInsertRowid)); ok(res,{tarefa_id:r.lastInsertRowid}); } catch(e){erro(res,e);} });
 router.get('/questor/conectores/:id/tarefas', async (req,res)=>{ try {
   await questorPersistencia.sincronizarUsuario(donoConector(req));
   const c=db.prepare('SELECT id FROM questor_conectores WHERE id=? AND usuario_id=?').get(req.params.id,donoConector(req));
@@ -4728,6 +4728,17 @@ router.post('/empresas/:id/questor/documentos-fiscais/conciliar', upload.single(
     ok(res,resposta);
   } catch(e){ erro(res,e); }
 });
+
+router.post('/empresas/:id/questor/conector/documentos-fiscais-cancelados', async (req,res)=>{ try {
+  const empresaId=Number(req.params.id), empresa=db.prepare('SELECT codigo_questor FROM empresas WHERE id=?').get(empresaId);
+  if(!empresa?.codigo_questor) throw new Error('Informe o Código Questor no cadastro da empresa antes da busca.');
+  const inicio=String(req.body?.inicio||''), fim=String(req.body?.fim||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(fim)||inicio>fim) throw new Error('Informe data inicial e final válidas.');
+  const c=db.prepare("SELECT id FROM questor_conectores WHERE status='ATIVO' AND usuario_id=? ORDER BY ultima_conexao_em DESC LIMIT 1").get(donoConector(req));
+  if(!c) throw new Error('Inicie um Conector Sattva–Questor antes da busca.');
+  const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,empresaId,'DOCUMENTOS_FISCAIS_CANCELADOS',JSON.stringify({actionName:'nFisRRDocFiscalCancelado',parametros:{PCODIGOEMPRESA:empresa.codigo_questor,PDATAINICIAL:inicio,PDATAFINAL:fim}}));
+  ok(res,{tarefa_id:r.lastInsertRowid});
+}catch(e){erro(res,e);}});
 
 // ---- Importação de XML (fonte principal) ----
 router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (req, res) => {
