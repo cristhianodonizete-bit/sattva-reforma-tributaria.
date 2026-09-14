@@ -31,7 +31,7 @@ async function nweb(rota, params={}, body) {
 // camelCase (pDataInicial). Preservamos o contrato interno e traduzimos só na
 // borda do conector.
 function parametrosRelatorioNweb(parametros={}) {
-  const nomes = { PMODELO:'pModelo', PDATAINICIAL:'pDataInicial', PDATAFINAL:'pDataFinal', PTIPOMOVIMENTO:'pTipoMovimento', PDETALHARPRODUTOS:'pDetalharProdutos', PQUEBRAPORMOVIMENTO:'pQuebraPorMovimento', PVALOR:'pValor', PCODIGOEMPRESA:'pCodigoEmpresa', PCODIGOESTAB:'pCodigoEstab', PCODIGOPRODUTO:'pCodigoProduto', PCLASSIFFISCAL:'pClassifFiscal', PCST:'pCst', PCFOP:'pCfop', PTIPOCREDITO:'pTipoCredito', PTIPODEBITO:'pTipoDebito', PAGRUPAR:'pAgrupar', PGERARTOTALIZACAO:'pGerarTotalizacao', PGERARDADOS:'pGerarDados', PORDENAR:'pOrdenar' };
+  const nomes = { PMODELO:'pModelo', PDATAINICIAL:'pDataInicial', PDATAFINAL:'pDataFinal', PTIPOMOVIMENTO:'pTipoMovimento', PTIPOSITUACAODOCUMENTO:'pTipoSituacaoDocumento', PDETALHARPRODUTOS:'pDetalharProdutos', PQUEBRAPORMOVIMENTO:'pQuebraPorMovimento', PVALOR:'pValor', PCODIGOEMPRESA:'pCodigoEmpresa', PCODIGOESTAB:'pCodigoEstab', PCODIGOPRODUTO:'pCodigoProduto', PCLASSIFFISCAL:'pClassifFiscal', PCST:'pCst', PCFOP:'pCfop', PTIPOCREDITO:'pTipoCredito', PTIPODEBITO:'pTipoDebito', PAGRUPAR:'pAgrupar', PGERARTOTALIZACAO:'pGerarTotalizacao', PGERARDADOS:'pGerarDados', PORDENAR:'pOrdenar' };
   const dataQuestor = (valor) => {
     const m = String(valor || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return m ? `${m[3]}/${m[2]}/${m[1]}` : valor;
