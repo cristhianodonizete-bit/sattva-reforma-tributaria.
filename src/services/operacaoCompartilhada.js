@@ -44,8 +44,8 @@ const CAMPOS = {
   pricing_calculos: ['id','empresa_id','pricing_item_id','versao','status','modalidade','parametros_json','resultado_json','evidencia_json','origem','calculado_em','aprovado_em','vigente_em','substituido_por_id'],
   pricing_calculo_tratamentos: ['id','pricing_calculo_id','tratamento','aliquota_efetiva_cbs','preserva_credito','estorna_credito','resultado_json','status'],
   pricing_import_linhas: ['id','lote_id','linha','aba','codigo_item','status','erro','dados_json','pricing_item_id','criado_em'],
-  pricing_base_operacional: ['id','empresa_id','codigo','descricao','modelo','ncm_compra','nbs_compra','lc116_compra','ncm_venda','nbs_venda','lc116_venda','fornecedor_cnpj','regime_fornecedor','pis','cofins','valor_aquisicao','prazo_depreciacao_meses','valor_residual','origem','evidencia','ativo','criado_em','atualizado_em'],
-  pricing_base_estrutura: ['id','base_operacional_id','codigo_componente','descricao','tipo_componente','valor','pis','cofins','fornecedor_cnpj','regime_fornecedor','ncm','nbs','lc116','origem','evidencia','criado_em'],
+  pricing_base_operacional: ['id','empresa_id','codigo','descricao','modelo','ncm_compra','nbs_compra','lc116_compra','ncm_venda','nbs_venda','lc116_venda','classificacao_compra','classificacao_venda','classificacao_compra_detalhe','classificacao_venda_detalhe','fornecedor_cnpj','regime_fornecedor','pis','cofins','valor_aquisicao','prazo_depreciacao_meses','valor_residual','origem','evidencia','ativo','criado_em','atualizado_em'],
+  pricing_base_estrutura: ['id','base_operacional_id','codigo_componente','descricao','tipo_componente','valor','pis','cofins','fornecedor_cnpj','regime_fornecedor','ncm','nbs','lc116','classificacao','classificacao_detalhe','origem','evidencia','criado_em'],
   // Fotografia imutável do simulador, lida por Contratos somente mediante
   // vínculo explícito. Ela é sincronizada como resultado já produzido.
   pricing_simulacoes: ['id','empresa_id','modo','parametros_json','resultados_json','origem','natureza','criado_em'],
@@ -328,7 +328,7 @@ const TABELAS_INCREMENTAIS_SEGURAS = new Set([
   'telemetria_autonomia_execucoes', 'enriquecimento_servicos_evidencias',
   'enriquecimento_pis_cofins_evidencias', 'pendencias_enriquecimento_fiscal',
   'perfil_cbs_competencias', 'pricing_products', 'pricing_services',
-  'pricing_components', 'pricing_import_batches', 'pricing_itens', 'pricing_creditos_globais', 'pricing_calculos', 'pricing_calculo_tratamentos', 'pricing_import_linhas', 'pricing_simulacoes',
+  'pricing_components', 'pricing_import_batches', 'pricing_itens', 'pricing_creditos_globais', 'pricing_calculos', 'pricing_calculo_tratamentos', 'pricing_import_linhas', 'pricing_simulacoes', 'pricing_base_operacional', 'pricing_base_estrutura',
 ]);
 const PRIORIDADE_INCREMENTAL = [
   'empresas', 'lotes', 'parceiros', 'empresa_qsa', 'empresa_servicos_fiscais',
@@ -337,7 +337,7 @@ const PRIORIDADE_INCREMENTAL = [
   'enriquecimento_servicos_evidencias', 'enriquecimento_pis_cofins_evidencias',
   'pendencias_enriquecimento_fiscal', 'excecoes_motor', 'excecoes_motor_execucoes',
   'telemetria_autonomia_execucoes', 'perfil_cbs_competencias', 'pricing_products',
-    'pricing_services', 'pricing_components', 'pricing_import_batches', 'pricing_itens', 'pricing_creditos_globais', 'pricing_calculos', 'pricing_calculo_tratamentos', 'pricing_import_linhas', 'pricing_simulacoes',
+    'pricing_services', 'pricing_components', 'pricing_import_batches', 'pricing_itens', 'pricing_creditos_globais', 'pricing_calculos', 'pricing_calculo_tratamentos', 'pricing_import_linhas', 'pricing_simulacoes', 'pricing_base_operacional', 'pricing_base_estrutura',
 ];
 
 function lerSequenciaIncremental() {
