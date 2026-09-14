@@ -860,6 +860,13 @@ CREATE TABLE IF NOT EXISTS pricing_itens (
   UNIQUE(empresa_id,codigo,modalidade)
 );
 CREATE INDEX IF NOT EXISTS ix_pricing_itens_empresa ON pricing_itens(empresa_id,ativo);
+CREATE TABLE IF NOT EXISTS pricing_premissas_comerciais (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  nome TEXT NOT NULL, margem_contribuicao REAL NOT NULL DEFAULT 0, percentuais_por_dentro REAL NOT NULL DEFAULT 0,
+  ativo INTEGER NOT NULL DEFAULT 1, padrao INTEGER NOT NULL DEFAULT 0, criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')), UNIQUE(empresa_id,nome)
+);
+CREATE INDEX IF NOT EXISTS ix_pricing_premissas_empresa ON pricing_premissas_comerciais(empresa_id,ativo);
 CREATE TABLE IF NOT EXISTS pricing_creditos_globais (
   id INTEGER PRIMARY KEY AUTOINCREMENT, empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
   descricao TEXT NOT NULL, natureza TEXT NOT NULL DEFAULT 'GERENCIAL', valor REAL NOT NULL DEFAULT 0,

@@ -40,6 +40,7 @@ const CAMPOS = {
   pricing_components: ['id','empresa_id','produto_saida_id','servico_saida_id','codigo_componente','descricao','tipo_componente','ncm','nbs','lc116','cnpj_fornecedor','regime_fornecedor','quantidade','custo_unitario_bruto','perda_percentual','ativo','origem','criado_em','atualizado_em'],
   pricing_import_batches: ['id','empresa_id','arquivo','status','resumo','criado_em'],
   pricing_itens: ['id','empresa_id','codigo','descricao','modalidade','natureza_item','ncm','nbs','lc116','unidade','perfil_cliente','preco_atual','margem_contribuicao','percentuais_por_dentro','ativo','origem','origem_tipo','origem_id','base_operacional_id','criado_em','atualizado_em'],
+  pricing_premissas_comerciais: ['id','empresa_id','nome','margem_contribuicao','percentuais_por_dentro','ativo','padrao','criado_em','atualizado_em'],
   pricing_creditos_globais: ['id','empresa_id','descricao','natureza','valor','criterio_rateio','percentual_rateio','vigencia_inicio','vigencia_fim','evidencia','origem','ativo','criado_em','atualizado_em'],
   pricing_calculos: ['id','empresa_id','pricing_item_id','versao','status','modalidade','parametros_json','resultado_json','evidencia_json','origem','calculado_em','aprovado_em','vigente_em','substituido_por_id'],
   pricing_calculo_tratamentos: ['id','pricing_calculo_id','tratamento','aliquota_efetiva_cbs','preserva_credito','estorna_credito','resultado_json','status'],
@@ -68,7 +69,7 @@ const CAMPOS = {
   monitoring_actions: ['id','empresa_id','desvio_id','acao','responsavel','prazo','prioridade','status','evidencia','origem','criado_em','atualizado_em'],
 };
 const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','param_naturezas_juridicas_anexo_xi','servicos','combos','combo_itens'];
-const TABELAS_PRECIFICACAO = ['pricing_products','pricing_services','pricing_components','pricing_import_batches','pricing_itens','pricing_creditos_globais','pricing_calculos','pricing_calculo_tratamentos','pricing_import_linhas','pricing_base_operacional','pricing_base_estrutura'];
+const TABELAS_PRECIFICACAO = ['pricing_products','pricing_services','pricing_components','pricing_import_batches','pricing_itens','pricing_premissas_comerciais','pricing_creditos_globais','pricing_calculos','pricing_calculo_tratamentos','pricing_import_linhas','pricing_base_operacional','pricing_base_estrutura'];
 const TABELAS_CONTRATOS = ['contratos','contrato_checklist','contrato_documentos','contrato_clausulas_extraidas','contrato_riscos_iniciais','contrato_precificacao_vinculos','contrato_recomendacoes','contrato_sugestoes_clausulas'];
 const TABELAS_ACOMPANHAMENTO = ['monitoring_baselines','monitoring_snapshots','monitoring_comparisons','monitoring_deviations','monitoring_alerts','monitoring_actions'];
 
@@ -328,7 +329,7 @@ const TABELAS_INCREMENTAIS_SEGURAS = new Set([
   'telemetria_autonomia_execucoes', 'enriquecimento_servicos_evidencias',
   'enriquecimento_pis_cofins_evidencias', 'pendencias_enriquecimento_fiscal',
   'perfil_cbs_competencias', 'pricing_products', 'pricing_services',
-  'pricing_components', 'pricing_import_batches', 'pricing_itens', 'pricing_creditos_globais', 'pricing_calculos', 'pricing_calculo_tratamentos', 'pricing_import_linhas', 'pricing_simulacoes', 'pricing_base_operacional', 'pricing_base_estrutura',
+  'pricing_components', 'pricing_import_batches', 'pricing_itens', 'pricing_premissas_comerciais', 'pricing_creditos_globais', 'pricing_calculos', 'pricing_calculo_tratamentos', 'pricing_import_linhas', 'pricing_simulacoes', 'pricing_base_operacional', 'pricing_base_estrutura',
 ]);
 const PRIORIDADE_INCREMENTAL = [
   'empresas', 'lotes', 'parceiros', 'empresa_qsa', 'empresa_servicos_fiscais',
@@ -337,7 +338,7 @@ const PRIORIDADE_INCREMENTAL = [
   'enriquecimento_servicos_evidencias', 'enriquecimento_pis_cofins_evidencias',
   'pendencias_enriquecimento_fiscal', 'excecoes_motor', 'excecoes_motor_execucoes',
   'telemetria_autonomia_execucoes', 'perfil_cbs_competencias', 'pricing_products',
-    'pricing_services', 'pricing_components', 'pricing_import_batches', 'pricing_itens', 'pricing_creditos_globais', 'pricing_calculos', 'pricing_calculo_tratamentos', 'pricing_import_linhas', 'pricing_simulacoes', 'pricing_base_operacional', 'pricing_base_estrutura',
+    'pricing_services', 'pricing_components', 'pricing_import_batches', 'pricing_itens', 'pricing_premissas_comerciais', 'pricing_creditos_globais', 'pricing_calculos', 'pricing_calculo_tratamentos', 'pricing_import_linhas', 'pricing_simulacoes', 'pricing_base_operacional', 'pricing_base_estrutura',
 ];
 
 function lerSequenciaIncremental() {

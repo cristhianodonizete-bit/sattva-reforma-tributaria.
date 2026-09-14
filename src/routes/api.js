@@ -2788,6 +2788,23 @@ router.post('/empresas/:id/precificacao/itens', (req, res) => {
 router.get('/empresas/:id/precificacao/creditos-globais', (req,res) => {
   try { ok(res,{ creditos:db.prepare('SELECT * FROM pricing_creditos_globais WHERE empresa_id=? AND ativo=1 ORDER BY descricao').all(req.params.id) }); } catch(e){erro(res,e);}
 });
+router.get('/empresas/:id/precificacao/premissas-comerciais', (req,res) => {
+  try {
+    const empresaId=Number(req.params.id);
+    if(!db.prepare('SELECT 1 FROM pricing_premissas_comerciais WHERE empresa_id=?').get(empresaId)) db.prepare("INSERT INTO pricing_premissas_comerciais (empresa_id,nome,padrao) VALUES (?, 'Base', 1)").run(empresaId);
+    ok(res,{premissas:db.prepare('SELECT * FROM pricing_premissas_comerciais WHERE empresa_id=? AND ativo=1 ORDER BY padrao DESC,nome').all(empresaId)});
+  }catch(e){erro(res,e);}
+});
+router.post('/empresas/:id/precificacao/premissas-comerciais', async (req,res) => {
+  try {
+    const empresaId=Number(req.params.id),b=req.body||{}; const nome=String(b.nome||'').trim();
+    const margem=Number(b.margem_contribuicao),porDentro=Number(b.percentuais_por_dentro);
+    if(!nome||!Number.isFinite(margem)||!Number.isFinite(porDentro)||margem<0||porDentro<0||margem+porDentro>=1) throw new Error('Informe nome e percentuais válidos; margem mais percentuais por dentro deve ser menor que 100%.');
+    if(b.padrao) db.prepare('UPDATE pricing_premissas_comerciais SET padrao=0 WHERE empresa_id=?').run(empresaId);
+    db.prepare(`INSERT INTO pricing_premissas_comerciais (empresa_id,nome,margem_contribuicao,percentuais_por_dentro,padrao) VALUES (?,?,?,?,?) ON CONFLICT(empresa_id,nome) DO UPDATE SET margem_contribuicao=excluded.margem_contribuicao,percentuais_por_dentro=excluded.percentuais_por_dentro,padrao=excluded.padrao,ativo=1,atualizado_em=datetime('now','localtime')`).run(empresaId,nome,margem,porDentro,b.padrao?1:0);
+    await require('../services/operacaoCompartilhada').publicar();ok(res,{gravado:true});
+  }catch(e){erro(res,e);}
+});
 router.post('/empresas/:id/precificacao/creditos-globais', async (req,res) => {
   try {
     const b=req.body || {}; const natureza=['REAL','GERENCIAL','SIMULADO'].includes(String(b.natureza||'').toUpperCase()) ? String(b.natureza).toUpperCase() : 'GERENCIAL';
@@ -2801,6 +2818,7 @@ router.post('/precificacao/itens/:id/calcular', async (req,res) => {
   try {
     const item=db.prepare('SELECT * FROM pricing_itens WHERE id=?').get(req.params.id); if(!item) throw new Error('Item de Precificação não encontrado.');
     const b=req.body || {};
+    const premissa=b.premissa_id?db.prepare('SELECT * FROM pricing_premissas_comerciais WHERE id=? AND empresa_id=? AND ativo=1').get(Number(b.premissa_id),item.empresa_id):null;
     const base=item.base_operacional_id?db.prepare('SELECT * FROM pricing_base_operacional WHERE id=? AND empresa_id=? AND ativo=1').get(item.base_operacional_id,item.empresa_id):null;
     const componentes=base?db.prepare('SELECT * FROM pricing_base_estrutura WHERE base_operacional_id=?').all(base.id):[];
     const json=x=>{try{return JSON.parse(x||'{}');}catch(_){return {};}};
@@ -2815,7 +2833,7 @@ router.post('/precificacao/itens/:id/calcular', async (req,res) => {
       dadosBase={custo_bruto:custoBruto,aliquota_efetiva_cbs:aliquotas.cbs,evidencia_fiscal:{fonte:'motor tributário',base_operacional_id:base.id,classificacao_venda:base.classificacao_venda,tratamento:venda.tratamento,cst:venda.cst,cclasstrib:venda.cclasstrib,origem_regra:venda.origem_regra,aliquota_cbs:aliquotas.cbs,componentes:componentes.map(x=>({codigo:x.codigo_componente,valor:x.valor,classificacao:x.classificacao}))},memoria_base:{modelo,valor_aquisicao:Number(base.valor_aquisicao)||0,valor_residual:Number(base.valor_residual)||0,prazo_depreciacao_meses:Number(base.prazo_depreciacao_meses)||null,componentes_valor:componentesValor,custo_normalizado:custoBruto}};
     }
     if (!base && !b.evidencia_fiscal) throw new Error('Informe a evidência do motor fiscal para a alíquota efetiva de CBS.');
-    const entrada={...item,...b,...dadosBase,credito_global_rateado:0,modalidade:item.modalidade};
+    const entrada={...item,...b,...dadosBase,margin_contribuicao:undefined,margem_contribuicao:premissa?Number(premissa.margem_contribuicao):b.margem_contribuicao,percentuais_por_dentro:premissa?Number(premissa.percentuais_por_dentro):b.percentuais_por_dentro,credito_global_rateado:0,modalidade:item.modalidade};
     const creditosGlobais=b.aplicar_creditos_globais ? db.prepare(`SELECT id,descricao,natureza,valor,criterio_rateio,percentual_rateio,evidencia FROM pricing_creditos_globais WHERE empresa_id=? AND ativo=1 AND criterio_rateio IS NOT NULL AND percentual_rateio>0`).all(item.empresa_id) : [];
     const creditoGlobalAutomatico=creditosGlobais.reduce((s,c)=>s+(Number(c.valor)||0)*Math.min(1,Number(c.percentual_rateio)||0),0);
     const resultado=motorPrecificacaoComercial.calcular({...entrada,credito_global_rateado:b.aplicar_creditos_globais?creditoGlobalAutomatico:(b.credito_global_rateado||0)});
