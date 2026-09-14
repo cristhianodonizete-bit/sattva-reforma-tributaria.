@@ -2769,6 +2769,32 @@ router.get('/empresas/:id/precificacao/itens', (req, res) => {
     ok(res, { itens: itens.map((x) => ({ ...x, resultado: x.resultado_json ? JSON.parse(x.resultado_json) : null, parametros: x.parametros_json ? JSON.parse(x.parametros_json) : null })) });
   } catch (e) { erro(res, e); }
 });
+router.get('/empresas/:id/precificacao/conferencia', (req,res) => {
+  try {
+    const empresaId=Number(req.params.id);
+    const linhas=db.prepare(`SELECT i.id item_id,i.codigo,i.descricao,i.modalidade,i.base_operacional_id,
+      b.codigo base_codigo,b.classificacao_compra,b.classificacao_venda,
+      c.id calculo_id,c.versao,c.status calculo_status,c.resultado_json,c.evidencia_json
+      FROM pricing_itens i
+      LEFT JOIN pricing_base_operacional b ON b.id=i.base_operacional_id
+      LEFT JOIN pricing_calculos c ON c.id=(SELECT x.id FROM pricing_calculos x WHERE x.pricing_item_id=i.id ORDER BY x.versao DESC LIMIT 1)
+      WHERE i.empresa_id=? AND i.ativo=1 ORDER BY i.descricao`).all(empresaId);
+    const json=x=>{try{return JSON.parse(x||'{}');}catch(_){return {};}};
+    const itens=linhas.map(x=>{
+      const resultado=json(x.resultado_json),evidencia=json(x.evidencia_json);
+      let situacao='PRONTO_PARA_VALIDAR',motivo='Cálculo, classificação fiscal e memória disponíveis.';
+      if(!x.base_operacional_id){situacao='BLOQUEADO';motivo='Item sem vínculo com a base operacional.';}
+      else if(x.classificacao_venda==='PENDENTE_DE_ENQUADRAMENTO'){situacao='BLOQUEADO';motivo='Venda com enquadramento fiscal pendente.';}
+      else if(!x.calculo_id){situacao='PENDENTE_DE_CALCULO';motivo='Item ainda não foi calculado.';}
+      else if(!Number.isFinite(Number(resultado.preco_final))||Number(resultado.divisor_markup)<=0){situacao='BLOQUEADO';motivo='Memória de cálculo incompleta ou divisor de markup inválido.';}
+      else if(!evidencia.fiscal){situacao='BLOQUEADO';motivo='Cálculo sem evidência fiscal.';}
+      else if(x.calculo_status!=='CALCULATED'){situacao=x.calculo_status==='VALIDATION'?'EM_VALIDACAO':x.calculo_status==='APPROVED'?'APROVADO':x.calculo_status==='VIGENT'?'VIGENTE':x.calculo_status;motivo=`Versão ${String(x.calculo_status).toLowerCase()}.`;}
+      return {...x,resultado,situacao,motivo};
+    });
+    const resumo=itens.reduce((a,x)=>({...a,[x.situacao]:(a[x.situacao]||0)+1}),{});
+    ok(res,{itens,resumo});
+  }catch(e){erro(res,e);}
+});
 router.get('/precificacao/itens/:id/historico', (req,res) => {
   try { const item=db.prepare('SELECT * FROM pricing_itens WHERE id=?').get(req.params.id); if(!item) throw new Error('Item de Precificação não encontrado.'); const versoes=db.prepare('SELECT * FROM pricing_calculos WHERE pricing_item_id=? ORDER BY versao DESC').all(item.id).map(x=>({...x,parametros:JSON.parse(x.parametros_json||'{}'),resultado:JSON.parse(x.resultado_json||'{}')})); ok(res,{item,versoes}); }catch(e){erro(res,e);}
 });
