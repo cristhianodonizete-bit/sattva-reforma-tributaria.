@@ -7,14 +7,20 @@ const persistencia = require('../services/questorPersistencia');
 const router = express.Router();
 const hash = (v) => crypto.createHash('sha256').update(String(v || '')).digest('hex');
 function conciliarCancelamentosQuestor(empresaId, texto) {
-  const linhas=String(texto||'').replace(/\r/g,'').split('\n'); const saida={linhas_lidas:0,atualizados:0,ambiguos:0,nao_localizados:0}; const ids=[];
+  // nWeb devolve o NRWEX como envelope JSON. O relatório já é exclusivo de
+  // cancelados, portanto a situação é evidência do próprio relatório, ainda
+  // que não exista uma coluna "Situação" em cada linha.
+  let fonte=String(texto||''); try { const envelope=JSON.parse(fonte); fonte=String(envelope?.Data||fonte); } catch (_) { /* retorno textual direto */ }
+  const ano=(fonte.match(/Per[ií]odo:\s*\d{2}\/\d{2}\/(\d{4})/i)||[])[1]||'';
+  const linhas=fonte.replace(/\r/g,'').split('\n'); const saida={linhas_lidas:0,atualizados:0,ambiguos:0,nao_localizados:0}; const ids=[];
   const registros=[];
   for(const linha of linhas){
     // Layout nFisRRDocFiscalCancelado: lançamento, cliente, data, número,
     // espécie, série, natureza, valor contábil e situação. O cliente pode
     // conter espaços; por isso a extração ancora na data e no final da linha.
-    const m=linha.match(/^\s*\d+\s+\d+\s+.+?\s+(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(NFE|NFSE|NFCE|CTE)\s+(\d*)\s+\S+\s+[\d.,]+\s+(Cancelado|Denegado|Inutilizado)\s*$/i);
-    if(!m) continue; registros.push({data:`${m[1].slice(6)}-${m[1].slice(3,5)}-${m[1].slice(0,2)}`,numero:m[2],modelo:m[3].toLowerCase(),serie:m[4],situacao:m[5].toUpperCase()});
+    const m=linha.match(/^\s*\d+\s+\d+\s+.+?\s+(\d{2}\/\d{2}\/\d{3,4})\s+(\d+)\s*(NFE|NFSE|NFCE|CTE)\s+(\d*)\s+\S+\s+[\d.,]+\s*$/i);
+    if(!m) continue; const y=m[1].slice(6).length===4?m[1].slice(6):ano;
+    if(!/^\d{4}$/.test(y)) continue; registros.push({data:`${y}-${m[1].slice(3,5)}-${m[1].slice(0,2)}`,numero:m[2],modelo:m[3].toLowerCase(),serie:m[4],situacao:'CANCELADO'});
   }
   const movimentos=db.prepare("SELECT * FROM movimentos WHERE empresa_id=? AND tipo='cliente'").all(empresaId);
   db.transaction(()=>registros.forEach(r=>{saida.linhas_lidas++; const candidatos=movimentos.filter(x=>{const partes=String(x.documento||'').split('/');const numero=(partes[partes.length-1]||'').replace(/\D/g,'');const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');return numero===r.numero&&String(x.modelo_documento_fiscal||'').toLowerCase()===r.modelo&&String(x.data_emissao||'').slice(0,10)===r.data&&(!r.serie||!serie||serie===r.serie);}); const docs=new Set(candidatos.map(x=>x.chave||`d:${x.documento}`)); if(!docs.size){saida.nao_localizados++;return;} if(docs.size!==1){saida.ambiguos++;return;} const mudou=candidatos.some(x=>String(x.situacao_documento||'AUTORIZADO')!==r.situacao); db.prepare(`UPDATE movimentos SET situacao_documento=?,cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo=?,cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE id IN (${candidatos.map(()=>'?').join(',')})`).run(r.situacao,`Situação ${r.situacao} informada pelo Questor`,...candidatos.map(x=>x.id)); if(mudou){saida.atualizados++;ids.push(...candidatos.map(x=>x.id));} }));
