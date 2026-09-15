@@ -992,7 +992,7 @@ async function reprocessarSaidasPorQsa(empresaId) {
   // O QSA é dependência exclusiva das saídas da empresa (cClassTrib 200044).
   // Passar os IDs explicitamente garante que uma confirmação societária seja
   // materializada mesmo quando nenhum campo do movimento mudou.
-  const saidas = db.prepare("SELECT id FROM movimentos WHERE empresa_id=? AND tipo='cliente'")
+  const saidas = db.prepare("SELECT id FROM movimentos WHERE empresa_id=? AND tipo='cliente' AND COALESCE(situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')")
     .all(empresaId).map((x) => x.id);
   if (!saidas.length) return { empresa_id: empresaId, reprocessados: 0, status: 'SEM_SAIDAS', publicacao: { ativo: false } };
   // A confirmação do QSA só é concluída após a fotografia calculada estar na
@@ -2032,6 +2032,7 @@ function listarDocumentosFiscais(empresaId, limite = 2000) {
         COALESCE(NULLIF(MAX(documento),''), NULLIF(MAX(chave),''), 'Lançamento #' || MIN(id)) documento,
         MIN(competencia) competencia, MIN(data_emissao) data_emissao, MAX(chave) chave, MAX(tipo) tipo, MAX(origem) origem,
         MAX(cfop) cfop, MAX(nbs) nbs, MAX(lc116) lc116, MAX(iss) iss, MAX(modelo_documento_fiscal) modelo_documento_fiscal,
+        MAX(situacao_documento) situacao_documento, MAX(cancelamento_origem) cancelamento_origem,
         MAX(nome) parceiro, MAX(inscr_federal) inscr_federal, COUNT(*) itens, SUM(COALESCE(valor,0)) valor,
         SUM(CASE WHEN NULLIF(ncm,'') IS NOT NULL THEN 1 ELSE 0 END) itens_produto,
         SUM(CASE WHEN lower(COALESCE(modelo_documento_fiscal,''))='nfse' THEN 1 ELSE 0 END) itens_servico,
@@ -2285,7 +2286,7 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
     const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
     const mapa = new Map(referencias.filter((r) => r.ativo).map((r) => [r.chave, r]));
     const porChave = new Map();
-    db.prepare(`SELECT nbs, ncm, iss, pis, cofins, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente'`).all(req.params.id)
+    db.prepare(`SELECT nbs, ncm, iss, pis, cofins, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente' AND COALESCE(situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')`).all(req.params.id)
       .filter(ehServicoDeVenda).forEach((m) => {
         const chave = chaveReferenciaServico(m);
         const atual = porChave.get(chave) || { chave, nbs: m.nbs || '', descricao: m.descricao || 'Serviço sem descrição', registros: 0, valor: 0, registrosSemDocumento: 0 };
