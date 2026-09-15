@@ -111,7 +111,7 @@ function montarAuditoriaMensal(documentos, apuracoes, perfis) {
   });
 }
 
-function consolidar(db, empresaId) {
+function consolidar(db, empresaId, opcoes = {}) {
   const colunasEmpresa = new Set(db.prepare('PRAGMA table_info(empresas)').all().map((x) => x.name));
   const colunaEmpresa = (nome) => colunasEmpresa.has(nome) ? nome : `NULL AS ${nome}`;
   const empresa = db.prepare(`SELECT id, razao_social, ${colunaEmpresa('regime')}, ${colunaEmpresa('regime_reconhecimento_simples')} FROM empresas WHERE id=?`).get(empresaId);
@@ -132,8 +132,12 @@ function consolidar(db, empresaId) {
   // migração local é concluída.
   const colunasMovimentos = new Set(db.prepare('PRAGMA table_info(movimentos)').all().map((x) => x.name));
   const colunaMovimento = (nome) => colunasMovimentos.has(nome) ? nome : `NULL AS ${nome}`;
-  db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')},${colunaMovimento('situacao_documento')}
-    FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId)
+  const movimentosFonte = Array.isArray(opcoes.movimentos)
+    ? opcoes.movimentos
+    : db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')},${colunaMovimento('situacao_documento')}
+      FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId);
+  movimentosFonte
+    .filter((x) => Number(x.empresa_id || empresaId) === Number(empresaId) && String(x.competencia || '') !== '')
     .filter((x) => receitaOperacional.ehSaida(x) && noExercicio(x.competencia))
     .forEach((x) => {
       const atual=documentosPorCompetencia.get(x.competencia) || { competencia:x.competencia, receita_documentada:0, quantidade_documentos:0, iss_documentado:0 };

@@ -1007,7 +1007,7 @@ Telas.perfil = async (el) => {
   // mesma fotografia persistida, sem depender da ordem de duas requisições.
   const respostaApuracoes = await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`);
   const respostaPeriodo = await A.api(`/empresas/${S.empresaId}/periodo-analisado`);
-  const tributario = await A.api(`/empresas/${S.empresaId}/perfil-tributario-historico`);
+  const tributario = await A.api(`/empresas/${S.empresaId}/perfil-tributario-historico?atualizacao=${Date.now()}`);
   const periodoPerfil = respostaPeriodo.periodo || null;
   // O histórico pode conter XMLs de meses anteriores, pois eles são
   // preservados para auditoria e projeção. No Perfil Tributário, porém, a

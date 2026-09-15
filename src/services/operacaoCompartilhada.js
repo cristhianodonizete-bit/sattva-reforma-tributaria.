@@ -352,7 +352,10 @@ async function reconciliarMovimentosEmpresa(empresaId) {
     }
     gravar('movimentos', normalizadas, true);
   })();
-  return { ativo: true, inseridos_ou_atualizados: normalizadas.length, removidos: remover.length };
+  // Também devolve a fotografia canônica para leituras críticas no mesmo
+  // request. Assim, uma tela não volta a depender do SQLite recém-reconciliado
+  // nem de qualquer cache de processo entre a leitura e a consolidação.
+  return { ativo: true, inseridos_ou_atualizados: normalizadas.length, removidos: remover.length, movimentos: normalizadas };
 }
 
 // A trilha remota é a fonte de verdade para o delta. O marco só é avançado
