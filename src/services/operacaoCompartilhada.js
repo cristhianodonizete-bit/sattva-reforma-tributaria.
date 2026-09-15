@@ -577,12 +577,17 @@ async function baixarResultadosMotor(remotoInformado = null) {
 async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin();
+  const empresasRemotas = await buscarTudo(remoto, 'empresas');
+  const empresaRemotaPorOrigem = new Map((empresasRemotas || []).map((empresa) => [
+    Number(empresa.origem_local_id || empresa.id), Number(empresa.id),
+  ]).filter(([origem, remotoId]) => origem > 0 && remotoId > 0));
+  const empresaRemota = (id) => empresaRemotaPorOrigem.get(Number(id)) || Number(id);
   const filtro = empresaId == null ? '' : ' WHERE empresa_id=?';
   const parametros = empresaId == null ? [] : [empresaId];
   const execucoes = db.prepare(`SELECT * FROM motor_execucoes${filtro}`).all(...parametros)
-    .map((x) => ({ id: x.id, empresa_id: x.empresa_id, dados: x }));
+    .map((x) => ({ id: x.id, empresa_id: empresaRemota(x.empresa_id), dados: x }));
   const resultados = db.prepare(`SELECT * FROM motor_resultados${filtro}`).all(...parametros)
-    .map((x) => ({ id: x.id, empresa_id: x.empresa_id, movimento_id: x.movimento_id, dados: x,
+    .map((x) => ({ id: x.id, empresa_id: empresaRemota(x.empresa_id), movimento_id: x.movimento_id, dados: x,
       // A tabela compartilhada usa "ativo=false" como padrão. Sem marcar a
       // nova fotografia explicitamente, o cálculo correto ficava gravado no
       // histórico, mas as telas continuavam lendo a fotografia antiga.
@@ -712,6 +717,19 @@ async function baixarGestao(remotoInformado = null) {
 async function publicar() {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin(), resultado = {};
+  // O SQLite conserva o ID de origem da empresa; no Supabase a empresa pode
+  // ter recebido outro ID técnico ao ser criada. Nunca publicar documentos
+  // usando o ID local diretamente, pois isso cria vínculos órfãos e faz dados
+  // fiscais "sumirem" da empresa selecionada após uma sincronização.
+  const empresasRemotas = await buscarTudo(remoto, 'empresas');
+  const empresaRemotaPorOrigem = new Map((empresasRemotas || []).map((empresa) => [
+    Number(empresa.origem_local_id || empresa.id), Number(empresa.id),
+  ]).filter(([origem, remotoId]) => origem > 0 && remotoId > 0));
+  const paraEmpresaRemota = (tabela, linha) => {
+    if (!CAMPOS[tabela]?.includes('empresa_id')) return linha;
+    const empresaRemota = empresaRemotaPorOrigem.get(Number(linha.empresa_id));
+    return empresaRemota ? { ...linha, empresa_id: empresaRemota } : linha;
+  };
   for (const [tabela, campos] of Object.entries(CAMPOS)) {
     // Empresa e QSA têm identidade composta/remota e confirmação humana.
     // Publicá-los pelo espelho genérico do SQLite (por id local) causava uma
@@ -720,7 +738,7 @@ async function publicar() {
     // específicos, com origem_local_id/chave societária estável.
     if (['empresas', 'empresa_qsa', 'regras_enquadramento'].includes(tabela)) continue;
     if (TABELAS_PRECIFICACAO.includes(tabela) || TABELAS_CONTRATOS.includes(tabela)) continue;
-    const linhas = db.prepare(`SELECT ${campos.join(',')} FROM ${tabela}`).all();
+    const linhas = db.prepare(`SELECT ${campos.join(',')} FROM ${tabela}`).all().map((linha) => paraEmpresaRemota(tabela, linha));
     for (let i = 0; i < linhas.length; i += 500) {
       const { error } = await remoto.from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: 'id' });
       if (error) throw new Error(`${tabela}: ${error.message}`);
@@ -734,13 +752,14 @@ async function publicar() {
   const empresas = db.prepare('SELECT id FROM empresas').all();
   for (const empresa of empresas) {
     const empresaId = empresa.id;
+    const empresaRemota = empresaRemotaPorOrigem.get(Number(empresaId)) || empresaId;
     for (const tabela of ['pricing_components','pricing_import_batches','pricing_products','pricing_services']) {
-      const { error } = await remoto.from(tabela).delete().eq('empresa_id', empresaId);
+      const { error } = await remoto.from(tabela).delete().eq('empresa_id', empresaRemota);
       if (error) throw new Error(`${tabela}: ${error.message}`);
     }
     for (const tabela of ['pricing_products','pricing_services','pricing_components','pricing_import_batches']) {
       const campos = CAMPOS[tabela];
-      const linhas = db.prepare(`SELECT ${campos.join(',')} FROM ${tabela} WHERE empresa_id=?`).all(empresaId);
+      const linhas = db.prepare(`SELECT ${campos.join(',')} FROM ${tabela} WHERE empresa_id=?`).all(empresaId).map((linha) => paraEmpresaRemota(tabela, linha));
       for (let i = 0; i < linhas.length; i += 500) {
         const { error } = await remoto.from(tabela).insert(linhas.slice(i, i + 500));
         if (error) throw new Error(`${tabela}: ${error.message}`);
@@ -751,7 +770,7 @@ async function publicar() {
   // Contratos usam uma fotografia por empresa porque uma exclusão local deve
   // também remover somente o mesmo contrato remoto. A ordem preserva todas as
   // chaves estrangeiras; o original binário é serializado como bytea hex.
-  for (const empresa of empresas) await publicarContratos(remoto, empresa.id);
+  for (const empresa of empresas) await publicarContratos(remoto, empresa.id, empresaRemotaPorOrigem.get(Number(empresa.id)) || empresa.id);
   // Parâmetros fiscais não acompanham esta publicação genérica. O banco local
   // do Render pode iniciar com valores padrão e jamais pode sobrescrever a
   // configuração compartilhada por causa de uma alteração operacional (por
@@ -764,11 +783,11 @@ function linhaRemotaContrato(tabela, linha) {
   if (tabela !== 'contrato_documentos' || !Buffer.isBuffer(linha.conteudo_original)) return linha;
   return { ...linha, conteudo_original: `\\x${linha.conteudo_original.toString('hex')}` };
 }
-async function publicarContratos(remoto, empresaId) {
+async function publicarContratos(remoto, empresaId, empresaRemotaId = empresaId) {
   const contratos = db.prepare(`SELECT ${CAMPOS.contratos.join(',')} FROM contratos WHERE empresa_id=?`).all(empresaId);
   // A exclusão fica restrita à empresa da fotografia e o FK em cascata remove
   // apenas as dependências daqueles contratos, nunca dados de outras empresas.
-  const { error: apagar } = await remoto.from('contratos').delete().eq('empresa_id', empresaId);
+  const { error: apagar } = await remoto.from('contratos').delete().eq('empresa_id', empresaRemotaId);
   if (apagar) throw new Error(`contratos: ${apagar.message}`);
   const porContrato = contratos.map((x) => x.id);
   if (!porContrato.length) return { contratos: 0 };
@@ -780,6 +799,9 @@ async function publicarContratos(remoto, empresaId) {
       const campoContrato = tabela === 'contrato_checklist' ? 'contrato_id' : 'contrato_id';
       linhas = db.prepare(`SELECT ${CAMPOS[tabela].join(',')} FROM ${tabela} WHERE ${campoContrato} IN (${porContrato.map(() => '?').join(',')})`).all(...porContrato);
     }
+    // Apenas as tabelas que carregam empresa_id precisam da troca de chave;
+    // contratos filhos continuam apontando para o mesmo contrato técnico.
+    if (CAMPOS[tabela].includes('empresa_id')) linhas = linhas.map((linha) => ({ ...linha, empresa_id: empresaRemotaId }));
     for (let i = 0; i < linhas.length; i += 250) {
       const { error } = await remoto.from(tabela).insert(linhas.slice(i, i + 250).map((x) => linhaRemotaContrato(tabela, x)));
       if (error) throw new Error(`${tabela}: ${error.message}`);
