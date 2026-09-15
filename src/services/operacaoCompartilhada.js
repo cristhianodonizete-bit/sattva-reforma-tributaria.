@@ -1,6 +1,7 @@
 /* Cache operacional: Supabase é a fonte compartilhada; SQLite atende o motor local. */
 const db = require('../db');
 const supabase = require('./supabase');
+const { Client } = require('pg');
 
 const CAMPOS = {
   empresas: ['id','cnpj','razao_social','nome_fantasia','regime','regime_reconhecimento_simples','uf','municipio','cnae','atividade','cnaes_secundarios','data_abertura','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes','criado_em'],
@@ -323,23 +324,40 @@ async function baixarRegrasEnquadramento(remotoInformado = null) {
 // confirmado na base compartilhada. Esta reconciliação é deliberadamente
 // restrita à empresa consultada e à tabela de movimentos; não altera a fonte
 // remota e não exige nova consulta ao Questor.
+async function carregarMovimentosCanonicos(empresa) {
+  const cnpj = String(empresa.cnpj).replace(/\D/g, '');
+  if (ativo()) {
+    const remoto = supabase.admin();
+    const { data: empresasRemotas, error: erroEmpresa } = await remoto.from('empresas').select('id,cnpj,origem_local_id').eq('cnpj', cnpj).limit(2);
+    if (erroEmpresa) throw erroEmpresa;
+    if ((empresasRemotas || []).length !== 1) throw new Error('Não foi possível identificar unicamente a empresa compartilhada para a reconciliação documental.');
+    const remota = empresasRemotas[0], linhas = [];
+    for (let de = 0;; de += 1000) {
+      const { data, error } = await remoto.from('movimentos').select('*').eq('empresa_id', remota.id).range(de, de + 999);
+      if (error) throw error;
+      linhas.push(...(data || []));
+      if (!data || data.length < 1000) return { remota, linhas, origem: 'SUPABASE_API' };
+    }
+  }
+  // Algumas instalações mantêm somente a URL PostgreSQL compartilhada. Para
+  // uma leitura crítica, ela é uma fonte válida e evita que a ausência da
+  // chave de serviço devolva uma composição antiga do SQLite.
+  if (!process.env.SUPABASE_DB_URL) throw new Error('A fonte compartilhada dos documentos fiscais não está configurada; o Perfil não exibirá uma composição possivelmente desatualizada.');
+  const banco = new Client({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+  await banco.connect();
+  try {
+    const empresas = await banco.query("SELECT id,cnpj,origem_local_id FROM empresas WHERE regexp_replace(cnpj,'[^0-9]','','g')=$1 LIMIT 2", [cnpj]);
+    if (empresas.rows.length !== 1) throw new Error('Não foi possível identificar unicamente a empresa compartilhada para a reconciliação documental.');
+    const remota = empresas.rows[0];
+    const linhas = (await banco.query('SELECT * FROM movimentos WHERE empresa_id=$1', [remota.id])).rows;
+    return { remota, linhas, origem: 'POSTGRES_COMPARTILHADO' };
+  } finally { await banco.end(); }
+}
+
 async function reconciliarMovimentosEmpresa(empresaId) {
-  if (!ativo()) return { ativo: false, inseridos_ou_atualizados: 0, removidos: 0 };
   const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
   if (!empresa?.cnpj) throw new Error('Empresa não encontrada para reconciliação documental.');
-  const remoto = supabase.admin();
-  const cnpj = String(empresa.cnpj).replace(/\D/g, '');
-  const { data: empresasRemotas, error: erroEmpresa } = await remoto.from('empresas').select('id,cnpj,origem_local_id').eq('cnpj', cnpj).limit(2);
-  if (erroEmpresa) throw erroEmpresa;
-  if ((empresasRemotas || []).length !== 1) throw new Error('Não foi possível identificar unicamente a empresa compartilhada para a reconciliação documental.');
-  const remota = empresasRemotas[0];
-  const linhas = [];
-  for (let de = 0;; de += 1000) {
-    const { data, error } = await remoto.from('movimentos').select('*').eq('empresa_id', remota.id).range(de, de + 999);
-    if (error) throw error;
-    linhas.push(...(data || []));
-    if (!data || data.length < 1000) break;
-  }
+  const { remota, linhas, origem } = await carregarMovimentosCanonicos(empresa);
   const normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), Number(empresa.id)]]));
   const remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
   const locais = db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(Number(empresa.id)).map((x) => Number(x.id));
@@ -355,7 +373,7 @@ async function reconciliarMovimentosEmpresa(empresaId) {
   // Também devolve a fotografia canônica para leituras críticas no mesmo
   // request. Assim, uma tela não volta a depender do SQLite recém-reconciliado
   // nem de qualquer cache de processo entre a leitura e a consolidação.
-  return { ativo: true, inseridos_ou_atualizados: normalizadas.length, removidos: remover.length, movimentos: normalizadas };
+  return { ativo: true, origem, inseridos_ou_atualizados: normalizadas.length, removidos: remover.length, movimentos: normalizadas };
 }
 
 // A trilha remota é a fonte de verdade para o delta. O marco só é avançado
