@@ -4,9 +4,10 @@ const db = require('../db');
 const questor = require('../services/questor');
 const apuracoes = require('../services/apuracoesPisCofinsIa');
 const persistencia = require('../services/questorPersistencia');
+const supabase = require('../services/supabase');
 const router = express.Router();
 const hash = (v) => crypto.createHash('sha256').update(String(v || '')).digest('hex');
-function conciliarCancelamentosQuestor(empresaId, texto) {
+async function conciliarCancelamentosQuestor(empresaId, texto) {
   // nWeb devolve o NRWEX como envelope JSON. O relatório já é exclusivo de
   // cancelados, portanto a situação é evidência do próprio relatório, ainda
   // que não exista uma coluna "Situação" em cada linha.
@@ -29,6 +30,29 @@ function conciliarCancelamentosQuestor(empresaId, texto) {
   const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId)||{};
   const cnpj=String(empresa.cnpj||'').replace(/\D/g,'');
   const movimentos=db.prepare("SELECT * FROM movimentos WHERE tipo='cliente' AND (empresa_id=? OR (?<>'' AND replace(replace(replace(emitente_cnpj,'.',''),'/',''),'-','')=?))").all(empresaId,cnpj,cnpj);
+  // O Questor pode informar o cancelamento antes de o XML chegar à Sattva,
+  // especialmente nas NFS-e. Guardamos a identidade fiscal mesmo sem
+  // movimento correspondente; a importação futura a aplicará antes de a nota
+  // poder compor receita ou alimentar o motor.
+  const guardarCancelamento=db.prepare(`INSERT INTO documentos_fiscais_cancelamentos
+    (empresa_id,data_emissao,numero,modelo_documento_fiscal,serie,situacao,origem,evidencia,atualizado_em)
+    VALUES (?,?,?,?,?,'CANCELADO','QUESTOR_RELATORIO_CANCELADOS',?,datetime('now','localtime'))
+    ON CONFLICT(empresa_id,data_emissao,numero,modelo_documento_fiscal,serie) DO UPDATE SET
+      situacao='CANCELADO',origem='QUESTOR_RELATORIO_CANCELADOS',evidencia=excluded.evidencia,atualizado_em=excluded.atualizado_em`);
+  db.transaction(()=>registros.forEach((r)=>guardarCancelamento.run(empresaId,r.data,r.numero,r.modelo,r.serie,
+    'Cancelamento informado pelo relatório Questor nFisRRDocFiscalCancelado')))();
+  if (supabase.configurado() && registros.length) {
+    const remoto=supabase.admin();
+    const {data: empresasRemotas,error: erroEmpresa}=await remoto.from('empresas').select('id').eq('cnpj',cnpj).limit(2);
+    if(erroEmpresa) throw erroEmpresa;
+    if((empresasRemotas||[]).length!==1) throw new Error('Não foi possível localizar unicamente a empresa na base compartilhada para gravar os cancelamentos.');
+    const {error: erroCancelamentos}=await remoto.from('documentos_fiscais_cancelamentos').upsert(registros.map((r)=>({
+      empresa_id:empresasRemotas[0].id,data_emissao:r.data,numero:r.numero,modelo_documento_fiscal:r.modelo,serie:r.serie,
+      situacao:'CANCELADO',origem:'QUESTOR_RELATORIO_CANCELADOS',evidencia:'Cancelamento informado pelo relatório Questor nFisRRDocFiscalCancelado.',
+    })),{onConflict:'empresa_id,data_emissao,numero,modelo_documento_fiscal,serie'});
+    if(erroCancelamentos) throw erroCancelamentos;
+  }
+  saida.cancelamentos_registrados=registros.length;
   db.transaction(()=>registros.forEach(r=>{saida.linhas_lidas++; const base=movimentos.filter(x=>{const partes=String(x.documento||'').split('/');const numero=(partes[partes.length-1]||'').replace(/\D/g,'');const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');return numero===r.numero&&String(x.modelo_documento_fiscal||'').toLowerCase()===r.modelo&&(!r.serie||!serie||serie===r.serie);}); const porData=base.filter(x=>String(x.data_emissao||'').slice(0,10)===r.data); const candidatos=porData.length?porData:base; const docs=new Set(candidatos.map(x=>x.chave||`d:${x.documento}`)); if(!docs.size){saida.nao_localizados++;return;} if(docs.size!==1){saida.ambiguos++;return;} const mudou=candidatos.some(x=>String(x.situacao_documento||'AUTORIZADO')!==r.situacao); db.prepare(`UPDATE movimentos SET situacao_documento=?,cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo=?,cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE id IN (${candidatos.map(()=>'?').join(',')})`).run(r.situacao,`Situação ${r.situacao} informada pelo Questor`,...candidatos.map(x=>x.id)); if(mudou){saida.atualizados++;ids.push(...candidatos.map(x=>x.id));} }));
   if(ids.length) db.prepare(`DELETE FROM motor_resultados WHERE movimento_id IN (${ids.map(()=>'?').join(',')})`).run(...ids);
   return saida;
@@ -66,7 +90,7 @@ router.post('/tarefas/:id/resultado',async(req,res)=>{
     const ok=!!req.body?.ok; let resultado=req.body.resultado||{};
     if(ok&&t.tipo==='IMPORTAR_MOVIMENTACAO') { const p=JSON.parse(t.payload_json||'{}'); resultado={...resultado,...questor.importarMovimentacaoConector(t.empresa_id,p.tipo,resultado,{inicio:p.inicio,fim:p.fim})}; }
     if(ok&&t.tipo==='APURACAO_PIS_COFINS') { const p=JSON.parse(t.payload_json||'{}'); resultado={...resultado,...apuracoes.importarRelatorioQuestor(db,t.empresa_id,resultado.relatorio,{competenciaSolicitada:p.competencia})}; await apuracoes.publicarCompartilhado(db,t.empresa_id); }
-    if(ok&&t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS') { resultado={...resultado,...conciliarCancelamentosQuestor(t.empresa_id,resultado.relatorio)}; require('../services/operacaoCompartilhada').publicar().catch(()=>{}); }
+    if(ok&&t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS') { resultado={...resultado,...await conciliarCancelamentosQuestor(t.empresa_id,resultado.relatorio)}; require('../services/operacaoCompartilhada').publicar().catch(()=>{}); }
     db.prepare("UPDATE questor_conector_tarefas SET status=?,resultado_json=?,erro=?,executado_em=datetime('now','localtime') WHERE id=?").run(ok?'CONCLUIDA':'ERRO',ok?JSON.stringify(resultado):null,ok?null:String(req.body?.erro||'Erro sem detalhe'),t.id);
     await persistencia.publicarTarefa(db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(t.id));
     res.json({ok:true});

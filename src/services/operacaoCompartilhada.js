@@ -9,6 +9,7 @@ const CAMPOS = {
   empresa_qsa: ['id','empresa_id','nome','documento','qualificacao','pais','percentual_participacao','brasileiro','fonte','consultado_em','origem','criado_em','atualizado_em'],
   lotes: ['id','empresa_id','tipo','arquivo','registros','ignorados','valor_total','mensagens','origem','criado_em'],
   movimentos: ['id','empresa_id','lote_id','tipo','nome','inscr_federal','descricao','ncm','nbs','lc116','normalizacao_status','normalizacao_pendencia','normalizacao_evidencia','cfop','cst','competencia','valor','valor_produto','base_calculo','icms','icms_st','ipi','pis','cofins','pis_cofins_documentado','iss','regime','reducao','aliq_especifica','cclasstrib','classificacao_origem','cst_declarado','cclasstrib_declarado','ibs_declarado','cbs_declarado','modelo_documento_fiscal','documento','item_numero','chave','emitente_cnpj','destinatario_cnpj','codigo_produto','quantidade','unidade','csosn','data_emissao','frete','seguro','outras','desconto','sentido','situacao_documento','cancelado_em','cancelamento_motivo','cancelamento_origem','origem','criado_em'],
+  documentos_fiscais_cancelamentos: ['id','empresa_id','data_emissao','numero','modelo_documento_fiscal','serie','situacao','origem','evidencia','criado_em','atualizado_em'],
   perfil_tributario: ['id','empresa_id','competencia','receita_bruta','receita_recebida','receita_mercadorias','receita_servicos','receita_exportacao','icms','iss','ipi','pis','cofins','das','creditos_tomados','origem','criado_em'],
   folhas_pagamento_competencias: ['id','empresa_id','competencia','valor_folha','pro_labore','origem','referencia_arquivo','status_validacao','criado_em','atualizado_em'],
   margens_operacionais_premissas: ['id','empresa_id','periodo_inicio','periodo_fim','margem_operacional_percentual','origem','natureza','status_validacao','criado_em','atualizado_em'],
@@ -736,7 +737,7 @@ async function publicar() {
     // corrida com a sincronização explícita e podia reaplicar uma fotografia
     // antiga após o usuário salvar. Ambos são publicados somente pelos fluxos
     // específicos, com origem_local_id/chave societária estável.
-    if (['empresas', 'empresa_qsa', 'regras_enquadramento'].includes(tabela)) continue;
+    if (['empresas', 'empresa_qsa', 'regras_enquadramento', 'documentos_fiscais_cancelamentos'].includes(tabela)) continue;
     if (TABELAS_PRECIFICACAO.includes(tabela) || TABELAS_CONTRATOS.includes(tabela)) continue;
     const linhas = db.prepare(`SELECT ${campos.join(',')} FROM ${tabela}`).all().map((linha) => paraEmpresaRemota(tabela, linha));
     for (let i = 0; i < linhas.length; i += 500) {

@@ -648,6 +648,25 @@ CREATE INDEX IF NOT EXISTS ix_mov ON movimentos(empresa_id, tipo);
 CREATE INDEX IF NOT EXISTS ix_mov_empresa_tipo_valor ON movimentos(empresa_id, tipo, valor DESC);
 CREATE INDEX IF NOT EXISTS ix_mov_insc ON movimentos(empresa_id, inscr_federal);
 
+-- Cancelamentos conhecidos antes da chegada do XML. O relatório fiscal pode
+-- ser posterior à emissão; preservar essa identidade impede que uma NFS-e
+-- importada futuramente entre como autorizada por não ter evento XML próprio.
+CREATE TABLE IF NOT EXISTS documentos_fiscais_cancelamentos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  data_emissao TEXT NOT NULL,
+  numero TEXT NOT NULL,
+  modelo_documento_fiscal TEXT NOT NULL,
+  serie TEXT NOT NULL DEFAULT '',
+  situacao TEXT NOT NULL DEFAULT 'CANCELADO',
+  origem TEXT NOT NULL DEFAULT 'QUESTOR_RELATORIO_CANCELADOS',
+  evidencia TEXT,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, data_emissao, numero, modelo_documento_fiscal, serie)
+);
+CREATE INDEX IF NOT EXISTS ix_cancelamentos_documentos_empresa ON documentos_fiscais_cancelamentos(empresa_id, data_emissao, numero, modelo_documento_fiscal);
+
 CREATE TABLE IF NOT EXISTS lotes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,

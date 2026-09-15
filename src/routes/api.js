@@ -4769,6 +4769,9 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
       WHERE empresa_id=? AND chave=? AND COALESCE(situacao_documento,'AUTORIZADO') <> 'CANCELADO'`);
     const cancelarPorNumero = db.prepare(`UPDATE movimentos SET situacao_documento='CANCELADO', cancelado_em=?, cancelamento_motivo=?, cancelamento_origem='XML_EVENTO_CANCELAMENTO'
       WHERE empresa_id=? AND modelo_documento_fiscal=? AND (documento=? OR documento LIKE ?) AND COALESCE(situacao_documento,'AUTORIZADO') <> 'CANCELADO'`);
+    const cancelamentoConhecido = db.prepare(`SELECT * FROM documentos_fiscais_cancelamentos
+      WHERE empresa_id=? AND data_emissao=? AND numero=? AND lower(modelo_documento_fiscal)=lower(?)
+        AND (serie=? OR serie='' OR ?='') LIMIT 2`);
 
     const relatorio = { arquivos: arquivos.length, documentos: 0, itens: 0, entradas: 0, saidas: 0,
       requerValidacao: 0, duplicados: 0, receita_saida_no_periodo: 0, receita_saida_fora_do_periodo: 0,
@@ -4837,6 +4840,10 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
               continue;
             }
             const identidade = i.codigo_produto ? identidadeProduto.resolver({ empresa_id:Number(req.params.id), tipo_origem:'XML_CPROD', codigo_origem:i.codigo_produto, ncm:i.ncm, descricao:i.descricao, data:i.data_emissao }) : null;
+            const partesDocumento=String(i.documento||'').split('/');
+            const numeroDocumento=(partesDocumento[partesDocumento.length-1]||'').replace(/\D/g,'');
+            const serieDocumento=(partesDocumento.length>1?partesDocumento[0]:'').replace(/\D/g,'');
+            const cancelamentoJaConhecido=numeroDocumento ? cancelamentoConhecido.get(req.params.id,String(i.data_emissao||'').slice(0,10),numeroDocumento,r.tipoDocumento,serieDocumento,serieDocumento) : null;
             const movimento = insMov.run(req.params.id, lote.lastInsertRowid, tipoParceiro, i.sentido, i.nome, i.inscr_federal,
               i.descricao, i.ncm || '', i.nbs || '', i.lc116 || '', i.cfop || '', i.cst || '', i.csosn || '', i.competencia,
               i.documento, i.chave || '', i.item_numero, i.codigo_produto || '', i.quantidade || 0,
@@ -4848,6 +4855,12 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
             guardarValorProduto.run(i.valor_produto == null ? i.valor : i.valor_produto,movimento.lastInsertRowid);
             if(cancelamentoNoLote) {
               cancelarPorId.run(cancelamentoNoLote.data_cancelamento||null,cancelamentoNoLote.motivo||'Cancelamento informado no mesmo lote XML',movimento.lastInsertRowid);
+              movimentosCancelados.add(Number(movimento.lastInsertRowid));
+              relatorio.documentos_cancelados++;
+            }
+            if(!cancelamentoNoLote && cancelamentoJaConhecido) {
+              cancelarPorId.run(null,`Cancelamento já confirmado no Questor (${cancelamentoJaConhecido.origem}).`,movimento.lastInsertRowid);
+              db.prepare("UPDATE movimentos SET cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE id=?").run(movimento.lastInsertRowid);
               movimentosCancelados.add(Number(movimento.lastInsertRowid));
               relatorio.documentos_cancelados++;
             }
