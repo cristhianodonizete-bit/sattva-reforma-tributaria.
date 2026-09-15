@@ -11,12 +11,15 @@ const perfil = require('../src/services/perfilTributarioHistorico');
 
 db.prepare("INSERT INTO empresas (id,cnpj,razao_social,regime) VALUES (1,'00000000000100','Empresa de teste','simples_nacional')").run();
 const inserir = db.prepare(`INSERT INTO movimentos
-  (empresa_id,tipo,sentido,competencia,valor,cfop,modelo_documento_fiscal,situacao_documento,origem)
-  VALUES (1,'cliente','saida','2026-02',?,?,?,?,'xml')`);
-inserir.run(100, '5102', 'nfe', 'AUTORIZADO');
-inserir.run(5800, '5102', 'nfe', 'CANCELADO');
-inserir.run(5000, '5916', 'nfe', 'AUTORIZADO');
-inserir.run(50, '6102', 'nfe', 'AUTORIZADO');
+  (empresa_id,tipo,sentido,competencia,valor,cfop,modelo_documento_fiscal,situacao_documento,origem,normalizacao_evidencia)
+  VALUES (1,'cliente','saida','2026-02',?,?,?,?,'xml',?)`);
+inserir.run(100, '5102', 'nfe', 'AUTORIZADO', null);
+inserir.run(5800, '5102', 'nfe', 'CANCELADO', null);
+inserir.run(5000, '5916', 'nfe', 'AUTORIZADO', null);
+inserir.run(50, '6102', 'nfe', 'AUTORIZADO', null);
+// O XML da 21627 contém 5102, mas a Conferência de Saídas do Questor aponta
+// 5916. O XML fica preservado e a classificação fiscal efetiva a exclui.
+inserir.run(3950.45, '5102', 'nfe', 'AUTORIZADO', JSON.stringify({ cfop_xml:'5102', cfop_questor:'5916', cfop_efetivo:'5916' }));
 
 const resultado = perfil.consolidar(db, 1);
 const fevereiro = resultado.composicao_receita.filter((x) => x.competencia === '2026-02');
@@ -24,6 +27,7 @@ const receita = fevereiro.filter((x) => x.compoe_receita).reduce((s, x) => s + x
 const excluida = fevereiro.filter((x) => !x.compoe_receita).reduce((s, x) => s + x.valor, 0);
 
 assert.equal(receita, 150, 'somente NF-e autorizadas de venda podem compor receita');
-assert.equal(excluida, 10800, 'cancelamento e retorno devem permanecer fora da receita');
+assert.equal(excluida, 14750.45, 'cancelamento, retorno e divergência conciliada devem permanecer fora da receita');
 assert.ok(fevereiro.some((x) => x.cfop === '5102' && !x.compoe_receita && x.valor === 5800), 'cancelada deve aparecer separada do grupo de vendas');
-console.log('perfil-receita-cancelada.test: cancelamento separado da venda e receita preservada.');
+assert.ok(fevereiro.some((x) => x.cfop === '5916' && !x.compoe_receita && x.valor === 8950.45), 'CFOP efetivo do Questor deve prevalecer na classificação, sem alterar o XML');
+console.log('perfil-receita-cancelada.test: cancelamento e CFOP efetivo conciliado preservam a receita.');

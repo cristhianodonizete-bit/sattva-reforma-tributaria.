@@ -698,7 +698,7 @@ Telas.questor = async (el) => {
   const estadoTarefa = (t) => ({
     PENDENTE: ['Aguardando conector', 'a'], EM_EXECUCAO: ['Processando', ''], CONCLUIDA: ['Concluída', 'c'], ERRO: ['Falhou', 'alto'],
   }[t.status] || [t.status, '']);
-  const tipoTarefa = (t) => ({ APURACAO_PIS_COFINS: 'Apuração PIS/COFINS', PARAMETROS_RELATORIO: 'Leitura dos parâmetros do relatório', DOCUMENTOS_FISCAIS_CANCELADOS: 'Conciliação de documentos fiscais', TESTAR_NWEB: 'Teste do nWeb' }[t.tipo] || t.tipo);
+  const tipoTarefa = (t) => ({ APURACAO_PIS_COFINS: 'Apuração PIS/COFINS', PARAMETROS_RELATORIO: 'Leitura dos parâmetros do relatório', DOCUMENTOS_FISCAIS_CANCELADOS: 'Conciliação de documentos fiscais', CONCILIAR_CFOP_SAIDAS: 'Conciliação de CFOPs de saída', TESTAR_NWEB: 'Teste do nWeb' }[t.tipo] || t.tipo);
   const detalheTarefa = (t) => {
     if (t.erro) return `<span class="mini" style="color:#b42318"><b>Erro:</b> ${A.esc(t.erro)}</span>`;
     if (t.status !== 'CONCLUIDA') return '<span class="mini">Aguardando atualização.</span>';
@@ -707,8 +707,8 @@ Telas.questor = async (el) => {
     try { resultado = JSON.stringify(JSON.parse(t.resultado_json || '{}')); } catch (_) { /* mantém o texto padrão */ }
     return `<span class="mini">${A.esc(resultado.slice(0, 240))}</span>`;
   };
-  const conciliacoes=(tarefas||[]).filter(t=>t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS');
-  const resumoConciliacao=(t)=>{try{const r=JSON.parse(t.resultado_json||'{}');return `${r.atualizados||0} atualizado(s) · ${r.ambiguos||0} ambíguo(s) · ${r.nao_localizados||0} não localizado(s)`;}catch(_){return t.erro||'Aguardando retorno do conector.';}};
+  const conciliacoes=(tarefas||[]).filter(t=>['DOCUMENTOS_FISCAIS_CANCELADOS','CONCILIAR_CFOP_SAIDAS'].includes(t.tipo));
+  const resumoConciliacao=(t)=>{try{const r=JSON.parse(t.resultado_json||'{}');return t.tipo==='CONCILIAR_CFOP_SAIDAS' ? `${r.pareados||0} pareado(s) · ${r.divergencias||0} divergência(s) · ${r.ambiguos||0} ambíguo(s)` : `${r.atualizados||0} atualizado(s) · ${r.ambiguos||0} ambíguo(s) · ${r.nao_localizados||0} não localizado(s)`;}catch(_){return t.erro||'Aguardando retorno do conector.';}};
   el.innerHTML = cab('Integração', 'Questor · nWeb',
     'Busca cadastros e movimentação direto do Questor Tributário, sem planilha. O nWeb roda na máquina do servidor Questor, porta 8080 por padrão.') +
     `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${S.aba.questor==='operacao'||!S.aba.questor?'ativa':''}" data-questor-aba="operacao">Consultas e fila</button><button class="aba ${S.aba.questor==='conciliacoes'?'ativa':''}" data-questor-aba="conciliacoes">Conciliações fiscais</button><button class="aba ${S.aba.questor==='conector'?'ativa':''}" data-questor-aba="conector">Conector local</button><button class="aba ${S.aba.questor==='configuracao'?'ativa':''}" data-questor-aba="configuracao">Configuração técnica</button></div>
@@ -728,7 +728,8 @@ Telas.questor = async (el) => {
         <p class="desc">${S.empresa ? `${A.esc(S.empresa.razao_social)} · código Questor: <b class="mono">${A.esc(S.empresa.codigo_questor || 'não informado')}</b>` : 'Selecione uma empresa'}</p>
         <div class="grade g2">${A.campo('inicio', 'Data inicial', '', 'date')}${A.campo('fim', 'Data final', '', 'date')}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button><button class="btn vazio" id="consultarParametrosApuracaoQuestor">Consultar parâmetros do relatório</button></div>
-        <div style="margin-top:10px"><button class="btn vazio" id="buscarCancelamentosQuestor">Buscar cancelamentos no Questor</button><button class="btn vazio" id="conciliarCancelamentosQuestor">Importar relatório exportado</button></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="buscarCancelamentosQuestor">Buscar cancelamentos no Questor</button><button class="btn vazio" id="conciliarCancelamentosQuestor">Importar relatório exportado</button></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="consultarParametrosConferenciaSaidas">Consultar parâmetros da Conferência de Saídas</button><button class="btn vazio" id="conciliarCfopsSaidasQuestor">Conciliar CFOPs de saída</button></div>
         <div id="statusImportacaoQuestor" class="mini" role="status" style="margin-top:10px"></div>
         <p class="mini" style="margin-top:8px">Usa o período analisado e o código Questor da empresa. XMLs já importados não são consultados novamente.</p>
         <hr class="sep">
@@ -747,7 +748,7 @@ Telas.questor = async (el) => {
       {t:'Finalizada em',r:t=>`<span class="mini mono">${A.esc(t.executado_em||'—')}</span>`},
       {t:'Detalhe',r:detalheTarefa},
     ],tarefas,{vazio:'Nenhuma solicitação enviada por você ainda.'})}</div>
-    <div class="cartao" data-questor-painel="conciliacoes" style="margin-top:16px"><h2>Conciliações fiscais</h2><p class="desc">Histórico das buscas de documentos cancelados, denegados e inutilizados no Questor.</p>${A.tabela([
+    <div class="cartao" data-questor-painel="conciliacoes" style="margin-top:16px"><h2>Conciliações fiscais</h2><p class="desc">Histórico de cancelamentos e de CFOPs contábeis retornados pelo Questor.</p>${A.tabela([
       {t:'Empresa',r:t=>A.esc(t.empresa_nome||'—')},
       {t:'Solicitada em',r:t=>A.esc(t.criado_em||'—')},
       {t:'Situação',r:t=>{const [rot,classe]=estadoTarefa(t);return `<span class="tag ${classe}">${A.esc(rot)}</span>`;}},
@@ -806,6 +807,12 @@ Telas.questor = async (el) => {
     A.toast('Consulta dos parâmetros solicitada. Atualize a fila em alguns segundos para ver o retorno.', 'ok');
     A.ir('questor');
   };
+  document.getElementById('consultarParametrosConferenciaSaidas').onclick = async () => {
+    if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
+    await A.api(`/empresas/${S.empresaId}/questor/conector/parametros-conferencia-saidas`, {metodo:'POST',corpo:{}});
+    A.toast('Consulta dos parâmetros da Conferência de Saídas solicitada.', 'ok');
+    A.ir('questor');
+  };
   document.getElementById('conciliarCancelamentosQuestor').onclick = () => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
     A.modal({titulo:'Conciliar documentos fiscais do Questor',descricao:'Envie a exportação XLSX, XLS ou CSV do relatório “Documentos Fiscais Cancelados/Denegados/Inutilizados — Saídas”. O sistema só altera documentos com correspondência única por número, modelo, série e data.',corpo:'<input type="file" id="arquivoCancelamentosQuestor" accept=".xlsx,.xls,.csv" required>',confirmar:'Conciliar relatório',aoConfirmar:async()=>{const arq=document.getElementById('arquivoCancelamentosQuestor').files[0];if(!arq)throw new Error('Selecione o relatório exportado pelo Questor.');const fd=new FormData();fd.append('arquivo',arq);const r=await A.api(`/empresas/${S.empresaId}/questor/documentos-fiscais/conciliar`,{metodo:'POST',corpo:fd,formData:true});const pendentes=(r.ambiguos||[]).length+(r.nao_localizados||[]).length;A.toast(`${r.atualizados} documento(s) atualizado(s). ${pendentes?`${pendentes} linha(s) ficaram em revisão.`:'Nenhuma divergência encontrada.'}`,'ok');A.ir('questor');}});
@@ -820,6 +827,18 @@ Telas.questor = async (el) => {
       A.toast('Busca de cancelamentos enviada ao conector.','ok');
     } catch(e) { status.innerHTML=`<span class="tag alto">Não foi possível solicitar</span><div class="mini" style="margin-top:6px">${A.esc(e.message)}</div>`; A.toast(e.message,'erro');
     } finally { botao.disabled=false; botao.textContent='Buscar cancelamentos no Questor'; }
+  };
+  document.getElementById('conciliarCfopsSaidasQuestor').onclick = async () => {
+    if(!S.empresaId) return A.toast('Selecione uma empresa','erro'); const inicio=val('inicio'), fim=val('fim');
+    if(!inicio||!fim||inicio>fim) return A.toast('Informe data inicial e final válidas.','erro');
+    const botao=document.getElementById('conciliarCfopsSaidasQuestor'), status=el.querySelector('#statusImportacaoQuestor');
+    botao.disabled=true; botao.textContent='Solicitando conciliação…';
+    status.innerHTML='<span class="tag a">Solicitando a Conferência de Saídas ao Questor…</span><div class="mini" style="margin-top:6px">O XML será preservado. Quando houver divergência, o CFOP contábil do Questor será registrado para classificar a receita.</div>';
+    try { const r=await A.api(`/empresas/${S.empresaId}/questor/conector/conciliar-cfop-saidas`,{metodo:'POST',corpo:{inicio,fim}});
+      status.innerHTML=`<span class="tag c">Solicitação registrada</span><div class="mini" style="margin-top:6px">Conciliação de CFOPs enviada ao conector (solicitação ${A.esc(r.tarefa_id)}). Acompanhe o resultado na aba Conciliações fiscais.</div>`;
+      A.toast('Conciliação de CFOPs enviada ao conector.','ok');
+    } catch(e) { status.innerHTML=`<span class="tag alto">Não foi possível solicitar</span><div class="mini" style="margin-top:6px">${A.esc(e.message)}</div>`; A.toast(e.message,'erro');
+    } finally { botao.disabled=false; botao.textContent='Conciliar CFOPs de saída'; }
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
   el.querySelectorAll('[data-ver-retorno-cancelamentos]').forEach((botao)=>botao.onclick=()=>{const t=conciliacoes.find(x=>String(x.id)===botao.dataset.verRetornoCancelamentos);let r=t?.resultado_json||'{}';try{r=JSON.stringify(JSON.parse(r),null,2);}catch(_){}A.modal({titulo:'Retorno da conciliação Questor',confirmar:null,largura:900,descricao:'O relatório bruto permite validar o leiaute antes de qualquer ajuste automático.',corpo:`<pre class="mini" style="white-space:pre-wrap;max-height:520px;overflow:auto;background:#f4f7f9;padding:12px;border-radius:8px">${A.esc(r)}</pre>`});});

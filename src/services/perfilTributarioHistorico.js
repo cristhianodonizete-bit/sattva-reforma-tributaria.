@@ -134,7 +134,7 @@ function consolidar(db, empresaId, opcoes = {}) {
   const colunaMovimento = (nome) => colunasMovimentos.has(nome) ? nome : `NULL AS ${nome}`;
   const movimentosFonte = Array.isArray(opcoes.movimentos)
     ? opcoes.movimentos
-    : db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')},${colunaMovimento('situacao_documento')}
+    : db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')},${colunaMovimento('situacao_documento')},${colunaMovimento('normalizacao_evidencia')}
       FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId);
   movimentosFonte
     .filter((x) => Number(x.empresa_id || empresaId) === Number(empresaId) && String(x.competencia || '') !== '')
@@ -144,7 +144,7 @@ function consolidar(db, empresaId, opcoes = {}) {
       // Defesa explícita da composição: retorno de remessa e documento
       // inválido jamais passam para a receita, ainda que um de-para antigo de
       // CFOP tenha ficado salvo na base.
-      const cfop=String(x.cfop || '').replace(/\D/g,'');
+      const cfop=receitaOperacional.cfopEfetivo(x);
       const situacao=String(x.situacao_documento || 'AUTORIZADO').toUpperCase();
       const compoe = receitaOperacional.compoeReceita(x)
         && !['5916','6916'].includes(cfop)
@@ -155,8 +155,8 @@ function consolidar(db, empresaId, opcoes = {}) {
       // de uma venda era somada ao grupo de vendas já criado e herdava seu
       // `compoe_receita=true`, embora a própria linha estivesse cancelada.
       const classificacaoComposicao = compoe ? 'COMPOE_RECEITA' : `NAO_COMPOE_${situacao}`;
-      const chave = [x.competencia, x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', x.cfop || 'SEM_CFOP', motivo, classificacaoComposicao].join('|');
-      const linha = composicaoReceita.get(chave) || { competencia:x.competencia, modelo_fiscal:x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop:x.cfop || '', motivo, compoe_receita:compoe, itens:0, valor:0 };
+      const chave = [x.competencia, x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop || 'SEM_CFOP', motivo, classificacaoComposicao].join('|');
+      const linha = composicaoReceita.get(chave) || { competencia:x.competencia, modelo_fiscal:x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop, motivo, compoe_receita:compoe, itens:0, valor:0 };
       const valorDaLinha = valorDocumental(x);
       linha.itens++; linha.valor += valorDaLinha; composicaoReceita.set(chave, linha);
       if (compoe) {

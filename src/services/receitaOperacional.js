@@ -9,8 +9,22 @@ function ehSaida(movimento = {}) {
   return movimento.sentido === 'saida' || movimento.tipo === 'cliente';
 }
 
+// O XML é a prova de origem do documento. Quando a Conferência de Saídas do
+// Questor apura um CFOP contábil diferente, ele fica registrado na evidência
+// sem alterar o XML e passa a orientar a classificação operacional.
+function cfopEfetivo(movimento = {}) {
+  try {
+    const evidencia = typeof movimento.normalizacao_evidencia === 'string'
+      ? JSON.parse(movimento.normalizacao_evidencia || '{}')
+      : (movimento.normalizacao_evidencia || {});
+    return String(evidencia.cfop_efetivo || evidencia.cfop_questor || movimento.cfop || '').replace(/\D/g, '');
+  } catch (_) {
+    return String(movimento.cfop || '').replace(/\D/g, '');
+  }
+}
+
 function natureza(movimento = {}) {
-  const cfop=String(movimento.cfop || '').replace(/\D/g,'');
+  const cfop=cfopEfetivo(movimento);
   // Retorno de mercadoria/bem remetido para conserto ou reparo. É uma saída
   // documental, mas não uma nova venda; essa semântica não pode depender de
   // um de-para configurável e jamais deve inflar o Perfil Tributário.
@@ -59,7 +73,7 @@ function motivo(movimento = {}) {
   if (porCfop === 'venda') return 'VENDA_CFOP';
   if (porCfop === 'exportacao') return 'EXPORTACAO_CFOP';
   if (porCfop) return `FORA_RECEITA_${porCfop.toUpperCase()}`;
-  const cfop=String(movimento.cfop || '').replace(/\D/g, '');
+  const cfop=cfopEfetivo(movimento);
   if (/^\d{4}$/.test(cfop)) return 'CFOP_SEM_MAPEAMENTO_DE_RECEITA';
   const modelo=String(movimento.modelo_documento_fiscal || '').toUpperCase();
   if (modelo === 'NFE' || modelo === 'NFCE') return 'MERCADORIA_SEM_CFOP_DE_VENDA';
@@ -69,4 +83,4 @@ function motivo(movimento = {}) {
   return 'OPERACAO_SEM_EVIDENCIA_DE_VENDA';
 }
 
-module.exports = { ehSaida, natureza, compoeReceita, motivo };
+module.exports = { ehSaida, cfopEfetivo, natureza, compoeReceita, motivo };
