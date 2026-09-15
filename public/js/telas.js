@@ -505,6 +505,12 @@ Telas.dados = async (el) => {
       try {
         const r=await A.api(`/empresas/${S.empresaId}/documentos-fiscais/${encodeURIComponent(botao.dataset.abrirDocumento)}`);
         const d=r.documento;
+        const cfopExibicao=(m)=>{
+          let evidencia={}; try { evidencia=typeof m.normalizacao_evidencia==='string'?JSON.parse(m.normalizacao_evidencia||'{}'):(m.normalizacao_evidencia||{}); } catch(_) { /* evidência inválida não quebra a leitura documental */ }
+          const xml=String(m.cfop||'').replace(/\D/g,''); const efetivo=String(evidencia.cfop_efetivo||evidencia.cfop_questor||xml).replace(/\D/g,'');
+          if(efetivo && efetivo!==xml) return `<span class="mono mini">XML ${A.esc(xml||'—')} · Questor <b>${A.esc(efetivo)}</b></span><div class="mini" style="color:#9a6700">CFOP efetivo para a classificação</div>`;
+          return `<span class="mono mini">${A.esc(xml || '—')}</span>`;
+        };
         const natureza=(m) => ['nfse','cte','nfcom'].includes(String(m.modelo_documento_fiscal || '').toLowerCase()) ? 'Serviço' : ['nfe','nfce'].includes(String(m.modelo_documento_fiscal || '').toLowerCase()) ? 'Produto' : String(m.origem || '').toLowerCase() === 'xml' ? 'Modelo a identificar' : m.nbs || m.lc116 || Number(m.iss) ? 'Serviço' : m.ncm ? 'Produto' : 'A identificar';
         A.modal({ titulo:`Documento fiscal — ${d.numero}`, largura:1100, confirmar:'Fechar',
           descricao:`${d.competencia || 'Competência não identificada'} · ${d.modelo_documento_fiscal || 'modelo não identificado'} · ${d.origem || 'origem não identificada'}${d.chave ? ` · chave ${d.chave}` : ''}`,
@@ -513,7 +519,7 @@ Telas.dados = async (el) => {
             {t:'Natureza',r:m=>`<span class="tag ${natureza(m)==='Serviço'?'c':natureza(m)==='Produto'?'':'a'}">${natureza(m)}</span>`},
             {t:'NCM / NBS',r:m=>`<span class="mono mini">${A.esc(m.ncm || m.nbs || m.lc116 || '—')}</span>`},
             {t:'Quantidade',num:true,r:m=>m.quantidade == null ? '—' : A.esc(m.quantidade)}, {t:'Valor',num:true,r:m=>A.moeda(m.valor)},
-            {t:'CFOP / CST',r:m=>`<span class="mono mini">${A.esc(m.cfop || '—')} / ${A.esc(m.cst || '—')}</span>`},
+            {t:'CFOP / CST',r:m=>`${cfopExibicao(m)}<div class="mono mini">CST ${A.esc(m.cst || '—')}</div>`},
           ],d.itens || [],{vazio:'Nenhum item encontrado.'}), aoConfirmar:async()=>{} });
       } catch(e) { A.toast(e.message,'erro'); }
     }));

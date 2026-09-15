@@ -2039,6 +2039,7 @@ function listarDocumentosFiscais(empresaId, limite = 2000) {
         MIN(competencia) competencia, MIN(data_emissao) data_emissao, MAX(chave) chave, MAX(tipo) tipo, MAX(origem) origem,
         MAX(cfop) cfop, MAX(nbs) nbs, MAX(lc116) lc116, MAX(iss) iss, MAX(modelo_documento_fiscal) modelo_documento_fiscal,
         MAX(situacao_documento) situacao_documento, MAX(cancelamento_origem) cancelamento_origem,
+        MAX(normalizacao_status) normalizacao_status, MAX(normalizacao_evidencia) normalizacao_evidencia,
         MAX(nome) parceiro, MAX(inscr_federal) inscr_federal, COUNT(*) itens, SUM(COALESCE(valor,0)) valor,
         SUM(CASE WHEN NULLIF(ncm,'') IS NOT NULL THEN 1 ELSE 0 END) itens_produto,
         SUM(CASE WHEN lower(COALESCE(modelo_documento_fiscal,''))='nfse' THEN 1 ELSE 0 END) itens_servico,
@@ -2073,7 +2074,7 @@ router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
       'Modelo fiscal':d.modelo_documento_fiscal || 'Não identificado', 'Entrada / saída':d.tipo==='cliente'?'Saída':'Entrada',
       'Natureza':d.itens_produto && d.itens_servico?'Misto':d.itens_servico?'Serviço':d.itens_produto?'Produto':'A identificar',
       'Compõe receita':d.operacao_receita?'Sim':'Não', 'Motivo da operação':d.motivo_operacao || '',
-      'Itens':Number(d.itens || 0), 'Valor':Number(d.valor || 0), 'Origem':d.origem || '', 'Parceiro':d.parceiro || '', 'CNPJ/CPF parceiro':d.inscr_federal || '', 'CFOP':d.cfop || '',
+      'Itens':Number(d.itens || 0), 'Valor':Number(d.valor || 0), 'Origem':d.origem || '', 'Parceiro':d.parceiro || '', 'CNPJ/CPF parceiro':d.inscr_federal || '', 'CFOP XML':d.cfop || '', 'CFOP efetivo':receitaOperacional.cfopEfetivo(d) || '',
     }));
     const ws=XLSX.utils.json_to_sheet(linhas.length ? linhas : [{ Informação:'Nenhum documento atende aos filtros selecionados.' }]);
     ws['!cols']=[{wch:13},{wch:18},{wch:48},{wch:14},{wch:16},{wch:14},{wch:16},{wch:34},{wch:8},{wch:16},{wch:12},{wch:32},{wch:20},{wch:10}];
