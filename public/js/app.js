@@ -217,6 +217,7 @@ const App = (() => {
       { id: 'dados', t: 'Outras receitas', i: '⇧', centralGrupo: 'receitas' },
       { id: 'dados', t: 'Apurações', i: '⇧', centralGrupo: 'apuracoes' },
       { id: 'dados', t: 'Margem operacional', i: '⇧', centralGrupo: 'margem' },
+      { id: 'questor', t: 'Integração Questor', i: '↔' },
       { tipo: 'titulo', t: 'Cadastros' },
       { id: 'empresas', t: 'Empresas e estabelecimentos', i: '▦' },
       { id: 'cadastrosCnpj', t: 'Cadastros compartilhados', i: '⌘' },
@@ -258,8 +259,8 @@ const App = (() => {
     { id: 'gestao', titulo: 'Gestão do produto', itens: [
       { tipo: 'titulo', t: 'Escopos e combos' },
       { id: 'servicos', t: 'Serviços e combos', i: '⊞' }, { id: 'configComercial', t: 'Configurar combos', i: '⚙' }, { id: 'sla', t: 'SLA e prazos', i: '◷' },
-      { tipo: 'titulo', t: 'Conhecimento e integrações' },
-      { id: 'conhecimento', t: 'Base de conhecimento', i: '◰' }, { id: 'questor', t: 'Integração Questor', i: '↔' },
+      { tipo: 'titulo', t: 'Conhecimento' },
+      { id: 'conhecimento', t: 'Base de conhecimento', i: '◰' },
       { tipo: 'titulo', t: 'Configuração técnica' },
       { id: 'configuracoes', t: 'Regras e parâmetros do motor', i: '⚙' },
       { id: 'controleProjeto', t: 'Controle operacional da carteira', i: '◌' },
@@ -272,7 +273,7 @@ const App = (() => {
     dados: 'diagnostico', dadosDashboard: 'diagnostico', periodoAnalisado: 'diagnostico', executarMotor: 'diagnostico', bases: 'diagnostico', utilidadesFiscais: 'diagnostico', coberturaDiagnostico: 'diagnostico', classificacaoFiscalComplementar: 'diagnostico', pendenciasDiagnostico: 'diagnostico', conformidadeDocumental: 'diagnostico', perfil: 'diagnostico', fornecedores: 'diagnostico', clientes: 'diagnostico', impactoFinalCbs: 'diagnostico', cenarios: 'diagnostico', mapaOperacional: 'diagnostico', calculadora: 'diagnostico', plano: 'diagnostico', tarefasDiagnostico: 'diagnostico',
     precificacao: 'precificacao', formacaoCusto: 'precificacao', tarefasPrecificacao: 'precificacao', contratos: 'contratos', analise: 'contratos', tarefasContratos: 'contratos', capacitacao: 'capacitacao', tarefasCapacitacao: 'capacitacao', acompanhamento: 'gestao_projetos',
     planejamento: 'gestao_projetos', entregavelCliente: 'diagnostico',
-    servicos: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', sla: 'configuracoes', cadastrosCnpj: 'configuracoes', consultaBaseRegime: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'configuracoes', acessos: 'acessos',
+    servicos: 'gestao_projetos', gestaoProjetos: 'visao_geral', configComercial: 'configuracoes', sla: 'configuracoes', cadastrosCnpj: 'configuracoes', consultaBaseRegime: 'configuracoes', conhecimento: 'configuracoes', atualizacoesReforma: 'visao_geral', documentacaoSistema: 'visao_geral', configuracoes: 'configuracoes', controleProjeto: 'gestao_projetos', questor: 'visao_geral', acessos: 'acessos',
   };
   const pode = (tela, acao = 'ver') => {
     const permissoes = S.usuario?.permissoes;
@@ -388,7 +389,7 @@ const App = (() => {
     // Apurações etc. A área permanece Central de Dados; o card identifica a
     // etapa efetivamente selecionada.
     const itemMenu = TELAS_MENU.find((item) => item.id === tela);
-    if (tituloContexto) tituloContexto.textContent = tela === 'dados'
+    if (tituloContexto) tituloContexto.textContent = tela === 'dados' || tela === 'questor'
       ? 'Central de Dados'
       : (itemMenu?.t || 'Visão geral');
     const alvo = document.getElementById('tela');
