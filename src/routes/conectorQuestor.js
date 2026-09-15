@@ -22,9 +22,15 @@ function conciliarCancelamentosQuestor(empresaId, texto) {
     if(!m) continue; const y=m[1].slice(6).length===4?m[1].slice(6):ano;
     if(!/^\d{4}$/.test(y)) continue; registros.push({data:`${y}-${m[1].slice(3,5)}-${m[1].slice(0,2)}`,numero:m[2],modelo:m[3].toLowerCase(),serie:m[4],situacao:'CANCELADO'});
   }
-  const movimentos=db.prepare("SELECT * FROM movimentos WHERE empresa_id=? AND tipo='cliente'").all(empresaId);
+  // Há bases antigas em que o espelho compartilhado preservou o ID
+  // operacional anterior. Para documentos de saída, o CNPJ emitente é a
+  // identidade fiscal estável da empresa e evita deixar cancelamentos fora da
+  // conciliação por mera divergência de identificador interno.
+  const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId)||{};
+  const cnpj=String(empresa.cnpj||'').replace(/\D/g,'');
+  const movimentos=db.prepare("SELECT * FROM movimentos WHERE tipo='cliente' AND (empresa_id=? OR (?<>'' AND replace(replace(replace(emitente_cnpj,'.',''),'/',''),'-','')=?))").all(empresaId,cnpj,cnpj);
   db.transaction(()=>registros.forEach(r=>{saida.linhas_lidas++; const base=movimentos.filter(x=>{const partes=String(x.documento||'').split('/');const numero=(partes[partes.length-1]||'').replace(/\D/g,'');const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');return numero===r.numero&&String(x.modelo_documento_fiscal||'').toLowerCase()===r.modelo&&(!r.serie||!serie||serie===r.serie);}); const porData=base.filter(x=>String(x.data_emissao||'').slice(0,10)===r.data); const candidatos=porData.length?porData:base; const docs=new Set(candidatos.map(x=>x.chave||`d:${x.documento}`)); if(!docs.size){saida.nao_localizados++;return;} if(docs.size!==1){saida.ambiguos++;return;} const mudou=candidatos.some(x=>String(x.situacao_documento||'AUTORIZADO')!==r.situacao); db.prepare(`UPDATE movimentos SET situacao_documento=?,cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo=?,cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE id IN (${candidatos.map(()=>'?').join(',')})`).run(r.situacao,`Situação ${r.situacao} informada pelo Questor`,...candidatos.map(x=>x.id)); if(mudou){saida.atualizados++;ids.push(...candidatos.map(x=>x.id));} }));
-  if(ids.length) db.prepare(`DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN (${ids.map(()=>'?').join(',')})`).run(empresaId,...ids);
+  if(ids.length) db.prepare(`DELETE FROM motor_resultados WHERE movimento_id IN (${ids.map(()=>'?').join(',')})`).run(...ids);
   return saida;
 }
 async function autenticar(req) {
