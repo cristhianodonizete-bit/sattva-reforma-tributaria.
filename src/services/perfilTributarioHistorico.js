@@ -150,7 +150,12 @@ function consolidar(db, empresaId, opcoes = {}) {
         && !['5916','6916'].includes(cfop)
         && !['CANCELADO','DENEGADO','INUTILIZADO'].includes(situacao);
       const motivo = receitaOperacional.motivo(x);
-      const chave = [x.competencia, x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', x.cfop || 'SEM_CFOP', motivo].join('|');
+      // Não misturar, no mesmo grupo visual, documentos que compõem receita
+      // com documentos excluídos. Antes, uma NF-e cancelada com o mesmo CFOP
+      // de uma venda era somada ao grupo de vendas já criado e herdava seu
+      // `compoe_receita=true`, embora a própria linha estivesse cancelada.
+      const classificacaoComposicao = compoe ? 'COMPOE_RECEITA' : `NAO_COMPOE_${situacao}`;
+      const chave = [x.competencia, x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', x.cfop || 'SEM_CFOP', motivo, classificacaoComposicao].join('|');
       const linha = composicaoReceita.get(chave) || { competencia:x.competencia, modelo_fiscal:x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop:x.cfop || '', motivo, compoe_receita:compoe, itens:0, valor:0 };
       const valorDaLinha = valorDocumental(x);
       linha.itens++; linha.valor += valorDaLinha; composicaoReceita.set(chave, linha);
