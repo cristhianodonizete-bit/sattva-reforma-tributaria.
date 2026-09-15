@@ -749,7 +749,7 @@ Telas.questor = async (el) => {
       {t:'Empresa',r:t=>A.esc(t.empresa_nome||'—')},
       {t:'Solicitada em',r:t=>A.esc(t.criado_em||'—')},
       {t:'Situação',r:t=>{const [rot,classe]=estadoTarefa(t);return `<span class="tag ${classe}">${A.esc(rot)}</span>`;}},
-      {t:'Resultado',r:t=>`<span class="mini">${A.esc(resumoConciliacao(t))}</span>`},
+      {t:'Resultado',r:t=>`<span class="mini">${A.esc(resumoConciliacao(t))}</span> ${t.status==='CONCLUIDA'?`<button class="btn vazio pq" data-ver-retorno-cancelamentos="${t.id}">Ver retorno</button>`:''}`},
     ],conciliacoes,{vazio:'Nenhuma conciliação solicitada ainda.'})}</div>
     <div class="cartao"><h2>Mapa de endpoints</h2>
       <p class="desc">Caminhos, parâmetros e de-para de campos. Ajuste conforme a versão do seu Questor — o sistema não depende de código para isso.</p>
@@ -810,6 +810,7 @@ Telas.questor = async (el) => {
     } finally { botao.disabled=false; botao.textContent='Buscar cancelamentos no Questor'; }
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
+  el.querySelectorAll('[data-ver-retorno-cancelamentos]').forEach((botao)=>botao.onclick=()=>{const t=conciliacoes.find(x=>String(x.id)===botao.dataset.verRetornoCancelamentos);let r=t?.resultado_json||'{}';try{r=JSON.stringify(JSON.parse(r),null,2);}catch(_){}A.modal({titulo:'Retorno da conciliação Questor',confirmar:null,largura:900,descricao:'O relatório bruto permite validar o leiaute antes de qualquer ajuste automático.',corpo:`<pre class="mini" style="white-space:pre-wrap;max-height:520px;overflow:auto;background:#f4f7f9;padding:12px;border-radius:8px">${A.esc(r)}</pre>`});});
   el.querySelectorAll('[data-ver-retorno-questor]').forEach((botao) => botao.onclick = () => {
     const tarefa = tarefas.find((t) => String(t.id) === botao.dataset.verRetornoQuestor);
     let retorno = tarefa?.resultado_json || '{}';
