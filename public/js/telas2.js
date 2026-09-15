@@ -694,6 +694,7 @@ Telas.questor = async (el) => {
   const { log } = await A.api('/questor/log');
   const { conectores } = await A.api('/questor/conectores');
   const { tarefas } = await A.api('/questor/tarefas');
+  const cancelamentosPendentes = S.empresaId ? await A.api(`/empresas/${S.empresaId}/questor/cancelamentos-pendentes`).catch(() => ({ total:0, documentos:[] })) : { total:0, documentos:[] };
   const estadoTarefa = (t) => ({
     PENDENTE: ['Aguardando conector', 'a'], EM_EXECUCAO: ['Processando', ''], CONCLUIDA: ['Concluída', 'c'], ERRO: ['Falhou', 'alto'],
   }[t.status] || [t.status, '']);
@@ -751,6 +752,13 @@ Telas.questor = async (el) => {
       {t:'Situação',r:t=>{const [rot,classe]=estadoTarefa(t);return `<span class="tag ${classe}">${A.esc(rot)}</span>`;}},
       {t:'Resultado',r:t=>`<span class="mini">${A.esc(resumoConciliacao(t))}</span> ${t.status==='CONCLUIDA'?`<button class="btn vazio pq" data-ver-retorno-cancelamentos="${t.id}">Ver retorno</button>`:''}`},
     ],conciliacoes,{vazio:'Nenhuma conciliação solicitada ainda.'})}</div>
+    <div class="cartao" style="margin-top:16px"><h2>Cancelamentos pendentes de documento</h2><p class="desc">O Questor confirmou estes cancelamentos, mas o XML/DF-e ainda não existe na Sattva. Ao importar o documento correspondente, ele será marcado automaticamente como cancelado e não comporá receita.</p>${A.tabela([
+      {t:'Data',r:x=>A.esc(x.data_emissao||'—')},
+      {t:'Documento',r:x=>`<b>${A.esc(x.numero||'—')}</b><div class="mini">Série ${A.esc(x.serie||'não informada')}</div>`},
+      {t:'Modelo',r:x=>`<span class="tag">${A.esc(String(x.modelo_documento_fiscal||'—').toUpperCase())}</span>`},
+      {t:'Situação',r:x=>`<span class="tag a">${A.esc(x.situacao||'CANCELADO')}</span>`},
+      {t:'Origem',r:x=>A.esc(x.origem==='QUESTOR_RELATORIO_CANCELADOS'?'Questor':'—')},
+    ],cancelamentosPendentes.documentos||[],{vazio:'Nenhum cancelamento pendente de documento para esta empresa.'})}</div>
     <div class="cartao"><h2>Mapa de endpoints</h2>
       <p class="desc">Caminhos, parâmetros e de-para de campos. Ajuste conforme a versão do seu Questor — o sistema não depende de código para isso.</p>
       <textarea id="endpoints" rows="16" class="mono" style="font-size:12px">${A.esc(JSON.stringify(config.endpoints, null, 2))}</textarea>

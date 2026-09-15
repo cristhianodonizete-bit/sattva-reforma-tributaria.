@@ -4741,6 +4741,25 @@ router.post('/empresas/:id/questor/conector/documentos-fiscais-cancelados', asyn
   ok(res,{tarefa_id:r.lastInsertRowid});
 }catch(e){erro(res,e);}});
 
+// Referências que o Questor confirmou como canceladas, mas cujo XML/DF-e ainda
+// não chegou à plataforma. Elas ficam visíveis para conferência e serão
+// aplicadas automaticamente quando o documento for importado.
+router.get('/empresas/:id/questor/cancelamentos-pendentes', (req,res)=>{ try {
+  const empresaId=Number(req.params.id);
+  const cancelamentos=db.prepare(`SELECT data_emissao,numero,modelo_documento_fiscal,serie,situacao,origem,evidencia
+    FROM documentos_fiscais_cancelamentos WHERE empresa_id=? ORDER BY data_emissao DESC,numero DESC`).all(empresaId);
+  const movimentos=db.prepare(`SELECT documento,modelo_documento_fiscal,data_emissao FROM movimentos WHERE empresa_id=?`).all(empresaId);
+  const pendentes=cancelamentos.filter((c)=>!movimentos.some((m)=>{
+    const partes=String(m.documento||'').split('/'); const numero=(partes[partes.length-1]||'').replace(/\D/g,'');
+    const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');
+    return numero===String(c.numero||'').replace(/\D/g,'')
+      && String(m.modelo_documento_fiscal||'').toLowerCase()===String(c.modelo_documento_fiscal||'').toLowerCase()
+      && String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10)
+      && (!c.serie || !serie || serie===String(c.serie));
+  }));
+  ok(res,{total:pendentes.length,documentos:pendentes});
+}catch(e){erro(res,e);}});
+
 // ---- Importação de XML (fonte principal) ----
 router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (req, res) => {
   try {
