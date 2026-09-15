@@ -318,6 +318,43 @@ async function baixarRegrasEnquadramento(remotoInformado = null) {
   return { regras_enquadramento: gravar('regras_enquadramento', linhas) };
 }
 
+// A composição do Perfil é uma leitura financeira: ela não pode usar uma
+// linha residual do cache após uma importação, exclusão ou cancelamento já
+// confirmado na base compartilhada. Esta reconciliação é deliberadamente
+// restrita à empresa consultada e à tabela de movimentos; não altera a fonte
+// remota e não exige nova consulta ao Questor.
+async function reconciliarMovimentosEmpresa(empresaId) {
+  if (!ativo()) return { ativo: false, inseridos_ou_atualizados: 0, removidos: 0 };
+  const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!empresa?.cnpj) throw new Error('Empresa não encontrada para reconciliação documental.');
+  const remoto = supabase.admin();
+  const cnpj = String(empresa.cnpj).replace(/\D/g, '');
+  const { data: empresasRemotas, error: erroEmpresa } = await remoto.from('empresas').select('id,cnpj,origem_local_id').eq('cnpj', cnpj).limit(2);
+  if (erroEmpresa) throw erroEmpresa;
+  if ((empresasRemotas || []).length !== 1) throw new Error('Não foi possível identificar unicamente a empresa compartilhada para a reconciliação documental.');
+  const remota = empresasRemotas[0];
+  const linhas = [];
+  for (let de = 0;; de += 1000) {
+    const { data, error } = await remoto.from('movimentos').select('*').eq('empresa_id', remota.id).range(de, de + 999);
+    if (error) throw error;
+    linhas.push(...(data || []));
+    if (!data || data.length < 1000) break;
+  }
+  const normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), Number(empresa.id)]]));
+  const remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
+  const locais = db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(Number(empresa.id)).map((x) => Number(x.id));
+  const remover = locais.filter((id) => !remotos.has(id));
+  db.transaction(() => {
+    if (remover.length) {
+      const marcas = remover.map(() => '?').join(',');
+      db.prepare(`DELETE FROM motor_resultados WHERE movimento_id IN (${marcas})`).run(...remover);
+      db.prepare(`DELETE FROM movimentos WHERE empresa_id=? AND id IN (${marcas})`).run(Number(empresa.id), ...remover);
+    }
+    gravar('movimentos', normalizadas, true);
+  })();
+  return { ativo: true, inseridos_ou_atualizados: normalizadas.length, removidos: remover.length };
+}
+
 // A trilha remota é a fonte de verdade para o delta. O marco só é avançado
 // dentro da mesma transação SQLite que aplica todas as linhas do lote.
 const CHAVE_SEQUENCIA_INCREMENTAL = 'operacao_compartilhada_sequencia';
@@ -810,6 +847,6 @@ async function publicarContratos(remoto, empresaId, empresaRemotaId = empresaId)
   }
   return { contratos: contratos.length };
 }
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };

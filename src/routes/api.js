@@ -1351,6 +1351,11 @@ router.get('/empresas/:id/perfil/analise', (req, res) => {
 // Camada executiva de leitura: não materializa CBS nem executa o motor.
 router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
   try {
+    // A composição usa movimentos fiscais por modelo. Reconcilia somente a
+    // empresa aberta para impedir que uma linha residual do SQLite altere
+    // NF-e, NFS-e ou o faturamento exibido depois de a fonte compartilhada
+    // já ter sido corrigida.
+    await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(Number(req.params.id));
     // O período é configurado por empresa no Supabase. Restaurá-lo antes da
     // leitura impede que uma instância nova consolide todo o histórico local
     // em vez de somente o exercício selecionado.
