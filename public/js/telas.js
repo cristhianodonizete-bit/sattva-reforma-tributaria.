@@ -1743,10 +1743,12 @@ Telas.planejamento = async (el) => {
     const detalhe = atualId ? await abrir(atualId) : null;
     const resultado = (detalhe?.resultados || []).map((x) => x.resultado || x);
     const recomendado = resultado.find((x) => x.status === 'COMPLETO' && x.cenario !== 'baseline') || null;
+    const empresaComparativo=Number(S.empresaId) || Number(detalhe?.empresas?.[0]?.id) || null;
+    const comparativoRegimes=empresaComparativo ? await A.api(`/empresas/${empresaComparativo}/comparador-regimes`).catch(()=>null) : null;
     el.innerHTML = cab('MÓDULO 5 · PLANEJAMENTO TRIBUTÁRIO', 'Compare regimes com dados históricos, projeções e decisão auditável.', 'O estudo não altera documentos, regime cadastrado, apuração ou motor operacional.', '<button class="btn" id="novaAnalisePlanejamento">Nova análise</button>') +
       `<div class="grade g4 planejamento-kpis">${A.kpi('Estudos', analises.length, 'versionados')}${A.kpi('Em revisão', analises.filter((x) => x.status === 'EM_REVISAO').length, 'aguardam decisão')}${A.kpi('Aprovadas', analises.filter((x) => x.status === 'APROVADA').length, 'decisão registrada')}${A.kpi('Empresas', analises.reduce((s,x)=>s+Number(x.empresas||0),0), 'no planejamento')}</div>` +
       `<section class="cartao planejamento-estudos"><div class="planejamento-secao"><div><h2>Estudos de planejamento</h2><p class="mini">Selecione um estudo para revisar sua fotografia e cenários.</p></div></div>${A.tabela([{t:'Estudo',r:x=>`<button class="link-tabela" data-abrir-planejamento="${x.id}">${A.esc(x.titulo)}</button><span class="mini bloco">${Number(x.empresas||0)} empresa(s) · versão ${x.versao}</span>`},{t:'Status',r:x=>`<span class="tag ${x.status==='APROVADA'?'c':x.status==='EM_REVISAO'?'b':'n'}">${A.esc(x.status.replace('_',' '))}</span>`},{t:'Atualização',r:x=>A.esc(x.atualizado_em||'—')}],analises,{vazio:'Nenhum estudo criado. Inicie selecionando uma ou mais empresas.'})}</section>` +
-      `<section class="cartao planejamento-detalhe"><h2>${detalhe ? A.esc(detalhe.analise.titulo) : 'Detalhe da análise'}</h2>${detalhe ? detalhePlanejamento(detalhe, resultado, recomendado) : A.vazio('Selecione ou crie uma análise', 'A fotografia será congelada antes da comparação.', '')}</section>`;
+      `<section class="cartao planejamento-detalhe"><h2>${detalhe ? A.esc(detalhe.analise.titulo) : 'Detalhe da análise'}</h2>${comparativoRegimes ? quadroComparativoRegimes(comparativoRegimes,S.cache.planejamentoRegimeSelecionado) : ''}${detalhe ? detalhePlanejamento(detalhe, resultado, recomendado) : A.vazio('Selecione ou crie uma análise', 'A fotografia será congelada antes da comparação.', '')}</section>`;
     el.querySelector('#novaAnalisePlanejamento').onclick = async () => {
       const empresas = S.empresas || [];
       const periodoCentral = S.empresaId ? await A.api(`/empresas/${S.empresaId}/periodo-analisado`) : { periodo:null };
@@ -1758,6 +1760,7 @@ Telas.planejamento = async (el) => {
         confirmar:'Criar e congelar fotografia', aoConfirmar:async(form,fundo)=>{ const empresa_ids=empresas.filter((x)=>fundo.querySelector(`[name="empresa_${x.id}"]`)?.checked).map((x)=>x.id); const r=await A.api('/planejamento/analises',{metodo:'POST',corpo:{...form,empresa_ids}}); S.cache.planejamentoAnaliseId=r.analise.id; A.toast('Análise criada com fotografia congelada.', 'ok'); await render(); } });
     };
     el.querySelectorAll('[data-abrir-planejamento]').forEach((b)=>b.onclick=async()=>{S.cache.planejamentoAnaliseId=Number(b.dataset.abrirPlanejamento); await render();});
+    el.querySelectorAll('[data-comparador-regime]').forEach((b)=>b.onclick=async()=>{S.cache.planejamentoRegimeSelecionado=b.dataset.comparadorRegime;await render();});
     el.querySelector('[data-executar-planejamento]')?.addEventListener('click', async()=>{ await A.api(`/planejamento/analises/${atualId}/executar`,{metodo:'POST',corpo:{}}); A.toast('Cenários individuais e consolidados executados sobre a fotografia congelada.', 'ok'); await render(); });
     el.querySelector('[data-fotografia-planejamento]')?.addEventListener('click', async()=>{await A.api(`/planejamento/analises/${atualId}/fotografia`,{metodo:'POST',corpo:{}});A.toast('Nova fotografia criada. Os dados anteriores permanecem preservados no histórico.','ok');await render();});
     el.querySelector('[data-cnaes-planejamento]')?.addEventListener('click', async()=>{ const r=await A.api(`/planejamento/analises/${atualId}/cnaes`,{metodo:'POST',corpo:{}}); A.modal({titulo:'CNAEs consultados',descricao:'Consulta somente leitura; o cadastro mestre não foi alterado.',largura:900,corpo:A.tabela([{t:'Empresa',r:x=>A.esc(x.empresa)},{t:'CNAE',r:x=>A.esc(x.cnae||'Não identificado')},{t:'Descrição',r:x=>A.esc(x.descricao||'Não identificada')},{t:'Fonte',r:x=>A.esc(x.fonte||'—')}],r.cnaes||[])}); });
@@ -1781,6 +1784,20 @@ Telas.planejamento = async (el) => {
   };
   await render();
 };
+function quadroComparativoRegimes(comparativo, selecionado) {
+  const cenarios=comparativo.cenarios||[];
+  const atual=selecionado || comparativo.empresa?.regime_atual || cenarios[0]?.chave;
+  const valor=(cenario,chave)=>{
+    const componentes=cenario.componentes_disponiveis||{};
+    if(chave==='cbs') return Number(componentes.cbs_hibrida_motor?.valor ?? componentes.cbs_motor_existente?.valor);
+    return Number(componentes[chave]?.valor);
+  };
+  const linhas=[
+    ['DAS / Simples', 'das_remanescente_pgdas'], ['PIS / Cofins', 'pis_cofins'], ['IRPJ / CSLL', 'irpj_csll'], ['CPP / folha', 'inss_patronal'], ['CBS', 'cbs'], ['IBS', 'ibs_hibrida_motor'],
+  ];
+  const linhasVisiveis=linhas.filter(([,chave])=>cenarios.some((c)=>Number.isFinite(valor(c,chave))));
+  return `<section class="planejamento-comparativo-regimes"><div class="planejamento-secao"><div><div class="olho">COMPARAÇÃO DE REGIMES</div><h3>Impacto tributário por cenário</h3><p class="mini">Base econômica comum: ${A.moeda(comparativo.receita_analisada)}. Dados reais e simulados permanecem identificados.</p></div><span class="tag ${comparativo.status_comparacao==='COMPLETA'?'c':'b'}">${A.esc(comparativo.status_comparacao)}</span></div><div class="grade g4" style="margin:12px 0">${cenarios.map((c)=>`<button type="button" class="cartao ${atual===c.chave?'selecionado':''}" data-comparador-regime="${A.esc(c.chave)}" style="text-align:left;box-shadow:none"><b>${A.esc(c.rotulo)}</b><span class="mini bloco">${A.esc(c.natureza||'INDETERMINADO')}</span><strong style="display:block;font-size:20px;margin:10px 0">${c.tributos_estimados===null?'—':A.moeda(c.tributos_estimados)}</strong><span class="mini">Carga efetiva: ${c.carga_efetiva_percentual===null?'—':A.pct(c.carga_efetiva_percentual)}</span><span class="mini bloco">${c.status==='COMPLETO'?'Comparável':`${(c.pendencias||[]).length} pendência(s)`}</span></button>`).join('')}</div><div class="tabela-wrap">${A.tabela([{t:'Componente',r:x=>A.esc(x[0])},...cenarios.map((c)=>({t:A.esc(c.rotulo),num:true,r:x=>{const v=valor(c,x[1]);return Number.isFinite(v)?A.moeda(v):'—';}}))],linhasVisiveis.map((x)=>[...x]),{vazio:'Ainda não há componentes tributários comparáveis.'})}</div>${comparativo.pendencias?.length?`<div class="aviso atencao" style="margin-top:12px"><b>O que falta para comparar todos os regimes:</b> ${A.esc(comparativo.pendencias[0])}</div>`:''}</section>`;
+}
 function detalhePlanejamento(d, resultados, recomendado) {
   const a=d.analise, empresas=d.empresas||[], snap=d.snapshot;
   const linhas=resultados.map((x)=>({cenario:x.cenario,status:x.status,confianca:x.confianca,tributos:x.tributos_total,carga:x.carga_efetiva_percentual,economia:x.economia_vs_baseline,pendencias:(x.pendencias||[]).length}));
