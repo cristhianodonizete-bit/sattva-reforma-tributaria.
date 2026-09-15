@@ -711,7 +711,8 @@ Telas.questor = async (el) => {
   const resumoConciliacao=(t)=>{try{const r=JSON.parse(t.resultado_json||'{}');return `${r.atualizados||0} atualizado(s) · ${r.ambiguos||0} ambíguo(s) · ${r.nao_localizados||0} não localizado(s)`;}catch(_){return t.erro||'Aguardando retorno do conector.';}};
   el.innerHTML = cab('Integração', 'Questor · nWeb',
     'Busca cadastros e movimentação direto do Questor Tributário, sem planilha. O nWeb roda na máquina do servidor Questor, porta 8080 por padrão.') +
-    `<div class="grade g2">
+    `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${S.aba.questor==='operacao'||!S.aba.questor?'ativa':''}" data-questor-aba="operacao">Consultas e fila</button><button class="aba ${S.aba.questor==='conciliacoes'?'ativa':''}" data-questor-aba="conciliacoes">Conciliações fiscais</button><button class="aba ${S.aba.questor==='conector'?'ativa':''}" data-questor-aba="conector">Conector local</button><button class="aba ${S.aba.questor==='configuracao'?'ativa':''}" data-questor-aba="configuracao">Configuração técnica</button></div>
+    <div class="grade g2" data-questor-painel="operacao">
       <div class="cartao"><h2>Conexão</h2><p class="desc">Endereço do serviço nWeb e token, quando exigido</p>
         ${A.campo('base_url', 'URL base do nWeb', config.baseUrl)}
         ${A.campo('token', 'Token (opcional)', config.token)}
@@ -738,33 +739,33 @@ Telas.questor = async (el) => {
         <pre id="rawOut" class="mini" style="max-height:220px;overflow:auto;background:#f4f7f9;padding:10px;border-radius:8px;margin-top:10px"></pre>
       </div>
     </div>
-    <div class="cartao" style="margin-top:16px"><h2>Conector local seguro</h2><p class="desc">Instale somente no computador onde o nWeb está ativo. Ele se conecta ao Sattva por saída HTTPS e não abre porta na sua rede.</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><a class="btn" href="/downloads/conector-sattva-questor.zip" download>Baixar conector Questor</a><button class="btn vazio" id="gerarConectorQuestor">Gerar pareamento</button></div><div class="aviso info" style="margin:12px 0"><b>Instalação e pareamento</b><ol style="margin:8px 0 0;padding-left:20px"><li>Baixe o arquivo neste computador, onde o nWeb do Questor está ativo.</li><li>Extraia o ZIP em uma pasta local.</li><li>Clique em <b>Gerar pareamento</b> e guarde o identificador e o segredo exibidos.</li><li>Abra <b>configurar-e-iniciar.cmd</b> na pasta extraída e informe identificador, segredo e o TokenApi do nWeb.</li><li>Deixe o conector aberto e confira abaixo se a última conexão foi registrada.</li></ol><p class="mini" style="margin:8px 0 0">Não compartilhe o segredo do pareamento. Para iniciar novamente depois, use <b>iniciar-conector.cmd</b>.</p></div>${conectores.length ? A.tabela([{t:'Nome',r:x=>A.esc(x.nome)},{t:'Situação',r:x=>A.esc(x.status)},{t:'Última conexão',r:x=>A.esc(x.ultima_conexao_em||'Ainda não conectado')},{t:'Acesso',r:x=>`<button class="btn vazio pq" data-revelar-conector="${A.esc(x.id)}">Ver identificação e segredo</button>`}],conectores) : '<p class="mini" style="margin-top:12px">Nenhum conector pareado. Baixe o pacote e gere o primeiro pareamento.</p>'}</div>
-    <div class="cartao" style="margin-top:16px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><h2>Processamento das solicitações</h2><p class="desc">Acompanhe aqui a fila, a execução pelo conector e os retornos do Questor.</p></div><button class="btn vazio pq" id="atualizarTarefasQuestor">Atualizar</button></div>${A.tabela([
+    <div class="cartao" data-questor-painel="conector" style="margin-top:16px"><h2>Conector local seguro</h2><p class="desc">Instale somente no computador onde o nWeb está ativo. Ele se conecta ao Sattva por saída HTTPS e não abre porta na sua rede.</p><div style="display:flex;gap:8px;flex-wrap:wrap;margin:12px 0"><a class="btn" href="/downloads/conector-sattva-questor.zip" download>Baixar conector Questor</a><button class="btn vazio" id="gerarConectorQuestor">Gerar pareamento</button></div><div class="aviso info" style="margin:12px 0"><b>Instalação e pareamento</b><ol style="margin:8px 0 0;padding-left:20px"><li>Baixe o arquivo neste computador, onde o nWeb do Questor está ativo.</li><li>Extraia o ZIP em uma pasta local.</li><li>Clique em <b>Gerar pareamento</b> e guarde o identificador e o segredo exibidos.</li><li>Abra <b>configurar-e-iniciar.cmd</b> na pasta extraída e informe identificador, segredo e o TokenApi do nWeb.</li><li>Deixe o conector aberto e confira abaixo se a última conexão foi registrada.</li></ol><p class="mini" style="margin:8px 0 0">Não compartilhe o segredo do pareamento. Para iniciar novamente depois, use <b>iniciar-conector.cmd</b>.</p></div>${conectores.length ? A.tabela([{t:'Nome',r:x=>A.esc(x.nome)},{t:'Situação',r:x=>A.esc(x.status)},{t:'Última conexão',r:x=>A.esc(x.ultima_conexao_em||'Ainda não conectado')},{t:'Acesso',r:x=>`<button class="btn vazio pq" data-revelar-conector="${A.esc(x.id)}">Ver identificação e segredo</button>`}],conectores) : '<p class="mini" style="margin-top:12px">Nenhum conector pareado. Baixe o pacote e gere o primeiro pareamento.</p>'}</div>
+    <div class="cartao" data-questor-painel="operacao" style="margin-top:16px"><div style="display:flex;justify-content:space-between;align-items:center;gap:12px"><div><h2>Processamento das solicitações</h2><p class="desc">Acompanhe aqui a fila, a execução pelo conector e os retornos do Questor.</p></div><button class="btn vazio pq" id="atualizarTarefasQuestor">Atualizar</button></div>${A.tabela([
       {t:'Solicitação',r:t=>`<b>${A.esc(tipoTarefa(t))}</b><br><span class="mini">${A.esc(t.empresa_nome||'Empresa não informada')} · ${A.esc(t.conector_nome)}</span>`},
       {t:'Estágio',r:t=>{const [rot,classe]=estadoTarefa(t); return `<span class="tag ${classe}">${A.esc(rot)}</span>`;}},
       {t:'Solicitada em',r:t=>`<span class="mini mono">${A.esc(t.criado_em||'—')}</span>`},
       {t:'Finalizada em',r:t=>`<span class="mini mono">${A.esc(t.executado_em||'—')}</span>`},
       {t:'Detalhe',r:detalheTarefa},
     ],tarefas,{vazio:'Nenhuma solicitação enviada por você ainda.'})}</div>
-    <div class="cartao" style="margin-top:16px"><h2>Conciliações fiscais</h2><p class="desc">Histórico das buscas de documentos cancelados, denegados e inutilizados no Questor.</p>${A.tabela([
+    <div class="cartao" data-questor-painel="conciliacoes" style="margin-top:16px"><h2>Conciliações fiscais</h2><p class="desc">Histórico das buscas de documentos cancelados, denegados e inutilizados no Questor.</p>${A.tabela([
       {t:'Empresa',r:t=>A.esc(t.empresa_nome||'—')},
       {t:'Solicitada em',r:t=>A.esc(t.criado_em||'—')},
       {t:'Situação',r:t=>{const [rot,classe]=estadoTarefa(t);return `<span class="tag ${classe}">${A.esc(rot)}</span>`;}},
       {t:'Resultado',r:t=>`<span class="mini">${A.esc(resumoConciliacao(t))}</span> ${t.status==='CONCLUIDA'?`<button class="btn vazio pq" data-ver-retorno-cancelamentos="${t.id}">Ver retorno</button>`:''}`},
     ],conciliacoes,{vazio:'Nenhuma conciliação solicitada ainda.'})}</div>
-    <div class="cartao" style="margin-top:16px"><h2>Cancelamentos pendentes de documento</h2><p class="desc">O Questor confirmou estes cancelamentos, mas o XML/DF-e ainda não existe na Sattva. Ao importar o documento correspondente, ele será marcado automaticamente como cancelado e não comporá receita.</p>${A.tabela([
+    <div class="cartao" data-questor-painel="conciliacoes" style="margin-top:16px"><h2>Cancelamentos pendentes de documento</h2><p class="desc">O Questor confirmou estes cancelamentos, mas o XML/DF-e ainda não existe na Sattva. Ao importar o documento correspondente, ele será marcado automaticamente como cancelado e não comporá receita.</p>${A.tabela([
       {t:'Data',r:x=>A.esc(x.data_emissao||'—')},
       {t:'Documento',r:x=>`<b>${A.esc(x.numero||'—')}</b><div class="mini">Série ${A.esc(x.serie||'não informada')}</div>`},
       {t:'Modelo',r:x=>`<span class="tag">${A.esc(String(x.modelo_documento_fiscal||'—').toUpperCase())}</span>`},
       {t:'Situação',r:x=>`<span class="tag a">${A.esc(x.situacao||'CANCELADO')}</span>`},
       {t:'Origem',r:x=>A.esc(x.origem==='QUESTOR_RELATORIO_CANCELADOS'?'Questor':'—')},
     ],cancelamentosPendentes.documentos||[],{vazio:'Nenhum cancelamento pendente de documento para esta empresa.'})}</div>
-    <div class="cartao"><h2>Mapa de endpoints</h2>
+    <div class="cartao" data-questor-painel="configuracao"><h2>Mapa de endpoints</h2>
       <p class="desc">Caminhos, parâmetros e de-para de campos. Ajuste conforme a versão do seu Questor — o sistema não depende de código para isso.</p>
       <textarea id="endpoints" rows="16" class="mono" style="font-size:12px">${A.esc(JSON.stringify(config.endpoints, null, 2))}</textarea>
       <button class="btn vazio pq" id="salvarEnd" style="margin-top:10px">Salvar mapa</button>
     </div>
-    <div class="cartao"><h2>Histórico de chamadas</h2>
+    <div class="cartao" data-questor-painel="configuracao"><h2>Histórico de chamadas</h2>
       ${A.tabela([
         { t: 'Quando', r: (l) => `<span class="mini mono">${A.esc(l.criado_em)}</span>` },
         { t: 'Endpoint', r: (l) => `<span class="mono mini">${A.esc(l.endpoint)}</span>` },
@@ -773,6 +774,9 @@ Telas.questor = async (el) => {
         { t: 'Mensagem', r: (l) => `<span class="mini">${A.esc(l.mensagem)}</span>` },
       ], log, { vazio: 'Nenhuma chamada registrada.' })}
     </div>`;
+  const abaQuestor=S.aba.questor || 'operacao';
+  el.querySelectorAll('[data-questor-painel]').forEach((painel)=>{ painel.style.display=painel.dataset.questorPainel===abaQuestor?'':'none'; });
+  el.querySelectorAll('[data-questor-aba]').forEach((botao)=>{ botao.onclick=()=>{ S.aba.questor=botao.dataset.questorAba; Telas.questor(el); }; });
 
   const val = (n) => (el.querySelector(`[name="${n}"]`) || {}).value || '';
   document.getElementById('importarApuracaoQuestor').onclick = async (evento) => {
