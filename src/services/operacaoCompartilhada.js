@@ -326,7 +326,7 @@ async function baixarRegrasEnquadramento(remotoInformado = null) {
 // remota e não exige nova consulta ao Questor.
 async function carregarMovimentosCanonicos(empresa) {
   const cnpj = String(empresa.cnpj).replace(/\D/g, '');
-  if (ativo()) {
+  if (ativo() && !process.env.SUPABASE_DB_URL) {
     const remoto = supabase.admin();
     const { data: empresasRemotas, error: erroEmpresa } = await remoto.from('empresas').select('id,cnpj,origem_local_id').eq('cnpj', cnpj).limit(2);
     if (erroEmpresa) throw erroEmpresa;
