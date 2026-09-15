@@ -8,6 +8,7 @@ assert.equal(cancelamento.tipoDocumento, 'cancelamento');
 assert.equal(cancelamento.cancelamento.tipoDocumento, 'nfe');
 assert.equal(cancelamento.cancelamento.chave.length, 44);
 assert.equal(receita.compoeReceita({ tipo:'cliente', sentido:'saida', modelo_documento_fiscal:'nfe', cfop:'5102', situacao_documento:'CANCELADO' }), false);
+assert.equal(receita.compoeReceita({ tipo:'cliente', sentido:'saida', modelo_documento_fiscal:'nfe', cfop:'5916', situacao_documento:'AUTORIZADO' }), false);
 
 const eventoNfse = `<CancelamentoNfse><PedidoCancelamento><InfPedidoCancelamento><NumeroNfse>987</NumeroNfse><CodigoVerificacao>ABC-123</CodigoVerificacao><MotivoCancelamento>Erro na emissão</MotivoCancelamento></InfPedidoCancelamento></PedidoCancelamento></CancelamentoNfse>`;
 const nfse = xml.lerXml(eventoNfse, '12345678000199');

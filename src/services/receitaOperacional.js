@@ -11,6 +11,10 @@ function ehSaida(movimento = {}) {
 
 function natureza(movimento = {}) {
   const cfop=String(movimento.cfop || '').replace(/\D/g,'');
+  // Retorno de mercadoria/bem remetido para conserto ou reparo. É uma saída
+  // documental, mas não uma nova venda; essa semântica não pode depender de
+  // um de-para configurável e jamais deve inflar o Perfil Tributário.
+  if (['5916','6916'].includes(cfop)) return 'retorno_remessa';
   try {
     regras ||= require('./regras');
     return regras.naturezaCfop(cfop) || null;
