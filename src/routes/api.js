@@ -4736,7 +4736,7 @@ router.post('/empresas/:id/questor/conector/documentos-fiscais-cancelados', asyn
   if(!/^\d{4}-\d{2}-\d{2}$/.test(inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(fim)||inicio>fim) throw new Error('Informe data inicial e final válidas.');
   const c=db.prepare("SELECT id FROM questor_conectores WHERE status='ATIVO' AND usuario_id=? ORDER BY ultima_conexao_em DESC LIMIT 1").get(donoConector(req));
   if(!c) throw new Error('Inicie um Conector Sattva–Questor antes da busca.');
-  const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,empresaId,'DOCUMENTOS_FISCAIS_CANCELADOS',JSON.stringify({actionName:'nFisRRDocFiscalCancelado',parametros:{PCODIGOEMPRESA:empresa.codigo_questor,PDATAINICIAL:inicio,PDATAFINAL:fim,PTIPOMOVIMENTO:2,PTIPOSITUACAODOCUMENTO:2}}));
+  const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,empresaId,'DOCUMENTOS_FISCAIS_CANCELADOS',JSON.stringify({actionName:'nFisRRDocFiscalCancelado',parametros:{PCODIGOEMPRESA:empresa.codigo_questor,PDATAINICIAL:inicio,PDATAFINAL:fim,PTIPOMOVIMENTO:2,PTIPOSITUACAODOCUMENTO:2,PORDENAR:1}}));
   ok(res,{tarefa_id:r.lastInsertRowid});
 }catch(e){erro(res,e);}});
 
