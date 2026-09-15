@@ -28,6 +28,9 @@ const App = (() => {
       method: opcoes.metodo || 'GET',
       headers,
       body: opcoes.corpo instanceof FormData ? opcoes.corpo : (opcoes.corpo ? JSON.stringify(opcoes.corpo) : undefined),
+      // Leituras tributárias não podem reutilizar uma resposta anterior do
+      // navegador após conciliação, reimportação ou alteração de situação.
+      cache: 'no-store',
     });
     const j = await r.json().catch(() => ({ ok: false, erro: 'Resposta inválida do servidor.' }));
     if (r.status === 401) {

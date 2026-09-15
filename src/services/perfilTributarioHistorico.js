@@ -137,7 +137,14 @@ function consolidar(db, empresaId) {
     .filter((x) => receitaOperacional.ehSaida(x) && noExercicio(x.competencia))
     .forEach((x) => {
       const atual=documentosPorCompetencia.get(x.competencia) || { competencia:x.competencia, receita_documentada:0, quantidade_documentos:0, iss_documentado:0 };
-      const compoe = receitaOperacional.compoeReceita(x);
+      // Defesa explícita da composição: retorno de remessa e documento
+      // inválido jamais passam para a receita, ainda que um de-para antigo de
+      // CFOP tenha ficado salvo na base.
+      const cfop=String(x.cfop || '').replace(/\D/g,'');
+      const situacao=String(x.situacao_documento || 'AUTORIZADO').toUpperCase();
+      const compoe = receitaOperacional.compoeReceita(x)
+        && !['5916','6916'].includes(cfop)
+        && !['CANCELADO','DENEGADO','INUTILIZADO'].includes(situacao);
       const motivo = receitaOperacional.motivo(x);
       const chave = [x.competencia, x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', x.cfop || 'SEM_CFOP', motivo].join('|');
       const linha = composicaoReceita.get(chave) || { competencia:x.competencia, modelo_fiscal:x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop:x.cfop || '', motivo, compoe_receita:compoe, itens:0, valor:0 };

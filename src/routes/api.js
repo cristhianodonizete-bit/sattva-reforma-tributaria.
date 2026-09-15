@@ -1351,6 +1351,7 @@ router.get('/empresas/:id/perfil/analise', (req, res) => {
 // Camada executiva de leitura: não materializa CBS nem executa o motor.
 router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
   try {
+    res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
     // A composição usa movimentos fiscais por modelo. Reconcilia somente a
     // empresa aberta para impedir que uma linha residual do SQLite altere
     // NF-e, NFS-e ou o faturamento exibido depois de a fonte compartilhada
