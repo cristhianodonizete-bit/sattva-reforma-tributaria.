@@ -64,6 +64,7 @@ function outras_receitas(box, d) {
       {t:'PIS',num:true,r:x=>x.pis_percentual === null ? '—' : A.pct(x.pis_percentual)},
       {t:'Cofins',num:true,r:x=>x.cofins_percentual === null ? '—' : A.pct(x.cofins_percentual)},
       {t:'Tratamento atual',r:x=>A.esc(x.tratamento_atual)},
+      {t:'CBS / IBS',r:x=>x.requer_classificacao ? `<span class="tag a">requer natureza</span><div class="mini">${A.esc(x.cst || '—')} / cClassTrib a definir</div>` : `<b>${A.esc(x.cst || '—')} / ${A.esc(x.cclasstrib || '—')}</b><div class="mini">redução CBS ${A.pct(x.reducao_cbs || 0)} · IBS ${A.pct(x.reducao_ibs || 0)}</div>`},
       {t:'Reforma',r:x=>`<span class="mini">${A.esc(x.tratamento_reforma)}</span>`},
       {t:'',r:x=>`<button class="btn pq vazio" data-editar-regra-receita="${x.id}">Editar</button>`},
     ], regras, {vazio:'Nenhuma regra de outras receitas foi cadastrada.'})}</div>`;
@@ -71,8 +72,8 @@ function outras_receitas(box, d) {
     const r = regras.find((x) => Number(x.id) === Number(b.dataset.editarRegraReceita));
     A.modal({ titulo: `Regra — ${r.item_nome} / ${rotuloRegime[r.regime_empresa] || r.regime_empresa}`,
       descricao: 'Alíquotas em decimal: 0,0165 equivale a 1,65%. Deixe em branco quando não houver PIS/Cofins separado.',
-      corpo: `<div class="grade g2">${A.campo('pis_percentual','PIS',r.pis_percentual ?? '','number','step="0.0001" min="0" max="1"')}${A.campo('cofins_percentual','Cofins',r.cofins_percentual ?? '','number','step="0.0001" min="0" max="1"')}</div>${A.campo('tratamento_atual','Tratamento atual',r.tratamento_atual)}${A.campo('tratamento_reforma','Tratamento na reforma',r.tratamento_reforma)}${A.campo('fundamento','Fundamento / ressalva',r.fundamento || '')}${A.campo('vigencia_inicio','Vigência inicial',r.vigencia_inicio,'text','placeholder="2026-01-01"')}`,
-      aoConfirmar: async (dados) => { await A.api(`/config/regras-itens-receita/${r.id}`, {metodo:'PUT',corpo:{...dados,ativo:true}}); A.toast('Regra técnica atualizada', 'ok'); A.ir('configuracoes'); },
+      corpo: `<div class="grade g2">${A.campo('pis_percentual','PIS',r.pis_percentual ?? '','number','step="0.0001" min="0" max="1"')}${A.campo('cofins_percentual','Cofins',r.cofins_percentual ?? '','number','step="0.0001" min="0" max="1"')}</div>${A.campo('tratamento_atual','Tratamento atual',r.tratamento_atual)}${A.campo('tratamento_reforma','Tratamento na reforma',r.tratamento_reforma)}<div class="grade g2">${A.campo('cst','CST IBS/CBS',r.cst || '')}${A.campo('cclasstrib','cClassTrib',r.cclasstrib || '')}${A.campo('reducao_cbs','Redução CBS',r.reducao_cbs ?? '','number','step="0.0001" min="0" max="1"')}${A.campo('reducao_ibs','Redução IBS',r.reducao_ibs ?? '','number','step="0.0001" min="0" max="1"')}</div><label class="check"><input type="checkbox" id="requer_classificacao" ${r.requer_classificacao ? 'checked' : ''}> Exigir natureza concreta antes de atribuir cClassTrib</label>${A.campo('fundamento','Fundamento / ressalva',r.fundamento || '')}${A.campo('vigencia_inicio','Vigência inicial',r.vigencia_inicio,'text','placeholder="2026-01-01"')}`,
+      aoConfirmar: async (dados) => { dados.requer_classificacao = document.getElementById('requer_classificacao')?.checked; await A.api(`/config/regras-itens-receita/${r.id}`, {metodo:'PUT',corpo:{...dados,ativo:true}}); A.toast('Regra técnica atualizada', 'ok'); A.ir('configuracoes'); },
     });
   });
 }

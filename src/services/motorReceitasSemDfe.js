@@ -24,6 +24,7 @@ function resolver(db, receita, regimeEmpresa) {
       ORDER BY r.vigencia_inicio DESC, r.id DESC`).all(receita.item_receita_chave, regime)
       .find((x) => dentroVigencia(x, data));
     if (!regra) return { status: 'PENDENTE_REGRA', pendencia: `Não há regra vigente para este item no regime ${regime || 'não identificado'}.` };
+    if (Number(regra.requer_classificacao)) return { status: 'PENDENTE_CLASSIFICACAO', regra, pendencia: 'A natureza concreta do rendimento financeiro deve ser identificada antes de atribuir cClassTrib.' };
     return { status: 'DETERMINADO', regra, pendencia: null };
   }
   const classificacao = normalizar(receita.classificacao_fiscal);

@@ -139,6 +139,7 @@ const COLUNAS_NOVAS = {
     status_motor: "TEXT DEFAULT 'PENDENTE_CLASSIFICACAO'", regra_motor_id: 'INTEGER', regra_motor_versao: 'INTEGER', regra_motor_atual: 'TEXT', regra_motor_reforma: 'TEXT', cst_motor: 'TEXT', cclasstrib_motor: 'TEXT', fundamento_motor: 'TEXT', pendencia_motor: 'TEXT', processado_motor_em: 'TEXT',
     identificador_origem: 'TEXT', especie_questor: 'TEXT', segregacao_apuracao: 'TEXT', base_pis_cofins_atual: 'REAL', pis_atual: 'REAL', cofins_atual: 'REAL', criterio_tributacao_atual: 'TEXT', tributacao_atual_origem: 'TEXT', item_receita_chave: 'TEXT',
   },
+  regras_itens_receita_regime: { cst: 'TEXT', cclasstrib: 'TEXT', reducao_cbs: 'REAL', reducao_ibs: 'REAL', requer_classificacao: 'INTEGER NOT NULL DEFAULT 0' },
   cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT', cnaes_secundarios: 'TEXT',
     logradouro: 'TEXT', numero: 'TEXT', complemento: 'TEXT', bairro: 'TEXT', cep: 'TEXT', data_abertura: 'TEXT' },
   contratos: {
@@ -481,6 +482,7 @@ CREATE TABLE IF NOT EXISTS regras_itens_receita_regime (
   id INTEGER PRIMARY KEY AUTOINCREMENT, item_chave TEXT NOT NULL REFERENCES catalogo_itens_receita(chave),
   regime_empresa TEXT NOT NULL, pis_percentual REAL, cofins_percentual REAL,
   tratamento_atual TEXT NOT NULL, tratamento_reforma TEXT NOT NULL,
+  cst TEXT, cclasstrib TEXT, reducao_cbs REAL, reducao_ibs REAL, requer_classificacao INTEGER NOT NULL DEFAULT 0,
   fundamento TEXT, vigencia_inicio TEXT NOT NULL DEFAULT '2026-01-01', vigencia_fim TEXT,
   ativo INTEGER NOT NULL DEFAULT 1, UNIQUE(item_chave,regime_empresa,vigencia_inicio)
 );
@@ -2757,6 +2759,24 @@ const REGRAS_ITENS_RECEITA_PADRAO = [
 db.transaction(() => REGRAS_ITENS_RECEITA_PADRAO.forEach((x) => db.prepare(`INSERT OR IGNORE INTO regras_itens_receita_regime
   (item_chave,regime_empresa,pis_percentual,cofins_percentual,tratamento_atual,tratamento_reforma,fundamento,vigencia_inicio)
   VALUES (?,?,?,?,?,?,?,?)`).run(...x)))();
+// CBS/IBS são uma camada distinta do PIS/Cofins atual. Estas atualizações
+// alcançam instalações já existentes sem sobrescrever regra editada pelo usuário.
+db.prepare(`UPDATE regras_itens_receita_regime SET cst='000',cclasstrib='000001',reducao_cbs=0,reducao_ibs=0,
+  tratamento_reforma='Tributação normal no regime regular, salvo hipótese específica.',
+  fundamento='Regra geral do IBS/CBS; cClassTrib 000001 quando não houver hipótese específica.'
+  WHERE item_chave='LOCACAO_BENS_MOVEIS' AND cclasstrib IS NULL`).run();
+db.prepare(`UPDATE regras_itens_receita_regime SET cst='200',cclasstrib='200027',reducao_cbs=.70,reducao_ibs=.70,
+  tratamento_reforma='Regime específico imobiliário: alíquota reduzida em 70%.',
+  fundamento='LC 214/2025, art. 261, parágrafo único.'
+  WHERE item_chave='ALUGUEL_IMOVEIS_PROPRIOS' AND cclasstrib IS NULL`).run();
+db.prepare(`UPDATE regras_itens_receita_regime SET cst='000',cclasstrib='000001',reducao_cbs=0,reducao_ibs=0,
+  tratamento_reforma='Tributação integral, sem redução geral identificada.',
+  fundamento='Regra geral do IBS/CBS; cClassTrib 000001 quando não houver hipótese específica.'
+  WHERE item_chave='LICENCIAMENTO_SOFTWARE_PROPRIO' AND cclasstrib IS NULL`).run();
+db.prepare(`UPDATE regras_itens_receita_regime SET cst='410',requer_classificacao=1,
+  tratamento_reforma='Não incidência para rendimentos financeiros, ressalvadas as hipóteses do regime específico financeiro.',
+  fundamento='LC 214/2025, art. 6º, V; a classificação depende da natureza concreta do rendimento.'
+  WHERE item_chave='RECEITAS_FINANCEIRAS_ORDINARIAS' AND cst IS NULL`).run();
 
 if (!db.prepare('SELECT COUNT(*) c FROM cnpj_config').get().c) {
   db.prepare(`INSERT INTO cnpj_config (id, provedor, token, validade_dias, ativo, atualizado_em)

@@ -17,6 +17,11 @@ create table if not exists public.regras_itens_receita_regime (
   cofins_percentual numeric,
   tratamento_atual text not null,
   tratamento_reforma text not null,
+  cst text,
+  cclasstrib text,
+  reducao_cbs numeric,
+  reducao_ibs numeric,
+  requer_classificacao boolean not null default false,
   fundamento text,
   vigencia_inicio date not null default date '2026-01-01',
   vigencia_fim date,
@@ -46,6 +51,29 @@ insert into public.regras_itens_receita_regime(item_chave,regime_empresa,pis_per
  ('RECEITAS_FINANCEIRAS_ORDINARIAS','lucro_presumido',null,null,'Em regra, sem incidência quando não constituir atividade/objeto habitual da empresa.','CBS/IBS: tratamento financeiro a confirmar pela legislação vigente.','Exige confirmação da habitualidade.'),
  ('RECEITAS_FINANCEIRAS_ORDINARIAS','simples_nacional',null,null,'Rendimentos de aplicações não integram a base do Simples; não calcular PIS/Cofins separado.','CBS/IBS: tratamento financeiro a confirmar pela legislação vigente.','Exige confirmação da natureza do rendimento.')
 on conflict (item_chave,regime_empresa,vigencia_inicio) do nothing;
+
+alter table public.regras_itens_receita_regime add column if not exists cst text;
+alter table public.regras_itens_receita_regime add column if not exists cclasstrib text;
+alter table public.regras_itens_receita_regime add column if not exists reducao_cbs numeric;
+alter table public.regras_itens_receita_regime add column if not exists reducao_ibs numeric;
+alter table public.regras_itens_receita_regime add column if not exists requer_classificacao boolean not null default false;
+
+update public.regras_itens_receita_regime set cst='000', cclasstrib='000001', reducao_cbs=0, reducao_ibs=0,
+ tratamento_reforma='Tributação normal no regime regular, salvo hipótese específica.',
+ fundamento='Regra geral do IBS/CBS; cClassTrib 000001 quando não houver hipótese específica.'
+where item_chave='LOCACAO_BENS_MOVEIS' and cclasstrib is null;
+update public.regras_itens_receita_regime set cst='200', cclasstrib='200027', reducao_cbs=.70, reducao_ibs=.70,
+ tratamento_reforma='Regime específico imobiliário: alíquota reduzida em 70%.',
+ fundamento='LC 214/2025, art. 261, parágrafo único.'
+where item_chave='ALUGUEL_IMOVEIS_PROPRIOS' and cclasstrib is null;
+update public.regras_itens_receita_regime set cst='000', cclasstrib='000001', reducao_cbs=0, reducao_ibs=0,
+ tratamento_reforma='Tributação integral, sem redução geral identificada.',
+ fundamento='Regra geral do IBS/CBS; cClassTrib 000001 quando não houver hipótese específica.'
+where item_chave='LICENCIAMENTO_SOFTWARE_PROPRIO' and cclasstrib is null;
+update public.regras_itens_receita_regime set cst='410', requer_classificacao=true,
+ tratamento_reforma='Não incidência para rendimentos financeiros, ressalvadas as hipóteses do regime específico financeiro.',
+ fundamento='LC 214/2025, art. 6º, V; a classificação depende da natureza concreta do rendimento.'
+where item_chave='RECEITAS_FINANCEIRAS_ORDINARIAS' and cst is null;
 
 alter table public.catalogo_itens_receita enable row level security;
 alter table public.regras_itens_receita_regime enable row level security;

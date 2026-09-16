@@ -5406,8 +5406,9 @@ router.put('/config/regras-itens-receita/:id', async (req, res) => {
     const atual = db.prepare('SELECT id FROM regras_itens_receita_regime WHERE id=?').get(Number(req.params.id));
     if (!atual) throw new Error('Regra de receita não encontrada.');
     const n = (v, campo) => v === '' || v === null || v === undefined ? null : (() => { const x = Number(v); if (!Number.isFinite(x) || x < 0 || x > 1) throw new Error(`${campo} deve estar entre 0 e 1.`); return x; })();
-    db.prepare(`UPDATE regras_itens_receita_regime SET pis_percentual=?,cofins_percentual=?,tratamento_atual=?,tratamento_reforma=?,fundamento=?,vigencia_inicio=?,vigencia_fim=?,ativo=? WHERE id=?`)
-      .run(n(req.body.pis_percentual, 'PIS'), n(req.body.cofins_percentual, 'Cofins'), String(req.body.tratamento_atual || '').trim(), String(req.body.tratamento_reforma || '').trim(), String(req.body.fundamento || '').trim() || null, String(req.body.vigencia_inicio || '').trim() || '2026-01-01', String(req.body.vigencia_fim || '').trim() || null, req.body.ativo ? 1 : 0, Number(req.params.id));
+    const reducao = (v, campo) => n(v, campo);
+    db.prepare(`UPDATE regras_itens_receita_regime SET pis_percentual=?,cofins_percentual=?,tratamento_atual=?,tratamento_reforma=?,cst=?,cclasstrib=?,reducao_cbs=?,reducao_ibs=?,requer_classificacao=?,fundamento=?,vigencia_inicio=?,vigencia_fim=?,ativo=? WHERE id=?`)
+      .run(n(req.body.pis_percentual, 'PIS'), n(req.body.cofins_percentual, 'Cofins'), String(req.body.tratamento_atual || '').trim(), String(req.body.tratamento_reforma || '').trim(), String(req.body.cst || '').trim() || null, String(req.body.cclasstrib || '').trim() || null, reducao(req.body.reducao_cbs, 'Redução CBS'), reducao(req.body.reducao_ibs, 'Redução IBS'), req.body.requer_classificacao ? 1 : 0, String(req.body.fundamento || '').trim() || null, String(req.body.vigencia_inicio || '').trim() || '2026-01-01', String(req.body.vigencia_fim || '').trim() || null, req.body.ativo ? 1 : 0, Number(req.params.id));
     await confirmarParametrosCompartilhados();
     ok(res, {});
   } catch (e) { erro(res, e); }
