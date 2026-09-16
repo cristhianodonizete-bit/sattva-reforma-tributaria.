@@ -164,6 +164,53 @@ async function conciliarCfopSaidasQuestor(empresaId, texto) {
   if(idsAlterados.length) db.prepare(`DELETE FROM motor_resultados WHERE movimento_id IN (${idsAlterados.map(()=>'?').join(',')})`).run(...idsAlterados);
   return saida;
 }
+
+function numeroQuestor(valor) {
+  const limpo=String(valor||'').replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,'');
+  const n=Number(limpo); return Number.isFinite(n) ? n : null;
+}
+function classificarLocacaoQuestor(descricao) {
+  const texto=String(descricao||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  if (!/(loca|aluguel|aluguer)/.test(texto)) return null;
+  return /(imovel|imobili|predial|sala comercial|galpao|terreno)/.test(texto)
+    ? 'ALUGUEL_IMOVEIS_PROPRIOS' : 'LOCACAO_BENS_MOVEIS';
+}
+function lerLocacoesQuestor(texto) {
+  let fonte=String(texto||''); try { const envelope=JSON.parse(fonte); fonte=String(envelope?.Data||envelope?.data||fonte); } catch (_) { /* retorno textual */ }
+  const registros=[];
+  for (const linha of fonte.replace(/\r/g,'').split('\n')) {
+    // Layout observado: lançamento REC data código descrição ... valor.
+    // A espécie REC é obrigatória; a descrição é conservada como evidência.
+    const m=linha.match(/^\s*(\d+)\s+REC\s+(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(.+?)\s+([\d.]+,\d{2})\s*$/i);
+    if (!m) continue;
+    const item=classificarLocacaoQuestor(m[4]);
+    const valor=numeroQuestor(m[5]);
+    if (!item || valor===null || valor<0) continue;
+    registros.push({ identificador_origem:m[1], especie_questor:'REC', competencia:`${m[2].slice(6)}-${m[2].slice(3,5)}`,
+      data_lancamento:`${m[2].slice(6)}-${m[2].slice(3,5)}-${m[2].slice(0,2)}`, item_receita_chave:item, descricao:m[4].trim(), valor, linha:linha.trim() });
+  }
+  return registros;
+}
+async function importarLocacoesQuestor(empresaId, texto) {
+  const registros=lerLocacoesQuestor(texto);
+  const dadosAdicionais=require('../services/dadosAdicionaisAnalise');
+  const resultado={linhas_lidas:registros.length,importados:0,ignorados:0,locacao_bens_moveis:0,locacao_imoveis:0,mensagens:[]};
+  for (const r of registros) {
+    try {
+      dadosAdicionais.salvarReceitaSemDfe(db, empresaId, {
+        competencia:r.competencia,item_receita_chave:r.item_receita_chave,descricao:r.descricao,valor:r.valor,
+        origem:'QUESTOR_LANCAMENTOS_FISCAIS',evidencia:`Questor · TnFisDPConsultLctoFiscal · lançamento ${r.identificador_origem} · ${r.data_lancamento}`,
+        identificador_origem:r.identificador_origem,especie_questor:'REC',
+      });
+      resultado.importados++;
+      if(r.item_receita_chave==='LOCACAO_BENS_MOVEIS') resultado.locacao_bens_moveis++; else resultado.locacao_imoveis++;
+    } catch (e) {
+      resultado.ignorados++; resultado.mensagens.push(`Lançamento ${r.identificador_origem}: ${e.message}`);
+    }
+  }
+  if(resultado.importados) require('../services/operacaoCompartilhada').publicar().catch(()=>{});
+  return resultado;
+}
 async function autenticar(req) {
   const id=String(req.get('X-Connector-Id')||''); const segredo=String(req.get('X-Connector-Secret')||'');
   await persistencia.recuperarConector(id);
@@ -202,6 +249,7 @@ router.post('/tarefas/:id/resultado',async(req,res)=>{
     // anterior poderia regravar AUTORIZADO sobre o cancelamento confirmado.
     if(ok&&t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS') { resultado={...resultado,...await conciliarCancelamentosQuestor(t.empresa_id,resultado.relatorio)}; }
     if(ok&&t.tipo==='CONCILIAR_CFOP_SAIDAS') { resultado={...resultado,...await conciliarCfopSaidasQuestor(t.empresa_id,resultado.relatorio)}; require('../services/operacaoCompartilhada').publicar().catch(()=>{}); }
+    if(ok&&t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO') { resultado={...resultado,...await importarLocacoesQuestor(t.empresa_id,resultado.relatorio)}; }
     db.prepare("UPDATE questor_conector_tarefas SET status=?,resultado_json=?,erro=?,executado_em=datetime('now','localtime') WHERE id=?").run(ok?'CONCLUIDA':'ERRO',ok?JSON.stringify(resultado):null,ok?null:String(req.body?.erro||'Erro sem detalhe'),t.id);
     await persistencia.publicarTarefa(db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(t.id));
     res.json({ok:true});
@@ -214,3 +262,4 @@ router.post('/tarefas/:id/resultado',async(req,res)=>{
 });
 module.exports=router;
 module.exports.lerCancelamentosQuestor=lerCancelamentosQuestor;
+module.exports.lerLocacoesQuestor=lerLocacoesQuestor;

@@ -7,7 +7,7 @@ if (!fs.existsSync(cfgPath)) throw new Error('Crie config.json a partir de confi
 // O configurador do Windows pode gravar UTF-8 com BOM. Remove a marca antes
 // de interpretar o JSON, sem alterar o conteúdo ou expor credenciais.
 const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8').replace(/^\uFEFF/, ''));
-const permitidas = new Set(['TESTAR_NWEB', 'PARAMETROS_RELATORIO', 'APURACAO_PIS_COFINS', 'DOCUMENTOS_FISCAIS_CANCELADOS', 'CONCILIAR_CFOP_SAIDAS', 'IMPORTAR_MOVIMENTACAO']);
+const permitidas = new Set(['TESTAR_NWEB', 'PARAMETROS_RELATORIO', 'APURACAO_PIS_COFINS', 'DOCUMENTOS_FISCAIS_CANCELADOS', 'CONCILIAR_CFOP_SAIDAS', 'IMPORTAR_OUTRAS_RECEITAS_LOCACAO', 'IMPORTAR_MOVIMENTACAO']);
 const cab = () => ({ 'Content-Type':'application/json', 'X-Connector-Id':cfg.connectorId, 'X-Connector-Secret':cfg.connectorSecret });
 const url = (base, rota, params={}) => { const u=new URL(rota, base.replace(/\/$/, '')+'/'); Object.entries(params).forEach(([k,v])=>{if(v!==undefined&&v!==null&&v!=='')u.searchParams.set(k,v);}); return u; };
 async function requisitar(endpoint, opcoes, limiteMs, descricao) {
@@ -31,7 +31,7 @@ async function nweb(rota, params={}, body) {
 // camelCase (pDataInicial). Preservamos o contrato interno e traduzimos só na
 // borda do conector.
 function parametrosRelatorioNweb(parametros={}) {
-  const nomes = { PMODELO:'pModelo', PDATAINICIAL:'pDataInicial', PDATAFINAL:'pDataFinal', PTIPOMOVIMENTO:'pTipoMovimento', PTIPOSITUACAODOCUMENTO:'pTipoSituacaoDocumento', PTIPOPERIODO:'pTipoPeriodo', PTIPOIMPOSTO:'pTipoImposto', PTOTALIZAR:'pTotalizar', PLISTAROUTRASINFO:'pListarOutrasInfo', PLISTARTOTALIMPOSTO:'pListarTotalImposto', PEXIBIRDADOSNATUREZA:'pExibirDadosNatureza', PEXIBIRDADOSPESSOA:'pExibirDadosPessoa', PEXIBIRDADOSPRODUTO:'pExibirDadosProduto', PLINHAHORIZONTAL:'pLinhaHorizontal', PDETALHARPRODUTOS:'pDetalharProdutos', PQUEBRAPORMOVIMENTO:'pQuebraPorMovimento', PVALOR:'pValor', PCODIGOEMPRESA:'pCodigoEmpresa', PCODIGOESTAB:'pCodigoEstab', PCODIGOPRODUTO:'pCodigoProduto', PCODIGOCFOP:'pCodigoCFOP', PCODIGOPESSOA:'pCodigoPessoa', PCLASSIFFISCAL:'pClassifFiscal', PCST:'pCst', PCFOP:'pCfop', PTIPOCREDITO:'pTipoCredito', PTIPODEBITO:'pTipoDebito', PAGRUPAR:'pAgrupar', PGERARTOTALIZACAO:'pGerarTotalizacao', PGERARDADOS:'pGerarDados', PORDENAR:'pOrdenar', PORDENACAO:'pOrdenacao' };
+  const nomes = { PMODELO:'pModelo', PDATAINICIAL:'pDataInicial', PDATAFINAL:'pDataFinal', PTIPOMOVIMENTO:'pTipoMovimento', PTIPOESPECIE:'pTipoEspecie', PTIPOSITUACAODOCUMENTO:'pTipoSituacaoDocumento', PTIPOPERIODO:'pTipoPeriodo', PTIPOIMPOSTO:'pTipoImposto', PTOTALIZAR:'pTotalizar', PLISTAROUTRASINFO:'pListarOutrasInfo', PLISTARTOTALIMPOSTO:'pListarTotalImposto', PEXIBIRDADOSNATUREZA:'pExibirDadosNatureza', PEXIBIRDADOSPESSOA:'pExibirDadosPessoa', PEXIBIRDADOSPRODUTO:'pExibirDadosProduto', PLINHAHORIZONTAL:'pLinhaHorizontal', PDETALHARPRODUTOS:'pDetalharProdutos', PQUEBRAPORMOVIMENTO:'pQuebraPorMovimento', PVALOR:'pValor', PCODIGOEMPRESA:'pCodigoEmpresa', PCODIGOESTAB:'pCodigoEstab', PCODIGOPRODUTO:'pCodigoProduto', PCODIGOCFOP:'pCodigoCFOP', PCODIGOPESSOA:'pCodigoPessoa', PCLASSIFFISCAL:'pClassifFiscal', PCST:'pCst', PCFOP:'pCfop', PTIPOCREDITO:'pTipoCredito', PTIPODEBITO:'pTipoDebito', PAGRUPAR:'pAgrupar', PGERARTOTALIZACAO:'pGerarTotalizacao', PGERARDADOS:'pGerarDados', PORDENAR:'pOrdenar', PORDENACAO:'pOrdenacao' };
   const dataQuestor = (valor) => {
     const m = String(valor || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return m ? `${m[3]}/${m[2]}/${m[1]}` : valor;
@@ -50,7 +50,7 @@ function validarRetornoRelatorio(texto) {
 async function executar(t) {
   if(!permitidas.has(t.tipo)) throw new Error('Tarefa não permitida pelo conector.');
   if(t.tipo==='TESTAR_NWEB') return { versao:await nweb('/TnWebDMDadosGerais/PegarVersaoQuestor'), info:await nweb('/TnInfo/Info') };
-  const acao=t.payload?.actionName || (t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS' ? 'nFisRRDocFiscalCancelado' : 'nFisRRTotalPISCOFINSProd');
+  const acao=t.payload?.actionName || (t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS' ? 'nFisRRDocFiscalCancelado' : t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO' ? 'TnFisDPConsultLctoFiscal' : 'nFisRRTotalPISCOFINSProd');
   if(t.tipo==='PARAMETROS_RELATORIO') return { parametros:await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acao}) };
   if(t.tipo==='IMPORTAR_MOVIMENTACAO') { const entrada=t.payload?.tipo==='fornecedor'; return { registros:JSON.parse(await nweb(entrada?'/TnWebDMFiscal/PegarLancamentosEntrada':'/TnWebDMFiscal/PegarLancamentosSaida',{codigoempresa:t.payload.codigo_questor,datainicial:t.payload.inicio,datafinal:t.payload.fim})) }; }
   // Os controles do relatório são vinculados pelo corpo JSON. Campos ftDate

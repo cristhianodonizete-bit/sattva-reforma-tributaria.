@@ -189,7 +189,11 @@ function consolidar(db, empresaId, opcoes = {}) {
     const p = linha.perfil;
     const receitaPerfil = p ? numero(p.receita_bruta) : null;
     const receitaDocumentada = linha.documentos ? numero(linha.documentos.receita_documentada) : null;
-    const receitaSemDfe = (linha.receitas_sem_dfe || []).reduce((s, x) => s + numero(x.valor), 0);
+    // Outras receitas confirmadas são fatos econômicos fora do XML/DF-e e
+    // integram a base do Perfil. Possíveis duplicidades continuam fora até a
+    // revisão para não inflar a receita analisada.
+    const receitasComplementaresValidas=(linha.receitas_sem_dfe || []).filter((x)=>x.status_validacao!=='POSSIVEL_DUPLICIDADE');
+    const receitaSemDfe = receitasComplementaresValidas.reduce((s, x) => s + numero(x.valor), 0);
     const tributosHistoricos = p ? numero(p.icms) + numero(p.iss) + numero(p.ipi) + numero(p.pis) + numero(p.cofins) + numero(p.das) : null;
     const margem = margens.find((x) => x.periodo_inicio <= linha.competencia && x.periodo_fim >= linha.competencia) || null;
     const eSimples = /simples|mei/.test(String(empresa.regime || '').toLowerCase());
@@ -208,7 +212,7 @@ function consolidar(db, empresaId, opcoes = {}) {
     // PGDAS é evidência de carga e de auditoria; nunca substitui faturamento.
     // Em caixa, somente o denominador da carga efetiva usa receita recebida.
     const simplesCaixa = eSimples && empresa.regime_reconhecimento_simples === 'caixa';
-    const receitaAtual = receitaDocumentada;
+    const receitaAtual = receitaDocumentada === null && !receitasComplementaresValidas.length ? null : numero(receitaDocumentada) + receitaSemDfe;
     const receitaRecebida = p?.receita_recebida != null ? numero(p.receita_recebida) : null;
     const receitaParaCarga = simplesCaixa ? receitaRecebida : receitaAtual;
     const apuracaoConfirmada = ['VALIDADO_USUARIO','VALIDADO_AUTOMATICAMENTE'].includes(apuracao?.status_validacao)
@@ -229,7 +233,7 @@ function consolidar(db, empresaId, opcoes = {}) {
       composicao_receitas: p ? {
         mercadorias: valor(p.receita_mercadorias), servicos: valor(p.receita_servicos), exportacao: valor(p.receita_exportacao),
       } : { natureza: 'INDETERMINADO' },
-      receitas_sem_dfe: { valor: (linha.receitas_sem_dfe || []).length ? receitaSemDfe : null, natureza: (linha.receitas_sem_dfe || []).length ? 'REAL' : 'INDETERMINADO', registros: (linha.receitas_sem_dfe || []).length },
+      receitas_sem_dfe: { valor: receitasComplementaresValidas.length ? receitaSemDfe : null, natureza: receitasComplementaresValidas.length ? 'REAL' : 'INDETERMINADO', registros: receitasComplementaresValidas.length },
       pis_historico: valor(p?.pis, p ? 'REAL' : 'INDETERMINADO'),
       cofins_historico: valor(p?.cofins, p ? 'REAL' : 'INDETERMINADO'),
       carga_pis_cofins_atual: cargaPisCofinsAtual,

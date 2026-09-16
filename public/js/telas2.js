@@ -698,7 +698,7 @@ Telas.questor = async (el) => {
   const estadoTarefa = (t) => ({
     PENDENTE: ['Aguardando conector', 'a'], EM_EXECUCAO: ['Processando', ''], CONCLUIDA: ['Concluída', 'c'], ERRO: ['Falhou', 'alto'],
   }[t.status] || [t.status, '']);
-  const tipoTarefa = (t) => ({ APURACAO_PIS_COFINS: 'Apuração PIS/COFINS', PARAMETROS_RELATORIO: 'Leitura dos parâmetros do relatório', DOCUMENTOS_FISCAIS_CANCELADOS: 'Conciliação de documentos fiscais', CONCILIAR_CFOP_SAIDAS: 'Conciliação de CFOPs de saída', TESTAR_NWEB: 'Teste do nWeb' }[t.tipo] || t.tipo);
+  const tipoTarefa = (t) => ({ APURACAO_PIS_COFINS: 'Apuração PIS/COFINS', PARAMETROS_RELATORIO: 'Leitura dos parâmetros do relatório', DOCUMENTOS_FISCAIS_CANCELADOS: 'Conciliação de documentos fiscais', CONCILIAR_CFOP_SAIDAS: 'Conciliação de CFOPs de saída', IMPORTAR_OUTRAS_RECEITAS_LOCACAO: 'Importação de locações para outras receitas', TESTAR_NWEB: 'Teste do nWeb' }[t.tipo] || t.tipo);
   const detalheTarefa = (t) => {
     if (t.erro) return `<span class="mini" style="color:#b42318"><b>Erro:</b> ${A.esc(t.erro)}</span>`;
     if (t.status !== 'CONCLUIDA') return '<span class="mini">Aguardando atualização.</span>';
@@ -730,6 +730,7 @@ Telas.questor = async (el) => {
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button><button class="btn vazio" id="consultarParametrosApuracaoQuestor">Consultar parâmetros do relatório</button></div>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="buscarCancelamentosQuestor">Buscar cancelamentos no Questor</button><button class="btn vazio" id="conciliarCancelamentosQuestor">Importar relatório exportado</button></div>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="consultarParametrosConferenciaSaidas">Consultar parâmetros da Conferência de Saídas</button><button class="btn vazio" id="conciliarCfopsSaidasQuestor">Conciliar CFOPs de saída</button></div>
+        <div style="margin-top:10px"><button class="btn vazio" id="importarLocacoesQuestor">Buscar locações REC para outras receitas</button><p class="mini" style="margin:6px 0 0">Importa somente lançamentos REC cuja descrição indique locação/aluguel. Imóveis e bens móveis são classificados separadamente.</p></div>
         <div id="statusImportacaoQuestor" class="mini" role="status" style="margin-top:10px"></div>
         <p class="mini" style="margin-top:8px">Usa o período analisado e o código Questor da empresa. XMLs já importados não são consultados novamente.</p>
         <hr class="sep">
@@ -806,6 +807,20 @@ Telas.questor = async (el) => {
     await A.api(`/empresas/${S.empresaId}/questor/conector/parametros-relatorio-pis-cofins`, {metodo:'POST',corpo:{}});
     A.toast('Consulta dos parâmetros solicitada. Atualize a fila em alguns segundos para ver o retorno.', 'ok');
     A.ir('questor');
+  };
+  document.getElementById('importarLocacoesQuestor').onclick = async (evento) => {
+    if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
+    const inicio=val('inicio'), fim=val('fim');
+    if (!inicio || !fim || inicio>fim) return A.toast('Informe data inicial e final válidas.', 'erro');
+    const botao=evento.currentTarget, status=el.querySelector('#statusImportacaoQuestor');
+    botao.disabled=true; botao.textContent='Solicitando busca…';
+    status.innerHTML='<span class="tag a">Buscando lançamentos REC de locação no Questor…</span><div class="mini" style="margin-top:6px">A descrição definirá se o lançamento é locação de bem móvel ou de imóvel.</div>';
+    try {
+      const r=await A.api(`/empresas/${S.empresaId}/questor/conector/outras-receitas-locacao`,{metodo:'POST',corpo:{inicio,fim}});
+      status.innerHTML=`<span class="tag c">Solicitação registrada</span><div class="mini" style="margin-top:6px">Busca enviada ao conector (solicitação ${A.esc(r.tarefa_id)}). Quando concluída, os valores entram na base de Outras receitas e no Perfil Tributário.</div>`;
+      A.toast('Busca de locações enviada ao conector.', 'ok');
+    } catch(e) { status.innerHTML=`<span class="tag alto">Não foi possível solicitar</span><div class="mini" style="margin-top:6px">${A.esc(e.message)}</div>`; A.toast(e.message,'erro');
+    } finally { botao.disabled=false; botao.textContent='Buscar locações REC para outras receitas'; }
   };
   document.getElementById('consultarParametrosConferenciaSaidas').onclick = async () => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
