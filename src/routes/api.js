@@ -4105,7 +4105,10 @@ router.post('/empresas/:id/questor/conector/outras-receitas-locacao', async (req
   if(!c) throw new Error('Inicie um conector Questor que pertença ao seu usuário antes da busca.');
   const existe=db.prepare("SELECT id FROM questor_conector_tarefas WHERE conector_id=? AND empresa_id=? AND tipo='IMPORTAR_OUTRAS_RECEITAS_LOCACAO' AND status IN ('PENDENTE','EM_EXECUCAO') LIMIT 1").get(c.id,empresaId);
   if(existe) return ok(res,{tarefa_id:existe.id,reaproveitada:true});
-  const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,empresaId,'IMPORTAR_OUTRAS_RECEITAS_LOCACAO',JSON.stringify({actionName:'TnFisDPConsultLctoFiscal',consulta:{codigo_questor:empresa.codigo_questor,inicio,fim,especie:'REC'}}));
+  // A Conferência de Saídas é um relatório já exposto pelo nWeb nesta
+  // instalação. Diferentemente da tela de consulta, ela permite execução
+  // remota e recebe a espécie REC como filtro oficial do Questor.
+  const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,empresaId,'IMPORTAR_OUTRAS_RECEITAS_LOCACAO',JSON.stringify({actionName:'nFisRRResumoConfLctoFisSaiGrafico',parametros:{PCODIGOEMPRESA:empresa.codigo_questor,PDATAINICIAL:inicio,PDATAFINAL:fim,PTIPOPERIODO:'1',PTIPOIMPOSTO:'1',PTOTALIZAR:'0',PLISTAROUTRASINFO:'0',PLISTARTOTALIMPOSTO:'0',PEXIBIRDADOSNATUREZA:'1',PEXIBIRDADOSPESSOA:'1',PEXIBIRDADOSPRODUTO:'1',PLINHAHORIZONTAL:'0',PESPECIE:'REC',PORDENACAO:'1'}}));
   const tarefa=db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(r.lastInsertRowid); await questorPersistencia.publicarTarefa(tarefa);
   ok(res,{tarefa_id:r.lastInsertRowid,periodo:{inicio,fim}});
 } catch(e){erro(res,e);} });

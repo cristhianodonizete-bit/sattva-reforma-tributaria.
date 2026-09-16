@@ -34,7 +34,7 @@ async function nweb(rota, params={}, body) {
 // camelCase (pDataInicial). Preservamos o contrato interno e traduzimos só na
 // borda do conector.
 function parametrosRelatorioNweb(parametros={}) {
-  const nomes = { PMODELO:'pModelo', PDATAINICIAL:'pDataInicial', PDATAFINAL:'pDataFinal', PTIPOMOVIMENTO:'pTipoMovimento', PTIPOESPECIE:'pTipoEspecie', PTIPOSITUACAODOCUMENTO:'pTipoSituacaoDocumento', PTIPOPERIODO:'pTipoPeriodo', PTIPOIMPOSTO:'pTipoImposto', PTOTALIZAR:'pTotalizar', PLISTAROUTRASINFO:'pListarOutrasInfo', PLISTARTOTALIMPOSTO:'pListarTotalImposto', PEXIBIRDADOSNATUREZA:'pExibirDadosNatureza', PEXIBIRDADOSPESSOA:'pExibirDadosPessoa', PEXIBIRDADOSPRODUTO:'pExibirDadosProduto', PLINHAHORIZONTAL:'pLinhaHorizontal', PDETALHARPRODUTOS:'pDetalharProdutos', PQUEBRAPORMOVIMENTO:'pQuebraPorMovimento', PVALOR:'pValor', PCODIGOEMPRESA:'pCodigoEmpresa', PCODIGOESTAB:'pCodigoEstab', PCODIGOPRODUTO:'pCodigoProduto', PCODIGOCFOP:'pCodigoCFOP', PCODIGOPESSOA:'pCodigoPessoa', PCLASSIFFISCAL:'pClassifFiscal', PCST:'pCst', PCFOP:'pCfop', PTIPOCREDITO:'pTipoCredito', PTIPODEBITO:'pTipoDebito', PAGRUPAR:'pAgrupar', PGERARTOTALIZACAO:'pGerarTotalizacao', PGERARDADOS:'pGerarDados', PORDENAR:'pOrdenar', PORDENACAO:'pOrdenacao' };
+  const nomes = { PMODELO:'pModelo', PDATAINICIAL:'pDataInicial', PDATAFINAL:'pDataFinal', PTIPOMOVIMENTO:'pTipoMovimento', PTIPOESPECIE:'pTipoEspecie', PESPECIE:'pEspecie', PTIPOSITUACAODOCUMENTO:'pTipoSituacaoDocumento', PTIPOPERIODO:'pTipoPeriodo', PTIPOIMPOSTO:'pTipoImposto', PTOTALIZAR:'pTotalizar', PLISTAROUTRASINFO:'pListarOutrasInfo', PLISTARTOTALIMPOSTO:'pListarTotalImposto', PEXIBIRDADOSNATUREZA:'pExibirDadosNatureza', PEXIBIRDADOSPESSOA:'pExibirDadosPessoa', PEXIBIRDADOSPRODUTO:'pExibirDadosProduto', PLINHAHORIZONTAL:'pLinhaHorizontal', PDETALHARPRODUTOS:'pDetalharProdutos', PQUEBRAPORMOVIMENTO:'pQuebraPorMovimento', PVALOR:'pValor', PCODIGOEMPRESA:'pCodigoEmpresa', PCODIGOESTAB:'pCodigoEstab', PCODIGOPRODUTO:'pCodigoProduto', PCODIGOCFOP:'pCodigoCFOP', PCODIGOPESSOA:'pCodigoPessoa', PCLASSIFFISCAL:'pClassifFiscal', PCST:'pCst', PCFOP:'pCfop', PTIPOCREDITO:'pTipoCredito', PTIPODEBITO:'pTipoDebito', PAGRUPAR:'pAgrupar', PGERARTOTALIZACAO:'pGerarTotalizacao', PGERARDADOS:'pGerarDados', PORDENAR:'pOrdenar', PORDENACAO:'pOrdenacao' };
   const dataQuestor = (valor) => {
     const m = String(valor || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
     return m ? `${m[3]}/${m[2]}/${m[1]}` : valor;
@@ -53,20 +53,9 @@ function validarRetornoRelatorio(texto) {
 async function executar(t) {
   if(!permitidas.has(t.tipo)) throw new Error('Tarefa não permitida pelo conector.');
   if(t.tipo==='TESTAR_NWEB') return { versao:await nweb('/TnWebDMDadosGerais/PegarVersaoQuestor'), info:await nweb('/TnInfo/Info') };
-  const acao=t.payload?.actionName || (t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS' ? 'nFisRRDocFiscalCancelado' : t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO' ? 'TnFisDPConsultLctoFiscal' : 'nFisRRTotalPISCOFINSProd');
+  const acao=t.payload?.actionName || (t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS' ? 'nFisRRDocFiscalCancelado' : t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO' ? 'nFisRRResumoConfLctoFisSaiGrafico' : 'nFisRRTotalPISCOFINSProd');
   if(t.tipo==='PARAMETROS_RELATORIO') return { parametros:await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acao}) };
   if(t.tipo==='IMPORTAR_MOVIMENTACAO') { const entrada=t.payload?.tipo==='fornecedor'; return { registros:JSON.parse(await nweb(entrada?'/TnWebDMFiscal/PegarLancamentosEntrada':'/TnWebDMFiscal/PegarLancamentosSaida',{codigoempresa:t.payload.codigo_questor,datainicial:t.payload.inicio,datafinal:t.payload.fim})) }; }
-  if(t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO') {
-    // TnFisDPConsultLctoFiscal é formulário de consulta, não relatório.
-    // A rota nWeb estruturada de lançamentos é a fonte apropriada: recebemos
-    // dados e filtramos REC/locação no Sattva, sem tentar abrir a tela Delphi.
-    const consulta = t.payload?.consulta || {};
-    const texto = await nweb('/TnWebDMFiscal/PegarLancamentosSaida', { codigoempresa:consulta.codigo_questor, datainicial:consulta.inicio, datafinal:consulta.fim });
-    let registros;
-    try { registros = JSON.parse(texto); }
-    catch (_) { throw new Error('O nWeb não devolveu lançamentos de saída em formato estruturado. Nenhuma outra receita foi importada.'); }
-    return { endpoint:'/TnWebDMFiscal/PegarLancamentosSaida', registros };
-  }
   // Os controles do relatório são vinculados pelo corpo JSON. Campos ftDate
   // precisam da máscara pt-BR (dd/mm/aaaa) para o parser Delphi do nWeb.
   const parametros = parametrosRelatorioNweb(t.payload?.parametros || {});
