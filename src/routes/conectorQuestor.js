@@ -7,22 +7,30 @@ const persistencia = require('../services/questorPersistencia');
 const supabase = require('../services/supabase');
 const router = express.Router();
 const hash = (v) => crypto.createHash('sha256').update(String(v || '')).digest('hex');
-async function conciliarCancelamentosQuestor(empresaId, texto) {
+function lerCancelamentosQuestor(texto) {
   // nWeb devolve o NRWEX como envelope JSON. O relatório já é exclusivo de
   // cancelados, portanto a situação é evidência do próprio relatório, ainda
   // que não exista uma coluna "Situação" em cada linha.
   let fonte=String(texto||''); try { const envelope=JSON.parse(fonte); fonte=String(envelope?.Data||fonte); } catch (_) { /* retorno textual direto */ }
   const ano=(fonte.match(/Per[ií]odo:\s*\d{2}\/\d{2}\/(\d{4})/i)||[])[1]||'';
-  const linhas=fonte.replace(/\r/g,'').split('\n'); const saida={linhas_lidas:0,atualizados:0,ambiguos:0,nao_localizados:0}; const ids=[];
+  const linhas=fonte.replace(/\r/g,'').split('\n');
   const registros=[];
   for(const linha of linhas){
     // Layout nFisRRDocFiscalCancelado: lançamento, cliente, data, número,
     // espécie, série, natureza, valor contábil e situação. O cliente pode
     // conter espaços; por isso a extração ancora na data e no final da linha.
-    const m=linha.match(/^\s*\d+\s+\d+\s+.+?\s+(\d{2}\/\d{2}\/\d{3,4})\s+(\d+)\s*(NFE|NFSE|NFCE|CTE)\s+(\d*)\s+\S+\s+[\d.,]+\s*$/i);
+    // Algumas versões trazem "Cancelado" como última coluna; outras já
+    // filtram o relatório e não imprimem a situação. Ambas são a mesma
+    // evidência e precisam ser aceitas.
+    const m=linha.match(/^\s*\d+\s+\d+\s+.+?\s+(\d{2}\/\d{2}\/\d{3,4})\s+(\d+)\s*(NFE|NFSE|NFCE|CTE)\s+(\d*)\s+\S+\s+[\d.,]+(?:\s+(?:Cancelado|Denegado|Inutilizado))?\s*$/i);
     if(!m) continue; const y=m[1].slice(6).length===4?m[1].slice(6):ano;
     if(!/^\d{4}$/.test(y)) continue; registros.push({data:`${y}-${m[1].slice(3,5)}-${m[1].slice(0,2)}`,numero:m[2],modelo:m[3].toLowerCase(),serie:m[4],situacao:'CANCELADO'});
   }
+  return registros;
+}
+async function conciliarCancelamentosQuestor(empresaId, texto) {
+  const registros=lerCancelamentosQuestor(texto);
+  const saida={linhas_lidas:0,atualizados:0,ambiguos:0,nao_localizados:0}; const ids=[];
   // Há bases antigas em que o espelho compartilhado preservou o ID
   // operacional anterior. Para documentos de saída, o CNPJ emitente é a
   // identidade fiscal estável da empresa e evita deixar cancelamentos fora da
@@ -165,3 +173,4 @@ router.post('/tarefas/:id/resultado',async(req,res)=>{
   }
 });
 module.exports=router;
+module.exports.lerCancelamentosQuestor=lerCancelamentosQuestor;
