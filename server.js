@@ -34,6 +34,10 @@ app.use('/api/conector-questor', require('./src/routes/conectorQuestor'));
 
 app.use('/auth', require('./src/routes/auth'));
 app.use('/api', (req, res, next) => {
+  // Gestão de identidades é atendida diretamente pela base compartilhada de
+  // acessos; não depende da fotografia fiscal local. Um convite nunca pode
+  // ficar retido por uma carga de documentos, movimentos ou catálogos.
+  if (req.path === '/acessos' || req.path.startsWith('/acessos/')) return next();
   // A primeira tabela da carga-base é a carteira de empresas. Assim que ela
   // chega ao SQLite, a navegação de consulta já pode funcionar, mesmo que
   // catálogos auxiliares ainda estejam sendo restaurados. Antes, o estado era
