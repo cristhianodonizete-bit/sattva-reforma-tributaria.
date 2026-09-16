@@ -16,6 +16,15 @@ function normalizarTexto(valor) {
   return texto(valor).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ');
 }
 
+// A entrada operacional deve ser curta. A classificação é responsabilidade
+// do sistema: aluguel de equipamento e locação de bem móvel são o mesmo fato.
+function classificacaoAutomatica(tipoReceita, descricao) {
+  const chave = normalizarTexto(`${tipoReceita} ${descricao}`);
+  if (/locacao|aluguel|aluguer/.test(chave)) return 'LOCACAO_BEM_MOVEL';
+  if (/receita financeira|juros|rendimento financeiro|aplicacao financeira/.test(chave)) return 'RECEITA_FINANCEIRA';
+  return 'OUTRA';
+}
+
 function competenciaValida(valor) {
   return /^\d{4}-(0[1-9]|1[0-2])$/.test(texto(valor));
 }
@@ -78,7 +87,7 @@ function salvarReceitaSemDfe(db, empresaId, dados) {
   if (!competenciaValida(competencia)) throw new Error('Competência deve estar no formato AAAA-MM.');
   if (!tipoReceita || !descricao) throw new Error('Tipo e descrição da receita são obrigatórios.');
   const valor = numeroObrigatorio(dados.valor, 'Valor da receita');
-  const classificacao = texto(dados.classificacao_fiscal).toUpperCase();
+  const classificacao = texto(dados.classificacao_fiscal).toUpperCase() || classificacaoAutomatica(tipoReceita, descricao);
   // Registros legados e planilhas antigas continuam importáveis, porém ficam
   // pendentes até receberem a classificação comparável na revisão.
   const classificacaoValida = CLASSIFICACOES_RECEITA.has(classificacao) ? classificacao : 'OUTRA';
@@ -110,4 +119,4 @@ function listar(db, empresaId) {
   };
 }
 
-module.exports = { salvarFolha, salvarMargem, salvarReceitaSemDfe, listar, STATUS_VALIDACAO, CLASSIFICACOES_RECEITA };
+module.exports = { salvarFolha, salvarMargem, salvarReceitaSemDfe, listar, STATUS_VALIDACAO, CLASSIFICACOES_RECEITA, classificacaoAutomatica };

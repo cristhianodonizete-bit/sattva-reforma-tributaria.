@@ -348,7 +348,7 @@ function gerarModelo(tipo) {
     dados = [{ 'Competência': '2026-01', 'Valor da Folha': 25000, 'Pró-labore': 5000, 'Referência do arquivo': 'Folha janeiro/2026' }];
   } else if (tipo === 'receitas_sem_dfe') {
     nomeAba = 'Receitas sem DFe';
-    dados = [{ 'Competência': '2026-01', 'Tipo de receita': 'Locação', 'Classificação fiscal': 'LOCACAO_BEM_MOVEL', Subtipo: 'Equipamento', 'Objeto da operação': 'Locação mensal de equipamento', 'Descrição': 'Locação de equipamentos', Valor: 3500, 'Identificador Questor': '38988', 'Espécie Questor': 'REC', 'Segregação da apuração': 'LOCAÇÃO / SERVIÇOS', 'Base PIS/COFINS atual': 3500, 'PIS atual do lançamento': '', 'COFINS atual do lançamento': '', 'Critério de tributação atual': 'RATEIO_PELA_APURACAO_DA_SEGREGACAO', 'Origem da tributação atual': 'APURACAO_PIS_COFINS', 'Contrato / referência': 'Contrato 123', Evidência: 'Relatório Questor de lançamentos', Origem: 'QUESTOR' }];
+    dados = [{ 'Competência': '2026-01', 'Tipo de receita': 'Locação de bens móveis', 'Descrição': 'Locação mensal de equipamento', Valor: 3500, 'Identificador Questor': '38988' }];
   } else if (tipo === 'participantes') {
     nomeAba = 'Participantes';
     dados = [{ Nome: 'Nome do participante', Área: 'Financeiro', 'E-mail': 'participante@empresa.com', Empresa: 'Empresa vinculada (somente turma compartilhada)', CNPJ: '12.345.678/0001-90' }];
@@ -384,7 +384,7 @@ function gerarModelo(tipo) {
     ...(tipo === 'referencias_servicos' ? [{ Campo: 'Referências fiscais', 'Valores aceitos': 'Informe Descrição do serviço e ao menos PIS/COFINS ou DAS efetivo. As alíquotas aceitam 9,25% ou 0,0925. NBS é opcional.' }] : []),
     ...(tipo === 'pgdas' ? [{ Campo: 'PGDAS', 'Valores aceitos': 'Competência e DAS são obrigatórios. Receita Bruta, PIS e COFINS são opcionais; ausência não é transformada em zero.' }] : []),
     ...(tipo === 'folha' ? [{ Campo: 'Folha', 'Valores aceitos': 'Competência e Valor da Folha são obrigatórios. Pró-labore e Referência do arquivo são opcionais.' }] : []),
-    ...(tipo === 'receitas_sem_dfe' ? [{ Campo: 'Receita sem DF-e', 'Valores aceitos': 'Competência, Tipo, Descrição e Valor são obrigatórios. Informe Identificador e Espécie Questor quando a linha vier do ERP. Segregação da apuração define qual base mensal será usada. PIS/COFINS do lançamento são opcionais: preencha somente se o Questor devolver os valores da linha; em branco, o sistema aplicará o critério informado e registrará a origem do rateio. Classificação fiscal, Subtipo, Objeto e Contrato qualificam o cálculo CBS/IBS.' }] : []),
+    ...(tipo === 'receitas_sem_dfe' ? [{ Campo: 'Receita sem DF-e', 'Valores aceitos': 'Preencha somente Competência, Tipo de receita, Descrição, Valor e, se houver, Identificador Questor. Tipos iniciais: “Locação de bens móveis” (inclui aluguel de equipamentos) e “Receita financeira”. O sistema define a classificação e busca a tributação aplicável; não informe alíquotas, PIS, Cofins, CBS ou IBS.' }] : []),
     ...(tipo === 'participantes' ? [{ Campo: 'Participantes', 'Valores aceitos': 'Nome é obrigatório. Área e E-mail são opcionais. Empresa ou CNPJ só são usados em turmas compartilhadas.' }] : []),
     ...(tipo === 'apuracao_pis_cofins' ? [{ Campo: 'Apuração PIS/Cofins', 'Valores aceitos': 'Use o relatório original quando disponível. A planilha modelo aceita Competência, Receita Base, débitos, créditos, recolhidos e observações; campos sem evidência permanecem não identificados.' }] : []),
   ];
