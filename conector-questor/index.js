@@ -53,9 +53,10 @@ function validarRetornoRelatorio(texto) {
 }
 function nomeAcaoParaMetadados(nomeInterno) {
   const nome = String(nomeInterno || '');
-  // O Questor informa na tela o nome interno (TnFis...), mas o serviço de
-  // metadados procura a action Delphi correspondente (actTnFis...).
-  return /^act/i.test(nome) ? nome : `act${nome}`;
+  // O Questor informa a classe da tela (TnFis...), mas o serviço procura o
+  // componente action (actnFis...). O "Tn" pertence só ao formulário.
+  if (/^act/i.test(nome)) return nome;
+  return `act${nome.replace(/^Tn/i, '')}`;
 }
 async function executar(t) {
   if(!permitidas.has(t.tipo)) throw new Error('Tarefa não permitida pelo conector.');
@@ -67,6 +68,7 @@ async function executar(t) {
     // Esta ação é uma consulta do Questor, cujo contrato não foi publicado.
     // Primeiro lemos o metadado local e só enviamos os campos que ele confirmar.
     const acaoMetadados = nomeAcaoParaMetadados(acao);
+    console.log(`${new Date().toISOString()} Metadados Questor: ${acaoMetadados}.`);
     const metadados = await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acaoMetadados});
     const parametros = parametrosConsultaConfirmados(metadados, t.payload?.consulta || {});
     const relatorio = validarRetornoRelatorio(await nweb('/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT'}, parametros));
