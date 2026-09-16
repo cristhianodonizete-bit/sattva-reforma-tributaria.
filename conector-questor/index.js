@@ -2,7 +2,6 @@
    autenticadas no Sattva e chama três rotas nWeb de leitura. */
 const fs = require('fs');
 const path = require('path');
-const { parametrosConsultaConfirmados } = require('./parametrosConsulta');
 const cfgPath = path.join(__dirname, 'config.json');
 if (!fs.existsSync(cfgPath)) throw new Error('Crie config.json a partir de config.example.json.');
 // O configurador do Windows pode gravar UTF-8 com BOM. Remove a marca antes
@@ -51,13 +50,6 @@ function validarRetornoRelatorio(texto) {
   }
   return texto;
 }
-function nomeAcaoParaMetadados(nomeInterno) {
-  const nome = String(nomeInterno || '');
-  // O Questor informa a classe da tela (TnFis...), mas o serviço procura o
-  // componente action (actnFis...). O "Tn" pertence só ao formulário.
-  if (/^act/i.test(nome)) return nome;
-  return `act${nome.replace(/^Tn/i, '')}`;
-}
 async function executar(t) {
   if(!permitidas.has(t.tipo)) throw new Error('Tarefa não permitida pelo conector.');
   if(t.tipo==='TESTAR_NWEB') return { versao:await nweb('/TnWebDMDadosGerais/PegarVersaoQuestor'), info:await nweb('/TnInfo/Info') };
@@ -65,14 +57,15 @@ async function executar(t) {
   if(t.tipo==='PARAMETROS_RELATORIO') return { parametros:await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acao}) };
   if(t.tipo==='IMPORTAR_MOVIMENTACAO') { const entrada=t.payload?.tipo==='fornecedor'; return { registros:JSON.parse(await nweb(entrada?'/TnWebDMFiscal/PegarLancamentosEntrada':'/TnWebDMFiscal/PegarLancamentosSaida',{codigoempresa:t.payload.codigo_questor,datainicial:t.payload.inicio,datafinal:t.payload.fim})) }; }
   if(t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO') {
-    // Esta ação é uma consulta do Questor, cujo contrato não foi publicado.
-    // Primeiro lemos o metadado local e só enviamos os campos que ele confirmar.
-    const acaoMetadados = nomeAcaoParaMetadados(acao);
-    console.log(`${new Date().toISOString()} Metadados Questor: ${acaoMetadados}.`);
-    const metadados = await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acaoMetadados});
-    const parametros = parametrosConsultaConfirmados(metadados, t.payload?.consulta || {});
-    const relatorio = validarRetornoRelatorio(await nweb('/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT'}, parametros));
-    return { actionName:acao, acao_metadados:acaoMetadados, formato:'nrwexTXT', parametros_confirmados:Object.keys(parametros), relatorio };
+    // TnFisDPConsultLctoFiscal é formulário de consulta, não relatório.
+    // A rota nWeb estruturada de lançamentos é a fonte apropriada: recebemos
+    // dados e filtramos REC/locação no Sattva, sem tentar abrir a tela Delphi.
+    const consulta = t.payload?.consulta || {};
+    const texto = await nweb('/TnWebDMFiscal/PegarLancamentosSaida', { codigoempresa:consulta.codigo_questor, datainicial:consulta.inicio, datafinal:consulta.fim });
+    let registros;
+    try { registros = JSON.parse(texto); }
+    catch (_) { throw new Error('O nWeb não devolveu lançamentos de saída em formato estruturado. Nenhuma outra receita foi importada.'); }
+    return { endpoint:'/TnWebDMFiscal/PegarLancamentosSaida', registros };
   }
   // Os controles do relatório são vinculados pelo corpo JSON. Campos ftDate
   // precisam da máscara pt-BR (dd/mm/aaaa) para o parser Delphi do nWeb.

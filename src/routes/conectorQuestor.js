@@ -175,9 +175,40 @@ function classificarLocacaoQuestor(descricao) {
   return /(imovel|imobili|predial|sala comercial|galpao|terreno)/.test(texto)
     ? 'ALUGUEL_IMOVEIS_PROPRIOS' : 'LOCACAO_BENS_MOVEIS';
 }
-function lerLocacoesQuestor(texto) {
-  let fonte=String(texto||''); try { const envelope=JSON.parse(fonte); fonte=String(envelope?.Data||envelope?.data||fonte); } catch (_) { /* retorno textual */ }
+function campoQuestor(linha, nomes) {
+  const normalizar=(v)=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[^a-z0-9]/gi,'').toLowerCase();
+  const indice=Object.fromEntries(Object.entries(linha||{}).map(([chave,valor])=>[normalizar(chave),valor]));
+  return nomes.map(normalizar).map((nome)=>indice[nome]).find((valor)=>valor!==undefined&&valor!==null&&valor!=='');
+}
+function registrosQuestorEstruturados(fonte) {
+  let valor=fonte;
+  if(typeof valor==='string') { try { valor=JSON.parse(valor); } catch (_) { return null; } }
+  if(Array.isArray(valor)) return valor;
+  if(valor&&typeof valor==='object') return ['registros','Registros','dados','Dados','data','Data','itens','Itens','result','Result']
+    .map((chave)=>valor[chave]).find(Array.isArray)||null;
+  return null;
+}
+function dataQuestorIso(valor) {
+  const texto=String(valor||''); const br=texto.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  return br?`${br[3]}-${br[2]}-${br[1]}`:(/^\d{4}-\d{2}-\d{2}/.test(texto)?texto.slice(0,10):null);
+}
+function lerLocacoesQuestor(fonteOriginal) {
+  const estruturados=registrosQuestorEstruturados(fonteOriginal);
   const registros=[];
+  if(estruturados) {
+    for(const linha of estruturados) {
+      const especie=String(campoQuestor(linha,['especie','tipoespecie','especiedocumento'])||'').trim().toUpperCase();
+      const descricao=String(campoQuestor(linha,['descricao','descricaoLancamento','historico','descricaoProduto'])||'').trim();
+      const data=dataQuestorIso(campoQuestor(linha,['dataLancamento','data','dataEmissao','competencia']));
+      const valor=numeroQuestor(campoQuestor(linha,['valorContabil','valor','valorTotal','valorLancamento']));
+      const identificador=campoQuestor(linha,['numeroLancamento','nrLcto','lancamento','codigoLancamento','id']);
+      const item=classificarLocacaoQuestor(descricao);
+      if(especie!=='REC'||!data||!identificador||!item||valor===null||valor<0) continue;
+      registros.push({identificador_origem:String(identificador),especie_questor:'REC',competencia:data.slice(0,7),data_lancamento:data,item_receita_chave:item,descricao,valor,linha:JSON.stringify(linha)});
+    }
+    return registros;
+  }
+  let fonte=String(fonteOriginal||''); try { const envelope=JSON.parse(fonte); fonte=String(envelope?.Data||envelope?.data||fonte); } catch (_) { /* retorno textual */ }
   for (const linha of fonte.replace(/\r/g,'').split('\n')) {
     // Layout observado: lançamento REC data código descrição ... valor.
     // A espécie REC é obrigatória; a descrição é conservada como evidência.
@@ -249,7 +280,7 @@ router.post('/tarefas/:id/resultado',async(req,res)=>{
     // anterior poderia regravar AUTORIZADO sobre o cancelamento confirmado.
     if(ok&&t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS') { resultado={...resultado,...await conciliarCancelamentosQuestor(t.empresa_id,resultado.relatorio)}; }
     if(ok&&t.tipo==='CONCILIAR_CFOP_SAIDAS') { resultado={...resultado,...await conciliarCfopSaidasQuestor(t.empresa_id,resultado.relatorio)}; require('../services/operacaoCompartilhada').publicar().catch(()=>{}); }
-    if(ok&&t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO') { resultado={...resultado,...await importarLocacoesQuestor(t.empresa_id,resultado.relatorio)}; }
+    if(ok&&t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO') { resultado={...resultado,...await importarLocacoesQuestor(t.empresa_id,resultado.registros)}; }
     db.prepare("UPDATE questor_conector_tarefas SET status=?,resultado_json=?,erro=?,executado_em=datetime('now','localtime') WHERE id=?").run(ok?'CONCLUIDA':'ERRO',ok?JSON.stringify(resultado):null,ok?null:String(req.body?.erro||'Erro sem detalhe'),t.id);
     await persistencia.publicarTarefa(db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(t.id));
     res.json({ok:true});
