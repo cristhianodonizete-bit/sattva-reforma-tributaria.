@@ -137,6 +137,7 @@ const COLUNAS_NOVAS = {
   receitas_sem_dfe: {
     classificacao_fiscal: 'TEXT', subtipo: 'TEXT', objeto_operacao: 'TEXT', contrato_referencia: 'TEXT', regra_atual: 'TEXT', regra_reforma: 'TEXT', status_comparabilidade: "TEXT DEFAULT 'PENDENTE_CLASSIFICACAO'",
     status_motor: "TEXT DEFAULT 'PENDENTE_CLASSIFICACAO'", regra_motor_id: 'INTEGER', regra_motor_versao: 'INTEGER', regra_motor_atual: 'TEXT', regra_motor_reforma: 'TEXT', cst_motor: 'TEXT', cclasstrib_motor: 'TEXT', fundamento_motor: 'TEXT', pendencia_motor: 'TEXT', processado_motor_em: 'TEXT',
+    identificador_origem: 'TEXT', especie_questor: 'TEXT', segregacao_apuracao: 'TEXT', base_pis_cofins_atual: 'REAL', pis_atual: 'REAL', cofins_atual: 'REAL', criterio_tributacao_atual: 'TEXT', tributacao_atual_origem: 'TEXT',
   },
   cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT', cnaes_secundarios: 'TEXT',
     logradouro: 'TEXT', numero: 'TEXT', complemento: 'TEXT', bairro: 'TEXT', cep: 'TEXT', data_abertura: 'TEXT' },

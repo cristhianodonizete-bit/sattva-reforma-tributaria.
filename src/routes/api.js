@@ -1237,7 +1237,7 @@ router.post('/empresas/:id/importar/receitas-sem-dfe', upload.single('arquivo'),
     for (const receita of r.registros) {
       try {
         const resultado = dadosAdicionaisAnalise.salvarReceitaSemDfe(db, Number(req.params.id), {
-          ...receita, origem: 'PLANILHA_ERP', evidencia: receita.evidencia || req.file.originalname,
+          ...receita, origem: receita.origem || 'PLANILHA_ERP', evidencia: receita.evidencia || req.file.originalname,
         });
         importados++;
         if (resultado.possivel_duplicidade) possiveisDuplicidades++;
