@@ -2058,8 +2058,15 @@ function filtrarDocumentosFiscais(documentos, filtros = {}) {
     && (!filtros.receita || (filtros.receita==='SIM' ? d.operacao_receita : !d.operacao_receita))
     && (!busca || `${d.documento || ''} ${d.chave || ''} ${d.parceiro || ''}`.toLowerCase().includes(busca)));
 }
-router.get('/empresas/:id/documentos-fiscais', (req, res) => {
+// Documento fiscal é uma evidência operacional. A tela e a exportação não
+// podem aceitar um cache antigo após cancelamento/retificação no Questor: a
+// leitura sempre reconcilia somente a empresa aberta com a fonte canônica.
+async function reconciliarDocumentosFiscaisParaLeitura(empresaId) {
+  return require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(Number(empresaId));
+}
+router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
   try {
+    await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
     const limite=Math.min(Math.max(Number(req.query.limite) || 500, 1), 2000);
     ok(res,listarDocumentosFiscais(req.params.id,limite));
   } catch (e) { erro(res,e); }
@@ -2067,6 +2074,7 @@ router.get('/empresas/:id/documentos-fiscais', (req, res) => {
 router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);
+    await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
     const resultado=listarDocumentosFiscais(req.params.id,2000);
     const documentos=filtrarDocumentosFiscais(resultado.documentos,req.query);
     const linhas=documentos.map((d)=>({
@@ -2085,8 +2093,9 @@ router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
     res.setHeader('Content-Disposition',`attachment; filename="documentos-fiscais-${req.params.id}.xlsx"`); res.send(arquivo);
   } catch(e) { erro(res,e); }
 });
-router.get('/empresas/:id/documentos-fiscais/:referencia', (req, res) => {
+router.get('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
   try {
+    await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
     const filtro=whereDocumentoFiscal(req.params.id,req.params.referencia);
     const itens=db.prepare(`SELECT * FROM movimentos WHERE ${filtro.sql} ORDER BY item_numero, id`).all(...filtro.valores);
     if (!itens.length) throw new Error('Documento fiscal não encontrado para a empresa selecionada.');
