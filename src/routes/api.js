@@ -4098,7 +4098,7 @@ router.post('/empresas/:id/questor/conector/outras-receitas-locacao', async (req
   if(!c) throw new Error('Inicie um conector Questor que pertença ao seu usuário antes da busca.');
   const existe=db.prepare("SELECT id FROM questor_conector_tarefas WHERE conector_id=? AND empresa_id=? AND tipo='IMPORTAR_OUTRAS_RECEITAS_LOCACAO' AND status IN ('PENDENTE','EM_EXECUCAO') LIMIT 1").get(c.id,empresaId);
   if(existe) return ok(res,{tarefa_id:existe.id,reaproveitada:true});
-  const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,empresaId,'IMPORTAR_OUTRAS_RECEITAS_LOCACAO',JSON.stringify({actionName:'TnFisDPConsultLctoFiscal',parametros:{PCODIGOEMPRESA:empresa.codigo_questor,PDATAINICIAL:inicio,PDATAFINAL:fim,PTIPOESPECIE:'REC'}}));
+  const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,empresaId,'IMPORTAR_OUTRAS_RECEITAS_LOCACAO',JSON.stringify({actionName:'TnFisDPConsultLctoFiscal',consulta:{codigo_questor:empresa.codigo_questor,inicio,fim,especie:'REC'}}));
   const tarefa=db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(r.lastInsertRowid); await questorPersistencia.publicarTarefa(tarefa);
   ok(res,{tarefa_id:r.lastInsertRowid,periodo:{inicio,fim}});
 } catch(e){erro(res,e);} });

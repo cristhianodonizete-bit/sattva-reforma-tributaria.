@@ -2,6 +2,7 @@
    autenticadas no Sattva e chama três rotas nWeb de leitura. */
 const fs = require('fs');
 const path = require('path');
+const { parametrosConsultaConfirmados } = require('./parametrosConsulta');
 const cfgPath = path.join(__dirname, 'config.json');
 if (!fs.existsSync(cfgPath)) throw new Error('Crie config.json a partir de config.example.json.');
 // O configurador do Windows pode gravar UTF-8 com BOM. Remove a marca antes
@@ -53,6 +54,14 @@ async function executar(t) {
   const acao=t.payload?.actionName || (t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS' ? 'nFisRRDocFiscalCancelado' : t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO' ? 'TnFisDPConsultLctoFiscal' : 'nFisRRTotalPISCOFINSProd');
   if(t.tipo==='PARAMETROS_RELATORIO') return { parametros:await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acao}) };
   if(t.tipo==='IMPORTAR_MOVIMENTACAO') { const entrada=t.payload?.tipo==='fornecedor'; return { registros:JSON.parse(await nweb(entrada?'/TnWebDMFiscal/PegarLancamentosEntrada':'/TnWebDMFiscal/PegarLancamentosSaida',{codigoempresa:t.payload.codigo_questor,datainicial:t.payload.inicio,datafinal:t.payload.fim})) }; }
+  if(t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO') {
+    // Esta ação é uma consulta do Questor, cujo contrato não foi publicado.
+    // Primeiro lemos o metadado local e só enviamos os campos que ele confirmar.
+    const metadados = await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acao});
+    const parametros = parametrosConsultaConfirmados(metadados, t.payload?.consulta || {});
+    const relatorio = validarRetornoRelatorio(await nweb('/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT'}, parametros));
+    return { actionName:acao, formato:'nrwexTXT', parametros_confirmados:Object.keys(parametros), relatorio };
+  }
   // Os controles do relatório são vinculados pelo corpo JSON. Campos ftDate
   // precisam da máscara pt-BR (dd/mm/aaaa) para o parser Delphi do nWeb.
   const parametros = parametrosRelatorioNweb(t.payload?.parametros || {});
