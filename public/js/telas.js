@@ -1142,19 +1142,29 @@ Telas.perfil = async (el) => {
     const linhas = filtro === 'receita' ? composicaoReceita.filter((x) => x.compoe_receita) : composicaoReceita;
     const meses = new Map();
     linhas.forEach((x) => {
-      const linha = meses.get(x.competencia) || { competencia:x.competencia, nfe:0, nfse:0, outros:0, total:0 };
-      const grupo = grupoModeloReceita(x.modelo_fiscal); linha[grupo] += Number(x.valor) || 0; linha.total += Number(x.valor) || 0; meses.set(x.competencia, linha);
+      const linha = meses.get(x.competencia) || { competencia:x.competencia, nfe:0, nfse:0, outros_documentos:0, outras_receitas:0, total:0 };
+      const grupo = grupoModeloReceita(x.modelo_fiscal); const campo = grupo === 'outros' ? 'outros_documentos' : grupo;
+      linha[campo] += Number(x.valor) || 0; linha.total += Number(x.valor) || 0; meses.set(x.competencia, linha);
+    });
+    // Receitas fora de DF-e confirmadas (inclusive as importadas do Questor)
+    // formam a mesma receita analisada do Perfil e precisam aparecer aqui.
+    historico.forEach((h) => {
+      const adicionais = Number(h.receitas_sem_dfe?.valor) || 0;
+      if (!adicionais) return;
+      const linha = meses.get(h.competencia) || { competencia:h.competencia, nfe:0, nfse:0, outros_documentos:0, outras_receitas:0, total:0 };
+      linha.outras_receitas += adicionais; linha.total += adicionais; meses.set(h.competencia, linha);
     });
     let anterior = null;
     return [...meses.values()].sort((a,b) => String(a.competencia).localeCompare(String(b.competencia))).map((x) => ({ ...x, variacao: anterior === null || !anterior ? null : (x.total / anterior) - 1, anterior: anterior = x.total }));
   };
   const tabelaComposicaoMensal = (filtro) => A.tabela([
-    {t:'Competência',r:x=>`<b>${A.esc(rotuloCompetencia(x.competencia))}</b>`}, {t:'NF-e',num:true,r:x=>A.moeda(x.nfe)}, {t:'NFS-e',num:true,r:x=>A.moeda(x.nfse)}, {t:'Outros',num:true,r:x=>A.moeda(x.outros)}, {t:'Faturamento total',num:true,r:x=>`<b>${A.moeda(x.total)}</b>`}, {t:'Var. mês',num:true,r:x=>x.variacao === null ? '—' : `${x.variacao >= 0 ? '+' : ''}${A.pct(x.variacao)}`},
+    {t:'Competência',r:x=>`<b>${A.esc(rotuloCompetencia(x.competencia))}</b>`}, {t:'NF-e',num:true,r:x=>A.moeda(x.nfe)}, {t:'NFS-e',num:true,r:x=>A.moeda(x.nfse)}, {t:'Outros DF-e',num:true,r:x=>A.moeda(x.outros_documentos)}, {t:'Outras receitas',num:true,r:x=>A.moeda(x.outras_receitas)}, {t:'Receita total',num:true,r:x=>`<b>${A.moeda(x.total)}</b>`}, {t:'Var. mês',num:true,r:x=>x.variacao === null ? '—' : `${x.variacao >= 0 ? '+' : ''}${A.pct(x.variacao)}`},
   ],linhasComposicaoMensal(filtro),{vazio:'Nenhum documento fiscal encontrado neste filtro.'});
+  const detalhesOutrasReceitas = historico.flatMap((h) => (h.receitas_sem_dfe?.itens || []).map((x) => ({ ...x, competencia:h.competencia })));
   const tabelaDetalheComposicao = (filtro) => A.tabela([
     {t:'Competência',r:x=>A.esc(rotuloCompetencia(x.competencia))},{t:'Modelo fiscal',r:x=>A.esc(String(x.modelo_fiscal||'—').toUpperCase())},{t:'CFOP',r:x=>`<span class="mono">${A.esc(x.cfop||'—')}</span>`},{t:'Decisão',r:x=>`<span class="tag ${x.compoe_receita?'c':'a'}">${x.compoe_receita?'Compõe receita':'Fora da receita'}</span><div class="mini">${A.esc(x.motivo||'')}</div>`},{t:'Itens',num:true,r:x=>x.itens},{t:'Valor documental',num:true,r:x=>A.moeda(x.valor)}
   ], filtro === 'receita' ? composicaoReceita.filter((x)=>x.compoe_receita) : composicaoReceita,{vazio:'Nenhum documento fiscal encontrado no período analisado.'});
-  const conteudoComposicao = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Composição da receita importada</h2><p class="desc">Faturamento mensal por modelo fiscal. A visão de operações que compõem receita é a mesma base do card Receita analisada.</p></div><span class="tag">${composicaoReceita.length} grupo(s)</span></div><div class="abas" style="margin:16px 0 12px"><button class="ativo" data-filtro-composicao="receita">Operações que compõem receita</button><button data-filtro-composicao="geral">Todos os documentos</button></div><div id="tabelaComposicaoMensal">${tabelaComposicaoMensal('receita')}</div><details style="margin-top:16px"><summary><b>Auditoria por competência, modelo e CFOP</b></summary><div id="tabelaDetalheComposicao" style="margin-top:12px">${tabelaDetalheComposicao('receita')}</div></details></div>`;
+  const conteudoComposicao = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Composição da receita importada</h2><p class="desc">Faturamento mensal por modelo fiscal e outras receitas confirmadas. Esta é a mesma base do card Receita analisada.</p></div><span class="tag">${composicaoReceita.length + detalhesOutrasReceitas.length} grupo(s)</span></div><div class="abas" style="margin:16px 0 12px"><button class="ativo" data-filtro-composicao="receita">Operações que compõem receita</button><button data-filtro-composicao="geral">Todos os documentos</button></div><div id="tabelaComposicaoMensal">${tabelaComposicaoMensal('receita')}</div><details style="margin-top:16px"><summary><b>Auditoria por competência, modelo e CFOP</b></summary><div id="tabelaDetalheComposicao" style="margin-top:12px">${tabelaDetalheComposicao('receita')}</div></details>${detalhesOutrasReceitas.length ? `<details style="margin-top:16px"><summary><b>Outras receitas que compõem o Perfil</b></summary><div style="margin-top:12px">${A.tabela([{t:'Competência',r:x=>A.esc(rotuloCompetencia(x.competencia))},{t:'Item',r:x=>`<b>${A.esc(x.tipo_receita || 'Outra receita')}</b><div class="mini">${A.esc(x.descricao || '')}</div>`},{t:'Fonte',r:x=>`<span class="tag c">${A.esc(String(x.origem || 'Manual').startsWith('QUESTOR') ? 'Questor' : x.origem || 'Manual')}</span>${x.identificador_origem ? `<div class="mini mono">Lançamento ${A.esc(x.identificador_origem)}</div>` : ''}`},{t:'Valor',num:true,r:x=>`<b>${A.moeda(x.valor)}</b>`}],detalhesOutrasReceitas)}</div></details>` : ''}</div>`;
   const taxa = (v) => numero(v) === null ? '—' : A.pct(numero(v));
   const conteudoPisCofinsPgdas = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Composição do cálculo PIS/Cofins — PGDAS</h2><p class="desc">Memória mensal que valida o PGDAS pelo caminho tributário correto e demonstra os valores transferidos ao Perfil Tributário. A receita de competência não é presumida a partir dos buckets de caixa.</p></div><span class="tag">${composicaoPisCofinsPgdas.length} bloco(s)</span></div>
     ${A.tabela([

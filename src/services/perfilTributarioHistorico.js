@@ -225,7 +225,7 @@ function consolidar(db, empresaId, opcoes = {}) {
     return {
       competencia: linha.competencia,
       regime: empresa.regime || 'INDETERMINADO',
-      receita: valor(receitaAtual, receitaDocumentada !== null ? 'DOCUMENTO_FISCAL_IMPORTADO' : 'INDETERMINADO'),
+      receita: valor(receitaAtual, receitaDocumentada !== null ? 'DOCUMENTO_FISCAL_IMPORTADO' : receitasComplementaresValidas.length ? 'OUTRA_RECEITA_CONFIRMADA' : 'INDETERMINADO'),
       receita_documentada: valor(receitaDocumentada, receitaDocumentada !== null ? 'EXTRAIDO' : 'INDETERMINADO'),
       receita_recebida: valor(receitaRecebida, receitaRecebida !== null ? 'PGDAS_CAIXA' : simplesCaixa ? 'INDETERMINADO' : 'NAO_APLICAVEL'),
       folha: valor(linha.folha?.valor_folha, linha.folha ? 'REAL' : 'INDETERMINADO'),
@@ -233,7 +233,9 @@ function consolidar(db, empresaId, opcoes = {}) {
       composicao_receitas: p ? {
         mercadorias: valor(p.receita_mercadorias), servicos: valor(p.receita_servicos), exportacao: valor(p.receita_exportacao),
       } : { natureza: 'INDETERMINADO' },
-      receitas_sem_dfe: { valor: receitasComplementaresValidas.length ? receitaSemDfe : null, natureza: receitasComplementaresValidas.length ? 'REAL' : 'INDETERMINADO', registros: receitasComplementaresValidas.length },
+      // Mantém a abertura dos registros para a tela de composição poder
+      // demonstrar que esses valores também formam a receita do Perfil.
+      receitas_sem_dfe: { valor: receitasComplementaresValidas.length ? receitaSemDfe : null, natureza: receitasComplementaresValidas.length ? 'REAL' : 'INDETERMINADO', registros: receitasComplementaresValidas.length, itens: receitasComplementaresValidas.map((x) => ({ id:x.id, tipo_receita:x.tipo_receita, descricao:x.descricao, valor:numero(x.valor), origem:x.origem, evidencia:x.evidencia, identificador_origem:x.identificador_origem })) },
       pis_historico: valor(p?.pis, p ? 'REAL' : 'INDETERMINADO'),
       cofins_historico: valor(p?.cofins, p ? 'REAL' : 'INDETERMINADO'),
       carga_pis_cofins_atual: cargaPisCofinsAtual,

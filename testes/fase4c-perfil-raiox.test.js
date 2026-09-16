@@ -31,6 +31,7 @@ assert.strictEqual(julho.carga_efetiva_historica.natureza, 'CALCULADO');
 assert.strictEqual(julho.cbs_motor_existente.liquida, 80, 'CBS deve ser lida da fotografia materializada');
 assert.strictEqual(julho.cbs_motor_existente.motor_execucao_id, 14);
 assert.strictEqual(julho.receitas_sem_dfe.valor, 100);
+assert.strictEqual(julho.receitas_sem_dfe.itens.length, 1, 'A composição deve manter as receitas complementares rastreáveis');
 assert.deepStrictEqual(r.composicao_receita[0].competencia, '2026-07');
 assert.strictEqual(r.composicao_receita[0].modelo_fiscal, 'nfse');
 
