@@ -22,7 +22,10 @@ function lerCancelamentosQuestor(texto) {
     // Algumas versões trazem "Cancelado" como última coluna; outras já
     // filtram o relatório e não imprimem a situação. Ambas são a mesma
     // evidência e precisam ser aceitas.
-    const m=linha.match(/^\s*\d+\s+\d+\s+.+?\s+(\d{2}\/\d{2}\/\d{3,4})\s+(\d+)(?:-\2)?\s*(NFE|NFSE|NFCE|CTE)\s+(\d*)\s+\S+\s+[\d.,]+(?:\s+(?:Cancelado|Denegado|Inutilizado))?\s*$/i);
+    // O campo Cliente tem largura fixa. Quando o nome excede a largura, o
+    // Questor pode imprimir a data logo após a última letra (ex.: Desen13/04)
+    // sem espaço. A data é o delimitador confiável da linha, não o espaço.
+    const m=linha.match(/^\s*\d+\s+\d+\s+.+?(\d{2}\/\d{2}\/\d{3,4})\s+(\d+)(?:-\2)?\s*(NFE|NFSE|NFCE|CTE)\s+(\d*)\s+\S+\s+[\d.,]+(?:\s+(?:Cancelado|Denegado|Inutilizado))?\s*$/i);
     if(!m) continue; const y=m[1].slice(6).length===4?m[1].slice(6):ano;
     if(!/^\d{4}$/.test(y)) continue; registros.push({data:`${y}-${m[1].slice(3,5)}-${m[1].slice(0,2)}`,numero:m[2],modelo:m[3].toLowerCase(),serie:m[4],situacao:'CANCELADO'});
   }
