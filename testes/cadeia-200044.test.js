@@ -40,6 +40,19 @@ assert.equal(leitura.aliquotaCbsEfetiva, 0.03684);
 assert.equal(leitura.diferencaReducaoCbs, 55.26);
 assert.equal(leitura.qsa.participacao, 20);
 assert.equal(leitura.lc116, '1.06');
+const leituraLegada = leitura200044({
+  ...linhaConfirmada,
+  detalhe: {
+    ...linhaConfirmada.detalhe,
+    classificacao: {
+      ...linhaConfirmada.detalhe.classificacao,
+      reducaoCbs: undefined,
+      reducao: 'reducao_60',
+    },
+  },
+});
+assert.equal(leituraLegada.reducaoCbs, 0.6,
+  'fotografia legada reducao_60 precisa continuar exibindo redução de 60% na cadeia');
 assert.equal(leitura200044({ ...linhaConfirmada, detalhe: { ...linhaConfirmada.detalhe, classificacao: { ...linhaConfirmada.detalhe.classificacao, elegibilidadeAnexoXi: { status_qsa: 'PENDENTE' } } } }), null,
   'QSA pendente nunca deve ser exibido como redução confirmada');
 

@@ -2431,7 +2431,14 @@ router.get('/empresas/:id/beneficios-fiscais/revisao', async (req, res) => {
     const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(empresaId);
     if (!empresa) throw new Error('Empresa não encontrada.');
     atualizarDiagnosticoSeAberto(empresaId, 'conformidade', { ano: 2027 });
-    const operacoes = consolidacaoOficial.cadeia(empresaId, 'cliente', { executarSeAusente: false }).operacoesBeneficios
+    // A revisão só pode partir de benefícios já materializados pelo motor.
+    // A cadeia não transfere o detalhamento de benefícios por padrão (para
+    // manter a leitura normal leve); nesta rota ele é justamente o objeto da
+    // revisão, portanto precisa ser solicitado explicitamente.
+    const operacoes = consolidacaoOficial.cadeia(empresaId, 'cliente', {
+      executarSeAusente: false,
+      incluirBeneficios: true,
+    }).operacoesBeneficios
       .map((x) => ({ ...x, alternativas: revisaoBeneficiosFiscais.candidatos(x.lc116, x.nbs).map((c) => ({
         cclasstrib: c.cclasstrib, cst: c.cst || String(c.cclasstrib || '').slice(0, 3),
         descricao: c.classificacao || c.nome_cclasstrib || '', reducao: c.reducao || 'integral',

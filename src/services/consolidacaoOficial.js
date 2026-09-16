@@ -157,8 +157,17 @@ function leituraBeneficio(linha) {
   const faixa = faixaTributacao(linha);
   if (faixa.chave === 'INTEGRAL' || ['REQUER_VALIDACAO', 'SEM_CORRESPONDENCIA'].includes(linha.status_classificacao)) return null;
 
-  const reducao = faixa.chave === 'ALIQUOTA_ZERO' ? 1 : Number(classificacao.reducaoCbs ?? classificacao.reducao_cbs ?? 0);
   const aliquota = detalhe.aliquotas || {};
+  // Fotografias anteriores do motor guardam a redução como "reducao_60".
+  // As atuais podem trazer o percentual explícito. A cadeia precisa aceitar
+  // ambos, sem inferir um benefício novo a partir do valor de CBS.
+  const reducaoInformada = Number(classificacao.reducaoCbs ?? classificacao.reducao_cbs);
+  const reducaoDaFaixa = /^REDUCAO_(\d{1,3})$/.exec(faixa.chave);
+  const reducao = faixa.chave === 'ALIQUOTA_ZERO'
+    ? 1
+    : (Number.isFinite(reducaoInformada) && reducaoInformada > 0
+      ? reducaoInformada
+      : (reducaoDaFaixa ? Number(reducaoDaFaixa[1]) / 100 : 0));
   const aliquotaReferencia = Number(aliquota.aliquotaReferencia?.cbs);
   const base = n(linha.base_economica);
   const cbsSemReducao = Number.isFinite(aliquotaReferencia) ? base * aliquotaReferencia : null;
