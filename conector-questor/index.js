@@ -25,7 +25,10 @@ async function nweb(rota, params={}, body) {
   // Relatórios podem demorar na primeira execução, mas não podem manter a
   // solicitação do usuário indefinidamente em "Processando".
   const r = await requisitar(u, { method: body ? 'POST' : 'GET', headers:{'Content-Type':'application/json'}, body:body ? JSON.stringify(body) : undefined }, 120000, 'O nWeb');
-  const texto=await r.text(); if(!r.ok) throw new Error(`nWeb ${r.status}: ${texto.slice(0,300)}`); return texto;
+  // Erros do Questor frequentemente carregam a causa real em uma exceção
+  // interna aninhada. Preservar o corpo suficiente evita diagnosticar por
+  // suposição quando uma ação não expõe metadados pelo nWeb.
+  const texto=await r.text(); if(!r.ok) throw new Error(`nWeb ${r.status}: ${texto.slice(0,4000)}`); return texto;
 }
 // Os metadados do Questor expõem os campos em maiúsculas (PDATAINICIAL), mas
 // o método REST do nWeb desta versão os vincula às propriedades Delphi em
