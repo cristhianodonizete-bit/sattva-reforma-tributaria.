@@ -290,17 +290,27 @@ Telas.dados = async (el) => {
   const regimeEmpresa = S.empresa?.regime || '';
   const simplesNacional = regimeEmpresa === 'simples_nacional';
   const exigeApuracaoPisCofins = ['lucro_presumido', 'lucro_real'].includes(regimeEmpresa);
-  const [{ parceiros }, { lotes }, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, prontidao, documentosFiscaisResposta] = await Promise.all([
-    A.api(`/empresas/${S.empresaId}/parceiros?tipo=${aba}`),
-    A.api(`/empresas/${S.empresaId}/lotes`),
-    A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`),
-    A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`),
-    A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`),
-    simplesNacional ? A.api(`/empresas/${S.empresaId}/pgdas/documentos`) : Promise.resolve({ documentos: [] }),
+  // Cada aba da Central consulta apenas o que efetivamente exibe. Antes desta
+  // separação, abrir Folha ou Apurações também carregava parceiros, lotes,
+  // movimentos e toda a lista fiscal, o que aumentava muito o tempo percebido.
+  const consultaDocumentos = grupoCentral === 'documentos';
+  const consultaDadosAdicionais = ['folha', 'receitas', 'margem'].includes(grupoCentral);
+  const consultaApuracoes = grupoCentral === 'apuracoes';
+  const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, prontidao, documentosFiscaisResposta, movimentosResposta, referenciasVendas] = await Promise.all([
+    consultaDocumentos ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${aba}`) : Promise.resolve({ parceiros: [] }),
+    consultaDocumentos ? A.api(`/empresas/${S.empresaId}/lotes`) : Promise.resolve({ lotes: [] }),
+    consultaDadosAdicionais ? A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`) : Promise.resolve({ folhas: [], receitas_sem_dfe: [], margens: [] }),
+    consultaDocumentos ? A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`) : Promise.resolve({ fotografia: { pendencias_operacionais: [] } }),
+    consultaApuracoes ? A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`) : Promise.resolve({ apuracoes: [] }),
+    consultaApuracoes && simplesNacional ? A.api(`/empresas/${S.empresaId}/pgdas/documentos`) : Promise.resolve({ documentos: [] }),
     A.api(`/empresas/${S.empresaId}/prontidao-dados`),
-    grupoCentral === 'documentos' ? A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=2000`) : Promise.resolve({ documentos:[], total:0 }),
+    consultaDocumentos ? A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=2000`) : Promise.resolve({ documentos: [], total: 0 }),
+    consultaDocumentos ? A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`) : Promise.resolve({ movimentos: [], total: 0 }),
+    consultaDocumentos && aba === 'cliente' ? A.api(`/empresas/${S.empresaId}/referencias-vendas`) : Promise.resolve(null),
   ]);
-  const { movimentos, total } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`);
+  const { parceiros = [] } = parceirosResposta;
+  const { lotes = [] } = lotesResposta;
+  const { movimentos = [], total = 0 } = movimentosResposta;
   const documentosFiscais = documentosFiscaisResposta.documentos || [];
   const filtroDocumentos = S.aba.documentosFiscais || {};
   const textoFiltroDocumento = String(filtroDocumentos.busca || '').trim().toLowerCase();
@@ -327,7 +337,6 @@ Telas.dados = async (el) => {
     return tipo || 'Não identificada';
   };
   const apuracoesImportadas = (apuracoesResposta.apuracoes || []).map((x) => ({ ...x, fonte_importacao: fonteApuracao(x) }));
-  const referenciasVendas = aba === 'cliente' ? await A.api(`/empresas/${S.empresaId}/referencias-vendas`) : null;
   const rotulo = aba === 'cliente' ? 'clientes' : 'fornecedores';
   const pendenciasDaAba = (cobertura.fotografia?.pendencias_operacionais || []).filter((p) => p.sentido === (aba === 'cliente' ? 'saida' : 'entrada'));
   const movimentosVisiveis = filtroPendencia?.movimento_id ? movimentos.filter((m) => Number(m.id) === Number(filtroPendencia.movimento_id)) : movimentos;

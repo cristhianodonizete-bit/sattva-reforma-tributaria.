@@ -20,12 +20,20 @@ const App = (() => {
   };
 
   // ---------- API ----------
-  async function api(caminho, opcoes = {}) {
+  // Não guarda respostas: dados fiscais precisam continuar sempre atuais.
+  // Guarda somente a leitura enquanto ela está em andamento para que dois
+  // componentes abertos ao mesmo tempo não façam a mesma chamada ao servidor.
+  const leiturasEmAndamento = new Map();
+  function api(caminho, opcoes = {}) {
+    const metodo = opcoes.metodo || 'GET';
+    const chaveLeitura = `${metodo}:${caminho}`;
+    if (metodo === 'GET' && leiturasEmAndamento.has(chaveLeitura)) return leiturasEmAndamento.get(chaveLeitura);
+    const executar = async () => {
     const token = localStorage.getItem('sattva_token');
     const headers = opcoes.corpo instanceof FormData ? {} : { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
     const r = await fetch('/api' + caminho, {
-      method: opcoes.metodo || 'GET',
+      method: metodo,
       headers,
       body: opcoes.corpo instanceof FormData ? opcoes.corpo : (opcoes.corpo ? JSON.stringify(opcoes.corpo) : undefined),
       // Leituras tributárias não podem reutilizar uma resposta anterior do
@@ -43,6 +51,17 @@ const App = (() => {
     }
     if (!j.ok) throw new Error(j.erro || 'Falha na requisição.');
     return j;
+    };
+    const promessa = executar();
+    if (metodo === 'GET') {
+      leiturasEmAndamento.set(chaveLeitura, promessa);
+      // A remoção ocorre tanto em sucesso quanto em erro; a próxima ação do
+      // usuário sempre fará uma nova leitura, sem reutilizar dado anterior.
+      promessa.finally(() => {
+        if (leiturasEmAndamento.get(chaveLeitura) === promessa) leiturasEmAndamento.delete(chaveLeitura);
+      }).catch(() => {});
+    }
+    return promessa;
   }
 
   // Downloads protegidos não podem usar window.open: a nova aba não recebe o
