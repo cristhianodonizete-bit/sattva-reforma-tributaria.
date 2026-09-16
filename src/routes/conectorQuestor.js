@@ -33,7 +33,10 @@ function lerCancelamentosQuestor(texto) {
 }
 async function conciliarCancelamentosQuestor(empresaId, texto) {
   const registros=lerCancelamentosQuestor(texto);
-  const saida={linhas_lidas:0,atualizados:0,ambiguos:0,nao_localizados:0}; const ids=[];
+  // "linhas lidas" descreve o que veio do relatório, não o que estava no
+  // cache da instância que recebeu a tarefa. Em Render, esse cache pode estar
+  // vazio mesmo quando a atualização canônica foi concluída com sucesso.
+  const saida={linhas_lidas:registros.length,atualizados:0,ambiguos:0,nao_localizados:0}; const ids=[];
   // Há bases antigas em que o espelho compartilhado preservou o ID
   // operacional anterior. Para documentos de saída, o CNPJ emitente é a
   // identidade fiscal estável da empresa e evita deixar cancelamentos fora da
@@ -95,7 +98,7 @@ async function conciliarCancelamentosQuestor(empresaId, texto) {
     saida.diagnostico=diagnostico.slice(0,100);
   }
   saida.cancelamentos_registrados=registros.length;
-  db.transaction(()=>registros.forEach(r=>{saida.linhas_lidas++; const base=movimentos.filter(x=>{const partes=String(x.documento||'').split('/');const numero=(partes[partes.length-1]||'').replace(/\D/g,'');const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');return numero===r.numero&&String(x.modelo_documento_fiscal||'').toLowerCase()===r.modelo&&(!r.serie||!serie||serie===r.serie);}); const porData=base.filter(x=>String(x.data_emissao||'').slice(0,10)===r.data); const candidatos=porData.length?porData:base; const docs=new Set(candidatos.map(x=>x.chave||`d:${x.documento}`)); if(!docs.size){saida.nao_localizados++;return;} if(docs.size!==1){saida.ambiguos++;return;} const mudou=candidatos.some(x=>String(x.situacao_documento||'AUTORIZADO')!==r.situacao); db.prepare(`UPDATE movimentos SET situacao_documento=?,cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo=?,cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE id IN (${candidatos.map(()=>'?').join(',')})`).run(r.situacao,`Situação ${r.situacao} informada pelo Questor`,...candidatos.map(x=>x.id)); if(mudou){saida.atualizados++;ids.push(...candidatos.map(x=>x.id));} }));
+  db.transaction(()=>registros.forEach(r=>{const base=movimentos.filter(x=>{const partes=String(x.documento||'').split('/');const numero=(partes[partes.length-1]||'').replace(/\D/g,'');const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');return numero===r.numero&&String(x.modelo_documento_fiscal||'').toLowerCase()===r.modelo&&(!r.serie||!serie||serie===r.serie);}); const porData=base.filter(x=>String(x.data_emissao||'').slice(0,10)===r.data); const candidatos=porData.length?porData:base; const docs=new Set(candidatos.map(x=>x.chave||`d:${x.documento}`)); if(!docs.size){saida.nao_localizados++;return;} if(docs.size!==1){saida.ambiguos++;return;} const mudou=candidatos.some(x=>String(x.situacao_documento||'AUTORIZADO')!==r.situacao); db.prepare(`UPDATE movimentos SET situacao_documento=?,cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo=?,cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE id IN (${candidatos.map(()=>'?').join(',')})`).run(r.situacao,`Situação ${r.situacao} informada pelo Questor`,...candidatos.map(x=>x.id)); if(mudou){saida.atualizados++;ids.push(...candidatos.map(x=>x.id));} }));
   if(ids.length) db.prepare(`DELETE FROM motor_resultados WHERE movimento_id IN (${ids.map(()=>'?').join(',')})`).run(...ids);
   return saida;
 }
