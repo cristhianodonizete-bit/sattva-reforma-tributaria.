@@ -87,6 +87,22 @@ async function buscarTudo(remoto, tabela) {
     if (!data || data.length < tamanho) return linhas;
   }
 }
+// A carga completa possui muitas coleções independentes. Buscá-las uma a uma
+// transforma uma lentidão pontual em dezenas de minutos de espera. O limite
+// baixo protege a fonte remota e reduz o tempo total da primeira fotografia.
+async function buscarColecoes(remoto, tabelas, concorrencia = 4) {
+  const resultados = new Map();
+  let proximo = 0;
+  async function trabalhador() {
+    while (proximo < tabelas.length) {
+      const tabela = tabelas[proximo++];
+      try { resultados.set(tabela, { linhas: await buscarTudo(remoto, tabela) }); }
+      catch (erro) { resultados.set(tabela, { erro }); }
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concorrencia, tabelas.length) }, trabalhador));
+  return resultados;
+}
 function gravar(tabela, linhas, dentroDaTransacao = false) {
   if (!linhas.length) return 0;
   const campos = CAMPOS[tabela];
@@ -264,11 +280,14 @@ async function baixar() {
   // artificialmente parcial. Elas são restauradas logo após o motor.
   const dependentesDoMotor = ['excecoes_motor_execucoes', 'telemetria_autonomia_execucoes'];
   const tabelas = ['empresas', ...Object.keys(CAMPOS).filter((tabela) => tabela !== 'empresas' && !dependentesDoMotor.includes(tabela))];
+  const colecoes = await buscarColecoes(remoto, tabelas);
   const empresasValidas = new Set(), lotesValidos = new Set();
   let empresaLocalPorRemota = new Map();
   for (const tabela of tabelas) {
     try {
-      const origem = await buscarTudo(remoto, tabela);
+      const carga = colecoes.get(tabela);
+      if (carga?.erro) throw carga.erro;
+      const origem = carga?.linhas || [];
       if (tabela === 'empresas') {
         empresaLocalPorRemota = mapaEmpresasLocais(origem);
         origem.forEach((x) => empresasValidas.add(empresaLocalPorRemota.get(String(x.id))));
@@ -870,6 +889,6 @@ async function publicarContratos(remoto, empresaId, empresaRemotaId = empresaId)
   }
   return { contratos: contratos.length };
 }
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };
