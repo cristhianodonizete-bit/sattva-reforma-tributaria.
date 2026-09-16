@@ -209,7 +209,29 @@ function lerLocacoesQuestor(fonteOriginal) {
     return registros;
   }
   let fonte=String(fonteOriginal||''); try { const envelope=JSON.parse(fonte); fonte=String(envelope?.Data||envelope?.data||fonte); } catch (_) { /* retorno textual */ }
-  for (const linha of fonte.replace(/\r/g,'').split('\n')) {
+  const linhas=fonte.replace(/\r/g,'').split('\n');
+  // Conferência de Saídas (Gráfico): o cabeçalho da operação traz somente
+  // dia/mês e valor; a descrição fiscal vem na linha posterior "Natureza:".
+  // O ano é recuperado do período impresso no próprio relatório.
+  const periodo=fonte.match(/Per[ií]odo:\s*(\d{2})\/(\d{2})\/(\d{4})\s+a\s+(\d{2})\/(\d{2})\/(\d{4})/i);
+  const inicioPeriodo=periodo ? { mes:Number(periodo[2]), ano:Number(periodo[3]) } : null;
+  const fimPeriodo=periodo ? { mes:Number(periodo[5]), ano:Number(periodo[6]) } : null;
+  for (let indice=0; indice<linhas.length; indice++) {
+    const linha=linhas[indice];
+    const cabecalho=linha.match(/^\s*(\d+)\s+(\d{2})\/(\d{2})\s+\d+-\d+\s+REC\b.*?\s+([\d.]+,\d{2})\s+[\d.]+,\d{2}\s+[\d.]+,\d{2}\s+[\d.]+,\d{2}\s+[\d.]+,\d{2}\s*$/i);
+    if (cabecalho && inicioPeriodo && fimPeriodo) {
+      const dia=Number(cabecalho[2]), mes=Number(cabecalho[3]);
+      const ano=(inicioPeriodo.ano !== fimPeriodo.ano && mes < inicioPeriodo.mes) ? fimPeriodo.ano : inicioPeriodo.ano;
+      const natureza=(linhas.slice(indice+1,indice+6).map((x)=>x.match(/^\s*Natureza:\s*.+?-\s*(.+?)\s*$/i)).find(Boolean)||[])[1] || '';
+      const item=classificarLocacaoQuestor(natureza);
+      const valor=numeroQuestor(cabecalho[4]);
+      if (item && valor!==null && valor>=0) {
+        const data=`${ano}-${String(mes).padStart(2,'0')}-${String(dia).padStart(2,'0')}`;
+        registros.push({ identificador_origem:cabecalho[1], especie_questor:'REC', competencia:data.slice(0,7), data_lancamento:data,
+          item_receita_chave:item, descricao:natureza, valor, linha:`${linha.trim()} | Natureza: ${natureza}` });
+      }
+      continue;
+    }
     // Layout observado: lançamento REC data código descrição ... valor.
     // A espécie REC é obrigatória; a descrição é conservada como evidência.
     const m=linha.match(/^\s*(\d+)\s+REC\s+(\d{2}\/\d{2}\/\d{4})\s+(\d+)\s+(.+?)\s+([\d.]+,\d{2})\s*$/i);
