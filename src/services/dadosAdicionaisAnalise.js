@@ -83,11 +83,16 @@ function candidatosDocumento(db, empresaId, competencia, valor) {
 
 function salvarReceitaSemDfe(db, empresaId, dados) {
   validarEmpresa(db, empresaId);
-  const competencia = texto(dados.competencia), tipoReceita = texto(dados.tipo_receita), descricao = texto(dados.descricao);
+  const competencia = texto(dados.competencia), descricao = texto(dados.descricao);
   if (!competenciaValida(competencia)) throw new Error('Competência deve estar no formato AAAA-MM.');
-  if (!tipoReceita || !descricao) throw new Error('Tipo e descrição da receita são obrigatórios.');
+  if (!descricao) throw new Error('Descrição da receita é obrigatória.');
+  const itemInformado = texto(dados.item_receita_chave || dados.tipo_receita);
+  const item = db.prepare(`SELECT chave,nome,classificacao_fiscal FROM catalogo_itens_receita
+    WHERE ativo=1 AND (chave=? OR lower(nome)=lower(?))`).get(itemInformado, itemInformado);
+  if (!item) throw new Error('Selecione um item padronizado da lista. Não é permitido informar livremente o tipo de receita.');
+  const tipoReceita = item.nome;
   const valor = numeroObrigatorio(dados.valor, 'Valor da receita');
-  const classificacao = texto(dados.classificacao_fiscal).toUpperCase() || classificacaoAutomatica(tipoReceita, descricao);
+  const classificacao = item.classificacao_fiscal;
   // Registros legados e planilhas antigas continuam importáveis, porém ficam
   // pendentes até receberem a classificação comparável na revisão.
   const classificacaoValida = CLASSIFICACOES_RECEITA.has(classificacao) ? classificacao : 'OUTRA';
@@ -102,11 +107,12 @@ function salvarReceitaSemDfe(db, empresaId, dados) {
   const statusValidacao = candidatos.length ? 'POSSIVEL_DUPLICIDADE' : status(dados.status_validacao);
   const campos = new Set(db.prepare('PRAGMA table_info(receitas_sem_dfe)').all().map((x) => x.name));
   const r = campos.has('classificacao_fiscal')
-    ? db.prepare(`INSERT INTO receitas_sem_dfe (empresa_id,competencia,tipo_receita,descricao,valor,origem,evidencia,classificacao_fiscal,subtipo,objeto_operacao,contrato_referencia,regra_atual,regra_reforma,status_comparabilidade,identificador_origem,especie_questor,segregacao_apuracao,base_pis_cofins_atual,pis_atual,cofins_atual,criterio_tributacao_atual,tributacao_atual_origem,status_validacao,chave_deduplicacao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(empresaId, competencia, tipoReceita, descricao, valor, texto(dados.origem || 'MANUAL'), texto(dados.evidencia) || null, classificacaoValida, subtipoFinal, objetoFinal, texto(dados.contrato_referencia) || null, texto(dados.regra_atual) || null, texto(dados.regra_reforma) || null, 'PENDENTE_MOTOR', texto(dados.identificador_origem) || null, texto(dados.especie_questor) || null, texto(dados.segregacao_apuracao) || null, dados.base_pis_cofins_atual === null || dados.base_pis_cofins_atual === undefined ? null : numeroObrigatorio(dados.base_pis_cofins_atual, 'Base PIS/COFINS atual'), dados.pis_atual === null || dados.pis_atual === undefined ? null : numeroObrigatorio(dados.pis_atual, 'PIS atual'), dados.cofins_atual === null || dados.cofins_atual === undefined ? null : numeroObrigatorio(dados.cofins_atual, 'COFINS atual'), texto(dados.criterio_tributacao_atual) || null, texto(dados.tributacao_atual_origem) || null, statusValidacao, chave)
+    ? db.prepare(`INSERT INTO receitas_sem_dfe (empresa_id,competencia,tipo_receita,descricao,valor,origem,evidencia,classificacao_fiscal,subtipo,objeto_operacao,contrato_referencia,regra_atual,regra_reforma,status_comparabilidade,identificador_origem,especie_questor,segregacao_apuracao,base_pis_cofins_atual,pis_atual,cofins_atual,criterio_tributacao_atual,tributacao_atual_origem,item_receita_chave,status_validacao,chave_deduplicacao) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(empresaId, competencia, tipoReceita, descricao, valor, texto(dados.origem || 'MANUAL'), texto(dados.evidencia) || null, classificacaoValida, subtipoFinal, objetoFinal, texto(dados.contrato_referencia) || null, texto(dados.regra_atual) || null, texto(dados.regra_reforma) || null, 'PENDENTE_MOTOR', texto(dados.identificador_origem) || null, texto(dados.especie_questor) || null, texto(dados.segregacao_apuracao) || null, dados.base_pis_cofins_atual === null || dados.base_pis_cofins_atual === undefined ? null : numeroObrigatorio(dados.base_pis_cofins_atual, 'Base PIS/COFINS atual'), dados.pis_atual === null || dados.pis_atual === undefined ? null : numeroObrigatorio(dados.pis_atual, 'PIS atual'), dados.cofins_atual === null || dados.cofins_atual === undefined ? null : numeroObrigatorio(dados.cofins_atual, 'COFINS atual'), texto(dados.criterio_tributacao_atual) || null, texto(dados.tributacao_atual_origem) || null, item.chave, statusValidacao, chave)
     : db.prepare(`INSERT INTO receitas_sem_dfe (empresa_id,competencia,tipo_receita,descricao,valor,origem,evidencia,status_validacao,chave_deduplicacao) VALUES (?,?,?,?,?,?,?,?,?)`).run(empresaId,competencia,tipoReceita,descricao,valor,texto(dados.origem || 'MANUAL'),texto(dados.evidencia) || null,statusValidacao,chave);
   const id = r.lastInsertRowid;
   // A classificação da planilha é fato; a conclusão CBS/IBS é sempre do motor.
-  const motor = campos.has('status_motor') ? motorReceitasSemDfe.aplicar(db, { id, competencia, classificacao_fiscal: classificacaoValida, subtipo: subtipoFinal }) : null;
+  const regimeEmpresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime;
+  const motor = campos.has('status_motor') ? motorReceitasSemDfe.aplicar(db, { id, competencia, classificacao_fiscal: classificacaoValida, subtipo: subtipoFinal, item_receita_chave: item.chave, valor }, regimeEmpresa) : null;
   return { id, status_validacao: statusValidacao, possivel_duplicidade: candidatos.length > 0, motor };
 }
 

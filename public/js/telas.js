@@ -296,7 +296,7 @@ Telas.dados = async (el) => {
   const consultaDocumentos = grupoCentral === 'documentos';
   const consultaDadosAdicionais = ['folha', 'receitas', 'margem'].includes(grupoCentral);
   const consultaApuracoes = grupoCentral === 'apuracoes';
-  const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, prontidao, documentosFiscaisResposta, movimentosResposta, referenciasVendas] = await Promise.all([
+  const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, prontidao, documentosFiscaisResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta] = await Promise.all([
     consultaDocumentos ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${aba}`) : Promise.resolve({ parceiros: [] }),
     consultaDocumentos ? A.api(`/empresas/${S.empresaId}/lotes`) : Promise.resolve({ lotes: [] }),
     consultaDadosAdicionais ? A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`) : Promise.resolve({ folhas: [], receitas_sem_dfe: [], margens: [] }),
@@ -307,6 +307,7 @@ Telas.dados = async (el) => {
     consultaDocumentos ? A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=2000`) : Promise.resolve({ documentos: [], total: 0 }),
     consultaDocumentos ? A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`) : Promise.resolve({ movimentos: [], total: 0 }),
     consultaDocumentos && aba === 'cliente' ? A.api(`/empresas/${S.empresaId}/referencias-vendas`) : Promise.resolve(null),
+    grupoCentral === 'receitas' ? A.api('/config/itens-receita') : Promise.resolve({ itens: [] }),
   ]);
   const { parceiros = [] } = parceirosResposta;
   const { lotes = [] } = lotesResposta;

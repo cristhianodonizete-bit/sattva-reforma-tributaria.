@@ -137,7 +137,7 @@ const COLUNAS_NOVAS = {
   receitas_sem_dfe: {
     classificacao_fiscal: 'TEXT', subtipo: 'TEXT', objeto_operacao: 'TEXT', contrato_referencia: 'TEXT', regra_atual: 'TEXT', regra_reforma: 'TEXT', status_comparabilidade: "TEXT DEFAULT 'PENDENTE_CLASSIFICACAO'",
     status_motor: "TEXT DEFAULT 'PENDENTE_CLASSIFICACAO'", regra_motor_id: 'INTEGER', regra_motor_versao: 'INTEGER', regra_motor_atual: 'TEXT', regra_motor_reforma: 'TEXT', cst_motor: 'TEXT', cclasstrib_motor: 'TEXT', fundamento_motor: 'TEXT', pendencia_motor: 'TEXT', processado_motor_em: 'TEXT',
-    identificador_origem: 'TEXT', especie_questor: 'TEXT', segregacao_apuracao: 'TEXT', base_pis_cofins_atual: 'REAL', pis_atual: 'REAL', cofins_atual: 'REAL', criterio_tributacao_atual: 'TEXT', tributacao_atual_origem: 'TEXT',
+    identificador_origem: 'TEXT', especie_questor: 'TEXT', segregacao_apuracao: 'TEXT', base_pis_cofins_atual: 'REAL', pis_atual: 'REAL', cofins_atual: 'REAL', criterio_tributacao_atual: 'TEXT', tributacao_atual_origem: 'TEXT', item_receita_chave: 'TEXT',
   },
   cnpj_cache: { natureza_juridica: 'TEXT', codigo_natureza_juridica: 'TEXT', efr: 'TEXT', cnaes_secundarios: 'TEXT',
     logradouro: 'TEXT', numero: 'TEXT', complemento: 'TEXT', bairro: 'TEXT', cep: 'TEXT', data_abertura: 'TEXT' },
@@ -451,6 +451,7 @@ CREATE TABLE IF NOT EXISTS receitas_sem_dfe (
   evidencia TEXT,
   classificacao_fiscal TEXT, subtipo TEXT, objeto_operacao TEXT, contrato_referencia TEXT,
   regra_atual TEXT, regra_reforma TEXT, status_comparabilidade TEXT DEFAULT 'PENDENTE_CLASSIFICACAO',
+  item_receita_chave TEXT REFERENCES catalogo_itens_receita(chave),
   status_validacao TEXT NOT NULL DEFAULT 'PENDENTE',
   chave_deduplicacao TEXT NOT NULL,
   criado_em TEXT DEFAULT (datetime('now','localtime')),
@@ -470,6 +471,20 @@ CREATE TABLE IF NOT EXISTS regras_receitas_sem_dfe (
   criado_em TEXT DEFAULT (datetime('now','localtime')), atualizado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_regras_receitas_sem_dfe_motor ON regras_receitas_sem_dfe(status, classificacao_fiscal, subtipo, vigencia_inicio, prioridade DESC);
+
+CREATE TABLE IF NOT EXISTS catalogo_itens_receita (
+  chave TEXT PRIMARY KEY, nome TEXT NOT NULL, classificacao_fiscal TEXT NOT NULL,
+  ativo INTEGER NOT NULL DEFAULT 1, ordem INTEGER NOT NULL DEFAULT 0,
+  criado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS regras_itens_receita_regime (
+  id INTEGER PRIMARY KEY AUTOINCREMENT, item_chave TEXT NOT NULL REFERENCES catalogo_itens_receita(chave),
+  regime_empresa TEXT NOT NULL, pis_percentual REAL, cofins_percentual REAL,
+  tratamento_atual TEXT NOT NULL, tratamento_reforma TEXT NOT NULL,
+  fundamento TEXT, vigencia_inicio TEXT NOT NULL DEFAULT '2026-01-01', vigencia_fim TEXT,
+  ativo INTEGER NOT NULL DEFAULT 1, UNIQUE(item_chave,regime_empresa,vigencia_inicio)
+);
+CREATE INDEX IF NOT EXISTS ix_regras_itens_receita_regime ON regras_itens_receita_regime(item_chave,regime_empresa,ativo,vigencia_inicio DESC);
 
 -- ============ PERFIL CBS (consolidação materializada do motor) ============
 -- Esta tabela não calcula tributos: apenas consolida motor_resultados por
@@ -2714,6 +2729,34 @@ if (db.prepare('SELECT COUNT(*) c FROM param_regras').get().c === 0) {
 }
 db.prepare(`INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem)
   VALUES ('capacitacao','limite_padrao_turma','30','numero','Limite padrão de participantes','Sugestão aplicada ao programar uma nova turma; cada turma pode ter seu próprio limite.','pessoas',1)`).run();
+
+// Catálogo técnico de receitas complementares. O lançamento só escolhe um
+// item daqui; a tributação é resolvida pelo regime da própria empresa.
+const ITENS_RECEITA_PADRAO = [
+  ['LOCACAO_BENS_MOVEIS', 'Locação de equipamentos / bens móveis', 'LOCACAO_BEM_MOVEL', 1],
+  ['ALUGUEL_IMOVEIS_PROPRIOS', 'Aluguel de imóveis próprios', 'LOCACAO_IMOVEL', 2],
+  ['LICENCIAMENTO_SOFTWARE_PROPRIO', 'Licenciamento / cessão de uso de software próprio', 'CESSAO_DIREITOS', 3],
+  ['RECEITAS_FINANCEIRAS_ORDINARIAS', 'Receitas financeiras ordinárias', 'RECEITA_FINANCEIRA', 4],
+];
+db.transaction(() => ITENS_RECEITA_PADRAO.forEach((x) => db.prepare(`INSERT OR IGNORE INTO catalogo_itens_receita
+  (chave,nome,classificacao_fiscal,ordem) VALUES (?,?,?,?)`).run(...x)))();
+const REGRAS_ITENS_RECEITA_PADRAO = [
+  ['LOCACAO_BENS_MOVEIS','lucro_real',0.0165,0.076,'Não cumulativo: PIS 1,65% + Cofins 7,60%, salvo exceção específica.','CBS/IBS: tratamento a confirmar pela classificação e legislação vigente.','Regra geral de PIS/Cofins; requer confirmação de exceções.', '2026-01-01'],
+  ['LOCACAO_BENS_MOVEIS','lucro_presumido',0.0065,0.03,'Cumulativo: PIS 0,65% + Cofins 3,00%.','CBS/IBS: tratamento a confirmar pela classificação e legislação vigente.','Regra geral do regime cumulativo.', '2026-01-01'],
+  ['LOCACAO_BENS_MOVEIS','simples_nacional',null,null,'Receita no DAS; exige segregação adequada (em regra, Anexo III).','CBS/IBS: tratamento a confirmar pela classificação e legislação vigente.','Não calcular PIS/Cofins por fora do DAS.', '2026-01-01'],
+  ['ALUGUEL_IMOVEIS_PROPRIOS','lucro_real',0.0165,0.076,'Não cumulativo: PIS 1,65% + Cofins 7,60%, salvo hipótese específica.','CBS/IBS: tratamento imobiliário a confirmar pela legislação vigente.','Aplicação depende do enquadramento da receita empresarial.', '2026-01-01'],
+  ['ALUGUEL_IMOVEIS_PROPRIOS','lucro_presumido',0.0065,0.03,'Cumulativo: PIS 0,65% + Cofins 3,00%.','CBS/IBS: tratamento imobiliário a confirmar pela legislação vigente.','Aplicação depende do enquadramento da receita empresarial.', '2026-01-01'],
+  ['ALUGUEL_IMOVEIS_PROPRIOS','simples_nacional',null,null,'Exige validação: locação de imóveis próprios possui restrições no Simples Nacional.','CBS/IBS: tratamento imobiliário a confirmar pela legislação vigente.','Bloqueado para revisão técnica antes de apurar.', '2026-01-01'],
+  ['LICENCIAMENTO_SOFTWARE_PROPRIO','lucro_real',0.0065,0.03,'Cumulativo obrigatório, quando enquadrado na hipótese legal aplicável: PIS 0,65% + Cofins 3,00%.','CBS/IBS: tratamento a confirmar pela classificação e legislação vigente.','Lei 10.833/2003, art. 10, XXV; validar enquadramento.', '2026-01-01'],
+  ['LICENCIAMENTO_SOFTWARE_PROPRIO','lucro_presumido',0.0065,0.03,'Cumulativo: PIS 0,65% + Cofins 3,00%.','CBS/IBS: tratamento a confirmar pela classificação e legislação vigente.','Regra geral do regime cumulativo.', '2026-01-01'],
+  ['LICENCIAMENTO_SOFTWARE_PROPRIO','simples_nacional',null,null,'Receita no DAS; Anexo III ou V conforme fator R e atividade.','CBS/IBS: tratamento a confirmar pela classificação e legislação vigente.','Não calcular PIS/Cofins por fora do DAS.', '2026-01-01'],
+  ['RECEITAS_FINANCEIRAS_ORDINARIAS','lucro_real',0.0065,0.04,'Receita financeira: PIS 0,65% + Cofins 4,00%, observadas exclusões e exceções.','CBS/IBS: tratamento financeiro a confirmar pela legislação vigente.','Decreto 8.426/2015; validar natureza do rendimento.', '2026-01-01'],
+  ['RECEITAS_FINANCEIRAS_ORDINARIAS','lucro_presumido',null,null,'Em regra, sem incidência quando não constituir atividade/objeto habitual da empresa.','CBS/IBS: tratamento financeiro a confirmar pela legislação vigente.','Exige confirmação da habitualidade.', '2026-01-01'],
+  ['RECEITAS_FINANCEIRAS_ORDINARIAS','simples_nacional',null,null,'Rendimentos de aplicações não integram a base do Simples; não calcular PIS/Cofins separado.','CBS/IBS: tratamento financeiro a confirmar pela legislação vigente.','Exige confirmação da natureza do rendimento.', '2026-01-01'],
+];
+db.transaction(() => REGRAS_ITENS_RECEITA_PADRAO.forEach((x) => db.prepare(`INSERT OR IGNORE INTO regras_itens_receita_regime
+  (item_chave,regime_empresa,pis_percentual,cofins_percentual,tratamento_atual,tratamento_reforma,fundamento,vigencia_inicio)
+  VALUES (?,?,?,?,?,?,?,?)`).run(...x)))();
 
 if (!db.prepare('SELECT COUNT(*) c FROM cnpj_config').get().c) {
   db.prepare(`INSERT INTO cnpj_config (id, provedor, token, validade_dias, ativo, atualizado_em)

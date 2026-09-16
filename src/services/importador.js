@@ -63,7 +63,7 @@ const CAMPOS_FOLHA = {
 
 const CAMPOS_RECEITA_SEM_DFE = {
   competencia: ['competencia', 'periodo', 'mesano', 'referencia'],
-  tipo_receita: ['tiporeceita', 'naturezareceita', 'tipo', 'natureza'],
+  item_receita_chave: ['itemdereceita', 'itemreceita', 'itempadronizado', 'codigoreceita', 'tipodereceita', 'tiporeceita', 'naturezareceita', 'tipo', 'natureza'],
   descricao: ['descricao', 'historico', 'detalhe'],
   valor: ['valor', 'valorreceita', 'valortotal', 'receita'],
   evidencia: ['evidencia', 'referenciaarquivo', 'referencia', 'documentoorigem'],
@@ -206,16 +206,16 @@ function importarReceitasSemDfe(buffer) {
   let ignorados = 0;
   for (const [indice, linha] of linhas.entries()) {
     const competencia = competenciaPgdas(mapa.competencia ? linha[mapa.competencia] : '');
-    const tipo_receita = mapa.tipo_receita ? String(linha[mapa.tipo_receita] || '').trim() : '';
+    const item_receita_chave = mapa.item_receita_chave ? String(linha[mapa.item_receita_chave] || '').trim() : '';
     const descricao = mapa.descricao ? String(linha[mapa.descricao] || '').trim() : '';
     const valor = numeroOpcional(mapa.valor ? linha[mapa.valor] : null);
-    if (!competencia && !tipo_receita && !descricao && valor === null) { ignorados++; continue; }
-    if (!competencia || !tipo_receita || !descricao || valor === null || valor < 0) {
-      mensagens.push(`Linha ${indice + 2} ignorada: competência, tipo, descrição e valor são obrigatórios.`); ignorados++; continue;
+    if (!competencia && !item_receita_chave && !descricao && valor === null) { ignorados++; continue; }
+    if (!competencia || !item_receita_chave || !descricao || valor === null || valor < 0) {
+      mensagens.push(`Linha ${indice + 2} ignorada: competência, item de receita, descrição e valor são obrigatórios.`); ignorados++; continue;
     }
     const textoCampo=(campo)=>mapa[campo] ? String(linha[mapa[campo]] || '').trim() || null : null;
     const numeroCampo=(campo)=>mapa[campo] ? numeroOpcional(linha[mapa[campo]]) : null;
-    registros.push({ competencia, tipo_receita, descricao, valor, evidencia:textoCampo('evidencia'), classificacao_fiscal:textoCampo('classificacao_fiscal'), subtipo:textoCampo('subtipo'), objeto_operacao:textoCampo('objeto_operacao'), contrato_referencia:textoCampo('contrato_referencia'), regra_atual:textoCampo('regra_atual'), regra_reforma:textoCampo('regra_reforma'), identificador_origem:textoCampo('identificador_origem'), especie_questor:textoCampo('especie_questor'), segregacao_apuracao:textoCampo('segregacao_apuracao'), base_pis_cofins_atual:numeroCampo('base_pis_cofins_atual'), pis_atual:numeroCampo('pis_atual'), cofins_atual:numeroCampo('cofins_atual'), criterio_tributacao_atual:textoCampo('criterio_tributacao_atual'), tributacao_atual_origem:textoCampo('tributacao_atual_origem'), origem:textoCampo('origem') });
+    registros.push({ competencia, item_receita_chave, descricao, valor, evidencia:textoCampo('evidencia'), identificador_origem:textoCampo('identificador_origem'), origem:textoCampo('origem') });
   }
   return { registros, ignorados, mensagens, aba, mapa, colunas: Object.keys(linhas[0]) };
 }
@@ -348,7 +348,7 @@ function gerarModelo(tipo) {
     dados = [{ 'Competência': '2026-01', 'Valor da Folha': 25000, 'Pró-labore': 5000, 'Referência do arquivo': 'Folha janeiro/2026' }];
   } else if (tipo === 'receitas_sem_dfe') {
     nomeAba = 'Receitas sem DFe';
-    dados = [{ 'Competência': '2026-01', 'Tipo de receita': 'Locação de bens móveis', 'Descrição': 'Locação mensal de equipamento', Valor: 3500, 'Identificador Questor': '38988' }];
+    dados = [{ 'Competência': '2026-01', 'Item de receita': 'Locação de equipamentos / bens móveis', 'Descrição': 'Locação mensal de equipamento', Valor: 3500, 'Identificador Questor': '38988' }];
   } else if (tipo === 'participantes') {
     nomeAba = 'Participantes';
     dados = [{ Nome: 'Nome do participante', Área: 'Financeiro', 'E-mail': 'participante@empresa.com', Empresa: 'Empresa vinculada (somente turma compartilhada)', CNPJ: '12.345.678/0001-90' }];
@@ -384,7 +384,7 @@ function gerarModelo(tipo) {
     ...(tipo === 'referencias_servicos' ? [{ Campo: 'Referências fiscais', 'Valores aceitos': 'Informe Descrição do serviço e ao menos PIS/COFINS ou DAS efetivo. As alíquotas aceitam 9,25% ou 0,0925. NBS é opcional.' }] : []),
     ...(tipo === 'pgdas' ? [{ Campo: 'PGDAS', 'Valores aceitos': 'Competência e DAS são obrigatórios. Receita Bruta, PIS e COFINS são opcionais; ausência não é transformada em zero.' }] : []),
     ...(tipo === 'folha' ? [{ Campo: 'Folha', 'Valores aceitos': 'Competência e Valor da Folha são obrigatórios. Pró-labore e Referência do arquivo são opcionais.' }] : []),
-    ...(tipo === 'receitas_sem_dfe' ? [{ Campo: 'Receita sem DF-e', 'Valores aceitos': 'Preencha somente Competência, Tipo de receita, Descrição, Valor e, se houver, Identificador Questor. Tipos iniciais: “Locação de bens móveis” (inclui aluguel de equipamentos) e “Receita financeira”. O sistema define a classificação e busca a tributação aplicável; não informe alíquotas, PIS, Cofins, CBS ou IBS.' }] : []),
+    ...(tipo === 'receitas_sem_dfe' ? [{ Campo: 'Receita sem DF-e', 'Valores aceitos': 'Preencha Competência, Item de receita, Descrição, Valor e, se houver, Identificador Questor. O item deve ser um catálogo padronizado: Locação de equipamentos / bens móveis, Aluguel de imóveis próprios, Licenciamento / cessão de uso de software próprio ou Receitas financeiras ordinárias. O sistema aplica a regra técnica conforme o regime da empresa; não informe alíquotas, PIS, Cofins, CBS ou IBS.' }] : []),
     ...(tipo === 'participantes' ? [{ Campo: 'Participantes', 'Valores aceitos': 'Nome é obrigatório. Área e E-mail são opcionais. Empresa ou CNPJ só são usados em turmas compartilhadas.' }] : []),
     ...(tipo === 'apuracao_pis_cofins' ? [{ Campo: 'Apuração PIS/Cofins', 'Valores aceitos': 'Use o relatório original quando disponível. A planilha modelo aceita Competência, Receita Base, débitos, créditos, recolhidos e observações; campos sem evidência permanecem não identificados.' }] : []),
   ];

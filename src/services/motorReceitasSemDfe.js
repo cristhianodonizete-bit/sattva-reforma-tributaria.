@@ -14,8 +14,18 @@ function dentroVigencia(regra, data) {
   return (!regra.vigencia_inicio || regra.vigencia_inicio <= data)
     && (!regra.vigencia_fim || regra.vigencia_fim >= data);
 }
-function resolver(db, receita) {
+function resolver(db, receita, regimeEmpresa) {
   const data = `${texto(receita.competencia)}-01`;
+  const regime = texto(regimeEmpresa);
+  if (texto(receita.item_receita_chave) && temTabela(db, 'regras_itens_receita_regime')) {
+    const regra = db.prepare(`SELECT r.*, c.nome AS item_nome, c.classificacao_fiscal
+      FROM regras_itens_receita_regime r JOIN catalogo_itens_receita c ON c.chave=r.item_chave
+      WHERE r.item_chave=? AND r.regime_empresa=? AND r.ativo=1
+      ORDER BY r.vigencia_inicio DESC, r.id DESC`).all(receita.item_receita_chave, regime)
+      .find((x) => dentroVigencia(x, data));
+    if (!regra) return { status: 'PENDENTE_REGRA', pendencia: `Não há regra vigente para este item no regime ${regime || 'não identificado'}.` };
+    return { status: 'DETERMINADO', regra, pendencia: null };
+  }
   const classificacao = normalizar(receita.classificacao_fiscal);
   const subtipo = normalizar(receita.subtipo);
   if (!classificacao || classificacao === 'OUTRA') {
@@ -38,19 +48,27 @@ function resolver(db, receita) {
 function campos(db) {
   return new Set(db.prepare('PRAGMA table_info(receitas_sem_dfe)').all().map((x) => x.name));
 }
-function aplicar(db, receita) {
+function aplicar(db, receita, regimeEmpresa) {
   const colunas = campos(db);
-  if (!colunas.has('status_motor')) return { ...resolver(db, receita), aplicado: false };
-  const resultado = resolver(db, receita);
+  if (!colunas.has('status_motor')) return { ...resolver(db, receita, regimeEmpresa), aplicado: false };
+  const resultado = resolver(db, receita, regimeEmpresa);
   const regra = resultado.regra || {};
+  const base = Number(receita.valor);
+  const pis = Number.isFinite(base) && regra.pis_percentual !== null && regra.pis_percentual !== undefined ? base * Number(regra.pis_percentual) : null;
+  const cofins = Number.isFinite(base) && regra.cofins_percentual !== null && regra.cofins_percentual !== undefined ? base * Number(regra.cofins_percentual) : null;
   db.prepare(`UPDATE receitas_sem_dfe SET status_motor=?, regra_motor_id=?, regra_motor_versao=?, regra_motor_atual=?, regra_motor_reforma=?, cst_motor=?, cclasstrib_motor=?, fundamento_motor=?, pendencia_motor=?, processado_motor_em=datetime('now','localtime'), status_comparabilidade=? WHERE id=?`)
     .run(resultado.status, regra.id || null, regra.versao || null, regra.tratamento_atual || null, regra.tratamento_reforma || null, regra.cst || null, regra.cclasstrib || null, regra.fundamento || null, resultado.pendencia || null, resultado.status === 'DETERMINADO' ? 'PRONTA_PARA_COMPARAR' : resultado.status, receita.id);
+  if (resultado.status === 'DETERMINADO' && (colunas.has('pis_atual') || colunas.has('cofins_atual'))) {
+    db.prepare(`UPDATE receitas_sem_dfe SET base_pis_cofins_atual=?, pis_atual=?, cofins_atual=?, criterio_tributacao_atual=?, tributacao_atual_origem=? WHERE id=?`)
+      .run((pis !== null || cofins !== null) ? base : null, pis, cofins, regra.tratamento_atual || null, 'REGRA_TECNICA_POR_REGIME', receita.id);
+  }
   return { ...resultado, aplicado: true };
 }
 function reprocessarEmpresa(db, empresaId) {
   if (!temTabela(db, 'receitas_sem_dfe') || !campos(db).has('status_motor')) return { processadas: 0, pendentes: 0 };
+  const regime = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime;
   const linhas = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId);
-  const resultados = linhas.map((x) => aplicar(db, x));
+  const resultados = linhas.map((x) => aplicar(db, x, regime));
   return { processadas: resultados.length, pendentes: resultados.filter((x) => x.status !== 'DETERMINADO').length };
 }
 module.exports = { resolver, aplicar, reprocessarEmpresa, dentroVigencia };

@@ -25,6 +25,7 @@ const ABAS = [
   { id: 'reducoes', t: 'Reduções' },
   { id: 'simples', t: 'Simples Nacional' },
   { id: 'cfop', t: 'Mapa de natureza por CFOP' },
+  { id: 'outras_receitas', t: 'Outras receitas' },
   { id: 'limiares', t: 'Limiares e padrões' },
   { id: 'ensaio', t: 'Ensaio de regra' },
   { id: 'historico', t: 'Histórico' },
@@ -50,8 +51,31 @@ Telas.configuracoes = async (el) => {
       A.ir('configuracoes');
     });
   const box = document.getElementById('corpoConfig');
-  ({ controle, aliquotas, tributos, regimes, reducoes, simples, cfop, limiares, ensaio, historico }[aba])(box, d);
+  ({ controle, aliquotas, tributos, regimes, reducoes, simples, cfop, outras_receitas, limiares, ensaio, historico }[aba])(box, d);
 };
+
+function outras_receitas(box, d) {
+  const rotuloRegime = { lucro_real: 'Lucro Real', lucro_presumido: 'Lucro Presumido', simples_nacional: 'Simples Nacional' };
+  const regras = d.regrasItensReceita || [];
+  box.innerHTML = `<div class="aviso"><b>Catálogo técnico obrigatório.</b> Os lançamentos de Outras receitas selecionam um item padronizado; o texto da descrição não escolhe tributação. O motor encontra abaixo a regra do regime da empresa e registra sua origem no lançamento.</div>
+    <div class="cartao"><h2>Itens e regras por regime</h2>${A.tabela([
+      {t:'Item padronizado',r:x=>`<b>${A.esc(x.item_nome)}</b><div class="mini">${A.esc(x.item_chave)}</div>`},
+      {t:'Regime',r:x=>A.esc(rotuloRegime[x.regime_empresa] || x.regime_empresa)},
+      {t:'PIS',num:true,r:x=>x.pis_percentual === null ? '—' : A.pct(x.pis_percentual)},
+      {t:'Cofins',num:true,r:x=>x.cofins_percentual === null ? '—' : A.pct(x.cofins_percentual)},
+      {t:'Tratamento atual',r:x=>A.esc(x.tratamento_atual)},
+      {t:'Reforma',r:x=>`<span class="mini">${A.esc(x.tratamento_reforma)}</span>`},
+      {t:'',r:x=>`<button class="btn pq vazio" data-editar-regra-receita="${x.id}">Editar</button>`},
+    ], regras, {vazio:'Nenhuma regra de outras receitas foi cadastrada.'})}</div>`;
+  box.querySelectorAll('[data-editar-regra-receita]').forEach((b) => b.onclick = () => {
+    const r = regras.find((x) => Number(x.id) === Number(b.dataset.editarRegraReceita));
+    A.modal({ titulo: `Regra — ${r.item_nome} / ${rotuloRegime[r.regime_empresa] || r.regime_empresa}`,
+      descricao: 'Alíquotas em decimal: 0,0165 equivale a 1,65%. Deixe em branco quando não houver PIS/Cofins separado.',
+      corpo: `<div class="grade g2">${A.campo('pis_percentual','PIS',r.pis_percentual ?? '','number','step="0.0001" min="0" max="1"')}${A.campo('cofins_percentual','Cofins',r.cofins_percentual ?? '','number','step="0.0001" min="0" max="1"')}</div>${A.campo('tratamento_atual','Tratamento atual',r.tratamento_atual)}${A.campo('tratamento_reforma','Tratamento na reforma',r.tratamento_reforma)}${A.campo('fundamento','Fundamento / ressalva',r.fundamento || '')}${A.campo('vigencia_inicio','Vigência inicial',r.vigencia_inicio,'text','placeholder="2026-01-01"')}`,
+      aoConfirmar: async (dados) => { await A.api(`/config/regras-itens-receita/${r.id}`, {metodo:'PUT',corpo:{...dados,ativo:true}}); A.toast('Regra técnica atualizada', 'ok'); A.ir('configuracoes'); },
+    });
+  });
+}
 
 Telas.controleProjeto = async (el) => Telas.configuracoes(el);
 

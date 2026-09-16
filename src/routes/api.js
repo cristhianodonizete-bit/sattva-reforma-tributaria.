@@ -5313,7 +5313,7 @@ router.get('/config/regras', async (_req, res) => {
   try {
     // Esta é a rota que alimenta a tela de Configurações. Ela consulta a
     // fonte compartilhada antes de montar o formulário, nunca um cache antigo.
-    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas','param_regimes','param_cfop']);
+    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas','param_regimes','param_cfop','catalogo_itens_receita','regras_itens_receita_regime']);
     regras.invalidar();
     const local = db.prepare('SELECT ano,cbs,ibs,calcular_ibs,atualizado_em FROM param_aliquotas WHERE ano=2027').get() || null;
     const auditoria = { cache_render: local, supabase_configurado: supabase.configurado(),
@@ -5335,8 +5335,19 @@ router.get('/config/regras', async (_req, res) => {
       const r = (data?.dados || []).find((x) => x.chave === 'simples_nacional') || null;
       auditoriaRegimeSimples.fonte_supabase = r ? { pis_cofins: r.pis_cofins, credito_cbs_simples_referencia: r.credito_cbs_simples_referencia ?? null } : null;
     } catch (e) { auditoriaRegimeSimples.erro_supabase = e.message; }
-    ok(res, { ...regras.tudo(), auditoria, auditoriaRegimeSimples });
+    const itensReceita = db.prepare('SELECT chave,nome,classificacao_fiscal,ativo,ordem FROM catalogo_itens_receita ORDER BY ordem,nome').all();
+    const regrasItensReceita = db.prepare(`SELECT r.*, c.nome AS item_nome FROM regras_itens_receita_regime r
+      JOIN catalogo_itens_receita c ON c.chave=r.item_chave ORDER BY c.ordem,r.regime_empresa,r.vigencia_inicio DESC`).all();
+    ok(res, { ...regras.tudo(), auditoria, auditoriaRegimeSimples, itensReceita, regrasItensReceita });
   } catch (e) { erro(res, e); }
+});
+
+router.get('/config/itens-receita', async (_req, res) => {
+  try {
+    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['catalogo_itens_receita']);
+    ok(res, { itens: db.prepare('SELECT chave,nome,classificacao_fiscal FROM catalogo_itens_receita WHERE ativo=1 ORDER BY ordem,nome').all() });
+  }
+  catch (e) { erro(res, e); }
 });
 
 /**
@@ -5388,6 +5399,18 @@ async function confirmarParametrosCompartilhados() {
 router.put('/config/regras/:grupo/:chave', async (req, res) => {
   try { regras.salvarRegra(req.params.grupo, req.params.chave, req.body.valor, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
   catch (e) { erro(res, e); }
+});
+
+router.put('/config/regras-itens-receita/:id', async (req, res) => {
+  try {
+    const atual = db.prepare('SELECT id FROM regras_itens_receita_regime WHERE id=?').get(Number(req.params.id));
+    if (!atual) throw new Error('Regra de receita não encontrada.');
+    const n = (v, campo) => v === '' || v === null || v === undefined ? null : (() => { const x = Number(v); if (!Number.isFinite(x) || x < 0 || x > 1) throw new Error(`${campo} deve estar entre 0 e 1.`); return x; })();
+    db.prepare(`UPDATE regras_itens_receita_regime SET pis_percentual=?,cofins_percentual=?,tratamento_atual=?,tratamento_reforma=?,fundamento=?,vigencia_inicio=?,vigencia_fim=?,ativo=? WHERE id=?`)
+      .run(n(req.body.pis_percentual, 'PIS'), n(req.body.cofins_percentual, 'Cofins'), String(req.body.tratamento_atual || '').trim(), String(req.body.tratamento_reforma || '').trim(), String(req.body.fundamento || '').trim() || null, String(req.body.vigencia_inicio || '').trim() || '2026-01-01', String(req.body.vigencia_fim || '').trim() || null, req.body.ativo ? 1 : 0, Number(req.params.id));
+    await confirmarParametrosCompartilhados();
+    ok(res, {});
+  } catch (e) { erro(res, e); }
 });
 
 router.put('/config/tributos/:chave', async (req, res) => {
