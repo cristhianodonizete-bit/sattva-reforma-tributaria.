@@ -703,9 +703,12 @@ Telas.questor = async (el) => {
     if (t.erro) return `<span class="mini" style="color:#b42318"><b>Erro:</b> ${A.esc(t.erro)}</span>`;
     if (t.status !== 'CONCLUIDA') return '<span class="mini">Aguardando atualização.</span>';
     if (t.tipo === 'PARAMETROS_RELATORIO') return `<button class="btn vazio pq" data-ver-retorno-questor="${t.id}">Ver parâmetros retornados</button>`;
-    let resultado = 'Processamento concluído.';
-    try { resultado = JSON.stringify(JSON.parse(t.resultado_json || '{}')); } catch (_) { /* mantém o texto padrão */ }
-    return `<span class="mini">${A.esc(resultado.slice(0, 240))}</span>`;
+    let resultado = {}, resumo = 'Processamento concluído.';
+    try { resultado = JSON.parse(t.resultado_json || '{}'); resumo = JSON.stringify(resultado); } catch (_) { /* mantém o texto padrão */ }
+    if (t.tipo === 'IMPORTAR_OUTRAS_RECEITAS_LOCACAO') {
+      resumo = `${resultado.linhas_lidas || 0} linha(s) lida(s) · ${resultado.importados || 0} importada(s) · ${resultado.ignorados || 0} ignorada(s)`;
+    }
+    return `<span class="mini">${A.esc(resumo.slice(0, 240))}</span> <button class="btn vazio pq" data-ver-resultado-tarefa="${t.id}">Ver resultado</button>`;
   };
   const conciliacoes=(tarefas||[]).filter(t=>['DOCUMENTOS_FISCAIS_CANCELADOS','CONCILIAR_CFOP_SAIDAS'].includes(t.tipo));
   const resumoConciliacao=(t)=>{try{const r=JSON.parse(t.resultado_json||'{}');return t.tipo==='CONCILIAR_CFOP_SAIDAS' ? `${r.pareados||0} pareado(s) · ${r.divergencias||0} divergência(s) · ${r.ambiguos||0} ambíguo(s)` : `${r.atualizados||0} atualizado(s) · ${r.ambiguos||0} ambíguo(s) · ${r.nao_localizados||0} não localizado(s)`;}catch(_){return t.erro||'Aguardando retorno do conector.';}};
@@ -862,6 +865,12 @@ Telas.questor = async (el) => {
     let retorno = tarefa?.resultado_json || '{}';
     try { retorno = JSON.stringify(JSON.parse(retorno), null, 2); } catch (_) { /* exibe a resposta original */ }
     A.modal({titulo:'Parâmetros retornados pelo Questor',confirmar:null,largura:900,descricao:'Retorno bruto do nWeb para o relatório nFisRRTotalPISCOFINSProd.',corpo:`<pre class="mini" style="white-space:pre-wrap;max-height:520px;overflow:auto;background:#f4f7f9;padding:12px;border-radius:8px">${A.esc(retorno)}</pre>`});
+  });
+  el.querySelectorAll('[data-ver-resultado-tarefa]').forEach((botao) => botao.onclick = () => {
+    const tarefa = tarefas.find((t) => String(t.id) === botao.dataset.verResultadoTarefa);
+    let retorno = tarefa?.resultado_json || '{}';
+    try { retorno = JSON.stringify(JSON.parse(retorno), null, 2); } catch (_) { /* exibe a resposta original */ }
+    A.modal({titulo:'Resultado da solicitação Questor',confirmar:null,largura:900,descricao:'Retorno completo do Questor e do processamento realizado pela Sattva.',corpo:`<pre class="mini" style="white-space:pre-wrap;max-height:520px;overflow:auto;background:#f4f7f9;padding:12px;border-radius:8px">${A.esc(retorno)}</pre>`});
   });
   const codificar64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
   const decodificar64 = (texto) => Uint8Array.from(atob(texto), (c) => c.charCodeAt(0));
