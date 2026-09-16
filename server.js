@@ -47,15 +47,10 @@ app.use('/api', (req, res, next) => {
     estadoOperacao.possuiBaseLocal = true;
   }
   if (!estadoOperacao.ativa || estadoOperacao.pronta || estadoOperacao.possuiBaseLocal) {
-    // Durante a fotografia inicial, somente leituras são liberadas. Isso
-    // evita que uma alteração seja feita sobre uma coleção ainda parcial.
-    if (!estadoOperacao.pronta && !['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
-      return res.status(503).json({
-        ok: false,
-        erro: 'Base operacional ainda está terminando a sincronização. Aguarde alguns instantes para fazer alterações.',
-        codigo: 'BASE_OPERACIONAL_SINCRONIZANDO',
-      });
-    }
+    // Uma fotografia local existente já é uma base operacional utilizável.
+    // A atualização remota pode continuar em segundo plano; ela não deve
+    // congelar a operação inteira após um deploy ou reinício da instância.
+    // O bloqueio permanece somente na primeira instalação, sem base alguma.
     return next();
   }
   return res.status(503).json({
