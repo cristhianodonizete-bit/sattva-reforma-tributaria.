@@ -51,6 +51,12 @@ function validarRetornoRelatorio(texto) {
   }
   return texto;
 }
+function nomeAcaoParaMetadados(nomeInterno) {
+  const nome = String(nomeInterno || '');
+  // O Questor informa na tela o nome interno (TnFis...), mas o serviço de
+  // metadados procura a action Delphi correspondente (actTnFis...).
+  return /^act/i.test(nome) ? nome : `act${nome}`;
+}
 async function executar(t) {
   if(!permitidas.has(t.tipo)) throw new Error('Tarefa não permitida pelo conector.');
   if(t.tipo==='TESTAR_NWEB') return { versao:await nweb('/TnWebDMDadosGerais/PegarVersaoQuestor'), info:await nweb('/TnInfo/Info') };
@@ -60,10 +66,11 @@ async function executar(t) {
   if(t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO') {
     // Esta ação é uma consulta do Questor, cujo contrato não foi publicado.
     // Primeiro lemos o metadado local e só enviamos os campos que ele confirmar.
-    const metadados = await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acao});
+    const acaoMetadados = nomeAcaoParaMetadados(acao);
+    const metadados = await nweb('/TnWebDMDadosObjetos/Pegar',{_AActionName:acaoMetadados});
     const parametros = parametrosConsultaConfirmados(metadados, t.payload?.consulta || {});
     const relatorio = validarRetornoRelatorio(await nweb('/TnWebDMRelatorio/Executar',{_AActionName:acao,_ABase64:'False',_ATipoRetorno:'nrwexTXT'}, parametros));
-    return { actionName:acao, formato:'nrwexTXT', parametros_confirmados:Object.keys(parametros), relatorio };
+    return { actionName:acao, acao_metadados:acaoMetadados, formato:'nrwexTXT', parametros_confirmados:Object.keys(parametros), relatorio };
   }
   // Os controles do relatório são vinculados pelo corpo JSON. Campos ftDate
   // precisam da máscara pt-BR (dd/mm/aaaa) para o parser Delphi do nWeb.
