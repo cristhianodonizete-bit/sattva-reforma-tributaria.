@@ -279,19 +279,24 @@ async function baixar() {
   // fotografia ativa viola FK em uma instância nova e deixava a carga-base
   // artificialmente parcial. Elas são restauradas logo após o motor.
   const dependentesDoMotor = ['excecoes_motor_execucoes', 'telemetria_autonomia_execucoes'];
-  const tabelas = ['empresas', ...Object.keys(CAMPOS).filter((tabela) => tabela !== 'empresas' && !dependentesDoMotor.includes(tabela))];
-  const colecoes = await buscarColecoes(remoto, tabelas);
+  const tabelas = Object.keys(CAMPOS).filter((tabela) => tabela !== 'empresas' && !dependentesDoMotor.includes(tabela));
   const empresasValidas = new Set(), lotesValidos = new Set();
   let empresaLocalPorRemota = new Map();
+  // A carteira é a única dependência para a navegação inicial. Ela é gravada
+  // antes dos catálogos grandes, para que um deploy não entregue uma tela
+  // vazia enquanto a fotografia complementar continua sendo baixada.
+  try {
+    const origemEmpresas = await buscarTudo(remoto, 'empresas');
+    empresaLocalPorRemota = mapaEmpresasLocais(origemEmpresas);
+    origemEmpresas.forEach((x) => empresasValidas.add(empresaLocalPorRemota.get(String(x.id))));
+    resultado.empresas = gravarEmpresas(origemEmpresas);
+  } catch (e) { falhas.empresas = e.message; }
+  const colecoes = await buscarColecoes(remoto, tabelas);
   for (const tabela of tabelas) {
     try {
       const carga = colecoes.get(tabela);
       if (carga?.erro) throw carga.erro;
       const origem = carga?.linhas || [];
-      if (tabela === 'empresas') {
-        empresaLocalPorRemota = mapaEmpresasLocais(origem);
-        origem.forEach((x) => empresasValidas.add(empresaLocalPorRemota.get(String(x.id))));
-      }
       const normalizadas = normalizarEmpresaIdDoCache(tabela, origem, empresaLocalPorRemota);
       const linhas = filtrarOrfaosOperacionais(tabela, normalizadas, empresasValidas, lotesValidos);
       if (tabela === 'lotes') linhas.forEach((x) => lotesValidos.add(Number(x.id)));
@@ -305,8 +310,7 @@ async function baixar() {
     // tanto id técnico quanto unicidade funcional; limpar o espelho evita que
     // um ID local legado colida com uma regra remota de chave diferente.
       if (tabela === 'regras_governo') db.prepare('DELETE FROM regras_governo').run();
-      resultado[tabela] = tabela === 'empresas' ? gravarEmpresas(linhas)
-        : tabela === 'empresa_qsa' ? gravarEmpresaQsa(linhas) : gravar(tabela, linhas);
+      resultado[tabela] = tabela === 'empresa_qsa' ? gravarEmpresaQsa(linhas) : gravar(tabela, linhas);
     } catch (e) {
       falhas[tabela] = e.message;
     }
