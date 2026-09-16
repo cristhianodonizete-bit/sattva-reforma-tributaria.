@@ -59,6 +59,37 @@ async function conciliarCancelamentosQuestor(empresaId, texto) {
       situacao:'CANCELADO',origem:'QUESTOR_RELATORIO_CANCELADOS',evidencia:'Cancelamento informado pelo relatório Questor nFisRRDocFiscalCancelado.',
     })),{onConflict:'empresa_id,data_emissao,numero,modelo_documento_fiscal,serie'});
     if(erroCancelamentos) throw erroCancelamentos;
+    // A fila pode terminar em outra instância do Render que a usada pela
+    // tela. Gravar também os movimentos diretamente na fonte compartilhada
+    // evita que uma restauração do cache volte a mostrar a nota autorizada.
+    const empresaRemotaId=empresasRemotas[0].id;
+    const {data: movimentosRemotos,error: erroMovimentos}=await remoto.from('movimentos')
+      .select('id,documento,chave,data_emissao,modelo_documento_fiscal,situacao_documento')
+      .eq('empresa_id',empresaRemotaId).eq('tipo','cliente').limit(10000);
+    if(erroMovimentos) throw erroMovimentos;
+    const diagnostico=[]; let atualizadosRemoto=0;
+    for(const r of registros) {
+      const base=(movimentosRemotos||[]).filter((x)=>{
+        const partes=String(x.documento||'').split('/');
+        const numero=(partes[partes.length-1]||'').replace(/\D/g,'');
+        const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');
+        return numero===r.numero && String(x.modelo_documento_fiscal||'').toLowerCase()===r.modelo && (!r.serie||!serie||serie===r.serie);
+      });
+      const porData=base.filter((x)=>String(x.data_emissao||'').slice(0,10)===r.data);
+      const candidatos=porData.length?porData:base;
+      const documentos=new Set(candidatos.map((x)=>x.chave||`d:${x.documento}`));
+      if(!documentos.size) { diagnostico.push({documento:r.numero,resultado:'NAO_LOCALIZADO_NA_BASE_COMPARTILHADA'}); continue; }
+      if(documentos.size!==1) { diagnostico.push({documento:r.numero,resultado:'AMBIGUO_NA_BASE_COMPARTILHADA'}); continue; }
+      const idsRemotos=candidatos.map((x)=>x.id);
+      const {error: erroAtualizacao}=await remoto.from('movimentos').update({
+        situacao_documento:'CANCELADO',cancelado_em:new Date().toISOString(),
+        cancelamento_motivo:'Situação CANCELADO informada pelo Questor',cancelamento_origem:'QUESTOR_RELATORIO_CANCELADOS',
+      }).in('id',idsRemotos);
+      if(erroAtualizacao) throw erroAtualizacao;
+      atualizadosRemoto++; diagnostico.push({documento:r.numero,resultado:'CANCELADO_NA_BASE_COMPARTILHADA'});
+    }
+    saida.atualizados_base_compartilhada=atualizadosRemoto;
+    saida.diagnostico=diagnostico.slice(0,100);
   }
   saida.cancelamentos_registrados=registros.length;
   db.transaction(()=>registros.forEach(r=>{saida.linhas_lidas++; const base=movimentos.filter(x=>{const partes=String(x.documento||'').split('/');const numero=(partes[partes.length-1]||'').replace(/\D/g,'');const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');return numero===r.numero&&String(x.modelo_documento_fiscal||'').toLowerCase()===r.modelo&&(!r.serie||!serie||serie===r.serie);}); const porData=base.filter(x=>String(x.data_emissao||'').slice(0,10)===r.data); const candidatos=porData.length?porData:base; const docs=new Set(candidatos.map(x=>x.chave||`d:${x.documento}`)); if(!docs.size){saida.nao_localizados++;return;} if(docs.size!==1){saida.ambiguos++;return;} const mudou=candidatos.some(x=>String(x.situacao_documento||'AUTORIZADO')!==r.situacao); db.prepare(`UPDATE movimentos SET situacao_documento=?,cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo=?,cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE id IN (${candidatos.map(()=>'?').join(',')})`).run(r.situacao,`Situação ${r.situacao} informada pelo Questor`,...candidatos.map(x=>x.id)); if(mudou){saida.atualizados++;ids.push(...candidatos.map(x=>x.id));} }));
