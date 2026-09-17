@@ -277,7 +277,15 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const chaveCache = `${empresaId}:${base.execucao?.id || 'sem-execucao'}:${chavePeriodo}:${tipo}:${marcaAdicionais}:${opcoes.incluirDetalhes === false ? 0 : 1}:${opcoes.incluirBeneficios === true ? 1 : 0}:${opcoes.paginaDetalhes || 1}:${opcoes.limiteDetalhes || 100}:${opcoes.paginaParceiros || 1}:${opcoes.limiteParceiros || 100}`;
   const cadeiaEmMemoria = cadeiasPorExecucao.get(chaveCache);
   if (cadeiaEmMemoria) return cadeiaEmMemoria;
-  const itens = [...base.linhas.filter((x) => x.sentido === sentido), ...adicionais];
+  // A carteira de clientes representa relações comerciais identificáveis.
+  // Outras receitas podem compor o Perfil Tributário, mas não são clientes e
+  // não devem aparecer como um único "Regime regular" fictício nesta tela.
+  const itens = base.linhas.filter((x) => x.sentido === sentido);
+  const resumoOutrasReceitas = adicionais.reduce((s, x) => ({
+    registros: s.registros + 1,
+    valor: r2(s.valor + n(x.preco_atual)),
+    cbs: r2(s.cbs + n(x.cbs)),
+  }), { registros: 0, valor: 0, cbs: 0 });
   const porParceiro = new Map(), porGrupo = new Map();
   const total = { registros: itens.length, valor: 0, baseEconomica: 0, cbs: 0, ibs: 0, cbsDentroDoDas: 0, ibsDentroDoDas: 0, tributosSubstituidosDoDas: 0, precoFinal: 0, custoLiquido: 0, credito: 0, pisCofinsAtual: 0, pisIndeterminado: false };
 
@@ -405,6 +413,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
       ? 'Projeção principal: Simples Nacional no regime regular de IBS/CBS (híbrido). O DAS permanece disponível somente como comparação.'
       : 'Projeção principal pelo regime tributário atual da empresa.',
     totais: t, parceiros: parceirosPaginados, regimes, detalhes,
+    outras_receitas_sem_cliente: lado === 'cliente' ? resumoOutrasReceitas : { registros: 0, valor: 0, cbs: 0 },
     paginacaoParceiros: { pagina: paginaParceiros, limite: limiteParceiros, total: parceiros.length, totalPaginas: totalPaginasParceiros,
       temAnterior: paginaParceiros > 1, temProxima: paginaParceiros < totalPaginasParceiros },
     paginacaoDetalhes: {

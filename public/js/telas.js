@@ -1278,6 +1278,7 @@ async function telaCadeia(el, tipo) {
   const mostrarAbc = eForn || abaCliente === 'abc';
   const resumoBeneficios = analise.tratamentoBeneficios || { operacoes: 0 };
   const simplesHibrido = !eForn && analise.projecao_regime === 'SIMPLES_HIBRIDO';
+  const outrasReceitasSemCliente = analise.outras_receitas_sem_cliente || { registros: 0, valor: 0, cbs: 0 };
   const pisAntes = (x) => x.pisCofinsNoDas ? 'no DAS' : x.pisIndeterminado ? 'a validar' : A.moeda(x.pisCofinsAtual);
   const tributosReforma = (x) => `${ibsAtivo ? `IBS ${A.moeda(x.ibs)} · ` : ''}CBS ${A.moeda(x.cbs)}`;
 
@@ -1287,6 +1288,7 @@ async function telaCadeia(el, tipo) {
           : 'Impacto da reforma no preço das vendas da empresa. O perfil do cliente não altera o IBS/CBS devido na saída; ele apenas orienta a relevância comercial do crédito potencial.',
     `<button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/${eForn ? 'fornecedores' : 'clientes'}?repasse=${rep}')">Exportar Excel</button>`) +
     (analise.projecao_regime === 'SIMPLES_HIBRIDO' ? `<div class="aviso ok" style="margin-top:16px"><b>Projeção principal: Simples Híbrido.</b> ${A.esc(analise.leitura_projecao || '')}</div>` : '') +
+    (!eForn && outrasReceitasSemCliente.registros ? `<div class="aviso neutro" style="margin-top:16px"><b>${outrasReceitasSemCliente.registros} lançamento(s) de outras receitas, no total de ${A.moeda(outrasReceitasSemCliente.valor)}, não foram incluídos na carteira de clientes.</b><br>Esses lançamentos não têm cliente identificado e continuam disponíveis na Central de Dados e na composição do Perfil Tributário.</div>` : '') +
     (!eForn && pendenciasReferencias.length ? `<div class="aviso atencao" style="margin-top:16px"><b>${pendenciasReferencias.length} lançamento(s) de serviço estão sem referência fiscal específica.</b> A análise foi carregada com a melhor evidência disponível (documento, catálogo ou regime da empresa). <button class="btn pq vazio" id="corrigirDadosCadeia">Corrigir na Central de Dados</button> Esses itens permanecem <b>a validar</b>.</div>` : '') +
     (t.registros ? `
     <div class="grade g4">
