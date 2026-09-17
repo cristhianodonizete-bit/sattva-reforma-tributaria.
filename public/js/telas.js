@@ -1288,7 +1288,7 @@ async function telaCadeia(el, tipo) {
           : 'Impacto da reforma no preço das vendas da empresa. O perfil do cliente não altera o IBS/CBS devido na saída; ele apenas orienta a relevância comercial do crédito potencial.',
     `<button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/${eForn ? 'fornecedores' : 'clientes'}?repasse=${rep}')">Exportar Excel</button>`) +
     (analise.projecao_regime === 'SIMPLES_HIBRIDO' ? `<div class="aviso ok" style="margin-top:16px"><b>Projeção principal: Simples Híbrido.</b> ${A.esc(analise.leitura_projecao || '')}</div>` : '') +
-    (!eForn && outrasReceitasSemCliente.registros ? `<div class="aviso neutro" style="margin-top:16px"><b>${outrasReceitasSemCliente.registros} lançamento(s) de outras receitas, no total de ${A.moeda(outrasReceitasSemCliente.valor)}, não foram incluídos na carteira de clientes.</b><br>Esses lançamentos não têm cliente identificado e continuam disponíveis na Central de Dados e na composição do Perfil Tributário.</div>` : '') +
+    (!eForn && outrasReceitasSemCliente.registros ? `<div class="aviso neutro" style="margin-top:16px"><b>${outrasReceitasSemCliente.registros} lançamento(s) de outras receitas, no total de ${A.moeda(outrasReceitasSemCliente.valor)}, foram consolidados em “Clientes diversos”.</b><br>O grupo segue a regra de regime regular e não atribui artificialmente um cliente individual.</div>` : '') +
     (!eForn && pendenciasReferencias.length ? `<div class="aviso atencao" style="margin-top:16px"><b>${pendenciasReferencias.length} lançamento(s) de serviço estão sem referência fiscal específica.</b> A análise foi carregada com a melhor evidência disponível (documento, catálogo ou regime da empresa). <button class="btn pq vazio" id="corrigirDadosCadeia">Corrigir na Central de Dados</button> Esses itens permanecem <b>a validar</b>.</div>` : '') +
     (t.registros ? `
     <div class="grade g4">
@@ -1331,7 +1331,7 @@ async function telaCadeia(el, tipo) {
     ${mostrarCarteira ? `<div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Compras por regime do fornecedor' : 'Carteira por perfil de cliente'}</h2>
         <p class="desc">${eForn ? 'O regime do fornecedor determina o crédito que a empresa toma' : 'Consolidação da carteira por perfil de cliente, enquadramento CBS e efeito projetado da venda.'}</p>
         ${A.tabela([
-          { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}</div>` },
+          { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.clienteDiverso ? `${r.itens} lançamento(s) consolidados` : `${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`}</div>` },
           { t: 'Enquadramento CBS', r: (r) => `<span class="tag ${r.faixaOrdem === 'ALIQUOTA_ZERO' ? 'a' : r.faixaOrdem !== 'INTEGRAL' ? 'c' : 'n'}">${A.esc(r.faixaTributacao || 'Base integral')}</span>` },
           { t: eForn ? 'Compras atuais' : 'Vendas atuais', num: true, r: (r) => `<b>${A.moeda(r.valor)}</b><div class="mini">${A.pct(r.representatividade, 1)} da carteira</div>` },
           { t: 'Antes — PIS/Cofins', num: true, r: (r) => pisAntes(r) },

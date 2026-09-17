@@ -117,6 +117,7 @@ function leituraCliente(linha) {
 function grupoDaLinha(linha, lado) {
   const regime = linha.regime_parceiro || 'indeterminado';
   if (lado === 'cliente') {
+    if (linha.cliente_diverso) return 'Clientes diversos (regime regular)';
     if (linha.perfil_destinatario === 'governo') return 'Governo';
     if (linha.perfil_destinatario === 'b2c_pf') return 'Pessoa Física';
     if (regime === 'simples_nacional') return 'Simples Nacional';
@@ -254,7 +255,7 @@ function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
     return {
       movimento_id: `receita-sem-dfe:${x.id}`, sentido:'saida', competencia:x.competencia,
       documento: x.identificador_origem ? `Questor ${x.identificador_origem}` : 'Receita sem DF-e',
-      descricao: x.descricao || x.tipo_receita || 'Outra receita', nome:'Sem cliente identificado', inscr_federal:'',
+      descricao: x.descricao || x.tipo_receita || 'Outra receita', nome:'Clientes diversos', inscr_federal:'', cliente_diverso:true,
       regime_parceiro:'regime_regular', perfil_destinatario:'b2b_regular', preco_atual:valor,
       base_economica:valor, cbs, ibs, preco_projetado:r2(valor + cbs + ibs), custo_liquido:valor,
       credito_cbs:0, credito_ibs:0, status_credito:'SEM_DIREITO', status_credito_determinacao:'NAO_APLICAVEL',
@@ -277,10 +278,10 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const chaveCache = `${empresaId}:${base.execucao?.id || 'sem-execucao'}:${chavePeriodo}:${tipo}:${marcaAdicionais}:${opcoes.incluirDetalhes === false ? 0 : 1}:${opcoes.incluirBeneficios === true ? 1 : 0}:${opcoes.paginaDetalhes || 1}:${opcoes.limiteDetalhes || 100}:${opcoes.paginaParceiros || 1}:${opcoes.limiteParceiros || 100}`;
   const cadeiaEmMemoria = cadeiasPorExecucao.get(chaveCache);
   if (cadeiaEmMemoria) return cadeiaEmMemoria;
-  // A carteira de clientes representa relações comerciais identificáveis.
-  // Outras receitas podem compor o Perfil Tributário, mas não são clientes e
-  // não devem aparecer como um único "Regime regular" fictício nesta tela.
-  const itens = base.linhas.filter((x) => x.sentido === sentido);
+  // Outras receitas seguem a regra de "Clientes diversos" em regime regular:
+  // entram na cadeia como contraparte consolidada, sem atribuir um cliente
+  // específico que não existe na origem.
+  const itens = [...base.linhas.filter((x) => x.sentido === sentido), ...adicionais];
   const resumoOutrasReceitas = adicionais.reduce((s, x) => ({
     registros: s.registros + 1,
     valor: r2(s.valor + n(x.preco_atual)),
@@ -315,15 +316,16 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   };
 
   for (const x of itens) {
-    const chave = x.inscr_federal || x.nome || `movimento:${x.movimento_id}`;
+    const clienteDiverso = Boolean(x.cliente_diverso);
+    const chave = clienteDiverso ? 'clientes-diversos' : (x.inscr_federal || x.nome || `movimento:${x.movimento_id}`);
     const nome = x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || 'Sem identificação';
-    if (!porParceiro.has(chave)) porParceiro.set(chave, { chave, cnpj: x.inscr_federal || '', nome, regime: x.regime_parceiro || 'indeterminado', regimeLabel: grupoDaLinha(x, lado), parceiros: 1 });
+    if (!porParceiro.has(chave)) porParceiro.set(chave, { chave, cnpj: x.inscr_federal || '', nome, regime: x.regime_parceiro || 'indeterminado', regimeLabel: grupoDaLinha(x, lado), parceiros: 1, clienteDiverso });
     acumular(porParceiro.get(chave), x);
     const grupo = grupoDaLinha(x, lado);
     const faixa = faixaTributacao(x);
     const chaveGrupo = `${grupo}::${faixa.chave}`;
-    if (!porGrupo.has(chaveGrupo)) porGrupo.set(chaveGrupo, { label: grupo, faixaTributacao: faixa.label, faixaOrdem: faixa.chave, regime: x.regime_parceiro || 'indeterminado', parceirosSet: new Set() });
-    const g = porGrupo.get(chaveGrupo); g.parceirosSet.add(chave); acumular(g, x);
+    if (!porGrupo.has(chaveGrupo)) porGrupo.set(chaveGrupo, { label: grupo, faixaTributacao: faixa.label, faixaOrdem: faixa.chave, regime: x.regime_parceiro || 'indeterminado', parceirosSet: new Set(), clienteDiverso });
+    const g = porGrupo.get(chaveGrupo); g.parceirosSet.add(chave); g.clienteDiverso = Boolean(g.clienteDiverso || clienteDiverso); acumular(g, x);
     acumular(total, x);
   }
 
