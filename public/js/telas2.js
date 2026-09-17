@@ -788,7 +788,7 @@ Telas.questor = async (el) => {
   document.getElementById('solicitarLoteQuestor').onclick = () => {
     const empresasLote=S.empresas||[];
     if(!empresasLote.length) return A.toast('Não há empresas disponíveis para a solicitação.', 'erro');
-    const lista=empresasLote.map((x)=>{const disponivel=Boolean(x.codigo_questor); return `<label style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #edf1f4;${disponivel?'':'opacity:.55'}"><input type="checkbox" name="questor_lote_empresa" value="${x.id}" ${disponivel?'':'disabled'}><span>${A.esc(x.razao_social)} <small class="mono">· ${A.esc(x.codigo_questor||'Código Questor não informado')}</small></span></label>`;}).join('');
+    const lista=empresasLote.map((x)=>{const disponivel=Boolean(x.codigo_questor); return `<label style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #edf1f4;${disponivel?'':'opacity:.55'}"><input type="checkbox" name="questor_lote_empresa" value="${x.id}" ${disponivel?'':'disabled'}><span>${A.esc(x.razao_social)} <small class="mono">· ${A.esc(x.codigo_questor||'Código Questor não informado')}</small><small class="mini bloco" data-questor-lote-status="${x.id}">Consultando histórico…</small></span></label>`;}).join('');
     A.modal({titulo:'Solicitar informações do Questor em lote',largura:760,confirmar:'Enviar à fila',descricao:'Cada empresa receberá uma tarefa própria. O conector executa uma por vez e a tela de processamento mostrará o resultado individual.',corpo:
       A.selecao('questor_lote_tipo','Informação a buscar',[{v:'DOCUMENTOS_FISCAIS_CANCELADOS',t:'Documentos fiscais cancelados'},{v:'CONCILIAR_CFOP_SAIDAS',t:'Conferência de CFOPs de saída'},{v:'IMPORTAR_OUTRAS_RECEITAS_LOCACAO',t:'Locações REC para outras receitas'}])+
       `<div class="grade g2">${A.campo('questor_lote_inicio','Data inicial','','date')}${A.campo('questor_lote_fim','Data final','','date')}</div>`+
@@ -801,7 +801,11 @@ Telas.questor = async (el) => {
         const aviso=[r.reaproveitadas?.length?`${r.reaproveitadas.length} já estava(m) na fila`:null,r.ignoradas?.length?`${r.ignoradas.length} sem envio`:null].filter(Boolean).join(' · ');
         A.toast(`${r.quantidade_solicitada} empresa(s) enviada(s) ao conector.${aviso?` ${aviso}.`:''}`,'ok'); A.ir('questor');
       }});
-    setTimeout(()=>{const modal=document.getElementById('selecionarTodasEmpresasQuestor'); if(modal) modal.onclick=()=>document.querySelectorAll('input[name="questor_lote_empresa"]:not(:disabled)').forEach((x)=>{x.checked=true;});},0);
+    setTimeout(()=>{
+      const modal=document.getElementById('selecionarTodasEmpresasQuestor'); if(modal) modal.onclick=()=>document.querySelectorAll('input[name="questor_lote_empresa"]:not(:disabled)').forEach((x)=>{x.checked=true;});
+      const atualizarHistorico=async()=>{try{const tipo=document.querySelector('[name="questor_lote_tipo"]')?.value; if(!tipo)return;const r=await A.api(`/questor/lotes/status?tipo=${encodeURIComponent(tipo)}`);const porEmpresa=new Map((r.historico||[]).map((x)=>[String(x.empresa_id),x]));document.querySelectorAll('[data-questor-lote-status]').forEach((elStatus)=>{const h=porEmpresa.get(elStatus.dataset.questorLoteStatus);if(!h){elStatus.textContent='Ainda não há busca registrada.';return;}const quantidade=h.quantidade===null?'':` · ${h.quantidade} registro(s) processado(s)`;const periodo=h.inicio&&h.fim?` · ${h.inicio} a ${h.fim}`:'';const quando=h.executado_em||h.criado_em||'';elStatus.textContent=`Última busca: ${h.status}${periodo}${quantidade}${quando?` · ${quando}`:''}`;});}catch(_){document.querySelectorAll('[data-questor-lote-status]').forEach((x)=>{x.textContent='Histórico indisponível neste momento.';});}};
+      document.querySelector('[name="questor_lote_tipo"]')?.addEventListener('change',atualizarHistorico); atualizarHistorico();
+    },0);
   };
   document.getElementById('importarApuracaoQuestor').onclick = async (evento) => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');

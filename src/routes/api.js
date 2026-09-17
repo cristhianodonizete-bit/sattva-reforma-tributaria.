@@ -4128,6 +4128,26 @@ router.post('/questor/lotes', async (req,res)=>{ try {
   auditar(req,{acao:'Solicitou consulta Questor em lote',entidade:'questor_conector_tarefas',entidadeId:tipo,depois:{tipo,inicio,fim,empresas:empresaIds,tarefas:tarefas.map((x)=>x.tarefa_id),reaproveitadas:reaproveitadas.map((x)=>x.tarefa_id),ignoradas}});
   ok(res,{tipo,inicio,fim,solicitadas:tarefas,reaproveitadas,ignoradas,quantidade_solicitada:tarefas.length});
 } catch(e){erro(res,e);} });
+// Histórico de lote é apenas informativo: uma solicitação concluída nunca
+// bloqueia nova busca. A tela usa este retorno para evidenciar a última
+// importação da empresa antes de o usuário decidir repetir a consulta.
+router.get('/questor/lotes/status', async (req,res)=>{ try {
+  const tipo=String(req.query.tipo||'');
+  if(!TIPOS_LOTE_QUESTOR.has(tipo)) throw new Error('Tipo de busca em lote inválido.');
+  await questorPersistencia.sincronizarUsuario(donoConector(req));
+  const tarefas=db.prepare(`SELECT t.empresa_id,t.status,t.payload_json,t.resultado_json,t.erro,t.criado_em,t.executado_em,e.razao_social
+    FROM questor_conector_tarefas t JOIN questor_conectores c ON c.id=t.conector_id
+    LEFT JOIN empresas e ON e.id=t.empresa_id WHERE c.usuario_id=? AND t.tipo=? ORDER BY t.id DESC LIMIT 500`).all(donoConector(req),tipo);
+  const porEmpresa=new Map();
+  for(const t of tarefas) {
+    if(porEmpresa.has(t.empresa_id)) continue;
+    let payload={}, resultado={}; try { payload=JSON.parse(t.payload_json||'{}'); } catch (_) {} try { resultado=JSON.parse(t.resultado_json||'{}'); } catch (_) {}
+    const parametros=payload.parametros||{};
+    const quantidade=Number(resultado.importados ?? resultado.atualizados ?? resultado.linhas_lidas ?? resultado.reconhecidas ?? 0);
+    porEmpresa.set(t.empresa_id,{empresa_id:t.empresa_id,empresa:t.razao_social||'',status:t.status,inicio:payload.lote?.inicio||parametros.PDATAINICIAL||'',fim:payload.lote?.fim||parametros.PDATAFINAL||'',criado_em:t.criado_em,executado_em:t.executado_em,quantidade:Number.isFinite(quantidade)?quantidade:null,erro:t.erro||null});
+  }
+  ok(res,{historico:[...porEmpresa.values()]});
+} catch(e){erro(res,e);} });
 router.post('/empresas/:id/questor/conector/movimentacao', async (req,res)=>{ try { const empresa=db.prepare('SELECT codigo_questor FROM empresas WHERE id=?').get(req.params.id); if(!empresa?.codigo_questor) throw new Error('Informe o Código Questor no cadastro da empresa antes da busca.'); const periodo=await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id)); if(!periodo) throw new Error('Defina o Período analisado antes da busca.'); const c=db.prepare("SELECT id FROM questor_conectores WHERE status='ATIVO' ORDER BY ultima_conexao_em DESC LIMIT 1").get(); if(!c) throw new Error('Gere e inicie um conector Questor antes da busca.'); const tipo=req.body?.tipo==='cliente'?'cliente':'fornecedor'; const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,Number(req.params.id),'IMPORTAR_MOVIMENTACAO',JSON.stringify({tipo,codigo_questor:empresa.codigo_questor,inicio:periodo.data_inicio,fim:periodo.data_fim})); ok(res,{tarefa_id:r.lastInsertRowid,periodo,tipo}); } catch(e){erro(res,e);} });
 router.post('/empresas/:id/questor/conector/outras-receitas-locacao', async (req,res)=>{ try {
   const empresaId=Number(req.params.id), empresa=db.prepare('SELECT codigo_questor FROM empresas WHERE id=?').get(empresaId);
