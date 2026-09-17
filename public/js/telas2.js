@@ -734,6 +734,7 @@ Telas.questor = async (el) => {
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="buscarCancelamentosQuestor">Buscar cancelamentos no Questor</button><button class="btn vazio" id="conciliarCancelamentosQuestor">Importar relatório exportado</button></div>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="consultarParametrosConferenciaSaidas">Consultar parâmetros da Conferência de Saídas</button><button class="btn vazio" id="conciliarCfopsSaidasQuestor">Conciliar CFOPs de saída</button></div>
         <div style="margin-top:10px"><button class="btn vazio" id="importarLocacoesQuestor">Buscar locações REC para outras receitas</button><p class="mini" style="margin:6px 0 0">Importa somente lançamentos REC cuja descrição indique locação/aluguel. Imóveis e bens móveis são classificados separadamente.</p></div>
+        <div class="aviso neutro" style="margin-top:14px"><b>Solicitação em lote</b><br><span class="mini">Selecione várias empresas e uma busca já homologada. O conector processa uma empresa por vez e a fila conserva o resultado individual.</span><br><button class="btn vazio pq" id="solicitarLoteQuestor" style="margin-top:9px">Solicitar informações em lote</button></div>
         <div id="statusImportacaoQuestor" class="mini" role="status" style="margin-top:10px"></div>
         <p class="mini" style="margin-top:8px">Usa o período analisado e o código Questor da empresa. XMLs já importados não são consultados novamente.</p>
         <hr class="sep">
@@ -784,6 +785,24 @@ Telas.questor = async (el) => {
   el.querySelectorAll('[data-questor-aba]').forEach((botao)=>{ botao.onclick=()=>{ S.aba.questor=botao.dataset.questorAba; Telas.questor(el); }; });
 
   const val = (n) => (el.querySelector(`[name="${n}"]`) || {}).value || '';
+  document.getElementById('solicitarLoteQuestor').onclick = () => {
+    const empresasLote=S.empresas||[];
+    if(!empresasLote.length) return A.toast('Não há empresas disponíveis para a solicitação.', 'erro');
+    const lista=empresasLote.map((x)=>{const disponivel=Boolean(x.codigo_questor); return `<label style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #edf1f4;${disponivel?'':'opacity:.55'}"><input type="checkbox" name="questor_lote_empresa" value="${x.id}" ${disponivel?'':'disabled'}><span>${A.esc(x.razao_social)} <small class="mono">· ${A.esc(x.codigo_questor||'Código Questor não informado')}</small></span></label>`;}).join('');
+    A.modal({titulo:'Solicitar informações do Questor em lote',largura:760,confirmar:'Enviar à fila',descricao:'Cada empresa receberá uma tarefa própria. O conector executa uma por vez e a tela de processamento mostrará o resultado individual.',corpo:
+      A.selecao('questor_lote_tipo','Informação a buscar',[{v:'DOCUMENTOS_FISCAIS_CANCELADOS',t:'Documentos fiscais cancelados'},{v:'CONCILIAR_CFOP_SAIDAS',t:'Conferência de CFOPs de saída'},{v:'IMPORTAR_OUTRAS_RECEITAS_LOCACAO',t:'Locações REC para outras receitas'}])+
+      `<div class="grade g2">${A.campo('questor_lote_inicio','Data inicial','','date')}${A.campo('questor_lote_fim','Data final','','date')}</div>`+
+      `<div style="display:flex;justify-content:space-between;align-items:center;margin-top:12px"><b>Empresas</b><button type="button" class="btn pq vazio" id="selecionarTodasEmpresasQuestor">Selecionar todas</button></div><div style="max-height:280px;overflow:auto;border:1px solid #dce6ed;border-radius:12px;padding:5px 12px;margin-top:8px">${lista}</div>`,
+      aoConfirmar:async(dados)=>{
+        const ids=[...document.querySelectorAll('input[name="questor_lote_empresa"]:checked')].map((x)=>Number(x.value));
+        if(!ids.length) throw new Error('Selecione ao menos uma empresa.');
+        if(!dados.questor_lote_inicio||!dados.questor_lote_fim||dados.questor_lote_inicio>dados.questor_lote_fim) throw new Error('Informe datas inicial e final válidas.');
+        const r=await A.api('/questor/lotes',{metodo:'POST',corpo:{tipo:dados.questor_lote_tipo,inicio:dados.questor_lote_inicio,fim:dados.questor_lote_fim,empresa_ids:ids}});
+        const aviso=[r.reaproveitadas?.length?`${r.reaproveitadas.length} já estava(m) na fila`:null,r.ignoradas?.length?`${r.ignoradas.length} sem envio`:null].filter(Boolean).join(' · ');
+        A.toast(`${r.quantidade_solicitada} empresa(s) enviada(s) ao conector.${aviso?` ${aviso}.`:''}`,'ok'); A.ir('questor');
+      }});
+    setTimeout(()=>{const modal=document.getElementById('selecionarTodasEmpresasQuestor'); if(modal) modal.onclick=()=>document.querySelectorAll('input[name="questor_lote_empresa"]:not(:disabled)').forEach((x)=>{x.checked=true;});},0);
+  };
   document.getElementById('importarApuracaoQuestor').onclick = async (evento) => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
     const botao = evento.currentTarget, status = el.querySelector('#statusImportacaoQuestor');
