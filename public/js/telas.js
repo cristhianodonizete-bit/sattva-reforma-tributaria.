@@ -1329,10 +1329,10 @@ async function telaCadeia(el, tipo) {
           { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}</div>` },
           { t: 'Enquadramento CBS', r: (r) => `<span class="tag ${r.faixaOrdem === 'ALIQUOTA_ZERO' ? 'a' : r.faixaOrdem !== 'INTEGRAL' ? 'c' : 'n'}">${A.esc(r.faixaTributacao || 'Base integral')}</span>` },
           { t: eForn ? 'Compras atuais' : 'Vendas atuais', num: true, r: (r) => `<b>${A.moeda(r.valor)}</b><div class="mini">${A.pct(r.representatividade, 1)} da carteira</div>` },
-          { t: 'Tributos', num: true, r: (r) => `${!eForn ? `<b>PIS/Cofins ${A.moeda(r.pisCofinsAtual)}</b><div class="mini">` : ''}${ibsAtivo ? `IBS ${A.moeda(r.ibs)} · ` : ''}CBS ${A.moeda(r.cbs)}${!eForn ? '</div>' : ''}` },
+          { t: 'Tributos', num: true, r: (r) => `${!eForn ? `<b>PIS/Cofins ${r.pisCofinsNoDas ? 'no DAS' : r.pisIndeterminado ? 'a validar' : A.moeda(r.pisCofinsAtual)}</b><div class="mini">` : ''}${ibsAtivo ? `IBS ${A.moeda(r.ibs)} · ` : ''}CBS ${A.moeda(r.cbs)}${!eForn ? '</div>' : ''}` },
           { t: eForn ? 'Compra e impacto' : 'Venda e impacto', num: true, r: (r) => `<b>${A.moeda(r.precoFinal)}</b><div class="mini ${Number(r.impactoOperacao) > 0 ? 'sobe' : Number(r.impactoOperacao) < 0 ? 'desce' : ''}">${A.setaR$(r.impactoOperacao)}</div>` },
           { t: 'Crédito potencial', num: true, r: (r) => A.moeda(r.creditoPotencial) },
-        ], eForn ? analise.regimes : analise.regimes.filter((r) => !/^regime regular/i.test(String(r.label || ''))), { classe:'carteira-perfil-tabela' })}
+        ], analise.regimes, { classe:'carteira-perfil-tabela' })}
       </div>
     <div class="cartao" style="margin-top:16px"><h2>${ibsAtivo ? 'Projeção ano a ano' : 'Referência CBS'}</h2>
       ${ibsAtivo ? A.tabela([
@@ -1358,7 +1358,7 @@ async function telaCadeia(el, tipo) {
         { t: 'Tributos', num: true, r: (p) => `${ibsAtivo ? `IBS ${A.moeda(p.ibs)} · ` : ''}CBS ${A.moeda(p.cbs)}` },
         { t: eForn ? 'Compra e impacto' : 'Venda e impacto', num: true, r: (p) => `<b>${A.moeda(p.precoFinal)}</b><div class="mini ${Number(p.impactoOperacao) > 0 ? 'sobe' : Number(p.impactoOperacao) < 0 ? 'desce' : ''}">${A.setaR$(p.impactoOperacao)}</div>` },
         { t: 'Crédito potencial', num: true, r: (p) => A.moeda(p.creditoPotencial) },
-      ], eForn ? analise.parceiros : analise.parceiros.filter((p) => p.regime !== 'regime_regular' && !/^regime regular/i.test(String(p.regimeLabel || ''))), { classe:'curva-abc-tabela' })}
+        ], analise.parceiros, { classe:'curva-abc-tabela' })}
       ${(() => { const p = analise.paginacaoParceiros || {}; return p.totalPaginas > 1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">${p.total} parceiros · página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-cadeia-parceiros="${p.pagina - 1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-cadeia-parceiros="${p.pagina + 1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
     ${mostrarBeneficios ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><h2>Benefícios fiscais aplicados</h2><button class="btn vazio" id="revisarBeneficiosFiscais">Revisar benefício fiscal</button></div>

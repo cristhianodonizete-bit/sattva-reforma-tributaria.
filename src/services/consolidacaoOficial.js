@@ -12,6 +12,7 @@ const perfilCbs = require('./perfilCbs');
 const elegibilidadeAnexoXi = require('./elegibilidadeAnexoXi');
 const periodoAnalisado = require('./periodoAnalisado');
 const receitaOperacional = require('./receitaOperacional');
+const motor = require('../engine/motor');
 
 const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
 const r2 = (v) => Math.round(n(v) * 100) / 100;
@@ -217,15 +218,62 @@ function leitura200044(linha) {
   return leituraBeneficio(linha);
 }
 
+// Receitas sem DF-e não possuem destinatário. Elas precisam aparecer na
+// Cadeia de Clientes para que a carteira represente toda a receita, porém sem
+// inventar um cliente ou crédito para terceiro. A convenção é um parceiro
+// técnico único, enquadrado como regime regular e sem crédito potencial.
+function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
+  const regimeEmpresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime || '';
+  const linhas = db.prepare(`SELECT * FROM receitas_sem_dfe
+    WHERE empresa_id=? AND COALESCE(status_validacao,'PENDENTE')<>'POSSIVEL_DUPLICIDADE'`).all(empresaId)
+    .filter((x) => !periodo || periodoAnalisado.noPeriodo(x.competencia, periodo));
+  return linhas.map((x) => {
+    const classificacao = {
+      cst: x.cst_motor || '000', cclasstrib: x.cclasstrib_motor || '000001',
+      reducao: null, reducaoCbs: 0, reducaoIbs: 0,
+      origemRegra: x.fundamento_motor || 'Regra técnica de outras receitas',
+      tratamento: x.regra_motor_reforma || 'Tributação normal',
+    };
+    const aliquotas = motor.aliquotasEfetivas(ano, classificacao);
+    // PIS/Cofins é apurado pelo regime da empresa vendedora, não pelo perfil
+    // técnico “regime regular” usado quando não há cliente identificado.
+    const regraAtual = x.item_receita_chave ? db.prepare(`SELECT * FROM regras_itens_receita_regime
+      WHERE item_chave=? AND regime_empresa=? AND ativo=1
+        AND vigencia_inicio<=? AND (vigencia_fim IS NULL OR vigencia_fim>=?)
+      ORDER BY vigencia_inicio DESC LIMIT 1`).get(x.item_receita_chave, regimeEmpresa, `${x.competencia}-01`, `${x.competencia}-01`) : null;
+    const valor = n(x.valor);
+    const pisInformado = x.pis_atual !== null && x.pis_atual !== undefined && x.cofins_atual !== null && x.cofins_atual !== undefined;
+    const regraComAliquota = regraAtual?.pis_percentual !== null && regraAtual?.pis_percentual !== undefined && regraAtual?.cofins_percentual !== null && regraAtual?.cofins_percentual !== undefined;
+    const pisCofins = pisInformado ? n(x.pis_atual) + n(x.cofins_atual)
+      : regraComAliquota ? valor * (n(regraAtual.pis_percentual) + n(regraAtual.cofins_percentual)) : null;
+    const noDas = !pisInformado && !regraComAliquota && ['simples_nacional', 'mei'].includes(regimeEmpresa);
+    const cbs = r2(valor * n(aliquotas.cbs)), ibs = r2(valor * n(aliquotas.ibs));
+    return {
+      movimento_id: `receita-sem-dfe:${x.id}`, sentido:'saida', competencia:x.competencia,
+      documento: x.identificador_origem ? `Questor ${x.identificador_origem}` : 'Receita sem DF-e',
+      descricao: x.descricao || x.tipo_receita || 'Outra receita', nome:'Sem cliente identificado', inscr_federal:'',
+      regime_parceiro:'regime_regular', perfil_destinatario:'b2b_regular', preco_atual:valor,
+      base_economica:valor, cbs, ibs, preco_projetado:r2(valor + cbs + ibs), custo_liquido:valor,
+      credito_cbs:0, credito_ibs:0, status_credito:'SEM_DIREITO', status_credito_determinacao:'NAO_APLICAVEL',
+      natureza:'CALCULADO', fonte:'OUTRAS_RECEITAS',
+      detalhe:{ contraparte:'Sem cliente identificado', classificacao, aliquotas,
+        reconstrucao:{ memoriaPisCofins:{ carga_atual_pis_cofins_valor:noDas ? 0 : pisCofins, carga_atual_pis_cofins_origem:noDas ? 'DAS' : pisCofins === null ? 'INDETERMINADO' : pisInformado ? 'LANCAMENTO_QUESTOR' : 'REGRA_TECNICA_POR_REGIME' } },
+        sensibilidade:{ leitura:'Sem cliente identificado — crédito potencial não atribuído.' } },
+    };
+  });
+}
+
 function cadeia(empresaId, tipo, opcoes = {}) {
   const lado = tipo === 'cliente' ? 'cliente' : 'fornecedor';
   const sentido = lado === 'cliente' ? 'saida' : 'entrada';
   const base = linhas(empresaId, { ...opcoes, tipo });
   const chavePeriodo = base.periodo ? `${base.periodo.competencia_inicio}:${base.periodo.competencia_fim}` : 'sem-periodo';
-  const chaveCache = `${empresaId}:${base.execucao?.id || 'sem-execucao'}:${chavePeriodo}:${tipo}:${opcoes.incluirDetalhes === false ? 0 : 1}:${opcoes.incluirBeneficios === true ? 1 : 0}:${opcoes.paginaDetalhes || 1}:${opcoes.limiteDetalhes || 100}:${opcoes.paginaParceiros || 1}:${opcoes.limiteParceiros || 100}`;
+  const adicionais = lado === 'cliente' ? outrasReceitasDaCadeiaCliente(empresaId, base.periodo, base.execucao?.ano || 2027) : [];
+  const marcaAdicionais = adicionais.map((x) => `${x.movimento_id}:${x.preco_atual}`).join('|');
+  const chaveCache = `${empresaId}:${base.execucao?.id || 'sem-execucao'}:${chavePeriodo}:${tipo}:${marcaAdicionais}:${opcoes.incluirDetalhes === false ? 0 : 1}:${opcoes.incluirBeneficios === true ? 1 : 0}:${opcoes.paginaDetalhes || 1}:${opcoes.limiteDetalhes || 100}:${opcoes.paginaParceiros || 1}:${opcoes.limiteParceiros || 100}`;
   const cadeiaEmMemoria = cadeiasPorExecucao.get(chaveCache);
   if (cadeiaEmMemoria) return cadeiaEmMemoria;
-  const itens = base.linhas.filter((x) => x.sentido === sentido);
+  const itens = [...base.linhas.filter((x) => x.sentido === sentido), ...adicionais];
   const porParceiro = new Map(), porGrupo = new Map();
   const total = { registros: itens.length, valor: 0, baseEconomica: 0, cbs: 0, ibs: 0, precoFinal: 0, custoLiquido: 0, credito: 0, pisCofinsAtual: 0, pisIndeterminado: false };
 
@@ -246,6 +294,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     destino.creditoFinal = n(destino.creditoFinal) + n(x.credito_cbs) + n(x.credito_ibs);
     destino.pisCofinsAtual = n(destino.pisCofinsAtual) + n(pis);
     destino.pisIndeterminado = Boolean(destino.pisIndeterminado || pis === null || pis === undefined);
+    destino.pisCofinsNoDas = Boolean(destino.pisCofinsNoDas || rec.memoriaPisCofins?.carga_atual_pis_cofins_origem === 'DAS');
     destino.naturezas = destino.naturezas || new Set(); destino.naturezas.add(natureza(x));
     destino.statusCredito = destino.statusCredito || new Set(); destino.statusCredito.add(x.status_credito_determinacao || x.status_credito || 'INDETERMINADO');
   };
@@ -270,7 +319,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     const { _linha, ...agregado } = x;
     return { ...agregado,
     valor: r2(x.valor), baseEconomica: r2(x.baseEconomica), ibs: r2(x.ibs), cbs: r2(x.cbs), precoFinal: r2(x.precoFinal), custoLiquido: r2(x.custoLiquido),
-    creditoPotencial: r2(x.creditoPotencial), creditoFinal: r2(x.creditoFinal), pisCofinsAtual: r2(x.pisCofinsAtual),
+    creditoPotencial: r2(x.creditoPotencial), creditoFinal: r2(x.creditoFinal), pisCofinsAtual: r2(x.pisCofinsAtual), pisCofinsNoDas:Boolean(x.pisCofinsNoDas),
     impactoOperacao: r2(n(x.precoFinal) - n(x.valor)), impactoOperacaoPerc: x.valor ? r4((n(x.precoFinal) - n(x.valor)) / n(x.valor)) : null,
     relevanciaCreditoCliente: lado === 'cliente' ? leituraCliente(x._linha || {}) : leituraCreditoFornecedor(x._linha || {}),
     natureza: x.naturezas?.has('INDETERMINADO') ? 'INDETERMINADO' : x.naturezas?.has('SIMULADO') ? 'SIMULADO' : x.naturezas?.has('REAL') ? 'REAL' : 'CALCULADO',
