@@ -223,6 +223,39 @@ function leitura200044(linha) {
   return leituraBeneficio(linha);
 }
 
+// O PGDAS pode já ter sido extraído, mas ainda aguardar confirmação humana.
+// Para a projeção (que nunca altera o documento), a linha identificada de
+// locação pode servir como memória provisória do DAS. O Perfil Tributário
+// confirmado sempre prevalece quando disponível.
+function memoriaPgdasExtraidaLocacao(empresaId) {
+  const documentos = db.prepare(`SELECT id,competencia_detectada FROM pgdas_documentos
+    WHERE empresa_id=? AND status_processamento IN ('REQUER_VALIDACAO','REVIEW_REQUIRED')
+      AND COALESCE(competencia_detectada,'')<>'' ORDER BY id DESC`).all(empresaId);
+  if (!documentos.length) return new Map();
+  const ids = documentos.map((x) => x.id);
+  const campos = db.prepare(`SELECT documento_id,campo,valor_extraido FROM pgdas_documento_campos
+    WHERE documento_id IN (${ids.map(() => '?').join(',')})`).all(...ids);
+  const porDocumento = new Map(documentos.map((x) => [x.id, {}]));
+  for (const campo of campos) porDocumento.get(campo.documento_id)[campo.campo] = campo.valor_extraido;
+  const porCompetencia = new Map();
+  for (const documento of documentos) {
+    if (porCompetencia.has(documento.competencia_detectada)) continue;
+    const bruto = porDocumento.get(documento.id) || {};
+    let blocos = [];
+    try { blocos = JSON.parse(bruto.revenue_blocks || '[]'); } catch (_) { continue; }
+    const locacao = blocos.find((x) => x.activity_group === 'LOCACAO' && x.anexo === 'III'
+      && Number(x.revenue_amount) > 0 && Number(x.taxes?.total) > 0);
+    if (!locacao) continue;
+    const pisCofins = n(locacao.taxes?.pis) + n(locacao.taxes?.cofins);
+    if (pisCofins <= 0) continue;
+    porCompetencia.set(documento.competencia_detectada, {
+      receita: n(locacao.revenue_amount), das: n(locacao.taxes.total), cbs: pisCofins,
+      rbt12: n(bruto.rbt12), origem: 'PGDAS_EXTRAIDO_PENDENTE_VALIDACAO',
+    });
+  }
+  return porCompetencia;
+}
+
 // Receitas sem DF-e não possuem destinatário. Elas precisam aparecer na
 // Cadeia de Clientes para que a carteira represente toda a receita, porém sem
 // inventar um cliente ou crédito para terceiro. A convenção é um parceiro
@@ -238,6 +271,7 @@ function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
     WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY id DESC`).all(empresaId)) {
     if (!perfilPorCompetencia.has(perfil.competencia)) perfilPorCompetencia.set(perfil.competencia, perfil);
   }
+  const pgdasExtraidoPorCompetencia = memoriaPgdasExtraidaLocacao(empresaId);
   return linhas.map((x) => {
     const classificacao = {
       cst: x.cst_motor || '000', cclasstrib: x.cclasstrib_motor || '000001',
@@ -260,6 +294,7 @@ function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
     const noDas = !pisInformado && !regraComAliquota && ['simples_nacional', 'mei'].includes(regimeEmpresa);
     const cbs = r2(valor * n(aliquotas.cbs)), ibs = r2(valor * n(aliquotas.ibs));
     const perfilDas = perfilPorCompetencia.get(String(x.competencia || ''));
+    const pgdasExtraido = pgdasExtraidoPorCompetencia.get(String(x.competencia || ''));
     const receitaDaCompetencia = n(perfilDas?.receita_bruta);
     const componenteCbsPerfil = n(perfilDas?.pis) + n(perfilDas?.cofins);
     const dasPerfilDisponivel = receitaDaCompetencia > 0 && n(perfilDas?.das) > 0;
@@ -281,6 +316,10 @@ function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
         cbsDentroDoDas = r2(dasAtualDaVenda * aliquotaCbsDoDas);
         origemCbsDentroDoDas = 'DAS_IMPORTADO_REPARTICAO_ANEXO_III';
       } else origemCbsDentroDoDas = 'A_VALIDAR';
+    } else if (noDas && pgdasExtraido && pgdasExtraido.receita > 0) {
+      dasAtualDaVenda = r2(valor / pgdasExtraido.receita * pgdasExtraido.das);
+      cbsDentroDoDas = r2(valor / pgdasExtraido.receita * pgdasExtraido.cbs);
+      origemCbsDentroDoDas = pgdasExtraido.origem;
     } else if (noDas && simplesEstimado) {
       dasAtualDaVenda = r2(valor * n(simplesEstimado.aliquotaEfetiva));
       cbsDentroDoDas = r2(dasAtualDaVenda * aliquotaCbsDoDas);
@@ -325,7 +364,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     cbs: r2(s.cbs + n(x.cbs)),
   }), { registros: 0, valor: 0, cbs: 0 });
   const porParceiro = new Map(), porGrupo = new Map();
-  const total = { registros: itens.length, valor: 0, baseEconomica: 0, cbs: 0, ibs: 0, cbsDentroDoDas: 0, ibsDentroDoDas: 0, tributosSubstituidosDoDas: 0, dasAtual: 0, dasResidualHibrido: 0, precoFinal: 0, custoLiquido: 0, credito: 0, pisCofinsAtual: 0, pisIndeterminado: false, dasHibridoPendente: false };
+  const total = { registros: itens.length, valor: 0, baseEconomica: 0, cbs: 0, ibs: 0, cbsDentroDoDas: 0, ibsDentroDoDas: 0, tributosSubstituidosDoDas: 0, dasAtual: 0, dasResidualHibrido: 0, precoFinal: 0, custoLiquido: 0, credito: 0, pisCofinsAtual: 0, pisIndeterminado: false, dasHibridoPendente: false, dasHibridoProvisorio: false };
 
   const acumular = (destino, x) => {
     const d = x.detalhe || {}; const rec = d.reconstrucao || {};
@@ -351,6 +390,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     destino.pisIndeterminado = Boolean(destino.pisIndeterminado || pis === null || pis === undefined);
     destino.pisCofinsNoDas = Boolean(destino.pisCofinsNoDas || rec.memoriaPisCofins?.carga_atual_pis_cofins_origem === 'DAS');
     destino.dasHibridoPendente = Boolean(destino.dasHibridoPendente || d.origemCbsDentroDoDas === 'A_VALIDAR');
+    destino.dasHibridoProvisorio = Boolean(destino.dasHibridoProvisorio || d.origemCbsDentroDoDas === 'PGDAS_EXTRAIDO_PENDENTE_VALIDACAO');
     destino.naturezas = destino.naturezas || new Set(); destino.naturezas.add(natureza(x));
     destino.statusCredito = destino.statusCredito || new Set(); destino.statusCredito.add(x.status_credito_determinacao || x.status_credito || 'INDETERMINADO');
   };
@@ -376,7 +416,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     const { _linha, ...agregado } = x;
     return { ...agregado,
     valor: r2(x.valor), baseEconomica: r2(x.baseEconomica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.cbsDentroDoDas), ibsDentroDoDas: r2(x.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.tributosSubstituidosDoDas), dasAtual: r2(x.dasAtual), dasResidualHibrido: r2(x.dasResidualHibrido), precoFinal: r2(x.precoFinal), custoLiquido: r2(x.custoLiquido),
-    creditoPotencial: r2(x.creditoPotencial), creditoFinal: r2(x.creditoFinal), pisCofinsAtual: r2(x.pisCofinsAtual), pisCofinsNoDas:Boolean(x.pisCofinsNoDas), dasHibridoPendente:Boolean(x.dasHibridoPendente),
+    creditoPotencial: r2(x.creditoPotencial), creditoFinal: r2(x.creditoFinal), pisCofinsAtual: r2(x.pisCofinsAtual), pisCofinsNoDas:Boolean(x.pisCofinsNoDas), dasHibridoPendente:Boolean(x.dasHibridoPendente), dasHibridoProvisorio:Boolean(x.dasHibridoProvisorio),
     impactoOperacao: r2(n(x.precoFinal) - n(x.valor)), impactoOperacaoPerc: x.valor ? r4((n(x.precoFinal) - n(x.valor)) / n(x.valor)) : null,
     relevanciaCreditoCliente: lado === 'cliente' ? leituraCliente(x._linha || {}) : leituraCreditoFornecedor(x._linha || {}),
     natureza: x.naturezas?.has('INDETERMINADO') ? 'INDETERMINADO' : x.naturezas?.has('SIMULADO') ? 'SIMULADO' : x.naturezas?.has('REAL') ? 'REAL' : 'CALCULADO',
@@ -403,7 +443,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const detalhes = (incluirDetalhes ? itens.slice(inicioDetalhes, inicioDetalhes + limiteDetalhes) : []).map((x) => ({
     movimento_id: x.movimento_id, documento: x.documento || x.chave || '', parceiro: x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || '', cnpj: x.inscr_federal || '',
     produto: x.descricao || '', ncm: x.ncm || '', nbs: x.nbs || '', cfop: x.cfop || '', competencia: x.competencia || null,
-    valor: r2(x.preco_atual), valorSemImposto: r2(x.base_economica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.detalhe?.cbsDentroDoDas), ibsDentroDoDas: r2(x.detalhe?.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.detalhe?.tributosSubstituidosDoDas), precoFinal: r2(x.preco_projetado),
+    valor: r2(x.preco_atual), valorSemImposto: r2(x.base_economica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.detalhe?.cbsDentroDoDas), origemCbsDentroDoDas: x.detalhe?.origemCbsDentroDoDas || 'NAO_APLICAVEL', ibsDentroDoDas: r2(x.detalhe?.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.detalhe?.tributosSubstituidosDoDas), precoFinal: r2(x.preco_projetado),
     creditoCbs: r2(x.credito_cbs), creditoIbs: r2(x.credito_ibs), creditoPotencial: r2(n(x.credito_cbs) + n(x.credito_ibs)),
     pisCofinsAtual: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor ?? null,
     origemPisCofins: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_origem || 'INDETERMINADO',
@@ -469,7 +509,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     },
     condicao200044: lado === 'cliente' ? elegibilidadeAnexoXi.qsaEmpresa(empresaId) : { status: 'NAO_APLICAVEL' },
     operacoesBeneficios, tratamentoBeneficios,
-    cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, cbsDentroDoDas: t.cbsDentroDoDas, ibsDentroDoDas: t.ibsDentroDoDas, tributosSubstituidosDoDas: t.tributosSubstituidosDoDas, dasAtual: t.dasAtual, dasResidualHibrido: t.dasResidualHibrido, dasHibridoPendente: t.dasHibridoPendente, precoFinal: t.precoFinal, credito: t.creditoFinal, creditoPotencial: t.creditoPotencial, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
+    cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, cbsDentroDoDas: t.cbsDentroDoDas, ibsDentroDoDas: t.ibsDentroDoDas, tributosSubstituidosDoDas: t.tributosSubstituidosDoDas, dasAtual: t.dasAtual, dasResidualHibrido: t.dasResidualHibrido, dasHibridoPendente: t.dasHibridoPendente, dasHibridoProvisorio: t.dasHibridoProvisorio, precoFinal: t.precoFinal, credito: t.creditoFinal, creditoPotencial: t.creditoPotencial, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
     riscos: [], fonte: 'motor_resultados' };
   cadeiasPorExecucao.set(chaveCache, resultado);
   while (cadeiasPorExecucao.size > LIMITE_FOTOGRAFIAS_EM_MEMORIA * 12) cadeiasPorExecucao.delete(cadeiasPorExecucao.keys().next().value);
