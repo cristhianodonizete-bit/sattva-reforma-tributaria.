@@ -1157,9 +1157,14 @@ Telas.perfil = async (el) => {
     let anterior = null;
     return [...meses.values()].sort((a,b) => String(a.competencia).localeCompare(String(b.competencia))).map((x) => ({ ...x, variacao: anterior === null || !anterior ? null : (x.total / anterior) - 1, anterior: anterior = x.total }));
   };
-  const tabelaComposicaoMensal = (filtro) => A.tabela([
-    {t:'Competência',r:x=>`<b>${A.esc(rotuloCompetencia(x.competencia))}</b>`}, {t:'NF-e',num:true,r:x=>A.moeda(x.nfe)}, {t:'NFS-e',num:true,r:x=>A.moeda(x.nfse)}, {t:'Outros DF-e',num:true,r:x=>A.moeda(x.outros_documentos)}, {t:'Outras receitas',num:true,r:x=>A.moeda(x.outras_receitas)}, {t:'Receita total',num:true,r:x=>`<b>${A.moeda(x.total)}</b>`}, {t:'Var. mês',num:true,r:x=>x.variacao === null ? '—' : `${x.variacao >= 0 ? '+' : ''}${A.pct(x.variacao)}`},
-  ],linhasComposicaoMensal(filtro),{vazio:'Nenhum documento fiscal encontrado neste filtro.'});
+  const tabelaComposicaoMensal = (filtro) => {
+    const linhas = linhasComposicaoMensal(filtro);
+    const total = linhas.reduce((s, x) => ({ nfe:s.nfe+x.nfe, nfse:s.nfse+x.nfse, outros_documentos:s.outros_documentos+x.outros_documentos, outras_receitas:s.outras_receitas+x.outras_receitas, total:s.total+x.total }), { nfe:0, nfse:0, outros_documentos:0, outras_receitas:0, total:0 });
+    const exibicao = linhas.length ? [...linhas, { ...total, totalizador:true, variacao:null }] : linhas;
+    return A.tabela([
+      {t:'Competência',r:x=>x.totalizador ? '<b>Total do período</b>' : `<b>${A.esc(rotuloCompetencia(x.competencia))}</b>`}, {t:'NF-e',num:true,r:x=>x.totalizador ? `<b>${A.moeda(x.nfe)}</b>` : A.moeda(x.nfe)}, {t:'NFS-e',num:true,r:x=>x.totalizador ? `<b>${A.moeda(x.nfse)}</b>` : A.moeda(x.nfse)}, {t:'Outros DF-e',num:true,r:x=>x.totalizador ? `<b>${A.moeda(x.outros_documentos)}</b>` : A.moeda(x.outros_documentos)}, {t:'Outras receitas',num:true,r:x=>x.totalizador ? `<b>${A.moeda(x.outras_receitas)}</b>` : A.moeda(x.outras_receitas)}, {t:'Receita total',num:true,r:x=>`<b>${A.moeda(x.total)}</b>`}, {t:'Var. mês',num:true,r:x=>x.totalizador || x.variacao === null ? '—' : `${x.variacao >= 0 ? '+' : ''}${A.pct(x.variacao)}`},
+    ],exibicao,{vazio:'Nenhum documento fiscal encontrado neste filtro.'});
+  };
   const detalhesOutrasReceitas = historico.flatMap((h) => (h.receitas_sem_dfe?.itens || []).map((x) => ({ ...x, competencia:h.competencia })));
   const tabelaDetalheComposicao = (filtro) => A.tabela([
     {t:'Competência',r:x=>A.esc(rotuloCompetencia(x.competencia))},{t:'Modelo fiscal',r:x=>A.esc(String(x.modelo_fiscal||'—').toUpperCase())},{t:'CFOP',r:x=>`<span class="mono">${A.esc(x.cfop||'—')}</span>`},{t:'Decisão',r:x=>`<span class="tag ${x.compoe_receita?'c':'a'}">${x.compoe_receita?'Compõe receita':'Fora da receita'}</span><div class="mini">${A.esc(x.motivo||'')}</div>`},{t:'Itens',num:true,r:x=>x.itens},{t:'Valor documental',num:true,r:x=>A.moeda(x.valor)}
