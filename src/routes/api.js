@@ -1953,9 +1953,12 @@ router.post('/empresas/:id/pgdas/documentos/:documentoId/confirmar', async (req,
     const doc=await pgdasCompartilhado.localizarLocal(empresaId, req.params.documentoId);
     if (!doc) throw new Error('Documento PGDAS não localizado na fonte durável para esta empresa.');
     const documento = pgdasDocumentoIa.confirmar(db, empresaId, doc.id);
+    // Primeiro grave a confirmação e todos os campos no repositório durável.
+    // O Perfil é uma materialização que pode ser recomposta; a confirmação
+    // do PGDAS não pode depender de uma instância efêmera do Render.
+    const documentoDuravel = await pgdasCompartilhado.publicar(empresaId, doc.id);
     // Não delegar ao espelho de gestão: ele não contém dados fiscais.
     const publicacao = await publicarPerfilTributarioCompartilhado(empresaId);
-    const documentoDuravel = await pgdasCompartilhado.publicar(empresaId, doc.id);
     ok(res, { documento, publicacao, documento_duravel:documentoDuravel });
   }
   catch (e) { erro(res, e); }
