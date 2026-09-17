@@ -1277,6 +1277,7 @@ async function telaCadeia(el, tipo) {
   const mostrarRiscos = eForn || abaCliente === 'riscos';
   const mostrarAbc = eForn || abaCliente === 'abc';
   const resumoBeneficios = analise.tratamentoBeneficios || { operacoes: 0 };
+  const simplesHibrido = !eForn && analise.projecao_regime === 'SIMPLES_HIBRIDO';
   const pisAntes = (x) => x.pisCofinsNoDas ? 'no DAS' : x.pisIndeterminado ? 'a validar' : A.moeda(x.pisCofinsAtual);
   const tributosReforma = (x) => `${ibsAtivo ? `IBS ${A.moeda(x.ibs)} · ` : ''}CBS ${A.moeda(x.cbs)}`;
 
@@ -1291,15 +1292,17 @@ async function telaCadeia(el, tipo) {
     <div class="grade g4">
       ${A.kpi(eForn ? 'Compra atual' : 'Venda atual', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
       ${A.kpi('Antes — PIS/Cofins', t.pisIndeterminado ? 'A validar' : t.pisCofinsNoDas ? 'No DAS' : A.moeda(t.pisCofinsAtual), 'carga atual identificada')}
+      ${simplesHibrido ? A.kpi('(-) CBS já no DAS', A.moeda(t.cbsDentroDoDas), 'parcela substituída no Híbrido') : ''}
       ${A.kpi(`Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, tributosReforma(ultimo), 'projeção da reforma')}
       ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' sobre o preço atual', 'destaque')}
     </div>
     <div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Impacto para a empresa — entradas' : 'Impacto para a empresa — saídas'}</h2>
-      <p class="desc">Comparação da carga atual com a projeção da reforma: <b>antes, PIS/Cofins</b>; <b>depois, CBS${ibsAtivo ? ' + IBS' : ''}</b>; e a diferença econômica no preço. CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
+      <p class="desc">${simplesHibrido ? 'No Híbrido, a CBS regular substitui a parcela de CBS já recolhida dentro do DAS. Portanto, o impacto no faturamento é a diferença líquida entre as duas — sem duplicidade.' : 'Comparação da carga atual com a projeção da reforma: antes, PIS/Cofins; depois, CBS e a diferença econômica no preço.'} CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
       ${A.tabela([
         { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: () => A.moeda(t.valor) },
         { t: 'Antes — PIS/Cofins', num: true, r: () => t.pisIndeterminado ? 'A validar' : t.pisCofinsNoDas ? 'No DAS' : A.moeda(t.pisCofinsAtual) },
         { t: rotuloBase, num: true, r: () => A.moeda(ultimo.baseEconomica || 0) },
+        ...(simplesHibrido ? [{ t: '(-) CBS no DAS', num: true, r: () => A.moeda(ultimo.cbsDentroDoDas || 0) }] : []),
         { t: `Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, num: true, r: () => tributosReforma(ultimo) },
         { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: () => A.moeda(ultimo.precoFinal || 0) },
         { t: 'Impacto da reforma', num: true, r: () => `<b>${A.setaR$(ultimo.impactoOperacao || 0)}</b><div class="mini">${A.setaPct(ultimo.impactoOperacaoPerc || 0)}</div>` },
@@ -1408,6 +1411,7 @@ async function telaCadeia(el, tipo) {
         { t: 'Natureza', r: (d) => `<span class="tag ${String(d.natureza).toUpperCase() === 'REAL' ? 'c' : String(d.natureza).toUpperCase() === 'SIMULADO' ? 'a' : 'n'}">${A.esc(d.natureza || 'INDETERMINADO')}</span>` },
         ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (d) => A.moeda(d.ibs) }] : []),
         { t: 'CBS', num: true, r: (d) => A.moeda(d.cbs) },
+        ...(simplesHibrido ? [{ t: '(-) CBS no DAS', num: true, r: (d) => A.moeda(d.cbsDentroDoDas) }] : []),
         { t: 'Venda projetada', num: true, r: (d) => A.moeda(d.precoFinal) },
         { t: 'Impacto', num: true, r: (d) => A.setaR$(d.impactoOperacao) },
         { t: 'Impacto %', num: true, r: (d) => A.setaPct(d.impactoOperacaoPerc) },
@@ -1536,7 +1540,7 @@ Telas.impactoFinalCbs = async (el) => {
     `<div class="grade g4">
       ${A.kpi('PIS/COFINS atual', dinheiro(d.pis_cofins_liquido_atual), naoApurado(d.pis_cofins_liquido_atual) ? 'há dado atual indeterminado' : `${A.pct(d.carga_atual_percentual || 0, 2)} sobre venda atual · ${A.esc(d.origem_carga_atual || 'INDETERMINADO')}`)}
       ${A.kpi('CBS líquida projetada', dinheiro(d.cbs_liquida), 'CBS das vendas − crédito CBS das compras', 'destaque')}
-      ${A.kpi('Diferença R$', diferenca(d.variacao_carga_federal), 'CBS líquida vs. PIS/COFINS líquido atual', naoApurado(d.variacao_carga_federal) ? '' : 'destaque')}
+      ${d.projecao_regime === 'SIMPLES_HIBRIDO' ? A.kpi('Impacto CBS no faturamento', dinheiro(d.impacto_faturamento_hibrido), 'CBS regular − CBS já contida no DAS', 'destaque') : A.kpi('Diferença R$', diferenca(d.variacao_carga_federal), 'CBS líquida vs. PIS/COFINS líquido atual', naoApurado(d.variacao_carga_federal) ? '' : 'destaque')}
       ${A.kpi('Diferença p.p.', percentual(d.variacao_percentual), naoApurado(d.variacao_percentual) ? 'não é tratada como zero' : 'CBS líquida % − carga atual %')}
     </div>
     ${d.pis_cofins_indeterminado ? `<div class="aviso atencao" style="margin-top:16px"><b>PIS/COFINS líquido atual a validar.</b> Existe operação sem base suficiente para apurar o valor atual; por isso a diferença percentual não foi convertida em zero.</div>` : ''}
@@ -1546,6 +1550,7 @@ Telas.impactoFinalCbs = async (el) => {
         { t: 'Valor', num: true, r: x => dinheiro(x.valor) },
       ], [
         { nome:'CBS débito das vendas', memoria:'soma da CBS das saídas — Cadeia de Clientes', valor:d.cbs_debito_vendas },
+        ...(d.projecao_regime === 'SIMPLES_HIBRIDO' ? [{ nome:'(-) CBS já contida no DAS', memoria:'parcela de PIS/Cofins do DAS substituída pela CBS regular nas vendas', valor:-d.cbs_dentro_do_das }, { nome:'Impacto CBS no faturamento', memoria:'CBS regular das vendas − CBS já contida no DAS', valor:d.impacto_faturamento_hibrido }] : []),
         { nome:'(-) Crédito CBS recebido dos fornecedores', memoria:'soma do crédito CBS aproveitável nas entradas — Cadeia de Fornecedores', valor:-d.cbs_credito_compras },
         { nome:'CBS líquida projetada', memoria:'CBS débito − crédito CBS das compras', valor:d.cbs_liquida },
       ])}

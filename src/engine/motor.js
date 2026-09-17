@@ -358,9 +358,29 @@ function projetarItem(item, ctx) {
   // CREDITO_PRESUMIDO fica em zero até que a hipótese seja informada como
   // premissa — o sistema sinaliza a possibilidade, não a arbitra.
 
-  const precoProjetado = emitenteNoDas
-    ? rec.precoMercadoria                      // no DAS o preço não recebe IVA por fora
-    : rec.baseEconomica + ibs + cbs;
+  // Na opção híbrida, IBS/CBS passam a ser calculados pelo regime regular,
+  // mas a parcela equivalente que já era recolhida dentro do DAS deixa de
+  // compor esse recolhimento. Para medir impacto de faturamento, somamos a
+  // carga regular e retiramos a parcela substituída — nunca as duas juntas.
+  const reparticaoDas = simplesInfo?.reparticao || {};
+  const hibridoEmSaida = empresaHibrida && sentido === 'saida';
+  const cbsDentroDoDas = hibridoEmSaida && num(simplesInfo?.aliquotaEfetiva) > 0
+    ? rec.baseEconomica * num(simplesInfo.aliquotaEfetiva) * (num(reparticaoDas.pis) + num(reparticaoDas.cofins))
+    : 0;
+  const ibsDentroDoDas = hibridoEmSaida && ibs > 0 && num(simplesInfo?.aliquotaEfetiva) > 0
+    ? rec.baseEconomica * num(simplesInfo.aliquotaEfetiva) * num(reparticaoDas.icms_iss)
+    : 0;
+  // A comparação é apresentada em centavos; calcule o líquido a partir dos
+  // mesmos valores arredondados exibidos para evitar diferença de R$ 0,01.
+  const cbsDentroDoDasArredondada = r2(cbsDentroDoDas);
+  const ibsDentroDoDasArredondada = r2(ibsDentroDoDas);
+  const tributosSubstituidosDoDas = cbsDentroDoDasArredondada + ibsDentroDoDasArredondada;
+  const impactoHibridoLiquido = hibridoEmSaida ? r2(r2(ibs) + r2(cbs) - tributosSubstituidosDoDas) : null;
+  const precoProjetado = hibridoEmSaida
+    ? rec.precoAtual + impactoHibridoLiquido
+    : emitenteNoDas
+      ? rec.precoMercadoria                    // no DAS o preço não recebe IVA por fora
+      : rec.baseEconomica + ibs + cbs;
   const custoLiquido = precoProjetado - creditoIbs - creditoCbs;
 
   return {
@@ -388,6 +408,10 @@ function projetarItem(item, ctx) {
     regimeCbsEmitente: regimeCbs(regimeEmitenteProjetado), regimeCbsAdquirente: regimeCbs(regimeAdquirenteProjetado),
     precoProjetado: r2(precoProjetado),
     custoLiquido: r2(custoLiquido),
+    cbsDentroDoDas: cbsDentroDoDasArredondada,
+    ibsDentroDoDas: ibsDentroDoDasArredondada,
+    tributosSubstituidosDoDas: r2(tributosSubstituidosDoDas),
+    impactoHibridoLiquido: impactoHibridoLiquido === null ? null : r2(impactoHibridoLiquido),
     emitenteNoDas,
     projecaoRegime: empresaHibrida ? 'SIMPLES_HIBRIDO' : 'REGIME_ATUAL',
     simples: simplesInfo,

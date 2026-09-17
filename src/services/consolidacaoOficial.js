@@ -279,7 +279,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   if (cadeiaEmMemoria) return cadeiaEmMemoria;
   const itens = [...base.linhas.filter((x) => x.sentido === sentido), ...adicionais];
   const porParceiro = new Map(), porGrupo = new Map();
-  const total = { registros: itens.length, valor: 0, baseEconomica: 0, cbs: 0, ibs: 0, precoFinal: 0, custoLiquido: 0, credito: 0, pisCofinsAtual: 0, pisIndeterminado: false };
+  const total = { registros: itens.length, valor: 0, baseEconomica: 0, cbs: 0, ibs: 0, cbsDentroDoDas: 0, ibsDentroDoDas: 0, tributosSubstituidosDoDas: 0, precoFinal: 0, custoLiquido: 0, credito: 0, pisCofinsAtual: 0, pisIndeterminado: false };
 
   const acumular = (destino, x) => {
     const d = x.detalhe || {}; const rec = d.reconstrucao || {};
@@ -289,6 +289,9 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     destino.baseEconomica = n(destino.baseEconomica) + n(x.base_economica);
     destino.ibs = n(destino.ibs) + n(x.ibs);
     destino.cbs = n(destino.cbs) + n(x.cbs);
+    destino.cbsDentroDoDas = n(destino.cbsDentroDoDas) + n(d.cbsDentroDoDas);
+    destino.ibsDentroDoDas = n(destino.ibsDentroDoDas) + n(d.ibsDentroDoDas);
+    destino.tributosSubstituidosDoDas = n(destino.tributosSubstituidosDoDas) + n(d.tributosSubstituidosDoDas);
     destino.precoFinal = n(destino.precoFinal) + n(x.preco_projetado);
     destino.custoLiquido = n(destino.custoLiquido) + n(x.custo_liquido);
     // O débito CBS da saída existe independentemente do perfil do destinatário.
@@ -322,7 +325,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const finalizar = (x) => {
     const { _linha, ...agregado } = x;
     return { ...agregado,
-    valor: r2(x.valor), baseEconomica: r2(x.baseEconomica), ibs: r2(x.ibs), cbs: r2(x.cbs), precoFinal: r2(x.precoFinal), custoLiquido: r2(x.custoLiquido),
+    valor: r2(x.valor), baseEconomica: r2(x.baseEconomica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.cbsDentroDoDas), ibsDentroDoDas: r2(x.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.tributosSubstituidosDoDas), precoFinal: r2(x.precoFinal), custoLiquido: r2(x.custoLiquido),
     creditoPotencial: r2(x.creditoPotencial), creditoFinal: r2(x.creditoFinal), pisCofinsAtual: r2(x.pisCofinsAtual), pisCofinsNoDas:Boolean(x.pisCofinsNoDas),
     impactoOperacao: r2(n(x.precoFinal) - n(x.valor)), impactoOperacaoPerc: x.valor ? r4((n(x.precoFinal) - n(x.valor)) / n(x.valor)) : null,
     relevanciaCreditoCliente: lado === 'cliente' ? leituraCliente(x._linha || {}) : leituraCreditoFornecedor(x._linha || {}),
@@ -350,7 +353,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const detalhes = (incluirDetalhes ? itens.slice(inicioDetalhes, inicioDetalhes + limiteDetalhes) : []).map((x) => ({
     movimento_id: x.movimento_id, documento: x.documento || x.chave || '', parceiro: x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || '', cnpj: x.inscr_federal || '',
     produto: x.descricao || '', ncm: x.ncm || '', nbs: x.nbs || '', cfop: x.cfop || '', competencia: x.competencia || null,
-    valor: r2(x.preco_atual), valorSemImposto: r2(x.base_economica), ibs: r2(x.ibs), cbs: r2(x.cbs), precoFinal: r2(x.preco_projetado),
+    valor: r2(x.preco_atual), valorSemImposto: r2(x.base_economica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.detalhe?.cbsDentroDoDas), ibsDentroDoDas: r2(x.detalhe?.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.detalhe?.tributosSubstituidosDoDas), precoFinal: r2(x.preco_projetado),
     creditoCbs: r2(x.credito_cbs), creditoIbs: r2(x.credito_ibs), creditoPotencial: r2(n(x.credito_cbs) + n(x.credito_ibs)),
     pisCofinsAtual: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor ?? null,
     origemPisCofins: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_origem || 'INDETERMINADO',
@@ -415,7 +418,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     },
     condicao200044: lado === 'cliente' ? elegibilidadeAnexoXi.qsaEmpresa(empresaId) : { status: 'NAO_APLICAVEL' },
     operacoesBeneficios, tratamentoBeneficios,
-    cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, precoFinal: t.precoFinal, credito: t.creditoFinal, creditoPotencial: t.creditoPotencial, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
+    cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, cbsDentroDoDas: t.cbsDentroDoDas, ibsDentroDoDas: t.ibsDentroDoDas, tributosSubstituidosDoDas: t.tributosSubstituidosDoDas, precoFinal: t.precoFinal, credito: t.creditoFinal, creditoPotencial: t.creditoPotencial, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
     riscos: [], fonte: 'motor_resultados' };
   cadeiasPorExecucao.set(chaveCache, resultado);
   while (cadeiasPorExecucao.size > LIMITE_FOTOGRAFIAS_EM_MEMORIA * 12) cadeiasPorExecucao.delete(cadeiasPorExecucao.keys().next().value);
@@ -427,6 +430,7 @@ function impactoFinal(empresaId, opcoes = {}) {
   const regimeEmpresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime || '';
   const soma = (lista, campo) => r2(lista.reduce((s, x) => s + n(x[campo]), 0));
   const cbsDebito = soma(saidas, 'cbs'); const cbsCredito = soma(entradas, 'credito_cbs');
+  const cbsDentroDoDas = r2(saidas.reduce((s, x) => s + n(x.detalhe?.cbsDentroDoDas), 0));
   const receitaProjetada = soma(saidas, 'preco_projetado');
   const receitaAtual = soma(saidas, 'preco_atual'); const baseSaidas = soma(saidas, 'base_economica');
   const pisDebitos = saidas.map((x) => x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor);
@@ -448,6 +452,8 @@ function impactoFinal(empresaId, opcoes = {}) {
   const pisLiquido = apuracaoCompleta ? r2(competenciasSaida.reduce((s, c) => s + n(apuracaoPorCompetencia.get(c)), 0)) : pisLiquidoReconstruido;
   const origemCargaAtual = apuracaoCompleta ? 'APURACAO_CONFIRMADA' : pisIndeterminado ? 'INDETERMINADO' : 'RECONSTRUCAO_REGRA';
   const liquida = r2(cbsDebito - cbsCredito);
+  const impactoFaturamentoHibrido = ['simples_nacional', 'mei'].includes(regimeEmpresa)
+    ? r2(cbsDebito - cbsDentroDoDas) : null;
   const perfil = base.execucao ? perfilCbs.materializar(empresaId) : { competencias: [] };
   const pDebito = r2((perfil.competencias || []).reduce((s, x) => s + n(x.cbs_debito), 0));
   const pCredito = r2((perfil.competencias || []).reduce((s, x) => s + n(x.cbs_credito), 0));
@@ -456,9 +462,10 @@ function impactoFinal(empresaId, opcoes = {}) {
   return { execucao: base.execucao,
     projecao_regime: ['simples_nacional', 'mei'].includes(regimeEmpresa) ? 'SIMPLES_HIBRIDO' : 'REGIME_ATUAL',
     leitura_projecao: ['simples_nacional', 'mei'].includes(regimeEmpresa)
-      ? 'Impacto calculado no cenário principal do Simples Híbrido: IBS/CBS por fora, com créditos das compras conforme a regra de cada operação.'
+      ? 'Impacto calculado no cenário principal do Simples Híbrido: a CBS regular da venda substitui a parcela equivalente já contida no DAS; créditos das compras seguem a regra de cada operação.'
       : 'Impacto calculado no regime tributário atual da empresa.',
     cbs_debito_vendas: cbsDebito, cbs_credito_compras: cbsCredito, cbs_liquida: liquida,
+    cbs_dentro_do_das: cbsDentroDoDas, impacto_faturamento_hibrido: impactoFaturamentoHibrido,
     receita_atual: receitaAtual, receita_projetada: receitaProjetada, base_economica_saidas: baseSaidas,
     carga_efetiva_cbs_receita: receitaAtual ? r4(liquida / receitaAtual) : null,
     carga_efetiva_cbs_base: baseSaidas ? r4(liquida / baseSaidas) : null,

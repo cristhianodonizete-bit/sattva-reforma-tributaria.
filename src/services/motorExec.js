@@ -288,7 +288,7 @@ function executar(empresaId, opcoes = {}) {
       const tradicional = proj;
       const hib = motor.projetarItem(item, {
         empresa, sentido: 'saida', ano, regimeContraparte: regime,
-        perfilDestinatario: dest.perfil, hibrido: true,
+        perfilDestinatario: dest.perfil, hibrido: true, simplesEmitente: empresaSimples,
       });
       hib.destinatario = dest;
       hib.sensibilidade = motor.sensibilidadeCredito({
@@ -296,11 +296,13 @@ function executar(empresaId, opcoes = {}) {
       });
       hib.comparativoRegime = {
         tradicional: { ibs: tradicional.ibs, cbs: tradicional.cbs, precoProjetado: tradicional.precoProjetado, creditoAoCliente: tradicional.creditoTotal },
-        hibrido: { ibs: hib.ibs, cbs: hib.cbs, precoProjetado: hib.precoProjetado, creditoAoCliente: hib.creditoTotal },
+        hibrido: {
+          ibs: hib.ibs, cbs: hib.cbs, precoProjetado: hib.precoProjetado, creditoAoCliente: hib.creditoTotal,
+          cbsDentroDoDas: hib.cbsDentroDoDas, ibsDentroDoDas: hib.ibsDentroDoDas,
+          impactoLiquido: hib.impactoHibridoLiquido,
+        },
         natureza: 'SIMULADO',
-        leitura: hib.creditoTotal > tradicional.creditoTotal
-          ? 'No regime regular a empresa entregaria mais crédito ao cliente, o que a torna mais competitiva em vendas B2B — ao custo de apurar IBS/CBS por fora.'
-          : 'A permanência no DAS não reduz de forma relevante o crédito entregue nesta operação.',
+        leitura: `No híbrido, IBS/CBS pelo regime regular substituem a parcela equivalente do DAS. Impacto líquido no faturamento: ${hib.impactoHibridoLiquido == null ? 'a validar' : hib.impactoHibridoLiquido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}.`,
       };
       proj = hib;
     } else {
@@ -614,6 +616,9 @@ function porCliente(resultado) {
     g.faturamento += x.precoAtual;
     g.baseEconomica += x.baseEconomica;
     g.ibs += x.ibs; g.cbs += x.cbs;
+    g.cbsDentroDoDas += x.cbsDentroDoDas || 0;
+    g.ibsDentroDoDas += x.ibsDentroDoDas || 0;
+    g.tributosSubstituidosDoDas += x.tributosSubstituidosDoDas || 0;
     g.creditoEntregue += x.creditoTotal;
     g.custoLiquidoCliente += x.custoLiquido;
     g.perfil = x.destinatario ? x.destinatario.perfil : g.perfil;
@@ -630,6 +635,7 @@ function agrupar(lista, chaveFn, acumular, inicial) {
     if (!mapa.has(k)) mapa.set(k, {
       ...inicial(x), itens: 0, pendencias: 0,
       comprasAtuais: 0, faturamento: 0, baseEconomica: 0, ibs: 0, cbs: 0,
+      cbsDentroDoDas: 0, ibsDentroDoDas: 0, tributosSubstituidosDoDas: 0,
       creditoIbs: 0, creditoCbs: 0, creditoEntregue: 0, custoLiquido: 0, custoLiquidoCliente: 0,
     });
     const g = mapa.get(k);
@@ -639,7 +645,7 @@ function agrupar(lista, chaveFn, acumular, inicial) {
   return [...mapa.values()].map((g) => {
     const o = { ...g };
     ['comprasAtuais', 'faturamento', 'baseEconomica', 'ibs', 'cbs', 'creditoIbs', 'creditoCbs',
-      'creditoEntregue', 'custoLiquido', 'custoLiquidoCliente'].forEach((k) => { o[k] = r2(o[k]); });
+      'creditoEntregue', 'custoLiquido', 'custoLiquidoCliente', 'cbsDentroDoDas', 'ibsDentroDoDas', 'tributosSubstituidosDoDas'].forEach((k) => { o[k] = r2(o[k]); });
     o.creditoTotal = r2(o.creditoIbs + o.creditoCbs);
     if (o.sensibilidades && o.sensibilidades.length) {
       const ordem = ['ALTA', 'MEDIA', 'BAIXA', 'NAO_APLICAVEL', 'REQUER_VALIDACAO'];

@@ -67,10 +67,14 @@ const vendaTradicional = projetarItem({ valor: 1000, valor_total: 1000, cfop: '5
 });
 const vendaHibrida = projetarItem({ valor: 1000, valor_total: 1000, cfop: '5102', descricao: 'Venda teste' }, {
   sentido: 'saida', ano: 2027, empresa: empresaSimples, regimeContraparte: 'lucro_real', hibrido: true,
+  simplesEmitente: { aliquotaEfetiva: 0.04, reparticao: { pis: 0.0276, cofins: 0.1274, icms_iss: 0.34 } },
 });
 assert.equal(vendaHibrida.projecaoRegime, 'SIMPLES_HIBRIDO');
 assert.equal(vendaHibrida.regimeCbsEmitente, 'SIMPLES_REGIME_REGULAR');
 assert.equal(vendaHibrida.cbs > vendaTradicional.cbs, true);
+assert.equal(vendaHibrida.cbsDentroDoDas > 0, true);
+assert.equal(vendaHibrida.impactoHibridoLiquido, vendaHibrida.cbs - vendaHibrida.cbsDentroDoDas);
+assert.equal(Math.round((vendaHibrida.precoProjetado - vendaHibrida.precoAtual) * 100) / 100, vendaHibrida.impactoHibridoLiquido);
 const compraHibrida = projetarItem({ valor: 1000, valor_total: 1000, cfop: '1102', descricao: 'Compra teste' }, {
   sentido: 'entrada', ano: 2027, empresa: empresaSimples, regimeContraparte: 'lucro_real', hibrido: true,
 });
