@@ -1119,16 +1119,18 @@ Telas.perfil = async (el) => {
   const colunaApuracao = (apuracao) => !apuracao ? '—' : apuracao.valor === null
     ? `<span class="mini">Receita não identificada</span>`
     : `${A.moeda(apuracao.valor)}<br><span class="mini">${A.esc(apuracao.documento || apuracao.origem || apuracao.fonte)}</span>`;
-  const conteudoAuditoria = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Auditoria mensal de receitas</h2><p class="desc">Confronto informativo entre documentos fiscais que compõem receita e as apurações importadas. Diferenças não bloqueiam o sistema nem alteram a apuração.</p></div><span class="tag">${auditoriaMensal.length} competência(s)</span></div>
+  const conteudoAuditoria = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Auditoria mensal de receitas</h2><p class="desc">Confronto informativo entre documentos fiscais, outras receitas registradas e as apurações importadas. Diferenças não bloqueiam o sistema nem alteram a apuração.</p></div><span class="tag">${auditoriaMensal.length} competência(s)</span></div>
     ${A.tabela([
       { t:'Competência', r:x=>A.esc(x.competencia) },
-      { t:'Documentos importados', num:true, r:x=>x.documentos ? `${A.moeda(x.documentos.valor)}<br><span class="mini">${x.documentos.quantidade} documento(s) de venda/serviço</span>` : '—' },
+      { t:'Documentos fiscais', num:true, r:x=>x.documentos ? `${A.moeda(x.documentos.valor)}<br><span class="mini">${x.documentos.quantidade} documento(s) de venda/serviço</span>` : '—' },
+      { t:'Outras receitas', num:true, r:x=>x.outras_receitas ? `${A.moeda(x.outras_receitas.valor)}<br><span class="mini">${x.outras_receitas.quantidade} lançamento(s) · ${A.esc(x.outras_receitas.fonte)}</span>` : '—' },
+      { t:'Receita analisada', num:true, r:x=>x.receita_analisada === null ? '—' : `${A.moeda(x.receita_analisada)}<br><span class="mini">documentos + outras receitas</span>` },
       { t:'Apuração PIS/Cofins', num:true, r:x=>colunaApuracao(x.pis_cofins) },
       { t:'PGDAS', num:true, r:x=>colunaApuracao(x.pgdas) },
       ...(simplesCaixa ? [{ t:'Recebido (caixa)', num:true, r:x=>x.receita_recebida ? `${A.moeda(x.receita_recebida.valor)}<br><span class="mini">informativo; base da carga</span>` : '—' }] : []),
       { t:'Diferença', num:true, r:x=>x.diferencas?.length ? x.diferencas.map((d)=>`${A.moeda(d.valor)}<br><span class="mini">${A.esc(d.fonte)}</span>`).join('') : '—' },
       { t:'Situação', r:x=>`<span class="tag ${classeAuditoria(x.situacao)}">${A.esc(rotuloAuditoria(x.situacao))}</span>` },
-    ], auditoriaMensal, { vazio:'Ainda não há documentos ou apurações importadas no período analisado para confrontar.' })}
+    ], auditoriaMensal, { vazio:'Ainda não há documentos, outras receitas ou apurações importadas no período analisado para confrontar.' })}
     <p class="mini" style="margin-top:12px">A comparação usa somente a janela do período analisado. Ela não presume que uma divergência seja erro fiscal: ajustes, retenções e critérios próprios do documento devem ser conferidos na origem.</p>
   </div>`;
   const rotuloCompetencia = (competencia) => { const [ano, mes] = String(competencia || '').split('-'); return ano && mes ? `${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][Number(mes) - 1]}/${ano.slice(-2)}` : '—'; };

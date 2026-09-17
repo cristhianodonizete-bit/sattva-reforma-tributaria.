@@ -34,6 +34,10 @@ assert.strictEqual(julho.receitas_sem_dfe.valor, 100);
 assert.strictEqual(julho.receitas_sem_dfe.itens.length, 1, 'A composição deve manter as receitas complementares rastreáveis');
 assert.deepStrictEqual(r.composicao_receita[0].competencia, '2026-07');
 assert.strictEqual(r.composicao_receita[0].modelo_fiscal, 'nfse');
+assert.strictEqual(r.auditoria_mensal.length, 1, 'A auditoria deve incluir a competência com outras receitas');
+assert.strictEqual(r.auditoria_mensal[0].documentos.valor, 900);
+assert.strictEqual(r.auditoria_mensal[0].outras_receitas.valor, 100, 'Outras receitas devem permanecer identificadas na auditoria');
+assert.strictEqual(r.auditoria_mensal[0].receita_analisada, 1000, 'A diferença deve confrontar documentos e outras receitas somados');
 
 db.prepare("INSERT INTO empresas VALUES (2,'Sem dados','lucro_real')").run();
 const vazio = perfil.consolidar(db, 2);

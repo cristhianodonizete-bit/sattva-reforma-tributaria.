@@ -68,16 +68,22 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
 // Confronto estritamente informativo entre as fontes que já foram importadas.
 // Não há estimativa nem alteração de dado fiscal: uma divergência apenas pede
 // conferência do responsável antes de usar os números em uma decisão.
-function montarAuditoriaMensal(documentos, apuracoes, perfis) {
+function montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe = []) {
   const porCompetencia = new Map();
   const obter = (competencia) => {
-    if (!porCompetencia.has(competencia)) porCompetencia.set(competencia, { competencia, documentos: null, pis_cofins: null, pgdas: null });
+    if (!porCompetencia.has(competencia)) porCompetencia.set(competencia, { competencia, documentos: null, outras_receitas: null, pis_cofins: null, pgdas: null });
     return porCompetencia.get(competencia);
   };
   (documentos || []).forEach((x) => {
     if (numero(x.quantidade_documentos) > 0) obter(x.competencia).documentos = {
       valor: numero(x.receita_documentada), quantidade: numero(x.quantidade_documentos), fonte: 'Documentos fiscais importados',
     };
+  });
+  (receitasSemDfe || []).filter((x) => x.status_validacao !== 'POSSIVEL_DUPLICIDADE').forEach((x) => {
+    const atual = obter(x.competencia);
+    const outras = atual.outras_receitas || { valor: 0, quantidade: 0, fonte: 'Outras receitas importadas' };
+    outras.valor += numero(x.valor); outras.quantidade++;
+    atual.outras_receitas = outras;
   });
   (apuracoes || []).forEach((x) => {
     const atual = obter(x.competencia);
@@ -99,15 +105,17 @@ function montarAuditoriaMensal(documentos, apuracoes, perfis) {
   });
   return [...porCompetencia.values()].sort((a, b) => String(a.competencia).localeCompare(String(b.competencia))).map((linha) => {
     const documentosImportados = linha.documentos?.valor ?? null;
+    const outrasReceitas = linha.outras_receitas?.valor ?? null;
+    const receitaAnalisada = documentosImportados === null && outrasReceitas === null ? null : numero(documentosImportados) + numero(outrasReceitas);
     const bases = [linha.pis_cofins, linha.pgdas].filter(Boolean);
     const basesComValor = bases.filter((x) => x.valor !== null);
-    const diferencas = basesComValor.map((x) => ({ fonte: x.fonte, valor: x.valor - documentosImportados }));
+    const diferencas = basesComValor.map((x) => ({ fonte: x.fonte, valor: x.valor - receitaAnalisada }));
     let situacao = 'SEM_APURACAO_IMPORTADA';
-    if (documentosImportados === null) situacao = bases.length ? 'SEM_DOCUMENTOS_DE_RECEITA' : 'SEM_DADOS_PARA_CONFRONTO';
+    if (receitaAnalisada === null) situacao = bases.length ? 'SEM_DOCUMENTOS_DE_RECEITA' : 'SEM_DADOS_PARA_CONFRONTO';
     else if (bases.length && !basesComValor.length) situacao = 'RECEITA_NAO_INFORMADA_NA_APURACAO';
     else if (basesComValor.length && diferencas.every((x) => Math.abs(x.valor) < 0.01)) situacao = 'CONCILIADO';
     else if (basesComValor.length) situacao = 'DIVERGENCIA_A_CONFERIR';
-    return { ...linha, diferencas, situacao };
+    return { ...linha, receita_analisada: receitaAnalisada, diferencas, situacao };
   });
 }
 
@@ -123,7 +131,7 @@ function consolidar(db, empresaId, opcoes = {}) {
   const perfis = db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,\'\')<>\'\' ORDER BY competencia').all(empresaId).filter((x) => noExercicio(x.competencia));
   const folhas = db.prepare('SELECT * FROM folhas_pagamento_competencias WHERE empresa_id=?').all(empresaId).filter((x) => noExercicio(x.competencia));
   const margens = db.prepare('SELECT * FROM margens_operacionais_premissas WHERE empresa_id=?').all(empresaId);
-  const receitasSemDfe = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId);
+  const receitasSemDfe = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId).filter((x) => noExercicio(x.competencia));
   const cbs = db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=?').all(empresaId);
   const documentosPorCompetencia = new Map();
   const composicaoReceita = new Map();
@@ -268,7 +276,7 @@ function consolidar(db, empresaId, opcoes = {}) {
     margem_operacional: historico.some((x) => x.margem_operacional.natureza !== 'INDETERMINADO') ? 'DISPONIVEL' : 'INDETERMINADO',
     cbs_motor: historico.some((x) => x.cbs_motor_existente.natureza === 'CALCULADO') ? 'DISPONIVEL' : 'INDETERMINADO',
   };
-  const auditoria_mensal = montarAuditoriaMensal(documentos, apuracoes, perfis);
+  const auditoria_mensal = montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe);
   const composicao_pis_cofins_pgdas = montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio);
   return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal, composicao_receita:[...composicaoReceita.values()].sort((a,b)=>b.valor-a.valor), composicao_pis_cofins_pgdas };
 }
