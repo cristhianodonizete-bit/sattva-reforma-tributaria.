@@ -730,9 +730,9 @@ Telas.questor = async (el) => {
       <div class="cartao"><h2>Buscar dados da empresa</h2>
         <p class="desc">${S.empresa ? `${A.esc(S.empresa.razao_social)} · código Questor: <b class="mono">${A.esc(S.empresa.codigo_questor || 'não informado')}</b>` : 'Selecione uma empresa'}</p>
         <div class="grade g2">${A.campo('inicio', 'Data inicial', '', 'date')}${A.campo('fim', 'Data final', '', 'date')}</div>
-        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button><button class="btn vazio" id="consultarParametrosApuracaoQuestor">Consultar parâmetros do relatório</button></div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button></div>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="buscarCancelamentosQuestor">Buscar cancelamentos no Questor</button><button class="btn vazio" id="conciliarCancelamentosQuestor">Importar relatório exportado</button></div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="consultarParametrosConferenciaSaidas">Consultar parâmetros da Conferência de Saídas</button><button class="btn vazio" id="conciliarCfopsSaidasQuestor">Conciliar CFOPs de saída</button></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="conciliarCfopsSaidasQuestor">Conciliar CFOPs de saída</button></div>
         <div style="margin-top:10px"><button class="btn vazio" id="importarLocacoesQuestor">Buscar locações REC para outras receitas</button><p class="mini" style="margin:6px 0 0">Importa somente lançamentos REC cuja descrição indique locação/aluguel. Imóveis e bens móveis são classificados separadamente.</p></div>
         <div class="aviso neutro" style="margin-top:14px"><b>Solicitação em lote</b><br><span class="mini">Selecione várias empresas e uma busca já homologada. O conector processa uma empresa por vez e a fila conserva o resultado individual.</span><br><button class="btn vazio pq" id="solicitarLoteQuestor" style="margin-top:9px">Solicitar informações em lote</button></div>
         <div id="statusImportacaoQuestor" class="mini" role="status" style="margin-top:10px"></div>
@@ -817,7 +817,7 @@ Telas.questor = async (el) => {
     status.innerHTML = '<span class="tag a">Solicitando importação ao conector Questor…</span><div class="mini" style="margin-top:6px">Acompanhe a execução na fila abaixo; o conector local processará cada competência.</div>';
     try {
       const r = await A.api(`/empresas/${S.empresaId}/questor/conector/apuracao-pis-cofins`, {metodo:'POST',corpo:{inicio,fim}});
-      const origemParametros = r.perfil_parametros === 'DESCOBERTO_NO_QUESTOR' ? 'Parâmetros confirmados pela sua instalação Questor.' : 'Usando perfil de compatibilidade; consulte os parâmetros para confirmar esta instalação.';
+      const origemParametros = r.perfil_parametros === 'DESCOBERTO_NO_QUESTOR' ? 'Configuração confirmada para esta instalação Questor.' : 'Usando a configuração compatível desta instalação Questor.';
       const mensagem = r.quantidade_solicitada
         ? `${r.quantidade_solicitada} competência(s) foram enviadas à fila.`
         : 'Não há competência pendente para importar neste intervalo.';
@@ -827,12 +827,6 @@ Telas.questor = async (el) => {
       status.innerHTML = `<span class="tag alto">Falha ao solicitar</span><div class="mini" style="margin-top:6px">${A.esc(e.message)}</div>`;
       A.toast(e.message, 'erro');
     } finally { botao.disabled = false; botao.textContent = 'Importar apuração PIS/COFINS'; }
-  };
-  document.getElementById('consultarParametrosApuracaoQuestor').onclick = async () => {
-    if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
-    await A.api(`/empresas/${S.empresaId}/questor/conector/parametros-relatorio-pis-cofins`, {metodo:'POST',corpo:{}});
-    A.toast('Consulta dos parâmetros solicitada. Atualize a fila em alguns segundos para ver o retorno.', 'ok');
-    A.ir('questor');
   };
   document.getElementById('importarLocacoesQuestor').onclick = async (evento) => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
@@ -847,12 +841,6 @@ Telas.questor = async (el) => {
       A.toast('Busca de locações enviada ao conector.', 'ok');
     } catch(e) { status.innerHTML=`<span class="tag alto">Não foi possível solicitar</span><div class="mini" style="margin-top:6px">${A.esc(e.message)}</div>`; A.toast(e.message,'erro');
     } finally { botao.disabled=false; botao.textContent='Buscar locações REC para outras receitas'; }
-  };
-  document.getElementById('consultarParametrosConferenciaSaidas').onclick = async () => {
-    if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
-    await A.api(`/empresas/${S.empresaId}/questor/conector/parametros-conferencia-saidas`, {metodo:'POST',corpo:{}});
-    A.toast('Consulta dos parâmetros da Conferência de Saídas solicitada.', 'ok');
-    A.ir('questor');
   };
   document.getElementById('conciliarCancelamentosQuestor').onclick = () => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
