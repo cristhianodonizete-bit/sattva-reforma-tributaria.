@@ -13,6 +13,7 @@ const elegibilidadeAnexoXi = require('./elegibilidadeAnexoXi');
 const periodoAnalisado = require('./periodoAnalisado');
 const receitaOperacional = require('./receitaOperacional');
 const motor = require('../engine/motor');
+const { simplesEfetivo } = require('../engine/reconstrucao');
 
 const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
 const r2 = (v) => Math.round(n(v) * 100) / 100;
@@ -227,7 +228,8 @@ function leitura200044(linha) {
 // inventar um cliente ou crédito para terceiro. A convenção é um parceiro
 // técnico único, enquadrado como regime regular e sem crédito potencial.
 function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
-  const regimeEmpresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime || '';
+  const empresa = db.prepare('SELECT regime,faturamento_anual FROM empresas WHERE id=?').get(empresaId) || {};
+  const regimeEmpresa = empresa.regime || '';
   const linhas = db.prepare(`SELECT * FROM receitas_sem_dfe
     WHERE empresa_id=? AND COALESCE(status_validacao,'PENDENTE')<>'POSSIVEL_DUPLICIDADE'`).all(empresaId)
     .filter((x) => !periodo || periodoAnalisado.noPeriodo(x.competencia, periodo));
@@ -259,9 +261,31 @@ function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
     const cbs = r2(valor * n(aliquotas.cbs)), ibs = r2(valor * n(aliquotas.ibs));
     const perfilDas = perfilPorCompetencia.get(String(x.competencia || ''));
     const receitaDaCompetencia = n(perfilDas?.receita_bruta);
-    const cbsDentroDoDas = noDas && receitaDaCompetencia > 0
-      ? r2(valor / receitaDaCompetencia * (n(perfilDas.pis) + n(perfilDas.cofins))) : 0;
-    const dasAtualDaVenda = noDas && receitaDaCompetencia > 0 ? r2(valor / receitaDaCompetencia * n(perfilDas.das)) : 0;
+    const componenteCbsPerfil = n(perfilDas?.pis) + n(perfilDas?.cofins);
+    const dasPerfilDisponivel = receitaDaCompetencia > 0 && n(perfilDas?.das) > 0;
+    // Locações de bens móveis no Simples são, em regra, Anexo III. Quando a
+    // guia/PGDAS da competência ainda não está na base, usa-se o RBT12 já
+    // cadastrado para projetar o DAS e sua repartição, sempre identificado
+    // como estimativa. Locação de imóvel próprio não recebe esta presunção.
+    const podeEstimarAnexoIII = x.item_receita_chave === 'LOCACAO_BENS_MOVEIS';
+    const simplesEstimado = noDas && podeEstimarAnexoIII && n(empresa.faturamento_anual) > 0
+      ? simplesEfetivo('III', n(empresa.faturamento_anual), motor.anexosSimples()) : null;
+    const aliquotaCbsDoDas = n(simplesEstimado?.reparticao?.pis) + n(simplesEstimado?.reparticao?.cofins);
+    let dasAtualDaVenda = 0, cbsDentroDoDas = 0, origemCbsDentroDoDas = 'NAO_APLICAVEL';
+    if (noDas && dasPerfilDisponivel) {
+      dasAtualDaVenda = r2(valor / receitaDaCompetencia * n(perfilDas.das));
+      if (componenteCbsPerfil > 0) {
+        cbsDentroDoDas = r2(valor / receitaDaCompetencia * componenteCbsPerfil);
+        origemCbsDentroDoDas = String(perfilDas?.origem || '').includes('pgdas') ? 'PGDAS_IMPORTADO' : 'APURACAO_PERFIL';
+      } else if (simplesEstimado) {
+        cbsDentroDoDas = r2(dasAtualDaVenda * aliquotaCbsDoDas);
+        origemCbsDentroDoDas = 'DAS_IMPORTADO_REPARTICAO_ANEXO_III';
+      } else origemCbsDentroDoDas = 'A_VALIDAR';
+    } else if (noDas && simplesEstimado) {
+      dasAtualDaVenda = r2(valor * n(simplesEstimado.aliquotaEfetiva));
+      cbsDentroDoDas = r2(dasAtualDaVenda * aliquotaCbsDoDas);
+      origemCbsDentroDoDas = 'ESTIMATIVA_RBT12_ANEXO_III';
+    } else if (noDas) origemCbsDentroDoDas = 'A_VALIDAR';
     const dasResidualHibrido = noDas ? Math.max(0, r2(dasAtualDaVenda - cbsDentroDoDas)) : 0;
     const impactoHibridoLiquido = noDas ? r2(cbs + ibs - cbsDentroDoDas) : r2(cbs + ibs);
     return {
@@ -273,8 +297,7 @@ function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
       credito_cbs:0, credito_ibs:0, status_credito:'SEM_DIREITO', status_credito_determinacao:'NAO_APLICAVEL',
       natureza:'CALCULADO', fonte:'OUTRAS_RECEITAS',
       detalhe:{ contraparte:'Clientes diversos', classificacao, aliquotas,
-        cbsDentroDoDas, dasAtualDaVenda, dasResidualHibrido, impactoHibridoLiquido,
-        origemCbsDentroDoDas: noDas && receitaDaCompetencia > 0 ? (String(perfilDas?.origem || '').includes('pgdas') ? 'PGDAS_IMPORTADO' : 'APURACAO_PERFIL') : noDas ? 'A_VALIDAR' : 'NAO_APLICAVEL',
+        cbsDentroDoDas, dasAtualDaVenda, dasResidualHibrido, impactoHibridoLiquido, origemCbsDentroDoDas,
         reconstrucao:{ memoriaPisCofins:{ carga_atual_pis_cofins_valor:noDas ? 0 : pisCofins, carga_atual_pis_cofins_origem:noDas ? 'DAS' : pisCofins === null ? 'INDETERMINADO' : pisInformado ? 'LANCAMENTO_QUESTOR' : 'REGRA_TECNICA_POR_REGIME' } },
         sensibilidade:{ leitura:'Sem cliente identificado — crédito potencial não atribuído.' } },
     };
@@ -302,7 +325,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     cbs: r2(s.cbs + n(x.cbs)),
   }), { registros: 0, valor: 0, cbs: 0 });
   const porParceiro = new Map(), porGrupo = new Map();
-  const total = { registros: itens.length, valor: 0, baseEconomica: 0, cbs: 0, ibs: 0, cbsDentroDoDas: 0, ibsDentroDoDas: 0, tributosSubstituidosDoDas: 0, dasAtual: 0, dasResidualHibrido: 0, precoFinal: 0, custoLiquido: 0, credito: 0, pisCofinsAtual: 0, pisIndeterminado: false };
+  const total = { registros: itens.length, valor: 0, baseEconomica: 0, cbs: 0, ibs: 0, cbsDentroDoDas: 0, ibsDentroDoDas: 0, tributosSubstituidosDoDas: 0, dasAtual: 0, dasResidualHibrido: 0, precoFinal: 0, custoLiquido: 0, credito: 0, pisCofinsAtual: 0, pisIndeterminado: false, dasHibridoPendente: false };
 
   const acumular = (destino, x) => {
     const d = x.detalhe || {}; const rec = d.reconstrucao || {};
@@ -327,6 +350,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     destino.pisCofinsAtual = n(destino.pisCofinsAtual) + n(pis);
     destino.pisIndeterminado = Boolean(destino.pisIndeterminado || pis === null || pis === undefined);
     destino.pisCofinsNoDas = Boolean(destino.pisCofinsNoDas || rec.memoriaPisCofins?.carga_atual_pis_cofins_origem === 'DAS');
+    destino.dasHibridoPendente = Boolean(destino.dasHibridoPendente || d.origemCbsDentroDoDas === 'A_VALIDAR');
     destino.naturezas = destino.naturezas || new Set(); destino.naturezas.add(natureza(x));
     destino.statusCredito = destino.statusCredito || new Set(); destino.statusCredito.add(x.status_credito_determinacao || x.status_credito || 'INDETERMINADO');
   };
@@ -352,7 +376,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     const { _linha, ...agregado } = x;
     return { ...agregado,
     valor: r2(x.valor), baseEconomica: r2(x.baseEconomica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.cbsDentroDoDas), ibsDentroDoDas: r2(x.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.tributosSubstituidosDoDas), dasAtual: r2(x.dasAtual), dasResidualHibrido: r2(x.dasResidualHibrido), precoFinal: r2(x.precoFinal), custoLiquido: r2(x.custoLiquido),
-    creditoPotencial: r2(x.creditoPotencial), creditoFinal: r2(x.creditoFinal), pisCofinsAtual: r2(x.pisCofinsAtual), pisCofinsNoDas:Boolean(x.pisCofinsNoDas),
+    creditoPotencial: r2(x.creditoPotencial), creditoFinal: r2(x.creditoFinal), pisCofinsAtual: r2(x.pisCofinsAtual), pisCofinsNoDas:Boolean(x.pisCofinsNoDas), dasHibridoPendente:Boolean(x.dasHibridoPendente),
     impactoOperacao: r2(n(x.precoFinal) - n(x.valor)), impactoOperacaoPerc: x.valor ? r4((n(x.precoFinal) - n(x.valor)) / n(x.valor)) : null,
     relevanciaCreditoCliente: lado === 'cliente' ? leituraCliente(x._linha || {}) : leituraCreditoFornecedor(x._linha || {}),
     natureza: x.naturezas?.has('INDETERMINADO') ? 'INDETERMINADO' : x.naturezas?.has('SIMULADO') ? 'SIMULADO' : x.naturezas?.has('REAL') ? 'REAL' : 'CALCULADO',
@@ -445,7 +469,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     },
     condicao200044: lado === 'cliente' ? elegibilidadeAnexoXi.qsaEmpresa(empresaId) : { status: 'NAO_APLICAVEL' },
     operacoesBeneficios, tratamentoBeneficios,
-    cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, cbsDentroDoDas: t.cbsDentroDoDas, ibsDentroDoDas: t.ibsDentroDoDas, tributosSubstituidosDoDas: t.tributosSubstituidosDoDas, precoFinal: t.precoFinal, credito: t.creditoFinal, creditoPotencial: t.creditoPotencial, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
+    cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, cbsDentroDoDas: t.cbsDentroDoDas, ibsDentroDoDas: t.ibsDentroDoDas, tributosSubstituidosDoDas: t.tributosSubstituidosDoDas, dasAtual: t.dasAtual, dasResidualHibrido: t.dasResidualHibrido, dasHibridoPendente: t.dasHibridoPendente, precoFinal: t.precoFinal, credito: t.creditoFinal, creditoPotencial: t.creditoPotencial, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
     riscos: [], fonte: 'motor_resultados' };
   cadeiasPorExecucao.set(chaveCache, resultado);
   while (cadeiasPorExecucao.size > LIMITE_FOTOGRAFIAS_EM_MEMORIA * 12) cadeiasPorExecucao.delete(cadeiasPorExecucao.keys().next().value);
