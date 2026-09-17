@@ -199,6 +199,7 @@ function executar(empresaId, opcoes = {}) {
 
   const entradas = [], saidas = [], conformidade = [];
   const cenariosPorFornecedor = new Map();
+  const empresaOptanteSimples = ['simples_nacional', 'mei'].includes(empresa.regime);
 
   // ------------------------------------------------------------------ ENTRADAS
   for (const m of carregar(empresaId, 'entrada', movimentoIds)) {
@@ -220,7 +221,7 @@ function executar(empresaId, opcoes = {}) {
     const condicionalPis = motorCondicionalPisCofins.resolverTratamentoAtivo(m, { regime: regime || empresa.regime });
     if (condicionalPis.status === 'APLICAVEL') item.catalogo_fiscal = condicionalPis.catalogo_fiscal;
     else if (condicionalPis.status === 'INDETERMINADA') item.condicao_material_pendente = true;
-    const proj = motor.projetarItem(item, {
+    let proj = motor.projetarItem(item, {
       empresa, sentido: 'entrada', ano, regimeContraparte: regime, simplesEmitente,
       elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(empresa.cnpj), qsa: { status: 'PENDENTE', motivo: 'QSA do emitente fornecedor não disponível nesta versão.' } },
     });
@@ -236,6 +237,24 @@ function executar(empresaId, opcoes = {}) {
       if (!cenariosPorFornecedor.has(chave)) cenariosPorFornecedor.set(chave, cenarios);
     }
 
+    // Para a empresa do Simples, as análises principais representam a opção
+    // híbrida. O cenário tradicional fica preservado na mesma fotografia para
+    // comparação, sem mudar o regime real cadastrado da empresa.
+    if (empresaOptanteSimples) {
+      const tradicional = proj;
+      const hibrido = motor.projetarItem(item, {
+        empresa, sentido: 'entrada', ano, regimeContraparte: regime, simplesEmitente, hibrido: true,
+        elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(empresa.cnpj), qsa: { status: 'PENDENTE', motivo: 'QSA do emitente fornecedor não disponível nesta versão.' } },
+      });
+      hibrido.cenariosSimples = cenarios;
+      hibrido.comparativoRegime = {
+        tradicional: { ibs: tradicional.ibs, cbs: tradicional.cbs, custoLiquido: tradicional.custoLiquido, creditoDaCompra: tradicional.creditoTotal },
+        hibrido: { ibs: hibrido.ibs, cbs: hibrido.cbs, custoLiquido: hibrido.custoLiquido, creditoDaCompra: hibrido.creditoTotal },
+        natureza: 'SIMULADO', leitura: 'A projeção principal considera a opção do Simples pelo regime regular de IBS/CBS; o DAS permanece como comparação.',
+      };
+      proj = hibrido;
+    }
+
     proj.conferencia = conferirDeclarado(proj, { ...m, declarado: item.declarado }, ano);
     try { motorCondicionalPisCofins.executarSombraAposOficial({ movimento:m, resultado_oficial:structuredClone(proj) }); } catch (e) { registrarErroSombra(m,proj,e); console.error('[sombra PIS/Cofins]', e.message); }
     entradas.push({ ...proj, movimento_id: m.id, regimeParceiro: regime });
@@ -243,7 +262,7 @@ function executar(empresaId, opcoes = {}) {
   }
 
   // -------------------------------------------------------------------- SAÍDAS
-  const empresaSimples = ['simples_nacional', 'mei'].includes(empresa.regime)
+  const empresaSimples = empresaOptanteSimples
     ? simplesEfetivo(opcoes.anexoSimples || 'I', num(empresa.faturamento_anual), tabelas)
     : null;
   if (empresaSimples) empresaSimples.origem = num(empresa.faturamento_anual) > 0 ? 'faturamento conhecido' : 'faixa simulada';
@@ -258,33 +277,40 @@ function executar(empresaId, opcoes = {}) {
     const condicionalPis = motorCondicionalPisCofins.resolverTratamentoAtivo(m, { regime: empresa.regime });
     if (condicionalPis.status === 'APLICAVEL') item.catalogo_fiscal = condicionalPis.catalogo_fiscal;
     else if (condicionalPis.status === 'INDETERMINADA') item.condicao_material_pendente = true;
-    const proj = motor.projetarItem(item, {
+    let proj = motor.projetarItem(item, {
       empresa, sentido: 'saida', ano, regimeContraparte: regime,
       perfilDestinatario: dest.perfil, simplesEmitente: empresaSimples,
       elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(m.inscr_federal), qsa: qsaEmitente },
     });
-    try { motorCondicionalPisCofins.executarSombraAposOficial({ movimento:m, resultado_oficial:structuredClone(proj) }); } catch (e) { registrarErroSombra(m,proj,e); console.error('[sombra PIS/Cofins]', e.message); }
-    proj.destinatario = dest;
-    proj.sensibilidade = motor.sensibilidadeCredito({
-      perfil: dest.perfil, credita: dest.credita, credito: proj.credito, projecao: proj,
-    });
-
-    // Empresa no Simples: comparar tradicional x híbrido (itens 14 e 16)
+    // Empresa no Simples: o híbrido é a projeção principal; o tradicional é
+    // preservado apenas para comparação econômica de permanência no DAS.
     if (empresaSimples) {
+      const tradicional = proj;
       const hib = motor.projetarItem(item, {
         empresa, sentido: 'saida', ano, regimeContraparte: regime,
         perfilDestinatario: dest.perfil, hibrido: true,
       });
-      proj.comparativoRegime = {
-        tradicional: { ibs: proj.ibs, cbs: proj.cbs, precoProjetado: proj.precoProjetado, creditoAoCliente: proj.creditoTotal },
+      hib.destinatario = dest;
+      hib.sensibilidade = motor.sensibilidadeCredito({
+        perfil: dest.perfil, credita: dest.credita, credito: hib.credito, projecao: hib,
+      });
+      hib.comparativoRegime = {
+        tradicional: { ibs: tradicional.ibs, cbs: tradicional.cbs, precoProjetado: tradicional.precoProjetado, creditoAoCliente: tradicional.creditoTotal },
         hibrido: { ibs: hib.ibs, cbs: hib.cbs, precoProjetado: hib.precoProjetado, creditoAoCliente: hib.creditoTotal },
         natureza: 'SIMULADO',
-        leitura: hib.creditoTotal > proj.creditoTotal
+        leitura: hib.creditoTotal > tradicional.creditoTotal
           ? 'No regime regular a empresa entregaria mais crédito ao cliente, o que a torna mais competitiva em vendas B2B — ao custo de apurar IBS/CBS por fora.'
           : 'A permanência no DAS não reduz de forma relevante o crédito entregue nesta operação.',
       };
+      proj = hib;
+    } else {
+      proj.destinatario = dest;
+      proj.sensibilidade = motor.sensibilidadeCredito({
+        perfil: dest.perfil, credita: dest.credita, credito: proj.credito, projecao: proj,
+      });
     }
 
+    try { motorCondicionalPisCofins.executarSombraAposOficial({ movimento:m, resultado_oficial:structuredClone(proj) }); } catch (e) { registrarErroSombra(m,proj,e); console.error('[sombra PIS/Cofins]', e.message); }
     proj.conferencia = conferirDeclarado(proj, { ...m, declarado: item.declarado }, ano);
     saidas.push({ ...proj, movimento_id: m.id, regimeParceiro: regime, revisaoBeneficio: item.revisaoBeneficio });
     coletarConformidade(conformidade, proj, m, 'saida', regime);

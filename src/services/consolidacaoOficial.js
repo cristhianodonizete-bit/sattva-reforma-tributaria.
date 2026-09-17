@@ -269,6 +269,7 @@ function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
 function cadeia(empresaId, tipo, opcoes = {}) {
   const lado = tipo === 'cliente' ? 'cliente' : 'fornecedor';
   const sentido = lado === 'cliente' ? 'saida' : 'entrada';
+  const regimeEmpresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime || '';
   const base = linhas(empresaId, { ...opcoes, tipo });
   const chavePeriodo = base.periodo ? `${base.periodo.competencia_inicio}:${base.periodo.competencia_fim}` : 'sem-periodo';
   const adicionais = lado === 'cliente' ? outrasReceitasDaCadeiaCliente(empresaId, base.periodo, base.execucao?.ano || 2027) : [];
@@ -395,7 +396,12 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const totalPaginasParceiros = Math.max(1, Math.ceil(parceiros.length / limiteParceiros));
   const paginaParceiros = Math.min(totalPaginasParceiros, Math.max(1, Number(opcoes.paginaParceiros) || 1));
   const parceirosPaginados = parceiros.slice((paginaParceiros - 1) * limiteParceiros, paginaParceiros * limiteParceiros);
-  const resultado = { execucao: base.execucao, periodo_analisado: base.periodo || null, lado, totais: t, parceiros: parceirosPaginados, regimes, detalhes,
+  const resultado = { execucao: base.execucao, periodo_analisado: base.periodo || null, lado,
+    projecao_regime: ['simples_nacional', 'mei'].includes(regimeEmpresa) ? 'SIMPLES_HIBRIDO' : 'REGIME_ATUAL',
+    leitura_projecao: ['simples_nacional', 'mei'].includes(regimeEmpresa)
+      ? 'Projeção principal: Simples Nacional no regime regular de IBS/CBS (híbrido). O DAS permanece disponível somente como comparação.'
+      : 'Projeção principal pelo regime tributário atual da empresa.',
+    totais: t, parceiros: parceirosPaginados, regimes, detalhes,
     paginacaoParceiros: { pagina: paginaParceiros, limite: limiteParceiros, total: parceiros.length, totalPaginas: totalPaginasParceiros,
       temAnterior: paginaParceiros > 1, temProxima: paginaParceiros < totalPaginasParceiros },
     paginacaoDetalhes: {
@@ -418,6 +424,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
 
 function impactoFinal(empresaId, opcoes = {}) {
   const base = linhas(empresaId, opcoes); const saidas = base.linhas.filter((x) => x.sentido === 'saida'); const entradas = base.linhas.filter((x) => x.sentido === 'entrada');
+  const regimeEmpresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime || '';
   const soma = (lista, campo) => r2(lista.reduce((s, x) => s + n(x[campo]), 0));
   const cbsDebito = soma(saidas, 'cbs'); const cbsCredito = soma(entradas, 'credito_cbs');
   const receitaProjetada = soma(saidas, 'preco_projetado');
@@ -446,7 +453,12 @@ function impactoFinal(empresaId, opcoes = {}) {
   const pCredito = r2((perfil.competencias || []).reduce((s, x) => s + n(x.cbs_credito), 0));
   const tol = .01;
   const status = !base.execucao ? 'INCOMPLETO' : Math.abs(cbsDebito - pDebito) < tol && Math.abs(cbsCredito - pCredito) < tol ? 'RECONCILIADO' : 'DIVERGENTE';
-  return { execucao: base.execucao, cbs_debito_vendas: cbsDebito, cbs_credito_compras: cbsCredito, cbs_liquida: liquida,
+  return { execucao: base.execucao,
+    projecao_regime: ['simples_nacional', 'mei'].includes(regimeEmpresa) ? 'SIMPLES_HIBRIDO' : 'REGIME_ATUAL',
+    leitura_projecao: ['simples_nacional', 'mei'].includes(regimeEmpresa)
+      ? 'Impacto calculado no cenário principal do Simples Híbrido: IBS/CBS por fora, com créditos das compras conforme a regra de cada operação.'
+      : 'Impacto calculado no regime tributário atual da empresa.',
+    cbs_debito_vendas: cbsDebito, cbs_credito_compras: cbsCredito, cbs_liquida: liquida,
     receita_atual: receitaAtual, receita_projetada: receitaProjetada, base_economica_saidas: baseSaidas,
     carga_efetiva_cbs_receita: receitaAtual ? r4(liquida / receitaAtual) : null,
     carga_efetiva_cbs_base: baseSaidas ? r4(liquida / baseSaidas) : null,

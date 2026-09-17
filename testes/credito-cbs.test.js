@@ -57,6 +57,26 @@ const compraSimplesRegular = projetarItem({ valor: 1000, valor_total: 1000, cfop
 assert.equal(compraSimplesRegular.regimeCbsEmitente, 'SIMPLES_REGIME_REGULAR');
 assert.equal(compraSimplesRegular.cbs > compraSimples.cbs, true);
 
+// No cenário híbrido, apenas a posição da empresa do Simples é alterada:
+// ela destaca CBS na venda e aproveita crédito na compra. O fornecedor não
+// é convertido artificialmente para regime regular.
+const empresaSimples = { regime: 'simples_nacional' };
+const vendaTradicional = projetarItem({ valor: 1000, valor_total: 1000, cfop: '5102', descricao: 'Venda teste' }, {
+  sentido: 'saida', ano: 2027, empresa: empresaSimples, regimeContraparte: 'lucro_real',
+  simplesEmitente: { aliquotaEfetiva: 0.04, reparticao: { pis: 0.0276, cofins: 0.1274, icms_iss: 0.34 } },
+});
+const vendaHibrida = projetarItem({ valor: 1000, valor_total: 1000, cfop: '5102', descricao: 'Venda teste' }, {
+  sentido: 'saida', ano: 2027, empresa: empresaSimples, regimeContraparte: 'lucro_real', hibrido: true,
+});
+assert.equal(vendaHibrida.projecaoRegime, 'SIMPLES_HIBRIDO');
+assert.equal(vendaHibrida.regimeCbsEmitente, 'SIMPLES_REGIME_REGULAR');
+assert.equal(vendaHibrida.cbs > vendaTradicional.cbs, true);
+const compraHibrida = projetarItem({ valor: 1000, valor_total: 1000, cfop: '1102', descricao: 'Compra teste' }, {
+  sentido: 'entrada', ano: 2027, empresa: empresaSimples, regimeContraparte: 'lucro_real', hibrido: true,
+});
+assert.equal(compraHibrida.regimeCbsAdquirente, 'SIMPLES_REGIME_REGULAR');
+assert.equal(compraHibrida.creditoCbs > 0, true);
+
 // MEI sem hipótese específica não recebe crédito presumido automático.
 const compraMei = projetarItem({ valor: 1000, valor_total: 1000, cfop: '1102', descricao: 'Item de teste', cst: '000' }, {
   sentido: 'entrada', ano: 2027, empresa: { regime: 'lucro_real' }, regimeContraparte: 'mei',

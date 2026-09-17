@@ -1277,32 +1277,32 @@ async function telaCadeia(el, tipo) {
   const mostrarRiscos = eForn || abaCliente === 'riscos';
   const mostrarAbc = eForn || abaCliente === 'abc';
   const resumoBeneficios = analise.tratamentoBeneficios || { operacoes: 0 };
+  const pisAntes = (x) => x.pisCofinsNoDas ? 'no DAS' : x.pisIndeterminado ? 'a validar' : A.moeda(x.pisCofinsAtual);
+  const tributosReforma = (x) => `${ibsAtivo ? `IBS ${A.moeda(x.ibs)} · ` : ''}CBS ${A.moeda(x.cbs)}`;
 
   el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
     eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
     eForn ? 'Impacto da reforma no preço das compras da empresa. O crédito potencial é exibido separadamente e não reduz o impacto do preço.'
           : 'Impacto da reforma no preço das vendas da empresa. O perfil do cliente não altera o IBS/CBS devido na saída; ele apenas orienta a relevância comercial do crédito potencial.',
     `<button class="btn vazio" onclick="window.open('/api/empresas/${S.empresaId}/relatorio/${eForn ? 'fornecedores' : 'clientes'}?repasse=${rep}')">Exportar Excel</button>`) +
+    (analise.projecao_regime === 'SIMPLES_HIBRIDO' ? `<div class="aviso ok" style="margin-top:16px"><b>Projeção principal: Simples Híbrido.</b> ${A.esc(analise.leitura_projecao || '')}</div>` : '') +
     (!eForn && pendenciasReferencias.length ? `<div class="aviso atencao" style="margin-top:16px"><b>${pendenciasReferencias.length} lançamento(s) de serviço estão sem referência fiscal específica.</b> A análise foi carregada com a melhor evidência disponível (documento, catálogo ou regime da empresa). <button class="btn pq vazio" id="corrigirDadosCadeia">Corrigir na Central de Dados</button> Esses itens permanecem <b>a validar</b>.</div>` : '') +
     (t.registros ? `
     <div class="grade g4">
       ${A.kpi(eForn ? 'Compra atual' : 'Venda atual', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
-      ${A.kpi(rotuloBase, A.moeda(ultimo.baseEconomica || 0), ibsAtivo ? 'visão IBS + CBS' : 'venda atual menos PIS/COFINS; ISS/ICMS preservados')}
-      ${A.kpi(eForn ? 'Compra projetada' : 'Venda projetada', A.moeda(ultimo.precoFinal || 0), ibsAtivo ? 'IBS + CBS' : 'CBS')}
+      ${A.kpi('Antes — PIS/Cofins', t.pisIndeterminado ? 'A validar' : t.pisCofinsNoDas ? 'No DAS' : A.moeda(t.pisCofinsAtual), 'carga atual identificada')}
+      ${A.kpi(`Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, tributosReforma(ultimo), 'projeção da reforma')}
       ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' sobre o preço atual', 'destaque')}
     </div>
     <div class="cartao" style="margin-top:16px"><h2>${eForn ? 'Impacto para a empresa — entradas' : 'Impacto para a empresa — saídas'}</h2>
-      <p class="desc">${eForn ? 'Compra atual − tributos substituídos = base econômica + IBS + CBS = compra projetada − compra atual = impacto da compra.' : (ibsAtivo ? 'Venda atual − tributos substituídos = base econômica integral + IBS + CBS = venda projetada − venda atual = impacto da venda.' : 'Venda atual − PIS/COFINS atuais = base econômica CBS + CBS = venda projetada − venda atual = impacto da venda. ISS e ICMS permanecem na estrutura econômica.') } CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
+      <p class="desc">Comparação da carga atual com a projeção da reforma: <b>antes, PIS/Cofins</b>; <b>depois, CBS${ibsAtivo ? ' + IBS' : ''}</b>; e a diferença econômica no preço. CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
       ${A.tabela([
         { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: () => A.moeda(t.valor) },
-        ...(!eForn ? [{ t: 'Tributos atuais retirados', num: true, r: () => A.moeda(analise.regimes.reduce((s, r) => s + (Number(r.pisCofinsAtual) || 0), 0)) }] : []),
+        { t: 'Antes — PIS/Cofins', num: true, r: () => t.pisIndeterminado ? 'A validar' : t.pisCofinsNoDas ? 'No DAS' : A.moeda(t.pisCofinsAtual) },
         { t: rotuloBase, num: true, r: () => A.moeda(ultimo.baseEconomica || 0) },
-        ...(ibsAtivo ? [{ t: 'IBS projetado', num: true, r: () => A.moeda(ultimo.ibs || 0) }] : []),
-        { t: 'Alíquota CBS', num: true, r: () => A.pct(cbsReferencia) },
-        { t: 'CBS projetada', num: true, r: () => A.moeda(ultimo.cbs || 0) },
+        { t: `Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, num: true, r: () => tributosReforma(ultimo) },
         { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: () => A.moeda(ultimo.precoFinal || 0) },
-        { t: 'Impacto R$', num: true, r: () => A.setaR$(ultimo.impactoOperacao || 0) },
-        { t: 'Impacto %', num: true, r: () => A.setaPct(ultimo.impactoOperacaoPerc || 0) },
+        { t: 'Impacto da reforma', num: true, r: () => `<b>${A.setaR$(ultimo.impactoOperacao || 0)}</b><div class="mini">${A.setaPct(ultimo.impactoOperacaoPerc || 0)}</div>` },
       ], [{}])}
       <p class="mini" style="margin-top:12px"><b>Crédito potencial juridicamente associado à operação:</b> ${A.moeda(ultimo.creditoPotencial || 0)}. A CBS da venda é exibida separadamente e não pressupõe direito de crédito para Pessoa Física, Simples ou outro perfil sem apropriação.</p>
       ${!eForn ? `<div class="aviso neutro" style="margin-top:12px"><b>Origem do PIS/COFINS usado na base econômica</b><br>${Object.entries(t.origensPisCofins || {}).map(([origem, x]) => `${A.esc(origem)}: <b>${A.moeda(x.valor)}</b> em ${x.registros} lançamento(s) · ${A.pct(t.valor ? x.vendas / t.valor : 0, 1)} das vendas`).join(' · ') || 'Sem informação disponível.'}</div>` : ''}
@@ -1329,8 +1329,9 @@ async function telaCadeia(el, tipo) {
           { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}</div>` },
           { t: 'Enquadramento CBS', r: (r) => `<span class="tag ${r.faixaOrdem === 'ALIQUOTA_ZERO' ? 'a' : r.faixaOrdem !== 'INTEGRAL' ? 'c' : 'n'}">${A.esc(r.faixaTributacao || 'Base integral')}</span>` },
           { t: eForn ? 'Compras atuais' : 'Vendas atuais', num: true, r: (r) => `<b>${A.moeda(r.valor)}</b><div class="mini">${A.pct(r.representatividade, 1)} da carteira</div>` },
-          { t: 'Tributos', num: true, r: (r) => `${!eForn ? `<b>PIS/Cofins ${r.pisCofinsNoDas ? 'no DAS' : r.pisIndeterminado ? 'a validar' : A.moeda(r.pisCofinsAtual)}</b><div class="mini">` : ''}${ibsAtivo ? `IBS ${A.moeda(r.ibs)} · ` : ''}CBS ${A.moeda(r.cbs)}${!eForn ? '</div>' : ''}` },
-          { t: eForn ? 'Compra e impacto' : 'Venda e impacto', num: true, r: (r) => `<b>${A.moeda(r.precoFinal)}</b><div class="mini ${Number(r.impactoOperacao) > 0 ? 'sobe' : Number(r.impactoOperacao) < 0 ? 'desce' : ''}">${A.setaR$(r.impactoOperacao)}</div>` },
+          { t: 'Antes — PIS/Cofins', num: true, r: (r) => pisAntes(r) },
+          { t: `Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, num: true, r: (r) => tributosReforma(r) },
+          { t: 'Impacto', num: true, r: (r) => `<b>${A.setaR$(r.impactoOperacao)}</b><div class="mini ${Number(r.impactoOperacao) > 0 ? 'sobe' : Number(r.impactoOperacao) < 0 ? 'desce' : ''}">${A.setaPct(r.impactoOperacaoPerc)}</div>` },
           { t: 'Crédito potencial', num: true, r: (r) => A.moeda(r.creditoPotencial) },
         ], analise.regimes, { classe:'carteira-perfil-tabela' })}
       </div>
@@ -1355,8 +1356,9 @@ async function telaCadeia(el, tipo) {
         { t: eForn ? 'Fornecedor / ABC' : 'Cliente / ABC', r: (p) => `<span class="tag ${p.classeAbc === 'A' ? 'b' : 'n'}">${p.classeAbc}</span> <b>${A.esc(p.nome)}</b><div class="mini mono">${A.cnpjFmt(p.cnpj)}</div>` },
         { t: 'Regime', r: (p) => `<span class="tag ${['simples_nacional', 'mei'].includes(p.regime) ? 'a' : ''}">${A.esc(p.regimeLabel)}</span>` },
         { t: eForn ? 'Compras atuais' : 'Vendas atuais', num: true, r: (p) => `<b>${A.moeda(p.valor)}</b><div class="mini">${A.pct(p.representatividade, 1)} da carteira</div>` },
-        { t: 'Tributos', num: true, r: (p) => `${ibsAtivo ? `IBS ${A.moeda(p.ibs)} · ` : ''}CBS ${A.moeda(p.cbs)}` },
-        { t: eForn ? 'Compra e impacto' : 'Venda e impacto', num: true, r: (p) => `<b>${A.moeda(p.precoFinal)}</b><div class="mini ${Number(p.impactoOperacao) > 0 ? 'sobe' : Number(p.impactoOperacao) < 0 ? 'desce' : ''}">${A.setaR$(p.impactoOperacao)}</div>` },
+        { t: 'Antes — PIS/Cofins', num: true, r: (p) => pisAntes(p) },
+        { t: `Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, num: true, r: (p) => tributosReforma(p) },
+        { t: 'Impacto', num: true, r: (p) => `<b>${A.setaR$(p.impactoOperacao)}</b><div class="mini ${Number(p.impactoOperacao) > 0 ? 'sobe' : Number(p.impactoOperacao) < 0 ? 'desce' : ''}">${A.setaPct(p.impactoOperacaoPerc)}</div>` },
         { t: 'Crédito potencial', num: true, r: (p) => A.moeda(p.creditoPotencial) },
         ], analise.parceiros, { classe:'curva-abc-tabela' })}
       ${(() => { const p = analise.paginacaoParceiros || {}; return p.totalPaginas > 1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">${p.total} parceiros · página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-cadeia-parceiros="${p.pagina - 1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-cadeia-parceiros="${p.pagina + 1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
@@ -1530,6 +1532,7 @@ Telas.impactoFinalCbs = async (el) => {
   const rec = d.reconciliacao || {};
   el.innerHTML = cab('Módulo 1 · Consolidação CBS', 'Impacto Final CBS da Cadeia',
     'Leitura consolidada das Cadeias de Clientes e Fornecedores. Não há novo motor: os valores abaixo são as somas das análises já apuradas.') +
+    (d.projecao_regime === 'SIMPLES_HIBRIDO' ? `<div class="aviso ok" style="margin-top:16px"><b>Projeção principal: Simples Híbrido.</b> ${A.esc(d.leitura_projecao || '')}</div>` : '') +
     `<div class="grade g4">
       ${A.kpi('PIS/COFINS atual', dinheiro(d.pis_cofins_liquido_atual), naoApurado(d.pis_cofins_liquido_atual) ? 'há dado atual indeterminado' : `${A.pct(d.carga_atual_percentual || 0, 2)} sobre venda atual · ${A.esc(d.origem_carga_atual || 'INDETERMINADO')}`)}
       ${A.kpi('CBS líquida projetada', dinheiro(d.cbs_liquida), 'CBS das vendas − crédito CBS das compras', 'destaque')}

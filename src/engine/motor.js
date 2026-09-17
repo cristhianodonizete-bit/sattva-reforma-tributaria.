@@ -247,6 +247,12 @@ function projetarItem(item, ctx) {
   // Quem EMITE a nota e quem RECEBE
   const regimeEmitente = sentido === 'entrada' ? ctx.regimeContraparte : (ctx.empresa && ctx.empresa.regime);
   const regimeAdquirente = sentido === 'entrada' ? (ctx.empresa && ctx.empresa.regime) : ctx.regimeContraparte;
+  // A opção híbrida altera apenas a posição da empresa analisada: nas saídas
+  // ela passa a apurar IBS/CBS por fora; nas entradas, passa a apropriar o
+  // crédito como adquirente regular. O regime do fornecedor não é alterado.
+  const empresaHibrida = ctx.hibrido === true && ['simples_nacional', 'mei'].includes(ctx.empresa?.regime);
+  const regimeEmitenteProjetado = empresaHibrida && sentido === 'saida' ? 'simples_regime_regular' : regimeEmitente;
+  const regimeAdquirenteProjetado = empresaHibrida && sentido === 'entrada' ? 'simples_regime_regular' : regimeAdquirente;
 
   // ---------- 1. CLASSIFICAÇÃO (sempre antes do cálculo) ----------
   const cls = classificar(item, { empresa: ctx.empresa, sentido, regimeContraparte: ctx.regimeContraparte,
@@ -279,8 +285,8 @@ function projetarItem(item, ctx) {
   // ---------- 4. TRIBUTO ----------
   // Optante do Simples que NÃO migrou para o regime regular não destaca
   // IBS/CBS por fora: continua recolhendo pelo DAS.
-  const regEmit = regras.regime(regimeEmitente);
-  const emitenteNoDas = !!(regEmit && regEmit.noDas) && !ctx.hibrido;
+  const regEmit = regras.regime(regimeEmitenteProjetado);
+  const emitenteNoDas = !!(regEmit && regEmit.noDas);
   let ibs = 0, cbs = 0, natureza = 'CALCULADO';
 
   // A referência CBS do Simples é uma premissa operacional explícita para
@@ -314,7 +320,7 @@ function projetarItem(item, ctx) {
   // ---------- 5. CRÉDITO ----------
   const percentualEfetivoSimples = !!(simplesInfo && simplesInfo.aliquotaEfetiva);
   const cred = avaliarCredito({
-    regimeAdquirente, regimeFornecedor: regimeEmitente, cls, sentido,
+    regimeAdquirente: regimeAdquirenteProjetado, regimeFornecedor: regimeEmitente, cls, sentido,
     decisaoClassificatoria: contextoClassificatorio.decisao,
     simplesFornecedorConhecido: percentualEfetivoSimples,
     // O status de crédito deve registrar DETERMINADO quando a operação traz o
@@ -331,7 +337,7 @@ function projetarItem(item, ctx) {
       hash_decisao: contextoClassificatorio.equivalencia.hash_decisao,
     };
   }
-  const elegibilidadeSimples = memoriaElegibilidadeSimples({ sentido, regimeEmitente, regimeAdquirente, cls, item, ano });
+  const elegibilidadeSimples = memoriaElegibilidadeSimples({ sentido, regimeEmitente, regimeAdquirente: regimeAdquirenteProjetado, cls, item, ano });
   if (elegibilidadeSimples) {
     cred.elegibilidadeLegal = elegibilidadeSimples;
     cred.percentualCreditoOrigem = percentualEfetivoSimples ? 'DOCUMENTO_OU_FAIXA_EFETIVA'
@@ -379,10 +385,11 @@ function projetarItem(item, ctx) {
     creditoIbs: r2(creditoIbs), creditoCbs: r2(creditoCbs), creditoTotal: r2(creditoIbs + creditoCbs),
     credito: cred,
     creditoPisCofinsAdquirente,
-    regimeCbsEmitente: regimeCbs(regimeEmitente), regimeCbsAdquirente: regimeCbs(regimeAdquirente),
+    regimeCbsEmitente: regimeCbs(regimeEmitenteProjetado), regimeCbsAdquirente: regimeCbs(regimeAdquirenteProjetado),
     precoProjetado: r2(precoProjetado),
     custoLiquido: r2(custoLiquido),
     emitenteNoDas,
+    projecaoRegime: empresaHibrida ? 'SIMPLES_HIBRIDO' : 'REGIME_ATUAL',
     simples: simplesInfo,
     natureza,
     cargaProjetada: precoProjetado ? r6((ibs + cbs) / precoProjetado) : 0,
