@@ -271,7 +271,7 @@ function executar(empresaId, opcoes = {}) {
   // à receita documentada de cada competência, preservando a rastreabilidade
   // por item sem inventar uma alíquota única para toda a carteira.
   const perfilPorCompetencia = new Map();
-  const perfisDoSimples = db.prepare(`SELECT competencia,receita_bruta,pis,cofins,origem
+  const perfisDoSimples = db.prepare(`SELECT competencia,receita_bruta,pis,cofins,das,origem
     FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY id DESC`).all(empresaId);
   for (const perfil of perfisDoSimples) if (!perfilPorCompetencia.has(perfil.competencia)) perfilPorCompetencia.set(perfil.competencia, perfil);
   const faturamentoDocumentadoPorCompetencia = new Map();
@@ -284,7 +284,11 @@ function executar(empresaId, opcoes = {}) {
     const componenteDas = num(perfil?.pis) + num(perfil?.cofins);
     const receitaBase = num(perfil?.receita_bruta) || num(faturamentoDocumentadoPorCompetencia.get(String(m.competencia || '')));
     if (!perfil || componenteDas <= 0 || receitaBase <= 0) return null;
-    return { valor: num(m.valor) / receitaBase * componenteDas, origem: String(perfil.origem || '').includes('pgdas') ? 'PGDAS_IMPORTADO' : 'APURACAO_PERFIL' };
+    return {
+      valor: num(m.valor) / receitaBase * componenteDas,
+      dasAtual: num(m.valor) / receitaBase * num(perfil.das),
+      origem: String(perfil.origem || '').includes('pgdas') ? 'PGDAS_IMPORTADO' : 'APURACAO_PERFIL',
+    };
   };
 
   for (const m of saidasElegiveis) {
@@ -311,6 +315,7 @@ function executar(empresaId, opcoes = {}) {
         empresa, sentido: 'saida', ano, regimeContraparte: regime,
         perfilDestinatario: dest.perfil, hibrido: true, simplesEmitente: empresaSimples,
         cbsDentroDoDas: redutorDas?.valor,
+        dasAtualDaVenda: redutorDas?.dasAtual,
         origemCbsDentroDoDas: redutorDas?.origem,
       });
       hib.destinatario = dest;

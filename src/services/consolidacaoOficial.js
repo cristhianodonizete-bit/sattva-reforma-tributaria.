@@ -231,6 +231,11 @@ function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
   const linhas = db.prepare(`SELECT * FROM receitas_sem_dfe
     WHERE empresa_id=? AND COALESCE(status_validacao,'PENDENTE')<>'POSSIVEL_DUPLICIDADE'`).all(empresaId)
     .filter((x) => !periodo || periodoAnalisado.noPeriodo(x.competencia, periodo));
+  const perfilPorCompetencia = new Map();
+  for (const perfil of db.prepare(`SELECT competencia,receita_bruta,pis,cofins,das,origem FROM perfil_tributario
+    WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY id DESC`).all(empresaId)) {
+    if (!perfilPorCompetencia.has(perfil.competencia)) perfilPorCompetencia.set(perfil.competencia, perfil);
+  }
   return linhas.map((x) => {
     const classificacao = {
       cst: x.cst_motor || '000', cclasstrib: x.cclasstrib_motor || '000001',
@@ -252,15 +257,24 @@ function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
       : regraComAliquota ? valor * (n(regraAtual.pis_percentual) + n(regraAtual.cofins_percentual)) : null;
     const noDas = !pisInformado && !regraComAliquota && ['simples_nacional', 'mei'].includes(regimeEmpresa);
     const cbs = r2(valor * n(aliquotas.cbs)), ibs = r2(valor * n(aliquotas.ibs));
+    const perfilDas = perfilPorCompetencia.get(String(x.competencia || ''));
+    const receitaDaCompetencia = n(perfilDas?.receita_bruta);
+    const cbsDentroDoDas = noDas && receitaDaCompetencia > 0
+      ? r2(valor / receitaDaCompetencia * (n(perfilDas.pis) + n(perfilDas.cofins))) : 0;
+    const dasAtualDaVenda = noDas && receitaDaCompetencia > 0 ? r2(valor / receitaDaCompetencia * n(perfilDas.das)) : 0;
+    const dasResidualHibrido = noDas ? Math.max(0, r2(dasAtualDaVenda - cbsDentroDoDas)) : 0;
+    const impactoHibridoLiquido = noDas ? r2(cbs + ibs - cbsDentroDoDas) : r2(cbs + ibs);
     return {
       movimento_id: `receita-sem-dfe:${x.id}`, sentido:'saida', competencia:x.competencia,
       documento: x.identificador_origem ? `Questor ${x.identificador_origem}` : 'Receita sem DF-e',
       descricao: x.descricao || x.tipo_receita || 'Outra receita', nome:'Clientes diversos', inscr_federal:'', cliente_diverso:true,
       regime_parceiro:'regime_regular', perfil_destinatario:'b2b_regular', preco_atual:valor,
-      base_economica:valor, cbs, ibs, preco_projetado:r2(valor + cbs + ibs), custo_liquido:valor,
+      base_economica:valor, cbs, ibs, preco_projetado:r2(valor + impactoHibridoLiquido), custo_liquido:valor,
       credito_cbs:0, credito_ibs:0, status_credito:'SEM_DIREITO', status_credito_determinacao:'NAO_APLICAVEL',
       natureza:'CALCULADO', fonte:'OUTRAS_RECEITAS',
-      detalhe:{ contraparte:'Sem cliente identificado', classificacao, aliquotas,
+      detalhe:{ contraparte:'Clientes diversos', classificacao, aliquotas,
+        cbsDentroDoDas, dasAtualDaVenda, dasResidualHibrido, impactoHibridoLiquido,
+        origemCbsDentroDoDas: noDas && receitaDaCompetencia > 0 ? (String(perfilDas?.origem || '').includes('pgdas') ? 'PGDAS_IMPORTADO' : 'APURACAO_PERFIL') : noDas ? 'A_VALIDAR' : 'NAO_APLICAVEL',
         reconstrucao:{ memoriaPisCofins:{ carga_atual_pis_cofins_valor:noDas ? 0 : pisCofins, carga_atual_pis_cofins_origem:noDas ? 'DAS' : pisCofins === null ? 'INDETERMINADO' : pisInformado ? 'LANCAMENTO_QUESTOR' : 'REGRA_TECNICA_POR_REGIME' } },
         sensibilidade:{ leitura:'Sem cliente identificado — crédito potencial não atribuído.' } },
     };
@@ -288,7 +302,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     cbs: r2(s.cbs + n(x.cbs)),
   }), { registros: 0, valor: 0, cbs: 0 });
   const porParceiro = new Map(), porGrupo = new Map();
-  const total = { registros: itens.length, valor: 0, baseEconomica: 0, cbs: 0, ibs: 0, cbsDentroDoDas: 0, ibsDentroDoDas: 0, tributosSubstituidosDoDas: 0, precoFinal: 0, custoLiquido: 0, credito: 0, pisCofinsAtual: 0, pisIndeterminado: false };
+  const total = { registros: itens.length, valor: 0, baseEconomica: 0, cbs: 0, ibs: 0, cbsDentroDoDas: 0, ibsDentroDoDas: 0, tributosSubstituidosDoDas: 0, dasAtual: 0, dasResidualHibrido: 0, precoFinal: 0, custoLiquido: 0, credito: 0, pisCofinsAtual: 0, pisIndeterminado: false };
 
   const acumular = (destino, x) => {
     const d = x.detalhe || {}; const rec = d.reconstrucao || {};
@@ -301,6 +315,8 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     destino.cbsDentroDoDas = n(destino.cbsDentroDoDas) + n(d.cbsDentroDoDas);
     destino.ibsDentroDoDas = n(destino.ibsDentroDoDas) + n(d.ibsDentroDoDas);
     destino.tributosSubstituidosDoDas = n(destino.tributosSubstituidosDoDas) + n(d.tributosSubstituidosDoDas);
+    destino.dasAtual = n(destino.dasAtual) + n(d.dasAtualDaVenda);
+    destino.dasResidualHibrido = n(destino.dasResidualHibrido) + n(d.dasResidualHibrido);
     destino.precoFinal = n(destino.precoFinal) + n(x.preco_projetado);
     destino.custoLiquido = n(destino.custoLiquido) + n(x.custo_liquido);
     // O débito CBS da saída existe independentemente do perfil do destinatário.
@@ -335,7 +351,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const finalizar = (x) => {
     const { _linha, ...agregado } = x;
     return { ...agregado,
-    valor: r2(x.valor), baseEconomica: r2(x.baseEconomica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.cbsDentroDoDas), ibsDentroDoDas: r2(x.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.tributosSubstituidosDoDas), precoFinal: r2(x.precoFinal), custoLiquido: r2(x.custoLiquido),
+    valor: r2(x.valor), baseEconomica: r2(x.baseEconomica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.cbsDentroDoDas), ibsDentroDoDas: r2(x.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.tributosSubstituidosDoDas), dasAtual: r2(x.dasAtual), dasResidualHibrido: r2(x.dasResidualHibrido), precoFinal: r2(x.precoFinal), custoLiquido: r2(x.custoLiquido),
     creditoPotencial: r2(x.creditoPotencial), creditoFinal: r2(x.creditoFinal), pisCofinsAtual: r2(x.pisCofinsAtual), pisCofinsNoDas:Boolean(x.pisCofinsNoDas),
     impactoOperacao: r2(n(x.precoFinal) - n(x.valor)), impactoOperacaoPerc: x.valor ? r4((n(x.precoFinal) - n(x.valor)) / n(x.valor)) : null,
     relevanciaCreditoCliente: lado === 'cliente' ? leituraCliente(x._linha || {}) : leituraCreditoFornecedor(x._linha || {}),

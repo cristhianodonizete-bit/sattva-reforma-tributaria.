@@ -377,7 +377,14 @@ function projetarItem(item, ctx) {
   // mesmos valores arredondados exibidos para evitar diferença de R$ 0,01.
   const cbsDentroDoDasArredondada = r2(cbsDentroDoDas);
   const ibsDentroDoDasArredondada = r2(ibsDentroDoDas);
+  const dasAtualInformado = ctx.dasAtualDaVenda !== null && ctx.dasAtualDaVenda !== undefined;
+  const dasAtualDaVenda = hibridoEmSaida && dasAtualInformado
+    ? num(ctx.dasAtualDaVenda)
+    : hibridoEmSaida && num(simplesInfo?.aliquotaEfetiva) > 0
+      ? rec.precoAtual * num(simplesInfo.aliquotaEfetiva)
+      : 0;
   const tributosSubstituidosDoDas = cbsDentroDoDasArredondada + ibsDentroDoDasArredondada;
+  const dasResidualHibrido = hibridoEmSaida ? Math.max(0, r2(dasAtualDaVenda) - tributosSubstituidosDoDas) : null;
   const impactoHibridoLiquido = hibridoEmSaida ? r2(r2(ibs) + r2(cbs) - tributosSubstituidosDoDas) : null;
   const precoProjetado = hibridoEmSaida
     ? rec.precoAtual + impactoHibridoLiquido
@@ -415,6 +422,8 @@ function projetarItem(item, ctx) {
     origemCbsDentroDoDas: hibridoEmSaida
       ? (cbsDoDasInformada ? (ctx.origemCbsDentroDoDas || 'PGDAS_IMPORTADO') : 'FAIXA_SIMPLES_ESTIMADA')
       : 'NAO_APLICAVEL',
+    dasAtualDaVenda: hibridoEmSaida ? r2(dasAtualDaVenda) : null,
+    dasResidualHibrido: dasResidualHibrido === null ? null : r2(dasResidualHibrido),
     ibsDentroDoDas: ibsDentroDoDasArredondada,
     tributosSubstituidosDoDas: r2(tributosSubstituidosDoDas),
     impactoHibridoLiquido: impactoHibridoLiquido === null ? null : r2(impactoHibridoLiquido),

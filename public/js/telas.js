@@ -1295,6 +1295,7 @@ async function telaCadeia(el, tipo) {
       ${A.kpi(eForn ? 'Compra atual' : 'Venda atual', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
       ${A.kpi('Antes — PIS/Cofins', t.pisIndeterminado ? 'A validar' : t.pisCofinsNoDas ? 'No DAS' : A.moeda(t.pisCofinsAtual), 'carga atual identificada')}
       ${simplesHibrido ? A.kpi('(-) CBS já no DAS', A.moeda(t.cbsDentroDoDas), 'parcela substituída no Híbrido') : ''}
+      ${simplesHibrido ? A.kpi('DAS sem CBS', A.moeda(t.dasResidualHibrido), `DAS atual ${A.moeda(t.dasAtual)} − CBS retirada`) : ''}
       ${A.kpi(`Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, tributosReforma(ultimo), 'projeção da reforma')}
       ${A.kpi(eForn ? 'Impacto da compra' : 'Impacto da venda', A.setaR$(ultimo.impactoOperacao || 0), A.setaPct(ultimo.impactoOperacaoPerc || 0) + ' sobre o preço atual', 'destaque')}
     </div>
@@ -1304,7 +1305,9 @@ async function telaCadeia(el, tipo) {
         { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: () => A.moeda(t.valor) },
         { t: 'Antes — PIS/Cofins', num: true, r: () => t.pisIndeterminado ? 'A validar' : t.pisCofinsNoDas ? 'No DAS' : A.moeda(t.pisCofinsAtual) },
         { t: rotuloBase, num: true, r: () => A.moeda(ultimo.baseEconomica || 0) },
+        ...(simplesHibrido ? [{ t: 'DAS atual', num: true, r: () => A.moeda(ultimo.dasAtual || 0) }] : []),
         ...(simplesHibrido ? [{ t: '(-) CBS no DAS', num: true, r: () => A.moeda(ultimo.cbsDentroDoDas || 0) }] : []),
+        ...(simplesHibrido ? [{ t: 'DAS sem CBS', num: true, r: () => A.moeda(ultimo.dasResidualHibrido || 0) }] : []),
         { t: `Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, num: true, r: () => tributosReforma(ultimo) },
         { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: () => A.moeda(ultimo.precoFinal || 0) },
         { t: 'Impacto da reforma', num: true, r: () => `<b>${A.setaR$(ultimo.impactoOperacao || 0)}</b><div class="mini">${A.setaPct(ultimo.impactoOperacaoPerc || 0)}</div>` },
