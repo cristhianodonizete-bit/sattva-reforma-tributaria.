@@ -261,7 +261,10 @@ async function importarLocacoesQuestor(empresaId, texto) {
       resultado.ignorados++; resultado.mensagens.push(`Lançamento ${r.identificador_origem}: ${e.message}`);
     }
   }
-  if(resultado.importados) require('../services/operacaoCompartilhada').publicar().catch(()=>{});
+  // A tarefa não pode ser concluída só porque gravou no SQLite efêmero.
+  // Se a fonte compartilhada recusar a linha, ela falha de forma visível e
+  // pode ser repetida; nunca mais há sucesso seguido de desaparecimento.
+  if (resultado.importados) await require('../services/dadosAdicionaisCompartilhados').publicar(db, empresaId);
   return resultado;
 }
 async function autenticar(req) {

@@ -52,6 +52,7 @@ const supabase = require('../services/supabase');
 const { executar: sincronizarGestaoSupabase, excluirEmpresa: excluirEmpresaSupabase } = require('../../scripts/sincronizar_gestao_supabase');
 const implantacaoEscopo = require('../services/implantacaoEscopo');
 const dadosAdicionaisAnalise = require('../services/dadosAdicionaisAnalise');
+const dadosAdicionaisCompartilhados = require('../services/dadosAdicionaisCompartilhados');
 const perfilTributarioHistorico = require('../services/perfilTributarioHistorico');
 const comparadorRegimes = require('../services/comparadorRegimes');
 const apuracoesPisCofinsIa = require('../services/apuracoesPisCofinsIa');
@@ -1104,30 +1105,17 @@ router.delete('/perfil/:id', (req, res) => {
 
 // Dados adicionais para diagnóstico: são entradas declaradas/evidenciadas,
 // deliberadamente separadas de movimentos e de qualquer cálculo CBS.
-router.get('/empresas/:id/dados-adicionais-analise', (req, res) => {
-  try { ok(res, dadosAdicionaisAnalise.listar(db, Number(req.params.id))); }
+router.get('/empresas/:id/dados-adicionais-analise', async (req, res) => {
+  try {
+    // Restauração curta e específica: evita que um reinício efêmero mostre
+    // zero receitas enquanto a fotografia operacional completa é carregada.
+    await dadosAdicionaisCompartilhados.restaurar(db, Number(req.params.id));
+    ok(res, dadosAdicionaisAnalise.listar(db, Number(req.params.id)));
+  }
   catch (e) { erro(res, e); }
 });
 async function publicarDadosAdicionais(empresaLocalId) {
-  if (!supabase.configurado()) return;
-  await sincronizarGestaoSupabase();
-  const remoto = supabase.admin();
-  const { data: empresas, error: erroEmpresa } = await remoto.from('empresas').select('id').eq('origem_local_id', empresaLocalId);
-  if (erroEmpresa) throw erroEmpresa;
-  if (empresas?.length !== 1) throw new Error('Empresa remota não localizada para publicar os dados adicionais.');
-  const empresaRemotaId = empresas[0].id;
-  const espelhos = [
-    ['folhas_pagamento_competencias', 'empresa_id,competencia'],
-    ['margens_operacionais_premissas', 'empresa_id,periodo_inicio,periodo_fim'],
-    ['receitas_sem_dfe', 'empresa_id,chave_deduplicacao'],
-  ];
-  for (const [tabela, conflito] of espelhos) {
-    const linhas = db.prepare(`SELECT * FROM ${tabela} WHERE empresa_id=?`).all(empresaLocalId)
-      .map(({ id, ...linha }) => ({ ...linha, empresa_id: empresaRemotaId }));
-    if (!linhas.length) continue;
-    const { error } = await remoto.from(tabela).upsert(linhas, { onConflict: conflito });
-    if (error) throw new Error(`${tabela}: ${error.message}`);
-  }
+  return dadosAdicionaisCompartilhados.publicar(db, empresaLocalId);
 }
 
 // O Perfil Tributário é fato fiscal operacional. A sincronização de gestão
