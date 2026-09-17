@@ -266,6 +266,26 @@ function executar(empresaId, opcoes = {}) {
     ? simplesEfetivo(opcoes.anexoSimples || 'I', num(empresa.faturamento_anual), tabelas)
     : null;
   if (empresaSimples) empresaSimples.origem = num(empresa.faturamento_anual) > 0 ? 'faturamento conhecido' : 'faixa simulada';
+  // Para o Híbrido, a parcela que sai do DAS precisa vir preferencialmente
+  // da apuração/PGDAS efetivamente importada. A distribuição é proporcional
+  // à receita documentada de cada competência, preservando a rastreabilidade
+  // por item sem inventar uma alíquota única para toda a carteira.
+  const perfilPorCompetencia = new Map();
+  const perfisDoSimples = db.prepare(`SELECT competencia,receita_bruta,pis,cofins,origem
+    FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,'')<>'' ORDER BY id DESC`).all(empresaId);
+  for (const perfil of perfisDoSimples) if (!perfilPorCompetencia.has(perfil.competencia)) perfilPorCompetencia.set(perfil.competencia, perfil);
+  const faturamentoDocumentadoPorCompetencia = new Map();
+  for (const m of saidasElegiveis) {
+    const competencia = String(m.competencia || '');
+    faturamentoDocumentadoPorCompetencia.set(competencia, num(faturamentoDocumentadoPorCompetencia.get(competencia)) + num(m.valor));
+  }
+  const cbsDoDasDaVenda = (m) => {
+    const perfil = perfilPorCompetencia.get(String(m.competencia || ''));
+    const componenteDas = num(perfil?.pis) + num(perfil?.cofins);
+    const receitaBase = num(perfil?.receita_bruta) || num(faturamentoDocumentadoPorCompetencia.get(String(m.competencia || '')));
+    if (!perfil || componenteDas <= 0 || receitaBase <= 0) return null;
+    return { valor: num(m.valor) / receitaBase * componenteDas, origem: String(perfil.origem || '').includes('pgdas') ? 'PGDAS_IMPORTADO' : 'APURACAO_PERFIL' };
+  };
 
   for (const m of saidasElegiveis) {
     const regime = m.regime_cadastro || m.regime || null;
@@ -286,9 +306,12 @@ function executar(empresaId, opcoes = {}) {
     // preservado apenas para comparação econômica de permanência no DAS.
     if (empresaSimples) {
       const tradicional = proj;
+      const redutorDas = cbsDoDasDaVenda(m);
       const hib = motor.projetarItem(item, {
         empresa, sentido: 'saida', ano, regimeContraparte: regime,
         perfilDestinatario: dest.perfil, hibrido: true, simplesEmitente: empresaSimples,
+        cbsDentroDoDas: redutorDas?.valor,
+        origemCbsDentroDoDas: redutorDas?.origem,
       });
       hib.destinatario = dest;
       hib.sensibilidade = motor.sensibilidadeCredito({

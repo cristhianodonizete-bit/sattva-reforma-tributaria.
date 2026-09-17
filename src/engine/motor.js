@@ -364,9 +364,12 @@ function projetarItem(item, ctx) {
   // carga regular e retiramos a parcela substituída — nunca as duas juntas.
   const reparticaoDas = simplesInfo?.reparticao || {};
   const hibridoEmSaida = empresaHibrida && sentido === 'saida';
-  const cbsDentroDoDas = hibridoEmSaida && num(simplesInfo?.aliquotaEfetiva) > 0
-    ? rec.baseEconomica * num(simplesInfo.aliquotaEfetiva) * (num(reparticaoDas.pis) + num(reparticaoDas.cofins))
-    : 0;
+  const cbsDoDasInformada = ctx.cbsDentroDoDas !== null && ctx.cbsDentroDoDas !== undefined;
+  const cbsDentroDoDas = hibridoEmSaida && cbsDoDasInformada
+    ? num(ctx.cbsDentroDoDas)
+    : hibridoEmSaida && num(simplesInfo?.aliquotaEfetiva) > 0
+      ? rec.baseEconomica * num(simplesInfo.aliquotaEfetiva) * (num(reparticaoDas.pis) + num(reparticaoDas.cofins))
+      : 0;
   const ibsDentroDoDas = hibridoEmSaida && ibs > 0 && num(simplesInfo?.aliquotaEfetiva) > 0
     ? rec.baseEconomica * num(simplesInfo.aliquotaEfetiva) * num(reparticaoDas.icms_iss)
     : 0;
@@ -409,6 +412,9 @@ function projetarItem(item, ctx) {
     precoProjetado: r2(precoProjetado),
     custoLiquido: r2(custoLiquido),
     cbsDentroDoDas: cbsDentroDoDasArredondada,
+    origemCbsDentroDoDas: hibridoEmSaida
+      ? (cbsDoDasInformada ? (ctx.origemCbsDentroDoDas || 'PGDAS_IMPORTADO') : 'FAIXA_SIMPLES_ESTIMADA')
+      : 'NAO_APLICAVEL',
     ibsDentroDoDas: ibsDentroDoDasArredondada,
     tributosSubstituidosDoDas: r2(tributosSubstituidosDoDas),
     impactoHibridoLiquido: impactoHibridoLiquido === null ? null : r2(impactoHibridoLiquido),
