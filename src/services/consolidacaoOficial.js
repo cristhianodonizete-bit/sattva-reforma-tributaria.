@@ -182,6 +182,9 @@ function leituraBeneficio(linha) {
     cliente: linha.parceiro_cadastrado || linha.nome || detalhe.contraparte || '',
     cnpj: linha.inscr_federal || '',
     descricao: linha.descricao || detalhe.descricao || '',
+    // Mercadorias são rastreadas pelo NCM. LC 116/NBS só devem ser exibidos
+    // quando a operação for efetivamente um serviço.
+    ncm: linha.ncm || detalhe.ncm || candidato.ncm || '',
     lc116: candidato.lc116 || '',
     nbs: linha.nbs || candidato.nbs || '',
     valor: r2(linha.preco_atual),

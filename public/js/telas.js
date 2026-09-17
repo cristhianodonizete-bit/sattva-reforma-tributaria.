@@ -1371,7 +1371,7 @@ async function telaCadeia(el, tipo) {
       </div>
       ${A.tabela([
         { t: 'Documento / cliente', r: (x) => `<b class="mono">${A.esc(x.documento || 'sem número')}</b><div class="mini">${A.esc(x.competencia || '')}</div><div>${A.esc(x.cliente || 'Não identificado')}</div><div class="mini mono">${A.cnpjFmt(x.cnpj)}</div>` },
-        { t: 'Item e referência', r: (x) => `${A.esc(x.descricao || 'Sem descrição')}<div class="mini">LC 116: ${A.esc(x.lc116 || 'não identificada')} · NBS: ${A.esc(x.nbs || 'não identificada')}</div>` },
+        { t: 'Item e referência', r: (x) => `${A.esc(x.descricao || 'Sem descrição')}<div class="mini">${x.ncm ? `NCM: ${A.esc(x.ncm)} · origem: NCM` : `LC 116: ${A.esc(x.lc116 || 'não identificada')} · NBS: ${A.esc(x.nbs || 'não identificada')}`}</div>` },
         { t: 'Benefício aplicado', r: (x) => `<span class="tag c">${A.esc(x.beneficio || 'Tratamento específico')}</span><div class="mini">CST ${A.esc(x.cst || '—')} · cClassTrib ${A.esc(x.cclasstrib || '—')}</div>` },
         { t: 'Base econômica', num: true, r: (x) => A.moeda(x.baseEconomica) },
         { t: 'CBS', num: true, r: (x) => `${A.moeda(x.cbs)}<div class="mini">Referência: ${x.aliquotaCbsReferencia == null ? 'não identificada' : A.pct(x.aliquotaCbsReferencia)} · efetiva: ${x.aliquotaCbsEfetiva == null ? 'não identificada' : A.pct(x.aliquotaCbsEfetiva)}</div>` },
