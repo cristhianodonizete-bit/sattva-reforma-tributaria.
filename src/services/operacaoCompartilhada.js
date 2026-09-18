@@ -713,7 +713,10 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
       if (error) { avisos.push(`excecoes_motor_execucoes: ${error.message}`); break; }
     }
   }
-  return { execucoes: execucoes.length, resultados: resultados.length, telemetrias: telemetrias.length, excecoes_execucao: excecoesExecucao.length, avisos };
+  return { execucoes: execucoes.length, resultados: resultados.length, telemetrias: telemetrias.length, excecoes_execucao: excecoesExecucao.length, avisos,
+    // A fotografia é gravada com a identidade remota da empresa. Quem a
+    // promove precisa usar essa mesma identidade; o id SQLite pode diferir.
+    empresa_remota_id: empresaId == null ? null : empresaRemota(empresaId) };
 }
 async function promoverFotografiaMotor(empresaId, execucaoId, quantidadeEsperada) {
   if (!ativo()) return { ativo: false };

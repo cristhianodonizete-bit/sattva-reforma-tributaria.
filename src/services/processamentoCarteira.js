@@ -107,9 +107,13 @@ async function processarUm() {
         const execucao = motorExec.ultimaExecucao(job.empresa_id);
         const quantidade = resultado.resumo.itens;
         motorStaging.atualizar(job.id, 'PUBLICANDO', { execucao_id: execucao.id, quantidade_esperada: quantidade, resumo: resultado.resumo });
-        await operacao.publicarResultadosMotor(job.empresa_id, { ativar: false });
-        await operacao.promoverFotografiaMotor(job.empresa_id, execucao.id, quantidade);
-        await operacao.validarFotografiaAtivaMotor(job.empresa_id, execucao.id, quantidade);
+        const publicacao = await operacao.publicarResultadosMotor(job.empresa_id, { ativar: false });
+        // O resultado é publicado com o id da empresa compartilhada. Em
+        // instalações em que este difere do id local, promover com o id local
+        // encontrava zero itens e descartava uma fotografia já gravada.
+        const empresaFotografia = Number(publicacao.empresa_remota_id || job.empresa_id);
+        await operacao.promoverFotografiaMotor(empresaFotografia, execucao.id, quantidade);
+        await operacao.validarFotografiaAtivaMotor(empresaFotografia, execucao.id, quantidade);
         motorStaging.atualizar(job.id, 'CONCLUIDO');
         await finalizar(job, 'CONCLUIDO', null, { itens: quantidade, execucao_id: execucao.id, excecoes: excecoesMotor.resumo(job.empresa_id) });
         continue;
