@@ -446,8 +446,13 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const paginaDetalhes = Math.min(paginasDetalhes, Math.max(1, Number(opcoes.paginaDetalhes) || 1));
   const inicioDetalhes = (paginaDetalhes - 1) * limiteDetalhes;
   const detalhes = (incluirDetalhes ? itens.slice(inicioDetalhes, inicioDetalhes + limiteDetalhes) : []).map((x) => ({
+    // A referência revela a natureza efetivamente analisada pelo motor. NCM
+    // (ou tributos próprios de mercadoria) não pode ser apresentado como
+    // serviço só porque a tela de rastreabilidade é comum aos dois tipos.
+    tipoFiscal: x.ncm || n(x.detalhe?.reconstrucao?.tributosAtuais?.icms) > 0 || n(x.detalhe?.reconstrucao?.tributosAtuais?.ipi) > 0 ? 'PRODUTO' : (x.nbs || x.lc116 ? 'SERVICO' : 'A_CLASSIFICAR'),
     movimento_id: x.movimento_id, documento: x.documento || x.chave || '', parceiro: x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || '', cnpj: x.inscr_federal || '',
-    produto: x.descricao || '', ncm: x.ncm || '', nbs: x.nbs || '', cfop: x.cfop || '', competencia: x.competencia || null,
+    produto: x.descricao || '', ncm: x.ncm || '', nbs: x.nbs || '', lc116: x.lc116 || '', cfop: x.cfop || '', competencia: x.competencia || null,
+    statusClassificacao: x.status_classificacao || x.detalhe?.classificacao?.status || 'INDETERMINADO', cclasstrib: x.cclasstrib || x.detalhe?.classificacao?.cclasstrib || '', cst: x.cst || x.detalhe?.classificacao?.cst || '',
     valor: r2(x.preco_atual), valorSemImposto: r2(x.base_economica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.detalhe?.cbsDentroDoDas), origemCbsDentroDoDas: x.detalhe?.origemCbsDentroDoDas || 'NAO_APLICAVEL', ibsDentroDoDas: r2(x.detalhe?.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.detalhe?.tributosSubstituidosDoDas), precoFinal: r2(x.preco_projetado),
     creditoCbs: r2(x.credito_cbs), creditoIbs: r2(x.credito_ibs), creditoPotencial: r2(n(x.credito_cbs) + n(x.credito_ibs)),
     pisCofinsAtual: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor ?? null,

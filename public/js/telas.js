@@ -1411,7 +1411,13 @@ async function telaCadeia(el, tipo) {
       ${A.tabela([
         { t: 'Documento', r: (d) => `<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '')}</div>` },
         { t: 'Cliente', r: (d) => `${A.esc(d.parceiro)}<div class="mini mono">${A.cnpjFmt(d.cnpj)}</div>` },
-        { t: 'Serviço', r: (d) => `${A.esc(d.produto)}<div class="mini mono">${A.esc(d.nbs || d.ncm || 'sem NBS/NCM')}</div>` },
+        { t: 'Item / referência fiscal', r: (d) => {
+          const produto = d.tipoFiscal === 'PRODUTO';
+          const servico = d.tipoFiscal === 'SERVICO';
+          const referencia = produto ? `NCM ${d.ncm || 'não identificado'}` : servico ? `NBS ${d.nbs || 'não identificado'}${d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : 'Sem NCM/NBS/LC 116';
+          const decisao = d.cclasstrib ? `CST ${d.cst || '—'} · cClassTrib ${d.cclasstrib}` : `Classificação ${d.statusClassificacao || 'a validar'}`;
+          return `<b>${A.esc(d.produto || 'Sem descrição')}</b><div class="mini"><span class="tag ${produto ? 'c' : servico ? 'a' : 'n'}">${produto ? 'Produto' : servico ? 'Serviço' : 'A classificar'}</span> <span class="mono">${A.esc(referencia)}</span></div><div class="mini">${A.esc(decisao)}</div>`;
+        } },
         { t: 'Venda atual', num: true, r: (d) => A.moeda(d.valor) },
         { t: 'ICMS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.icms) },
         { t: 'ISS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.iss) },
