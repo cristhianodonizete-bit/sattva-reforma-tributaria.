@@ -57,8 +57,25 @@ function salvarFolha(db, empresaId, dados) {
   const r = db.prepare(`INSERT INTO folhas_pagamento_competencias
     (empresa_id,competencia,valor_folha,pro_labore,origem,referencia_arquivo,status_validacao)
     VALUES (?,?,?,?,?,?,?)`).run(empresaId, competencia, valorFolha, proLabore, texto(dados.origem || 'MANUAL'),
-    texto(dados.referencia_arquivo) || null, status(dados.status_validacao));
+    texto(dados.referencia_arquivo) || null, status(dados.status_validacao, 'VALIDADO'));
   return { id: r.lastInsertRowid };
+}
+
+function editarFolha(db, empresaId, folhaId, dados) {
+  validarEmpresa(db, empresaId);
+  const atual = db.prepare('SELECT * FROM folhas_pagamento_competencias WHERE id=? AND empresa_id=?').get(Number(folhaId), empresaId);
+  if (!atual) throw new Error('Lançamento de folha não encontrado.');
+  const competencia = texto(dados.competencia);
+  if (!competenciaValida(competencia)) throw new Error('Competência deve estar no formato AAAA-MM.');
+  const duplicada = db.prepare('SELECT id FROM folhas_pagamento_competencias WHERE empresa_id=? AND competencia=? AND id<>?').get(empresaId, competencia, Number(folhaId));
+  if (duplicada) throw new Error('Já existe folha informada para esta empresa e competência.');
+  const valorFolha = numeroObrigatorio(dados.valor_folha, 'Valor da folha');
+  const proLabore = dados.pro_labore === '' || dados.pro_labore === null || dados.pro_labore === undefined ? null : numeroObrigatorio(dados.pro_labore, 'Pró-labore');
+  db.prepare(`UPDATE folhas_pagamento_competencias
+    SET competencia=?, valor_folha=?, pro_labore=?, origem=?, referencia_arquivo=?, status_validacao=?, atualizado_em=datetime('now','localtime')
+    WHERE id=? AND empresa_id=?`).run(competencia, valorFolha, proLabore, texto(dados.origem || atual.origem || 'MANUAL'),
+    texto(dados.referencia_arquivo) || null, status(dados.status_validacao, 'VALIDADO'), Number(folhaId), empresaId);
+  return { id: Number(folhaId) };
 }
 
 function salvarMargem(db, empresaId, dados) {
@@ -125,4 +142,4 @@ function listar(db, empresaId) {
   };
 }
 
-module.exports = { salvarFolha, salvarMargem, salvarReceitaSemDfe, listar, STATUS_VALIDACAO, CLASSIFICACOES_RECEITA, classificacaoAutomatica };
+module.exports = { salvarFolha, editarFolha, salvarMargem, salvarReceitaSemDfe, listar, STATUS_VALIDACAO, CLASSIFICACOES_RECEITA, classificacaoAutomatica };

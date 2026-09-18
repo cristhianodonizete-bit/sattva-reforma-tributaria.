@@ -420,7 +420,8 @@ Telas.dados = async (el) => {
       {t:'Valor da folha',num:true,r:x=>`<b>${A.moeda(x.valor_folha)}</b>`},
       {t:'Pró-labore',num:true,r:x=>x.pro_labore === null || x.pro_labore === undefined ? '—' : A.moeda(x.pro_labore)},
       {t:'Fonte e referência',r:x=>`<span class="tag ${String(x.origem || '').startsWith('PLANILHA') ? 'c' : ''}">${A.esc(String(x.origem || 'MANUAL').startsWith('PLANILHA') ? 'Planilha' : x.origem || 'Manual')}</span><div class="mini">${A.esc(x.referencia_arquivo || 'Informado diretamente')}</div>`},
-      {t:'Situação',r:x=>`<span class="tag c">${A.esc(x.status_validacao || 'Registrada')}</span>`},
+      {t:'Situação',r:x=>`<span class="tag ${x.status_validacao === 'PENDENTE' ? 'a' : 'c'}">${A.esc(x.status_validacao === 'VALIDADO' ? 'Informada' : x.status_validacao || 'Informada')}</span>`},
+      {t:'',r:x=>`<button class="btn pq vazio" data-editar-folha="${A.esc(x.id)}">Editar</button>`},
     ],dadosAdicionais.folhas || [],{vazio:'Nenhuma folha informada ainda.'})}</div>` : ''}
     ${grupoCentral === 'receitas' ? `<div class="cartao" style="margin-top:16px"><p class="desc">Possível duplicidade não é consolidada automaticamente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addReceitaSemDfe">Adicionar receita</button><button class="btn vazio" id="importarReceitaSemDfe">Importar planilha</button><button class="btn vazio" id="declararReceitaNaoAplicavel">Declarar não se aplica</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/receitas_sem_dfe').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Receitas registradas',(dadosAdicionais.receitas_sem_dfe || []).length,'não consolidadas automaticamente')}${A.kpi('Pendências',(itemProntidao('receitas')?.pendencias || []).length,'competências a resolver')}</div></div>
     <div class="cartao" style="margin-top:16px"><h2>Receitas registradas</h2><p class="desc">Cada lançamento mostra o valor, a origem e a evidência que o trouxe para a base. As importações do Questor permanecem rastreáveis pelo número do lançamento.</p>${A.tabela([
@@ -811,6 +812,15 @@ Telas.dados = async (el) => {
       `<div class="grade g2">${A.campo('pro_labore','Pró-labore (se informado)','', 'number','step="0.01" min="0"')}${A.campo('referencia_arquivo','Referência do arquivo (opcional)')}</div>`,
     aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/folhas-pagamento`, { metodo: 'POST', corpo: d }); A.toast('Folha registrada como dado complementar', 'ok'); A.ir('dados'); },
   }));
+  el.querySelectorAll('[data-editar-folha]').forEach((botao) => { botao.onclick = () => {
+    const folha = (dadosAdicionais.folhas || []).find((x) => Number(x.id) === Number(botao.dataset.editarFolha));
+    if (!folha) return;
+    A.modal({ titulo: 'Editar folha de pagamento', descricao: 'A competência precisa permanecer dentro do Período analisado da empresa.',
+      corpo: `<div class="grade g2">${A.campo('competencia','Competência (AAAA-MM)',folha.competencia || '','text','placeholder="2026-07"')}${A.campo('valor_folha','Valor da folha',folha.valor_folha ?? '', 'number','step="0.01" min="0"')}</div>` +
+        `<div class="grade g2">${A.campo('pro_labore','Pró-labore (se informado)',folha.pro_labore ?? '', 'number','step="0.01" min="0"')}${A.campo('referencia_arquivo','Referência do arquivo (opcional)',folha.referencia_arquivo || '')}</div>`,
+      aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/folhas-pagamento/${folha.id}`, { metodo: 'PUT', corpo: d }); A.toast('Folha atualizada.', 'ok'); A.ir('dados'); },
+    });
+  }; });
   const abrirDeclaracaoProntidao = (tipo, titulo, referenciaPadrao, descricao) => A.modal({
     titulo, descricao, corpo:`${A.campo('referencia','Competência ou ano',referenciaPadrao,'text','placeholder="AAAA-MM ou AAAA"')}<div class="mini" style="margin:-6px 0 12px">Ao informar somente o ano, a declaração cobre todas as competências desse ano dentro do período analisado.</div>${A.selecao('motivo','Motivo',[{v:'EMPRESA_NOVA',t:'Empresa constituída ou iniciou operação posteriormente'},{v:'SEM_MOVIMENTO',t:'Não houve movimento no período'},{v:'NAO_APLICAVEL',t:'Não se aplica à empresa'},{v:'OUTRO',t:'Outro'}],'SEM_MOVIMENTO')}${A.area('justificativa','Justificativa complementar','',3)}`,
     confirmar:'Registrar declaração', aoConfirmar:async(d)=>{ await A.api(`/empresas/${S.empresaId}/prontidao-dados/declaracoes`,{metodo:'POST',corpo:{...d,tipo}}); A.toast('Declaração registrada com trilha de auditoria.', 'ok'); A.ir('dados'); },

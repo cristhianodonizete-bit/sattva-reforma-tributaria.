@@ -4,17 +4,26 @@ const dados = require('../src/services/dadosAdicionaisAnalise');
 
 const db = sqlite.abrir(':memory:');
 db.exec(`
-  CREATE TABLE empresas (id integer primary key, razao_social text);
+  CREATE TABLE empresas (id integer primary key, razao_social text, regime text);
   CREATE TABLE movimentos (id integer primary key, empresa_id integer, competencia text, tipo text, valor real, descricao text, documento text, chave text);
   CREATE TABLE folhas_pagamento_competencias (id integer primary key autoincrement, empresa_id integer, competencia text, valor_folha real, pro_labore real, origem text, referencia_arquivo text, status_validacao text, criado_em text, atualizado_em text, unique(empresa_id, competencia));
   CREATE TABLE margens_operacionais_premissas (id integer primary key autoincrement, empresa_id integer, periodo_inicio text, periodo_fim text, margem_operacional_percentual real, origem text, natureza text, status_validacao text, criado_em text, atualizado_em text, unique(empresa_id, periodo_inicio, periodo_fim));
   CREATE TABLE receitas_sem_dfe (id integer primary key autoincrement, empresa_id integer, competencia text, tipo_receita text, descricao text, valor real, origem text, evidencia text, status_validacao text, chave_deduplicacao text, criado_em text, atualizado_em text, unique(empresa_id, chave_deduplicacao));
+  CREATE TABLE catalogo_itens_receita (chave text primary key, nome text, classificacao_fiscal text, ativo integer);
 `);
 db.prepare('INSERT INTO empresas (id,razao_social) VALUES (1,?), (2,?)').run('Empresa A', 'Empresa B');
+db.prepare("INSERT INTO catalogo_itens_receita (chave,nome,classificacao_fiscal,ativo) VALUES ('ALUGUEL','Aluguel','LOCACAO_IMOVEL',1), ('CESSAO','Cessão','CESSAO_DIREITOS',1), ('OUTRA','Outra','OUTRA',1)").run();
 
 assert.doesNotThrow(() => dados.salvarFolha(db, 1, { competencia: '2026-08', valor_folha: 10000, pro_labore: 1500, origem: 'PLANILHA_ERP' }));
 assert.throws(() => dados.salvarFolha(db, 1, { competencia: '2026-08', valor_folha: 10000 }), /Já existe folha/);
 assert.doesNotThrow(() => dados.salvarFolha(db, 2, { competencia: '2026-08', valor_folha: 10000 }), 'isolamento por empresa permite mesma competência');
+const folhaEditada = dados.editarFolha(db, 1, 1, { competencia: '2026-07', valor_folha: 12000, pro_labore: 1800 });
+assert.strictEqual(Number(folhaEditada.id), 1);
+const folhaAposEdicao = db.prepare('SELECT competencia,valor_folha,pro_labore,status_validacao FROM folhas_pagamento_competencias WHERE id=1').get();
+assert.strictEqual(folhaAposEdicao.competencia, '2026-07');
+assert.strictEqual(folhaAposEdicao.valor_folha, 12000);
+assert.strictEqual(folhaAposEdicao.pro_labore, 1800);
+assert.strictEqual(folhaAposEdicao.status_validacao, 'VALIDADO');
 
 assert.doesNotThrow(() => dados.salvarMargem(db, 1, { periodo_inicio: '2026-01', periodo_fim: '2026-06', margem_operacional_percentual: 18.5 }));
 assert.throws(() => dados.salvarMargem(db, 1, { periodo_inicio: '2026-01', periodo_fim: '2026-06', margem_operacional_percentual: 20 }), /Já existe margem/);
