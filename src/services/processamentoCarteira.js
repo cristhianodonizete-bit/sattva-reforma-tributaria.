@@ -15,6 +15,9 @@ const concorrencia = () => Math.max(1, Math.min(8, Number(process.env.PROCESSAME
 
 async function espelharJob(job) {
   if (!supabase.configurado()) return;
+  // processamento_id organiza a execução somente no SQLite da instância. Ele
+  // pode voltar a 1 após um reinício e, por isso, não é identidade global; o
+  // UUID do job é a chave durável usada no Supabase.
   const { error } = await supabase.admin().from('jobs_carteira').upsert({ ...job, payload: JSON.parse(job.payload || '{}') }, { onConflict: 'id' });
   if (error) throw new Error(`Fila Supabase: ${error.message}`);
 }
