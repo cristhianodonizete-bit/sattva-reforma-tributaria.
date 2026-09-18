@@ -95,10 +95,11 @@ async function processarUm() {
       if (job.tipo_job === 'MOTOR_COMPLETO') {
         const payload = JSON.parse(job.payload || '{}');
         motorStaging.criar(job.id, job.empresa_id);
-        motorStaging.atualizar(job.id, 'PROCESSANDO');
+        motorStaging.atualizar(job.id, 'SINCRONIZANDO_CADASTRO');
         const cnpj = require('./cnpjReceita');
         const operacao = require('./operacaoCompartilhada');
         await cnpj.sincronizarConfirmacoesManuaisQsa(Number(job.empresa_id));
+        motorStaging.atualizar(job.id, 'CALCULANDO');
         const resultado = motorExec.executar(job.empresa_id, { ano: Number(payload.ano) || Number(job.competencia) || 2027, anexoSimples: payload.anexo, publicarAssincrona: false });
         const execucao = motorExec.ultimaExecucao(job.empresa_id);
         const quantidade = resultado.resumo.itens;

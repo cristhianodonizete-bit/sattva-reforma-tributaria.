@@ -5083,7 +5083,9 @@ router.post('/empresas/:id/motor/executar', async (req, res) => {
     if (!prontidao.motor.liberado) throw new Error(`Motor bloqueado: ${prontidao.motor.pendencias.join(' ')}`);
     const bloqueados = fechamentoModulos.listar(empresaId).modulos.filter((m) => m.modulo === 'diagnostico' && m.status === 'FECHADO');
     if (bloqueados.length) throw new Error(`O motor integral atualizaria submódulos fechados. Reabra somente os necessários: ${bloqueados.map((m) => m.titulo).join(', ')}.`);
-    const r = await motorExecucaoFila.solicitar(empresaId, req.body || {});
+    const r = await motorExecucaoFila.solicitar(empresaId, { ...(req.body || {}), reconciliacao_documental: {
+      movimentos: reconciliacao.inseridos_ou_atualizados, removidos: reconciliacao.removidos, origem: reconciliacao.origem,
+    } });
     processamentoCarteira.executar(r.processamento_id).catch((e) => console.error('[motor completo]', e.message));
     ok(res, { assincro: true, reconciliacao_documental: { movimentos: reconciliacao.inseridos_ou_atualizados, removidos: reconciliacao.removidos, origem: reconciliacao.origem }, ...r });
   } catch (e) { erro(res, e); }
