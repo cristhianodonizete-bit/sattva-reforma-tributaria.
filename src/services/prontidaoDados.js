@@ -78,11 +78,20 @@ async function empresaRemota(empresaId, banco) {
   const local=banco.prepare('SELECT cnpj FROM empresas WHERE id=?').get(Number(empresaId));
   if (!local || !supabase.configurado()) return null;
   const cnpj=String(local.cnpj||'').replace(/\D/g,'');
-  const filtro=cnpj ? `origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}` : `origem_local_id.eq.${Number(empresaId)}`;
-  const {data,error}=await supabase.admin().from('empresas').select('id').or(filtro).limit(2);
+  const filtro=cnpj
+    ? `origem_local_id.eq.${Number(empresaId)},id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`
+    : `origem_local_id.eq.${Number(empresaId)},id.eq.${Number(empresaId)}`;
+  const {data,error}=await supabase.admin().from('empresas').select('id,origem_local_id,cnpj').or(filtro).limit(20);
   if(error) throw new Error(`Não foi possível localizar a empresa compartilhada: ${error.message}`);
-  if((data||[]).length>1) throw new Error('Foram encontradas duas identidades compartilhadas para a empresa. Nenhuma declaração foi alterada.');
-  return data?.[0]||null;
+  const candidatos=data||[];
+  const mesmoCnpj=(item)=>!cnpj||String(item.cnpj||'').replace(/\D/g,'')===cnpj;
+  const porOrigem=candidatos.filter((item)=>Number(item.origem_local_id)===Number(empresaId)&&mesmoCnpj(item));
+  if(porOrigem.length===1) return porOrigem[0];
+  const porCnpj=candidatos.filter(mesmoCnpj);
+  if(porCnpj.length===1) return porCnpj[0];
+  if(candidatos.length===1) return candidatos[0];
+  if(candidatos.length>1) throw new Error('Foram encontradas identidades compartilhadas conflitantes para a empresa. As declarações não foram substituídas; corrija o cadastro duplicado.');
+  return null;
 }
 
 async function sincronizarCompartilhado(empresaId,{banco=dbPadrao}={}) {

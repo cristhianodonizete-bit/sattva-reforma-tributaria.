@@ -67,11 +67,24 @@ async function empresaRemota(empresaId, banco) {
   if (!local) throw new Error('Empresa não encontrada.');
   const remoto = supabase.admin();
   const cnpj = String(local.cnpj || '').replace(/\D/g, '');
-  const filtro = cnpj ? `origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}` : `origem_local_id.eq.${Number(empresaId)}`;
-  const { data, error } = await remoto.from('empresas').select('id,origem_local_id,cnpj').or(filtro).limit(2);
+  // O id do SQLite não é estável entre instâncias efêmeras. Há bases antigas
+  // que também têm CNPJ repetido, portanto uma busca simples por CNPJ podia
+  // esconder um período já gravado. O vínculo de origem, quando existir e
+  // tiver o mesmo CNPJ, é sempre a identidade canônica.
+  const filtro = cnpj
+    ? `origem_local_id.eq.${Number(empresaId)},id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`
+    : `origem_local_id.eq.${Number(empresaId)},id.eq.${Number(empresaId)}`;
+  const { data, error } = await remoto.from('empresas').select('id,origem_local_id,cnpj').or(filtro).limit(20);
   if (error) throw new Error(`Não foi possível localizar a empresa compartilhada: ${error.message}`);
-  if ((data || []).length > 1) throw new Error('Foram encontradas duas identidades compartilhadas para a empresa. Nenhuma configuração foi alterada.');
-  return data?.[0] || null;
+  const candidatos = data || [];
+  const mesmoCnpj = (item) => !cnpj || String(item.cnpj || '').replace(/\D/g, '') === cnpj;
+  const porOrigem = candidatos.filter((item) => Number(item.origem_local_id) === Number(empresaId) && mesmoCnpj(item));
+  if (porOrigem.length === 1) return porOrigem[0];
+  const porCnpj = candidatos.filter(mesmoCnpj);
+  if (porCnpj.length === 1) return porCnpj[0];
+  if (candidatos.length === 1) return candidatos[0];
+  if (candidatos.length > 1) throw new Error('Foram encontradas identidades compartilhadas conflitantes para a empresa. O período não foi substituído; corrija o cadastro duplicado.');
+  return null;
 }
 
 function gravarCache(empresaId, registro, banco) {
