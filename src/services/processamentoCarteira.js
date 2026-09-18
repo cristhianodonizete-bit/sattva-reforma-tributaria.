@@ -61,12 +61,33 @@ async function recuperarAbandonados() {
 
 async function claim() {
   if (supabase.configurado()) {
-    const { data, error } = await supabase.admin().rpc('claim_job_carteira', { p_worker_id: workerId });
-    if (error) throw new Error(`Claim da fila: ${error.message}`);
-    if (!data || !data.length) return null;
-    const remoto = data[0];
-    db.prepare("UPDATE jobs_carteira SET status='PROCESSANDO',worker_id=?,tentativas=?,heartbeat=? WHERE id=?").run(workerId, remoto.tentativas, remoto.heartbeat, remoto.id);
-    return { ...remoto, payload: JSON.stringify(remoto.payload || {}) };
+    const remotoApi = supabase.admin();
+    const { data, error } = await remotoApi.rpc('claim_job_carteira', { p_worker_id: workerId });
+    if (!error && data?.length) {
+      const remoto = data[0];
+      db.prepare("UPDATE jobs_carteira SET status='PROCESSANDO',worker_id=?,tentativas=?,heartbeat=? WHERE id=?").run(workerId, remoto.tentativas, remoto.heartbeat, remoto.id);
+      return { ...remoto, payload: JSON.stringify(remoto.payload || {}) };
+    }
+    // Algumas versões da função RPC não enxergam imediatamente o job recém
+    // publicado. Não deixamos a empresa presa na fila: o fallback faz uma
+    // atualização condicional no próprio Supabase, que continua atômica entre
+    // instâncias e só permite que uma delas assuma o mesmo UUID.
+    const local = db.prepare("SELECT * FROM jobs_carteira WHERE status='PENDENTE' AND (proxima_tentativa_em IS NULL OR proxima_tentativa_em<=?) ORDER BY prioridade DESC,criado_em LIMIT 1").get(agora());
+    if (!local) {
+      if (error) throw new Error(`Claim da fila: ${error.message}`);
+      return null;
+    }
+    const momento = agora();
+    const tentativa = Number(local.tentativas || 0) + 1;
+    const { data: assumidos, error: erroFallback } = await remotoApi.from('jobs_carteira')
+      .update({ status:'PROCESSANDO', worker_id:workerId, tentativas:tentativa, iniciado_em:local.iniciado_em || momento, heartbeat:momento })
+      .eq('id', local.id).eq('status', 'PENDENTE').select('*');
+    if (erroFallback) throw new Error(`Claim alternativo da fila: ${erroFallback.message}`);
+    if (!assumidos?.length) return null;
+    const assumido = assumidos[0];
+    db.prepare("UPDATE jobs_carteira SET status='PROCESSANDO',worker_id=?,tentativas=?,iniciado_em=COALESCE(iniciado_em,?),heartbeat=? WHERE id=? AND status='PENDENTE'")
+      .run(workerId, tentativa, momento, momento, local.id);
+    return { ...local, ...assumido, payload: JSON.stringify(assumido.payload || local.payload || {}) };
   }
   const job = db.prepare("SELECT * FROM jobs_carteira WHERE status='PENDENTE' AND (proxima_tentativa_em IS NULL OR proxima_tentativa_em<=?) ORDER BY prioridade DESC,criado_em LIMIT 1").get(agora());
   if (!job) return null;
