@@ -1352,7 +1352,13 @@ router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
     // A restauração só complementa o cache com os PDFs/evidências duráveis;
     // uma indisponibilidade transitória não pode derrubar toda a leitura do
     // Perfil Tributário já persistido.
-    try { await pgdasCompartilhado.restaurar(Number(req.params.id)); }
+    try {
+      await pgdasCompartilhado.restaurar(Number(req.params.id));
+      // O PDF confirmado é a fonte durável. A tabela do Perfil é uma
+      // materialização local e pode estar vazia após um reinício; refazê-la
+      // aqui impede que o selo “Confirmado” apareça sem PGDAS na auditoria.
+      pgdasDocumentoIa.materializarConfirmados(db, Number(req.params.id));
+    }
     catch (e) { console.warn(`[pgdas] restauração do Perfil adiada: ${e.message}`); }
     // O Perfil é dono da sua própria leitura: não pode depender de outra
     // tela ter aberto a lista de apurações antes. Isso elimina a corrida que
