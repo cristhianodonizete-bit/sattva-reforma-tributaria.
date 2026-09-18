@@ -5056,13 +5056,19 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
 router.post('/empresas/:id/motor/executar', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
+    // A fotografia oficial só pode ser refeita sobre os documentos canônicos.
+    // Sem esta reconciliação, um reinício do Render deixava o SQLite vazio e
+    // uma execução aparentemente concluída publicava zero itens, mesmo com
+    // NF-e/NFS-e já persistidas na fonte compartilhada.
+    const operacaoCompartilhada = require('../services/operacaoCompartilhada');
+    const reconciliacao = await operacaoCompartilhada.reconciliarMovimentosEmpresa(empresaId);
     const prontidao = prontidaoDados.obter(empresaId);
     if (!prontidao.motor.liberado) throw new Error(`Motor bloqueado: ${prontidao.motor.pendencias.join(' ')}`);
     const bloqueados = fechamentoModulos.listar(empresaId).modulos.filter((m) => m.modulo === 'diagnostico' && m.status === 'FECHADO');
     if (bloqueados.length) throw new Error(`O motor integral atualizaria submódulos fechados. Reabra somente os necessários: ${bloqueados.map((m) => m.titulo).join(', ')}.`);
     const r = await motorExecucaoFila.solicitar(empresaId, req.body || {});
     processamentoCarteira.executar(r.processamento_id).catch((e) => console.error('[motor completo]', e.message));
-    ok(res, { assincro: true, ...r });
+    ok(res, { assincro: true, reconciliacao_documental: { movimentos: reconciliacao.inseridos_ou_atualizados, removidos: reconciliacao.removidos, origem: reconciliacao.origem }, ...r });
   } catch (e) { erro(res, e); }
 });
 
