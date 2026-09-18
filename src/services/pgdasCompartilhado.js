@@ -42,9 +42,16 @@ async function restaurar(empresaLocalId) {
     const empresaId = await empresaRemota(client, empresaLocalId);
     const docs = await client.query('SELECT * FROM public.pgdas_documentos WHERE empresa_id=$1 ORDER BY id', [empresaId]);
     const camposPorDocumento = new Map();
-    for (const remoto of docs.rows) {
-      const campos = await client.query('SELECT * FROM public.pgdas_documento_campos WHERE documento_id=$1 ORDER BY id', [remoto.id]);
-      camposPorDocumento.set(remoto.id, campos.rows);
+    // Uma única consulta evita o padrão N+1 que fazia a restauração ficar
+    // perceptivelmente lenta à medida que o histórico de PGDAS crescia.
+    // A fonte continua sendo a mesma e os campos permanecem íntegros.
+    if (docs.rows.length) {
+      const campos = await client.query(`SELECT * FROM public.pgdas_documento_campos
+        WHERE documento_id = ANY($1::bigint[]) ORDER BY documento_id,id`, [docs.rows.map((x) => x.id)]);
+      for (const campo of campos.rows) {
+        const lista = camposPorDocumento.get(campo.documento_id) || [];
+        lista.push(campo); camposPorDocumento.set(campo.documento_id, lista);
+      }
     }
     const inserirDocumento = db.prepare(`INSERT INTO pgdas_documentos (empresa_id,nome_original,tipo_documento,mime_type,conteudo_original,hash_sha256,competencia_detectada,data_processamento,metodo_extracao,status_processamento) VALUES (?,?,?,?,?,?,?,?,?,?)`);
     const inserirCampo = db.prepare(`INSERT INTO pgdas_documento_campos (documento_id,campo,valor_extraido,rotulo_original,pagina_ou_localizacao,confianca,metodo_extracao,status_validacao) VALUES (?,?,?,?,?,?,?,?)`);
