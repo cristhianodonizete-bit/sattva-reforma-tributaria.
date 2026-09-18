@@ -62,7 +62,17 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
       });
     }
   }
-  return linhas.sort((a, b) => String(a.competencia).localeCompare(String(b.competencia)) || String(a.descricao_bloco).localeCompare(String(b.descricao_bloco)));
+  const competenciasExibidas = new Set();
+  return linhas
+    .sort((a, b) => String(a.competencia).localeCompare(String(b.competencia)) || String(a.descricao_bloco).localeCompare(String(b.descricao_bloco)))
+    .map((linha) => {
+      // PIS/Cofins do Perfil é o total do mês, não um total por bloco. A
+      // marca impede que a mesma cifra seja repetida visualmente em locação,
+      // serviços e revenda, sem alterar nenhum cálculo ou lançamento.
+      const exibirTotalPerfil = !competenciasExibidas.has(linha.competencia);
+      competenciasExibidas.add(linha.competencia);
+      return { ...linha, exibir_total_perfil: exibirTotalPerfil };
+    });
 }
 
 // Confronto estritamente informativo entre as fontes que já foram importadas.

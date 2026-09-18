@@ -1187,7 +1187,9 @@ Telas.perfil = async (el) => {
       {t:'Regra do Simples',r:x=>`Anexo ${A.esc(x.anexo || '—')} · faixa ${A.esc(x.faixa ?? '—')}<br><span class="mini">RBT12 ${A.moeda(x.rbt12 || 0)} · nominal ${taxa(x.aliquota_nominal)} · dedução ${A.moeda(x.parcela_deduzir || 0)}</span>`},
       {t:'Alíquotas',r:x=>`Simples: <b>${taxa(x.simples_effective_rate)}</b><br><span class="mini">PIS: repartição ${taxa(x.pis_distribution_percentage)} · efetiva ${taxa(x.pis_effective_rate)}<br>COFINS: repartição ${taxa(x.cofins_distribution_percentage)} · efetiva ${taxa(x.cofins_effective_rate)}</span>`},
       {t:'Validação PGDAS',num:true,r:x=>`PIS ${A.moeda(x.pgdas_pis)} → ${A.moeda(x.calculated_pis)} ${x.pis_match ? '✓' : '✕'}<br>COFINS ${A.moeda(x.pgdas_cofins)} → ${A.moeda(x.calculated_cofins)} ${x.cofins_match ? '✓' : '✕'}`},
-      {t:'Perfil Tributário',num:true,r:x=>`PIS: <b>${A.moeda(x.pis_perfil)}</b><br>COFINS: <b>${A.moeda(x.cofins_perfil)}</b><br><span class="mini">competência: ${A.esc(x.calculo_competencia_status)}</span>`},
+      {t:'Perfil Tributário',num:true,r:x=>x.exibir_total_perfil
+        ? `<span class="mini">Total mensal</span><br>PIS: <b>${A.moeda(x.pis_perfil)}</b><br>COFINS: <b>${A.moeda(x.cofins_perfil)}</b><br><span class="mini">competência: ${A.esc(x.calculo_competencia_status)}</span>`
+        : '<span class="mini">Total mensal exibido no primeiro bloco desta competência.</span>'},
     ], composicaoPisCofinsPgdas, {vazio:'Nenhum PGDAS confirmado e validado foi encontrado na janela analisada.'})}
     <p class="mini" style="margin-top:12px">“PIS/COFINS no Perfil” são os valores declarados no PGDAS após validação. O cálculo de competência só é usado quando os documentos conseguem ser associados de forma segura aos buckets do PGDAS.</p></div>`;
 
