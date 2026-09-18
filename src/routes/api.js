@@ -5053,6 +5053,24 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
 });
 
 // ---- Execução do motor ----
+// A pré-checagem do motor é intencionalmente mais forte que a prontidão da
+// navegação: ela reúne, na mesma instância, período, receitas complementares
+// e documentos canônicos antes de permitir que uma fotografia seja gravada.
+async function prepararBaseParaMotor(empresaId) {
+  await periodoAnalisado.sincronizarCompartilhado(empresaId);
+  await prontidaoDados.sincronizarCompartilhado(empresaId);
+  await dadosAdicionaisCompartilhados.restaurar(db, empresaId);
+  const operacaoCompartilhada = require('../services/operacaoCompartilhada');
+  const reconciliacao = await operacaoCompartilhada.reconciliarMovimentosEmpresa(empresaId);
+  return { prontidao: prontidaoDados.obter(empresaId), reconciliacao };
+}
+router.get('/empresas/:id/motor/prontidao', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    const base = await prepararBaseParaMotor(empresaId);
+    ok(res, { ...base.prontidao, reconciliacao_documental: { movimentos: base.reconciliacao.inseridos_ou_atualizados, removidos: base.reconciliacao.removidos, origem: base.reconciliacao.origem } });
+  } catch (e) { erro(res, e); }
+});
 router.post('/empresas/:id/motor/executar', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
@@ -5060,9 +5078,8 @@ router.post('/empresas/:id/motor/executar', async (req, res) => {
     // Sem esta reconciliação, um reinício do Render deixava o SQLite vazio e
     // uma execução aparentemente concluída publicava zero itens, mesmo com
     // NF-e/NFS-e já persistidas na fonte compartilhada.
-    const operacaoCompartilhada = require('../services/operacaoCompartilhada');
-    const reconciliacao = await operacaoCompartilhada.reconciliarMovimentosEmpresa(empresaId);
-    const prontidao = prontidaoDados.obter(empresaId);
+    const base = await prepararBaseParaMotor(empresaId);
+    const { reconciliacao, prontidao } = base;
     if (!prontidao.motor.liberado) throw new Error(`Motor bloqueado: ${prontidao.motor.pendencias.join(' ')}`);
     const bloqueados = fechamentoModulos.listar(empresaId).modulos.filter((m) => m.modulo === 'diagnostico' && m.status === 'FECHADO');
     if (bloqueados.length) throw new Error(`O motor integral atualizaria submódulos fechados. Reabra somente os necessários: ${bloqueados.map((m) => m.titulo).join(', ')}.`);
