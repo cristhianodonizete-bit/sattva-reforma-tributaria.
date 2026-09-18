@@ -67,15 +67,24 @@ function editarFolha(db, empresaId, folhaId, dados) {
   if (!atual) throw new Error('Lançamento de folha não encontrado.');
   const competencia = texto(dados.competencia);
   if (!competenciaValida(competencia)) throw new Error('Competência deve estar no formato AAAA-MM.');
-  const duplicada = db.prepare('SELECT id FROM folhas_pagamento_competencias WHERE empresa_id=? AND competencia=? AND id<>?').get(empresaId, competencia, Number(folhaId));
-  if (duplicada) throw new Error('Já existe folha informada para esta empresa e competência.');
+  const duplicada = db.prepare('SELECT * FROM folhas_pagamento_competencias WHERE empresa_id=? AND competencia=? AND id<>?').get(empresaId, competencia, Number(folhaId));
   const valorFolha = numeroObrigatorio(dados.valor_folha, 'Valor da folha');
   const proLabore = dados.pro_labore === '' || dados.pro_labore === null || dados.pro_labore === undefined ? null : numeroObrigatorio(dados.pro_labore, 'Pró-labore');
+  // Uma edição feita durante a sincronização anterior podia deixar a antiga
+  // competência e a nova no remoto. Quando os valores são rigorosamente os
+  // mesmos, são o mesmo lançamento: preservamos a competência ajustada e
+  // removemos apenas a cópia antiga. Valores divergentes exigem escolha humana.
+  if (duplicada) {
+    const mesmaFolha = Number(duplicada.valor_folha) === valorFolha && Number(duplicada.pro_labore || 0) === Number(proLabore || 0);
+    if (!mesmaFolha) throw new Error('Já existe folha com valores diferentes nesta competência. Revise os dois lançamentos antes de escolher qual manter.');
+    db.prepare('DELETE FROM folhas_pagamento_competencias WHERE id=? AND empresa_id=?').run(Number(folhaId), empresaId);
+    return { id: Number(duplicada.id), competencia_anterior: atual.competencia, competencia, consolidada: true };
+  }
   db.prepare(`UPDATE folhas_pagamento_competencias
     SET competencia=?, valor_folha=?, pro_labore=?, origem=?, referencia_arquivo=?, status_validacao=?, atualizado_em=datetime('now','localtime')
     WHERE id=? AND empresa_id=?`).run(competencia, valorFolha, proLabore, texto(dados.origem || atual.origem || 'MANUAL'),
     texto(dados.referencia_arquivo) || null, status(dados.status_validacao, 'VALIDADO'), Number(folhaId), empresaId);
-  return { id: Number(folhaId) };
+  return { id: Number(folhaId), competencia_anterior: atual.competencia, competencia };
 }
 
 function salvarMargem(db, empresaId, dados) {

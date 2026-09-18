@@ -32,6 +32,16 @@ async function publicar(db, empresaLocalId) {
   return { ativo:true, empresa_id_remota:empresaIdRemota, ...resultado };
 }
 
+async function removerFolhaPorCompetencia(empresaLocalId, competencia) {
+  if (!supabase.configurado() || !competencia) return { ativo:false, removidas:0 };
+  const remoto = supabase.admin();
+  const empresaIdRemota = await empresaRemota(remoto, empresaLocalId);
+  const { error, count } = await remoto.from('folhas_pagamento_competencias')
+    .delete({ count:'exact' }).eq('empresa_id', empresaIdRemota).eq('competencia', competencia);
+  if (error) throw new Error(`folhas_pagamento_competencias: ${error.message}`);
+  return { ativo:true, removidas:count || 0 };
+}
+
 function gravarLocal(db, tabela, empresaLocalId, linhas, conflito) {
   if (!linhas.length) return 0;
   const permitidas = new Set(db.prepare(`PRAGMA table_info(${tabela})`).all().map((x) => x.name));
@@ -57,4 +67,4 @@ async function restaurar(db, empresaLocalId) {
   return { ativo:true, ...resultado };
 }
 
-module.exports = { publicar, restaurar };
+module.exports = { publicar, restaurar, removerFolhaPorCompetencia };

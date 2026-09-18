@@ -24,6 +24,11 @@ assert.strictEqual(folhaAposEdicao.competencia, '2026-07');
 assert.strictEqual(folhaAposEdicao.valor_folha, 12000);
 assert.strictEqual(folhaAposEdicao.pro_labore, 1800);
 assert.strictEqual(folhaAposEdicao.status_validacao, 'VALIDADO');
+const folhaDuplicada = dados.salvarFolha(db, 1, { competencia: '2026-06', valor_folha: 12000, pro_labore: 1800 });
+const consolidacao = dados.editarFolha(db, 1, 1, { competencia: '2026-06', valor_folha: 12000, pro_labore: 1800 });
+assert.strictEqual(consolidacao.consolidada, true);
+assert.strictEqual(Number(consolidacao.id), Number(folhaDuplicada.id));
+assert.strictEqual(db.prepare('SELECT COUNT(*) AS total FROM folhas_pagamento_competencias WHERE empresa_id=1 AND competencia=?').get('2026-06').total, 1);
 
 assert.doesNotThrow(() => dados.salvarMargem(db, 1, { periodo_inicio: '2026-01', periodo_fim: '2026-06', margem_operacional_percentual: 18.5 }));
 assert.throws(() => dados.salvarMargem(db, 1, { periodo_inicio: '2026-01', periodo_fim: '2026-06', margem_operacional_percentual: 20 }), /Já existe margem/);

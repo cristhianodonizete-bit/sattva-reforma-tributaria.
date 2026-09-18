@@ -1147,6 +1147,7 @@ router.post('/empresas/:id/folhas-pagamento', async (req, res) => {
   try {
     const periodo = await exigirPeriodoParaImportacao(req);
     if (!periodoAnalisado.noPeriodo(req.body?.competencia, periodo)) throw new Error(`A competência da folha deve estar entre ${periodo.competencia_inicio} e ${periodo.competencia_fim}.`);
+    await dadosAdicionaisCompartilhados.restaurar(db, Number(req.params.id));
     const resultado = dadosAdicionaisAnalise.salvarFolha(db, Number(req.params.id), req.body || {});
     await publicarDadosAdicionais(Number(req.params.id));
     ok(res, resultado);
@@ -1157,8 +1158,10 @@ router.put('/empresas/:id/folhas-pagamento/:folhaId', async (req, res) => {
   try {
     const periodo = await exigirPeriodoParaImportacao(req);
     if (!periodoAnalisado.noPeriodo(req.body?.competencia, periodo)) throw new Error(`A competência da folha deve estar entre ${periodo.competencia_inicio} e ${periodo.competencia_fim}.`);
+    await dadosAdicionaisCompartilhados.restaurar(db, Number(req.params.id));
     const resultado = dadosAdicionaisAnalise.editarFolha(db, Number(req.params.id), Number(req.params.folhaId), req.body || {});
     await publicarDadosAdicionais(Number(req.params.id));
+    if (resultado.competencia_anterior && resultado.competencia_anterior !== resultado.competencia) await dadosAdicionaisCompartilhados.removerFolhaPorCompetencia(Number(req.params.id), resultado.competencia_anterior);
     ok(res, resultado);
   }
   catch (e) { erro(res, e); }
@@ -1211,6 +1214,7 @@ router.post('/empresas/:id/importar/folhas-pagamento', upload.single('arquivo'),
   try {
     const periodo = await exigirPeriodoParaImportacao(req);
     if (!req.file?.buffer) throw new Error('Envie a planilha de folha no campo "arquivo".');
+    await dadosAdicionaisCompartilhados.restaurar(db, Number(req.params.id));
     const r = imp.importarFolhas(req.file.buffer);
     if (!r.registros.length) throw new Error('Nenhuma linha válida foi encontrada. Informe Competência e Valor da Folha.');
     const mensagens = [...r.mensagens]; let importados = 0; let ignorados = r.ignorados;
