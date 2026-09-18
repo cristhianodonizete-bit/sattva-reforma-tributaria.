@@ -10,5 +10,8 @@ r=prontidao.obter(empresa); assert.equal(r.motor.status,'VERDE'); assert.equal(r
 prontidao.declarar(empresa,{tipo:'APURACAO_HISTORICO_NAO_APLICAVEL',referencia:'2024',motivo:'Empresa nova'},'teste');
 prontidao.declarar(empresa,{tipo:'APURACAO_HISTORICO_NAO_APLICAVEL',referencia:'2026-01',motivo:'Sem movimento'},'teste');
 assert.ok(!prontidao.obter(empresa).etapas.find(x=>x.id==='apuracoes').pendencias.some(x=>x.includes('2026-01')));
+const inserirPgdas=db.prepare("INSERT INTO pgdas_documentos (empresa_id,nome_original,tipo_documento,conteudo_original,hash_sha256,competencia_detectada,data_processamento,metodo_extracao,status_processamento) VALUES (?,?,?,?,?,?,?,?,?)");
+for(let ano=2025, mes=3; ano<2026 || mes<=2;){ const competencia=`${ano}-${String(mes).padStart(2,'0')}`; inserirPgdas.run(empresa,`PGDAS-${competencia}.pdf`,'PDF',Buffer.from('teste'),`hash-${competencia}`,competencia,new Date().toISOString(),'TESTE','VALIDADO_USUARIO'); mes++; if(mes===13){mes=1;ano++;} }
+assert.equal(prontidao.obter(empresa).etapas.find(x=>x.id==='apuracoes').status,'VERDE','PGDAS confirmado é a fonte da prontidão, mesmo sem Perfil materializado');
 assert.throws(()=>prontidao.declarar(empresa,{tipo:'DOCUMENTOS_SEM_MOVIMENTO',referencia:'2026-13',motivo:'x'}),/Referência/);
 db.close(); fs.rmSync(pasta,{recursive:true,force:true}); console.log('prontidao-dados.test.js: OK');

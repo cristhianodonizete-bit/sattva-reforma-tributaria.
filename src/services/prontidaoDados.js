@@ -42,8 +42,12 @@ function obter(empresaId, { banco=dbPadrao } = {}) {
   const janelaApuracao=periodoAnalisado.janelaApuracao(periodo);
   const competenciasApuracao=esperado(janelaApuracao.competencia_inicio,janelaApuracao.competencia_fim);
   const simples = empresa.regime === 'simples_nacional';
+  // Para o Simples, o documento PGDAS confirmado é a fonte de verdade. O
+  // Perfil é apenas uma materialização de leitura e pode ser recomposto após
+  // reinício; usá-lo como critério de prontidão fazia um PGDAS confirmado
+  // reaparecer falsamente como "ausente".
   const linhasApuracao = simples
-    ? banco.prepare('SELECT competencia FROM perfil_tributario WHERE empresa_id=? AND COALESCE(das,0)>0').all(empresaId)
+    ? banco.prepare("SELECT competencia_detectada AS competencia FROM pgdas_documentos WHERE empresa_id=? AND status_processamento='VALIDADO_USUARIO' AND COALESCE(competencia_detectada,'')<>''").all(empresaId)
     : banco.prepare("SELECT competencia FROM pis_cofins_apuracoes_historicas WHERE empresa_id=? AND status_validacao='VALIDADO_USUARIO'").all(empresaId);
   const apuracoes = new Set(unicos(linhasApuracao));
   const apuracoesDeclaradas=declaracoes(empresaId,'APURACAO_HISTORICO_NAO_APLICAVEL',banco,competenciasApuracao);

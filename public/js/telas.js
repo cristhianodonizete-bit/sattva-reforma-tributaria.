@@ -353,7 +353,7 @@ Telas.dados = async (el) => {
     documentos: pendenciasDaAba,
     folha: (dadosAdicionais.folhas || []).filter((x) => !x.competencia || x.valor_folha === null || x.valor_folha === undefined),
     receitas: (dadosAdicionais.receitas_sem_dfe || []).filter((x) => x.status_validacao === 'POSSIVEL_DUPLICIDADE' || !x.competencia || !x.tipo_receita || !x.valor),
-    apuracoes: (simplesNacional ? (pgdasResposta.documentos || []) : (apuracoesResposta.apuracoes || []) ).filter((x) => x.status_processamento === 'ERRO' || x.status_validacao !== 'VALIDADO_USUARIO' || (x.campos_pendentes || []).length),
+    apuracoes: (simplesNacional ? (pgdasResposta.documentos || []).filter((x) => x.status_processamento !== 'VALIDADO_USUARIO') : (apuracoesResposta.apuracoes || []).filter((x) => x.status_processamento === 'ERRO' || x.status_validacao !== 'VALIDADO_USUARIO' || (x.campos_pendentes || []).length)),
     margem: (dadosAdicionais.margens || []).filter((x) => !x.periodo_inicio || !x.periodo_fim || x.margem_operacional_percentual === null || x.margem_operacional_percentual === undefined),
   };
   const itemProntidao = (id) => (prontidao.etapas || []).find((x) => x.id === id);

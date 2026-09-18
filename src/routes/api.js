@@ -1197,7 +1197,15 @@ router.put('/empresas/:id/periodo-analisado', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 router.get('/empresas/:id/prontidao-dados', async (req, res) => {
-  try { await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id)); await prontidaoDados.sincronizarCompartilhado(Number(req.params.id)); ok(res, prontidaoDados.obter(Number(req.params.id))); }
+  try {
+    const empresaId = Number(req.params.id);
+    await periodoAnalisado.sincronizarCompartilhado(empresaId);
+    await prontidaoDados.sincronizarCompartilhado(empresaId);
+    // A prontidão do Simples lê a confirmação durável do PGDAS. Restaure-a
+    // antes da consulta para que a troca de instância não desfaça o verde.
+    if (db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime === 'simples_nacional') await pgdasCompartilhado.restaurar(empresaId);
+    ok(res, prontidaoDados.obter(empresaId));
+  }
   catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/prontidao-dados/declaracoes', async (req, res) => {
