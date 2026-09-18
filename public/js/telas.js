@@ -1352,8 +1352,10 @@ async function telaCadeia(el, tipo) {
           { t: 'Antes — PIS/Cofins', num: true, r: (r) => pisAntes(r) },
           { t: `Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, num: true, r: (r) => tributosReforma(r) },
           { t: 'Impacto', num: true, r: (r) => `<b>${A.setaR$(r.impactoOperacao)}</b><div class="mini ${Number(r.impactoOperacao) > 0 ? 'sobe' : Number(r.impactoOperacao) < 0 ? 'desce' : ''}">${A.setaPct(r.impactoOperacaoPerc)}</div>` },
-          { t: 'Crédito potencial', num: true, r: (r) => A.moeda(r.creditoPotencial) },
-        ], analise.regimes, { classe:'carteira-perfil-tabela' })}
+          // Crédito é relevante para compras. Em vendas ele não é apropriado
+          // pelo cliente nesta análise e só consome espaço da comparação.
+          ...(eForn ? [{ t: 'Crédito potencial', num: true, r: (r) => A.moeda(r.creditoPotencial) }] : []),
+        ], analise.regimes, { classe:`carteira-perfil-tabela${eForn ? ' carteira-fornecedor-tabela' : ''}` })}
       </div>
     <div class="cartao" style="margin-top:16px"><h2>${ibsAtivo ? 'Projeção ano a ano' : 'Referência CBS'}</h2>
       ${ibsAtivo ? A.tabela([
