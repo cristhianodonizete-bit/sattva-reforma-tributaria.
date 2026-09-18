@@ -228,8 +228,8 @@ function leitura200044(linha) {
 // locação pode servir como memória provisória do DAS. O Perfil Tributário
 // confirmado sempre prevalece quando disponível.
 function memoriaPgdasExtraidaLocacao(empresaId) {
-  const documentos = db.prepare(`SELECT id,competencia_detectada FROM pgdas_documentos
-    WHERE empresa_id=? AND status_processamento IN ('REQUER_VALIDACAO','REVIEW_REQUIRED')
+  const documentos = db.prepare(`SELECT id,competencia_detectada,status_processamento FROM pgdas_documentos
+    WHERE empresa_id=? AND status_processamento IN ('REQUER_VALIDACAO','REVIEW_REQUIRED','VALIDADO_USUARIO')
       AND COALESCE(competencia_detectada,'')<>'' ORDER BY id DESC`).all(empresaId);
   if (!documentos.length) return new Map();
   const ids = documentos.map((x) => x.id);
@@ -250,7 +250,12 @@ function memoriaPgdasExtraidaLocacao(empresaId) {
     if (pisCofins <= 0) continue;
     porCompetencia.set(documento.competencia_detectada, {
       receita: n(locacao.revenue_amount), das: n(locacao.taxes.total), cbs: pisCofins,
-      rbt12: n(bruto.rbt12), origem: 'PGDAS_EXTRAIDO_PENDENTE_VALIDACAO',
+      rbt12: n(bruto.rbt12),
+      // A confirmação é a evidência mais forte. Ela continua disponível
+      // mesmo que a materialização do Perfil ainda não tenha sido restaurada
+      // na instância atual após um reinício.
+      origem: documento.status_processamento === 'VALIDADO_USUARIO'
+        ? 'PGDAS_CONFIRMADO' : 'PGDAS_EXTRAIDO_PENDENTE_VALIDACAO',
     });
   }
   return porCompetencia;
