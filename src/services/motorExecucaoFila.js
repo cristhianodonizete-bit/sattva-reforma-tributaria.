@@ -27,7 +27,10 @@ function etapas(job, foto) {
   const fonte = payload.reconciliacao_documental;
   const quantidade = Number(resultado?.itens ?? foto?.quantidade_esperada ?? 0);
   return [
-    { chave:'fonte', titulo:'Base fiscal e outras receitas', estado: estado(Boolean(fonte), em('AGUARDANDO','SINCRONIZANDO_CADASTRO')), detalhe: fonte ? `${fonte.movimentos || 0} item(ns) fiscal(is) conferido(s) na fonte compartilhada.` : 'Conferência da fonte compartilhada.' },
+    // A execução concluída só é possível depois da conferência da fonte. Em
+    // jobs reaproveitados o resumo pode não estar no payload local, mas isso
+    // não pode deixar a primeira etapa visualmente como "Aguardando".
+    { chave:'fonte', titulo:'Base fiscal e outras receitas', estado: estado(concluido || Boolean(fonte), em('AGUARDANDO','SINCRONIZANDO_CADASTRO')), detalhe: fonte ? `${fonte.movimentos || 0} item(ns) fiscal(is) conferido(s) na fonte compartilhada.` : concluido ? 'Fonte compartilhada conferida antes do processamento.' : 'Conferência da fonte compartilhada.' },
     { chave:'cadastro', titulo:'Cadastro e elegibilidade', estado: estado(concluido || ['CALCULANDO','PUBLICANDO'].includes(fase), em('SINCRONIZANDO_CADASTRO')), detalhe:'Atualiza confirmações societárias antes de avaliar regras condicionais, inclusive Anexo XI.' },
     { chave:'calculo', titulo:'Cálculo e classificação CBS/IBS', estado: estado(concluido || fase === 'PUBLICANDO', em('CALCULANDO')), detalhe: concluido ? `${quantidade} item(ns) processado(s), com classificação e regras fiscais aplicadas.` : 'Classifica produtos e serviços, aplica regras e consolida a base econômica.' },
     { chave:'publicacao', titulo:'Fotografia e módulos de análise', estado: estado(concluido, em('PUBLICANDO')), detalhe: concluido ? 'Fotografia publicada. Cadeias, impacto CBS, conformidade e perfil usam este resultado.' : 'Publica a fotografia atômica que abastece Cadeias, Impacto CBS, Conformidade e Perfil Tributário.' },
