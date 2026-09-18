@@ -91,6 +91,30 @@ const exigirPeriodoParaImportacao = async (req) => {
   return periodoAnalisado.exigir(Number(req.params.id));
 };
 
+// Fontes fiscais confirmadas vivem no armazenamento compartilhado. As tabelas
+// locais de Perfil são apenas projeções de leitura e podem nascer vazias após
+// uma troca de instância. Toda tela que compara ou congela resultados deve
+// reconstituir essas projeções antes de usá-las, sem depender de outra tela
+// ter sido aberta antes.
+async function prepararFontesFiscaisConfirmadas(empresaId) {
+  await periodoAnalisado.sincronizarCompartilhado(empresaId);
+  await dadosAdicionaisCompartilhados.restaurar(db, empresaId);
+  await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(empresaId);
+  const empresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId);
+  if (empresa?.regime === 'simples_nacional') {
+    await pgdasCompartilhado.restaurar(empresaId);
+    pgdasDocumentoIa.materializarConfirmados(db, empresaId);
+  } else {
+    await apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId);
+  }
+}
+
+async function prepararFontesDaAnalise(analiseId) {
+  const estudo = planejamentoTributario.obter(analiseId);
+  for (const empresa of estudo.empresas || []) await prepararFontesFiscaisConfirmadas(Number(empresa.id));
+  return estudo;
+}
+
 // Cache exclusivamente de leitura para a visão de gestão. Não participa de
 // cálculos, regras, parâmetros, QSA, regimes ou decisões de acesso. A chave
 // é do usuário e toda escrita bem-sucedida invalida imediatamente o conteúdo.
@@ -1204,6 +1228,7 @@ router.get('/empresas/:id/prontidao-dados', async (req, res) => {
     // A prontidão do Simples lê a confirmação durável do PGDAS. Restaure-a
     // antes da consulta para que a troca de instância não desfaça o verde.
     if (db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime === 'simples_nacional') await pgdasCompartilhado.restaurar(empresaId);
+    else await apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId);
     ok(res, prontidaoDados.obter(empresaId));
   }
   catch (e) { erro(res, e); }
@@ -1347,13 +1372,21 @@ router.delete('/empresas/:id/apuracoes-pis-cofins/:apuracaoId', async (req, res)
     ok(res, resultado);
   } catch (e) { erro(res, e); }
 });
-router.post('/empresas/:id/apuracoes-pis-cofins/:apuracaoId/confirmar', (req, res) => {
-  try { ok(res, { apuracao: apuracoesPisCofinsIa.confirmarRevisao(db, Number(req.params.id), Number(req.params.apuracaoId)) }); }
+router.post('/empresas/:id/apuracoes-pis-cofins/:apuracaoId/confirmar', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    const apuracao = apuracoesPisCofinsIa.confirmarRevisao(db, empresaId, Number(req.params.apuracaoId));
+    // A confirmação humana só é concluída depois de publicada. Sem isto,
+    // um reinício podia reabrir uma apuração já confirmada como pendência.
+    await apuracoesPisCofinsIa.publicarCompartilhado(db, empresaId);
+    ok(res, { apuracao });
+  }
   catch (e) { erro(res, e); }
 });
 
-router.get('/empresas/:id/perfil/analise', (req, res) => {
+router.get('/empresas/:id/perfil/analise', async (req, res) => {
   try {
+    await prepararFontesFiscaisConfirmadas(Number(req.params.id));
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
     const linhas = db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id = ? ORDER BY competencia').all(req.params.id);
@@ -1405,6 +1438,7 @@ router.get('/empresas/:id/mapa-operacional', (req, res) => {
 router.get('/empresas/:id/comparador-regimes', async (req, res) => {
   try {
     if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarParametrosIrpjCsll();
+    await prepararFontesFiscaisConfirmadas(Number(req.params.id));
     ok(res, comparadorRegimes.comparar(db, Number(req.params.id)));
   }
   catch (e) { erro(res, e); }
@@ -1419,6 +1453,7 @@ router.post('/planejamento/analises', async (req, res) => {
   try {
     const ids = req.body?.empresa_ids || [];
     for (const id of ids) await garantirEmpresaPermitida(req, id);
+    for (const id of ids) await prepararFontesFiscaisConfirmadas(Number(id));
     const estudo = planejamentoTributario.criar({ ...req.body, usuario_id: req.usuario?.id || null });
     auditar(req, { empresaId: Number(ids[0]) || null, acao: 'planejamento_analysis_created', entidade: 'planejamento_analises', entidadeId: estudo.analise.id, depois: { empresas: ids } });
     ok(res, estudo);
@@ -1448,8 +1483,11 @@ router.post('/planejamento/analises/:id/executar', (req, res) => {
   try { ok(res, planejamentoTributario.executar(Number(req.params.id), req.usuario?.id || null)); }
   catch (e) { erro(res, e); }
 });
-router.post('/planejamento/analises/:id/fotografia', (req, res) => {
-  try { ok(res, { snapshot_id: planejamentoTributario.criarSnapshot(Number(req.params.id), req.usuario?.id || null) }); }
+router.post('/planejamento/analises/:id/fotografia', async (req, res) => {
+  try {
+    await prepararFontesDaAnalise(Number(req.params.id));
+    ok(res, { snapshot_id: planejamentoTributario.criarSnapshot(Number(req.params.id), req.usuario?.id || null) });
+  }
   catch (e) { erro(res, e); }
 });
 router.post('/planejamento/analises/:id/aprovar', (req, res) => {
@@ -5088,11 +5126,9 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
 // navegação: ela reúne, na mesma instância, período, receitas complementares
 // e documentos canônicos antes de permitir que uma fotografia seja gravada.
 async function prepararBaseParaMotor(empresaId) {
-  await periodoAnalisado.sincronizarCompartilhado(empresaId);
+  await prepararFontesFiscaisConfirmadas(empresaId);
   await prontidaoDados.sincronizarCompartilhado(empresaId);
-  await dadosAdicionaisCompartilhados.restaurar(db, empresaId);
-  const operacaoCompartilhada = require('../services/operacaoCompartilhada');
-  const reconciliacao = await operacaoCompartilhada.reconciliarMovimentosEmpresa(empresaId);
+  const reconciliacao = await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(empresaId);
   return { prontidao: prontidaoDados.obter(empresaId), reconciliacao };
 }
 router.get('/empresas/:id/motor/prontidao', async (req, res) => {
