@@ -726,7 +726,7 @@ Telas.questor = async (el) => {
         </div>
         <div id="resultadoQ" style="margin-top:14px"></div>
       </div>
-    <div class="grade g2" data-questor-painel="operacao">
+    <div data-questor-painel="operacao">
       <div class="cartao"><h2>Buscar dados da empresa</h2>
         <p class="desc">${S.empresa ? `${A.esc(S.empresa.razao_social)} · código Questor: <b class="mono">${A.esc(S.empresa.codigo_questor || 'não informado')}</b>` : 'Selecione uma empresa'}</p>
         <div class="grade g2">${A.campo('inicio', 'Data inicial', '', 'date')}${A.campo('fim', 'Data final', '', 'date')}</div>
