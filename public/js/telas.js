@@ -302,6 +302,10 @@ Telas.dados = async (el) => {
   const consultaFornecedores = consultaDocumentos && abaDocumentosCentral === 'documentos' && abaDocumentosFiscais === 'fornecedores';
   const consultaDadosAdicionais = ['folha', 'receitas', 'margem'].includes(grupoCentral);
   const consultaApuracoes = grupoCentral === 'apuracoes';
+  // Prontidão só é necessária nas telas que a exibem ou usam suas pendências
+  // para registrar uma declaração. As listas de entradas, saídas e fornecedores
+  // não devem disparar essa leitura a cada troca de aba.
+  const consultaProntidao = consultaImportacoes || consultaDadosAdicionais || consultaApuracoes || grupoCentral === 'dashboard';
   const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, periodoResposta, prontidao, documentosFiscaisResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta] = await Promise.all([
     (consultaImportacoes || consultaFornecedores) ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${consultaFornecedores ? 'fornecedor' : aba}`) : Promise.resolve({ parceiros: [] }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/lotes`) : Promise.resolve({ lotes: [] }),
@@ -310,7 +314,7 @@ Telas.dados = async (el) => {
     consultaApuracoes ? A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`) : Promise.resolve({ apuracoes: [] }),
     consultaApuracoes && simplesNacional ? A.api(`/empresas/${S.empresaId}/pgdas/documentos`) : Promise.resolve({ documentos: [] }),
     consultaApuracoes ? A.api(`/empresas/${S.empresaId}/periodo-analisado`) : Promise.resolve({ periodo: null }),
-    A.api(`/empresas/${S.empresaId}/prontidao-dados`),
+    consultaProntidao ? A.api(`/empresas/${S.empresaId}/prontidao-dados`) : Promise.resolve({ etapas: [] }),
     consultaListaFiscal ? A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=2000`) : Promise.resolve({ documentos: [], total: 0 }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`) : Promise.resolve({ movimentos: [], total: 0 }),
     consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? A.api(`/empresas/${S.empresaId}/referencias-vendas`) : Promise.resolve(null),
@@ -1099,12 +1103,14 @@ Telas.perfilLegado = async (el) => {
 // Perfil Tributário: retrato histórico da apuração atual. CBS, cadeias,
 // cenários, margem e regimes comparados pertencem às telas próprias.
 Telas.perfil = async (el) => {
-  // A fonte importada é obtida antes do resumo. Assim, tanto em uma sessão
-  // contínua quanto após um reinício do servidor, o Perfil sempre consolida a
-  // mesma fotografia persistida, sem depender da ordem de duas requisições.
-  const respostaApuracoes = await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`);
-  const respostaPeriodo = await A.api(`/empresas/${S.empresaId}/periodo-analisado`);
-  const tributario = await A.api(`/empresas/${S.empresaId}/perfil-tributario-historico?atualizacao=${Date.now()}`);
+  // As fontes são idempotentes e protegidas por singleflight no servidor.
+  // Carregá-las em paralelo elimina uma espera em cascata, mas a resposta do
+  // Perfil continua sendo a consolidação autoritativa da fotografia persistida.
+  const [respostaApuracoes, respostaPeriodo, tributario] = await Promise.all([
+    A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`),
+    A.api(`/empresas/${S.empresaId}/periodo-analisado`),
+    A.api(`/empresas/${S.empresaId}/perfil-tributario-historico?atualizacao=${Date.now()}`),
+  ]);
   const estadosPerfil = tributario.leitura_estado || [];
   const perfilComFalha = estadosPerfil.some((x) => x.situacao === 'ULTIMA_FOTOGRAFIA_VALIDA');
   const perfilPendente = estadosPerfil.some((x) => x.situacao === 'ATUALIZACAO_PENDENTE');

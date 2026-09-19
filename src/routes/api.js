@@ -2188,9 +2188,18 @@ function filtrarDocumentosFiscais(documentos, filtros = {}) {
 // leitura sempre reconcilia somente a empresa aberta com a fonte canônica.
 async function reconciliarDocumentosFiscaisParaLeitura(empresaId) {
   const id = Number(empresaId);
-  const resultado = await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(id);
-  estadoLeituraEmpresa.sincronizado(db, id, ['documentos','cancelamentos'], 'Documentos conferidos na fonte compartilhada');
-  return resultado;
+  // A lista não precisa reconciliar a mesma empresa repetidamente enquanto o
+  // usuário alterna de aba. A proteção é curta (10 s), compartilhada entre
+  // requisições e é anulada imediatamente por qualquer escrita/importação.
+  // Assim a tela continua fiel à fonte sem transformar cada clique em uma
+  // sincronização completa.
+  return estadoLeituraEmpresa.atualizarComSeguranca(
+    db,
+    id,
+    ['documentos', 'cancelamentos'],
+    () => require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(id),
+    { motivo:'Documentos conferidos na fonte compartilhada' },
+  );
 }
 router.get('/empresas/:id/estado-dados', (req, res) => {
   try {
