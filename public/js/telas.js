@@ -1164,12 +1164,12 @@ Telas.perfil = async (el) => {
   const impostoPagoCaixa = somar(dasCaixa);
   const cargaEfetivaCaixa = recebidoCaixaTotal > 0 && informado(dasCaixa) ? impostoPagoCaixa / recebidoCaixaTotal : null;
   const rotuloAuditoria = (situacao) => ({
-    CONCILIADO: 'Conciliado', DIVERGENCIA_A_CONFERIR: 'Divergência a conferir',
+    CONCILIADO: 'Conciliado', CONCILIADO_JUSTIFICADO: 'Conciliado / justificado', DIVERGENCIA_A_CONFERIR: 'Divergência a conferir',
     SEM_APURACAO_IMPORTADA: 'Sem apuração importada', SEM_DOCUMENTOS_DE_RECEITA: 'Sem documentos de receita',
     RECEITA_NAO_INFORMADA_NA_APURACAO: 'Receita não informada na apuração',
     SEM_DADOS_PARA_CONFRONTO: 'Sem dados para confronto',
   })[situacao] || situacao;
-  const classeAuditoria = (situacao) => situacao === 'CONCILIADO' ? 'c' : situacao === 'DIVERGENCIA_A_CONFERIR' ? 'a' : 'n';
+  const classeAuditoria = (situacao) => ['CONCILIADO','CONCILIADO_JUSTIFICADO'].includes(situacao) ? 'c' : situacao === 'DIVERGENCIA_A_CONFERIR' ? 'a' : 'n';
   const colunaApuracao = (apuracao) => !apuracao ? '—' : apuracao.valor === null
     ? `<span class="mini">Receita não identificada</span>`
     : `${A.moeda(apuracao.valor)}<br><span class="mini">${A.esc(apuracao.documento || apuracao.origem || apuracao.fonte)}</span>`;
@@ -1184,7 +1184,7 @@ Telas.perfil = async (el) => {
       { t:'PGDAS', num:true, r:x=>colunaApuracao(x.pgdas) },
       ...(simplesCaixa ? [{ t:'Recebido (caixa)', num:true, r:x=>x.receita_recebida ? `${A.moeda(x.receita_recebida.valor)}<br><span class="mini">informativo; base da carga</span>` : '—' }] : []),
       { t:'Diferença', num:true, r:x=>x.diferencas?.length ? x.diferencas.map((d)=>`${A.moeda(d.valor)}<br><span class="mini">${A.esc(d.fonte)}</span>`).join('') : '—' },
-      { t:'Situação', r:x=>`<span class="tag ${classeAuditoria(x.situacao)}">${A.esc(rotuloAuditoria(x.situacao))}</span><br><button class="btn pq vazio" style="margin-top:7px" data-auditoria-detalhe="${A.esc(x.competencia)}">Ver memória</button>` },
+      { t:'Situação', r:x=>`<span class="tag ${classeAuditoria(x.situacao)}">${A.esc(rotuloAuditoria(x.situacao))}</span>${x.confirmacao_manual ? `<div class="mini" style="margin-top:5px">${A.esc(x.confirmacao_manual.justificativa)}</div>` : ''}<br><button class="btn pq vazio" style="margin-top:7px" data-auditoria-detalhe="${A.esc(x.competencia)}">Ver memória</button>${x.situacao === 'DIVERGENCIA_A_CONFERIR' ? `<button class="btn pq" style="margin-top:7px" data-auditoria-confirmar="${A.esc(x.competencia)}">Conciliar com justificativa</button>` : ''}` },
     ], auditoriaMensal, { vazio:'Ainda não há documentos, outras receitas ou apurações importadas no período analisado para confrontar.' })}
     <p class="mini" style="margin-top:12px">A comparação usa somente a janela do período analisado. As devoluções que reduzem faturamento são definidas no Mapa de CFOP e ficam listadas na memória da competência.</p>
   </div>`;
@@ -1309,6 +1309,22 @@ Telas.perfil = async (el) => {
     A.modal({ titulo:`Memória da divergência — ${linha.competencia}`, largura:1050, confirmar:'Fechar', descricao:'Leitura de conciliação. Nenhum documento ou valor fiscal é alterado por esta tela.', corpo:`${A.tabela([
       {t:'Componente',r:x=>A.esc(x.fonte)}, {t:'Como foi tratado',r:x=>A.esc(x.composicao)}, {t:'Valor',num:true,r:x=>x.valor === null ? '—' : A.moeda(x.valor)}
     ], memoria)}${tabelaDevolucoes}` });
+  }; });
+  el.querySelectorAll('[data-auditoria-confirmar]').forEach((botao) => { botao.onclick = () => {
+    const competencia = String(botao.dataset.auditoriaConfirmar || '');
+    const linha = auditoriaMensal.find((x) => String(x.competencia) === competencia);
+    if (!linha) return;
+    A.modal({
+      titulo: `Conciliar divergência — ${competencia}`,
+      confirmar: 'Conciliar / justificar',
+      descricao: `A diferença de ${linha.diferencas?.map((x) => A.moeda(x.valor)).join(' e ') || 'valor não identificado'} continuará registrada. Esta ação não altera PGDAS, XML ou lançamentos.`,
+      corpo: `${A.area('justificativa', 'Justificativa da conferência', '', 4, 'Explique por que a diferença foi conferida e pode ser aceita.')}`,
+      aoConfirmar: async (dados) => {
+        await A.api(`/empresas/${S.empresaId}/perfil-tributario-historico/auditoria/${encodeURIComponent(competencia)}/confirmar`, { metodo:'POST', corpo:{ justificativa:dados.justificativa } });
+        A.toast('Divergência conciliada com justificativa e trilha de auditoria.', 'ok');
+        A.ir('perfil');
+      },
+    });
   }; });
   el.querySelectorAll('[data-apuracao-revisar]').forEach((botao) => { botao.onclick = () => {
     const apuracao = apuracoes.find((x) => Number(x.id) === Number(botao.dataset.apuracaoRevisar));

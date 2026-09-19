@@ -142,6 +142,32 @@ function montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe = [
   });
 }
 
+function assinarAuditoriaMensal(linha) {
+  const arredondar = (valor) => valor === null || valor === undefined ? null : Math.round(numero(valor) * 100) / 100;
+  return JSON.stringify({
+    receita_analisada: arredondar(linha.receita_analisada),
+    pgdas: arredondar(linha.pgdas?.valor),
+    pis_cofins: arredondar(linha.pis_cofins?.valor),
+  });
+}
+
+function aplicarConfirmacoesAuditoria(db, empresaId, linhas) {
+  if (!tabelaExiste(db, 'auditoria_receitas_confirmacoes')) return linhas;
+  const confirmacoes = db.prepare(`SELECT competencia,assinatura,justificativa,usuario_id,criado_em,atualizado_em
+    FROM auditoria_receitas_confirmacoes WHERE empresa_id=?`).all(empresaId);
+  const porCompetencia = new Map(confirmacoes.map((x) => [String(x.competencia), x]));
+  return linhas.map((linha) => {
+    const confirmacao = porCompetencia.get(String(linha.competencia));
+    // Uma confirmação vale somente para a exata composição que o usuário viu.
+    // Se XML, PGDAS ou receita mudar, a divergência volta a exigir conferência.
+    if (!confirmacao || linha.situacao !== 'DIVERGENCIA_A_CONFERIR' || confirmacao.assinatura !== assinarAuditoriaMensal(linha)) return linha;
+    return { ...linha, situacao: 'CONCILIADO_JUSTIFICADO', confirmacao_manual: {
+      justificativa: confirmacao.justificativa, usuario_id: confirmacao.usuario_id,
+      confirmado_em: confirmacao.atualizado_em || confirmacao.criado_em,
+    } };
+  });
+}
+
 function consolidar(db, empresaId, opcoes = {}) {
   const colunasEmpresa = new Set(db.prepare('PRAGMA table_info(empresas)').all().map((x) => x.name));
   const colunaEmpresa = (nome) => colunasEmpresa.has(nome) ? nome : `NULL AS ${nome}`;
@@ -306,9 +332,10 @@ function consolidar(db, empresaId, opcoes = {}) {
     margem_operacional: historico.some((x) => x.margem_operacional.natureza !== 'INDETERMINADO') ? 'DISPONIVEL' : 'INDETERMINADO',
     cbs_motor: historico.some((x) => x.cbs_motor_existente.natureza === 'CALCULADO') ? 'DISPONIVEL' : 'INDETERMINADO',
   };
-  const auditoria_mensal = montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe, deducoesDevolucoes);
+  const auditoria_mensal = aplicarConfirmacoesAuditoria(db, empresaId,
+    montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe, deducoesDevolucoes));
   const composicao_pis_cofins_pgdas = montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio);
   return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal, composicao_receita:[...composicaoReceita.values()].sort((a,b)=>b.valor-a.valor), composicao_pis_cofins_pgdas };
 }
 
-module.exports = { consolidar, montarAuditoriaMensal, montarComposicaoPisCofinsPgdas };
+module.exports = { consolidar, montarAuditoriaMensal, montarComposicaoPisCofinsPgdas, assinarAuditoriaMensal };

@@ -248,6 +248,21 @@ CREATE TABLE IF NOT EXISTS perfil_tributario (
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- A confirmação humana não altera PGDAS, XML nem a composição calculada. Ela
+-- somente registra que uma divergência específica foi conferida e aceita com
+-- justificativa, vinculada à assinatura dos valores então exibidos.
+CREATE TABLE IF NOT EXISTS auditoria_receitas_confirmacoes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  competencia TEXT NOT NULL,
+  assinatura TEXT NOT NULL,
+  justificativa TEXT NOT NULL,
+  usuario_id TEXT,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, competencia)
+);
+
 -- Apurações históricas: o arquivo e cada afirmação extraída ficam separados.
 -- A camada é somente de evidência para o Raio-X; jamais alimenta o motor CBS.
 CREATE TABLE IF NOT EXISTS pis_cofins_apuracao_documentos (

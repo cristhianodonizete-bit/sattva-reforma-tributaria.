@@ -1442,6 +1442,27 @@ router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
   catch (e) { erro(res, e); }
 });
 
+router.post('/empresas/:id/perfil-tributario-historico/auditoria/:competencia/confirmar', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    const competencia = String(req.params.competencia || '').trim();
+    const justificativa = String(req.body?.justificativa || '').trim();
+    if (!/^\d{4}-\d{2}$/.test(competencia)) throw new Error('Informe uma competência válida.');
+    if (justificativa.length < 10) throw new Error('Explique a divergência em pelo menos 10 caracteres.');
+    const conciliacao = await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(empresaId);
+    const perfil = perfilTributarioHistorico.consolidar(db, empresaId, { movimentos: conciliacao.movimentos });
+    const linha = (perfil.auditoria_mensal || []).find((x) => x.competencia === competencia);
+    if (!linha || linha.situacao !== 'DIVERGENCIA_A_CONFERIR') throw new Error('Esta competência não possui uma divergência aberta para confirmar.');
+    const assinatura = perfilTributarioHistorico.assinarAuditoriaMensal(linha);
+    db.prepare(`INSERT INTO auditoria_receitas_confirmacoes (empresa_id,competencia,assinatura,justificativa,usuario_id,criado_em,atualizado_em)
+      VALUES (?,?,?,?,?,datetime('now','localtime'),datetime('now','localtime'))
+      ON CONFLICT(empresa_id,competencia) DO UPDATE SET assinatura=excluded.assinatura,justificativa=excluded.justificativa,usuario_id=excluded.usuario_id,atualizado_em=datetime('now','localtime')`)
+      .run(empresaId, competencia, assinatura, justificativa, req.usuario?.id || null);
+    auditar(req, { empresaId, acao:'CONFIRMAR_DIVERGENCIA_RECEITAS', entidade:'auditoria_receitas_confirmacoes', depois:{ competencia, justificativa, assinatura } });
+    ok(res, { competencia, situacao:'CONCILIADO_JUSTIFICADO' });
+  } catch (e) { erro(res, e); }
+});
+
 // Camada consultiva: cruza CNAEs com os itens que a empresa já cadastrou ou
 // evidenciou. Não escreve no catálogo e jamais alimenta o motor tributário.
 router.get('/empresas/:id/mapa-operacional', (req, res) => {
