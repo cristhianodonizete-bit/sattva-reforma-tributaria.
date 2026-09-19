@@ -715,8 +715,7 @@ Telas.questor = async (el) => {
   el.innerHTML = cab('Integração', 'Questor · nWeb',
     'Busca cadastros e movimentação direto do Questor Tributário, sem planilha. O nWeb roda na máquina do servidor Questor, porta 8080 por padrão.') +
     `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${S.aba.questor==='operacao'||!S.aba.questor?'ativa':''}" data-questor-aba="operacao">Consultas e fila</button><button class="aba ${S.aba.questor==='conciliacoes'?'ativa':''}" data-questor-aba="conciliacoes">Conciliações fiscais</button><button class="aba ${S.aba.questor==='conector'?'ativa':''}" data-questor-aba="conector">Conector local</button><button class="aba ${S.aba.questor==='configuracao'?'ativa':''}" data-questor-aba="configuracao">Configuração técnica</button></div>
-    <div class="grade g2" data-questor-painel="operacao">
-      <div class="cartao"><h2>Conexão</h2><p class="desc">Endereço do serviço nWeb e token, quando exigido</p>
+    <div class="cartao" data-questor-painel="configuracao"><h2>Conexão com o nWeb</h2><p class="desc">Configuração técnica do serviço e do token, quando exigido.</p>
         ${A.campo('base_url', 'URL base do nWeb', config.baseUrl)}
         ${A.campo('token', 'Token (opcional)', config.token)}
         <label class="campo"><span>Integração ativa</span>
@@ -727,6 +726,7 @@ Telas.questor = async (el) => {
         </div>
         <div id="resultadoQ" style="margin-top:14px"></div>
       </div>
+    <div class="grade g2" data-questor-painel="operacao">
       <div class="cartao"><h2>Buscar dados da empresa</h2>
         <p class="desc">${S.empresa ? `${A.esc(S.empresa.razao_social)} · código Questor: <b class="mono">${A.esc(S.empresa.codigo_questor || 'não informado')}</b>` : 'Selecione uma empresa'}</p>
         <div class="grade g2">${A.campo('inicio', 'Data inicial', '', 'date')}${A.campo('fim', 'Data final', '', 'date')}</div>
