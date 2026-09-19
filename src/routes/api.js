@@ -5004,6 +5004,14 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
     const cancelamentoConhecido = db.prepare(`SELECT * FROM documentos_fiscais_cancelamentos
       WHERE empresa_id=? AND data_emissao=? AND numero=? AND lower(modelo_documento_fiscal)=lower(?)
         AND (serie=? OR serie='' OR ?='') LIMIT 2`);
+    // Algumas prefeituras e o Questor representam a série de NFS-e de
+    // maneira diferente (por exemplo, 70000 no XML e 700 no relatório).
+    // Para NFS-e, número + modelo + data ainda são uma identidade segura se
+    // houver exatamente um cancelamento candidato; jamais escolhemos entre
+    // dois candidatos sem série.
+    const cancelamentoNfseSemSerie = db.prepare(`SELECT * FROM documentos_fiscais_cancelamentos
+      WHERE empresa_id=? AND data_emissao=? AND numero=? AND lower(modelo_documento_fiscal)='nfse'
+      LIMIT 2`);
 
     const relatorio = { arquivos: arquivos.length, documentos: 0, itens: 0, entradas: 0, saidas: 0,
       requerValidacao: 0, duplicados: 0, receita_saida_no_periodo: 0, receita_saida_fora_do_periodo: 0,
@@ -5075,7 +5083,12 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
             const partesDocumento=String(i.documento||'').split('/');
             const numeroDocumento=(partesDocumento[partesDocumento.length-1]||'').replace(/\D/g,'');
             const serieDocumento=(partesDocumento.length>1?partesDocumento[0]:'').replace(/\D/g,'');
-            const cancelamentoJaConhecido=numeroDocumento ? cancelamentoConhecido.get(req.params.id,String(i.data_emissao||'').slice(0,10),numeroDocumento,r.tipoDocumento,serieDocumento,serieDocumento) : null;
+            const dataDocumento=String(i.data_emissao||'').slice(0,10);
+            const cancelamentoExato=numeroDocumento ? cancelamentoConhecido.get(req.params.id,dataDocumento,numeroDocumento,r.tipoDocumento,serieDocumento,serieDocumento) : null;
+            const candidatosNfse=!cancelamentoExato && numeroDocumento && r.tipoDocumento==='nfse'
+              ? cancelamentoNfseSemSerie.all(req.params.id,dataDocumento,numeroDocumento)
+              : [];
+            const cancelamentoJaConhecido=cancelamentoExato || (candidatosNfse.length === 1 ? candidatosNfse[0] : null);
             const movimento = insMov.run(req.params.id, lote.lastInsertRowid, tipoParceiro, i.sentido, i.nome, i.inscr_federal,
               i.descricao, i.ncm || '', i.nbs || '', i.lc116 || '', i.cfop || '', i.cst || '', i.csosn || '', i.competencia,
               i.documento, i.chave || '', i.item_numero, i.codigo_produto || '', i.quantidade || 0,
