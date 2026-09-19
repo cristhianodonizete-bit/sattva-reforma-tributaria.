@@ -83,6 +83,7 @@ const prontidaoDados = require('../services/prontidaoDados');
 const mapaOperacional = require('../services/mapaOperacional');
 const monitoramentoAtualizacoesReforma = require('../services/monitoramentoAtualizacoesReforma');
 const receitaOperacional = require('../services/receitaOperacional');
+const estadoLeituraEmpresa = require('../services/estadoLeituraEmpresa');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -97,15 +98,15 @@ const exigirPeriodoParaImportacao = async (req) => {
 // reconstituir essas projeções antes de usá-las, sem depender de outra tela
 // ter sido aberta antes.
 async function prepararFontesFiscaisConfirmadas(empresaId) {
-  await periodoAnalisado.sincronizarCompartilhado(empresaId);
-  await dadosAdicionaisCompartilhados.restaurar(db, empresaId);
-  await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(empresaId);
+  await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido para análise' });
+  await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['receitas'], () => dadosAdicionaisCompartilhados.restaurar(db, empresaId), { motivo:'Receitas complementares conferidas para análise' });
+  await reconciliarDocumentosFiscaisParaLeitura(empresaId);
   const empresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId);
   if (empresa?.regime === 'simples_nacional') {
-    await pgdasCompartilhado.restaurar(empresaId);
+    await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['pgdas'], () => pgdasCompartilhado.restaurar(empresaId), { motivo:'PGDAS confirmado restaurado para análise' });
     pgdasDocumentoIa.materializarConfirmados(db, empresaId);
   } else {
-    await apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId);
+    await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId), { motivo:'Apurações confirmadas restauradas para análise' });
   }
 }
 
@@ -122,6 +123,16 @@ const DASHBOARD_CACHE_MS = 5000;
 const dashboardCache = new Map();
 const chaveDashboard = (req) => String(req.usuario?.id || 'publico');
 const invalidarDashboardCache = () => dashboardCache.clear();
+const recursosAfetadosPorEscrita = (caminho = '') => {
+  if (/\/importar\/(xml|sped)|\/documentos-fiscais|\/questor\/cancelamentos/.test(caminho)) return ['documentos','cancelamentos','parceiros','perfil','motor','cadeias','cenarios','precificacao'];
+  if (/\/receitas|\/outras-receitas/.test(caminho)) return ['receitas','perfil','motor','cadeias','cenarios','precificacao'];
+  if (/\/apuracoes|\/pgdas/.test(caminho)) return ['apuracoes','pgdas','perfil','motor','cenarios'];
+  if (/\/periodo-analisado/.test(caminho)) return ['periodo','prontidao','perfil','motor','cadeias','cenarios','precificacao'];
+  if (/\/parceiros|\/qsa/.test(caminho)) return ['parceiros','prontidao','motor','cadeias','cenarios','precificacao'];
+  if (/\/config|\/cfop|\/regras/.test(caminho)) return ['configuracao','perfil','motor','cadeias','cenarios','precificacao'];
+  if (/\/motor/.test(caminho)) return ['motor','cadeias','cenarios','precificacao'];
+  return [];
+};
 // Bases de classificação são catálogos globais de leitura. Este cache não
 // contém cadastro de empresa, QSA, regimes, cálculo ou resultado do motor.
 // A duração curta reduz leituras repetidas da mesma página sem criar uma
@@ -223,6 +234,9 @@ router.use((req, res, next) => {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && res.statusCode < 400) {
       invalidarDashboardCache();
       invalidarCacheBases();
+      const empresaId = Number(req.path.match(/^\/empresas\/(\d+)(?:\/|$)/)?.[1]);
+      const recursos = recursosAfetadosPorEscrita(req.path);
+      if (empresaId && recursos.length) estadoLeituraEmpresa.invalidar(db, empresaId, recursos, `Alteração confirmada em ${req.path}`);
     }
   });
   next();
@@ -1224,7 +1238,7 @@ router.delete('/empresas/:id/receitas-sem-dfe/:receitaId', async (req, res) => {
 // Janela comum de análise: define o intervalo de competência de todos os
 // relatórios da empresa e protege novas importações sem tocar no histórico.
 router.get('/empresas/:id/periodo-analisado', async (req, res) => {
-  try { await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id)); ok(res, periodoAnalisado.cobertura(Number(req.params.id))); }
+  try { const empresaId=Number(req.params.id); await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido na fonte compartilhada' }); ok(res, periodoAnalisado.cobertura(empresaId)); }
   catch (e) { erro(res, e); }
 });
 router.put('/empresas/:id/periodo-analisado', async (req, res) => {
@@ -1237,12 +1251,12 @@ router.put('/empresas/:id/periodo-analisado', async (req, res) => {
 router.get('/empresas/:id/prontidao-dados', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
-    await periodoAnalisado.sincronizarCompartilhado(empresaId);
-    await prontidaoDados.sincronizarCompartilhado(empresaId);
+    await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido na fonte compartilhada' });
+    await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['prontidao'], () => prontidaoDados.sincronizarCompartilhado(empresaId), { motivo:'Prontidão conferida na fonte compartilhada' });
     // A prontidão do Simples lê a confirmação durável do PGDAS. Restaure-a
     // antes da consulta para que a troca de instância não desfaça o verde.
-    if (db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime === 'simples_nacional') await pgdasCompartilhado.restaurar(empresaId);
-    else await apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId);
+    if (db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime === 'simples_nacional') await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['pgdas'], () => pgdasCompartilhado.restaurar(empresaId), { motivo:'PGDAS confirmado restaurado' });
+    else await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId), { motivo:'Apurações confirmadas restauradas' });
     ok(res, prontidaoDados.obter(empresaId));
   }
   catch (e) { erro(res, e); }
@@ -1359,7 +1373,7 @@ router.post('/empresas/:id/apuracoes-pis-cofins/ingestao', upload.single('arquiv
   } catch (e) { erro(res, e); }
 });
 router.get('/empresas/:id/apuracoes-pis-cofins', async (req, res) => {
-  try { await apuracoesPisCofinsIa.restaurarCompartilhado(db, Number(req.params.id)); ok(res, { apuracoes: apuracoesPisCofinsIa.listarParaRevisao(db, Number(req.params.id)) }); }
+  try { const empresaId=Number(req.params.id); await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId), { motivo:'Apurações conferidas na fonte compartilhada' }); ok(res, { apuracoes: apuracoesPisCofinsIa.listarParaRevisao(db, empresaId) }); }
   catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/apuracoes-pis-cofins/:apuracaoId/reprocessar', async (req, res) => {
@@ -1420,12 +1434,12 @@ router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
     // O período é configurado por empresa no Supabase. Restaurá-lo antes da
     // leitura impede que uma instância nova consolide todo o histórico local
     // em vez de somente o exercício selecionado.
-    await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id));
+    await estadoLeituraEmpresa.atualizarComSeguranca(db, Number(req.params.id), ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(Number(req.params.id)), { motivo:'Período conferido para o Perfil Tributário' });
     // A restauração só complementa o cache com os PDFs/evidências duráveis;
     // uma indisponibilidade transitória não pode derrubar toda a leitura do
     // Perfil Tributário já persistido.
     try {
-      await pgdasCompartilhado.restaurar(Number(req.params.id));
+      await estadoLeituraEmpresa.atualizarComSeguranca(db, Number(req.params.id), ['pgdas'], () => pgdasCompartilhado.restaurar(Number(req.params.id)), { motivo:'PGDAS confirmado restaurado para o Perfil' });
       // O PDF confirmado é a fonte durável. A tabela do Perfil é uma
       // materialização local e pode estar vazia após um reinício; refazê-la
       // aqui impede que o selo “Confirmado” apareça sem PGDAS na auditoria.
@@ -1436,8 +1450,10 @@ router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
     // tela ter aberto a lista de apurações antes. Isso elimina a corrida que
     // fazia uma instância recém-iniciada mostrar PIS/Cofins indeterminado
     // apesar de o Questor já ter enviado os relatórios ao armazenamento.
-    await apuracoesPisCofinsIa.restaurarCompartilhado(db, Number(req.params.id));
-    ok(res, perfilTributarioHistorico.consolidar(db, Number(req.params.id), { movimentos: reconciliacaoDocumental.movimentos }));
+    await estadoLeituraEmpresa.atualizarComSeguranca(db, Number(req.params.id), ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, Number(req.params.id)), { motivo:'Apurações confirmadas restauradas para o Perfil' });
+    const empresaId = Number(req.params.id);
+    estadoLeituraEmpresa.sincronizado(db, empresaId, ['documentos','cancelamentos','periodo','apuracoes','pgdas','perfil'], 'Perfil recomposto com fontes confirmadas');
+    ok(res, perfilTributarioHistorico.consolidar(db, empresaId, { movimentos: reconciliacaoDocumental.movimentos }));
   }
   catch (e) { erro(res, e); }
 });
@@ -2161,8 +2177,17 @@ function filtrarDocumentosFiscais(documentos, filtros = {}) {
 // podem aceitar um cache antigo após cancelamento/retificação no Questor: a
 // leitura sempre reconcilia somente a empresa aberta com a fonte canônica.
 async function reconciliarDocumentosFiscaisParaLeitura(empresaId) {
-  return require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(Number(empresaId));
+  const id = Number(empresaId);
+  const resultado = await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(id);
+  estadoLeituraEmpresa.sincronizado(db, id, ['documentos','cancelamentos'], 'Documentos conferidos na fonte compartilhada');
+  return resultado;
 }
+router.get('/empresas/:id/estado-dados', (req, res) => {
+  try {
+    const recursos = String(req.query.recursos || '').split(',').filter(Boolean);
+    ok(res, { estados: estadoLeituraEmpresa.estado(db, Number(req.params.id), recursos.length ? recursos : undefined) });
+  } catch (e) { erro(res, e); }
+});
 router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
   try {
     await reconciliarDocumentosFiscaisParaLeitura(req.params.id);

@@ -263,6 +263,21 @@ CREATE TABLE IF NOT EXISTS auditoria_receitas_confirmacoes (
   UNIQUE(empresa_id, competencia)
 );
 
+-- Estado técnico das projeções de leitura. Não armazena valores fiscais: só
+-- controla versão, frescor e falhas para que a interface não trate cache como
+-- dado atual sem informar o usuário.
+CREATE TABLE IF NOT EXISTS empresa_leituras_estado (
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  recurso TEXT NOT NULL,
+  versao INTEGER NOT NULL DEFAULT 1,
+  situacao TEXT NOT NULL DEFAULT 'ATUALIZADO',
+  motivo TEXT,
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  sincronizado_em TEXT,
+  erro TEXT,
+  PRIMARY KEY (empresa_id, recurso)
+);
+
 -- Apurações históricas: o arquivo e cada afirmação extraída ficam separados.
 -- A camada é somente de evidência para o Raio-X; jamais alimenta o motor CBS.
 CREATE TABLE IF NOT EXISTS pis_cofins_apuracao_documentos (
