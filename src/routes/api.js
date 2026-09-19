@@ -2531,13 +2531,14 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
 router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
   try {
     await atualizarConfiguracaoDeCalculo();
-    await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id));
-    const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
+    const empresaId = Number(req.params.id);
+    await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido para a cadeia' });
+    const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(empresaId);
     if (!empresa) throw new Error('Empresa não encontrada');
     // PGDAS é evidência fiscal durável. A cadeia precisa restaurar a memória
     // antes de consolidar outras receitas do Simples; sem isso, um reinício
     // da instância fazia o DAS aparecer como “A validar” mesmo já extraído.
-    if (empresa.regime === 'simples_nacional') await pgdasCompartilhado.restaurar(empresa.id);
+    if (empresa.regime === 'simples_nacional') await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['pgdas'], () => pgdasCompartilhado.restaurar(empresa.id), { motivo:'PGDAS confirmado restaurado para a cadeia' });
     const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';
     // A execução é materializada antes da leitura. A cadeia apenas agrega
     // motor_resultados; ela não recalcula base, CBS, IBS ou crédito.

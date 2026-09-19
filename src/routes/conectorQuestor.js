@@ -5,6 +5,7 @@ const questor = require('../services/questor');
 const apuracoes = require('../services/apuracoesPisCofinsIa');
 const persistencia = require('../services/questorPersistencia');
 const supabase = require('../services/supabase');
+const estadoLeituraEmpresa = require('../services/estadoLeituraEmpresa');
 const router = express.Router();
 const hash = (v) => crypto.createHash('sha256').update(String(v || '')).digest('hex');
 function lerCancelamentosQuestor(texto) {
@@ -317,12 +318,21 @@ router.post('/tarefas/:id/resultado',async(req,res)=>{
     if(ok&&t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS') { resultado={...resultado,...await conciliarCancelamentosQuestor(t.empresa_id,resultado.relatorio)}; }
     if(ok&&t.tipo==='CONCILIAR_CFOP_SAIDAS') { resultado={...resultado,...await conciliarCfopSaidasQuestor(t.empresa_id,resultado.relatorio)}; require('../services/operacaoCompartilhada').publicar().catch(()=>{}); }
     if(ok&&t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO') { resultado={...resultado,...await importarLocacoesQuestor(t.empresa_id,resultado.relatorio)}; }
+    if (ok) {
+      const recursos = t.tipo === 'IMPORTAR_OUTRAS_RECEITAS_LOCACAO'
+        ? ['receitas','perfil','motor','cadeias','cenarios','precificacao']
+        : t.tipo === 'APURACAO_PIS_COFINS'
+          ? ['apuracoes','perfil','motor','cenarios']
+          : ['documentos','cancelamentos','perfil','motor','cadeias','cenarios','precificacao'];
+      estadoLeituraEmpresa.invalidar(db, t.empresa_id, recursos, `Retorno Questor concluído: ${t.tipo}`);
+    }
     db.prepare("UPDATE questor_conector_tarefas SET status=?,resultado_json=?,erro=?,executado_em=datetime('now','localtime') WHERE id=?").run(ok?'CONCLUIDA':'ERRO',ok?JSON.stringify(resultado):null,ok?null:String(req.body?.erro||'Erro sem detalhe'),t.id);
     await persistencia.publicarTarefa(db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(t.id));
     res.json({ok:true});
   } catch(e) {
     db.prepare("UPDATE questor_conector_tarefas SET status='ERRO',erro=?,executado_em=datetime('now','localtime') WHERE id=?").run(e.message,t.id);
     await persistencia.publicarTarefa(db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(t.id));
+    estadoLeituraEmpresa.falhou(db, t.empresa_id, ['documentos','cancelamentos','receitas','apuracoes','perfil','motor'], e.message);
     // A entrega foi recebida; a falha pertence à tarefa e não à autenticação.
     res.json({ok:true,tarefa_status:'ERRO',erro:e.message});
   }
