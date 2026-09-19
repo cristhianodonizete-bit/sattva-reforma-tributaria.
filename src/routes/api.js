@@ -4961,14 +4961,25 @@ router.get('/empresas/:id/questor/cancelamentos-pendentes', (req,res)=>{ try {
   const cancelamentos=db.prepare(`SELECT data_emissao,numero,modelo_documento_fiscal,serie,situacao,origem,evidencia
     FROM documentos_fiscais_cancelamentos WHERE empresa_id=? ORDER BY data_emissao DESC,numero DESC`).all(empresaId);
   const movimentos=db.prepare(`SELECT documento,modelo_documento_fiscal,data_emissao FROM movimentos WHERE empresa_id=?`).all(empresaId);
-  const pendentes=cancelamentos.filter((c)=>!movimentos.some((m)=>{
+  const possuiDocumentoConciliavel=(c)=>{
+    const candidatos=movimentos.filter((m)=>{
     const partes=String(m.documento||'').split('/'); const numero=(partes[partes.length-1]||'').replace(/\D/g,'');
-    const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');
     return numero===String(c.numero||'').replace(/\D/g,'')
       && String(m.modelo_documento_fiscal||'').toLowerCase()===String(c.modelo_documento_fiscal||'').toLowerCase()
-      && String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10)
-      && (!c.serie || !serie || serie===String(c.serie));
-  }));
+      && String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10);
+    });
+    const comSerie=candidatos.filter((m)=>{
+      const serie=String(m.documento||'').split('/')[0].replace(/\D/g,'');
+      return !c.serie || !serie || serie===String(c.serie);
+    });
+    if(comSerie.length) return true;
+    // NFS-e pode usar série formatada de forma diferente no XML e no
+    // relatório Questor. Só consideramos conciliado sem série se a
+    // identidade número + modelo + data levar a um único documento.
+    const documentos=new Set(candidatos.map((m)=>m.chave || `d:${m.documento}`));
+    return String(c.modelo_documento_fiscal||'').toLowerCase()==='nfse' && documentos.size===1;
+  };
+  const pendentes=cancelamentos.filter((c)=>!possuiDocumentoConciliavel(c));
   ok(res,{total:pendentes.length,documentos:pendentes});
 }catch(e){erro(res,e);}});
 
