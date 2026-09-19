@@ -4962,12 +4962,13 @@ router.get('/empresas/:id/questor/cancelamentos-pendentes', (req,res)=>{ try {
     FROM documentos_fiscais_cancelamentos WHERE empresa_id=? ORDER BY data_emissao DESC,numero DESC`).all(empresaId);
   const movimentos=db.prepare(`SELECT documento,modelo_documento_fiscal,data_emissao FROM movimentos WHERE empresa_id=?`).all(empresaId);
   const possuiDocumentoConciliavel=(c)=>{
-    const candidatos=movimentos.filter((m)=>{
+    const mesmaIdentidade=movimentos.filter((m)=>{
     const partes=String(m.documento||'').split('/'); const numero=(partes[partes.length-1]||'').replace(/\D/g,'');
     return numero===String(c.numero||'').replace(/\D/g,'')
-      && String(m.modelo_documento_fiscal||'').toLowerCase()===String(c.modelo_documento_fiscal||'').toLowerCase()
-      && String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10);
+      && String(m.modelo_documento_fiscal||'').toLowerCase()===String(c.modelo_documento_fiscal||'').toLowerCase();
     });
+    const porData=mesmaIdentidade.filter((m)=>String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10));
+    const candidatos=porData.length?porData:mesmaIdentidade;
     const comSerie=candidatos.filter((m)=>{
       const serie=String(m.documento||'').split('/')[0].replace(/\D/g,'');
       return !c.serie || !serie || serie===String(c.serie);
@@ -4992,7 +4993,9 @@ router.post('/empresas/:id/questor/cancelamentos-pendentes/reconciliar', async (
   const movimentos=db.prepare(`SELECT id,documento,chave,modelo_documento_fiscal,data_emissao,situacao_documento FROM movimentos WHERE empresa_id=?`).all(empresaId);
   const ids=new Set(); let ambiguos=0;
   for(const c of cancelamentos){
-    const candidatos=movimentos.filter((m)=>{const partes=String(m.documento||'').split('/');return (partes.at(-1)||'').replace(/\D/g,'')===String(c.numero||'').replace(/\D/g,'')&&String(m.modelo_documento_fiscal||'').toLowerCase()===String(c.modelo_documento_fiscal||'').toLowerCase()&&String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10);});
+    const mesmaIdentidade=movimentos.filter((m)=>{const partes=String(m.documento||'').split('/');return (partes.at(-1)||'').replace(/\D/g,'')===String(c.numero||'').replace(/\D/g,'')&&String(m.modelo_documento_fiscal||'').toLowerCase()===String(c.modelo_documento_fiscal||'').toLowerCase();});
+    const porData=mesmaIdentidade.filter((m)=>String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10));
+    const candidatos=porData.length?porData:mesmaIdentidade;
     const exatos=candidatos.filter((m)=>{const serie=String(m.documento||'').split('/')[0].replace(/\D/g,'');return !c.serie||!serie||serie===String(c.serie);});
     const grupo=exatos.length?exatos:candidatos;
     const documentos=new Set(grupo.map((m)=>m.chave||`d:${m.documento}`));

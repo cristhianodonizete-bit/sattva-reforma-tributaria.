@@ -37,19 +37,20 @@ async function main() {
   const ids = new Set();
   const detalhes = [];
   for (const cancelamento of cancelamentos || []) {
-    const candidatos = (movimentos || []).filter((movimento) => {
+    const mesmaIdentidade = (movimentos || []).filter((movimento) => {
       const id = identidadeDocumento(movimento);
       return id.numero === somenteDigitos(cancelamento.numero)
-        && String(movimento.data_emissao || '').slice(0, 10) === String(cancelamento.data_emissao || '').slice(0, 10)
         && !['CANCELADO', 'DENEGADO', 'INUTILIZADO'].includes(String(movimento.situacao_documento || '').toUpperCase());
     });
+    const porData = mesmaIdentidade.filter((movimento) => String(movimento.data_emissao || '').slice(0, 10) === String(cancelamento.data_emissao || '').slice(0, 10));
+    const candidatos = porData.length ? porData : mesmaIdentidade;
     const documentos = new Set(candidatos.map((movimento) => identidadeDocumento(movimento).chave));
     if (documentos.size !== 1) {
       detalhes.push({ numero: cancelamento.numero, data: cancelamento.data_emissao, resultado: documentos.size ? 'AMBIGUO' : 'SEM_NOTA_ATIVA' });
       continue;
     }
     candidatos.forEach((movimento) => ids.add(movimento.id));
-    detalhes.push({ numero: cancelamento.numero, data: cancelamento.data_emissao, resultado: 'PRONTO_PARA_CANCELAR', itens: candidatos.length });
+    detalhes.push({ numero: cancelamento.numero, data: cancelamento.data_emissao, resultado: porData.length ? 'PRONTO_PARA_CANCELAR' : 'PRONTO_PARA_CANCELAR_DATA_DIVERGENTE', itens: candidatos.length });
   }
 
   const resumo = { empresa: empresa.razao_social, cancelamentos_questor: (cancelamentos || []).length, itens_para_cancelar: ids.size, detalhes };
