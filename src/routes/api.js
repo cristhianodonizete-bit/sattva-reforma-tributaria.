@@ -4983,6 +4983,38 @@ router.get('/empresas/:id/questor/cancelamentos-pendentes', (req,res)=>{ try {
   ok(res,{total:pendentes.length,documentos:pendentes});
 }catch(e){erro(res,e);}});
 
+// Reaplica a evidência Questor já armazenada. É seguro executar repetidas
+// vezes: apenas documentos com identidade única (número, modelo e data) são
+// alterados; NFS-e aceita a divergência conhecida de formatação da série.
+router.post('/empresas/:id/questor/cancelamentos-pendentes/reconciliar', async (req,res)=>{ try {
+  const empresaId=Number(req.params.id);
+  const cancelamentos=db.prepare(`SELECT * FROM documentos_fiscais_cancelamentos WHERE empresa_id=? AND situacao='CANCELADO'`).all(empresaId);
+  const movimentos=db.prepare(`SELECT id,documento,chave,modelo_documento_fiscal,data_emissao,situacao_documento FROM movimentos WHERE empresa_id=?`).all(empresaId);
+  const ids=new Set(); let ambiguos=0;
+  for(const c of cancelamentos){
+    const candidatos=movimentos.filter((m)=>{const partes=String(m.documento||'').split('/');return (partes.at(-1)||'').replace(/\D/g,'')===String(c.numero||'').replace(/\D/g,'')&&String(m.modelo_documento_fiscal||'').toLowerCase()===String(c.modelo_documento_fiscal||'').toLowerCase()&&String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10);});
+    const exatos=candidatos.filter((m)=>{const serie=String(m.documento||'').split('/')[0].replace(/\D/g,'');return !c.serie||!serie||serie===String(c.serie);});
+    const grupo=exatos.length?exatos:candidatos;
+    const documentos=new Set(grupo.map((m)=>m.chave||`d:${m.documento}`));
+    const seguro=exatos.length>0 || String(c.modelo_documento_fiscal||'').toLowerCase()==='nfse';
+    if(!grupo.length) continue;
+    if(!seguro||documentos.size!==1){ambiguos++;continue;}
+    grupo.filter((m)=>!['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(m.situacao_documento||'').toUpperCase())).forEach((m)=>ids.add(m.id));
+  }
+  if(ids.size){
+    const lista=[...ids];
+    db.prepare(`UPDATE movimentos SET situacao_documento='CANCELADO',cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo='Cancelamento Questor reaplicado.',cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE empresa_id=? AND id IN (${lista.map(()=>'?').join(',')})`).run(empresaId,...lista);
+    db.prepare(`DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN (${lista.map(()=>'?').join(',')})`).run(empresaId,...lista);
+    if(supabase.configurado()){
+      const { error }=await supabase.admin().from('motor_resultados_operacionais').update({ativo:false}).eq('empresa_id',empresaId).in('movimento_id',lista);
+      if(error) throw error;
+    }
+  }
+  const resultado={reconciliados:ids.size,ambiguos,cancelamentos_analisados:cancelamentos.length};
+  auditar(req,{empresaId,acao:'RECONCILIAR_CANCELAMENTOS_ARMAZENADOS',entidade:'movimentos',depois:resultado});
+  ok(res,resultado);
+}catch(e){erro(res,e);}});
+
 // ---- Importação de XML (fonte principal) ----
 router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (req, res) => {
   try {

@@ -759,7 +759,7 @@ Telas.questor = async (el) => {
       {t:'Situação',r:t=>{const [rot,classe]=estadoTarefa(t);return `<span class="tag ${classe}">${A.esc(rot)}</span>`;}},
       {t:'Resultado',r:t=>`<span class="mini">${A.esc(resumoConciliacao(t))}</span> ${t.status==='CONCLUIDA'?`<button class="btn vazio pq" data-ver-retorno-cancelamentos="${t.id}">Ver retorno</button>`:''}`},
     ],conciliacoes,{vazio:'Nenhuma conciliação solicitada ainda.'})}</div>
-    <div class="cartao" data-questor-painel="conciliacoes" style="margin-top:16px"><h2>Cancelamentos pendentes de documento</h2><p class="desc">O Questor confirmou estes cancelamentos, mas o XML/DF-e ainda não existe na Sattva. Ao importar o documento correspondente, ele será marcado automaticamente como cancelado e não comporá receita.</p>${A.tabela([
+    <div class="cartao" data-questor-painel="conciliacoes" style="margin-top:16px"><div style="display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap"><div><h2>Cancelamentos pendentes de documento</h2><p class="desc">O Questor confirmou estes cancelamentos, mas o XML/DF-e ainda não existe na Sattva. Ao importar o documento correspondente, ele será marcado automaticamente como cancelado e não comporá receita.</p></div><button class="btn vazio pq" id="reconciliarCancelamentosPendentes">Reconciliar cancelamentos pendentes</button></div>${A.tabela([
       {t:'Data',r:x=>A.esc(x.data_emissao||'—')},
       {t:'Documento',r:x=>`<b>${A.esc(x.numero||'—')}</b><div class="mini">Série ${A.esc(x.serie||'não informada')}</div>`},
       {t:'Modelo',r:x=>`<span class="tag">${A.esc(String(x.modelo_documento_fiscal||'—').toUpperCase())}</span>`},
@@ -870,6 +870,11 @@ Telas.questor = async (el) => {
     } finally { botao.disabled=false; botao.textContent='Conciliar CFOPs de saída'; }
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
+  document.getElementById('reconciliarCancelamentosPendentes')?.addEventListener('click', async () => {
+    const botao=document.getElementById('reconciliarCancelamentosPendentes'); botao.disabled=true; botao.textContent='Reconciliando…';
+    try { const r=await A.api(`/empresas/${S.empresaId}/questor/cancelamentos-pendentes/reconciliar`,{metodo:'POST'}); A.toast(`${r.reconciliados||0} documento(s) conciliado(s)${r.ambiguos?` · ${r.ambiguos} em revisão por ambiguidade`:''}.`, 'ok'); A.ir('questor'); }
+    catch(e){ A.toast(e.message,'erro'); botao.disabled=false; botao.textContent='Reconciliar cancelamentos pendentes'; }
+  });
   el.querySelectorAll('[data-ver-retorno-cancelamentos]').forEach((botao)=>botao.onclick=()=>{const t=conciliacoes.find(x=>String(x.id)===botao.dataset.verRetornoCancelamentos);let r=t?.resultado_json||'{}';try{r=JSON.stringify(JSON.parse(r),null,2);}catch(_){}A.modal({titulo:'Retorno da conciliação Questor',confirmar:null,largura:900,descricao:'O relatório bruto permite validar o leiaute antes de qualquer ajuste automático.',corpo:`<pre class="mini" style="white-space:pre-wrap;max-height:520px;overflow:auto;background:#f4f7f9;padding:12px;border-radius:8px">${A.esc(r)}</pre>`});});
   el.querySelectorAll('[data-ver-retorno-questor]').forEach((botao) => botao.onclick = () => {
     const tarefa = tarefas.find((t) => String(t.id) === botao.dataset.verRetornoQuestor);
