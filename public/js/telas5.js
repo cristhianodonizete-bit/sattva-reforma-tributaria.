@@ -467,7 +467,8 @@ async function projImportacaoXml(el) {
         <h2>Importar XML fiscal</h2>
         <p class="desc">NF-e, NFC-e, CT-e e NFS-e. O sentido da operação é resolvido comparando o CNPJ da empresa com emitente e destinatário — entradas viram fornecedores, saídas viram clientes.</p>
         <div class="dropzone" id="zonaXml"><b>Solte os XMLs aqui</b>
-          <div class="mini">pode selecionar vários de uma vez · até 500 arquivos</div></div>
+          <div class="mini">Selecione arquivos ou uma pasta inteira. As subpastas também são lidas; somente arquivos XML são enviados.</div>
+          <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn pq vazio" id="selecionarXml">Selecionar XMLs</button><button type="button" class="btn pq vazio" id="selecionarPastaXml">Selecionar pasta</button></div></div>
         <div id="statusXml" style="margin-top:12px"></div>
         <hr class="sep">
         <h2>Importar SPED</h2>
@@ -499,21 +500,53 @@ async function projImportacaoXml(el) {
   const z = document.getElementById('zonaXml');
   const i = document.createElement('input');
   i.type = 'file'; i.accept = '.xml'; i.multiple = true; i.style.display = 'none';
+  const pasta = document.createElement('input');
+  pasta.type = 'file'; pasta.accept = '.xml'; pasta.multiple = true; pasta.style.display = 'none';
+  // Chromium percorre recursivamente as subpastas e devolve os arquivos em
+  // webkitRelativePath. O servidor continua recebendo arquivos XML normais.
+  pasta.webkitdirectory = true;
   z.appendChild(i);
+  z.appendChild(pasta);
+  z.querySelector('#selecionarXml').onclick = (e) => { e.stopPropagation(); i.click(); };
+  z.querySelector('#selecionarPastaXml').onclick = (e) => { e.stopPropagation(); pasta.click(); };
   z.onclick = () => i.click();
   z.ondragover = (e) => { e.preventDefault(); z.classList.add('sobre'); };
   z.ondragleave = () => z.classList.remove('sobre');
   z.ondrop = (e) => { e.preventDefault(); z.classList.remove('sobre'); enviar(e.dataTransfer.files); };
   i.onchange = () => { enviar(i.files); i.value = ''; };
+  pasta.onchange = () => { enviar(pasta.files); pasta.value = ''; };
 
   async function enviar(files) {
-    if (!files || !files.length) return;
+    const selecionados = [...(files || [])];
+    const xmls = selecionados.filter((f) => /\.xml$/i.test(f.name));
+    if (!xmls.length) {
+      A.toast('A seleção não contém arquivos XML.', 'erro');
+      return;
+    }
     const box = document.getElementById('statusXml');
-    box.innerHTML = `<div class="aviso">Lendo ${files.length} arquivo(s)…</div>`;
-    const fd = new FormData();
-    [...files].forEach((f) => fd.append('arquivos', f));
+    const ignorados = selecionados.length - xmls.length;
+    const lotes = [];
+    for (let inicio = 0; inicio < xmls.length; inicio += 500) lotes.push(xmls.slice(inicio, inicio + 500));
+    box.innerHTML = `<div class="aviso">Preparando ${xmls.length} XML(s)${ignorados ? `; ${ignorados} arquivo(s) não XML serão ignorados` : ''}…</div>`;
     try {
-      const r = await A.api(`/empresas/${S.empresaId}/importar/xml`, { metodo: 'POST', corpo: fd });
+      const respostas = [];
+      for (let indice = 0; indice < lotes.length; indice++) {
+        box.innerHTML = `<div class="aviso">Importando lote ${indice + 1} de ${lotes.length}: ${lotes[indice].length} XML(s)…</div>`;
+        const fd = new FormData();
+        lotes[indice].forEach((f) => fd.append('arquivos', f, f.webkitRelativePath || f.name));
+        respostas.push(await A.api(`/empresas/${S.empresaId}/importar/xml`, { metodo: 'POST', corpo: fd }));
+      }
+      const r = respostas.reduce((total, atual) => ({
+        documentos: total.documentos + (atual.documentos || 0), itens: total.itens + (atual.itens || 0),
+        entradas: total.entradas + (atual.entradas || 0), saidas: total.saidas + (atual.saidas || 0),
+        saidas_no_periodo: total.saidas_no_periodo + (atual.saidas_no_periodo || 0),
+        receita_saida_no_periodo: total.receita_saida_no_periodo + (atual.receita_saida_no_periodo || 0),
+        saidas_fora_do_periodo: total.saidas_fora_do_periodo + (atual.saidas_fora_do_periodo || 0),
+        receita_saida_fora_do_periodo: total.receita_saida_fora_do_periodo + (atual.receita_saida_fora_do_periodo || 0),
+        regimesSugeridos: total.regimesSugeridos + (atual.regimesSugeridos || 0), requerValidacao: total.requerValidacao + (atual.requerValidacao || 0),
+        duplicados: total.duplicados + (atual.duplicados || 0), erros: total.erros.concat(atual.erros || []),
+        classificacao: { porNcm: total.classificacao.porNcm + (atual.classificacao?.porNcm || 0), porNbs: total.classificacao.porNbs + (atual.classificacao?.porNbs || 0), requerDecisao: total.classificacao.requerDecisao + (atual.classificacao?.requerDecisao || 0) },
+      }), { documentos:0, itens:0, entradas:0, saidas:0, saidas_no_periodo:0, receita_saida_no_periodo:0, saidas_fora_do_periodo:0, receita_saida_fora_do_periodo:0, regimesSugeridos:0, requerValidacao:0, duplicados:0, erros:[], classificacao:{ porNcm:0, porNbs:0, requerDecisao:0 } });
       box.innerHTML = `<div class="grade g4" style="margin-bottom:10px">
           ${A.kpi('Documentos lidos', r.documentos)}
           ${A.kpi('Itens', r.itens, `${r.entradas} entradas · ${r.saidas} saídas`)}
