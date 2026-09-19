@@ -753,19 +753,20 @@ Telas.questor = async (el) => {
       {t:'Finalizada em',r:t=>`<span class="mini mono">${A.esc(t.executado_em||'—')}</span>`},
       {t:'Detalhe',r:detalheTarefa},
     ],tarefas,{vazio:'Nenhuma solicitação enviada por você ainda.'})}</div>
-    <div class="cartao" data-questor-painel="conciliacoes" style="margin-top:16px"><h2>Conciliações fiscais</h2><p class="desc">Histórico de cancelamentos e de CFOPs contábeis retornados pelo Questor.</p>${A.tabela([
+    <div data-questor-painel="conciliacoes" style="margin-top:16px"><div class="abas" role="tablist"><button class="aba ${(S.aba.questorConciliacoes||'historico')==='historico'?'ativa':''}" data-questor-conciliacao-aba="historico">Histórico de conciliações</button><button class="aba ${(S.aba.questorConciliacoes||'historico')==='pendentes'?'ativa':''}" data-questor-conciliacao-aba="pendentes">Cancelamentos pendentes${cancelamentosPendentes.total?` <span class="tag a">${cancelamentosPendentes.total}</span>`:''}</button></div>
+    <div class="cartao" data-questor-conciliacao-painel="historico" style="margin-top:16px"><h2>Conciliações fiscais</h2><p class="desc">Histórico de cancelamentos e de CFOPs contábeis retornados pelo Questor.</p>${A.tabela([
       {t:'Empresa',r:t=>A.esc(t.empresa_nome||'—')},
       {t:'Solicitada em',r:t=>A.esc(t.criado_em||'—')},
       {t:'Situação',r:t=>{const [rot,classe]=estadoTarefa(t);return `<span class="tag ${classe}">${A.esc(rot)}</span>`;}},
       {t:'Resultado',r:t=>`<span class="mini">${A.esc(resumoConciliacao(t))}</span> ${t.status==='CONCLUIDA'?`<button class="btn vazio pq" data-ver-retorno-cancelamentos="${t.id}">Ver retorno</button>`:''}`},
     ],conciliacoes,{vazio:'Nenhuma conciliação solicitada ainda.'})}</div>
-    <div class="cartao" data-questor-painel="conciliacoes" style="margin-top:16px"><div style="display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap"><div><h2>Cancelamentos pendentes de documento</h2><p class="desc">O Questor confirmou estes cancelamentos, mas o XML/DF-e ainda não existe na Sattva. Ao importar o documento correspondente, ele será marcado automaticamente como cancelado e não comporá receita.</p></div><button class="btn vazio pq" id="reconciliarCancelamentosPendentes">Reconciliar cancelamentos pendentes</button></div>${A.tabela([
+    <div class="cartao" data-questor-conciliacao-painel="pendentes" style="margin-top:16px"><div style="display:flex;justify-content:space-between;align-items:start;gap:12px;flex-wrap:wrap"><div><h2>Cancelamentos pendentes de documento</h2><p class="desc">Confira cancelamentos que o Questor já informou e reaplique a conciliação aos documentos já importados, sem nova busca.</p></div><button class="btn vazio pq" id="reconciliarCancelamentosPendentes">Reconciliar pendentes</button></div>${A.tabela([
       {t:'Data',r:x=>A.esc(x.data_emissao||'—')},
       {t:'Documento',r:x=>`<b>${A.esc(x.numero||'—')}</b><div class="mini">Série ${A.esc(x.serie||'não informada')}</div>`},
       {t:'Modelo',r:x=>`<span class="tag">${A.esc(String(x.modelo_documento_fiscal||'—').toUpperCase())}</span>`},
       {t:'Situação',r:x=>`<span class="tag a">${A.esc(x.situacao||'CANCELADO')}</span>`},
       {t:'Origem',r:x=>A.esc(x.origem==='QUESTOR_RELATORIO_CANCELADOS'?'Questor':'—')},
-    ],cancelamentosPendentes.documentos||[],{vazio:'Nenhum cancelamento pendente de documento para esta empresa.'})}</div>
+    ],cancelamentosPendentes.documentos||[],{vazio:'Nenhum cancelamento pendente de documento para esta empresa.'})}</div></div>
     <div class="cartao" data-questor-painel="configuracao"><h2>Mapa de endpoints</h2>
       <p class="desc">Caminhos, parâmetros e de-para de campos. Ajuste conforme a versão do seu Questor — o sistema não depende de código para isso.</p>
       <textarea id="endpoints" rows="16" class="mono" style="font-size:12px">${A.esc(JSON.stringify(config.endpoints, null, 2))}</textarea>
@@ -783,6 +784,9 @@ Telas.questor = async (el) => {
   const abaQuestor=S.aba.questor || 'operacao';
   el.querySelectorAll('[data-questor-painel]').forEach((painel)=>{ painel.style.display=painel.dataset.questorPainel===abaQuestor?'':'none'; });
   el.querySelectorAll('[data-questor-aba]').forEach((botao)=>{ botao.onclick=()=>{ S.aba.questor=botao.dataset.questorAba; Telas.questor(el); }; });
+  const abaConciliacao=S.aba.questorConciliacoes || 'historico';
+  el.querySelectorAll('[data-questor-conciliacao-painel]').forEach((painel)=>{ painel.style.display=painel.dataset.questorConciliacaoPainel===abaConciliacao?'':'none'; });
+  el.querySelectorAll('[data-questor-conciliacao-aba]').forEach((botao)=>{ botao.onclick=()=>{ S.aba.questorConciliacoes=botao.dataset.questorConciliacaoAba; Telas.questor(el); }; });
 
   const val = (n) => (el.querySelector(`[name="${n}"]`) || {}).value || '';
   document.getElementById('solicitarLoteQuestor').onclick = () => {
