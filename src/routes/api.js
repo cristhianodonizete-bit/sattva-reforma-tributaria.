@@ -5014,10 +5014,11 @@ router.post('/empresas/:id/questor/cancelamentos-pendentes/reconciliar', async (
     const empresaLocal=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId)||{};
     const cnpj=String(empresaLocal.cnpj||'').replace(/\D/g,'');
     const remoto=supabase.admin();
-    const {data: empresasRemotas,error:erroEmpresa}=await remoto.from('empresas').select('id').eq('cnpj',cnpj).limit(2);
+    const {data: empresasRemotas,error:erroEmpresa}=await remoto.from('empresas').select('id,cnpj,origem_local_id').or(`origem_local_id.eq.${empresaId},cnpj.eq.${cnpj}`).limit(10);
     if(erroEmpresa) throw erroEmpresa;
-    if((empresasRemotas||[]).length!==1) throw new Error('Empresa não localizada de forma única na fonte compartilhada.');
-    const empresaRemotaId=empresasRemotas[0].id;
+    const candidatas=(empresasRemotas||[]).filter((x)=>Number(x.origem_local_id)===empresaId||String(x.cnpj||'').replace(/\D/g,'')===cnpj);
+    if(candidatas.length!==1) throw new Error('Empresa não localizada de forma única na fonte compartilhada.');
+    const empresaRemotaId=candidatas[0].id;
     const [{data: cancelamentosRemotos,error:erroCancelamentos},{data: movimentosRemotos,error:erroMovimentos}]=await Promise.all([
       remoto.from('documentos_fiscais_cancelamentos').select('numero,modelo_documento_fiscal,data_emissao,serie,situacao').eq('empresa_id',empresaRemotaId).eq('situacao','CANCELADO'),
       remoto.from('movimentos').select('id,documento,chave,modelo_documento_fiscal,data_emissao,situacao_documento').eq('empresa_id',empresaRemotaId).eq('tipo','cliente').limit(10000),
