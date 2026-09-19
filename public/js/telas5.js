@@ -45,7 +45,12 @@ function comAbas(nome, abas, padrao, chaveEstado = nome, opcoes = {}) {
       // Em Documentos fiscais, o título e a situação da etapa são o topo da
       // página. As abas vêm logo abaixo, sem recolocar um cabeçalho genérico.
       const topoCentral = nome === 'dados' ? el.querySelector('[data-central-topo]') : null;
-      if (topoCentral) topoCentral.insertAdjacentHTML('afterend', barra);
+      // Importações é a aba principal; Planilhas/XML-SPED são suas abas
+      // internas. Inserir a barra depois da navegação principal evita a
+      // inversão visual que fazia Planilhas parecer uma etapa paralela.
+      const abaPrincipal = nome === 'dados' ? el.querySelector('[data-documentos-central-aba]')?.closest('.abas') : null;
+      if (abaPrincipal) abaPrincipal.insertAdjacentHTML('afterend', barra);
+      else if (topoCentral) topoCentral.insertAdjacentHTML('afterend', barra);
       else el.insertAdjacentHTML('afterbegin', barra);
     } else {
       el.innerHTML = barra + '<div class="carregando">Carregando projeção…</div>';

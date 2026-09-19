@@ -553,7 +553,13 @@ Telas.dados = async (el) => {
     if(barraDocumentosCentral&&topoDocumentosCentral) topoDocumentosCentral.insertAdjacentElement('afterend',barraDocumentosCentral);
     el.querySelectorAll('[data-documentos-central-painel]').forEach((painel) => { painel.style.display = painel.dataset.documentosCentralPainel === abaDocumentosCentral ? '' : 'none'; });
     el.querySelectorAll('[data-documentos-central-aba]').forEach((botao) => { botao.onclick = () => { S.aba.documentosCentral = botao.dataset.documentosCentralAba; S.aba.dadosPendencia = null; A.ir('dados'); }; });
-    el.querySelectorAll('[data-documentos-fiscais-painel]').forEach((painel) => { painel.style.display = (painel.dataset.documentosFiscaisPainel === 'documentos' && ['entradas','saidas'].includes(abaDocumentosFiscais)) || painel.dataset.documentosFiscaisPainel === abaDocumentosFiscais ? '' : 'none'; });
+    el.querySelectorAll('[data-documentos-fiscais-painel]').forEach((painel) => {
+      // A aba interna nunca pode reabrir um painel que a aba principal ocultou.
+      // Antes, ela sobrescrevia o display e misturava Documentos fiscais com
+      // Importações na mesma página.
+      if (abaDocumentosCentral !== 'documentos') { painel.style.display = 'none'; return; }
+      painel.style.display = (painel.dataset.documentosFiscaisPainel === 'documentos' && ['entradas','saidas'].includes(abaDocumentosFiscais)) || painel.dataset.documentosFiscaisPainel === abaDocumentosFiscais ? '' : 'none';
+    });
     el.querySelectorAll('[data-documentos-fiscais-aba]').forEach((botao) => { botao.onclick = () => { S.aba.documentosFiscaisCentral = botao.dataset.documentosFiscaisAba; S.aba.documentosFiscais = {}; A.ir('dados'); }; });
     el.querySelectorAll('[data-abrir-fornecedores-documentos]').forEach((botao) => { botao.onclick = () => { S.aba.documentosCentral = 'documentos'; S.aba.documentosFiscaisCentral = 'fornecedores'; A.ir('dados'); }; });
     el.querySelectorAll('[data-importacao-planilha-painel]').forEach((painel) => { painel.style.display = painel.dataset.importacaoPlanilhaPainel === abaImportacaoPlanilha ? '' : 'none'; });
