@@ -1179,6 +1179,29 @@ Telas.perfil = async (el) => {
   const auditoriaMensal = tributario.auditoria_mensal || [];
   const composicaoReceita = tributario.composicao_receita || [];
   const composicaoPisCofinsPgdas = tributario.composicao_pis_cofins_pgdas || [];
+  // Para o Simples Nacional, a segregação declarada no PGDAS é a fonte
+  // tributária correta desta visão. Não é seguro tentar transformar um XML em
+  // monofásico, alíquota zero ou isento quando o próprio PGDAS não o separou.
+  // Cada bloco só entra após a validação matemática do documento PGDAS.
+  const segregacaoSimples = [...composicaoPisCofinsPgdas
+    .filter((x) => x.status === 'VALIDADO')
+    .reduce((mapa, x) => {
+      const chave = `${x.anexo || 'SEM_ANEXO'}|${x.descricao_bloco || 'Sem descrição'}`;
+      const atual = mapa.get(chave) || {
+        anexo: x.anexo || null,
+        descricao: x.descricao_bloco || 'Segregação sem descrição',
+        receita: 0,
+        pis_cofins: 0,
+        competencias: new Set(),
+      };
+      atual.receita += Number(x.receita_pgdas) || 0;
+      atual.pis_cofins += (Number(x.pgdas_pis) || 0) + (Number(x.pgdas_cofins) || 0);
+      atual.competencias.add(x.competencia);
+      mapa.set(chave, atual);
+      return mapa;
+    }, new Map()).values()]
+    .map((x) => ({ ...x, competencias: [...x.competencias].sort() }))
+    .sort((a, b) => b.receita - a.receita);
   const simplesCaixa = tributario.empresa?.regime_atual === 'simples_nacional' && tributario.empresa?.regime_reconhecimento_simples === 'caixa';
   const recebimentosCaixa = historico.map((x) => x.receita_recebida?.valor);
   const dasCaixa = historico.map((x) => x.pgdas?.valor);
@@ -1281,8 +1304,14 @@ Telas.perfil = async (el) => {
       </div>
       ${simplesCaixa ? `<div class="grade g3" style="margin-top:16px">${A.kpi('Recebido no caixa', recebidoCaixaTotal ? A.moeda(recebidoCaixaTotal) : 'INDETERMINADO', 'PGDAS · informativo')}${A.kpi('Imposto pago (DAS)', informado(dasCaixa) ? A.moeda(impostoPagoCaixa) : 'INDETERMINADO', 'valores do PGDAS')}${A.kpi('Carga efetiva de caixa', cargaEfetivaCaixa === null ? 'INDETERMINADO' : A.pct(cargaEfetivaCaixa), 'DAS pago ÷ receita recebida')}</div>` : ''}
     </div>
-    <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>Tratamentos na apuração atual</h2><p class="desc">A fonte atual registra totais de apuração. Tratamentos só são apresentados como identificados quando vierem discriminados no documento.</p></div></div>
-      ${A.tabela([
+    <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>${chaveRegime === 'simples_nacional' ? 'Segregação da receita no Simples Nacional' : 'Tratamentos na apuração atual'}</h2><p class="desc">${chaveRegime === 'simples_nacional' ? 'Receita e PIS/Cofins conforme os blocos validados da declaração PGDAS. Esta tabela não faz rateio nem presume tratamento a partir do XML.' : 'A fonte atual registra totais de apuração. Tratamentos só são apresentados como identificados quando vierem discriminados no documento.'}</p></div></div>
+      ${chaveRegime === 'simples_nacional' ? A.tabela([
+        { t:'Segregação declarada', r:x=>`<b>${A.esc(x.descricao)}</b><div class="mini">Anexo ${A.esc(x.anexo || 'não identificado')}</div>` },
+        { t:'Receita PGDAS', num:true, r:x=>A.moeda(x.receita) },
+        { t:'PIS/Cofins no PGDAS', num:true, r:x=>A.moeda(x.pis_cofins) },
+        { t:'Competências', r:x=>`${x.competencias.length} competência(s)<div class="mini">${A.esc(x.competencias.join(', '))}</div>` },
+        { t:'Situação', r:()=>'<span class="tag c">Confirmada no PGDAS</span>' },
+      ], segregacaoSimples, { vazio:'Nenhuma segregação PGDAS confirmada foi encontrada no período analisado. Envie e confirme as declarações PGDAS para exibir a composição.' }) : A.tabela([
         { t:'Tratamento', r:x=>`<b>${A.esc(x.nome)}</b>` },
         { t:'Receita', num:true, r:x=>x.receita === null ? 'NÃO IDENTIFICADA' : A.moeda(x.receita) },
         { t:'PIS/Cofins', num:true, r:x=>x.valor === null ? 'NÃO IDENTIFICADO' : A.moeda(x.valor) },
