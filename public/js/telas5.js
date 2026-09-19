@@ -53,10 +53,22 @@ function comAbas(nome, abas, padrao, chaveEstado = nome, opcoes = {}) {
       else if (topoCentral) topoCentral.insertAdjacentHTML('afterend', barra);
       else el.insertAdjacentHTML('afterbegin', barra);
     } else {
-      el.innerHTML = barra + '<div class="carregando">Carregando projeção…</div>';
+      // XML/SPED é uma aba interna de Importações. A tela-base precisa ser
+      // mantida para preservar a navegação principal da Central de Dados;
+      // antes, este caminho substituía todo o HTML e fazia as abas sumirem.
+      if (nome === 'dados') {
+        await orig(el);
+        el.querySelectorAll('[data-documentos-central-painel="importacao"]').forEach((painel) => { painel.style.display = 'none'; });
+        const abaPrincipal = el.querySelector('[data-documentos-central-aba]')?.closest('.abas');
+        if (abaPrincipal) abaPrincipal.insertAdjacentHTML('afterend', barra);
+        else el.insertAdjacentHTML('afterbegin', barra);
+      } else {
+        el.innerHTML = barra + '<div class="carregando">Carregando projeção…</div>';
+      }
       const alvo = document.createElement('div');
-      el.appendChild(alvo);
-      el.querySelector('.carregando').remove();
+      const barraInterna = el.querySelector('#abasMotor');
+      if (barraInterna) barraInterna.insertAdjacentElement('afterend', alvo); else el.appendChild(alvo);
+      el.querySelector('.carregando')?.remove();
       const fn = abas.find((a) => a.id === ativa);
       try { await fn.render(alvo); }
       catch (e) { alvo.innerHTML = `<div class="aviso alto"><b>Não foi possível projetar</b>${A.esc(e.message)}</div>`; }
