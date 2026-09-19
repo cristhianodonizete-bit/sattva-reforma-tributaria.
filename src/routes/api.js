@@ -5008,12 +5008,43 @@ router.post('/empresas/:id/questor/cancelamentos-pendentes/reconciliar', async (
     const lista=[...ids];
     db.prepare(`UPDATE movimentos SET situacao_documento='CANCELADO',cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo='Cancelamento Questor reaplicado.',cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE empresa_id=? AND id IN (${lista.map(()=>'?').join(',')})`).run(empresaId,...lista);
     db.prepare(`DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN (${lista.map(()=>'?').join(',')})`).run(empresaId,...lista);
-    if(supabase.configurado()){
-      const { error }=await supabase.admin().from('motor_resultados_operacionais').update({ativo:false}).eq('empresa_id',empresaId).in('movimento_id',lista);
-      if(error) throw error;
+  }
+  let reconciliadosRemoto=0;
+  if(supabase.configurado()){
+    const empresaLocal=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId)||{};
+    const cnpj=String(empresaLocal.cnpj||'').replace(/\D/g,'');
+    const remoto=supabase.admin();
+    const {data: empresasRemotas,error:erroEmpresa}=await remoto.from('empresas').select('id').eq('cnpj',cnpj).limit(2);
+    if(erroEmpresa) throw erroEmpresa;
+    if((empresasRemotas||[]).length!==1) throw new Error('Empresa não localizada de forma única na fonte compartilhada.');
+    const empresaRemotaId=empresasRemotas[0].id;
+    const [{data: cancelamentosRemotos,error:erroCancelamentos},{data: movimentosRemotos,error:erroMovimentos}]=await Promise.all([
+      remoto.from('documentos_fiscais_cancelamentos').select('numero,modelo_documento_fiscal,data_emissao,serie,situacao').eq('empresa_id',empresaRemotaId).eq('situacao','CANCELADO'),
+      remoto.from('movimentos').select('id,documento,chave,modelo_documento_fiscal,data_emissao,situacao_documento').eq('empresa_id',empresaRemotaId).eq('tipo','cliente').limit(10000),
+    ]);
+    if(erroCancelamentos) throw erroCancelamentos;
+    if(erroMovimentos) throw erroMovimentos;
+    const idsRemotos=new Set();
+    for(const c of cancelamentosRemotos||[]){
+      const mesmaIdentidade=(movimentosRemotos||[]).filter((m)=>{const partes=String(m.documento||'').split('/');return (partes.at(-1)||'').replace(/\D/g,'')===String(c.numero||'').replace(/\D/g,'')&&String(m.modelo_documento_fiscal||'').toLowerCase()===String(c.modelo_documento_fiscal||'').toLowerCase();});
+      const porData=mesmaIdentidade.filter((m)=>String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10));
+      const candidatos=porData.length?porData:mesmaIdentidade;
+      const exatos=candidatos.filter((m)=>{const serie=String(m.documento||'').split('/')[0].replace(/\D/g,'');return !c.serie||!serie||serie===String(c.serie);});
+      const grupo=exatos.length?exatos:candidatos;
+      const documentos=new Set(grupo.map((m)=>m.chave||`d:${m.documento}`));
+      const seguro=exatos.length>0||String(c.modelo_documento_fiscal||'').toLowerCase()==='nfse';
+      if(seguro&&documentos.size===1) grupo.filter((m)=>!['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(m.situacao_documento||'').toUpperCase())).forEach((m)=>idsRemotos.add(m.id));
+    }
+    if(idsRemotos.size){
+      const listaRemota=[...idsRemotos];
+      const {error:erroAtualizar}=await remoto.from('movimentos').update({situacao_documento:'CANCELADO',cancelado_em:new Date().toISOString(),cancelamento_motivo:'Cancelamento Questor reaplicado.',cancelamento_origem:'QUESTOR_RELATORIO_CANCELADOS'}).in('id',listaRemota);
+      if(erroAtualizar) throw erroAtualizar;
+      const {error:erroMotor}=await remoto.from('motor_resultados_operacionais').update({ativo:false}).eq('empresa_id',empresaRemotaId).in('movimento_id',listaRemota);
+      if(erroMotor) throw erroMotor;
+      reconciliadosRemoto=listaRemota.length;
     }
   }
-  const resultado={reconciliados:ids.size,ambiguos,cancelamentos_analisados:cancelamentos.length};
+  const resultado={reconciliados:Math.max(ids.size,reconciliadosRemoto),reconciliados_locais:ids.size,reconciliados_compartilhados:reconciliadosRemoto,ambiguos,cancelamentos_analisados:cancelamentos.length};
   auditar(req,{empresaId,acao:'RECONCILIAR_CANCELAMENTOS_ARMAZENADOS',entidade:'movimentos',depois:resultado});
   ok(res,resultado);
 }catch(e){erro(res,e);}});
