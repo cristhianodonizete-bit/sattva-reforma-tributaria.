@@ -4971,7 +4971,13 @@ async function sincronizarCancelamentosQuestorParaLeitura(empresaId) {
   const {data: cancelamentos,error:erroCancelamentos}=await remoto.from('documentos_fiscais_cancelamentos').select('data_emissao,numero,modelo_documento_fiscal,serie,situacao,origem,evidencia,atualizado_em').eq('empresa_id',candidatas[0].id).eq('situacao','CANCELADO');
   if(erroCancelamentos) throw erroCancelamentos;
   const guardar=db.prepare(`INSERT INTO documentos_fiscais_cancelamentos (empresa_id,data_emissao,numero,modelo_documento_fiscal,serie,situacao,origem,evidencia,atualizado_em) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(empresa_id,data_emissao,numero,modelo_documento_fiscal,serie) DO UPDATE SET situacao=excluded.situacao,origem=excluded.origem,evidencia=excluded.evidencia,atualizado_em=excluded.atualizado_em`);
-  db.transaction(()=> (cancelamentos||[]).forEach((c)=>guardar.run(Number(empresaId),c.data_emissao,c.numero,c.modelo_documento_fiscal,c.serie||'',c.situacao||'CANCELADO',c.origem||'QUESTOR_RELATORIO_CANCELADOS',c.evidencia||'',c.atualizado_em||new Date().toISOString())))();
+  // O Questor é a fonte canônica desta lista. Repor somente os registros
+  // originados por ele evita que itens de retornos antigos permaneçam como
+  // pendentes após uma nova consulta; movimentos e XMLs nunca são removidos.
+  db.transaction(()=>{
+    db.prepare("DELETE FROM documentos_fiscais_cancelamentos WHERE empresa_id=? AND origem='QUESTOR_RELATORIO_CANCELADOS'").run(Number(empresaId));
+    (cancelamentos||[]).forEach((c)=>guardar.run(Number(empresaId),c.data_emissao,c.numero,c.modelo_documento_fiscal,c.serie||'',c.situacao||'CANCELADO',c.origem||'QUESTOR_RELATORIO_CANCELADOS',c.evidencia||'',c.atualizado_em||new Date().toISOString()));
+  })();
 }
 router.get('/empresas/:id/questor/cancelamentos-pendentes', async (req,res)=>{ try {
   const empresaId=Number(req.params.id);
