@@ -896,6 +896,38 @@ async function publicarContratos(remoto, empresaId, empresaRemotaId = empresaId)
   }
   return { contratos: contratos.length };
 }
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes,
+// Exclusão de documento fiscal precisa ocorrer na fonte canônica antes de
+// atingir o cache. Caso contrário, a próxima reconciliação restaura o XML e
+// a tela transmite a impressão de que o botão não funcionou.
+async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimentoIds = [] } = {}) {
+  if (!ativo()) throw new Error('A fonte compartilhada não está disponível; o documento não foi removido para evitar que reapareça depois.');
+  const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!empresa?.cnpj) throw new Error('Empresa não encontrada para excluir o documento fiscal.');
+  const remoto = supabase.admin();
+  const cnpj = String(empresa.cnpj).replace(/\D/g, '');
+  const { data: empresas, error: erroEmpresa } = await remoto.from('empresas').select('id,cnpj,origem_local_id')
+    .or(`origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`).limit(10);
+  if (erroEmpresa) throw new Error(`Empresa compartilhada: ${erroEmpresa.message}`);
+  const candidatas = (empresas || []).filter((x) => Number(x.origem_local_id) === Number(empresaId) || String(x.cnpj || '').replace(/\D/g, '') === cnpj);
+  if (candidatas.length !== 1) throw new Error('Não foi possível localizar unicamente a empresa compartilhada; o documento foi preservado.');
+  const empresaRemotaId = candidatas[0].id;
+  let consulta = remoto.from('movimentos').select('id').eq('empresa_id', empresaRemotaId);
+  if (chave) consulta = consulta.eq('chave', String(chave));
+  else if (movimentoIds.length) consulta = consulta.in('id', movimentoIds.map(Number));
+  else throw new Error('Identidade do documento fiscal ausente.');
+  const { data: itens, error: erroLeitura } = await consulta;
+  if (erroLeitura) throw new Error(`Documento fiscal compartilhado: ${erroLeitura.message}`);
+  const ids = (itens || []).map((x) => Number(x.id)).filter(Number.isInteger);
+  if (!ids.length) throw new Error('Documento fiscal não localizado na fonte compartilhada; a cópia local foi preservada.');
+  // Resultados do motor dependem do item fiscal. Eles são retirados junto com
+  // o documento; uma nova execução gerará a próxima fotografia sem a nota.
+  const { error: erroResultados } = await remoto.from('motor_resultados_operacionais').delete().in('movimento_id', ids);
+  if (erroResultados) throw new Error(`Resultados do motor vinculados ao documento: ${erroResultados.message}`);
+  const { error: erroExcluir } = await remoto.from('movimentos').delete().in('id', ids);
+  if (erroExcluir) throw new Error(`Documento fiscal compartilhado: ${erroExcluir.message}`);
+  return { empresa_remota_id: empresaRemotaId, excluidos: ids.length, movimento_ids: ids };
+}
+
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };

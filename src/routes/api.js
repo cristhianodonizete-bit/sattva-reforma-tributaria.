@@ -2165,11 +2165,19 @@ router.get('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
 router.delete('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);
-    const filtro=whereDocumentoFiscal(req.params.id,req.params.referencia);
+    const empresaId=Number(req.params.id);
+    const filtro=whereDocumentoFiscal(empresaId,req.params.referencia);
     const antes=db.prepare(`SELECT id,documento,chave,valor FROM movimentos WHERE ${filtro.sql}`).all(...filtro.valores);
     if (!antes.length) throw new Error('Documento fiscal não encontrado para a empresa selecionada.');
+    const operacaoCompartilhada=require('../services/operacaoCompartilhada');
+    if (operacaoCompartilhada.ativo()) {
+      await operacaoCompartilhada.excluirDocumentoFiscalCanonico(empresaId, {
+        chave: referenciaDocumentoFiscal(req.params.referencia).chave || null,
+        movimentoIds: antes.map((x) => x.id),
+      });
+    }
     db.prepare(`DELETE FROM movimentos WHERE ${filtro.sql}`).run(...filtro.valores);
-    auditar(req,{ empresaId:Number(req.params.id), acao:'DOCUMENTO_FISCAL_EXCLUIDO', entidade:'movimentos', entidadeId:req.params.referencia, antes:{ itens:antes.length, documento:antes[0].documento || antes[0].chave, valor:antes.reduce((s,x)=>s+(Number(x.valor)||0),0) } });
+    auditar(req,{ empresaId, acao:'DOCUMENTO_FISCAL_EXCLUIDO', entidade:'movimentos', entidadeId:req.params.referencia, antes:{ itens:antes.length, documento:antes[0].documento || antes[0].chave, valor:antes.reduce((s,x)=>s+(Number(x.valor)||0),0) } });
     ok(res,{ excluidos:antes.length });
   } catch (e) { erro(res,e); }
 });
