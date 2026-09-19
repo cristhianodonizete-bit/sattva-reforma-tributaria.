@@ -320,6 +320,14 @@ Telas.dados = async (el) => {
   const { lotes = [] } = lotesResposta;
   const { movimentos = [], total = 0 } = movimentosResposta;
   const documentosFiscais = documentosFiscaisResposta.documentos || [];
+  const estadoDocumentos = documentosFiscaisResposta.leitura_estado || [];
+  const situacaoDocumentos = estadoDocumentos.some((x) => x.situacao === 'ULTIMA_FOTOGRAFIA_VALIDA') ? 'ULTIMA_FOTOGRAFIA_VALIDA'
+    : estadoDocumentos.some((x) => x.situacao === 'ATUALIZACAO_PENDENTE') ? 'ATUALIZACAO_PENDENTE' : 'ATUALIZADO';
+  const leituraDocumentos = situacaoDocumentos === 'ATUALIZADO'
+    ? '<span class="mini">Dados conferidos na fonte compartilhada</span>'
+    : situacaoDocumentos === 'ATUALIZACAO_PENDENTE'
+      ? '<span class="mini">Há atualização em processamento; esta lista será renovada ao concluir.</span>'
+      : '<span class="mini">Exibindo a última fotografia válida; a atualização da fonte falhou.</span>';
   const filtroDocumentos = S.aba.documentosFiscais || {};
   const textoFiltroDocumento = String(filtroDocumentos.busca || '').trim().toLowerCase();
   const sentidoDocumentoAba = abaDocumentosFiscais === 'entradas' ? 'fornecedor' : abaDocumentosFiscais === 'saidas' ? 'cliente' : '';
@@ -478,7 +486,7 @@ Telas.dados = async (el) => {
       ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}
     ${consultaDocumentos && abaDocumentosCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosFiscais === 'entradas' ? 'ativa' : ''}" data-documentos-fiscais-aba="entradas">Entradas</button><button class="aba ${abaDocumentosFiscais === 'saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="saidas">Saídas</button><button class="aba ${abaDocumentosFiscais === 'fornecedores' ? 'ativa' : ''}" data-documentos-fiscais-aba="fornecedores">Fornecedores</button></div><div class="cartao" id="documentosFiscais" data-documentos-fiscais-painel="documentos">
-      <div class="cabecalho-lista"><div><h2>${abaDocumentosFiscais === 'entradas' ? 'Documentos fiscais de entrada' : 'Documentos fiscais de saída'}</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p></div><div style="display:flex;gap:8px;align-items:center"><button class="btn pq vazio" id="exportarDocumentosFiscais">Exportar Excel</button><span class="tag">${documentosFiscaisFiltrados.length} de ${documentosFiscaisResposta.total || 0} documento(s)</span></div></div>
+      <div class="cabecalho-lista"><div><h2>${abaDocumentosFiscais === 'entradas' ? 'Documentos fiscais de entrada' : 'Documentos fiscais de saída'}</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p>${leituraDocumentos}</div><div style="display:flex;gap:8px;align-items:center"><button class="btn pq vazio" id="exportarDocumentosFiscais">Exportar Excel</button><span class="tag ${situacaoDocumentos === 'ATUALIZADO' ? 'c' : 'a'}">${situacaoDocumentos === 'ATUALIZADO' ? 'Atualizado' : situacaoDocumentos === 'ATUALIZACAO_PENDENTE' ? 'Atualizando' : 'Última fotografia válida'}</span><span class="tag">${documentosFiscaisFiltrados.length} de ${documentosFiscaisResposta.total || 0} documento(s)</span></div></div>
       ${documentosFiscaisResposta.limitado ? '<div class="aviso info">Mostrando os 2.000 documentos mais recentes.</div>' : ''}
       <section class="documentos-filtros" aria-label="Filtros dos documentos fiscais">
         <div class="documentos-filtros-topo"><div><span class="olho">LOCALIZAR DOCUMENTOS</span><p>Combine os filtros e aplique quando terminar.</p></div><button class="btn vazio pq" id="limparFiltrosDocumentos">Limpar filtros</button></div>
@@ -1097,6 +1105,14 @@ Telas.perfil = async (el) => {
   const respostaApuracoes = await A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`);
   const respostaPeriodo = await A.api(`/empresas/${S.empresaId}/periodo-analisado`);
   const tributario = await A.api(`/empresas/${S.empresaId}/perfil-tributario-historico?atualizacao=${Date.now()}`);
+  const estadosPerfil = tributario.leitura_estado || [];
+  const perfilComFalha = estadosPerfil.some((x) => x.situacao === 'ULTIMA_FOTOGRAFIA_VALIDA');
+  const perfilPendente = estadosPerfil.some((x) => x.situacao === 'ATUALIZACAO_PENDENTE');
+  const avisoAtualizacaoPerfil = perfilComFalha
+    ? '<div class="aviso atencao" style="margin-top:16px"><b>Última fotografia válida em exibição.</b> Uma atualização de fonte falhou; os valores não foram substituídos nem zerados.</div>'
+    : perfilPendente
+      ? '<div class="aviso info" style="margin-top:16px"><b>Há atualização em processamento.</b> A composição atual permanece identificada e será renovada quando a sincronização concluir.</div>'
+      : '<div class="aviso bom" style="margin-top:16px"><b>Fontes conferidas.</b> Documentos, período e apurações foram verificados antes desta leitura.</div>';
   const periodoPerfil = respostaPeriodo.periodo || null;
   // O histórico pode conter XMLs de meses anteriores, pois eles são
   // preservados para auditoria e projeção. No Perfil Tributário, porém, a
@@ -1243,6 +1259,7 @@ Telas.perfil = async (el) => {
   el.innerHTML = cab('Módulo 1.a · diagnóstico', 'Perfil Tributário',
     'Raio-X da apuração atual de PIS/Cofins. Esta tela não projeta CBS, não analisa cadeias e não apresenta cenários.',
     '<button class="btn vazio" id="centralDadosPerfil">Central de Dados</button>') +
+    avisoAtualizacaoPerfil +
     `<div class="abas" style="margin-top:16px"><button class="${abaPerfil === 'resumo' ? 'ativo' : ''}" data-aba-perfil="resumo">Resumo da apuração</button><button class="${abaPerfil === 'composicao' ? 'ativo' : ''}" data-aba-perfil="composicao">Composição da receita</button><button class="${abaPerfil === 'pis-cofins-pgdas' ? 'ativo' : ''}" data-aba-perfil="pis-cofins-pgdas">Composição PIS/Cofins</button><button class="${abaPerfil === 'auditoria' ? 'ativo' : ''}" data-aba-perfil="auditoria">Auditoria mensal</button></div>` +
     (abaPerfil === 'auditoria' ? conteudoAuditoria : abaPerfil === 'composicao' ? conteudoComposicao : abaPerfil === 'pis-cofins-pgdas' ? conteudoPisCofinsPgdas :
     `<div class="cartao"><div class="cabecalho-lista"><div><h2>Resumo da apuração atual</h2><p class="desc">Valores efetivamente importados. A alíquota efetiva final é PIS/Cofins apurados ÷ receita analisada.</p></div><span class="tag">${A.esc(origem)}</span></div>

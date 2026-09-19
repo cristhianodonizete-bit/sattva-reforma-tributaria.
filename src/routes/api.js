@@ -1453,7 +1453,8 @@ router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
     await estadoLeituraEmpresa.atualizarComSeguranca(db, Number(req.params.id), ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, Number(req.params.id)), { motivo:'Apurações confirmadas restauradas para o Perfil' });
     const empresaId = Number(req.params.id);
     estadoLeituraEmpresa.sincronizado(db, empresaId, ['documentos','cancelamentos','periodo','apuracoes','pgdas','perfil'], 'Perfil recomposto com fontes confirmadas');
-    ok(res, perfilTributarioHistorico.consolidar(db, empresaId, { movimentos: reconciliacaoDocumental.movimentos }));
+    ok(res, { ...perfilTributarioHistorico.consolidar(db, empresaId, { movimentos: reconciliacaoDocumental.movimentos }),
+      leitura_estado: estadoLeituraEmpresa.estado(db, empresaId, ['documentos','cancelamentos','periodo','apuracoes','pgdas','perfil']) });
   }
   catch (e) { erro(res, e); }
 });
@@ -2192,7 +2193,7 @@ router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
   try {
     await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
     const limite=Math.min(Math.max(Number(req.query.limite) || 500, 1), 2000);
-    ok(res,listarDocumentosFiscais(req.params.id,limite));
+    ok(res,{ ...listarDocumentosFiscais(req.params.id,limite), leitura_estado: estadoLeituraEmpresa.estado(db, Number(req.params.id), ['documentos','cancelamentos']) });
   } catch (e) { erro(res,e); }
 });
 router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
