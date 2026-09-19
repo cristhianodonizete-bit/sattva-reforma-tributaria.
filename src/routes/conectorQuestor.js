@@ -75,12 +75,17 @@ async function conciliarCancelamentosQuestor(empresaId, texto) {
     if(erroMovimentos) throw erroMovimentos;
     const diagnostico=[]; let atualizadosRemoto=0;
     for(const r of registros) {
-      const base=(movimentosRemotos||[]).filter((x)=>{
+      const corresponde=(x, exigirSerie=true)=>{
         const partes=String(x.documento||'').split('/');
         const numero=(partes[partes.length-1]||'').replace(/\D/g,'');
         const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');
-        return numero===r.numero && String(x.modelo_documento_fiscal||'').toLowerCase()===r.modelo && (!r.serie||!serie||serie===r.serie);
-      });
+        return numero===r.numero && String(x.modelo_documento_fiscal||'').toLowerCase()===r.modelo && (!exigirSerie || !r.serie||!serie||serie===r.serie);
+      };
+      let base=(movimentosRemotos||[]).filter((x)=>corresponde(x));
+      // NFS-e pode trazer a série formatada de modo diferente no XML e no
+      // Questor. Sem coincidência exata, a data torna a queda de série segura
+      // somente se houver um único documento candidato.
+      if(!base.length && r.modelo==='nfse') base=(movimentosRemotos||[]).filter((x)=>corresponde(x,false));
       const porData=base.filter((x)=>String(x.data_emissao||'').slice(0,10)===r.data);
       const candidatos=porData.length?porData:base;
       const documentos=new Set(candidatos.map((x)=>x.chave||`d:${x.documento}`));
@@ -98,7 +103,7 @@ async function conciliarCancelamentosQuestor(empresaId, texto) {
     saida.diagnostico=diagnostico.slice(0,100);
   }
   saida.cancelamentos_registrados=registros.length;
-  db.transaction(()=>registros.forEach(r=>{const base=movimentos.filter(x=>{const partes=String(x.documento||'').split('/');const numero=(partes[partes.length-1]||'').replace(/\D/g,'');const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');return numero===r.numero&&String(x.modelo_documento_fiscal||'').toLowerCase()===r.modelo&&(!r.serie||!serie||serie===r.serie);}); const porData=base.filter(x=>String(x.data_emissao||'').slice(0,10)===r.data); const candidatos=porData.length?porData:base; const docs=new Set(candidatos.map(x=>x.chave||`d:${x.documento}`)); if(!docs.size){saida.nao_localizados++;return;} if(docs.size!==1){saida.ambiguos++;return;} const mudou=candidatos.some(x=>String(x.situacao_documento||'AUTORIZADO')!==r.situacao); db.prepare(`UPDATE movimentos SET situacao_documento=?,cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo=?,cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE id IN (${candidatos.map(()=>'?').join(',')})`).run(r.situacao,`Situação ${r.situacao} informada pelo Questor`,...candidatos.map(x=>x.id)); if(mudou){saida.atualizados++;ids.push(...candidatos.map(x=>x.id));} }));
+  db.transaction(()=>registros.forEach(r=>{const corresponde=(x,exigirSerie=true)=>{const partes=String(x.documento||'').split('/');const numero=(partes[partes.length-1]||'').replace(/\D/g,'');const serie=(partes.length>1?partes[0]:'').replace(/\D/g,'');return numero===r.numero&&String(x.modelo_documento_fiscal||'').toLowerCase()===r.modelo&&(!exigirSerie||!r.serie||!serie||serie===r.serie);};let base=movimentos.filter(x=>corresponde(x));if(!base.length&&r.modelo==='nfse')base=movimentos.filter(x=>corresponde(x,false));const porData=base.filter(x=>String(x.data_emissao||'').slice(0,10)===r.data);const candidatos=porData.length?porData:base;const docs=new Set(candidatos.map(x=>x.chave||`d:${x.documento}`));if(!docs.size){saida.nao_localizados++;return;}if(docs.size!==1){saida.ambiguos++;return;}const mudou=candidatos.some(x=>String(x.situacao_documento||'AUTORIZADO')!==r.situacao);db.prepare(`UPDATE movimentos SET situacao_documento=?,cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo=?,cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE id IN (${candidatos.map(()=>'?').join(',')})`).run(r.situacao,`Situação ${r.situacao} informada pelo Questor`,...candidatos.map(x=>x.id));if(mudou){saida.atualizados++;ids.push(...candidatos.map(x=>x.id));}}));
   if(ids.length) db.prepare(`DELETE FROM motor_resultados WHERE movimento_id IN (${ids.map(()=>'?').join(',')})`).run(...ids);
   return saida;
 }
