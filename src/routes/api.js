@@ -4956,8 +4956,26 @@ router.post('/empresas/:id/questor/conector/conciliar-cfop-saidas', async (req,r
 // Referências que o Questor confirmou como canceladas, mas cujo XML/DF-e ainda
 // não chegou à plataforma. Elas ficam visíveis para conferência e serão
 // aplicadas automaticamente quando o documento for importado.
-router.get('/empresas/:id/questor/cancelamentos-pendentes', (req,res)=>{ try {
+// A lista de pendências precisa consultar a fonte compartilhada antes de ser exibida.
+// Assim, cancelamentos recebidos por outra instância não desaparecem do painel.
+async function sincronizarCancelamentosQuestorParaLeitura(empresaId) {
+  if (!supabase.configurado()) return;
+  const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  const cnpj=String(empresa?.cnpj||'').replace(/\D/g,'');
+  if (!cnpj) throw new Error('Empresa sem CNPJ para consultar cancelamentos compartilhados.');
+  const remoto=supabase.admin();
+  const {data: empresas,error:erroEmpresa}=await remoto.from('empresas').select('id,cnpj,origem_local_id').or(`origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`).limit(10);
+  if(erroEmpresa) throw erroEmpresa;
+  const candidatas=(empresas||[]).filter((x)=>Number(x.origem_local_id)===Number(empresaId)||String(x.cnpj||'').replace(/\D/g,'')===cnpj);
+  if(candidatas.length!==1) throw new Error('Empresa não localizada de forma única na fonte compartilhada.');
+  const {data: cancelamentos,error:erroCancelamentos}=await remoto.from('documentos_fiscais_cancelamentos').select('data_emissao,numero,modelo_documento_fiscal,serie,situacao,origem,evidencia,atualizado_em').eq('empresa_id',candidatas[0].id).eq('situacao','CANCELADO');
+  if(erroCancelamentos) throw erroCancelamentos;
+  const guardar=db.prepare(`INSERT INTO documentos_fiscais_cancelamentos (empresa_id,data_emissao,numero,modelo_documento_fiscal,serie,situacao,origem,evidencia,atualizado_em) VALUES (?,?,?,?,?,?,?,?,?) ON CONFLICT(empresa_id,data_emissao,numero,modelo_documento_fiscal,serie) DO UPDATE SET situacao=excluded.situacao,origem=excluded.origem,evidencia=excluded.evidencia,atualizado_em=excluded.atualizado_em`);
+  db.transaction(()=> (cancelamentos||[]).forEach((c)=>guardar.run(Number(empresaId),c.data_emissao,c.numero,c.modelo_documento_fiscal,c.serie||'',c.situacao||'CANCELADO',c.origem||'QUESTOR_RELATORIO_CANCELADOS',c.evidencia||'',c.atualizado_em||new Date().toISOString())))();
+}
+router.get('/empresas/:id/questor/cancelamentos-pendentes', async (req,res)=>{ try {
   const empresaId=Number(req.params.id);
+  await sincronizarCancelamentosQuestorParaLeitura(empresaId);
   const cancelamentos=db.prepare(`SELECT data_emissao,numero,modelo_documento_fiscal,serie,situacao,origem,evidencia
     FROM documentos_fiscais_cancelamentos WHERE empresa_id=? ORDER BY data_emissao DESC,numero DESC`).all(empresaId);
   const movimentos=db.prepare(`SELECT id,documento,chave,modelo_documento_fiscal,data_emissao,situacao_documento,cancelamento_origem
