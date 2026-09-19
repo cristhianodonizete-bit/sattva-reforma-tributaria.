@@ -397,6 +397,10 @@ const App = (() => {
 
   async function ir(tela) {
     if (!pode(tela)) { toast('Seu perfil não possui acesso a esta área.', 'erro'); return; }
+    const inicioNavegacao = performance.now();
+    const registrarNavegacao = (erro = false) => api('/operacao/performance/navegacao', {
+      metodo:'POST', corpo:{ tela, tempo_ms:Math.round(performance.now() - inicioNavegacao), erro },
+    }).catch(() => {});
     S.tela = tela;
     // A abertura da carteira é global. Ocultar o seletor nessa visão evita
     // transmitir a ideia de que seus dados foram filtrados pela última empresa
@@ -450,8 +454,10 @@ const App = (() => {
       // operacional da tela. M7 não tem fechamento próprio: ele depende dos
       // seis módulos anteriores estarem fechados.
       if (S.tela === tela) await anexarFechamentoModulo(alvo, tela);
+      registrarNavegacao(false);
     } catch (e) {
       alvo.innerHTML = `<div class="aviso alto"><b>Não foi possível carregar</b>${esc(e.message)}</div>`;
+      registrarNavegacao(true);
     }
   }
 

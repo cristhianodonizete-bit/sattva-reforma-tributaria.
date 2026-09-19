@@ -100,7 +100,7 @@ const exigirPeriodoParaImportacao = async (req) => {
 async function prepararFontesFiscaisConfirmadas(empresaId) {
   await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido para análise' });
   await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['receitas'], () => dadosAdicionaisCompartilhados.restaurar(db, empresaId), { motivo:'Receitas complementares conferidas para análise' });
-  await reconciliarDocumentosFiscaisParaLeitura(empresaId);
+  const reconciliacao = await reconciliarDocumentosFiscaisParaLeitura(empresaId);
   const empresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId);
   if (empresa?.regime === 'simples_nacional') {
     await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['pgdas'], () => pgdasCompartilhado.restaurar(empresaId), { motivo:'PGDAS confirmado restaurado para análise' });
@@ -108,6 +108,7 @@ async function prepararFontesFiscaisConfirmadas(empresaId) {
   } else {
     await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId), { motivo:'Apurações confirmadas restauradas para análise' });
   }
+  return { reconciliacao };
 }
 
 async function prepararFontesDaAnalise(analiseId) {
@@ -230,6 +231,7 @@ const responderBasesEmCache = (req, res, carregar) => {
   return ok(res, { ...dados, atualizado_em: new Date(geradoEm).toISOString(), cache: 'leitura_curta' });
 };
 router.use((req, res, next) => {
+  if (req.path.startsWith('/operacao/performance')) return next();
   res.on('finish', () => {
     if (!['GET', 'HEAD', 'OPTIONS'].includes(req.method) && res.statusCode < 400) {
       invalidarDashboardCache();
@@ -246,7 +248,7 @@ router.use((req, res, next) => {
 // A rota de consulta da própria telemetria fica fora da medição para não
 // contaminar a leitura. IDs são normalizados pelo serviço antes do registro.
 router.use((req, res, next) => {
-  if (req.path === '/operacao/performance') return next();
+  if (req.path.startsWith('/operacao/performance')) return next();
   const inicio = process.hrtime.bigint();
   res.on('finish', () => performanceTelemetry.registrar({
     metodo: req.method,
@@ -575,6 +577,13 @@ router.use(async (req, res, next) => {
 // OPERAÇÃO COMPARTILHADA — dashboard lido da base Supabase
 // ===========================================================================
 router.get('/operacao/performance', (_req, res) => ok(res, performanceTelemetry.resumo()));
+router.post('/operacao/performance/navegacao', (req, res) => {
+  const tela = String(req.body?.tela || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
+  if (!tela) return erro(res, new Error('Tela de navegação não informada.'), 400);
+  performanceTelemetry.registrar({ metodo:'TELA', rota:`/telas/${tela}`, status:req.body?.erro ? 500 : 200,
+    tempoMs:Math.min(Math.max(Number(req.body?.tempo_ms) || 0, 0), 120000), memoria:process.memoryUsage() });
+  ok(res, {});
+});
 
 router.get('/operacao/dashboard', async (req, res) => {
   try {
@@ -5325,9 +5334,9 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
 // navegação: ela reúne, na mesma instância, período, receitas complementares
 // e documentos canônicos antes de permitir que uma fotografia seja gravada.
 async function prepararBaseParaMotor(empresaId) {
-  await prepararFontesFiscaisConfirmadas(empresaId);
-  await prontidaoDados.sincronizarCompartilhado(empresaId);
-  const reconciliacao = await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(empresaId);
+  const fontes = await prepararFontesFiscaisConfirmadas(empresaId);
+  await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['prontidao'], () => prontidaoDados.sincronizarCompartilhado(empresaId), { motivo:'Prontidão conferida para execução do motor' });
+  const { reconciliacao } = fontes;
   return { prontidao: prontidaoDados.obter(empresaId), reconciliacao };
 }
 router.get('/empresas/:id/motor/prontidao', async (req, res) => {
