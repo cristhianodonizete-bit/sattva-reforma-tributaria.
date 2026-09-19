@@ -508,7 +508,7 @@ Telas.dados = async (el) => {
       ], documentosFiscaisFiltrados, { vazio:'Nenhum documento atende aos filtros selecionados.' })}
     </div>
     <div class="cartao" data-documentos-central-painel="documentos" data-documentos-fiscais-painel="fornecedores" id="historico">
-      <h2>${rotulo[0].toUpperCase() + rotulo.slice(1)} cadastrados</h2>
+      <h2>Fornecedores cadastrados</h2>
       ${A.tabela([
         { t: 'CNPJ/CPF', r: (p) => `<span class="mono">${A.cnpjFmt(p.cnpj)}</span>` },
         { t: 'Descrição', r: (p) => A.esc(p.descricao) },
@@ -560,7 +560,15 @@ Telas.dados = async (el) => {
       if (abaDocumentosCentral !== 'documentos') { painel.style.display = 'none'; return; }
       painel.style.display = (painel.dataset.documentosFiscaisPainel === 'documentos' && ['entradas','saidas'].includes(abaDocumentosFiscais)) || painel.dataset.documentosFiscaisPainel === abaDocumentosFiscais ? '' : 'none';
     });
-    el.querySelectorAll('[data-documentos-fiscais-aba]').forEach((botao) => { botao.onclick = () => { S.aba.documentosFiscaisCentral = botao.dataset.documentosFiscaisAba; S.aba.documentosFiscais = {}; A.ir('dados'); }; });
+    el.querySelectorAll('[data-documentos-fiscais-aba]').forEach((botao) => { botao.onclick = () => {
+      // Entradas, Saídas e Fornecedores pertencem à aba principal Documentos
+      // fiscais. Sem esta transição explícita, um clique vindo de Importações
+      // preservava o formulário de planilha e misturava os dois contextos.
+      S.aba.documentosCentral = 'documentos';
+      S.aba.documentosFiscaisCentral = botao.dataset.documentosFiscaisAba;
+      S.aba.documentosFiscais = {};
+      A.ir('dados');
+    }; });
     el.querySelectorAll('[data-abrir-fornecedores-documentos]').forEach((botao) => { botao.onclick = () => { S.aba.documentosCentral = 'documentos'; S.aba.documentosFiscaisCentral = 'fornecedores'; A.ir('dados'); }; });
     el.querySelectorAll('[data-importacao-planilha-painel]').forEach((painel) => { painel.style.display = painel.dataset.importacaoPlanilhaPainel === abaImportacaoPlanilha ? '' : 'none'; });
     el.querySelectorAll('[data-importacao-planilha-aba]').forEach((botao) => { botao.onclick = () => { S.aba.importacaoPlanilha = botao.dataset.importacaoPlanilhaAba; A.ir('dados'); }; });
