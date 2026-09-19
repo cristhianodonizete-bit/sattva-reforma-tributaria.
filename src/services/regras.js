@@ -52,6 +52,12 @@ function assegurarCatalogoReceitaCfop() {
     // 949 é a família de "outras saídas". Ela precisa estar no catálogo
     // visível; não pode ser uma exceção escondida no resolvedor de receita.
     if (!existe.get('949', 'outra_saida')) inserir.run('949', null, 'outra_saida', 2, 'Outras saídas — não representam faturamento', 0, fonte, versao, '2023-04-24');
+    // O grupo 202 é devolução, mas o primeiro dígito define o efeito
+    // econômico: 1/2.202 devolve venda e reduz faturamento; 5/6.202 devolve
+    // compra ao fornecedor e reduz compras. As regras específicas vêm antes
+    // da regra genérica do grupo para que a decisão seja auditável.
+    for (const prefixo of ['1', '2']) if (!existeExato.get('202', prefixo, 'devolucao_venda')) inserir.run('202', prefixo, 'devolucao_venda', 1, 'Devolução de venda — reduz faturamento', 0, fonte, versao, '2023-04-24');
+    for (const prefixo of ['5', '6']) if (!existeExato.get('202', prefixo, 'devolucao_fornecedor')) inserir.run('202', prefixo, 'devolucao_fornecedor', 1, 'Devolução a fornecedor — reduz compras', 0, fonte, versao, '2023-04-24');
     for (const grupo of gruposVenda) if (!existe.get(grupo, 'venda')) inserir.run(grupo, null, 'venda', 2, 'Venda / prestação — catálogo positivo', 1, fonte, versao, '2023-04-24');
     for (const grupo of ['101','102','105','106','127','251','301','358','651','654']) if (!existeExato.get(grupo, '7', 'exportacao')) inserir.run(grupo, '7', 'exportacao', 2, 'Exportação / prestação ao exterior — catálogo positivo', 1, fonte, versao, '2023-04-24');
   })();
@@ -290,17 +296,20 @@ function salvarCfop(id, d, usuario) {
 }
 
 function cadastrarCfop(d, usuario) {
-  const grupo = String(d.cfop || '').replace(/\D/g, '');
-  const naturezas = new Set(['venda','aquisicao','devolucao','remessa','transferencia','exportacao','importacao','ativo_consumo','outra_saida']);
-  if (!/^\d{3}$/.test(grupo)) throw new Error('Informe os três últimos dígitos do CFOP.');
+  const codigo = String(d.cfop || '').replace(/\D/g, '');
+  const grupo = codigo.length === 4 ? codigo.slice(1) : codigo;
+  const prefixo = codigo.length === 4 ? codigo[0] : null;
+  const prioridade = prefixo ? 1 : 2;
+  const naturezas = new Set(['venda','aquisicao','devolucao','devolucao_venda','devolucao_fornecedor','remessa','transferencia','exportacao','importacao','ativo_consumo','outra_saida']);
+  if (!/^\d{3,4}$/.test(codigo)) throw new Error('Informe os três últimos dígitos ou os quatro dígitos do CFOP.');
   if (!naturezas.has(d.natureza)) throw new Error('Selecione uma natureza operacional válida.');
   if (d.compoe_receita !== true && d.compoe_receita !== false) throw new Error('Informe se a operação compõe a receita.');
-  const existente = db.prepare('SELECT id FROM param_cfop WHERE prefixo IS NULL AND grupo=? AND prioridade=2 AND ativo<>0 LIMIT 1').get(grupo);
-  if (existente) throw new Error(`O grupo ${grupo} já possui uma regra cadastrada no mapa.`);
+  const existente = db.prepare('SELECT id FROM param_cfop WHERE COALESCE(prefixo,\'\')=COALESCE(?,\'\') AND grupo=? AND prioridade=? AND ativo<>0 LIMIT 1').get(prefixo, grupo, prioridade);
+  if (existente) throw new Error(`A regra ${prefixo ? `${prefixo}.${grupo}` : grupo} já está cadastrada no mapa.`);
   const r = db.prepare(`INSERT INTO param_cfop (grupo,prefixo,natureza,prioridade,descricao,compoe_receita,fonte,versao,vigencia_inicio,ativo)
-    VALUES (?,?,?,?,?,?,?,?,?,1)`).run(grupo, null, d.natureza, 2, String(d.descricao || '').trim(), d.compoe_receita ? 1 : 0,
+    VALUES (?,?,?,?,?,?,?,?,?,1)`).run(grupo, prefixo, d.natureza, prioridade, String(d.descricao || '').trim(), d.compoe_receita ? 1 : 0,
     String(d.fonte || 'Cadastro manual').trim(), String(d.versao || 'MANUAL').trim(), new Date().toISOString().slice(0, 10));
-  registrarLog('cfop', `novo-grupo:${grupo}`, '', `${d.natureza}; receita=${d.compoe_receita ? 'sim' : 'não'}`, usuario);
+  registrarLog('cfop', `novo-grupo:${prefixo ? `${prefixo}.${grupo}` : grupo}`, '', `${d.natureza}; receita=${d.compoe_receita ? 'sim' : 'não'}`, usuario);
   invalidar();
   return db.prepare('SELECT * FROM param_cfop WHERE id=?').get(r.lastInsertRowid);
 }

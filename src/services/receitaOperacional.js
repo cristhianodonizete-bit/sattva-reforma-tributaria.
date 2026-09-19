@@ -47,6 +47,17 @@ function natureza(movimento = {}) {
   }
 }
 
+// Efeito econômico configurado no Mapa de CFOP. A natureza não é apenas um
+// rótulo: devolução de venda diminui faturamento e devolução a fornecedor
+// diminui compras. O consumidor da regra decide como apresentar o efeito,
+// sem alterar o documento original ou presumir valores negativos na origem.
+function efeitoBase(movimento = {}) {
+  const classificacao = natureza(movimento);
+  if (classificacao === 'devolucao_venda') return 'REDUZ_FATURAMENTO';
+  if (classificacao === 'devolucao_fornecedor') return 'REDUZ_FORNECEDOR';
+  return 'NEUTRO';
+}
+
 function compoeReceita(movimento = {}) {
   if (['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(movimento.situacao_documento || '').toUpperCase())) return false;
   if (!ehSaida(movimento)) return false;
@@ -83,4 +94,4 @@ function motivo(movimento = {}) {
   return 'OPERACAO_SEM_EVIDENCIA_DE_VENDA';
 }
 
-module.exports = { ehSaida, cfopEfetivo, natureza, compoeReceita, motivo };
+module.exports = { ehSaida, cfopEfetivo, natureza, efeitoBase, compoeReceita, motivo };

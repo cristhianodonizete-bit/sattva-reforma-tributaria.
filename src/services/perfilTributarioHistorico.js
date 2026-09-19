@@ -95,12 +95,12 @@ function montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe = [
     outras.valor += numero(x.valor); outras.quantidade++;
     atual.outras_receitas = outras;
   });
-  // Devolução de venda chega como entrada (CFOP 1.202/2.202), portanto não
-  // pode ser tratada como venda nem como "outra receita". Ela reduz a venda
-  // bruta do mês, preservando os documentos que comprovam a dedução.
+  // Devolução de venda é classificada no Mapa de CFOP como redução de
+  // faturamento. Ela não pode virar venda nem "outra receita"; os documentos
+  // que comprovam a dedução permanecem expostos na memória.
   (deducoesDevolucoes || []).forEach((x) => {
     const atual = obter(x.competencia);
-    const deducoes = atual.deducoes_devolucoes || { valor: 0, quantidade: 0, fonte: 'Devoluções de venda (CFOP 1.202/2.202)', itens: [] };
+    const deducoes = atual.deducoes_devolucoes || { valor: 0, quantidade: 0, fonte: 'Devoluções de venda configuradas no Mapa de CFOP', itens: [] };
     deducoes.valor += numero(x.valor);
     deducoes.quantidade++;
     deducoes.itens.push({ documento:x.documento || null, chave:x.chave || null, cfop:x.cfop || null, descricao:x.descricao || null, valor:numero(x.valor), modelo:x.modelo_documento_fiscal || null, data_emissao:x.data_emissao || null });
@@ -199,7 +199,7 @@ function consolidar(db, empresaId, opcoes = {}) {
   movimentosFonte
     .filter((x) => Number(x.empresa_id || empresaId) === Number(empresaId) && String(x.competencia || '') !== '')
     .filter((x) => noExercicio(x.competencia))
-    .filter((x) => !receitaOperacional.ehSaida(x) && ['1202', '2202'].includes(receitaOperacional.cfopEfetivo(x)))
+    .filter((x) => receitaOperacional.efeitoBase(x) === 'REDUZ_FATURAMENTO')
     .filter((x) => !['CANCELADO', 'DENEGADO', 'INUTILIZADO'].includes(String(x.situacao_documento || '').toUpperCase()))
     .forEach((x) => deducoesDevolucoes.push({ ...x, cfop:receitaOperacional.cfopEfetivo(x), valor:valorDocumental(x) }));
   const documentos=[...documentosPorCompetencia.values()];

@@ -67,7 +67,9 @@ function dadosPorCompetencia(empresaId, _execucaoId, periodo) {
     WHERE r.empresa_id=? AND COALESCE(m.competencia,'')<>''
     ORDER BY m.competencia, r.id`).all(empresaId)
     .filter((x) => !periodo || periodoAnalisado.noPeriodo(x.competencia, periodo))
-    .filter((x) => x.sentido !== 'saida' || receitaOperacional.compoeReceita({ ...x, tipo:x.tipo_movimento }));
+    .filter((x) => x.sentido !== 'saida'
+      || receitaOperacional.compoeReceita({ ...x, tipo:x.tipo_movimento })
+      || receitaOperacional.efeitoBase({ ...x, tipo:x.tipo_movimento }) === 'REDUZ_FORNECEDOR');
 }
 
 function materializar(empresaId, opcoes = {}) {
@@ -103,7 +105,13 @@ function materializar(empresaId, opcoes = {}) {
     g.quantidade_operacoes++; g._documentos.add(linha.documento || linha.chave || `movimento-${linha.movimento_id}`);
     soma(g._naturezas, natureza, valor);
     if (Number.isFinite(Number(linha.base_economica))) soma(g, '_base', valor);
-    if (linha.sentido === 'saida') {
+    const efeitoBase = receitaOperacional.efeitoBase({ ...linha, tipo:linha.tipo_movimento });
+    if (efeitoBase === 'REDUZ_FORNECEDOR') {
+      // A devolução física ao fornecedor é uma saída, mas economicamente
+      // desfaz uma compra anterior. Reduz compras/base de entradas sem virar
+      // faturamento nem gerar débito CBS artificial.
+      soma(g, 'compras_brutas', -valor); soma(g, 'base_economica_entradas', -base); soma(g, '_entradas', -valor);
+    } else if (linha.sentido === 'saida') {
       soma(g, 'receita_bruta', valor); soma(g, 'base_economica_saidas', base); soma(g, 'cbs_debito', linha.cbs);
       soma(g, grupoTratamento(linha), valor);
       if (linha.status_classificacao === 'CLASSIFICADO') soma(g, '_classificado', valor);

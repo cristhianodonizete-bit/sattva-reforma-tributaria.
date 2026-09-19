@@ -1183,7 +1183,7 @@ Telas.perfil = async (el) => {
     ${A.tabela([
       { t:'Competência', r:x=>A.esc(x.competencia) },
       { t:'Vendas/documentos', num:true, r:x=>x.documentos ? `${A.moeda(x.documentos.valor)}<br><span class="mini">${x.documentos.quantidade} documento(s) de venda/serviço</span>` : '—' },
-      { t:'Devoluções de venda', num:true, r:x=>x.deducoes_devolucoes ? `− ${A.moeda(x.deducoes_devolucoes.valor)}<br><span class="mini">${x.deducoes_devolucoes.quantidade} entrada(s) CFOP 1.202/2.202</span>` : '—' },
+      { t:'Devoluções de venda', num:true, r:x=>x.deducoes_devolucoes ? `− ${A.moeda(x.deducoes_devolucoes.valor)}<br><span class="mini">${x.deducoes_devolucoes.quantidade} documento(s) conforme Mapa de CFOP</span>` : '—' },
       { t:'Outras receitas', num:true, r:x=>x.outras_receitas ? `${A.moeda(x.outras_receitas.valor)}<br><span class="mini">${x.outras_receitas.quantidade} lançamento(s) · ${A.esc(x.outras_receitas.fonte)}</span>` : '—' },
       { t:'Receita analisada', num:true, r:x=>x.receita_analisada === null ? '—' : `${A.moeda(x.receita_analisada)}<br><span class="mini">vendas − devoluções + outros lançamentos</span>` },
       { t:'Apuração PIS/Cofins', num:true, r:x=>colunaApuracao(x.pis_cofins) },
@@ -1192,7 +1192,7 @@ Telas.perfil = async (el) => {
       { t:'Diferença', num:true, r:x=>x.diferencas?.length ? x.diferencas.map((d)=>`${A.moeda(d.valor)}<br><span class="mini">${A.esc(d.fonte)}</span>`).join('') : '—' },
       { t:'Situação', r:x=>`<span class="tag ${classeAuditoria(x.situacao)}">${A.esc(rotuloAuditoria(x.situacao))}</span><br><button class="btn pq vazio" style="margin-top:7px" data-auditoria-detalhe="${A.esc(x.competencia)}">Ver memória</button>` },
     ], auditoriaMensal, { vazio:'Ainda não há documentos, outras receitas ou apurações importadas no período analisado para confrontar.' })}
-    <p class="mini" style="margin-top:12px">A comparação usa somente a janela do período analisado. Devoluções de venda por CFOP 1.202/2.202 reduzem a venda bruta e ficam listadas na memória da competência.</p>
+    <p class="mini" style="margin-top:12px">A comparação usa somente a janela do período analisado. As devoluções que reduzem faturamento são definidas no Mapa de CFOP e ficam listadas na memória da competência.</p>
   </div>`;
   const rotuloCompetencia = (competencia) => { const [ano, mes] = String(competencia || '').split('-'); return ano && mes ? `${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][Number(mes) - 1]}/${ano.slice(-2)}` : '—'; };
   const grupoModeloReceita = (modelo) => {
@@ -1303,7 +1303,7 @@ Telas.perfil = async (el) => {
     const devolucoes = linha.deducoes_devolucoes?.itens || [];
     const memoria = [
       { fonte:'Vendas/documentos importados', composicao:'Soma bruta das saídas que compõem receita', valor:linha.documentos?.valor ?? null },
-      { fonte:'Devoluções de venda', composicao:'Dedução das entradas CFOP 1.202/2.202', valor:linha.deducoes_devolucoes ? -Number(linha.deducoes_devolucoes.valor || 0) : null },
+      { fonte:'Devoluções de venda', composicao:'Dedução conforme regra do Mapa de CFOP', valor:linha.deducoes_devolucoes ? -Number(linha.deducoes_devolucoes.valor || 0) : null },
       { fonte:'Outros lançamentos importados', composicao:'Receitas sem DF-e confirmadas', valor:linha.outras_receitas?.valor ?? null },
       { fonte:'Receita analisada', composicao:'Vendas − devoluções + outros lançamentos', valor:linha.receita_analisada },
       ...(linha.pgdas ? [{ fonte:'PGDAS importado', composicao:linha.pgdas.origem || 'Documento confirmado', valor:linha.pgdas.valor }] : []),
