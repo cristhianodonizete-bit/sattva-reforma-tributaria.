@@ -387,7 +387,7 @@ Telas.dados = async (el) => {
 
   el.innerHTML = topoEtapa +
     `${grupoCentral === 'dashboard' ? painelProntidao : ''}` +
-    `${grupoCentral === 'documentos' ? `<div class="cartao" data-documentos-central-painel="importacao" style="margin-top:16px"><div style="display:flex;justify-content:flex-end;gap:12px;align-items:end;flex-wrap:wrap"><button class="btn vazio pq" id="declararDocumentoSemMovimento">Declarar sem movimento</button></div><label style="max-width:300px;margin-top:10px">Tipo de documento fiscal<select id="tipoDocumentoFiscal"><option value="fornecedor" ${aba === 'fornecedor' ? 'selected' : ''}>Entradas / fornecedores</option><option value="cliente" ${aba === 'cliente' ? 'selected' : ''}>Saídas / clientes</option></select></label><p class="mini" style="margin-top:8px">A escolha define a cadeia documental consultada: entradas de fornecedores ou saídas para clientes.</p></div>
+    `${consultaImportacoes ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;justify-content:flex-end;gap:12px;align-items:end;flex-wrap:wrap"><button class="btn vazio pq" id="declararDocumentoSemMovimento">Declarar sem movimento</button></div><label style="max-width:300px;margin-top:10px">Tipo de documento fiscal<select id="tipoDocumentoFiscal"><option value="fornecedor" ${aba === 'fornecedor' ? 'selected' : ''}>Entradas / fornecedores</option><option value="cliente" ${aba === 'cliente' ? 'selected' : ''}>Saídas / clientes</option></select></label><p class="mini" style="margin-top:8px">A escolha define a cadeia documental consultada: entradas de fornecedores ou saídas para clientes.</p></div>
     <section class="fluxo-importacao" data-documentos-central-painel="importacao" aria-label="Etapas da importação">
       <button type="button" class="${parceiros.length ? 'feito' : 'atual'}" data-ir-importacao="cadastro">
         <b>1</b><span><strong>Cadastre ${rotulo}</strong><small>${parceiros.length ? `${parceiros.length} registros disponíveis` : 'Importe ou inclua manualmente'}</small></span>
@@ -400,7 +400,7 @@ Telas.dados = async (el) => {
       </button>
     </section>` : ''}
     ${filtroPendencia ? `<div class="aviso atencao" style="margin-top:16px"><b>Filtro ativo: operação #${A.esc(filtroPendencia.movimento_id || '—')} · ${A.esc(filtroPendencia.dimensao || 'pendência')} · ${A.esc(filtroPendencia.status || '')}</b><br><span class="mini">${A.esc(filtroPendencia.acao || 'Revise a pendência selecionada.')} ${filtroPendencia.fonte_minima ? `Fonte mínima: ${A.esc(filtroPendencia.fonte_minima)}` : ''}</span><div style="margin-top:8px"><button class="btn pq vazio" id="limparFiltroPendencia">Limpar filtro</button></div></div>` : ''}
-    ${grupoCentral === 'documentos' ? `<div class="abas" data-documentos-central-painel="importacao" style="margin-top:16px" role="tablist">
+    ${consultaImportacoes ? `<div class="abas" style="margin-top:16px" role="tablist">
       <button class="aba ${abaImportacaoPlanilha === 'cadastro' ? 'ativa' : ''}" data-importacao-planilha-aba="cadastro">Cadastro de ${rotulo}</button>
       <button class="aba ${abaImportacaoPlanilha === 'movimentacao' ? 'ativa' : ''}" data-importacao-planilha-aba="movimentacao">Movimentação</button>
       <button class="aba ${abaImportacaoPlanilha === 'conferencia' ? 'ativa' : ''}" data-importacao-planilha-aba="conferencia">Conferência da base</button>
@@ -456,14 +456,7 @@ Telas.dados = async (el) => {
     ${grupoCentral === 'margem' ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addMargemOperacional">Informar margem operacional</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Margens informadas',(dadosAdicionais.margens || []).length,'premissas declaradas')}${A.kpi('Pendências',(itemProntidao('margem')?.pendencias || []).length,'informações a resolver')}</div></div>` : ''}
     ${grupoCentral !== 'documentos' && Object.prototype.hasOwnProperty.call(pendenciasGrupo, grupoCentral) ? `<div class="cartao" style="margin-top:16px"><h2>Pendências deste grupo</h2>${pendenciasGrupo[grupoCentral].length ? A.tabela([{t:'Registro',r:x=>A.esc(x.competencia || x.periodo_inicio || 'Sem período')},{t:'Situação',r:x=>grupoCentral === 'receitas' ? 'Possível duplicidade ou campo obrigatório ausente' : 'Complete os campos obrigatórios antes da análise.'}],pendenciasGrupo[grupoCentral],{vazio:'Sem pendências.'}) : A.vazio('Sem pendências','Os dados disponíveis deste grupo não exigem ação adicional.')}</div>` : ''}
     ${grupoCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosCentral==='importacao'?'ativa':''}" data-documentos-central-aba="importacao">Importações</button><button class="aba ${abaDocumentosCentral==='documentos'?'ativa':''}" data-documentos-central-aba="documentos">Documentos fiscais</button></div>` : ''}
-    ${grupoCentral === 'documentos' ? `<div class="cartao" data-documentos-central-painel="pendencias" style="margin-top:16px" id="pendenciasDiagnosticoCentral"><h2>Pendências dos documentos fiscais</h2><p class="desc">Localize a linha que bloqueia a cobertura, confira a evidência existente e siga a ação indicada. Cada operação aparece uma única vez pela pendência principal.</p>${pendenciasDaAba.length ? A.tabela([
-      { t:'Operação', r:p=>`#${A.esc(p.movimento_id)}<div class="mini">${A.esc(p.documento)}</div>` },
-      { t:'Valor', num:true, r:p=>A.moeda(p.valor) },
-      { t:'Pendência', r:p=>`<b>${A.esc(p.dimensao)}</b> · ${A.esc(p.status)}<div class="mini">${A.esc(p.causa)}</div>` },
-      { t:'Ação', r:p=>`${A.esc(p.acao)}<div class="mini">${A.esc(p.fonte_minima)}</div><button class="btn pq" data-abrir-pendencia="${A.esc(p.movimento_id)}">Abrir lançamento</button>` },
-    ], pendenciasDaAba, { vazio:'Sem pendências para esta origem.' }) : A.vazio('Sem pendências nesta origem', 'Não há linhas pendentes de cobertura para fornecedores ou clientes nesta empresa.')}</div>` : ''}
-    ${grupoCentral === 'documentos' && aba === 'fornecedor' ? `<div class="cartao" data-documentos-central-painel="pendencias" style="margin-top:16px" id="tratamentoCentral"><h2>Tratamento e revisão de dados</h2><p class="desc">Acompanhe apurações históricas, campos com baixa confiança, pendências de classificação, inconsistências e rastreabilidade antes de usar os dados nas análises.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio pq" id="abrirRaioXDados">Revisar apurações e rastreabilidade</button><button class="btn vazio pq" id="centralPendenciasRegime">Ver pendências de regime</button><button class="btn vazio pq" id="centralPendenciasClassificacao">Ver pendências de classificação</button></div></div>` : ''}
-    ${grupoCentral === 'documentos' && abaDocumentosFiscais === 'saidas' ? `<div class="cartao" data-documentos-central-painel="documentos" data-documentos-fiscais-painel="saidas" style="margin-top:16px">
+    ${consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
       <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn vazio pq" id="addReferenciaServico">Adicionar serviço ao cadastro</button><button class="btn vazio pq" id="importarReferenciasServico">Importar referências</button><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/referencias_servicos').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>
@@ -484,7 +477,7 @@ Telas.dados = async (el) => {
         { t: '', r: (s) => `<button class="btn pq ${s.configurado ? 'vazio' : ''}" data-ref-servico="${A.esc(s.chave)}">${s.configurado ? 'Editar' : s.exigeReferencia ? 'Definir referência' : 'Cadastrar referência'}</button>` },
       ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}
-    ${grupoCentral === 'documentos' ? `<div class="abas" data-documentos-central-painel="documentos" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosFiscais === 'entradas' ? 'ativa' : ''}" data-documentos-fiscais-aba="entradas">Entradas</button><button class="aba ${abaDocumentosFiscais === 'saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="saidas">Saídas</button><button class="aba ${abaDocumentosFiscais === 'fornecedores' ? 'ativa' : ''}" data-documentos-fiscais-aba="fornecedores">Fornecedores</button></div><div class="cartao" data-documentos-central-painel="documentos" id="documentosFiscais" data-documentos-fiscais-painel="documentos">
+    ${consultaDocumentos && abaDocumentosCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosFiscais === 'entradas' ? 'ativa' : ''}" data-documentos-fiscais-aba="entradas">Entradas</button><button class="aba ${abaDocumentosFiscais === 'saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="saidas">Saídas</button><button class="aba ${abaDocumentosFiscais === 'fornecedores' ? 'ativa' : ''}" data-documentos-fiscais-aba="fornecedores">Fornecedores</button></div><div class="cartao" id="documentosFiscais" data-documentos-fiscais-painel="documentos">
       <div class="cabecalho-lista"><div><h2>${abaDocumentosFiscais === 'entradas' ? 'Documentos fiscais de entrada' : 'Documentos fiscais de saída'}</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p></div><div style="display:flex;gap:8px;align-items:center"><button class="btn pq vazio" id="exportarDocumentosFiscais">Exportar Excel</button><span class="tag">${documentosFiscaisFiltrados.length} de ${documentosFiscaisResposta.total || 0} documento(s)</span></div></div>
       ${documentosFiscaisResposta.limitado ? '<div class="aviso info">Mostrando os 2.000 documentos mais recentes.</div>' : ''}
       <section class="documentos-filtros" aria-label="Filtros dos documentos fiscais">
@@ -520,32 +513,6 @@ Telas.dados = async (el) => {
         { t: '', r: (p) => `<button class="btn pq vazio" data-ep="${p.id}">Editar</button>` },
       ], parceiros, { vazio: `Nenhum ${aba} cadastrado ainda.` })}
     </div>
-    <div class="cartao" data-documentos-central-painel="movimentacao">
-      <h2>${filtroPendencia?.movimento_id ? `Movimentação filtrada · operação #${A.esc(filtroPendencia.movimento_id)}` : 'Movimentação importada'}</h2><p class="desc">${filtroPendencia?.movimento_id ? 'Linha relacionada à pendência selecionada.' : '200 maiores lançamentos'}</p>
-      ${A.tabela([
-        { t:'ID', r: (m) => `<span class="mono">#${A.esc(m.id)}</span>` },
-        { t: 'Parceiro', r: (m) => `${A.esc(m.nome)}<div class="mini mono">${A.cnpjFmt(m.inscr_federal)}</div>` },
-        { t: 'Produto/serviço', r: (m) => A.esc(m.descricao || '—') },
-        { t: 'NCM', r: (m) => `<span class="mono mini">${A.esc(m.ncm || '—')}</span>` },
-        { t: 'Regime', r: (m) => m.regime ? `<span class="tag">${A.regimeLabel(m.regime)}</span>` : '<span class="tag b">não vinculado</span>' },
-        { t: 'Valor', num: true, r: (m) => A.moeda(m.valor) },
-        { t: 'Base', num: true, r: (m) => A.moeda(m.base_calculo) },
-        { t: 'ICMS', num: true, r: (m) => A.moeda(m.icms) },
-        { t: 'PIS/COFINS', num: true, r: (m) => A.moeda(m.pis + m.cofins) },
-        { t: 'ISS', num: true, r: (m) => A.moeda(m.iss) },
-      ], movimentosVisiveis, { vazio: filtroPendencia?.movimento_id ? 'A operação selecionada não está disponível nesta origem. Limpe o filtro e confira a empresa selecionada.' : 'Importe a movimentação para liberar o diagnóstico.' })}
-    </div>
-    <div class="cartao" data-documentos-central-painel="lotes">
-      <h2>Lotes importados</h2>
-      ${A.tabela([
-        { t: 'Arquivo', r: (l) => A.esc(l.arquivo) },
-        { t: 'Tipo', r: (l) => l.tipo },
-        { t: 'Origem', r: (l) => l.origem },
-        { t: 'Registros', num: true, r: (l) => l.registros },
-        { t: 'Valor', num: true, r: (l) => A.moeda(l.valor_total) },
-        { t: 'Data', r: (l) => `<span class="mini">${A.esc(l.criado_em)}</span>` },
-        { t: '', r: (l) => `<button class="btn pq perigo" data-rl="${l.id}">Remover</button>` },
-      ], lotes, { vazio: 'Nenhum lote importado.' })}
     </div>` : ''}`;
 
     document.getElementById('tipoDocumentoFiscal')?.addEventListener('change', (evento) => { S.aba.dados = evento.target.value; S.aba.dadosPendencia = null; A.ir('dados'); });
