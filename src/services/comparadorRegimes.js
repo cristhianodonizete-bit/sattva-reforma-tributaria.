@@ -112,7 +112,7 @@ function comparar(db, empresaId, opcoes = {}) {
   const empresa = db.prepare('SELECT id, razao_social, regime FROM empresas WHERE id=?').get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada.');
   const perfis = db.prepare("SELECT * FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,'')<>''").all(empresaId);
-  const receitasSemDfe = linhasSeTabelaExiste(db, 'SELECT * FROM receitas_sem_dfe WHERE empresa_id=?', empresaId);
+  const receitasSemDfe = linhasSeTabelaExiste(db, "SELECT * FROM receitas_sem_dfe WHERE empresa_id=? AND COALESCE(status_validacao,'PENDENTE')<>'POSSIVEL_DUPLICIDADE'", empresaId);
   const receitaDocumento = db.prepare('SELECT valor,tipo,sentido,cfop,nbs,lc116,iss,modelo_documento_fiscal,situacao_documento,origem FROM movimentos WHERE empresa_id=?').all(empresaId)
     .filter(receitaOperacional.compoeReceita).reduce((s,x)=>s+n(x.valor),0);
   const receitaPerfil = perfis.length ? perfis.reduce((s, x) => s + n(x.receita_bruta), 0) : null;

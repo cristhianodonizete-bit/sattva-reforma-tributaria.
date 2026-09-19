@@ -250,6 +250,12 @@ async function importarLocacoesQuestor(empresaId, texto) {
   const resultado={linhas_lidas:registros.length,importados:0,ignorados:0,locacao_bens_moveis:0,locacao_imoveis:0,mensagens:[]};
   for (const r of registros) {
     try {
+      const existente=db.prepare(`SELECT id FROM receitas_sem_dfe
+        WHERE empresa_id=? AND identificador_origem=? AND especie_questor='REC' LIMIT 1`).get(empresaId,r.identificador_origem);
+      if (existente) {
+        resultado.ignorados++; resultado.mensagens.push(`Lançamento ${r.identificador_origem}: já importado anteriormente.`);
+        continue;
+      }
       dadosAdicionais.salvarReceitaSemDfe(db, empresaId, {
         competencia:r.competencia,item_receita_chave:r.item_receita_chave,descricao:r.descricao,valor:r.valor,
         origem:'QUESTOR_LANCAMENTOS_FISCAIS',evidencia:`Questor · TnFisDPConsultLctoFiscal · lançamento ${r.identificador_origem} · ${r.data_lancamento}`,

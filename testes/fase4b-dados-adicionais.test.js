@@ -37,6 +37,8 @@ assert.strictEqual(db.prepare('SELECT natureza FROM margens_operacionais_premiss
 const receita = dados.salvarReceitaSemDfe(db, 1, { competencia: '2026-08', tipo_receita: 'ALUGUEL', descricao: 'Aluguel de imóvel', valor: 5000, evidencia: 'Contrato 1' });
 assert.strictEqual(receita.possivel_duplicidade, false);
 assert.throws(() => dados.salvarReceitaSemDfe(db, 1, { competencia: '2026-08', tipo_receita: 'aluguel', descricao: ' ALUGUEL  DE  IMÓVEL ', valor: 5000 }), /duplicada/);
+assert.doesNotThrow(() => dados.salvarReceitaSemDfe(db, 1, { competencia: '2026-10', tipo_receita: 'ALUGUEL', descricao: 'Locação Questor', valor: 1000, identificador_origem: 'REC-100', especie_questor: 'REC' }));
+assert.throws(() => dados.salvarReceitaSemDfe(db, 1, { competencia: '2026-10', tipo_receita: 'ALUGUEL', descricao: 'Descrição alterada pelo relatório', valor: 1001, identificador_origem: 'REC-100', especie_questor: 'REC' }), /duplicada/, 'o lançamento REC é a identidade estável mesmo se a descrição ou o valor retornarem diferente');
 assert.doesNotThrow(() => dados.salvarReceitaSemDfe(db, 2, { competencia: '2026-08', tipo_receita: 'ALUGUEL', descricao: 'Aluguel de imóvel', valor: 5000 }), 'deduplicação não vaza entre empresas');
 
 db.prepare('INSERT INTO movimentos (empresa_id,competencia,tipo,valor,descricao,documento) VALUES (1,?,?,?,?,?)').run('2026-09', 'cliente', 700, 'Venda já documentada', 'NF-1');

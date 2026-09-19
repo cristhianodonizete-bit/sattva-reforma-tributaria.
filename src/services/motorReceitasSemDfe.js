@@ -68,7 +68,9 @@ function aplicar(db, receita, regimeEmpresa) {
 function reprocessarEmpresa(db, empresaId) {
   if (!temTabela(db, 'receitas_sem_dfe') || !campos(db).has('status_motor')) return { processadas: 0, pendentes: 0 };
   const regime = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime;
-  const linhas = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId);
+  // Cópias identificadas continuam preservadas para auditoria, mas não podem
+  // gerar CBS/IBS nem voltar a entrar na fotografia do motor.
+  const linhas = db.prepare("SELECT * FROM receitas_sem_dfe WHERE empresa_id=? AND COALESCE(status_validacao,'PENDENTE')<>'POSSIVEL_DUPLICIDADE'").all(empresaId);
   const resultados = linhas.map((x) => aplicar(db, x, regime));
   return { processadas: resultados.length, pendentes: resultados.filter((x) => x.status !== 'DETERMINADO').length };
 }
