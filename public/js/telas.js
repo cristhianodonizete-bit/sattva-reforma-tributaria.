@@ -297,20 +297,23 @@ Telas.dados = async (el) => {
   // separação, abrir Folha ou Apurações também carregava parceiros, lotes,
   // movimentos e toda a lista fiscal, o que aumentava muito o tempo percebido.
   const consultaDocumentos = grupoCentral === 'documentos';
+  const consultaImportacoes = consultaDocumentos && abaDocumentosCentral === 'importacao';
+  const consultaListaFiscal = consultaDocumentos && abaDocumentosCentral === 'documentos' && ['entradas', 'saidas'].includes(abaDocumentosFiscais);
+  const consultaFornecedores = consultaDocumentos && abaDocumentosCentral === 'documentos' && abaDocumentosFiscais === 'fornecedores';
   const consultaDadosAdicionais = ['folha', 'receitas', 'margem'].includes(grupoCentral);
   const consultaApuracoes = grupoCentral === 'apuracoes';
   const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, periodoResposta, prontidao, documentosFiscaisResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta] = await Promise.all([
-    consultaDocumentos ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${abaDocumentosFiscais === 'fornecedores' ? 'fornecedor' : aba}`) : Promise.resolve({ parceiros: [] }),
-    consultaDocumentos ? A.api(`/empresas/${S.empresaId}/lotes`) : Promise.resolve({ lotes: [] }),
+    (consultaImportacoes || consultaFornecedores) ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${consultaFornecedores ? 'fornecedor' : aba}`) : Promise.resolve({ parceiros: [] }),
+    consultaImportacoes ? A.api(`/empresas/${S.empresaId}/lotes`) : Promise.resolve({ lotes: [] }),
     consultaDadosAdicionais ? A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`) : Promise.resolve({ folhas: [], receitas_sem_dfe: [], margens: [] }),
-    consultaDocumentos ? A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`) : Promise.resolve({ fotografia: { pendencias_operacionais: [] } }),
+    consultaImportacoes ? A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`) : Promise.resolve({ fotografia: { pendencias_operacionais: [] } }),
     consultaApuracoes ? A.api(`/empresas/${S.empresaId}/apuracoes-pis-cofins`) : Promise.resolve({ apuracoes: [] }),
     consultaApuracoes && simplesNacional ? A.api(`/empresas/${S.empresaId}/pgdas/documentos`) : Promise.resolve({ documentos: [] }),
     consultaApuracoes ? A.api(`/empresas/${S.empresaId}/periodo-analisado`) : Promise.resolve({ periodo: null }),
     A.api(`/empresas/${S.empresaId}/prontidao-dados`),
-    consultaDocumentos ? A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=2000`) : Promise.resolve({ documentos: [], total: 0 }),
-    consultaDocumentos ? A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`) : Promise.resolve({ movimentos: [], total: 0 }),
-    consultaDocumentos && abaDocumentosFiscais === 'saidas' ? A.api(`/empresas/${S.empresaId}/referencias-vendas`) : Promise.resolve(null),
+    consultaListaFiscal ? A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=2000`) : Promise.resolve({ documentos: [], total: 0 }),
+    consultaImportacoes ? A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`) : Promise.resolve({ movimentos: [], total: 0 }),
+    consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? A.api(`/empresas/${S.empresaId}/referencias-vendas`) : Promise.resolve(null),
     grupoCentral === 'receitas' ? A.api('/config/itens-receita') : Promise.resolve({ itens: [] }),
   ]);
   const { parceiros = [] } = parceirosResposta;

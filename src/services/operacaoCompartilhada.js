@@ -379,26 +379,66 @@ async function carregarMovimentosCanonicos(empresa) {
   } finally { await banco.end(); }
 }
 
-async function reconciliarMovimentosEmpresa(empresaId) {
-  const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+// A leitura da Central de Dados pode disparar mais de uma rota quase ao mesmo
+// tempo (lista, prontidão e Perfil). Consultar e regravar todos os movimentos
+// remotos em cada uma delas faz a navegação escalar com o volume da empresa.
+// Mantemos apenas um marco curto da última sincronização bem-sucedida. Dentro
+// dessa janela a leitura ainda vem do SQLite atual, portanto importações e
+// exclusões feitas nesta instância aparecem imediatamente; o que é adiado por
+// alguns segundos é somente uma alteração vinda de outra instância.
+const JANELA_RECONCILIACAO_MOVIMENTOS_MS = 8000;
+const reconciliacoesRecentes = new Map();
+const reconciliacoesEmAndamento = new Map();
+
+function lerMovimentosLocais(empresaId) {
+  return db.prepare('SELECT * FROM movimentos WHERE empresa_id=?').all(Number(empresaId));
+}
+
+async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
+  const id = Number(empresaId);
+  const agora = Date.now();
+  const maxAgeMs = Number.isFinite(Number(opcoes.maxAgeMs))
+    ? Number(opcoes.maxAgeMs)
+    : JANELA_RECONCILIACAO_MOVIMENTOS_MS;
+  const recente = reconciliacoesRecentes.get(id);
+  if (!opcoes.forcar && maxAgeMs > 0 && recente && agora - recente.sincronizadoEm < maxAgeMs) {
+    return {
+      ativo: true,
+      origem: 'CACHE_LOCAL_RECENTE',
+      inseridos_ou_atualizados: 0,
+      removidos: 0,
+      sincronizado_em: recente.sincronizadoEm,
+      movimentos: lerMovimentosLocais(id),
+    };
+  }
+  if (!opcoes.forcar && reconciliacoesEmAndamento.has(id)) return reconciliacoesEmAndamento.get(id);
+
+  const execucao = (async () => {
+  const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(id);
   if (!empresa?.cnpj) throw new Error('Empresa não encontrada para reconciliação documental.');
   const { remota, linhas, origem } = await carregarMovimentosCanonicos(empresa);
-  const normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), Number(empresa.id)]]));
+  const normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
   const remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
-  const locais = db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(Number(empresa.id)).map((x) => Number(x.id));
+  const locais = db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(id).map((x) => Number(x.id));
   const remover = locais.filter((id) => !remotos.has(id));
   db.transaction(() => {
     if (remover.length) {
       const marcas = remover.map(() => '?').join(',');
       db.prepare(`DELETE FROM motor_resultados WHERE movimento_id IN (${marcas})`).run(...remover);
-      db.prepare(`DELETE FROM movimentos WHERE empresa_id=? AND id IN (${marcas})`).run(Number(empresa.id), ...remover);
+      db.prepare(`DELETE FROM movimentos WHERE empresa_id=? AND id IN (${marcas})`).run(id, ...remover);
     }
     gravar('movimentos', normalizadas, true);
   })();
-  // Também devolve a fotografia canônica para leituras críticas no mesmo
-  // request. Assim, uma tela não volta a depender do SQLite recém-reconciliado
-  // nem de qualquer cache de processo entre a leitura e a consolidação.
-  return { ativo: true, origem, inseridos_ou_atualizados: normalizadas.length, removidos: remover.length, movimentos: normalizadas };
+    const sincronizadoEm = Date.now();
+    reconciliacoesRecentes.set(id, { sincronizadoEm });
+    // Também devolve a fotografia canônica para leituras críticas no mesmo
+    // request. Assim, uma tela não volta a depender do SQLite recém-reconciliado
+    // nem de qualquer cache de processo entre a leitura e a consolidação.
+    return { ativo: true, origem, inseridos_ou_atualizados: normalizadas.length, removidos: remover.length, sincronizado_em: sincronizadoEm, movimentos: normalizadas };
+  })();
+  reconciliacoesEmAndamento.set(id, execucao);
+  try { return await execucao; }
+  finally { reconciliacoesEmAndamento.delete(id); }
 }
 
 // A trilha remota é a fonte de verdade para o delta. O marco só é avançado
