@@ -2126,10 +2126,14 @@ function listarDocumentosFiscais(empresaId, limite = 2000) {
 }
 function filtrarDocumentosFiscais(documentos, filtros = {}) {
   const busca=String(filtros.busca || '').trim().toLowerCase();
+  const minimo=filtros.valor_minimo === undefined || filtros.valor_minimo === '' ? null : Number(String(filtros.valor_minimo).replace(',','.'));
+  const maximo=filtros.valor_maximo === undefined || filtros.valor_maximo === '' ? null : Number(String(filtros.valor_maximo).replace(',','.'));
   return documentos.filter((d) => (!filtros.competencia || d.competencia===filtros.competencia)
     && (!filtros.modelo || String(d.modelo_documento_fiscal || 'NAO_IDENTIFICADO').toUpperCase()===String(filtros.modelo).toUpperCase())
     && (!filtros.sentido || d.tipo===filtros.sentido)
     && (!filtros.receita || (filtros.receita==='SIM' ? d.operacao_receita : !d.operacao_receita))
+    && (!Number.isFinite(minimo) || Number(d.valor) >= minimo)
+    && (!Number.isFinite(maximo) || Number(d.valor) <= maximo)
     && (!busca || `${d.documento || ''} ${d.chave || ''} ${d.parceiro || ''}`.toLowerCase().includes(busca)));
 }
 // Documento fiscal é uma evidência operacional. A tela e a exportação não

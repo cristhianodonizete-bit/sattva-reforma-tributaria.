@@ -681,5 +681,5 @@ window.MotorUI.abasBases = [
 comAbas('dados', [
   { id: 'atual', t: 'Planilhas' },
   { id: 'xml', t: 'XML e SPED', render: projImportacaoXml },
-], 'atual', 'dadosMotor', { mostrarQuando: () => (S.aba.centralDados || 'documentos') === 'documentos' });
+], 'atual', 'dadosMotor', { mostrarQuando: () => (S.aba.centralDados || 'documentos') === 'documentos' && !['documentos'].includes(S.aba.documentosCentral || 'importacao') });
 })();
