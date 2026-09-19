@@ -42,6 +42,32 @@ async function removerFolhaPorCompetencia(empresaLocalId, competencia) {
   return { ativo:true, removidas:count || 0 };
 }
 
+// A exclusão precisa atingir a fonte compartilhada antes do cache local.
+// Assim, um registro removido pelo usuário não reaparece numa restauração.
+async function removerReceita(db, empresaLocalId, receitaId) {
+  const receita = db.prepare('SELECT * FROM receitas_sem_dfe WHERE id=? AND empresa_id=?')
+    .get(Number(receitaId), Number(empresaLocalId));
+  if (!receita) throw new Error('Receita complementar não localizada para exclusão.');
+
+  if (supabase.configurado()) {
+    const remoto = supabase.admin();
+    const empresaIdRemota = await empresaRemota(remoto, empresaLocalId);
+    const chave = String(receita.chave_deduplicacao || '').trim();
+    if (!chave) throw new Error('Este lançamento não possui uma identidade estável para exclusão segura.');
+    const { data, error } = await remoto.from('receitas_sem_dfe')
+      .delete()
+      .eq('empresa_id', empresaIdRemota)
+      .eq('chave_deduplicacao', chave)
+      .select('id');
+    if (error) throw new Error(`receitas_sem_dfe: ${error.message}`);
+    if (!data?.length) throw new Error('Lançamento não localizado na fonte compartilhada; nenhuma exclusão foi realizada.');
+  }
+
+  db.prepare('DELETE FROM receitas_sem_dfe WHERE id=? AND empresa_id=?')
+    .run(Number(receitaId), Number(empresaLocalId));
+  return { excluida: true, receita_id: Number(receitaId), identificador_origem: receita.identificador_origem || null };
+}
+
 function gravarLocal(db, tabela, empresaLocalId, linhas, conflito) {
   if (!linhas.length) return 0;
   const permitidas = new Set(db.prepare(`PRAGMA table_info(${tabela})`).all().map((x) => x.name));
@@ -67,4 +93,4 @@ async function restaurar(db, empresaLocalId) {
   return { ativo:true, ...resultado };
 }
 
-module.exports = { publicar, restaurar, removerFolhaPorCompetencia };
+module.exports = { publicar, restaurar, removerFolhaPorCompetencia, removerReceita };

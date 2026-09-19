@@ -1206,6 +1206,15 @@ router.post('/empresas/:id/receitas-sem-dfe', async (req, res) => {
   }
   catch (e) { erro(res, e); }
 });
+router.delete('/empresas/:id/receitas-sem-dfe/:receitaId', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    await dadosAdicionaisCompartilhados.restaurar(db, empresaId);
+    const resultado = await dadosAdicionaisCompartilhados.removerReceita(db, empresaId, Number(req.params.receitaId));
+    ok(res, resultado);
+  }
+  catch (e) { erro(res, e); }
+});
 
 // Janela comum de análise: define o intervalo de competência de todos os
 // relatórios da empresa e protege novas importações sem tocar no histórico.
