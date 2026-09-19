@@ -286,6 +286,7 @@ Telas.empresas = async (el) => {
 Telas.dados = async (el) => {
   const aba = S.aba.dados || 'fornecedor';
   const grupoCentral = S.aba.centralDados || 'documentos';
+  const abaImportacaoPlanilha = S.aba.importacaoPlanilha || 'cadastro';
   const filtroPendencia = S.aba.dadosPendencia || null;
   const regimeEmpresa = S.empresa?.regime || '';
   const simplesNacional = regimeEmpresa === 'simples_nacional';
@@ -390,8 +391,12 @@ Telas.dados = async (el) => {
       </button>
     </section>` : ''}
     ${filtroPendencia ? `<div class="aviso atencao" style="margin-top:16px"><b>Filtro ativo: operação #${A.esc(filtroPendencia.movimento_id || '—')} · ${A.esc(filtroPendencia.dimensao || 'pendência')} · ${A.esc(filtroPendencia.status || '')}</b><br><span class="mini">${A.esc(filtroPendencia.acao || 'Revise a pendência selecionada.')} ${filtroPendencia.fonte_minima ? `Fonte mínima: ${A.esc(filtroPendencia.fonte_minima)}` : ''}</span><div style="margin-top:8px"><button class="btn pq vazio" id="limparFiltroPendencia">Limpar filtro</button></div></div>` : ''}
-    ${grupoCentral === 'documentos' ? `<div class="grade g2" style="margin-top:16px">
-      <div class="cartao" id="cadastro">
+    ${grupoCentral === 'documentos' ? `<div class="abas" style="margin-top:16px" role="tablist">
+      <button class="aba ${abaImportacaoPlanilha === 'cadastro' ? 'ativa' : ''}" data-importacao-planilha-aba="cadastro">Cadastro de ${rotulo}</button>
+      <button class="aba ${abaImportacaoPlanilha === 'movimentacao' ? 'ativa' : ''}" data-importacao-planilha-aba="movimentacao">Movimentação</button>
+      <button class="aba ${abaImportacaoPlanilha === 'conferencia' ? 'ativa' : ''}" data-importacao-planilha-aba="conferencia">Conferência da base</button>
+    </div>
+    <div class="cartao" data-importacao-planilha-painel="cadastro" style="margin-top:16px" id="cadastro">
         <h2>1. Cadastro de ${rotulo}</h2>
         <p class="desc">Planilha com CNPJ, descrição e regime tributário. A ordem das colunas não importa.</p>
         ${A.dropzone('zonaParceiros', `<b>Solte a planilha de ${rotulo} aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>`, (f) => enviar(f, 'parceiros'))}
@@ -402,7 +407,7 @@ Telas.dados = async (el) => {
           <span class="mini" style="margin-left:auto;align-self:center">${parceiros.length} cadastrados</span>
         </div>
       </div>
-      <div class="cartao" id="movimentacao">
+      <div class="cartao" data-importacao-planilha-painel="movimentacao" style="margin-top:16px" id="movimentacao">
         <h2>2. Movimentação de ${rotulo}</h2>
         <p class="desc">Nome, inscrição federal, descrição do produto, NCM, valor, base de cálculo e impostos.</p>
         ${A.dropzone('zonaMov', `<b>Solte a movimentação aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>`, (f) => enviar(f, 'movimentos'))}
@@ -413,7 +418,12 @@ Telas.dados = async (el) => {
           <span class="mini" style="margin-left:auto;align-self:center">${total.c} lançamentos · ${A.moeda(total.v)}</span>
         </div>
       </div>
-    </div>` : ''}
+      <div class="cartao" data-importacao-planilha-painel="conferencia" style="margin-top:16px">
+        <h2>3. Conferência da base</h2>
+        <p class="desc">Revise o que foi cadastrado e importado antes de usar esses dados nas análises e no motor.</p>
+        <div class="grade g3" style="margin-top:16px">${A.kpi(`${rotulo[0].toUpperCase() + rotulo.slice(1)} cadastrados`, parceiros.length, 'cadastro disponível')}${A.kpi('Lançamentos analisáveis', total.c, A.moeda(total.v))}${A.kpi('Lotes registrados', lotes.length, 'arquivos preservados na empresa')}</div>
+        <div style="display:flex;gap:8px;margin-top:16px;flex-wrap:wrap"><button class="btn ouro pq" id="executarMotorPlanilha">Ver prontidão do motor</button><button class="btn vazio pq" data-documentos-central-aba="lotes">Ver lotes importados</button><button class="btn vazio pq" data-documentos-central-aba="parceiros">Ver ${rotulo}</button></div>
+      </div>` : ''}
     ${grupoCentral === 'folha' ? `<div class="cartao" style="margin-top:16px"><p class="desc">Não é necessário detalhar empregados nem enviar histórico: a última folha e o pró-labore informados são anualizados para 12 meses na projeção.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addFolha">Informar última folha</button><button class="btn vazio" id="importarFolha">Importar planilha</button><button class="btn vazio" id="declararFolha">Declarar ausência</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/folha').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g3" style="margin-top:16px">${A.kpi('Última folha',(dadosAdicionais.folhas || [])[0]?.competencia || 'Não informada','referência da projeção anual')}${A.kpi('Valor informado',dadosAdicionais.folhas?.[0] ? A.moeda(dadosAdicionais.folhas[0].valor_folha) : 'Não informado','valor mensal que compõe a projeção')}${A.kpi('Pendências',(itemProntidao('folha')?.pendencias || []).length,'informação atual a resolver')}</div></div>
     <div class="cartao" style="margin-top:16px"><h2>Folhas informadas</h2><p class="desc">Valores agregados por competência que serão anualizados na projeção. A tela não detalha empregados.</p>${A.tabela([
       {t:'Competência',r:x=>`<b class="mono">${A.esc(x.competencia || '—')}</b>`},
@@ -533,6 +543,8 @@ Telas.dados = async (el) => {
     const abaDocumentosCentral = S.aba.documentosCentral || 'documentos';
     el.querySelectorAll('[data-documentos-central-painel]').forEach((painel) => { painel.style.display = painel.dataset.documentosCentralPainel === abaDocumentosCentral ? '' : 'none'; });
     el.querySelectorAll('[data-documentos-central-aba]').forEach((botao) => { botao.onclick = () => { S.aba.documentosCentral = botao.dataset.documentosCentralAba; S.aba.dadosPendencia = null; A.ir('dados'); }; });
+    el.querySelectorAll('[data-importacao-planilha-painel]').forEach((painel) => { painel.style.display = painel.dataset.importacaoPlanilhaPainel === abaImportacaoPlanilha ? '' : 'none'; });
+    el.querySelectorAll('[data-importacao-planilha-aba]').forEach((botao) => { botao.onclick = () => { S.aba.importacaoPlanilha = botao.dataset.importacaoPlanilhaAba; A.ir('dados'); }; });
     const atualizarFiltroDocumentos = () => {
       S.aba.documentosFiscais = {
         competencia: document.getElementById('filtroDocumentoCompetencia')?.value || '',
@@ -809,7 +821,10 @@ Telas.dados = async (el) => {
         })}<div style="margin-top:12px"><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/referencias_servicos').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>`,
       });
     });
-    el.querySelectorAll('[data-ir-importacao]').forEach((b) => { b.onclick = () => document.getElementById(b.dataset.irImportacao)?.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
+    el.querySelectorAll('[data-ir-importacao]').forEach((b) => { b.onclick = () => {
+      S.aba.importacaoPlanilha = ({ cadastro:'cadastro', movimentacao:'movimentacao', historico:'conferencia' })[b.dataset.irImportacao] || 'cadastro';
+      A.ir('dados');
+    }; });
 
   document.getElementById('addFolha')?.addEventListener('click', () => A.modal({
     titulo: 'Informar folha de pagamento', descricao: 'Registro agregado por competência; não exige dados individuais de empregados.',
