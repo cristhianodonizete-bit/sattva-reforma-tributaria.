@@ -4960,8 +4960,9 @@ router.get('/empresas/:id/questor/cancelamentos-pendentes', (req,res)=>{ try {
   const empresaId=Number(req.params.id);
   const cancelamentos=db.prepare(`SELECT data_emissao,numero,modelo_documento_fiscal,serie,situacao,origem,evidencia
     FROM documentos_fiscais_cancelamentos WHERE empresa_id=? ORDER BY data_emissao DESC,numero DESC`).all(empresaId);
-  const movimentos=db.prepare(`SELECT documento,modelo_documento_fiscal,data_emissao FROM movimentos WHERE empresa_id=?`).all(empresaId);
-  const possuiDocumentoConciliavel=(c)=>{
+  const movimentos=db.prepare(`SELECT id,documento,chave,modelo_documento_fiscal,data_emissao,situacao_documento,cancelamento_origem
+    FROM movimentos WHERE empresa_id=?`).all(empresaId);
+  const localizarDocumento=(c)=>{
     const mesmaIdentidade=movimentos.filter((m)=>{
     const partes=String(m.documento||'').split('/'); const numero=(partes[partes.length-1]||'').replace(/\D/g,'');
     return numero===String(c.numero||'').replace(/\D/g,'')
@@ -4973,15 +4974,24 @@ router.get('/empresas/:id/questor/cancelamentos-pendentes', (req,res)=>{ try {
       const serie=String(m.documento||'').split('/')[0].replace(/\D/g,'');
       return !c.serie || !serie || serie===String(c.serie);
     });
-    if(comSerie.length) return true;
+    if(comSerie.length) return comSerie;
     // NFS-e pode usar série formatada de forma diferente no XML e no
     // relatório Questor. Só consideramos conciliado sem série se a
     // identidade número + modelo + data levar a um único documento.
     const documentos=new Set(candidatos.map((m)=>m.chave || `d:${m.documento}`));
-    return String(c.modelo_documento_fiscal||'').toLowerCase()==='nfse' && documentos.size===1;
+    return String(c.modelo_documento_fiscal||'').toLowerCase()==='nfse' && documentos.size===1 ? candidatos : [];
   };
-  const pendentes=cancelamentos.filter((c)=>!possuiDocumentoConciliavel(c));
-  ok(res,{total:pendentes.length,documentos:pendentes});
+  const pendentes=[],encontrados=[];
+  for(const cancelamento of cancelamentos){
+    const documentos=localizarDocumento(cancelamento);
+    if(!documentos.length) { pendentes.push(cancelamento); continue; }
+    const situacoes=[...new Set(documentos.map((m)=>String(m.situacao_documento||'AUTORIZADO').toUpperCase()))];
+    const conciliado=situacoes.every((s)=>['CANCELADO','DENEGADO','INUTILIZADO'].includes(s));
+    encontrados.push({...cancelamento,conciliado,documento_encontrado:documentos[0].documento||documentos[0].chave||`#${documentos[0].id}`,
+      situacao_documento:situacoes.join(', '),cancelamento_origem:documentos[0].cancelamento_origem||null});
+  }
+  ok(res,{total:pendentes.length,documentos:pendentes,encontrados,total_encontrados:encontrados.length,
+    total_conciliados:encontrados.filter((x)=>x.conciliado).length});
 }catch(e){erro(res,e);}});
 
 // Reaplica a evidência Questor já armazenada. É seguro executar repetidas

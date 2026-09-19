@@ -694,7 +694,7 @@ Telas.questor = async (el) => {
   const { log } = await A.api('/questor/log');
   const { conectores } = await A.api('/questor/conectores');
   const { tarefas } = await A.api('/questor/tarefas');
-  const cancelamentosPendentes = S.empresaId ? await A.api(`/empresas/${S.empresaId}/questor/cancelamentos-pendentes`).catch(() => ({ total:0, documentos:[] })) : { total:0, documentos:[] };
+  const cancelamentosPendentes = S.empresaId ? await A.api(`/empresas/${S.empresaId}/questor/cancelamentos-pendentes`).catch(() => ({ total:0, documentos:[], encontrados:[], total_encontrados:0, total_conciliados:0 })) : { total:0, documentos:[], encontrados:[], total_encontrados:0, total_conciliados:0 };
   const estadoTarefa = (t) => ({
     PENDENTE: ['Aguardando conector', 'a'], EM_EXECUCAO: ['Processando', ''], CONCLUIDA: ['Concluída', 'c'], ERRO: ['Falhou', 'alto'],
   }[t.status] || [t.status, '']);
@@ -753,7 +753,7 @@ Telas.questor = async (el) => {
       {t:'Finalizada em',r:t=>`<span class="mini mono">${A.esc(t.executado_em||'—')}</span>`},
       {t:'Detalhe',r:detalheTarefa},
     ],tarefas,{vazio:'Nenhuma solicitação enviada por você ainda.'})}</div>
-    <div data-questor-painel="conciliacoes" style="margin-top:16px"><div class="abas" role="tablist"><button class="aba ${(S.aba.questorConciliacoes||'historico')==='historico'?'ativa':''}" data-questor-conciliacao-aba="historico">Histórico de conciliações</button><button class="aba ${(S.aba.questorConciliacoes||'historico')==='pendentes'?'ativa':''}" data-questor-conciliacao-aba="pendentes">Cancelamentos pendentes${cancelamentosPendentes.total?` <span class="tag a">${cancelamentosPendentes.total}</span>`:''}</button></div>
+    <div data-questor-painel="conciliacoes" style="margin-top:16px"><div class="abas" role="tablist"><button class="aba ${(S.aba.questorConciliacoes||'historico')==='historico'?'ativa':''}" data-questor-conciliacao-aba="historico">Histórico de conciliações</button><button class="aba ${(S.aba.questorConciliacoes||'historico')==='pendentes'?'ativa':''}" data-questor-conciliacao-aba="pendentes">Cancelamentos pendentes${cancelamentosPendentes.total?` <span class="tag a">${cancelamentosPendentes.total}</span>`:''}</button><button class="aba ${(S.aba.questorConciliacoes||'historico')==='encontrados'?'ativa':''}" data-questor-conciliacao-aba="encontrados">Encontrados${cancelamentosPendentes.total_encontrados?` <span class="tag c">${cancelamentosPendentes.total_encontrados}</span>`:''}</button></div>
     <div class="cartao" data-questor-conciliacao-painel="historico" style="margin-top:16px"><h2>Conciliações fiscais</h2><p class="desc">Histórico de cancelamentos e de CFOPs contábeis retornados pelo Questor.</p>${A.tabela([
       {t:'Empresa',r:t=>A.esc(t.empresa_nome||'—')},
       {t:'Solicitada em',r:t=>A.esc(t.criado_em||'—')},
@@ -767,6 +767,12 @@ Telas.questor = async (el) => {
       {t:'Situação',r:x=>`<span class="tag a">${A.esc(x.situacao||'CANCELADO')}</span>`},
       {t:'Origem',r:x=>A.esc(x.origem==='QUESTOR_RELATORIO_CANCELADOS'?'Questor':'—')},
     ],cancelamentosPendentes.documentos||[],{vazio:'Nenhum cancelamento pendente de documento para esta empresa.'})}</div></div>
+    <div class="cartao" data-questor-painel="conciliacoes" data-questor-conciliacao-painel="encontrados" style="margin-top:16px"><h2>Cancelamentos encontrados</h2><p class="desc">Histórico dos documentos localizados a partir do retorno do Questor. A situação informa se a baixa já foi aplicada à nota.</p>${A.tabela([
+      {t:'Data',r:x=>A.esc(x.data_emissao||'—')},
+      {t:'Cancelamento Questor',r:x=>`<b>${A.esc(x.numero||'—')}</b><div class="mini">Série ${A.esc(x.serie||'não informada')} · ${A.esc(String(x.modelo_documento_fiscal||'—').toUpperCase())}</div>`},
+      {t:'Documento encontrado',r:x=>`<b>${A.esc(x.documento_encontrado||'—')}</b><div class="mini">${A.esc(x.cancelamento_origem==='QUESTOR_RELATORIO_CANCELADOS'?'Baixado pelo Questor':x.cancelamento_origem||'Origem do cancelamento não informada')}</div>`},
+      {t:'Situação',r:x=>x.conciliado?'<span class="tag c">Conciliado</span>':'<span class="tag a">Encontrado · requer conciliação</span>'},
+    ],cancelamentosPendentes.encontrados||[],{vazio:'Nenhum documento foi localizado para os cancelamentos retornados.'})}</div>
     <div class="cartao" data-questor-painel="configuracao"><h2>Mapa de endpoints</h2>
       <p class="desc">Caminhos, parâmetros e de-para de campos. Ajuste conforme a versão do seu Questor — o sistema não depende de código para isso.</p>
       <textarea id="endpoints" rows="16" class="mono" style="font-size:12px">${A.esc(JSON.stringify(config.endpoints, null, 2))}</textarea>
