@@ -15,6 +15,7 @@ const soma = (o, k, v) => { o[k] = r2(n(o[k]) + n(v)); };
 // recebe chave nova, portanto um resultado fiscal atualizado nunca é reutilizado.
 const LIMITE_PERFIS_EM_MEMORIA = 12;
 const perfisPorExecucao = new Map();
+function invalidarMemoria() { perfisPorExecucao.clear(); }
 function guardarPerfil(empresaId, execucaoId, competencias, escopo = 'sem-periodo') {
   const chave = `${empresaId}:${execucaoId}:${escopo}`;
   perfisPorExecucao.set(chave, competencias);
@@ -146,4 +147,4 @@ function detalhes(empresaId, competencia, filtros = {}) {
   const p = [empresaId, competencia]; if (filtros.sentido) { sql += ' AND r.sentido=?'; p.push(filtros.sentido); }
   return db.prepare(`${sql} ORDER BY r.preco_atual DESC`).all(...p).map((x) => ({ ...x, detalhe: JSON.parse(x.detalhe || '{}') }));
 }
-module.exports = { materializar, listar, detalhes, naturezaApresentacao };
+module.exports = { materializar, listar, detalhes, naturezaApresentacao, invalidarMemoria };

@@ -197,6 +197,11 @@ const configuracaoCalculoValida = () => configuracaoCalculo.atualizadaEm
 const invalidarConfiguracaoDeCalculo = () => {
   configuracaoCalculo.atualizadaEm = 0;
   configuracaoCalculo.proximaTentativaEm = 0;
+  // Uma regra de CFOP pode alterar faturamento ou compras exibidos no Perfil
+  // CBS. A fotografia persistida não é reescrita aqui, mas o consolidado em
+  // memória precisa ser refeito na próxima leitura para não mostrar regra
+  // antiga depois de salvar a configuração.
+  require('../services/perfilCbs').invalidarMemoria();
 };
 const responderBasesEmCache = (req, res, carregar) => {
   const chave = req.originalUrl;
