@@ -78,7 +78,7 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
 // Confronto estritamente informativo entre as fontes que já foram importadas.
 // Não há estimativa nem alteração de dado fiscal: uma divergência apenas pede
 // conferência do responsável antes de usar os números em uma decisão.
-function montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe = []) {
+function montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe = [], deducoesDevolucoes = []) {
   const porCompetencia = new Map();
   const obter = (competencia) => {
     if (!porCompetencia.has(competencia)) porCompetencia.set(competencia, { competencia, documentos: null, outras_receitas: null, pis_cofins: null, pgdas: null });
@@ -94,6 +94,17 @@ function montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe = [
     const outras = atual.outras_receitas || { valor: 0, quantidade: 0, fonte: 'Outras receitas importadas' };
     outras.valor += numero(x.valor); outras.quantidade++;
     atual.outras_receitas = outras;
+  });
+  // Devolução de venda chega como entrada (CFOP 1.202/2.202), portanto não
+  // pode ser tratada como venda nem como "outra receita". Ela reduz a venda
+  // bruta do mês, preservando os documentos que comprovam a dedução.
+  (deducoesDevolucoes || []).forEach((x) => {
+    const atual = obter(x.competencia);
+    const deducoes = atual.deducoes_devolucoes || { valor: 0, quantidade: 0, fonte: 'Devoluções de venda (CFOP 1.202/2.202)', itens: [] };
+    deducoes.valor += numero(x.valor);
+    deducoes.quantidade++;
+    deducoes.itens.push({ documento:x.documento || null, chave:x.chave || null, cfop:x.cfop || null, descricao:x.descricao || null, valor:numero(x.valor), modelo:x.modelo_documento_fiscal || null, data_emissao:x.data_emissao || null });
+    atual.deducoes_devolucoes = deducoes;
   });
   (apuracoes || []).forEach((x) => {
     const atual = obter(x.competencia);
@@ -116,7 +127,9 @@ function montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe = [
   return [...porCompetencia.values()].sort((a, b) => String(a.competencia).localeCompare(String(b.competencia))).map((linha) => {
     const documentosImportados = linha.documentos?.valor ?? null;
     const outrasReceitas = linha.outras_receitas?.valor ?? null;
-    const receitaAnalisada = documentosImportados === null && outrasReceitas === null ? null : numero(documentosImportados) + numero(outrasReceitas);
+    const devolucoes = linha.deducoes_devolucoes?.valor ?? 0;
+    const receitaAnalisada = documentosImportados === null && outrasReceitas === null && !linha.deducoes_devolucoes
+      ? null : numero(documentosImportados) + numero(outrasReceitas) - devolucoes;
     const bases = [linha.pis_cofins, linha.pgdas].filter(Boolean);
     const basesComValor = bases.filter((x) => x.valor !== null);
     const diferencas = basesComValor.map((x) => ({ fonte: x.fonte, valor: x.valor - receitaAnalisada }));
@@ -152,8 +165,9 @@ function consolidar(db, empresaId, opcoes = {}) {
   const colunaMovimento = (nome) => colunasMovimentos.has(nome) ? nome : `NULL AS ${nome}`;
   const movimentosFonte = Array.isArray(opcoes.movimentos)
     ? opcoes.movimentos
-    : db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')},${colunaMovimento('situacao_documento')},${colunaMovimento('normalizacao_evidencia')}
+    : db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('documento')},${colunaMovimento('chave')},${colunaMovimento('descricao')},${colunaMovimento('data_emissao')},${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')},${colunaMovimento('situacao_documento')},${colunaMovimento('normalizacao_evidencia')}
       FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId);
+  const deducoesDevolucoes = [];
   movimentosFonte
     .filter((x) => Number(x.empresa_id || empresaId) === Number(empresaId) && String(x.competencia || '') !== '')
     .filter((x) => receitaOperacional.ehSaida(x) && noExercicio(x.competencia))
@@ -182,6 +196,12 @@ function consolidar(db, empresaId, opcoes = {}) {
       }
       documentosPorCompetencia.set(x.competencia,atual);
     });
+  movimentosFonte
+    .filter((x) => Number(x.empresa_id || empresaId) === Number(empresaId) && String(x.competencia || '') !== '')
+    .filter((x) => noExercicio(x.competencia))
+    .filter((x) => !receitaOperacional.ehSaida(x) && ['1202', '2202'].includes(receitaOperacional.cfopEfetivo(x)))
+    .filter((x) => !['CANCELADO', 'DENEGADO', 'INUTILIZADO'].includes(String(x.situacao_documento || '').toUpperCase()))
+    .forEach((x) => deducoesDevolucoes.push({ ...x, cfop:receitaOperacional.cfopEfetivo(x), valor:valorDocumental(x) }));
   const documentos=[...documentosPorCompetencia.values()];
   const apuracoes = tabelaExiste(db, 'pis_cofins_apuracoes_historicas')
     ? db.prepare(`SELECT a.*, d.nome_original, d.hash_sha256 FROM pis_cofins_apuracoes_historicas a
@@ -286,7 +306,7 @@ function consolidar(db, empresaId, opcoes = {}) {
     margem_operacional: historico.some((x) => x.margem_operacional.natureza !== 'INDETERMINADO') ? 'DISPONIVEL' : 'INDETERMINADO',
     cbs_motor: historico.some((x) => x.cbs_motor_existente.natureza === 'CALCULADO') ? 'DISPONIVEL' : 'INDETERMINADO',
   };
-  const auditoria_mensal = montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe);
+  const auditoria_mensal = montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe, deducoesDevolucoes);
   const composicao_pis_cofins_pgdas = montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio);
   return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal, composicao_receita:[...composicaoReceita.values()].sort((a,b)=>b.valor-a.valor), composicao_pis_cofins_pgdas };
 }

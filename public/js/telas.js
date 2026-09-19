@@ -1179,19 +1179,20 @@ Telas.perfil = async (el) => {
   const colunaApuracao = (apuracao) => !apuracao ? '—' : apuracao.valor === null
     ? `<span class="mini">Receita não identificada</span>`
     : `${A.moeda(apuracao.valor)}<br><span class="mini">${A.esc(apuracao.documento || apuracao.origem || apuracao.fonte)}</span>`;
-  const conteudoAuditoria = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Auditoria mensal de receitas</h2><p class="desc">Confronto informativo entre documentos fiscais, outras receitas registradas e as apurações importadas. Diferenças não bloqueiam o sistema nem alteram a apuração.</p></div><span class="tag">${auditoriaMensal.length} competência(s)</span></div>
+  const conteudoAuditoria = `<div class="cartao"><div class="cabecalho-lista"><div><h2>Auditoria mensal de receitas</h2><p class="desc">Confronto entre o PGDAS importado, vendas/documentos e outros lançamentos importados. A auditoria apenas explica a diferença; não altera a apuração declarada.</p></div><span class="tag">${auditoriaMensal.length} competência(s)</span></div>
     ${A.tabela([
       { t:'Competência', r:x=>A.esc(x.competencia) },
-      { t:'Documentos fiscais', num:true, r:x=>x.documentos ? `${A.moeda(x.documentos.valor)}<br><span class="mini">${x.documentos.quantidade} documento(s) de venda/serviço</span>` : '—' },
+      { t:'Vendas/documentos', num:true, r:x=>x.documentos ? `${A.moeda(x.documentos.valor)}<br><span class="mini">${x.documentos.quantidade} documento(s) de venda/serviço</span>` : '—' },
+      { t:'Devoluções de venda', num:true, r:x=>x.deducoes_devolucoes ? `− ${A.moeda(x.deducoes_devolucoes.valor)}<br><span class="mini">${x.deducoes_devolucoes.quantidade} entrada(s) CFOP 1.202/2.202</span>` : '—' },
       { t:'Outras receitas', num:true, r:x=>x.outras_receitas ? `${A.moeda(x.outras_receitas.valor)}<br><span class="mini">${x.outras_receitas.quantidade} lançamento(s) · ${A.esc(x.outras_receitas.fonte)}</span>` : '—' },
-      { t:'Receita analisada', num:true, r:x=>x.receita_analisada === null ? '—' : `${A.moeda(x.receita_analisada)}<br><span class="mini">documentos + outras receitas</span>` },
+      { t:'Receita analisada', num:true, r:x=>x.receita_analisada === null ? '—' : `${A.moeda(x.receita_analisada)}<br><span class="mini">vendas − devoluções + outros lançamentos</span>` },
       { t:'Apuração PIS/Cofins', num:true, r:x=>colunaApuracao(x.pis_cofins) },
       { t:'PGDAS', num:true, r:x=>colunaApuracao(x.pgdas) },
       ...(simplesCaixa ? [{ t:'Recebido (caixa)', num:true, r:x=>x.receita_recebida ? `${A.moeda(x.receita_recebida.valor)}<br><span class="mini">informativo; base da carga</span>` : '—' }] : []),
       { t:'Diferença', num:true, r:x=>x.diferencas?.length ? x.diferencas.map((d)=>`${A.moeda(d.valor)}<br><span class="mini">${A.esc(d.fonte)}</span>`).join('') : '—' },
-      { t:'Situação', r:x=>`<span class="tag ${classeAuditoria(x.situacao)}">${A.esc(rotuloAuditoria(x.situacao))}</span>` },
+      { t:'Situação', r:x=>`<span class="tag ${classeAuditoria(x.situacao)}">${A.esc(rotuloAuditoria(x.situacao))}</span><br><button class="btn pq vazio" style="margin-top:7px" data-auditoria-detalhe="${A.esc(x.competencia)}">Ver memória</button>` },
     ], auditoriaMensal, { vazio:'Ainda não há documentos, outras receitas ou apurações importadas no período analisado para confrontar.' })}
-    <p class="mini" style="margin-top:12px">A comparação usa somente a janela do período analisado. Ela não presume que uma divergência seja erro fiscal: ajustes, retenções e critérios próprios do documento devem ser conferidos na origem.</p>
+    <p class="mini" style="margin-top:12px">A comparação usa somente a janela do período analisado. Devoluções de venda por CFOP 1.202/2.202 reduzem a venda bruta e ficam listadas na memória da competência.</p>
   </div>`;
   const rotuloCompetencia = (competencia) => { const [ano, mes] = String(competencia || '').split('-'); return ano && mes ? `${['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'][Number(mes) - 1]}/${ano.slice(-2)}` : '—'; };
   const grupoModeloReceita = (modelo) => {
@@ -1295,6 +1296,25 @@ Telas.perfil = async (el) => {
     const mensal = el.querySelector('#tabelaComposicaoMensal'); const detalhe = el.querySelector('#tabelaDetalheComposicao');
     if (mensal) mensal.innerHTML = tabelaComposicaoMensal(filtro);
     if (detalhe) detalhe.innerHTML = tabelaDetalheComposicao(filtro);
+  }; });
+  el.querySelectorAll('[data-auditoria-detalhe]').forEach((botao) => { botao.onclick = () => {
+    const linha = auditoriaMensal.find((x) => String(x.competencia) === String(botao.dataset.auditoriaDetalhe));
+    if (!linha) return;
+    const devolucoes = linha.deducoes_devolucoes?.itens || [];
+    const memoria = [
+      { fonte:'Vendas/documentos importados', composicao:'Soma bruta das saídas que compõem receita', valor:linha.documentos?.valor ?? null },
+      { fonte:'Devoluções de venda', composicao:'Dedução das entradas CFOP 1.202/2.202', valor:linha.deducoes_devolucoes ? -Number(linha.deducoes_devolucoes.valor || 0) : null },
+      { fonte:'Outros lançamentos importados', composicao:'Receitas sem DF-e confirmadas', valor:linha.outras_receitas?.valor ?? null },
+      { fonte:'Receita analisada', composicao:'Vendas − devoluções + outros lançamentos', valor:linha.receita_analisada },
+      ...(linha.pgdas ? [{ fonte:'PGDAS importado', composicao:linha.pgdas.origem || 'Documento confirmado', valor:linha.pgdas.valor }] : []),
+    ];
+    const tabelaDevolucoes = devolucoes.length ? `<h3 style="margin-top:18px">Documentos que deduzem vendas</h3>${A.tabela([
+      {t:'Documento',r:x=>`<b>${A.esc(x.documento || 'Não identificado')}</b><br><span class="mini">${A.esc(x.modelo || 'Modelo não identificado')} · ${A.esc(x.data_emissao || 'data não identificada')}</span>`},
+      {t:'CFOP',r:x=>A.esc(x.cfop || '—')}, {t:'Descrição',r:x=>A.esc(x.descricao || '—')}, {t:'Valor deduzido',num:true,r:x=>`− ${A.moeda(x.valor)}`}
+    ], devolucoes)}` : '<p class="mini" style="margin-top:16px">Não há devolução de venda identificada nesta competência.</p>';
+    A.modal({ titulo:`Memória da divergência — ${linha.competencia}`, largura:1050, confirmar:'Fechar', descricao:'Leitura de conciliação. Nenhum documento ou valor fiscal é alterado por esta tela.', corpo:`${A.tabela([
+      {t:'Componente',r:x=>A.esc(x.fonte)}, {t:'Como foi tratado',r:x=>A.esc(x.composicao)}, {t:'Valor',num:true,r:x=>x.valor === null ? '—' : A.moeda(x.valor)}
+    ], memoria)}${tabelaDevolucoes}` });
   }; });
   el.querySelectorAll('[data-apuracao-revisar]').forEach((botao) => { botao.onclick = () => {
     const apuracao = apuracoes.find((x) => Number(x.id) === Number(botao.dataset.apuracaoRevisar));
