@@ -1155,13 +1155,32 @@ Telas.perfil = async (el) => {
   const valoresCofins = apuracoesValidasDoExercicio.length
     ? apuracoesValidasDoExercicio.map((x) => numero(x.cofins_recolhida) ?? numero(x.cofins_debito))
     : historico.map((x) => valorDaApuracao(x, 'cofins_recolhida', 'cofins_debito', 'cofins_historico'));
+  // No Simples, o resumo precisa refletir a apuração reconstruída por
+  // competência quando ela cobre integralmente a base do mês. Os valores
+  // declarados do PGDAS continuam preservados para confronto na memória,
+  // mas não podem continuar ocupando o card como se fossem o recálculo.
+  const recalculosCompetencia = new Map();
+  (tributario.composicao_pis_cofins_pgdas || []).forEach((linha) => {
+    if (!noPeriodoDoPerfil(linha.competencia) || recalculosCompetencia.has(linha.competencia)) return;
+    const calculadoIntegralmente = ['CALCULADO', 'CALCULADO_COM_DIVERGENCIA_PGDAS'].includes(linha.calculo_competencia_status)
+      && Math.abs(Number(linha.receita_competencia_sem_anexo || 0)) <= 0.02;
+    if (!calculadoIntegralmente || numero(linha.pis_competencia) === null || numero(linha.cofins_competencia) === null) return;
+    recalculosCompetencia.set(linha.competencia, { pis:numero(linha.pis_competencia), cofins:numero(linha.cofins_competencia) });
+  });
+  const usarRecalculoCompetencia = String(tributario.empresa?.regime_atual || '').toLowerCase() === 'simples_nacional'
+    && competenciasDoExercicio.size > 0 && recalculosCompetencia.size === competenciasDoExercicio.size;
+  const valoresPisResumo = usarRecalculoCompetencia ? [...recalculosCompetencia.values()].map((x) => x.pis) : valoresPis;
+  const valoresCofinsResumo = usarRecalculoCompetencia ? [...recalculosCompetencia.values()].map((x) => x.cofins) : valoresCofins;
   const receitaTotal = somar(receitas);
-  const pisTotal = somar(valoresPis);
-  const cofinsTotal = somar(valoresCofins);
-  const cargaTotal = pisTotal + cofinsTotal;
-  const aliquotaEfetiva = receitaTotal > 0 && (informado(valoresPis) || informado(valoresCofins)) ? cargaTotal / receitaTotal : null;
+  const pisResumo = somar(valoresPisResumo);
+  const cofinsResumo = somar(valoresCofinsResumo);
+  const cargaTotal = pisResumo + cofinsResumo;
+  const aliquotaEfetiva = receitaTotal > 0 && (informado(valoresPisResumo) || informado(valoresCofinsResumo)) ? cargaTotal / receitaTotal : null;
   const origem = apuracoes.some((x) => x.status_validacao === 'VALIDADO_USUARIO') ? 'apuração confirmada pelo usuário'
     : apuracoes.length ? 'relatório de PIS/Cofins importado' : historico.length ? 'perfil histórico importado' : 'sem fonte de apuração';
+  const avisoRecalculoIncompleto = String(tributario.empresa?.regime_atual || '').toLowerCase() === 'simples_nacional'
+    && recalculosCompetencia.size > 0 && !usarRecalculoCompetencia
+    ? `<div class="aviso atencao" style="margin:12px 0"><b>O recálculo por competência ainda não cobre todo o período.</b><br><span class="mini">${recalculosCompetencia.size} de ${competenciasDoExercicio.size} competência(s) têm base integral distribuída nos Anexos. Os cards permanecem no valor declarado até não haver mistura de bases.</span></div>` : '';
   const rotulosRegime = { simples_nacional: 'Simples Nacional', lucro_presumido: 'Lucro Presumido', lucro_real: 'Lucro Real', mei: 'MEI', imune_isento: 'Imune / Isento' };
   const chaveRegime = String(tributario.empresa?.regime_atual || '').toLowerCase();
   const regimeAtual = rotulosRegime[chaveRegime] || A.regimeLabel(chaveRegime) || 'INDETERMINADO';
@@ -1357,16 +1376,16 @@ Telas.perfil = async (el) => {
     avisoAtualizacaoPerfil +
     `<div class="abas" style="margin-top:16px"><button class="${abaPerfil === 'resumo' ? 'ativo' : ''}" data-aba-perfil="resumo">Resumo da apuração</button><button class="${abaPerfil === 'composicao' ? 'ativo' : ''}" data-aba-perfil="composicao">Composição da receita</button><button class="${abaPerfil === 'pis-cofins-pgdas' ? 'ativo' : ''}" data-aba-perfil="pis-cofins-pgdas">Composição PIS/Cofins</button><button class="${abaPerfil === 'auditoria' ? 'ativo' : ''}" data-aba-perfil="auditoria">Auditoria mensal</button></div>` +
     (abaPerfil === 'auditoria' ? conteudoAuditoria : abaPerfil === 'composicao' ? conteudoComposicao : abaPerfil === 'pis-cofins-pgdas' ? conteudoPisCofinsPgdas :
-    `<div class="cartao"><div class="cabecalho-lista"><div><h2>Resumo da apuração atual</h2><p class="desc">Valores efetivamente importados. A alíquota efetiva final é PIS/Cofins apurados ÷ receita analisada.</p></div><span class="tag">${A.esc(origem)}</span></div>
+    `<div class="cartao"><div class="cabecalho-lista"><div><h2>Resumo da apuração atual</h2><p class="desc">${usarRecalculoCompetencia ? `PIS/Cofins recalculados pela base integral da competência em ${recalculosCompetencia.size} competência(s). O PGDAS declarado permanece disponível para confronto.` : 'Valores efetivamente importados. A alíquota efetiva final é PIS/Cofins apurados ÷ receita analisada.'}</p></div><span class="tag">${A.esc(usarRecalculoCompetencia ? 'recalculado por competência' : origem)}</span></div>${avisoRecalculoIncompleto}
       <div class="grade g4">
         ${A.kpi('Regime atual', A.esc(regimeAtual), historico.length ? `${historico.length} período(s) analisado(s)${periodoPerfil ? ` · ${A.esc(periodoPerfil.competencia_inicio)} a ${A.esc(periodoPerfil.competencia_fim)}` : ''}` : 'sem período analisado')}
         ${A.kpi('Receita analisada', receitaTotal ? A.moeda(receitaTotal) : 'INDETERMINADO', 'XML, SPED ou planilha fiscal · somente vendas e prestações')}
-        ${A.kpi('PIS apurado', informado(valoresPis) ? A.moeda(pisTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
-        ${A.kpi('Cofins apurada', informado(valoresCofins) ? A.moeda(cofinsTotal) : 'INDETERMINADO', 'valor recolhido ou histórico')}
+        ${A.kpi(usarRecalculoCompetencia ? 'PIS recalculado' : 'PIS apurado', informado(valoresPisResumo) ? A.moeda(pisResumo) : 'INDETERMINADO', usarRecalculoCompetencia ? 'base de competência distribuída nos Anexos' : 'valor recolhido ou histórico')}
+        ${A.kpi(usarRecalculoCompetencia ? 'Cofins recalculada' : 'Cofins apurada', informado(valoresCofinsResumo) ? A.moeda(cofinsResumo) : 'INDETERMINADO', usarRecalculoCompetencia ? 'base de competência distribuída nos Anexos' : 'valor recolhido ou histórico')}
       </div>
       <div class="grade g2" style="margin-top:16px">
-        ${A.kpi('PIS/Cofins total', informado(valoresPis) || informado(valoresCofins) ? A.moeda(cargaTotal) : 'INDETERMINADO', 'PIS + Cofins')}
-        ${A.kpi('Alíquota efetiva atual', aliquotaEfetiva === null ? 'INDETERMINADO' : A.pct(aliquotaEfetiva), 'PIS/Cofins apurados ÷ receita analisada', aliquotaEfetiva === null ? 'destaque' : '')}
+        ${A.kpi(usarRecalculoCompetencia ? 'PIS/Cofins recalculado' : 'PIS/Cofins total', informado(valoresPisResumo) || informado(valoresCofinsResumo) ? A.moeda(cargaTotal) : 'INDETERMINADO', 'PIS + Cofins')}
+        ${A.kpi('Alíquota efetiva atual', aliquotaEfetiva === null ? 'INDETERMINADO' : A.pct(aliquotaEfetiva), `${usarRecalculoCompetencia ? 'PIS/Cofins recalculado' : 'PIS/Cofins apurados'} ÷ receita analisada`, aliquotaEfetiva === null ? 'destaque' : '')}
       </div>
       ${simplesCaixa ? `<div class="grade g3" style="margin-top:16px">${A.kpi('Recebido no caixa', recebidoCaixaTotal ? A.moeda(recebidoCaixaTotal) : 'INDETERMINADO', 'PGDAS · informativo')}${A.kpi('Imposto pago (DAS)', informado(dasCaixa) ? A.moeda(impostoPagoCaixa) : 'INDETERMINADO', 'valores do PGDAS')}${A.kpi('Carga efetiva de caixa', cargaEfetivaCaixa === null ? 'INDETERMINADO' : A.pct(cargaEfetivaCaixa), 'DAS pago ÷ receita recebida')}</div>` : ''}
       ${chaveRegime === 'simples_nacional' && resumoPgdasHistorico.competencias.size ? `<div class="cartao" style="margin-top:16px;box-shadow:none;background:var(--fundo-suave,#f6f9fb)"><div class="cabecalho-lista"><div><h3>Resumo histórico do PGDAS</h3><p class="mini">Competências fora da janela atual. Os valores vêm dos blocos PGDAS confirmados e não são somados à apuração atual.</p></div><span class="tag n">${resumoPgdasHistorico.competencias.size} competência(s)</span></div><div class="grade g3">${A.kpi('Receita PGDAS histórica', A.moeda(resumoPgdasHistorico.receita), [...resumoPgdasHistorico.competencias].sort().join(', '))}${A.kpi('PIS PGDAS histórico', A.moeda(resumoPgdasHistorico.pis), 'somente blocos confirmados')}${A.kpi('Cofins PGDAS histórico', A.moeda(resumoPgdasHistorico.cofins), 'somente blocos confirmados')}</div></div>` : ''}
