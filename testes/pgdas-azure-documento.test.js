@@ -106,6 +106,13 @@ const perfilConfirmado=db.prepare('SELECT pis,cofins FROM perfil_tributario WHER
 assert.equal(perfilConfirmado.pis,387.18, 'Perfil recebe PIS efetivamente apurado no PGDAS validado');
 assert.equal(perfilConfirmado.cofins,1784.61, 'Perfil recebe COFINS efetivamente apurada no PGDAS validado');
 
+// Uma divergência do PGDAS precisa ficar exposta, mas não pode inutilizar a
+// memória documental quando Anexo/faixa/alíquotas já são determináveis.
+const divergente = pgdas.calcularCompetenciaPisCofins(db,1,valores,{ ...validacao, validada:false, motivo:'Divergência simulada para auditoria.' });
+assert.equal(divergente.status,'CALCULADO_COM_DIVERGENCIA_PGDAS');
+assert.equal(divergente.pis,415.97);
+assert.equal(divergente.cofins,1917.85);
+
 const desconhecido=pgdas.normalizarTexto('arquivo sem âncoras fiscais');
 assert.equal(desconhecido.find((x)=>x.campo==='document_type').status_validacao,'INVALID_DOCUMENT');
 assert.throws(()=>pgdas.ingerir(db,2,{nome_original:'x.pdf',tipo_documento:'PDF',conteudo_original:Buffer.from('x'),metodo_extracao:'teste'},campos),/Simples Nacional/);
