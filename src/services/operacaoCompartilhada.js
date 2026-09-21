@@ -434,7 +434,7 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   const { remota, linhas, origem } = await carregarMovimentosCanonicos(empresa);
   const normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
   const remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
-  const locais = db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(id).map((x) => Number(x.id));
+  const locais = db.prepare('SELECT * FROM movimentos WHERE empresa_id=?').all(id);
   // Uma fonte compartilhada vazia não é autorização para apagar uma
   // importação local já concluída. Isto ocorre, por exemplo, entre o commit
   // do SPED e sua publicação remota. Exclusões feitas pela própria aplicação
@@ -445,7 +445,13 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
     return { ativo:true, origem:'BASE_LOCAL_AGUARDANDO_PUBLICACAO', inseridos_ou_atualizados:0,
       removidos:0, sincronizado_em:sincronizadoEm, movimentos:lerMovimentosLocais(id) };
   }
-  const remover = locais.filter((id) => !remotos.has(id));
+  // Um lote XML/SPED recém-importado pode existir no SQLite alguns instantes
+  // antes de chegar ao compartilhado. Ele é fato fiscal, não cache: mantém-se
+  // na reconciliação e é devolvido à leitura junto da fotografia remota. As
+  // exclusões feitas pela aplicação já removem ambas as bases na origem.
+  const preservados = locais.filter((linha) => !remotos.has(Number(linha.id))
+    && ['xml','sped'].includes(String(linha.origem || '').toLowerCase()));
+  const remover = locais.filter((linha) => !remotos.has(Number(linha.id)) && !preservados.includes(linha)).map((linha) => Number(linha.id));
   db.transaction(() => {
     if (remover.length) {
       const marcas = remover.map(() => '?').join(',');
@@ -459,7 +465,9 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
     // Também devolve a fotografia canônica para leituras críticas no mesmo
     // request. Assim, uma tela não volta a depender do SQLite recém-reconciliado
     // nem de qualquer cache de processo entre a leitura e a consolidação.
-    return { ativo: true, origem, inseridos_ou_atualizados: normalizadas.length, removidos: remover.length, sincronizado_em: sincronizadoEm, movimentos: normalizadas };
+    const movimentos = [...normalizadas, ...preservados];
+    return { ativo: true, origem: preservados.length ? `${origem}_COM_IMPORTACAO_LOCAL_PENDENTE` : origem,
+      inseridos_ou_atualizados: normalizadas.length, removidos: remover.length, sincronizado_em: sincronizadoEm, movimentos };
   })();
   reconciliacoesEmAndamento.set(id, execucao);
   try { return await execucao; }
