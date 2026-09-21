@@ -75,6 +75,30 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
     });
 }
 
+// A segregação só pode ser exibida como resultado fiscal depois da confirmação
+// humana do PGDAS. O diagnóstico, porém, nunca pode esconder declarações que
+// foram baixadas e ainda aguardam revisão, nem as que ficaram fora da janela
+// contratada do Perfil.
+function diagnosticarSegregacaoPgdas(db, empresaId, noExercicio) {
+  if (!tabelaExiste(db, 'pgdas_documentos')) return { confirmadas:[], em_revisao:[], fora_do_periodo:[] };
+  const documentos = db.prepare(`SELECT competencia_detectada, status_processamento, nome_original
+    FROM pgdas_documentos WHERE empresa_id=? ORDER BY competencia_detectada, id DESC`).all(empresaId);
+  const porCompetencia = new Map();
+  for (const documento of documentos) {
+    const competencia = String(documento.competencia_detectada || '');
+    if (!/^\d{4}-\d{2}$/.test(competencia) || porCompetencia.has(competencia)) continue;
+    porCompetencia.set(competencia, documento);
+  }
+  const resultado = { confirmadas:[], em_revisao:[], fora_do_periodo:[] };
+  for (const [competencia, documento] of porCompetencia) {
+    if (!noExercicio(competencia)) resultado.fora_do_periodo.push({ competencia, status:documento.status_processamento, documento:documento.nome_original });
+    else if (documento.status_processamento === 'VALIDADO_USUARIO') resultado.confirmadas.push({ competencia, documento:documento.nome_original });
+    else resultado.em_revisao.push({ competencia, status:documento.status_processamento || 'REQUER_VALIDACAO', documento:documento.nome_original });
+  }
+  Object.values(resultado).forEach((linhas) => linhas.sort((a, b) => String(a.competencia).localeCompare(String(b.competencia))));
+  return resultado;
+}
+
 // Confronto estritamente informativo entre as fontes que já foram importadas.
 // Não há estimativa nem alteração de dado fiscal: uma divergência apenas pede
 // conferência do responsável antes de usar os números em uma decisão.
@@ -335,7 +359,8 @@ function consolidar(db, empresaId, opcoes = {}) {
   const auditoria_mensal = aplicarConfirmacoesAuditoria(db, empresaId,
     montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe, deducoesDevolucoes));
   const composicao_pis_cofins_pgdas = montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio);
-  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal, composicao_receita:[...composicaoReceita.values()].sort((a,b)=>b.valor-a.valor), composicao_pis_cofins_pgdas };
+  const diagnostico_pgdas = diagnosticarSegregacaoPgdas(db, empresaId, noExercicio);
+  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal, composicao_receita:[...composicaoReceita.values()].sort((a,b)=>b.valor-a.valor), composicao_pis_cofins_pgdas, diagnostico_pgdas };
 }
 
-module.exports = { consolidar, montarAuditoriaMensal, montarComposicaoPisCofinsPgdas, assinarAuditoriaMensal };
+module.exports = { consolidar, montarAuditoriaMensal, montarComposicaoPisCofinsPgdas, diagnosticarSegregacaoPgdas, assinarAuditoriaMensal };
