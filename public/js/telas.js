@@ -1224,19 +1224,21 @@ Telas.perfil = async (el) => {
     // tinham sido trazidos.
     .filter((x) => ['VALIDADO','REVISAR'].includes(x.status))
     .reduce((mapa, x) => {
-      const atual = mapa.get(x.competencia) || { competencia:x.competencia, escopo:x.escopo, receita_caixa:0, receita_competencia:0, pis_declarado:0, pis_competencia:null, cofins_declarado:0, cofins_competencia:null, status_competencia:'NAO_CALCULADO', motivo_competencia:null, exemplos_competencia:[], regime_caixa:false, validado:true };
+      const atual = mapa.get(x.competencia) || { competencia:x.competencia, escopo:x.escopo, receita_caixa:0, receita_competencia:0, pis_declarado:0, pis_competencia:null, cofins_declarado:0, cofins_competencia:null, status_competencia:'NAO_CALCULADO', motivo_competencia:null, exemplos_competencia:[], memoria_calculo_competencia:[], blocos_pgdas:[], regime_caixa:false, validado:true };
       atual.receita_caixa += Number(x.receita_pgdas) || 0;
       atual.receita_competencia += Number(x.receita_competencia) || 0;
       atual.pis_declarado += Number(x.pgdas_pis) || 0;
       atual.cofins_declarado += Number(x.pgdas_cofins) || 0;
       atual.regime_caixa = atual.regime_caixa || x.regime_apuracao === 'CAIXA';
       atual.validado = atual.validado && Boolean(x.pis_match) && Boolean(x.cofins_match);
+      atual.blocos_pgdas.push(x);
       if (atual.status_competencia === 'NAO_CALCULADO') {
         atual.pis_competencia = x.pis_competencia;
         atual.cofins_competencia = x.cofins_competencia;
         atual.status_competencia = x.calculo_competencia_status;
         atual.motivo_competencia = x.calculo_competencia_motivo;
         atual.exemplos_competencia = x.calculo_competencia_exemplos || [];
+        atual.memoria_calculo_competencia = x.memoria_calculo_competencia || [];
       }
       mapa.set(x.competencia, atual);
       return mapa;
@@ -1244,6 +1246,22 @@ Telas.perfil = async (el) => {
   const linhasMemoriaMensalPgdas = [...memoriaMensalPgdas.values()]
     .map((x) => ({ ...x, diferenca_pis:x.pis_competencia === null ? null : x.pis_declarado - x.pis_competencia, diferenca_cofins:x.cofins_competencia === null ? null : x.cofins_declarado - x.cofins_competencia }))
     .sort((a, b) => String(b.competencia).localeCompare(String(a.competencia)));
+  const memoriaCompetencia = (linha) => {
+    const regras = new Map();
+    (linha.blocos_pgdas || []).forEach((b) => {
+      const chave = `${b.anexo}|${b.faixa}|${b.rbt12}|${b.aliquota_nominal}|${b.parcela_deduzir}`;
+      if (!regras.has(chave)) regras.set(chave, b);
+    });
+    const bases = linha.memoria_calculo_competencia || [];
+    return `<details><summary><b>Ver memória e bases</b></summary><div style="margin-top:10px">${A.tabela([
+      {t:'Anexo / base dos XMLs',r:x=>`<b>Anexo ${A.esc(x.anexo || '—')}</b><div class="mini">Receita por competência: ${A.moeda(x.receita_competencia || 0)}</div>`},
+      {t:'Alíquotas efetivas',r:x=>`PIS ${A.pct(x.regra?.pis_effective_rate || 0)}<br>COFINS ${A.pct(x.regra?.cofins_effective_rate || 0)}`},
+      {t:'Cálculo',num:true,r:x=>`PIS: ${A.moeda(x.receita_competencia || 0)} × ${A.pct(x.regra?.pis_effective_rate || 0)} = <b>${A.moeda(x.pis || 0)}</b><br>COFINS: ${A.moeda(x.receita_competencia || 0)} × ${A.pct(x.regra?.cofins_effective_rate || 0)} = <b>${A.moeda(x.cofins || 0)}</b>`},
+    ],bases,{vazio:'Nenhuma base documental pôde ser vinculada.'})}</div><div style="margin-top:10px">${A.tabela([
+      {t:'Regra do PGDAS',r:x=>`<b>Anexo ${A.esc(x.anexo || '—')} · faixa ${A.esc(x.faixa ?? '—')}</b><div class="mini">RBT12 ${A.moeda(x.rbt12 || 0)} · alíquota nominal ${A.pct(x.aliquota_nominal || 0)} · dedução ${A.moeda(x.parcela_deduzir || 0)}</div>`},
+      {t:'Bloco PGDAS / caixa',num:true,r:x=>`Receita ${A.moeda(x.receita_pgdas || 0)}<br>PIS declarado ${A.moeda(x.pgdas_pis)} → regra ${A.moeda(x.calculated_pis)}<br>COFINS declarado ${A.moeda(x.pgdas_cofins)} → regra ${A.moeda(x.calculated_cofins)}`},
+    ],[...regras.values()],{vazio:'Regra PGDAS indisponível.'})}</div><p class="mini" style="margin:10px 0 0">A base por competência vem exclusivamente dos documentos de saída ativos associados ao Anexo. A base de caixa e os valores declarados vêm do PGDAS e não são alterados.</p></details>`;
+  };
   const simplesCaixa = tributario.empresa?.regime_atual === 'simples_nacional' && tributario.empresa?.regime_reconhecimento_simples === 'caixa';
   const recebimentosCaixa = historico.map((x) => x.receita_recebida?.valor);
   const dasCaixa = historico.map((x) => x.pgdas?.valor);
@@ -1319,8 +1337,9 @@ Telas.perfil = async (el) => {
     ${A.tabela([
       {t:'Competência / bloco',r:x=>`<b>${A.esc(rotuloCompetencia(x.competencia))}</b><br><span class="mini">${A.esc(x.descricao_bloco || '—')}</span>`},
       {t:'Regra do Simples',r:x=>`Anexo ${A.esc(x.anexo || '—')} · faixa ${A.esc(x.faixa ?? '—')}<br><span class="mini">RBT12 ${A.moeda(x.rbt12 || 0)} · nominal ${taxa(x.aliquota_nominal)} · dedução ${A.moeda(x.parcela_deduzir || 0)}</span>`},
+      {t:'Base do bloco PGDAS',num:true,r:x=>`<b>${A.moeda(x.receita_pgdas || 0)}</b><br><span class="mini">receita de ${A.esc(x.regime_apuracao === 'CAIXA' ? 'caixa' : 'competência')}</span>`},
       {t:'Alíquotas',r:x=>`Simples: <b>${taxa(x.simples_effective_rate)}</b><br><span class="mini">PIS: repartição ${taxa(x.pis_distribution_percentage)} · efetiva ${taxa(x.pis_effective_rate)}<br>COFINS: repartição ${taxa(x.cofins_distribution_percentage)} · efetiva ${taxa(x.cofins_effective_rate)}</span>`},
-      {t:'Validação PGDAS',num:true,r:x=>`PIS ${A.moeda(x.pgdas_pis)} → ${A.moeda(x.calculated_pis)} ${x.pis_match ? '✓' : '✕'}<br>COFINS ${A.moeda(x.pgdas_cofins)} → ${A.moeda(x.calculated_cofins)} ${x.cofins_match ? '✓' : '✕'}`},
+      {t:'Validação PGDAS',num:true,r:x=>`PIS: ${A.moeda(x.receita_pgdas || 0)} × ${taxa(x.pis_effective_rate)} = ${A.moeda(x.calculated_pis)}<br><span class="mini">declarado ${A.moeda(x.pgdas_pis)} ${x.pis_match ? '✓' : '✕'}</span><br>COFINS: ${A.moeda(x.receita_pgdas || 0)} × ${taxa(x.cofins_effective_rate)} = ${A.moeda(x.calculated_cofins)}<br><span class="mini">declarado ${A.moeda(x.pgdas_cofins)} ${x.cofins_match ? '✓' : '✕'}</span>`},
       {t:'Perfil Tributário',num:true,r:x=>x.exibir_total_perfil
         ? `<span class="mini">Total mensal</span><br>PIS: <b>${A.moeda(x.pis_perfil)}</b><br>COFINS: <b>${A.moeda(x.cofins_perfil)}</b><br><span class="mini">competência: ${A.esc(x.calculo_competencia_status)}</span>`
         : '<span class="mini">Total mensal exibido no primeiro bloco desta competência.</span>'},
@@ -1351,6 +1370,7 @@ Telas.perfil = async (el) => {
         { t:'Receitas', num:true, r:x=>`PGDAS/caixa ${A.moeda(x.receita_caixa)}<br>Competência ${String(x.status_competencia||'').startsWith('CALCULADO') ? A.moeda(x.receita_competencia) : 'NÃO CALCULADA'}` },
         { t:'PIS', num:true, r:x=>`Declarado ${A.moeda(x.pis_declarado)}<br>Competência ${x.pis_competencia === null ? 'NÃO CALCULADO' : A.moeda(x.pis_competencia)}<br><span class="mini">Dif. ${x.diferenca_pis === null ? '—' : A.moeda(x.diferenca_pis)}</span>` },
         { t:'Cofins', num:true, r:x=>`Declarado ${A.moeda(x.cofins_declarado)}<br>Competência ${x.cofins_competencia === null ? 'NÃO CALCULADO' : A.moeda(x.cofins_competencia)}<br><span class="mini">Dif. ${x.diferenca_cofins === null ? '—' : A.moeda(x.diferenca_cofins)}</span>` },
+        { t:'Memória', r:x=>memoriaCompetencia(x) },
         { t:'Situação', r:x=>String(x.status_competencia||'').startsWith('CALCULADO') ? `<span class="tag ${x.validado ? 'c' : 'a'}">${x.validado ? 'Calculado por competência' : 'Calculado; PGDAS divergente'}</span>${x.motivo_competencia ? `<div class="mini">${A.esc(x.motivo_competencia)}</div>` : ''}` : `<span class="tag a">Competência pendente</span><div class="mini">${A.esc(x.motivo_competencia || 'Não há vínculo seguro entre os documentos e os buckets do PGDAS.')}</div>${(x.exemplos_competencia||[]).map(e=>`<div class="mini" style="margin-top:4px">Ex.: ${A.esc(e.modelo)} ${A.esc(e.identificador)} · ${A.moeda(e.valor)} — ${A.esc(e.motivo)}</div>`).join('')}` },
       ], linhasMemoriaMensalPgdas)}</div>` : ''}
     </div>
