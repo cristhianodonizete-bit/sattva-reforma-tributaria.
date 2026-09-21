@@ -47,7 +47,7 @@ function tratamentoPisCofinsDocumentado(movimento = {}) {
 // Demonstra, por competência, a memória que validou a transferência do
 // PGDAS para o Perfil Tributário. Os valores do perfil continuam sendo os
 // declarados no PGDAS; o cálculo de competência é apresentado separadamente.
-function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
+function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio, opcoes = {}) {
   if (!tabelaExiste(db, 'pgdas_documentos') || !tabelaExiste(db, 'pgdas_documento_campos')) return [];
   const documentos = db.prepare(`SELECT * FROM pgdas_documentos WHERE empresa_id=? AND status_processamento='VALIDADO_USUARIO' ORDER BY id DESC`).all(empresaId);
   const campos = db.prepare(`SELECT c.* FROM pgdas_documento_campos c JOIN pgdas_documentos d ON d.id=c.documento_id WHERE d.empresa_id=?`).all(empresaId);
@@ -63,7 +63,11 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
     try { blocos = JSON.parse(bruto.revenue_blocks || '[]'); } catch (_) { continue; }
     const valores = { ...bruto, competencia, rbt12: numero(bruto.rbt12), receita_bruta: numero(bruto.receita_bruta), receita_recebida: bruto.receita_recebida == null ? null : numero(bruto.receita_recebida), pis: numero(bruto.pis), cofins: numero(bruto.cofins) };
     const validacao = pgdasDocumentoIa.validarRegraBlocos(db, valores, blocos);
-    const calculoCompetencia = pgdasDocumentoIa.calcularCompetenciaPisCofins(db, empresaId, valores, validacao);
+    const base = opcoes.bases_por_competencia?.get(competencia) || {};
+    const calculoCompetencia = pgdasDocumentoIa.calcularCompetenciaPisCofins(db, empresaId, valores, validacao, {
+      base_competencia_total: base.total,
+      receitas_sem_dfe: base.receitas_sem_dfe || [],
+    });
     const perfil = perfilPorCompetencia.get(competencia) || {};
     for (const bloco of validacao.blocos || []) {
       const regra = bloco.calculation || {}, aceite = bloco.aceite_tributario || {};
@@ -72,6 +76,9 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
         rpa_competencia: bruto.rpa_competencia == null ? null : numero(bruto.rpa_competencia),
         rpa_caixa: bruto.rpa_caixa == null ? null : numero(bruto.rpa_caixa),
         descricao_bloco: bloco.description_raw, receita_pgdas: numero(bloco.revenue_amount), receita_competencia: (calculoCompetencia?.memoria || []).find((x) => x.anexo === bloco.anexo)?.receita_competencia ?? null,
+        receita_competencia_total: calculoCompetencia?.receita_competencia_total ?? null,
+        receita_competencia_vinculada: calculoCompetencia?.receita_competencia_vinculada ?? null,
+        receita_competencia_sem_anexo: calculoCompetencia?.receita_competencia_sem_anexo ?? null,
         anexo: aceite.anexo, rbt12: aceite.rbt12, faixa: aceite.faixa, aliquota_nominal: aceite.aliquota_nominal,
         parcela_deduzir: aceite.parcela_deduzir, simples_effective_rate: aceite.aliquota_efetiva_simples,
         pis_distribution_percentage: aceite.pis_distribution_percentage, pis_effective_rate: aceite.pis_effective_rate,
@@ -83,6 +90,7 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
         calculo_competencia_motivo: calculoCompetencia?.motivo || null,
         calculo_competencia_exemplos: calculoCompetencia?.exemplos || [],
         calculo_competencia_documentos_nao_associados: calculoCompetencia?.documentos_nao_associados || [],
+        calculo_competencia_receitas_nao_associadas: calculoCompetencia?.receitas_nao_associadas || [],
         memoria_calculo_competencia: calculoCompetencia?.memoria || [],
         pis_competencia: calculoCompetencia?.pis ?? null, cofins_competencia: calculoCompetencia?.cofins ?? null,
       });
@@ -230,7 +238,8 @@ function consolidar(db, empresaId, opcoes = {}) {
   const perfis = db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,\'\')<>\'\' ORDER BY competencia').all(empresaId).filter((x) => noExercicio(x.competencia));
   const folhas = db.prepare('SELECT * FROM folhas_pagamento_competencias WHERE empresa_id=?').all(empresaId).filter((x) => noExercicio(x.competencia));
   const margens = db.prepare('SELECT * FROM margens_operacionais_premissas WHERE empresa_id=?').all(empresaId);
-  const receitasSemDfe = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId).filter((x) => noExercicio(x.competencia));
+  const todasReceitasSemDfe = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId);
+  const receitasSemDfe = todasReceitasSemDfe.filter((x) => noExercicio(x.competencia));
   const cbs = db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=?').all(empresaId);
   const documentosPorCompetencia = new Map();
   const composicaoReceita = new Map();
@@ -390,9 +399,24 @@ function consolidar(db, empresaId, opcoes = {}) {
     margem_operacional: historico.some((x) => x.margem_operacional.natureza !== 'INDETERMINADO') ? 'DISPONIVEL' : 'INDETERMINADO',
     cbs_motor: historico.some((x) => x.cbs_motor_existente.natureza === 'CALCULADO') ? 'DISPONIVEL' : 'INDETERMINADO',
   };
+  const montarBasesCompetencia = (receitas) => {
+    const bases = new Map();
+    const obterBase = (competencia) => {
+      if (!bases.has(competencia)) bases.set(competencia, { total:0, receitas_sem_dfe:[] });
+      return bases.get(competencia);
+    };
+    documentos.forEach((x) => { obterBase(x.competencia).total += numero(x.receita_documentada); });
+    deducoesDevolucoes.forEach((x) => { obterBase(x.competencia).total -= numero(x.valor); });
+    receitas.filter((x) => x.status_validacao !== 'POSSIVEL_DUPLICIDADE').forEach((x) => {
+      const base = obterBase(x.competencia); base.total += numero(x.valor); base.receitas_sem_dfe.push(x);
+    });
+    bases.forEach((x) => { x.total = Math.round((x.total + Number.EPSILON) * 100) / 100; });
+    return bases;
+  };
+  const basesCompetenciaAtual = montarBasesCompetencia(receitasSemDfe);
   const auditoria_mensal = aplicarConfirmacoesAuditoria(db, empresaId,
     montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe, deducoesDevolucoes));
-  const composicao_pis_cofins_pgdas = montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio);
+  const composicao_pis_cofins_pgdas = montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio, { bases_por_competencia:basesCompetenciaAtual });
   // Histórico é exposto separadamente para não desaparecer da interface. Ele
   // jamais alimenta os cards, a auditoria ou o Perfil da janela atual.
   const composicao_pis_cofins_pgdas_historico = montarComposicaoPisCofinsPgdas(db, empresaId, [], () => true)

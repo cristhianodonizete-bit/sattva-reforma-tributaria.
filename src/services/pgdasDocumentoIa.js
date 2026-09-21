@@ -1,5 +1,6 @@
 /* Parser determinístico do Extrato PGDAS-D. PIS/receita não é usado para descobrir taxa. */
 const crypto = require('crypto');
+const receitaOperacional = require('./receitaOperacional');
 // receita_bruta/receita_recebida permanecem para compatibilidade com o Perfil
 // Tributário. Os nomes RPA deixam explícito se o número veio da competência
 // ou do caixa; os totais por atividade abaixo representam sempre o caixa do
@@ -120,7 +121,7 @@ function validarRegraBlocos(db,valores,blocos){
   const documento_validation={receita_blocos:somaReceita,receita_pgdas:esperadoReceita,receita_match:!Number.isFinite(esperadoReceita)||Math.abs(somaReceita-esperadoReceita)<=TOLERANCIA_CENTAVOS,pis_blocos:somaPis,pis_pgdas:valores.pis,pis_match:!Number.isFinite(valores.pis)||Math.abs(somaPis-valores.pis)<=TOLERANCIA_CENTAVOS,cofins_blocos:somaCofins,cofins_pgdas:valores.cofins,cofins_match:!Number.isFinite(valores.cofins)||Math.abs(somaCofins-valores.cofins)<=TOLERANCIA_CENTAVOS};
   const validada=memoria.every((x)=>x.pgdas_validation.pis_match&&x.pgdas_validation.cofins_match)&&documento_validation.receita_match&&documento_validation.pis_match&&documento_validation.cofins_match;return {validada,tolerancia:TOLERANCIA_CENTAVOS,motivo:validada?null:'A reprodução por bloco ou os totais do documento não conferem com o PGDAS dentro da tolerância.',blocos:memoria,documento_validation};
 }
-function calcularCompetenciaPisCofins(db,empresaId,valores,validacao){
+function calcularCompetenciaPisCofins(db,empresaId,valores,validacao,opcoes={}){
   // A divergência entre o valor declarado e a reprodução do PGDAS não apaga
   // Anexo, faixa e alíquotas já identificados. Quando todos os blocos têm
   // regra determinável, o cálculo documental por competência continua útil
@@ -146,7 +147,7 @@ function calcularCompetenciaPisCofins(db,empresaId,valores,validacao){
   const filtroSituacao=colunasMovimentos.has('situacao_documento') ? " AND COALESCE(situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')" : '';
   const campoModelo=colunasMovimentos.has('modelo_documento_fiscal') ? 'modelo_documento_fiscal' : 'NULL AS modelo_documento_fiscal';
   const campo=(nome)=>colunasMovimentos.has(nome)?nome:`NULL AS ${nome}`;
-  const movs=db.prepare(`SELECT ${campo('id')},valor,ncm,nbs,lc116,${campoModelo},${campo('documento')},${campo('chave')},${campo('descricao')},${campo('cfop')} FROM movimentos WHERE empresa_id=? AND competencia=? AND sentido='saida'${filtroSituacao}`).all(empresaId,valores.competencia), porAnexo={};
+  const movs=db.prepare(`SELECT ${campo('id')},${campo('tipo')},${campo('origem')},${campo('iss')},${campo('situacao_documento')},${campo('normalizacao_evidencia')},sentido,valor,ncm,nbs,lc116,${campoModelo},${campo('documento')},${campo('chave')},${campo('descricao')},${campo('cfop')} FROM movimentos WHERE empresa_id=? AND competencia=? AND sentido='saida'${filtroSituacao}`).all(empresaId,valores.competencia), porAnexo={};
   // Alguns XMLs de NFS-e não carregam NBS/LC 116, embora a espécie do
   // documento seja inequívoca. Só usamos essa identidade quando o PGDAS da
   // própria competência possui um único Anexo possível para serviço/locação
@@ -175,21 +176,72 @@ function calcularCompetenciaPisCofins(db,empresaId,valores,validacao){
     if(['nfe','nfce','55','65'].includes(modelo)&&anexosMercadoria.length===1)return anexosMercadoria[0];
     return null;
   };
-  const documentosNaoAssociados=[];
+  const documentosNaoAssociados=[], receitasNaoAssociadas=[];
+  const adicionarBase=(anexo, valorBase)=>{ porAnexo[anexo]=(Number(porAnexo[anexo])||0)+Number(valorBase||0); };
   movs.forEach((m)=>{
+    // Compatibilidade com bases antigas: antes de existir modelo/CFOP no
+    // movimento, NCM/NBS/LC116 era a própria evidência fiscal persistida.
+    // Para registros novos, a regra operacional continua sendo a fonte.
+    const evidenciaFiscalLegada=!colunasMovimentos.has('tipo') && Boolean(m.ncm||m.nbs||m.lc116||m.modelo_documento_fiscal);
+    const compoe=receitaOperacional.compoeReceita(m)||evidenciaFiscalLegada;
+    const reduz=receitaOperacional.efeitoBase(m)==='REDUZ_FATURAMENTO';
+    // A base de competência precisa obedecer à mesma semântica da auditoria:
+    // somente receita operacional, menos devoluções de venda. Remessas e
+    // outras saídas não podem infiltrar-se no cálculo por mero "sentido".
+    if(!compoe&&!reduz)return;
     const a=anexoDoMovimento(m);
     if(!a || !regraDoAnexo(a)){
-      documentosNaoAssociados.push({id:m.id,documento:m.documento||m.chave||`Lançamento ${m.id}`,descricao:m.descricao||'',modelo:String(m.modelo_documento_fiscal||'').toUpperCase()||'NÃO IDENTIFICADO',cfop:m.cfop||'',ncm:m.ncm||'',nbs:m.nbs||'',lc116:m.lc116||'',valor:r2(m.valor),motivo:!a?'Sem NCM, NBS/LC 116 ou modelo fiscal com Anexo único no PGDAS.':`Associado ao Anexo ${a}, mas a tabela do Simples não possui faixa válida para RBT12 nesta competência.`});
+      documentosNaoAssociados.push({id:m.id,documento:m.documento||m.chave||`Lançamento ${m.id}`,descricao:m.descricao||'',modelo:String(m.modelo_documento_fiscal||'').toUpperCase()||'NÃO IDENTIFICADO',cfop:m.cfop||'',ncm:m.ncm||'',nbs:m.nbs||'',lc116:m.lc116||'',valor:r2((reduz?-1:1)*Number(m.valor||0)),motivo:!a?'Sem NCM, NBS/LC 116 ou modelo fiscal com Anexo único no PGDAS.':`Associado ao Anexo ${a}, mas a tabela do Simples não possui faixa válida para RBT12 nesta competência.`});
       return;
     }
-    porAnexo[a]=(Number(porAnexo[a])||0)+(Number(m.valor)||0);
+    adicionarBase(a,(reduz?-1:1)*Number(m.valor||0));
+  });
+  // Lançamentos do Questor/planilhas que já trazem a segregação declarada
+  // também formam a base da competência. Só os vinculamos quando o próprio
+  // texto da segregação aponta inequivocamente para um bloco/anexo do PGDAS;
+  // nos demais casos a base continua visível como pendente, sem rateio.
+  const normalizar=(v)=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/\s+/g,' ').trim();
+  const anexoDaReceitaComplementar=(r)=>{
+    const textoSegregacao=normalizar(`${r.segregacao_apuracao||''} ${r.classificacao_fiscal||''} ${r.tipo_receita||''} ${r.descricao||''}`);
+    const explicito=textoSegregacao.match(/anexo\s*([ivx]+)/i)?.[1]?.toUpperCase();
+    if(explicito)return explicito;
+    const candidatos=[...new Set(validacao.blocos.filter((b)=>{
+      const descricao=normalizar(b.description_raw);
+      return descricao && textoSegregacao && (descricao.includes(textoSegregacao)||textoSegregacao.includes(descricao));
+    }).map((b)=>b.anexo).filter(Boolean))];
+    if(candidatos.length===1)return candidatos[0];
+    // A importação do Questor nem sempre preserva por extenso a frase do
+    // PGDAS, mas preserva o tipo/segregação econômica. Estes marcadores não
+    // são rateio: apontam diretamente para o Anexo legal da operação.
+    if(/locac|alugu|arrendamento|servic|software|licenc|cessao/.test(textoSegregacao))return 'III';
+    if(/revenda|mercador|comerc|venda de produto|industriali/.test(textoSegregacao))return /industriali/.test(textoSegregacao)?'II':'I';
+    // Quando o PGDAS da competência contém somente um Anexo possível, toda
+    // a receita complementar pertence a ele; não existe escolha/rateio.
+    const anexos=[...new Set(validacao.blocos.map((b)=>b.anexo).filter(Boolean))];
+    return anexos.length===1?anexos[0]:null;
+  };
+  (opcoes.receitas_sem_dfe||[]).forEach((r)=>{
+    const a=anexoDaReceitaComplementar(r);
+    if(!a||!regraDoAnexo(a)){
+      receitasNaoAssociadas.push({id:r.id||null,descricao:r.descricao||r.tipo_receita||'Outra receita',origem:r.origem||'OUTRA_RECEITA',segregacao_apuracao:r.segregacao_apuracao||null,valor:r2(r.valor),motivo:!a?'A outra receita não informa uma segregação que permita vinculá-la com segurança a um Anexo do PGDAS.':`Associada ao Anexo ${a}, mas a tabela do Simples não possui faixa válida para RBT12 nesta competência.`});
+      return;
+    }
+    adicionarBase(a,Number(r.valor||0));
   });
   let pis=0,cofins=0;const memoria=[];for(const [anexo,receitaBruta] of Object.entries(porAnexo)){const receita=Number(receitaBruta||0),regra=regraDoAnexo(anexo);if(!receita||!regra)continue;const p=receita*regra.pis_effective_rate,c=receita*regra.cofins_effective_rate;pis+=p;cofins+=c;memoria.push({anexo,receita_competencia:r2(receita),pis:r2(p),cofins:r2(c),regra});}
   if(!memoria.length){
     const exemplos=documentosNaoAssociados.slice(0,3).map((m)=>({modelo:m.modelo,identificador:m.documento,valor:m.valor,motivo:m.motivo}));
-    return {status:'SEM_DOCUMENTOS_CLASSIFICADOS',pis:null,cofins:null,motivo:movs.length?'Há documentos de saída, mas nenhum pôde ser associado com segurança aos Anexos do PGDAS.':'Não há documento de saída ativo importado nesta competência.',exemplos,documentos_nao_associados:documentosNaoAssociados,memoria:[]};
+    return {status:'SEM_DOCUMENTOS_CLASSIFICADOS',pis:null,cofins:null,motivo:movs.length?'Há receitas na competência, mas nenhuma pôde ser associada com segurança aos Anexos do PGDAS.':'Não há receita ativa importada nesta competência.',exemplos,documentos_nao_associados:documentosNaoAssociados,receitas_nao_associadas:receitasNaoAssociadas,receita_competencia_total:opcoes.base_competencia_total??null,receita_competencia_vinculada:0,receita_competencia_sem_anexo:opcoes.base_competencia_total??null,memoria:[]};
   }
-  const divergente=!validacao.validada;return {status:divergente?'CALCULADO_COM_DIVERGENCIA_PGDAS':'CALCULADO',pis:r2(pis),cofins:r2(cofins),motivo:divergente?'Cálculo por competência disponível, mas o valor declarado no PGDAS diverge da reprodução por bloco.':null,exemplos:[],documentos_nao_associados:documentosNaoAssociados,memoria};
+  const receitaVinculada=r2(memoria.reduce((s,x)=>s+Number(x.receita_competencia||0),0));
+  const receitaTotal=opcoes.base_competencia_total===undefined||opcoes.base_competencia_total===null?receitaVinculada:r2(opcoes.base_competencia_total);
+  const receitaSemAnexo=r2(receitaTotal-receitaVinculada);
+  const parcial=Math.abs(receitaSemAnexo)>TOLERANCIA_CENTAVOS;
+  const divergente=!validacao.validada;
+  const motivo=parcial
+    ? `Base total da competência: R$ ${receitaTotal.toFixed(2)}. R$ ${receitaVinculada.toFixed(2)} foi vinculado a Anexo; R$ ${receitaSemAnexo.toFixed(2)} permanece sem vínculo seguro e não foi tributado por estimativa.`
+    : divergente?'Cálculo por competência disponível, mas o valor declarado no PGDAS diverge da reprodução por bloco.':null;
+  return {status:parcial?'CALCULADO_PARCIAL':divergente?'CALCULADO_COM_DIVERGENCIA_PGDAS':'CALCULADO',pis:r2(pis),cofins:r2(cofins),motivo,exemplos:[],documentos_nao_associados:documentosNaoAssociados,receitas_nao_associadas:receitasNaoAssociadas,receita_competencia_total:receitaTotal,receita_competencia_vinculada:receitaVinculada,receita_competencia_sem_anexo:receitaSemAnexo,memoria};
 }
 function ingerir(db,empresaId,documento,campos){const e=db.prepare('SELECT id,regime FROM empresas WHERE id=?').get(empresaId);if(!e)throw new Error('Empresa não encontrada.');if(e.regime!=='simples_nacional')throw new Error('O PGDAS é aplicável somente à empresa do Simples Nacional.');const hash=crypto.createHash('sha256').update(documento.conteudo_original).digest('hex');if(db.prepare('SELECT id FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaId,hash))throw new Error('Este documento PGDAS já foi enviado para esta empresa.');const pc=Object.fromEntries(campos.map((x)=>[x.campo,x]));const inserir=db.transaction(()=>{const doc=db.prepare(`INSERT INTO pgdas_documentos (empresa_id,nome_original,tipo_documento,mime_type,conteudo_original,hash_sha256,competencia_detectada,data_processamento,metodo_extracao,status_processamento) VALUES (?,?,?,?,?,?,?,?,?, 'REQUER_VALIDACAO')`).run(empresaId,documento.nome_original,documento.tipo_documento,documento.mime_type||null,documento.conteudo_original,hash,pc.competencia?.valor_extraido||null,new Date().toISOString(),documento.metodo_extracao), ins=db.prepare(`INSERT INTO pgdas_documento_campos (documento_id,campo,valor_extraido,rotulo_original,pagina_ou_localizacao,confianca,metodo_extracao,status_validacao) VALUES (?,?,?,?,?,?,?,?)`);campos.forEach((x)=>ins.run(doc.lastInsertRowid,x.campo,x.valor_extraido===null?null:String(x.valor_extraido),x.rotulo_original,x.pagina_ou_localizacao,x.confianca,x.metodo_extracao,x.status_validacao));return Number(doc.lastInsertRowid);});return {documento_id:inserir(),hash_sha256:hash,campos};}
 function listar(db,empresaId){
