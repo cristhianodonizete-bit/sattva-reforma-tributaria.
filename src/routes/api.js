@@ -5590,6 +5590,15 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
     const insPar = db.prepare(`INSERT INTO parceiros (empresa_id, tipo, cnpj, descricao, regime, municipio, origem)
       VALUES (?,?,?,?,'',?, 'sped')
       ON CONFLICT(empresa_id, tipo, cnpj) DO UPDATE SET descricao = excluded.descricao`);
+    const insEvidenciaC175 = db.prepare(`INSERT INTO enriquecimento_pis_cofins_evidencias
+      (empresa_id,movimento_id,pis_documentado,cofins_documentada,cst_pis,cst_cofins,origem_evidencia,status_validacao,tipo_fonte,lote_origem_id,numero_documento,base_pis,base_cofins,aliquota_pis,aliquota_cofins,grau_confianca)
+      VALUES (?,?,?,?,?,?, 'SPED_C175','VALIDADA','EFD_CONTRIBUICOES',?,?,?,?,?,?,?,'ALTA')
+      ON CONFLICT(empresa_id,movimento_id,origem_evidencia) DO UPDATE SET
+        pis_documentado=excluded.pis_documentado, cofins_documentada=excluded.cofins_documentada,
+        cst_pis=excluded.cst_pis, cst_cofins=excluded.cst_cofins,
+        base_pis=excluded.base_pis, base_cofins=excluded.base_cofins,
+        aliquota_pis=excluded.aliquota_pis, aliquota_cofins=excluded.aliquota_cofins,
+        status_validacao=excluded.status_validacao`);
 
     const rel = { arquivos: arquivos.length, periodos: [], itens: 0, entradas: 0, saidas: 0,
       participantes: 0, produtos: 0, avisos: [], erros: [] };
@@ -5598,7 +5607,13 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
       // Reprocessamento é substitutivo e restrito ao lote identificado pela
       // mesma hash; movimentos de outros lotes, XMLs e configurações não são
       // tocados. A transação evita uma base parcialmente refeita.
-      if (reprocessarLote) db.prepare('DELETE FROM movimentos WHERE lote_id=?').run(lote.lastInsertRowid);
+      if (reprocessarLote) {
+        // As evidências C175 pertencem exclusivamente ao lote substituído.
+        // Removê-las na mesma transação impede histórico órfão, sem tocar
+        // evidências ou documentos de outros lotes.
+        db.prepare("DELETE FROM enriquecimento_pis_cofins_evidencias WHERE lote_origem_id=? AND origem_evidencia='SPED_C175'").run(lote.lastInsertRowid);
+        db.prepare('DELETE FROM movimentos WHERE lote_id=?').run(lote.lastInsertRowid);
+      }
       for (const { arquivo: f } of preparados) {
         try {
           const r = sped.lerSped(f.buffer, empresa.cnpj);
@@ -5621,12 +5636,17 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
 
           for (const i of r.itens) {
             const identidade = i.codigo_produto ? identidadeProduto.resolver({ empresa_id:Number(req.params.id), tipo_origem:'SPED_COD_ITEM', codigo_origem:i.codigo_produto, ncm:i.ncm, descricao:i.descricao, data:i.data_emissao }) : null;
-            insMov.run(req.params.id, lote.lastInsertRowid, i.tipo, i.sentido, i.nome, i.inscr_federal,
+            const movimento = insMov.run(req.params.id, lote.lastInsertRowid, i.tipo, i.sentido, i.nome, i.inscr_federal,
               i.descricao, i.ncm || '', i.nbs || '', i.lc116 || '', i.cfop || '', i.cst || '', '', i.competencia,
               i.documento, i.chave || '', i.item_numero, i.codigo_produto || '', i.quantidade || 0,
               i.unidade || '', i.data_emissao || '', i.emitente_cnpj || '', i.destinatario_cnpj || '',
               i.valor, i.base_calculo || i.valor, i.icms || 0, i.icms_st || 0, i.ipi || 0,
               i.pis || 0, i.cofins || 0, i.iss || 0, i.frete || 0, i.seguro || 0, i.outras || 0, i.desconto || 0);
+            if (i.origem_agregada === 'C175') insEvidenciaC175.run(
+              req.params.id, movimento.lastInsertRowid, i.pis || 0, i.cofins || 0,
+              i.cst_pis || i.cst || null, i.cst_cofins || null, lote.lastInsertRowid,
+              i.documento || null, i.base_pis ?? null, i.base_cofins ?? null,
+              i.aliquota_pis ?? null, i.aliquota_cofins ?? null);
             if (identidade?.produto_empresa_id) db.prepare('UPDATE movimentos SET produto_empresa_id=? WHERE id=last_insert_rowid()').run(identidade.produto_empresa_id);
             rel.itens++;
             if (i.sentido === 'entrada') rel.entradas++; else rel.saidas++;

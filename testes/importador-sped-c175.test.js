@@ -18,5 +18,16 @@ const c175 = saidas.find((x) => x.origem_agregada === 'C175');
 assert.equal(c175.cfop, '5102');
 assert.equal(c175.pis, 1.65);
 assert.equal(c175.cofins, 7.6);
+assert.equal(c175.cst_pis, '01');
+assert.equal(c175.cst_cofins, '01');
+
+const monofasico = sped.lerSped(Buffer.from([
+  '|0000|015|0|0||01012026|31012026|Empresa teste|06540179000156|MG|',
+  '|C100|1|0||65|00|1|12|31260106540179000156650010000000121000000001|01012026|01012026|50|0|0|0|50|9|',
+  '|C175|5405|50,00|0|04|0|0|||0|04|0|0|||0|',
+].join('\n'), 'latin1'), '06540179000156').itens[0];
+assert.equal(monofasico.valor, 50, 'CST monofásico continua sendo receita operacional');
+assert.equal(monofasico.cst_pis, '04');
+assert.equal(monofasico.cst_cofins, '04');
 assert.ok(resultado.avisos.some((x) => x.includes('C175')));
 console.log('importador-sped-c175.test.js: OK');

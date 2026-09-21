@@ -194,6 +194,12 @@ function lerSped(buffer, cnpjEmpresa) {
           valor: dec(p[3]), desconto: dec(p[4]),
           cst: (p[5] || '').trim(), cfop: soDigitos(p[2]),
           base_calculo: dec(p[6]), icms: 0, icms_st: 0, ipi: 0,
+          // C175 é a evidência tributária da EFD-Contribuições. Guardar os
+          // dois CSTs evita reduzir receita monofásica/zero a uma venda
+          // "normal" apenas porque não há C170 por produto.
+          cst_pis: (p[5] || '').trim(), cst_cofins: (p[11] || '').trim(),
+          base_pis: dec(p[6]), base_cofins: dec(p[12]),
+          aliquota_pis: dec(p[7]), aliquota_cofins: dec(p[13]),
           pis: dec(p[10]), cofins: dec(p[16]), iss: 0,
           frete: 0, seguro: 0, outras: 0, agregado: true, origem_agregada: 'C175',
         });

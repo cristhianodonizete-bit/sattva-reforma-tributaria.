@@ -25,6 +25,25 @@ function tabelaExiste(db, nome) {
   return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(nome));
 }
 
+// A EFD-Contribuições pode trazer a receita em C175, agregada por CFOP e
+// CST. O tratamento não altera se a operação compõe receita: apenas expõe a
+// segregação que foi efetivamente escriturada, sem inferência por produto.
+function tratamentoPisCofinsDocumentado(movimento = {}) {
+  const pisBruto = String(movimento.cst_pis_documentado || '').trim();
+  const cofinsBruto = String(movimento.cst_cofins_documentado || '').trim();
+  const pis = pisBruto ? pisBruto.padStart(2, '0') : '';
+  const cofins = cofinsBruto ? cofinsBruto.padStart(2, '0') : '';
+  if (!pis && !cofins) return { codigo:'NAO_INFORMADO', rotulo:'Não informado na fonte' };
+  const codigos = [...new Set([pis, cofins].filter(Boolean))];
+  const mapa = {
+    '01':'Tributação normal', '02':'Tributação diferenciada', '03':'Tributação por quantidade',
+    '04':'Monofásica', '05':'Substituição tributária', '06':'Alíquota zero',
+    '07':'Isenta', '08':'Sem incidência', '09':'Outras operações',
+  };
+  const rotulos = codigos.map((codigo) => mapa[codigo] || `CST ${codigo}`);
+  return { codigo:codigos.join('/'), rotulo:rotulos.join(' / ') };
+}
+
 // Demonstra, por competência, a memória que validou a transferência do
 // PGDAS para o Perfil Tributário. Os valores do perfil continuam sendo os
 // declarados no PGDAS; o cálculo de competência é apresentado separadamente.
@@ -217,10 +236,17 @@ function consolidar(db, empresaId, opcoes = {}) {
   // migração local é concluída.
   const colunasMovimentos = new Set(db.prepare('PRAGMA table_info(movimentos)').all().map((x) => x.name));
   const colunaMovimento = (nome) => colunasMovimentos.has(nome) ? nome : `NULL AS ${nome}`;
+  const temEvidenciaPisCofins = tabelaExiste(db, 'enriquecimento_pis_cofins_evidencias');
   const movimentosFonte = Array.isArray(opcoes.movimentos)
     ? opcoes.movimentos
-    : db.prepare(`SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('documento')},${colunaMovimento('chave')},${colunaMovimento('descricao')},${colunaMovimento('data_emissao')},${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')},${colunaMovimento('situacao_documento')},${colunaMovimento('normalizacao_evidencia')}
-      FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId);
+    : db.prepare(temEvidenciaPisCofins
+      ? `SELECT m.competencia,m.valor,m.iss,m.tipo,m.sentido,m.documento,m.chave,m.descricao,m.data_emissao,m.frete,m.seguro,m.outras,m.desconto,m.cfop,m.nbs,m.lc116,m.modelo_documento_fiscal,m.situacao_documento,m.normalizacao_evidencia,
+          e.cst_pis AS cst_pis_documentado,e.cst_cofins AS cst_cofins_documentado,e.tratamento_especifico AS tratamento_pis_cofins_documentado
+        FROM movimentos m
+        LEFT JOIN enriquecimento_pis_cofins_evidencias e ON e.movimento_id=m.id AND e.empresa_id=m.empresa_id AND e.origem_evidencia='SPED_C175'
+        WHERE m.empresa_id=? AND COALESCE(m.competencia,'')<>''`
+      : `SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('documento')},${colunaMovimento('chave')},${colunaMovimento('descricao')},${colunaMovimento('data_emissao')},${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')},${colunaMovimento('situacao_documento')},${colunaMovimento('normalizacao_evidencia')}
+        FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId);
   const deducoesDevolucoes = [];
   movimentosFonte
     .filter((x) => Number(x.empresa_id || empresaId) === Number(empresaId) && String(x.competencia || '') !== '')
@@ -241,8 +267,9 @@ function consolidar(db, empresaId, opcoes = {}) {
       // de uma venda era somada ao grupo de vendas já criado e herdava seu
       // `compoe_receita=true`, embora a própria linha estivesse cancelada.
       const classificacaoComposicao = compoe ? 'COMPOE_RECEITA' : `NAO_COMPOE_${situacao}`;
-      const chave = [x.competencia, x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop || 'SEM_CFOP', motivo, classificacaoComposicao].join('|');
-      const linha = composicaoReceita.get(chave) || { competencia:x.competencia, modelo_fiscal:x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop, motivo, compoe_receita:compoe, itens:0, valor:0 };
+      const tratamentoPisCofins = tratamentoPisCofinsDocumentado(x);
+      const chave = [x.competencia, x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop || 'SEM_CFOP', motivo, classificacaoComposicao, tratamentoPisCofins.codigo].join('|');
+      const linha = composicaoReceita.get(chave) || { competencia:x.competencia, modelo_fiscal:x.modelo_documento_fiscal || 'NAO_IDENTIFICADO', cfop, motivo, compoe_receita:compoe, tratamento_pis_cofins:tratamentoPisCofins.rotulo, itens:0, valor:0 };
       const valorDaLinha = valorDocumental(x);
       linha.itens++; linha.valor += valorDaLinha; composicaoReceita.set(chave, linha);
       if (compoe) {

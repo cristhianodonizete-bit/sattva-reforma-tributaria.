@@ -1630,6 +1630,8 @@ CREATE TABLE IF NOT EXISTS enriquecimento_pis_cofins_evidencias (
   criado_em TEXT DEFAULT (datetime('now')),
   UNIQUE(empresa_id, movimento_id, origem_evidencia)
 );
+CREATE INDEX IF NOT EXISTS ix_evidencias_pis_cofins_movimento_origem
+  ON enriquecimento_pis_cofins_evidencias(movimento_id, origem_evidencia);
 
 CREATE TABLE IF NOT EXISTS pendencias_enriquecimento_fiscal (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
