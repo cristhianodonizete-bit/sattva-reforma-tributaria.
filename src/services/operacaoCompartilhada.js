@@ -435,6 +435,16 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   const normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
   const remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
   const locais = db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(id).map((x) => Number(x.id));
+  // Uma fonte compartilhada vazia não é autorização para apagar uma
+  // importação local já concluída. Isto ocorre, por exemplo, entre o commit
+  // do SPED e sua publicação remota. Exclusões feitas pela própria aplicação
+  // atingem ambas as bases de forma coordenada e não passam por este ramo.
+  if (!normalizadas.length && locais.length) {
+    const sincronizadoEm = Date.now();
+    reconciliacoesRecentes.set(id, { sincronizadoEm });
+    return { ativo:true, origem:'BASE_LOCAL_AGUARDANDO_PUBLICACAO', inseridos_ou_atualizados:0,
+      removidos:0, sincronizado_em:sincronizadoEm, movimentos:lerMovimentosLocais(id) };
+  }
   const remover = locais.filter((id) => !remotos.has(id));
   db.transaction(() => {
     if (remover.length) {
@@ -951,6 +961,38 @@ async function publicarContratos(remoto, empresaId, empresaRemotaId = empresaId)
   }
   return { contratos: contratos.length };
 }
+
+// Importações fiscais precisam chegar à fonte canônica antes de qualquer
+// leitura que reconcilie a empresa. Publicar toda a base após cada SPED era
+// lento e podia levar configurações não relacionadas junto; este caminho é
+// restrito aos fatos operacionais da empresa importada e preserva os IDs que
+// dão rastreabilidade ao lote, movimento e evidência C175.
+async function publicarOperacaoEmpresa(empresaId) {
+  if (!ativo()) return { ativo:false };
+  const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!empresa?.cnpj) throw new Error('Empresa não encontrada para publicar a importação fiscal.');
+  const remoto = supabase.admin();
+  const cnpj=String(empresa.cnpj).replace(/\D/g,'');
+  const { data: candidatas, error: erroEmpresa } = await remoto.from('empresas').select('id,cnpj,origem_local_id')
+    .or(`origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`).limit(10);
+  if (erroEmpresa) throw new Error(`Empresa compartilhada: ${erroEmpresa.message}`);
+  const empresas=(candidatas || []).filter((x) => Number(x.origem_local_id) === Number(empresaId) || String(x.cnpj || '').replace(/\D/g,'') === cnpj);
+  if (empresas.length !== 1) throw new Error('Empresa compartilhada não localizada de forma única; a importação local foi preservada.');
+  const empresaRemotaId=Number(empresas[0].id);
+  const tabelas=['lotes','parceiros','movimentos','enriquecimento_pis_cofins_evidencias'];
+  const resultado={ empresa_id:empresaRemotaId };
+  for (const tabela of tabelas) {
+    const campos=CAMPOS[tabela];
+    const linhas=db.prepare(`SELECT ${campos.join(',')} FROM ${tabela} WHERE empresa_id=?`).all(Number(empresaId))
+      .map((linha) => ({ ...linha, empresa_id:empresaRemotaId }));
+    for (let inicio=0; inicio<linhas.length; inicio+=500) {
+      const { error } = await remoto.from(tabela).upsert(linhas.slice(inicio,inicio+500), { onConflict:'id' });
+      if (error) throw new Error(`${tabela}: ${error.message}`);
+    }
+    resultado[tabela]=linhas.length;
+  }
+  return resultado;
+}
 // Exclusão de documento fiscal precisa ocorrer na fonte canônica antes de
 // atingir o cache. Caso contrário, a próxima reconciliação restaura o XML e
 // a tela transmite a impressão de que o botão não funcionou.
@@ -983,6 +1025,6 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
   return { empresa_remota_id: empresaRemotaId, excluidos: ids.length, movimento_ids: ids };
 }
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };

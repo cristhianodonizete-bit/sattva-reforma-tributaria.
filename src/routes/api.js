@@ -5668,7 +5668,22 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
     } catch (_) { /* segue sem classificar */ }
     const semRegime = db.prepare(`SELECT COUNT(*) c FROM parceiros WHERE empresa_id = ? AND (regime IS NULL OR regime = '')`).get(req.params.id).c;
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
+    // Sem esta publicação, a Central enxergava o SPED local, mas Perfil e
+    // Cadeias reconciliavam a empresa contra uma fonte compartilhada vazia e
+    // passavam a exibir zero. A resposta só confirma a importação depois de
+    // a mesma fotografia operacional estar disponível para todas as telas.
+    let publicacao;
+    try {
+      publicacao = await require('../services/operacaoCompartilhada').publicarOperacaoEmpresa(Number(req.params.id));
+      estadoLeituraEmpresa.invalidar(db, Number(req.params.id), ['documentos','perfil','motor','cadeias'], 'SPED publicado na fonte compartilhada');
+    } catch (erroPublicacao) {
+      // A leitura e o lote local são fatos já persistidos. Falha transitória
+      // de rede não transforma uma importação concluída em perda de dados.
+      estadoLeituraEmpresa.falhou(db, Number(req.params.id), ['documentos'], erroPublicacao.message);
+      publicacao = { pendente:true, erro:erroPublicacao.message };
+    }
     ok(res, { ...rel, reprocessado: reprocessarLote, classificacao, parceirosSemRegime: semRegime,
+      publicacao,
       enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
         mensagem: 'Consulta cadastral de clientes e fornecedores agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }
