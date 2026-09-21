@@ -1388,7 +1388,7 @@ router.post('/empresas/:id/apuracoes-pis-cofins/ingestao', upload.single('arquiv
   } catch (e) { erro(res, e); }
 });
 router.get('/empresas/:id/apuracoes-pis-cofins', async (req, res) => {
-  try { const empresaId=Number(req.params.id); await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId), { motivo:'Apurações conferidas na fonte compartilhada' }); ok(res, { apuracoes: apuracoesPisCofinsIa.listarParaRevisao(db, empresaId) }); }
+  try { const empresaId=Number(req.params.id); await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId), { motivo:'Apurações conferidas na fonte compartilhada' }); const reparo=apuracoesPisCofinsIa.repararRelatoriosQuestorSemValores(db, empresaId); if(reparo.reparados) await apuracoesPisCofinsIa.publicarCompartilhado(db, empresaId); ok(res, { apuracoes: apuracoesPisCofinsIa.listarParaRevisao(db, empresaId), reparo }); }
   catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/apuracoes-pis-cofins/:apuracaoId/reprocessar', async (req, res) => {

@@ -78,15 +78,33 @@ function competenciaDoTexto(valor) {
 }
 
 function textoDoRelatorio(textoDocumento) {
-  const bruto = String(textoDocumento || '');
-  // O conector Questor pode devolver o nWeb encapsulado em JSON, no campo
-  // Data. Abrir esse envelope antes de procurar as seções evita que os \r\n
-  // literais impeçam a distinção entre Entradas e Saídas.
-  try {
-    const envelope = JSON.parse(bruto);
-    if (typeof envelope?.Data === 'string') return envelope.Data;
-  } catch (_) { /* relatório textual direto */ }
-  return bruto;
+  const bruto = typeof textoDocumento === 'string' ? textoDocumento : JSON.stringify(textoDocumento || {});
+  // O nWeb varia o envelope entre Data, data, Resultado e JSON serializado
+  // dentro de JSON. Preservamos todas as strings do retorno para que a tabela
+  // de totais não vire "[object Object]" antes da extração.
+  const textos = [];
+  const coletar = (valor, vistos = new Set()) => {
+    if (valor === null || valor === undefined || vistos.has(valor)) return;
+    if (typeof valor === 'string') {
+      textos.push(valor);
+      const candidato = valor.trim();
+      if ((candidato.startsWith('{') || candidato.startsWith('[')) && candidato.length > 1) {
+        try { coletar(JSON.parse(candidato), vistos); } catch (_) { /* texto comum */ }
+      }
+      return;
+    }
+    if (typeof valor !== 'object') return;
+    vistos.add(valor);
+    ['Data', 'data', 'Resultado', 'resultado', 'Relatorio', 'relatorio', 'Content', 'content'].forEach((chave) => {
+      if (valor[chave] !== undefined) coletar(valor[chave], vistos);
+    });
+    Object.values(valor).forEach((item) => coletar(item, vistos));
+  };
+  try { coletar(JSON.parse(bruto)); } catch (_) { textos.push(bruto); }
+  const fonte = textos.join('\n');
+  // Há instalações que devolvem HTML ou que serializam as quebras como texto
+  // literal. Ambas as formas precisam chegar ao leitor como linhas.
+  return fonte.replace(/\\r\\n|\\n|\\r/g, '\n').replace(/<br\s*\/?\s*>/gi, '\n').replace(/<\/tr\s*>/gi, '\n').replace(/<[^>]+>/g, ' ');
 }
 
 // Normaliza somente rótulos e valores literalmente presentes no texto OCR.
@@ -140,7 +158,7 @@ function normalizarTextoDeterministico(textoDocumento, { localizacoes = [], meto
       rotulo_original: rotulo, confianca: 0.9, metodo_extracao: metodo, status_validacao: 'REQUER_VALIDACAO',
     };
   };
-  const numerosDoBloco = (bloco) => (String(bloco || '').match(/\d{1,3}(?:\.\d{3})*,\d{2}/g) || [])
+  const numerosDoBloco = (bloco) => (String(bloco || '').match(/\d{1,3}(?:\.\d{3})*,\d{2}|\d+(?:[.,]\d{2})/g) || [])
     .map(valorNumericoDoTexto).filter((v) => v !== null);
   // Alguns layouts escrevem o intervalo completo (01/06/2026 a
   // 30/06/2026), outros apenas 06/2026. Ambos identificam a competência.
@@ -154,7 +172,7 @@ function normalizarTextoDeterministico(textoDocumento, { localizacoes = [], meto
   // mesmos rótulos. Para apuração de PIS/Cofins da receita, somente o bloco
   // posterior a "Saídas" é elegível; retorno, comodato e demais entradas
   // jamais podem preencher receita-base ou débito.
-  const marcadorSaidas = /(?:^|\n)\s*-\s*sa[ií]das\b/i.exec(textoCompleto);
+  const marcadorSaidas = /\bsa[ií]das\b/i.exec(textoCompleto);
   const textoSaidas = marcadorSaidas ? textoCompleto.slice(marcadorSaidas.index) : textoCompleto;
   const blocoPis = textoSaidas.match(/c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+pis[\s\S]*?(?=c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+cofins|totaliza[cç][aã]o\s+por\s+tipo)/i)?.[0];
   const blocoCofins = textoSaidas.match(/c[oó]digo\s+da\s+situa[cç][aã]o\s+tribut[aá]ria\s+cofins[\s\S]*?(?=totaliza[cç][aã]o\s+por\s+tipo|$)/i)?.[0];
@@ -259,6 +277,46 @@ function reprocessar(db, empresaId, apuracaoId, camposBrutos, versaoModeloExtrac
   return listarParaRevisao(db, empresaId).find((x) => Number(x.id) === Number(apuracaoId));
 }
 
+// Repara somente importações antigas do Questor que foram validadas com os
+// três totais vazios por limitação de layout. O original é relido; se o novo
+// leitor ainda não localizar um total, nada é sobrescrito. Assim não há nova
+// consulta, reenvio ou perda de evidência.
+function repararRelatoriosQuestorSemValores(db, empresaId) {
+  validarEmpresa(db, empresaId);
+  const candidatos = db.prepare(`SELECT a.id,a.competencia,d.conteudo_original FROM pis_cofins_apuracoes_historicas a
+    JOIN pis_cofins_apuracao_documentos d ON d.id=a.documento_id
+    WHERE a.empresa_id=? AND d.tipo_documento='RELATORIO_ERP'
+      AND a.receita_base IS NULL AND a.pis_debito IS NULL AND a.cofins_debito IS NULL`).all(empresaId);
+  const tarefas = db.prepare(`SELECT payload_json,resultado_json FROM questor_conector_tarefas
+    WHERE empresa_id=? AND tipo='APURACAO_PIS_COFINS' AND status='CONCLUIDA' ORDER BY id DESC`).all(empresaId);
+  let reparados = 0;
+  for (const candidato of candidatos) {
+    let fonte = Buffer.from(candidato.conteudo_original || '').toString('utf8');
+    let campos = normalizarTextoDeterministico(fonte, { metodo:'QUESTOR_NWEB_REPARO_LAYOUT_V2' });
+    // Versões anteriores convertiam um retorno JSON do nWeb para
+    // "[object Object]" no documento. A tarefa preservou o retorno bruto e
+    // permite recuperar a mesma evidência, sem chamar o Questor novamente.
+    if (![campos.receita_base, campos.pis_debito, campos.cofins_debito].some((x) => x?.valor_extraido !== null && x?.valor_extraido !== undefined)) {
+      const tarefa = tarefas.find((t) => {
+        try { return JSON.parse(t.payload_json || '{}').competencia === candidato.competencia; } catch (_) { return false; }
+      });
+      if (tarefa) {
+        try {
+          const retorno = JSON.parse(tarefa.resultado_json || '{}');
+          if (retorno.relatorio !== undefined) {
+            fonte = retorno.relatorio;
+            campos = normalizarTextoDeterministico(fonte, { metodo:'QUESTOR_NWEB_REPARO_TAREFA_V2' });
+          }
+        } catch (_) { /* a evidência original continua inalterada */ }
+      }
+    }
+    if (![campos.receita_base, campos.pis_debito, campos.cofins_debito].some((x) => x?.valor_extraido !== null && x?.valor_extraido !== undefined)) continue;
+    reprocessar(db, empresaId, candidato.id, campos, 'QUESTOR_NWEB_REPARO_LAYOUT_V2');
+    reparados++;
+  }
+  return { candidatos:candidatos.length, reparados };
+}
+
 function importarRelatorioQuestor(db, empresaId, textoRelatorio, { competenciaSolicitada = null } = {}) {
   const campos = normalizarTextoDeterministico(textoRelatorio, { metodo:'QUESTOR_NWEB_RELATORIO_V1' });
   // O relatório de totalização por produto do Questor não exibe a competência
@@ -276,7 +334,8 @@ function importarRelatorioQuestor(db, empresaId, textoRelatorio, { competenciaSo
   if (!competenciaExtraida) throw new Error('O relatório Questor não informou uma competência identificável.');
   const existente = db.prepare('SELECT id FROM pis_cofins_apuracoes_historicas WHERE empresa_id=? AND competencia=? LIMIT 1').get(empresaId, competenciaExtraida);
   if (existente) return { ignorado:true, motivo:'Competência já importada; nenhum valor foi sobrescrito.', competencia:competenciaExtraida };
-  const hash = crypto.createHash('sha256').update(Buffer.from(String(textoRelatorio || ''), 'utf8')).digest('hex');
+  const conteudoOriginal = typeof textoRelatorio === 'string' ? textoRelatorio : JSON.stringify(textoRelatorio || {});
+  const hash = crypto.createHash('sha256').update(Buffer.from(conteudoOriginal, 'utf8')).digest('hex');
   const documentoIgual = db.prepare(`SELECT a.competencia FROM pis_cofins_apuracao_documentos d
     JOIN pis_cofins_apuracoes_historicas a ON a.documento_id=d.id
     WHERE d.empresa_id=? AND d.hash_sha256=? LIMIT 1`).get(empresaId, hash);
@@ -286,7 +345,7 @@ function importarRelatorioQuestor(db, empresaId, textoRelatorio, { competenciaSo
   };
   return { ignorado:false, ...ingestao(db, empresaId, {
     nome_original:`Questor — Totais PIS e COFINS por Produto — ${competenciaExtraida}.txt`, tipo_documento:'RELATORIO_ERP', mime_type:'text/plain',
-    conteudo_original:Buffer.from(String(textoRelatorio || ''),'utf8'), versao_modelo_extracao:'QUESTOR_NWEB_RELATORIO_V1',
+    conteudo_original:Buffer.from(conteudoOriginal,'utf8'), versao_modelo_extracao:'QUESTOR_NWEB_RELATORIO_V2',
   }, campos) };
 }
 
@@ -388,4 +447,4 @@ function promptExtracao(textoDocumento) {
   return `Extraia apenas valores expressos no documento de apuração PIS/Cofins. Não calcule, não infira e não substitua ausência por zero. Retorne JSON com a chave campos e, para cada campo abaixo, valor_extraido, origem_documento, pagina_ou_localizacao, rotulo_original, confianca (0 a 1), metodo_extracao e status_validacao. Campos: ${CAMPOS.join(', ')}. Se não existir, valor_extraido deve ser null e status_validacao INDETERMINADO. Documento:\n${String(textoDocumento).slice(0, 70000)}`;
 }
 
-module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, reprocessar, excluir, excluirCompartilhado, importarRelatorioQuestor, confirmarRevisao, publicarCompartilhado, restaurarCompartilhado, promptExtracao, validarConsistencia, normalizarTextoDeterministico };
+module.exports = { CAMPOS, STATUS, ingestao, listarParaRevisao, reprocessar, repararRelatoriosQuestorSemValores, excluir, excluirCompartilhado, importarRelatorioQuestor, confirmarRevisao, publicarCompartilhado, restaurarCompartilhado, promptExtracao, validarConsistencia, normalizarTextoDeterministico };
