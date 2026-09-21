@@ -1,7 +1,12 @@
 const unzipper = require('unzipper');
 const { createExtractorFromData } = require('node-unrar-js');
 
-const LIMITE_ARQUIVOS_XML = 2000;
+// Pastas selecionadas no navegador já seguem em blocos de 500. O ZIP/RAR,
+// porém, chega como um único arquivo e antes era recusado a partir de 2 mil
+// XMLs, obrigando o usuário a quebrar manualmente o mesmo acervo. O teto
+// maior atende arquivos fiscais reais; os limites de bytes continuam sendo a
+// defesa contra descompressão excessiva.
+const LIMITE_ARQUIVOS_XML = 10000;
 const LIMITE_TOTAL_DESCOMPACTADO = 150 * 1024 * 1024;
 const LIMITE_XML_INDIVIDUAL = 20 * 1024 * 1024;
 

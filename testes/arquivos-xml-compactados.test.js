@@ -1,5 +1,6 @@
 const assert = require('assert');
 const arquivos = require('../src/services/arquivosXmlCompactados');
+assert.equal(arquivos.LIMITE_ARQUIVOS_XML, 10000, 'arquivo compactado deve suportar acervo fiscal sem quebra manual em lotes de 2 mil');
 
 function crc32(buffer) {
   let crc = 0xffffffff;
