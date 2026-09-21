@@ -180,6 +180,27 @@ function lerSped(buffer, cnpjEmpresa) {
         break;
       }
 
+      case 'C175': {
+        // EFD Contribuições pode apresentar a venda em C100 e detalhar os
+        // tributos apenas no C175, sem C170. É um totalizador por CFOP;
+        // usamos somente como fallback para não duplicar C170 já importado.
+        if (!docAtual || docAtual.origem !== 'C100' || !docAtual.pendenteC190) break;
+        itens.push({
+          ...comum(docAtual, cabecalho),
+          item_numero: itensDoDoc + 1,
+          codigo_produto: '',
+          descricao: `Totalizador PIS/Cofins CFOP ${soDigitos(p[2])}`,
+          ncm: '', nbs: '', quantidade: 0, unidade: '',
+          valor: dec(p[3]), desconto: dec(p[4]),
+          cst: (p[5] || '').trim(), cfop: soDigitos(p[2]),
+          base_calculo: dec(p[6]), icms: 0, icms_st: 0, ipi: 0,
+          pis: dec(p[10]), cofins: dec(p[16]), iss: 0,
+          frete: 0, seguro: 0, outras: 0, agregado: true, origem_agregada: 'C175',
+        });
+        itensDoDoc++;
+        break;
+      }
+
       case 'C190': {
         // Perfil B não envia C170: o detalhe vem agregado por CST/CFOP.
         // Só usamos como fallback, e o item fica sem NCM — o que o motor
@@ -301,8 +322,10 @@ function lerSped(buffer, cnpjEmpresa) {
   // --- avisos estruturais
   const semNcm = itens.filter((i) => !i.ncm && !i.nbs && i.origem !== 'A170').length;
   if (semNcm) avisos.push(`${semNcm} itens sem NCM. No SPED o NCM vem do registro 0200 — confira se o arquivo inclui o cadastro de itens completo.`);
-  const agregados = itens.filter((i) => i.agregado).length;
+  const agregados = itens.filter((i) => i.agregado && i.origem_agregada !== 'C175').length;
   if (agregados) avisos.push(`${agregados} lançamentos vieram do registro C190 (totais por CST/CFOP), sem detalhe por produto. Escrituração de perfil B não traz o C170, então esses itens ficam sem NCM e sem classificação automática.`);
+  const agregadosC175 = itens.filter((i) => i.origem_agregada === 'C175').length;
+  if (agregadosC175) avisos.push(`${agregadosC175} lançamentos de saída vieram do C175 (totalizadores PIS/Cofins por CFOP), sem detalhe de produto. Eles compõem a receita documental, mas requerem classificação posterior para análise por item.`);
   if (!participantes.size) avisos.push('Nenhum participante no registro 0150 — fornecedores e clientes não puderam ser identificados.');
   avisos.push('O SPED não informa o regime tributário dos participantes. Todos entram sem regime e precisam ser completados no cadastro antes de a projeção de crédito ser confiável.');
 

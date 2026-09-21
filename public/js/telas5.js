@@ -629,14 +629,20 @@ async function projImportacaoXml(el) {
   zs.ondrop = (e) => { e.preventDefault(); zs.classList.remove('sobre'); enviarSped(e.dataTransfer.files); };
   is.onchange = () => { enviarSped(is.files); is.value = ''; };
 
-  async function enviarSped(files) {
+  async function enviarSped(files, reprocessar = false) {
     if (!files || !files.length) return;
     const box = document.getElementById('statusSped');
-    box.innerHTML = `<div class="aviso">Lendo ${files.length} arquivo(s) de SPED…</div>`;
+    box.innerHTML = `<div class="aviso">${reprocessar ? 'Reprocessando' : 'Lendo'} ${files.length} arquivo(s) de SPED…</div>`;
     const fd = new FormData();
     [...files].forEach((f) => fd.append('arquivos', f));
+    if (reprocessar) fd.append('reprocessar', '1');
     try {
       const r = await A.api(`/empresas/${S.empresaId}/importar/sped`, { metodo: 'POST', corpo: fd });
+      if (r.status === 'DUPLICADO') {
+        box.innerHTML = `<div class="aviso atencao"><b>Este EFD-Contribuições já foi importado.</b><br>${A.esc(r.mensagem || '')}<br><button class="btn pq" id="reprocessarSped" style="margin-top:9px">Reprocessar este arquivo com o leitor atualizado</button><div class="mini" style="margin-top:6px">Substitui somente os movimentos deste lote; XMLs, outros lotes, configurações e cadastros são preservados.</div></div>`;
+        document.getElementById('reprocessarSped')?.addEventListener('click', () => enviarSped(files, true));
+        return;
+      }
       box.innerHTML = `<div class="grade g3" style="margin-bottom:10px">
           ${A.kpi('Itens', r.itens, `${r.entradas} entradas · ${r.saidas} saídas`)}
           ${A.kpi('Participantes', r.participantes, `${r.produtos} itens no cadastro 0200`)}
@@ -652,6 +658,7 @@ async function projImportacaoXml(el) {
         ], r.periodos)}
         ${r.classificacao ? `<div class="aviso bom" style="margin-top:10px"><b>Classificação automática</b>
           ${r.classificacao.porNcm} por NCM · ${r.classificacao.porNbs} por NBS · ${r.classificacao.requerDecisao} requerem decisão · ${r.classificacao.naoEncontrado} sem correspondência</div>` : ''}
+        ${r.reprocessado ? '<div class="aviso bom"><b>SPED reprocessado.</b> Os movimentos anteriores deste mesmo lote foram substituídos pela leitura atualizada, sem duplicação.</div>' : ''}
         ${r.avisos.map((a) => `<div class="aviso atencao">${A.esc(a)}</div>`).join('')}
         ${r.erros.length ? `<details class="clausula"><summary class="mini">${r.erros.length} arquivos com erro</summary>
           ${r.erros.map((e) => `<div class="mini">• ${A.esc(e)}</div>`).join('')}</details>` : ''}`;

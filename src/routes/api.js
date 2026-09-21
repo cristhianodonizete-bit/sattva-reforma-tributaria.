@@ -5558,13 +5558,19 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
     const preparados = arquivos.map((arquivo) => ({ arquivo, resultado: sped.inspecionarCabecalho(arquivo.buffer, empresa.cnpj) }));
     const efd = preparados.filter(({ resultado }) => resultado.tipoArquivo === 'efd_contribuicoes');
     let lote;
+    let reprocessarLote = false;
     if (efd.length) {
       if (preparados.length !== 1) throw new Error('Envie EFD-Contribuições em arquivo individual.');
       const { arquivo, resultado } = efd[0];
       const hashSha256 = crypto.createHash('sha256').update(arquivo.buffer).digest('hex');
       const existente = db.prepare(`SELECT id FROM lotes WHERE empresa_id=? AND tipo_arquivo='EFD_CONTRIBUICOES' AND hash_sha256=?`).get(req.params.id, hashSha256);
-      if (existente) return ok(res, { status: 'DUPLICADO', loteId: existente.id, mensagem: 'Este arquivo EFD-Contribuições já foi importado para a empresa.' });
-      try {
+      if (existente && String(req.body?.reprocessar || '') !== '1') return ok(res, { status: 'DUPLICADO', loteId: existente.id, mensagem: 'Este arquivo EFD-Contribuições já foi importado para a empresa.' });
+      if (existente) {
+        lote = { lastInsertRowid: existente.id };
+        reprocessarLote = true;
+        db.prepare("UPDATE lotes SET status_importacao='PROCESSANDO', mensagens=NULL WHERE id=?").run(existente.id);
+      }
+      if (!lote) try {
         lote = db.prepare(`INSERT INTO lotes (empresa_id,tipo,arquivo,registros,origem,tipo_arquivo,hash_sha256,competencia_inicio,competencia_fim,cnpj_arquivo,status_importacao)
           VALUES (?,?,?,0,'sped','EFD_CONTRIBUICOES',?,?,?,?, 'PROCESSANDO')`).run(req.params.id, 'sped', arquivo.originalname.slice(0, 200), hashSha256, resultado.periodo.inicio, resultado.periodo.fim, resultado.cabecalho.cnpj);
       } catch (erroLote) {
@@ -5589,6 +5595,10 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
       participantes: 0, produtos: 0, avisos: [], erros: [] };
 
     db.transaction(() => {
+      // Reprocessamento é substitutivo e restrito ao lote identificado pela
+      // mesma hash; movimentos de outros lotes, XMLs e configurações não são
+      // tocados. A transação evita uma base parcialmente refeita.
+      if (reprocessarLote) db.prepare('DELETE FROM movimentos WHERE lote_id=?').run(lote.lastInsertRowid);
       for (const { arquivo: f } of preparados) {
         try {
           const r = sped.lerSped(f.buffer, empresa.cnpj);
@@ -5621,7 +5631,12 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
             rel.itens++;
             if (i.sentido === 'entrada') rel.entradas++; else rel.saidas++;
           }
-        } catch (e) { rel.erros.push(`${f.originalname}: ${e.message}`); }
+        } catch (e) {
+          // Ao substituir um lote existente, qualquer falha aborta a
+          // transação e mantém os movimentos anteriores íntegros.
+          if (reprocessarLote) throw e;
+          rel.erros.push(`${f.originalname}: ${e.message}`);
+        }
       }
     })();
 
@@ -5633,7 +5648,7 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
     } catch (_) { /* segue sem classificar */ }
     const semRegime = db.prepare(`SELECT COUNT(*) c FROM parceiros WHERE empresa_id = ? AND (regime IS NULL OR regime = '')`).get(req.params.id).c;
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
-    ok(res, { ...rel, classificacao, parceirosSemRegime: semRegime,
+    ok(res, { ...rel, reprocessado: reprocessarLote, classificacao, parceirosSemRegime: semRegime,
       enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
         mensagem: 'Consulta cadastral de clientes e fornecedores agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }
