@@ -1217,7 +1217,12 @@ Telas.perfil = async (el) => {
   // A memória mensal confronta o PGDAS de caixa com a apuração independente
   // sobre os documentos da competência. Histórico nunca entra nos cards.
   const memoriaMensalPgdas = [...composicaoPisCofinsPgdas.map((x) => ({ ...x, escopo:'ATUAL' })), ...composicaoPisCofinsPgdasHistorico.map((x) => ({ ...x, escopo:'HISTORICO' }))]
-    .filter((x) => x.status === 'VALIDADO')
+    // A memória mensal deve expor também competências cujo PGDAS diverge da
+    // reprodução por bloco. Elas continuam confirmadas pelo usuário e o
+    // cálculo por competência é justamente a evidência para conferi-las;
+    // escondê-las dava a impressão equivocada de que janeiro a abril não
+    // tinham sido trazidos.
+    .filter((x) => ['VALIDADO','REVISAR'].includes(x.status))
     .reduce((mapa, x) => {
       const atual = mapa.get(x.competencia) || { competencia:x.competencia, escopo:x.escopo, receita_caixa:0, receita_competencia:0, pis_declarado:0, pis_competencia:null, cofins_declarado:0, cofins_competencia:null, status_competencia:'NAO_CALCULADO', motivo_competencia:null, exemplos_competencia:[], regime_caixa:false, validado:true };
       atual.receita_caixa += Number(x.receita_pgdas) || 0;
