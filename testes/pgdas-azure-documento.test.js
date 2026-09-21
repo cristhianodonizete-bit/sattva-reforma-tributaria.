@@ -124,6 +124,10 @@ const porModelo = pgdas.calcularCompetenciaPisCofins(db,1,{ ...valores, competen
 assert.equal(porModelo.status,'CALCULADO');
 assert.equal(porModelo.pis,1.08);
 assert.equal(porModelo.cofins,4.97);
+db.prepare("INSERT INTO movimentos (empresa_id,competencia,sentido,valor,ncm,nbs,lc116,modelo_documento_fiscal) VALUES (1,'2026-07','saida',30,'','','','outro')").run();
+const comPendente = pgdas.calcularCompetenciaPisCofins(db,1,{ ...valores, competencia:'2026-07' },validacao);
+assert.equal(comPendente.documentos_nao_associados.length,1);
+assert.equal(comPendente.documentos_nao_associados[0].valor,30);
 
 const desconhecido=pgdas.normalizarTexto('arquivo sem âncoras fiscais');
 assert.equal(desconhecido.find((x)=>x.campo==='document_type').status_validacao,'INVALID_DOCUMENT');

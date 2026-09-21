@@ -1224,7 +1224,7 @@ Telas.perfil = async (el) => {
     // tinham sido trazidos.
     .filter((x) => ['VALIDADO','REVISAR'].includes(x.status))
     .reduce((mapa, x) => {
-      const atual = mapa.get(x.competencia) || { competencia:x.competencia, escopo:x.escopo, receita_caixa:0, receita_competencia:0, pis_declarado:0, pis_competencia:null, cofins_declarado:0, cofins_competencia:null, status_competencia:'NAO_CALCULADO', motivo_competencia:null, exemplos_competencia:[], memoria_calculo_competencia:[], blocos_pgdas:[], regime_caixa:false, validado:true };
+      const atual = mapa.get(x.competencia) || { competencia:x.competencia, escopo:x.escopo, receita_caixa:0, receita_competencia:0, pis_declarado:0, pis_competencia:null, cofins_declarado:0, cofins_competencia:null, status_competencia:'NAO_CALCULADO', motivo_competencia:null, exemplos_competencia:[], documentos_nao_associados:[], memoria_calculo_competencia:[], blocos_pgdas:[], regime_caixa:false, validado:true };
       atual.receita_caixa += Number(x.receita_pgdas) || 0;
       atual.receita_competencia += Number(x.receita_competencia) || 0;
       atual.pis_declarado += Number(x.pgdas_pis) || 0;
@@ -1238,6 +1238,7 @@ Telas.perfil = async (el) => {
         atual.status_competencia = x.calculo_competencia_status;
         atual.motivo_competencia = x.calculo_competencia_motivo;
         atual.exemplos_competencia = x.calculo_competencia_exemplos || [];
+        atual.documentos_nao_associados = x.calculo_competencia_documentos_nao_associados || [];
         atual.memoria_calculo_competencia = x.memoria_calculo_competencia || [];
       }
       mapa.set(x.competencia, atual);
@@ -1253,6 +1254,7 @@ Telas.perfil = async (el) => {
       if (!regras.has(chave)) regras.set(chave, b);
     });
     const bases = linha.memoria_calculo_competencia || [];
+    const naoAssociados=linha.documentos_nao_associados || [];
     return `<details><summary><b>Ver memória e bases</b></summary><div style="margin-top:10px">${A.tabela([
       {t:'Anexo / base dos XMLs',r:x=>`<b>Anexo ${A.esc(x.anexo || '—')}</b><div class="mini">Receita por competência: ${A.moeda(x.receita_competencia || 0)}</div>`},
       {t:'Alíquotas efetivas',r:x=>`PIS ${A.pct(x.regra?.pis_effective_rate || 0)}<br>COFINS ${A.pct(x.regra?.cofins_effective_rate || 0)}`},
@@ -1260,7 +1262,7 @@ Telas.perfil = async (el) => {
     ],bases,{vazio:'Nenhuma base documental pôde ser vinculada.'})}</div><div style="margin-top:10px">${A.tabela([
       {t:'Regra do PGDAS',r:x=>`<b>Anexo ${A.esc(x.anexo || '—')} · faixa ${A.esc(x.faixa ?? '—')}</b><div class="mini">RBT12 ${A.moeda(x.rbt12 || 0)} · alíquota nominal ${A.pct(x.aliquota_nominal || 0)} · dedução ${A.moeda(x.parcela_deduzir || 0)}</div>`},
       {t:'Bloco PGDAS / caixa',num:true,r:x=>`Receita ${A.moeda(x.receita_pgdas || 0)}<br>PIS declarado ${A.moeda(x.pgdas_pis)} → regra ${A.moeda(x.calculated_pis)}<br>COFINS declarado ${A.moeda(x.pgdas_cofins)} → regra ${A.moeda(x.calculated_cofins)}`},
-    ],[...regras.values()],{vazio:'Regra PGDAS indisponível.'})}</div><p class="mini" style="margin:10px 0 0">A base por competência vem exclusivamente dos documentos de saída ativos associados ao Anexo. A base de caixa e os valores declarados vêm do PGDAS e não são alterados.</p></details>`;
+    ],[...regras.values()],{vazio:'Regra PGDAS indisponível.'})}</div>${naoAssociados.length ? `<div style="margin-top:10px"><b>${naoAssociados.length} documento(s) sem Anexo para o cálculo</b><p class="mini">Estes documentos compõem a cobertura da competência, mas não entram no PIS/Cofins recalculado até terem vínculo seguro.</p>${A.tabela([{t:'Documento',r:x=>`<b>${A.esc(x.documento)}</b><div class="mini">${A.esc(x.modelo)} · CFOP ${A.esc(x.cfop||'—')}</div>`},{t:'Descrição / chaves fiscais',r:x=>`${A.esc(x.descricao||'—')}<div class="mini">NCM ${A.esc(x.ncm||'—')} · NBS ${A.esc(x.nbs||'—')} · LC 116 ${A.esc(x.lc116||'—')}</div>`},{t:'Valor',num:true,r:x=>A.moeda(x.valor)},{t:'Motivo',r:x=>A.esc(x.motivo)}],naoAssociados)}</div>` : ''}<p class="mini" style="margin:10px 0 0">A base por competência vem exclusivamente dos documentos de saída ativos associados ao Anexo. A base de caixa e os valores declarados vêm do PGDAS e não são alterados.</p></details>`;
   };
   const simplesCaixa = tributario.empresa?.regime_atual === 'simples_nacional' && tributario.empresa?.regime_reconhecimento_simples === 'caixa';
   const recebimentosCaixa = historico.map((x) => x.receita_recebida?.valor);
