@@ -271,16 +271,10 @@ function consolidar(db, empresaId, opcoes = {}) {
       // CFOP tenha ficado salvo na base.
       const cfop=receitaOperacional.cfopEfetivo(x);
       const situacao=String(x.situacao_documento || 'AUTORIZADO').toUpperCase();
-      const naturezaCfop=receitaOperacional.natureza(x);
-      // C175 é a escrituração de receita da EFD-Contribuições, agregada por
-      // CFOP/CST. Ela continua sendo receita quando o CFOP ainda não recebeu
-      // um de-para local. A exceção só vale para CFOP sem natureza: devolução,
-      // remessa, transferência e demais naturezas conhecidas seguem a regra
-      // cadastrada e nunca são transformadas em venda por este fallback.
       const receitaDocumentadaNoSpedC175 = x.origem_evidencia_pis_cofins === 'SPED_C175'
-        && receitaOperacional.ehSaida(x)
-        && !naturezaCfop;
-      const compoe = (receitaOperacional.compoeReceita(x) || receitaDocumentadaNoSpedC175)
+        && receitaOperacional.compoeReceitaComEvidencia(x)
+        && !receitaOperacional.compoeReceita(x);
+      const compoe = receitaOperacional.compoeReceitaComEvidencia(x)
         && !['5916','6916'].includes(cfop)
         && !['CANCELADO','DENEGADO','INUTILIZADO'].includes(situacao);
       const motivo = receitaDocumentadaNoSpedC175 ? 'RECEITA_ESCRITURADA_SPED_C175' : receitaOperacional.motivo(x);

@@ -33,7 +33,7 @@ const crypto = require('crypto');
 // A classificação passa a preservar a evidência complementar do NBS quando
 // não houver chave LC116+NBS exata. A versão invalida resultados anteriores,
 // que poderiam ter descartado indevidamente a exceção 200044 antes do QSA.
-const MOTOR_VERSION = 'motor-cbs-2026-09-09-saidas-somente-vendas-5949-6949';
+const MOTOR_VERSION = 'motor-cbs-2026-09-21-receita-efd-c175';
 const hash = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 24);
 const versoesAtuais = () => {
   const params = regras.tudo();
@@ -150,6 +150,7 @@ function carregar(empresaId, sentido, movimentoIds = null) {
   const tipo = sentido === 'saida' ? 'cliente' : 'fornecedor';
   let sql = `SELECT m.*, p.regime AS regime_cadastro, p.perfil_economico AS perfil_cadastro, p.descricao AS nome_cadastro,
       p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro
+      ,CASE WHEN EXISTS(SELECT 1 FROM enriquecimento_pis_cofins_evidencias e WHERE e.empresa_id=m.empresa_id AND e.movimento_id=m.id AND e.origem_evidencia='SPED_C175') THEN 'SPED_C175' ELSE '' END AS origem_evidencia_pis_cofins
     FROM movimentos m
     LEFT JOIN parceiros p ON p.empresa_id = m.empresa_id AND p.tipo = m.tipo AND p.cnpj = m.inscr_federal
     WHERE m.empresa_id = ? AND m.tipo = ? AND COALESCE(m.situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')`;
@@ -188,9 +189,9 @@ function executar(empresaId, opcoes = {}) {
   // Saída física não é faturamento. Transferências, remessas, devoluções e
   // ativo permanecem no painel fiscal para auditoria, mas não entram no
   // motor de vendas, nos clientes, na precificação ou nos totais da receita.
-  const saidasElegiveis = saidasOriginais.filter((m) => receitaOperacional.compoeReceita(m));
+  const saidasElegiveis = saidasOriginais.filter((m) => receitaOperacional.compoeReceitaComEvidencia(m));
   const saidasExcluidasDaReceita = saidasOriginais
-    .filter((m) => !receitaOperacional.compoeReceita(m)).map((m) => m.id).filter(Boolean);
+    .filter((m) => !receitaOperacional.compoeReceitaComEvidencia(m)).map((m) => m.id).filter(Boolean);
   const revisoesPorMovimento = revisaoBeneficiosFiscais.porMovimento(empresaId, saidasElegiveis.map((m) => m.id));
   // A referência da empresa continua disponível como terceira precedência,
   // mas serviços sem valor no XML não são mais bloqueados: o catálogo fiscal
@@ -708,10 +709,11 @@ function resultadoMaterializado(empresa, ano) {
   // reaparecer em faturamento por meio de um resumo anteriormente gravado.
   const registros = db.prepare(`SELECT r.*, m.tipo AS tipo_movimento,
       m.origem AS origem_movimento, m.cfop, m.nbs, m.lc116,
-      m.modelo_documento_fiscal, m.iss
+      m.modelo_documento_fiscal, m.iss,
+      CASE WHEN EXISTS(SELECT 1 FROM enriquecimento_pis_cofins_evidencias e WHERE e.empresa_id=m.empresa_id AND e.movimento_id=m.id AND e.origem_evidencia='SPED_C175') THEN 'SPED_C175' ELSE '' END AS origem_evidencia_pis_cofins
     FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
     WHERE r.empresa_id=?`).all(empresa.id)
-    .filter((r) => r.sentido !== 'saida' || receitaOperacional.compoeReceita({ ...r, tipo:r.tipo_movimento, origem:r.origem_movimento }));
+    .filter((r) => r.sentido !== 'saida' || receitaOperacional.compoeReceitaComEvidencia({ ...r, tipo:r.tipo_movimento, origem:r.origem_movimento }));
   const linhas = registros.map((r) => { try { return JSON.parse(r.detalhe || '{}'); } catch (_) { return null; } }).filter(Boolean);
   const entradas = linhas.filter((x) => x.sentido === 'entrada');
   const saidas = linhas.filter((x) => x.sentido === 'saida');

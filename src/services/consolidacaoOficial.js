@@ -63,6 +63,7 @@ function linhas(empresaId, opcoes = {}) {
   if (emMemoria) return aplicarEscopo(emMemoria);
   const dados = db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.modelo_documento_fiscal,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento, m.origem AS origem_movimento,
+      CASE WHEN EXISTS(SELECT 1 FROM enriquecimento_pis_cofins_evidencias e WHERE e.empresa_id=m.empresa_id AND e.movimento_id=m.id AND e.origem_evidencia='SPED_C175') THEN 'SPED_C175' ELSE '' END AS origem_evidencia_pis_cofins,
       COALESCE(NULLIF(p.regime,''), r.regime_cbs_emitente, 'indeterminado') AS regime_parceiro,
       p.descricao AS parceiro_cadastrado
     FROM motor_resultados r
@@ -83,7 +84,7 @@ function filtrarLinhasDoEscopo(linhas, tipo, periodo) {
     if (lado === 'cliente' && linha.sentido !== 'saida') return false;
     if (lado === 'fornecedor' && linha.sentido !== 'entrada') return false;
     if (lado === 'fornecedor' || linha.sentido !== 'saida') return true;
-    return receitaOperacional.compoeReceita({
+    return receitaOperacional.compoeReceitaComEvidencia({
       ...linha, tipo: linha.tipo_movimento || linha.tipo, origem: linha.origem_movimento || linha.origem,
     });
   });

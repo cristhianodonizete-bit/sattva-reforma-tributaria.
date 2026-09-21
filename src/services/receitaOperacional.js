@@ -77,6 +77,21 @@ function compoeReceita(movimento = {}) {
   return Boolean(String(movimento.nbs || '').trim() || String(movimento.lc116 || '').trim() || Number(movimento.iss || 0));
 }
 
+// O registro C175 é a evidência de receita por CFOP/CST da própria
+// EFD-Contribuições. Ele não substitui uma natureza já conhecida: devolução,
+// remessa, transferência e ativo/consumo continuam obedecendo ao Mapa de
+// CFOP. Só evita perder uma saída efetivamente escriturada enquanto um CFOP
+// ainda não recebeu de-para local.
+function compoeReceitaComEvidencia(movimento = {}) {
+  if (compoeReceita(movimento)) return true;
+  if (!ehSaida(movimento)) return false;
+  if (!['SPED_C175', 'EFD_C175'].includes(String(movimento.origem_evidencia_pis_cofins || movimento.evidencia_sped_c175 || '').toUpperCase())) return false;
+  if (['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(movimento.situacao_documento || '').toUpperCase())) return false;
+  const cfop=cfopEfetivo(movimento);
+  if (['5916','6916'].includes(cfop)) return false;
+  return !natureza(movimento);
+}
+
 function motivo(movimento = {}) {
   if (!ehSaida(movimento)) return 'ENTRADA';
   if (String(movimento.origem || '').trim().toLowerCase() === 'teste') return 'REGISTRO_DE_TESTE';
@@ -94,4 +109,4 @@ function motivo(movimento = {}) {
   return 'OPERACAO_SEM_EVIDENCIA_DE_VENDA';
 }
 
-module.exports = { ehSaida, cfopEfetivo, natureza, efeitoBase, compoeReceita, motivo };
+module.exports = { ehSaida, cfopEfetivo, natureza, efeitoBase, compoeReceita, compoeReceitaComEvidencia, motivo };

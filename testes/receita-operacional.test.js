@@ -8,6 +8,8 @@ assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5152'})
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5949'}),false,'outras saídas 5.949 não podem compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'6949'}),false,'outras saídas 6.949 não podem compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5999',modelo_documento_fiscal:'nfe'}),false,'CFOP de saída sem mapeamento não pode ser presumido como venda');
+assert.equal(receita.compoeReceitaComEvidencia({tipo:'cliente',sentido:'saida',cfop:'5999',modelo_documento_fiscal:'nfe',origem_evidencia_pis_cofins:'SPED_C175'}),true,'C175 é evidência de receita mesmo antes do de-para do CFOP');
+assert.equal(receita.compoeReceitaComEvidencia({tipo:'cliente',sentido:'saida',cfop:'5202',origem_evidencia_pis_cofins:'SPED_C175'}),false,'devolução conhecida não vira receita pelo C175');
 assert.equal(receita.motivo({tipo:'cliente',sentido:'saida',cfop:'5999',modelo_documento_fiscal:'nfe'}),'CFOP_SEM_MAPEAMENTO_DE_RECEITA','CFOP desconhecido deve ficar auditável');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5601'}),false,'transferência de crédito de ICMS não é venda');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'7101'}),true,'exportação de venda catalogada deve compor receita');
