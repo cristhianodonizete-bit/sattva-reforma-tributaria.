@@ -144,8 +144,25 @@ function calcularCompetenciaPisCofins(db,empresaId,valores,validacao){
   if(ambiguos.length)return {status:'REVIEW_REQUIRED',pis:null,cofins:null,motivo:`A receita de competência ainda precisa ser vinculada aos buckets ${ambiguos.join(', ')} do PGDAS; não houve rateio automático.`,memoria:[]};
   const colunasMovimentos=new Set(db.prepare('PRAGMA table_info(movimentos)').all().map((x)=>x.name));
   const filtroSituacao=colunasMovimentos.has('situacao_documento') ? " AND COALESCE(situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')" : '';
-  const movs=db.prepare(`SELECT valor,ncm,nbs,lc116 FROM movimentos WHERE empresa_id=? AND competencia=? AND sentido='saida'${filtroSituacao}`).all(empresaId,valores.competencia), porAnexo={}; movs.forEach((m)=>{const a=m.ncm?'I':(m.nbs||m.lc116?'III':null);if(a)porAnexo[a]=(Number(porAnexo[a])||0)+(Number(m.valor)||0);});
-  let pis=0,cofins=0;const memoria=[];for(const [anexo,blocos] of Object.entries(porAnexoBloco)){const bloco=blocos[0],receita=Number(porAnexo[anexo]||0);if(!receita)continue;const p=receita*bloco.calculation.pis_effective_rate,c=receita*bloco.calculation.cofins_effective_rate;pis+=p;cofins+=c;memoria.push({anexo,receita_competencia:r2(receita),pis:r2(p),cofins:r2(c),regra:bloco.calculation});}const divergente=!validacao.validada;return {status:divergente?'CALCULADO_COM_DIVERGENCIA_PGDAS':'CALCULADO',pis:r2(pis),cofins:r2(cofins),motivo:divergente?'Cálculo por competência disponível, mas o valor declarado no PGDAS diverge da reprodução por bloco.':null,memoria};
+  const campoModelo=colunasMovimentos.has('modelo_documento_fiscal') ? 'modelo_documento_fiscal' : 'NULL AS modelo_documento_fiscal';
+  const movs=db.prepare(`SELECT valor,ncm,nbs,lc116,${campoModelo} FROM movimentos WHERE empresa_id=? AND competencia=? AND sentido='saida'${filtroSituacao}`).all(empresaId,valores.competencia), porAnexo={};
+  // Alguns XMLs de NFS-e não carregam NBS/LC 116, embora a espécie do
+  // documento seja inequívoca. Só usamos essa identidade quando o PGDAS da
+  // própria competência possui um único Anexo possível para serviço/locação
+  // (ou para mercadoria); com mais de um, permanece pendente e não há rateio.
+  const anexosPorAtividade=(atividades)=>[...new Set(validacao.blocos.filter((b)=>atividades.includes(b.activity_group)).map((b)=>b.anexo).filter(Boolean))];
+  const anexosServico=anexosPorAtividade(['SERVICO','LOCACAO']);
+  const anexosMercadoria=anexosPorAtividade(['REVENDA','INDUSTRIA']);
+  const anexoDoMovimento=(m)=>{
+    if(m.ncm)return 'I';
+    if(m.nbs||m.lc116)return 'III';
+    const modelo=String(m.modelo_documento_fiscal||'').toLowerCase();
+    if(modelo==='nfse'&&anexosServico.length===1)return anexosServico[0];
+    if(['nfe','nfce','55','65'].includes(modelo)&&anexosMercadoria.length===1)return anexosMercadoria[0];
+    return null;
+  };
+  movs.forEach((m)=>{const a=anexoDoMovimento(m);if(a)porAnexo[a]=(Number(porAnexo[a])||0)+(Number(m.valor)||0);});
+  let pis=0,cofins=0;const memoria=[];for(const [anexo,blocos] of Object.entries(porAnexoBloco)){const bloco=blocos[0],receita=Number(porAnexo[anexo]||0);if(!receita)continue;const p=receita*bloco.calculation.pis_effective_rate,c=receita*bloco.calculation.cofins_effective_rate;pis+=p;cofins+=c;memoria.push({anexo,receita_competencia:r2(receita),pis:r2(p),cofins:r2(c),regra:bloco.calculation});}if(!memoria.length)return {status:'SEM_DOCUMENTOS_CLASSIFICADOS',pis:null,cofins:null,motivo:'Há documentos de saída, mas nenhum pôde ser associado com segurança aos Anexos do PGDAS.',memoria:[]};const divergente=!validacao.validada;return {status:divergente?'CALCULADO_COM_DIVERGENCIA_PGDAS':'CALCULADO',pis:r2(pis),cofins:r2(cofins),motivo:divergente?'Cálculo por competência disponível, mas o valor declarado no PGDAS diverge da reprodução por bloco.':null,memoria};
 }
 function ingerir(db,empresaId,documento,campos){const e=db.prepare('SELECT id,regime FROM empresas WHERE id=?').get(empresaId);if(!e)throw new Error('Empresa não encontrada.');if(e.regime!=='simples_nacional')throw new Error('O PGDAS é aplicável somente à empresa do Simples Nacional.');const hash=crypto.createHash('sha256').update(documento.conteudo_original).digest('hex');if(db.prepare('SELECT id FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaId,hash))throw new Error('Este documento PGDAS já foi enviado para esta empresa.');const pc=Object.fromEntries(campos.map((x)=>[x.campo,x]));const inserir=db.transaction(()=>{const doc=db.prepare(`INSERT INTO pgdas_documentos (empresa_id,nome_original,tipo_documento,mime_type,conteudo_original,hash_sha256,competencia_detectada,data_processamento,metodo_extracao,status_processamento) VALUES (?,?,?,?,?,?,?,?,?, 'REQUER_VALIDACAO')`).run(empresaId,documento.nome_original,documento.tipo_documento,documento.mime_type||null,documento.conteudo_original,hash,pc.competencia?.valor_extraido||null,new Date().toISOString(),documento.metodo_extracao), ins=db.prepare(`INSERT INTO pgdas_documento_campos (documento_id,campo,valor_extraido,rotulo_original,pagina_ou_localizacao,confianca,metodo_extracao,status_validacao) VALUES (?,?,?,?,?,?,?,?)`);campos.forEach((x)=>ins.run(doc.lastInsertRowid,x.campo,x.valor_extraido===null?null:String(x.valor_extraido),x.rotulo_original,x.pagina_ou_localizacao,x.confianca,x.metodo_extracao,x.status_validacao));return Number(doc.lastInsertRowid);});return {documento_id:inserir(),hash_sha256:hash,campos};}
 function listar(db,empresaId){

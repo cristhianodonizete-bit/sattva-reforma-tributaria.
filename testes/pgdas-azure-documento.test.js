@@ -113,6 +113,18 @@ assert.equal(divergente.status,'CALCULADO_COM_DIVERGENCIA_PGDAS');
 assert.equal(divergente.pis,415.97);
 assert.equal(divergente.cofins,1917.85);
 
+// XMLs de NFS-e nem sempre informam NBS/LC 116. Quando o PGDAS só possui um
+// Anexo de serviço e um de mercadoria, o modelo fiscal é vínculo suficiente;
+// se houver mais de uma opção, a função continua sem presumir um Anexo.
+db.prepare("INSERT INTO movimentos VALUES (1,'2026-07','saida',100,'','',''),(1,'2026-07','saida',200,'','','')").run();
+db.prepare("ALTER TABLE movimentos ADD COLUMN modelo_documento_fiscal TEXT").run();
+db.prepare("UPDATE movimentos SET modelo_documento_fiscal='nfe' WHERE competencia='2026-07' AND valor=100").run();
+db.prepare("UPDATE movimentos SET modelo_documento_fiscal='nfse' WHERE competencia='2026-07' AND valor=200").run();
+const porModelo = pgdas.calcularCompetenciaPisCofins(db,1,{ ...valores, competencia:'2026-07' },validacao);
+assert.equal(porModelo.status,'CALCULADO');
+assert.equal(porModelo.pis,1.08);
+assert.equal(porModelo.cofins,4.97);
+
 const desconhecido=pgdas.normalizarTexto('arquivo sem âncoras fiscais');
 assert.equal(desconhecido.find((x)=>x.campo==='document_type').status_validacao,'INVALID_DOCUMENT');
 assert.throws(()=>pgdas.ingerir(db,2,{nome_original:'x.pdf',tipo_documento:'PDF',conteudo_original:Buffer.from('x'),metodo_extracao:'teste'},campos),/Simples Nacional/);
