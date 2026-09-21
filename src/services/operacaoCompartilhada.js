@@ -396,6 +396,21 @@ function lerMovimentosLocais(empresaId) {
 
 async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   const id = Number(empresaId);
+  // A importação feita nesta instância é persistida no SQLite local. Quando a
+  // operação compartilhada não foi configurada, bloquear a leitura do Perfil
+  // esconderia documentos recém-importados e induziria uma nova importação.
+  // Neste cenário não há fonte canônica externa a consultar: a própria base
+  // persistida é a fonte disponível, identificada explicitamente no retorno.
+  if (!ativo() && !process.env.SUPABASE_DB_URL) {
+    return {
+      ativo: false,
+      origem: 'BASE_LOCAL_PERSISTIDA',
+      inseridos_ou_atualizados: 0,
+      removidos: 0,
+      sincronizado_em: Date.now(),
+      movimentos: lerMovimentosLocais(id),
+    };
+  }
   const agora = Date.now();
   const maxAgeMs = Number.isFinite(Number(opcoes.maxAgeMs))
     ? Number(opcoes.maxAgeMs)
