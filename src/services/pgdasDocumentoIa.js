@@ -123,13 +123,22 @@ function validarRegraBlocos(db,valores,blocos){
 function calcularCompetenciaPisCofins(db,empresaId,valores,validacao){
   if(!validacao?.validada)return null;
   const porAnexoBloco=Object.groupBy(validacao.blocos,(x)=>x.anexo);
-  const ambiguos=Object.entries(porAnexoBloco).filter(([,bs])=>bs.length>1).map(([anexo])=>anexo);
+  // Dois buckets do mesmo Anexo (por exemplo, serviço com e sem retenção de
+  // ISS) podem ser somados sem rateio quando PIS e Cofins efetivos são
+  // idênticos. Quando diferem, não há base documental suficiente para decidir
+  // como distribuir a receita de competência e a apuração continua pendente.
+  const ambiguos=Object.entries(porAnexoBloco).filter(([,bs])=>{
+    const taxas=new Set(bs.map((b)=>`${Number(b.calculation?.pis_effective_rate || 0).toFixed(12)}|${Number(b.calculation?.cofins_effective_rate || 0).toFixed(12)}`));
+    return taxas.size>1;
+  }).map(([anexo])=>anexo);
   // NCM/NBS/LC116 identifica comércio/serviço, mas não presume, por exemplo,
   // qual NFS-e pertence ao serviço com ISS retido. Sem chave documental que
   // diferencie os buckets, não existe base segura para cálculo em competência.
   if(ambiguos.length)return {status:'REVIEW_REQUIRED',pis:null,cofins:null,motivo:`A receita de competência ainda precisa ser vinculada aos buckets ${ambiguos.join(', ')} do PGDAS; não houve rateio automático.`,memoria:[]};
-  const movs=db.prepare(`SELECT valor,ncm,nbs,lc116 FROM movimentos WHERE empresa_id=? AND competencia=? AND sentido='saida' AND COALESCE(situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')`).all(empresaId,valores.competencia), porAnexo={}; movs.forEach((m)=>{const a=m.ncm?'I':(m.nbs||m.lc116?'III':null);if(a)porAnexo[a]=(Number(porAnexo[a])||0)+(Number(m.valor)||0);});
-  let pis=0,cofins=0;const memoria=[];for(const bloco of validacao.blocos){const receita=Number(porAnexo[bloco.anexo]||0);if(!receita)continue;const p=receita*bloco.calculation.pis_effective_rate,c=receita*bloco.calculation.cofins_effective_rate;pis+=p;cofins+=c;memoria.push({anexo:bloco.anexo,receita_competencia:r2(receita),pis:r2(p),cofins:r2(c),regra:bloco.calculation});}return {status:'CALCULADO',pis:r2(pis),cofins:r2(cofins),memoria};
+  const colunasMovimentos=new Set(db.prepare('PRAGMA table_info(movimentos)').all().map((x)=>x.name));
+  const filtroSituacao=colunasMovimentos.has('situacao_documento') ? " AND COALESCE(situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')" : '';
+  const movs=db.prepare(`SELECT valor,ncm,nbs,lc116 FROM movimentos WHERE empresa_id=? AND competencia=? AND sentido='saida'${filtroSituacao}`).all(empresaId,valores.competencia), porAnexo={}; movs.forEach((m)=>{const a=m.ncm?'I':(m.nbs||m.lc116?'III':null);if(a)porAnexo[a]=(Number(porAnexo[a])||0)+(Number(m.valor)||0);});
+  let pis=0,cofins=0;const memoria=[];for(const [anexo,blocos] of Object.entries(porAnexoBloco)){const bloco=blocos[0],receita=Number(porAnexo[anexo]||0);if(!receita)continue;const p=receita*bloco.calculation.pis_effective_rate,c=receita*bloco.calculation.cofins_effective_rate;pis+=p;cofins+=c;memoria.push({anexo,receita_competencia:r2(receita),pis:r2(p),cofins:r2(c),regra:bloco.calculation});}return {status:'CALCULADO',pis:r2(pis),cofins:r2(cofins),memoria};
 }
 function ingerir(db,empresaId,documento,campos){const e=db.prepare('SELECT id,regime FROM empresas WHERE id=?').get(empresaId);if(!e)throw new Error('Empresa não encontrada.');if(e.regime!=='simples_nacional')throw new Error('O PGDAS é aplicável somente à empresa do Simples Nacional.');const hash=crypto.createHash('sha256').update(documento.conteudo_original).digest('hex');if(db.prepare('SELECT id FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaId,hash))throw new Error('Este documento PGDAS já foi enviado para esta empresa.');const pc=Object.fromEntries(campos.map((x)=>[x.campo,x]));const inserir=db.transaction(()=>{const doc=db.prepare(`INSERT INTO pgdas_documentos (empresa_id,nome_original,tipo_documento,mime_type,conteudo_original,hash_sha256,competencia_detectada,data_processamento,metodo_extracao,status_processamento) VALUES (?,?,?,?,?,?,?,?,?, 'REQUER_VALIDACAO')`).run(empresaId,documento.nome_original,documento.tipo_documento,documento.mime_type||null,documento.conteudo_original,hash,pc.competencia?.valor_extraido||null,new Date().toISOString(),documento.metodo_extracao), ins=db.prepare(`INSERT INTO pgdas_documento_campos (documento_id,campo,valor_extraido,rotulo_original,pagina_ou_localizacao,confianca,metodo_extracao,status_validacao) VALUES (?,?,?,?,?,?,?,?)`);campos.forEach((x)=>ins.run(doc.lastInsertRowid,x.campo,x.valor_extraido===null?null:String(x.valor_extraido),x.rotulo_original,x.pagina_ou_localizacao,x.confianca,x.metodo_extracao,x.status_validacao));return Number(doc.lastInsertRowid);});return {documento_id:inserir(),hash_sha256:hash,campos};}
 function listar(db,empresaId){

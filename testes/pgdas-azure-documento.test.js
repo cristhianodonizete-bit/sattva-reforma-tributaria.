@@ -98,8 +98,9 @@ db.prepare("INSERT INTO movimentos VALUES (1,'2026-06','saida',50000,'12345678',
 const doc = pgdas.ingerir(db,1,{nome_original:'pgdas.pdf',tipo_documento:'INTEGRA_CONTADOR_PDF',mime_type:'application/pdf',conteudo_original:Buffer.from('pgdas junho'),metodo_extracao:'teste'},campos);
 const confirmado=pgdas.confirmar(db,1,doc.documento_id);
 assert.equal(confirmado.validacao_regra_simples.validada,true);
-assert.equal(confirmado.calculo_competencia.status,'REVIEW_REQUIRED');
-assert.equal(confirmado.calculo_competencia.pis,null, 'não presume rateio entre serviços com e sem retenção');
+assert.equal(confirmado.calculo_competencia.status,'CALCULADO');
+assert.equal(confirmado.calculo_competencia.pis,415.97, 'agrupa buckets do mesmo Anexo apenas quando as taxas efetivas são iguais');
+assert.equal(confirmado.calculo_competencia.cofins,1917.85);
 assert.equal(confirmado.status_processamento,'VALIDADO_USUARIO');
 const perfilConfirmado=db.prepare('SELECT pis,cofins FROM perfil_tributario WHERE empresa_id=1 AND competencia=?').get('2026-06');
 assert.equal(perfilConfirmado.pis,387.18, 'Perfil recebe PIS efetivamente apurado no PGDAS validado');

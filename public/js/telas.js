@@ -1214,24 +1214,29 @@ Telas.perfil = async (el) => {
       cofins: total.cofins + (Number(x.pgdas_cofins) || 0),
       competencias: total.competencias.add(x.competencia),
     }), { receita:0, pis:0, cofins:0, competencias:new Set() });
-  // A memória mensal confronta o valor declarado com o valor recalculado
-  // bloco a bloco. O histórico é apenas identificado como tal: jamais é
-  // somado aos cards do período analisado.
+  // A memória mensal confronta o PGDAS de caixa com a apuração independente
+  // sobre os documentos da competência. Histórico nunca entra nos cards.
   const memoriaMensalPgdas = [...composicaoPisCofinsPgdas.map((x) => ({ ...x, escopo:'ATUAL' })), ...composicaoPisCofinsPgdasHistorico.map((x) => ({ ...x, escopo:'HISTORICO' }))]
     .filter((x) => x.status === 'VALIDADO')
     .reduce((mapa, x) => {
-      const atual = mapa.get(x.competencia) || { competencia:x.competencia, escopo:x.escopo, receita:0, pis_declarado:0, pis_calculado:0, cofins_declarado:0, cofins_calculado:0, validado:true };
-      atual.receita += Number(x.receita_pgdas) || 0;
+      const atual = mapa.get(x.competencia) || { competencia:x.competencia, escopo:x.escopo, receita_caixa:0, receita_competencia:0, pis_declarado:0, pis_competencia:null, cofins_declarado:0, cofins_competencia:null, status_competencia:'NAO_CALCULADO', motivo_competencia:null, regime_caixa:false, validado:true };
+      atual.receita_caixa += Number(x.receita_pgdas) || 0;
+      atual.receita_competencia += Number(x.receita_competencia) || 0;
       atual.pis_declarado += Number(x.pgdas_pis) || 0;
-      atual.pis_calculado += Number(x.calculated_pis) || 0;
       atual.cofins_declarado += Number(x.pgdas_cofins) || 0;
-      atual.cofins_calculado += Number(x.calculated_cofins) || 0;
+      atual.regime_caixa = atual.regime_caixa || x.regime_apuracao === 'CAIXA';
       atual.validado = atual.validado && Boolean(x.pis_match) && Boolean(x.cofins_match);
+      if (atual.status_competencia === 'NAO_CALCULADO') {
+        atual.pis_competencia = x.pis_competencia;
+        atual.cofins_competencia = x.cofins_competencia;
+        atual.status_competencia = x.calculo_competencia_status;
+        atual.motivo_competencia = x.calculo_competencia_motivo;
+      }
       mapa.set(x.competencia, atual);
       return mapa;
     }, new Map());
   const linhasMemoriaMensalPgdas = [...memoriaMensalPgdas.values()]
-    .map((x) => ({ ...x, diferenca_pis:x.pis_declarado - x.pis_calculado, diferenca_cofins:x.cofins_declarado - x.cofins_calculado }))
+    .map((x) => ({ ...x, diferenca_pis:x.pis_competencia === null ? null : x.pis_declarado - x.pis_competencia, diferenca_cofins:x.cofins_competencia === null ? null : x.cofins_declarado - x.cofins_competencia }))
     .sort((a, b) => String(b.competencia).localeCompare(String(a.competencia)));
   const simplesCaixa = tributario.empresa?.regime_atual === 'simples_nacional' && tributario.empresa?.regime_reconhecimento_simples === 'caixa';
   const recebimentosCaixa = historico.map((x) => x.receita_recebida?.valor);
@@ -1335,12 +1340,12 @@ Telas.perfil = async (el) => {
       </div>
       ${simplesCaixa ? `<div class="grade g3" style="margin-top:16px">${A.kpi('Recebido no caixa', recebidoCaixaTotal ? A.moeda(recebidoCaixaTotal) : 'INDETERMINADO', 'PGDAS · informativo')}${A.kpi('Imposto pago (DAS)', informado(dasCaixa) ? A.moeda(impostoPagoCaixa) : 'INDETERMINADO', 'valores do PGDAS')}${A.kpi('Carga efetiva de caixa', cargaEfetivaCaixa === null ? 'INDETERMINADO' : A.pct(cargaEfetivaCaixa), 'DAS pago ÷ receita recebida')}</div>` : ''}
       ${chaveRegime === 'simples_nacional' && resumoPgdasHistorico.competencias.size ? `<div class="cartao" style="margin-top:16px;box-shadow:none;background:var(--fundo-suave,#f6f9fb)"><div class="cabecalho-lista"><div><h3>Resumo histórico do PGDAS</h3><p class="mini">Competências fora da janela atual. Os valores vêm dos blocos PGDAS confirmados e não são somados à apuração atual.</p></div><span class="tag n">${resumoPgdasHistorico.competencias.size} competência(s)</span></div><div class="grade g3">${A.kpi('Receita PGDAS histórica', A.moeda(resumoPgdasHistorico.receita), [...resumoPgdasHistorico.competencias].sort().join(', '))}${A.kpi('PIS PGDAS histórico', A.moeda(resumoPgdasHistorico.pis), 'somente blocos confirmados')}${A.kpi('Cofins PGDAS histórico', A.moeda(resumoPgdasHistorico.cofins), 'somente blocos confirmados')}</div></div>` : ''}
-      ${chaveRegime === 'simples_nacional' && linhasMemoriaMensalPgdas.length ? `<div class="cartao" style="margin-top:16px;box-shadow:none"><div class="cabecalho-lista"><div><h3>Memória mensal de recálculo do PGDAS</h3><p class="mini">O sistema recalcula PIS e Cofins pelos blocos segregados, Anexo, faixa do RBT12 e repartição do Simples; a diferença é declarado − recalculado.</p></div></div>${A.tabela([
-        { t:'Competência', r:x=>`<b>${A.esc(x.competencia)}</b><div class="mini">${x.escopo === 'ATUAL' ? 'Período atual' : 'Histórico fora do período'}</div>` },
-        { t:'Receita segregada', num:true, r:x=>A.moeda(x.receita) },
-        { t:'PIS', num:true, r:x=>`Declarado ${A.moeda(x.pis_declarado)}<br>Recalculado ${A.moeda(x.pis_calculado)}<br><span class="mini">Dif. ${A.moeda(x.diferenca_pis)}</span>` },
-        { t:'Cofins', num:true, r:x=>`Declarado ${A.moeda(x.cofins_declarado)}<br>Recalculado ${A.moeda(x.cofins_calculado)}<br><span class="mini">Dif. ${A.moeda(x.diferenca_cofins)}</span>` },
-        { t:'Situação', r:x=>`<span class="tag ${x.validado ? 'c' : 'a'}">${x.validado ? 'Recalculado e conferido' : 'Divergência a conferir'}</span>` },
+      ${chaveRegime === 'simples_nacional' && linhasMemoriaMensalPgdas.length ? `<div class="cartao" style="margin-top:16px;box-shadow:none"><div class="cabecalho-lista"><div><h3>Memória mensal: PGDAS de caixa × competência</h3><p class="mini">O declarado vem do PGDAS (caixa). O cálculo por competência usa somente os documentos fiscais ativos da mesma competência, classificados nos Anexos do PGDAS. Sem vínculo seguro, o sistema não rateia nem inventa um valor.</p></div></div>${A.tabela([
+        { t:'Competência', r:x=>`<b>${A.esc(x.competencia)}</b><div class="mini">${x.escopo === 'ATUAL' ? 'Período atual' : 'Histórico fora do período'} · ${x.regime_caixa ? 'Regime de caixa' : 'Regime de competência'}</div>` },
+        { t:'Receitas', num:true, r:x=>`PGDAS/caixa ${A.moeda(x.receita_caixa)}<br>Competência ${x.status_competencia === 'CALCULADO' ? A.moeda(x.receita_competencia) : 'NÃO CALCULADA'}` },
+        { t:'PIS', num:true, r:x=>`Declarado ${A.moeda(x.pis_declarado)}<br>Competência ${x.pis_competencia === null ? 'NÃO CALCULADO' : A.moeda(x.pis_competencia)}<br><span class="mini">Dif. ${x.diferenca_pis === null ? '—' : A.moeda(x.diferenca_pis)}</span>` },
+        { t:'Cofins', num:true, r:x=>`Declarado ${A.moeda(x.cofins_declarado)}<br>Competência ${x.cofins_competencia === null ? 'NÃO CALCULADO' : A.moeda(x.cofins_competencia)}<br><span class="mini">Dif. ${x.diferenca_cofins === null ? '—' : A.moeda(x.diferenca_cofins)}</span>` },
+        { t:'Situação', r:x=>x.status_competencia === 'CALCULADO' ? `<span class="tag ${x.validado ? 'c' : 'a'}">${x.validado ? 'Calculado por competência' : 'Base PGDAS a conferir'}</span>` : `<span class="tag a">Competência pendente</span><div class="mini">${A.esc(x.motivo_competencia || 'Não há vínculo seguro entre os documentos e os buckets do PGDAS.')}</div>` },
       ], linhasMemoriaMensalPgdas)}</div>` : ''}
     </div>
     <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>${chaveRegime === 'simples_nacional' ? 'Segregação da receita no Simples Nacional' : 'Tratamentos na apuração atual'}</h2><p class="desc">${chaveRegime === 'simples_nacional' ? 'Receita e PIS/Cofins conforme os blocos validados da declaração PGDAS. Esta tabela não faz rateio nem presume tratamento a partir do XML.' : 'A fonte atual registra totais de apuração. Tratamentos só são apresentados como identificados quando vierem discriminados no documento.'}</p></div></div>

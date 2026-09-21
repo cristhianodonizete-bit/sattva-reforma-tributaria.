@@ -49,6 +49,9 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
     for (const bloco of validacao.blocos || []) {
       const regra = bloco.calculation || {}, aceite = bloco.aceite_tributario || {};
       linhas.push({ competencia, documento: documento.nome_original, status: validacao.validada ? 'VALIDADO' : 'REVISAR',
+        regime_apuracao: String(bruto.regime_apuracao || 'NAO_IDENTIFICADO').toUpperCase(),
+        rpa_competencia: bruto.rpa_competencia == null ? null : numero(bruto.rpa_competencia),
+        rpa_caixa: bruto.rpa_caixa == null ? null : numero(bruto.rpa_caixa),
         descricao_bloco: bloco.description_raw, receita_pgdas: numero(bloco.revenue_amount), receita_competencia: (calculoCompetencia?.memoria || []).find((x) => x.anexo === bloco.anexo)?.receita_competencia ?? null,
         anexo: aceite.anexo, rbt12: aceite.rbt12, faixa: aceite.faixa, aliquota_nominal: aceite.aliquota_nominal,
         parcela_deduzir: aceite.parcela_deduzir, simples_effective_rate: aceite.aliquota_efetiva_simples,
@@ -58,6 +61,7 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
         pgdas_cofins: aceite.pgdas_cofins, calculated_cofins: aceite.calculated_cofins, cofins_match: aceite.cofins_match,
         pis_perfil: perfil.pis ?? null, cofins_perfil: perfil.cofins ?? null,
         calculo_competencia_status: calculoCompetencia?.status || 'NAO_CALCULADO',
+        calculo_competencia_motivo: calculoCompetencia?.motivo || null,
         pis_competencia: calculoCompetencia?.pis ?? null, cofins_competencia: calculoCompetencia?.cofins ?? null,
       });
     }
