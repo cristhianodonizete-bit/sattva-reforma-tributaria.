@@ -484,7 +484,7 @@ async function projImportacaoXml(el) {
         <h2>Importar XML fiscal</h2>
         <p class="desc">NF-e, NFC-e, CT-e e NFS-e. O sentido da operação é resolvido comparando o CNPJ da empresa com emitente e destinatário — entradas viram fornecedores, saídas viram clientes.</p>
         <div class="dropzone" id="zonaXml"><b>Solte os XMLs aqui</b>
-          <div class="mini">Em “Selecionar pasta”, escolha somente a pasta principal: as subpastas são percorridas automaticamente e somente XMLs são enviados.</div>
+          <div class="mini">Use XML, ZIP ou RAR. Em “Selecionar pasta”, escolha somente a pasta principal: as subpastas são percorridas automaticamente e somente XMLs são enviados.</div>
           <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn pq vazio" id="selecionarXml">Selecionar XMLs</button><button type="button" class="btn pq vazio" id="selecionarPastaXml">Selecionar pasta</button></div></div>
         <div id="statusXml" style="margin-top:12px"></div>
         <hr class="sep">
@@ -516,9 +516,9 @@ async function projImportacaoXml(el) {
 
   const z = document.getElementById('zonaXml');
   const i = document.createElement('input');
-  i.type = 'file'; i.accept = '.xml'; i.multiple = true; i.style.display = 'none';
+  i.type = 'file'; i.accept = '.xml,.zip,.rar'; i.multiple = true; i.style.display = 'none';
   const pasta = document.createElement('input');
-  pasta.type = 'file'; pasta.accept = '.xml'; pasta.multiple = true; pasta.style.display = 'none';
+  pasta.type = 'file'; pasta.accept = '.xml,.zip,.rar'; pasta.multiple = true; pasta.style.display = 'none';
   // Mantém o seletor nativo de diretório como alternativa a navegadores que
   // ainda não oferecem showDirectoryPicker. Os atributos explícitos evitam
   // que alguns navegadores tratem esse input como seleção comum de arquivos.
@@ -569,16 +569,17 @@ async function projImportacaoXml(el) {
     const selecionados = [...(files || [])].map((item) => item?.arquivo
       ? item
       : { arquivo:item, caminho:item?.webkitRelativePath || item?.name || '' });
-    const xmls = selecionados.filter((x) => /\.xml$/i.test(x.arquivo?.name || ''));
-    if (!xmls.length) {
-      A.toast('A seleção não contém arquivos XML.', 'erro');
+    const importaveis = selecionados.filter((x) => /\.(xml|zip|rar)$/i.test(x.arquivo?.name || ''));
+    if (!importaveis.length) {
+      A.toast('A seleção não contém XML, ZIP ou RAR.', 'erro');
       return;
     }
     const box = document.getElementById('statusXml');
-    const ignorados = selecionados.length - xmls.length;
+    const ignorados = selecionados.length - importaveis.length;
     const lotes = [];
-    for (let inicio = 0; inicio < xmls.length; inicio += 500) lotes.push(xmls.slice(inicio, inicio + 500));
-    box.innerHTML = `<div class="aviso">Preparando ${xmls.length} XML(s)${ignorados ? `; ${ignorados} arquivo(s) não XML serão ignorados` : ''}…</div>`;
+    for (let inicio = 0; inicio < importaveis.length; inicio += 500) lotes.push(importaveis.slice(inicio, inicio + 500));
+    const compactados = importaveis.filter((x) => /\.(zip|rar)$/i.test(x.arquivo?.name || '')).length;
+    box.innerHTML = `<div class="aviso">Preparando ${importaveis.length} arquivo(s)${compactados ? `, incluindo ${compactados} compactado(s)` : ''}${ignorados ? `; ${ignorados} arquivo(s) sem suporte serão ignorados` : ''}…</div>`;
     try {
       const respostas = [];
       for (let indice = 0; indice < lotes.length; indice++) {
@@ -597,13 +598,14 @@ async function projImportacaoXml(el) {
         regimesSugeridos: total.regimesSugeridos + (atual.regimesSugeridos || 0), requerValidacao: total.requerValidacao + (atual.requerValidacao || 0),
         duplicados: total.duplicados + (atual.duplicados || 0), erros: total.erros.concat(atual.erros || []),
         classificacao: { porNcm: total.classificacao.porNcm + (atual.classificacao?.porNcm || 0), porNbs: total.classificacao.porNbs + (atual.classificacao?.porNbs || 0), requerDecisao: total.classificacao.requerDecisao + (atual.classificacao?.requerDecisao || 0) },
-      }), { documentos:0, itens:0, entradas:0, saidas:0, saidas_no_periodo:0, receita_saida_no_periodo:0, saidas_fora_do_periodo:0, receita_saida_fora_do_periodo:0, regimesSugeridos:0, requerValidacao:0, duplicados:0, erros:[], classificacao:{ porNcm:0, porNbs:0, requerDecisao:0 } });
+        arquivosCompactados: total.arquivosCompactados + (atual.arquivos_compactados || 0), xmlExtraidos: total.xmlExtraidos + (atual.xml_extraidos || 0),
+      }), { documentos:0, itens:0, entradas:0, saidas:0, saidas_no_periodo:0, receita_saida_no_periodo:0, saidas_fora_do_periodo:0, receita_saida_fora_do_periodo:0, regimesSugeridos:0, requerValidacao:0, duplicados:0, erros:[], classificacao:{ porNcm:0, porNbs:0, requerDecisao:0 }, arquivosCompactados:0, xmlExtraidos:0 });
       box.innerHTML = `<div class="grade g4" style="margin-bottom:10px">
           ${A.kpi('Documentos lidos', r.documentos)}
           ${A.kpi('Itens', r.itens, `${r.entradas} entradas · ${r.saidas} saídas`)}
           ${A.kpi('Faturamento no período', A.moeda(r.receita_saida_no_periodo || 0), `${r.saidas_no_periodo || 0} item(ns) de saída no período`)}
           ${A.kpi('Regimes sugeridos', r.regimesSugeridos, 'pelo CRT do XML')}
-        </div>${r.saidas_fora_do_periodo ? `<div class="aviso atencao"><b>${r.saidas_fora_do_periodo} item(ns) de saída ficaram fora do período analisado.</b><br>${A.moeda(r.receita_saida_fora_do_periodo || 0)} foi preservado(a) no histórico e não entra no faturamento do Perfil.</div>` : ''}${r.duplicados ? `<div class="aviso"><b>${r.duplicados} item(ns) já existiam.</b><br>Não foram incluídos novamente no faturamento.</div>` : ''}
+        </div>${r.arquivosCompactados ? `<div class="aviso bom"><b>${r.xmlExtraidos} XML(s) extraído(s) de ${r.arquivosCompactados} arquivo(s) ZIP/RAR.</b><br>Foram processados com as mesmas validações dos XMLs individuais.</div>` : ''}${r.saidas_fora_do_periodo ? `<div class="aviso atencao"><b>${r.saidas_fora_do_periodo} item(ns) de saída ficaram fora do período analisado.</b><br>${A.moeda(r.receita_saida_fora_do_periodo || 0)} foi preservado(a) no histórico e não entra no faturamento do Perfil.</div>` : ''}${r.duplicados ? `<div class="aviso"><b>${r.duplicados} item(ns) já existiam.</b><br>Não foram incluídos novamente no faturamento.</div>` : ''}
         ${r.requerValidacao ? `<div class="aviso atencao"><b>${r.requerValidacao} documentos requerem validação</b>
           O CNPJ da empresa não aparece como emitente nem destinatário — confira se o XML pertence a esta empresa.</div>` : ''}
         ${r.classificacao ? `<div class="aviso bom"><b>Classificação automática</b>

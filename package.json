@@ -20,10 +20,12 @@
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
     "multer": "^2.0.0",
+    "node-unrar-js": "^2.0.2",
     "pdf-parse": "^2.4.5",
     "pdfkit": "^0.20.1",
     "pg": "^8.23.0",
     "pg-copy-streams": "^7.0.0",
+    "unzipper": "^0.12.5",
     "xlsx": "0.18.5"
   }
 }

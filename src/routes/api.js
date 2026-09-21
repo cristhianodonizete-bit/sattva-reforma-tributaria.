@@ -30,6 +30,7 @@ const motor = require('../engine/motor');
 const { classificar: classificarItemFiscal } = require('../engine/classificador');
 const motorExec = require('../services/motorExec');
 const xml = require('../services/importadorXml');
+const arquivosXmlCompactados = require('../services/arquivosXmlCompactados');
 const sped = require('../services/importadorSped');
 const mapaRiscos = require('../services/mapaRiscos');
 const regras = require('../services/regras');
@@ -363,6 +364,9 @@ router.get('/cadastros-cnpj', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });
+// XMLs em ZIP/RAR costumam concentrar muitos documentos. O limite é próprio
+// desta rota e continua abaixo do limite de descompactação validado no serviço.
+const uploadXml = multer({ storage: multer.memoryStorage(), limits: { fileSize: 80 * 1024 * 1024 } });
 const uploadBaseRegime = multer({
   dest: os.tmpdir(), limits: { fileSize: 150 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => cb(null, /\.(csv|txt)$/i.test(file.originalname)),
@@ -5160,16 +5164,21 @@ router.post('/empresas/:id/questor/cancelamentos-pendentes/reconciliar', async (
 }catch(e){erro(res,e);}});
 
 // ---- Importação de XML (fonte principal) ----
-router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (req, res) => {
+router.post('/empresas/:id/importar/xml', uploadXml.array('arquivos', 500), async (req, res) => {
   try {
     const periodoImportacao = await exigirPeriodoParaImportacao(req);
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada.');
-    const arquivos = req.files || [];
-    if (!arquivos.length) throw new Error('Envie um ou mais arquivos XML no campo "arquivos".');
+    const enviados = req.files || [];
+    if (!enviados.length) throw new Error('Envie XMLs, ZIPs ou RARs no campo "arquivos".');
+    // ZIP e RAR são abertos antes de iniciar a transação fiscal. Só XMLs
+    // válidos, com limites de quantidade e tamanho, seguem para o mesmo
+    // mecanismo de identidade e deduplicação usado nos arquivos individuais.
+    const preparado = await arquivosXmlCompactados.preparar(enviados);
+    const arquivos = preparado.arquivos;
 
     const lote = db.prepare(`INSERT INTO lotes (empresa_id, tipo, arquivo, registros, origem)
-      VALUES (?,?,?,0,'xml')`).run(req.params.id, 'xml', `${arquivos.length} XML(s)`);
+      VALUES (?,?,?,0,'xml')`).run(req.params.id, 'xml', `${arquivos.length} XML(s)${preparado.estatistica.compactados ? ` de ${preparado.estatistica.compactados} arquivo(s) compactado(s)` : ''}`);
 
     const insMov = db.prepare(`INSERT INTO movimentos (empresa_id, lote_id, tipo, sentido, nome, inscr_federal,
       descricao, ncm, nbs, lc116, cfop, cst, csosn, competencia, documento, chave, item_numero, codigo_produto,
@@ -5200,7 +5209,9 @@ router.post('/empresas/:id/importar/xml', upload.array('arquivos', 500), async (
       WHERE empresa_id=? AND data_emissao=? AND numero=? AND lower(modelo_documento_fiscal)='nfse'
       LIMIT 2`);
 
-    const relatorio = { arquivos: arquivos.length, documentos: 0, itens: 0, entradas: 0, saidas: 0,
+    const relatorio = { arquivos: arquivos.length, arquivos_enviados: preparado.estatistica.enviados,
+      arquivos_compactados: preparado.estatistica.compactados, xml_extraidos: preparado.estatistica.xml_extraidos,
+      documentos: 0, itens: 0, entradas: 0, saidas: 0,
       requerValidacao: 0, duplicados: 0, receita_saida_no_periodo: 0, receita_saida_fora_do_periodo: 0,
       saidas_no_periodo: 0, saidas_fora_do_periodo: 0, erros: [], regimesSugeridos: 0, cancelamentos: 0, documentos_cancelados: 0 };
     const movimentosCancelados = new Set();
