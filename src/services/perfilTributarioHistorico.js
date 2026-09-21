@@ -253,7 +253,8 @@ function consolidar(db, empresaId, opcoes = {}) {
     ? opcoes.movimentos
     : db.prepare(temEvidenciaPisCofins
       ? `SELECT m.competencia,m.valor,m.iss,m.tipo,m.sentido,m.documento,m.chave,m.descricao,m.data_emissao,m.frete,m.seguro,m.outras,m.desconto,m.cfop,m.nbs,m.lc116,m.modelo_documento_fiscal,m.situacao_documento,m.normalizacao_evidencia,
-          e.cst_pis AS cst_pis_documentado,e.cst_cofins AS cst_cofins_documentado,e.tratamento_especifico AS tratamento_pis_cofins_documentado
+          e.cst_pis AS cst_pis_documentado,e.cst_cofins AS cst_cofins_documentado,e.tratamento_especifico AS tratamento_pis_cofins_documentado,
+          e.origem_evidencia AS origem_evidencia_pis_cofins
         FROM movimentos m
         LEFT JOIN enriquecimento_pis_cofins_evidencias e ON e.movimento_id=m.id AND e.empresa_id=m.empresa_id AND e.origem_evidencia='SPED_C175'
         WHERE m.empresa_id=? AND COALESCE(m.competencia,'')<>''`
@@ -270,10 +271,19 @@ function consolidar(db, empresaId, opcoes = {}) {
       // CFOP tenha ficado salvo na base.
       const cfop=receitaOperacional.cfopEfetivo(x);
       const situacao=String(x.situacao_documento || 'AUTORIZADO').toUpperCase();
-      const compoe = receitaOperacional.compoeReceita(x)
+      const naturezaCfop=receitaOperacional.natureza(x);
+      // C175 é a escrituração de receita da EFD-Contribuições, agregada por
+      // CFOP/CST. Ela continua sendo receita quando o CFOP ainda não recebeu
+      // um de-para local. A exceção só vale para CFOP sem natureza: devolução,
+      // remessa, transferência e demais naturezas conhecidas seguem a regra
+      // cadastrada e nunca são transformadas em venda por este fallback.
+      const receitaDocumentadaNoSpedC175 = x.origem_evidencia_pis_cofins === 'SPED_C175'
+        && receitaOperacional.ehSaida(x)
+        && !naturezaCfop;
+      const compoe = (receitaOperacional.compoeReceita(x) || receitaDocumentadaNoSpedC175)
         && !['5916','6916'].includes(cfop)
         && !['CANCELADO','DENEGADO','INUTILIZADO'].includes(situacao);
-      const motivo = receitaOperacional.motivo(x);
+      const motivo = receitaDocumentadaNoSpedC175 ? 'RECEITA_ESCRITURADA_SPED_C175' : receitaOperacional.motivo(x);
       // Não misturar, no mesmo grupo visual, documentos que compõem receita
       // com documentos excluídos. Antes, uma NF-e cancelada com o mesmo CFOP
       // de uma venda era somada ao grupo de vendas já criado e herdava seu

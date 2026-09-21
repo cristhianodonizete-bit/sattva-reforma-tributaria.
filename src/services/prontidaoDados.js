@@ -46,9 +46,13 @@ function obter(empresaId, { banco=dbPadrao } = {}) {
   // Perfil é apenas uma materialização de leitura e pode ser recomposto após
   // reinício; usá-lo como critério de prontidão fazia um PGDAS confirmado
   // reaparecer falsamente como "ausente".
+  // A validação automática é uma validação efetiva da importação. Exigir uma
+  // segunda confirmação manual para considerá-la na prontidão fazia o painel
+  // apontar como ausentes exatamente os documentos que a própria tela já
+  // marcava como "VALIDADO_AUTOMATICAMENTE".
   const linhasApuracao = simples
-    ? banco.prepare("SELECT competencia_detectada AS competencia FROM pgdas_documentos WHERE empresa_id=? AND status_processamento='VALIDADO_USUARIO' AND COALESCE(competencia_detectada,'')<>''").all(empresaId)
-    : banco.prepare("SELECT competencia FROM pis_cofins_apuracoes_historicas WHERE empresa_id=? AND status_validacao='VALIDADO_USUARIO'").all(empresaId);
+    ? banco.prepare("SELECT competencia_detectada AS competencia FROM pgdas_documentos WHERE empresa_id=? AND status_processamento IN ('VALIDADO_USUARIO','VALIDADO_AUTOMATICAMENTE') AND COALESCE(competencia_detectada,'')<>''").all(empresaId)
+    : banco.prepare("SELECT competencia FROM pis_cofins_apuracoes_historicas WHERE empresa_id=? AND status_validacao IN ('VALIDADO_USUARIO','VALIDADO_AUTOMATICAMENTE')").all(empresaId);
   const apuracoes = new Set(unicos(linhasApuracao));
   const apuracoesDeclaradas=declaracoes(empresaId,'APURACAO_HISTORICO_NAO_APLICAVEL',banco,competenciasApuracao);
   const apuracaoFaltas=competenciasApuracao.filter((c)=>!apuracoes.has(c)&&!apuracoesDeclaradas.has(c));

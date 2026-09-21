@@ -43,5 +43,17 @@ db.prepare("INSERT INTO empresas VALUES (2,'Sem dados','lucro_real')").run();
 const vazio = perfil.consolidar(db, 2);
 assert.strictEqual(vazio.cobertura.cbs_motor, 'INDETERMINADO');
 assert.strictEqual(vazio.historico.length, 0);
+
+// A EFD pode consolidar uma saída no C175 antes de o CFOP correspondente
+// receber o de-para operacional. O registro fiscal continua sendo receita;
+// uma natureza conhecida (devolução/remessa etc.) jamais usa este fallback.
+db.prepare("INSERT INTO empresas VALUES (3,'Receita EFD','lucro_presumido')").run();
+const efd = perfil.consolidar(db, 3, { movimentos:[{
+  competencia:'2026-01', tipo:'cliente', sentido:'saida', cfop:'5998', valor:250,
+  origem_evidencia_pis_cofins:'SPED_C175', cst_pis_documentado:'04', cst_cofins_documentado:'04',
+}] });
+assert.strictEqual(efd.historico[0].receita.valor,250,'C175 sem CFOP mapeado deve compor a receita escriturada');
+assert.strictEqual(efd.composicao_receita[0].motivo,'RECEITA_ESCRITURADA_SPED_C175');
+assert.strictEqual(efd.composicao_receita[0].tratamento_pis_cofins,'Monofásica','Monofasia segrega PIS/Cofins, mas não elimina a receita');
 db.close();
 console.log('Fase 4C: perfil tributário, Raio-X histórico e comparação CBS existente aprovados.');
