@@ -703,6 +703,56 @@ async function projImportacaoXml(el) {
   };
 }
 
+// PDF é uma evidência auxiliar. Esta tela é deliberadamente separada do XML:
+// um PDF pode ser legível para uma pessoa, mas não possui a estrutura fiscal
+// necessária para criar itens, receita, crédito ou resultado do motor.
+async function projImportacaoPdf(el) {
+  const dados = await A.api(`/empresas/${S.empresaId}/documentos-fiscais-pdf`);
+  const documentos = dados.documentos || [];
+  const rotuloStatus = (status) => ({
+    VINCULADO_XML_EXISTENTE: 'Vinculado ao XML',
+    AGUARDANDO_XML_OU_CONFIRMACAO: 'Aguardando XML/confirmação',
+    REQUER_OCR_OU_CONFIRMACAO: 'Requer OCR/confirmação',
+  }[status] || status || 'Em revisão');
+  el.innerHTML = `<div class="cartao">
+      <h2>Importar PDF de documento fiscal</h2>
+      <p class="desc">O PDF é preservado como evidência. A Sattva tenta localizar chave, número, série, CNPJ, data e total, mas ele não cria lançamento, não altera receita e não entra no motor.</p>
+      <div class="aviso atencao"><b>Segurança da base fiscal</b><br>Se a chave de 44 dígitos corresponder a um XML já importado, o PDF apenas fica vinculado a ele. Sem XML, o documento fica em revisão até conferência humana ou chegada do XML.</div>
+      <div class="dropzone" id="zonaPdf"><b>Solte PDFs aqui</b><div class="mini">PDFs digitais de NF-e, NFC-e, CT-e ou NFS-e · até 100 arquivos por envio</div><button type="button" class="btn pq vazio" id="selecionarPdf" style="margin-top:12px">Selecionar PDFs</button></div>
+      <div id="statusPdf" style="margin-top:12px"></div>
+    </div>
+    <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>PDFs em revisão</h2><p class="desc">A lista não se mistura aos documentos fiscais importados; ela mostra apenas evidências e seus vínculos.</p></div><span class="tag">${documentos.length} PDF${documentos.length === 1 ? '' : 's'}</span></div>
+      ${A.tabela([
+        { t:'Arquivo', r:(d) => `<b>${A.esc(d.nome_original)}</b><div class="mini">${A.esc(d.metodo_extracao || '')} · ${d.paginas || 0} página(s)</div>` },
+        { t:'Identificação encontrada', r:(d) => d.chave ? `<span class="mono mini">${A.esc(d.chave)}</span>` : `<span class="mini">${A.esc([d.serie && `Série ${d.serie}`, d.documento && `Nº ${d.documento}`, d.data_emissao].filter(Boolean).join(' · ') || 'Não identificada')}</span>` },
+        { t:'Total lido', num:true, r:(d) => d.valor_total == null ? '—' : A.moeda(d.valor_total) },
+        { t:'Situação', r:(d) => `<span class="tag ${d.status_revisao === 'VINCULADO_XML_EXISTENTE' ? 'b' : 'a'}">${A.esc(rotuloStatus(d.status_revisao))}</span>` },
+        { t:'Importado em', r:(d) => `<span class="mini">${A.esc(d.criado_em || '—')}</span>` },
+      ], documentos, { vazio:'Nenhum PDF fiscal foi enviado para revisão.' })}
+    </div>`;
+  const zona = document.getElementById('zonaPdf');
+  const input = document.createElement('input');
+  input.type = 'file'; input.accept = '.pdf,application/pdf'; input.multiple = true; input.style.display = 'none';
+  zona.appendChild(input);
+  document.getElementById('selecionarPdf').onclick = (evento) => { evento.stopPropagation(); input.click(); };
+  zona.onclick = () => input.click();
+  zona.ondragover = (evento) => { evento.preventDefault(); zona.classList.add('sobre'); };
+  zona.ondragleave = () => zona.classList.remove('sobre');
+  zona.ondrop = (evento) => { evento.preventDefault(); zona.classList.remove('sobre'); enviar(evento.dataTransfer.files); };
+  input.onchange = () => { enviar(input.files); input.value = ''; };
+  async function enviar(files) {
+    const selecionados = [...(files || [])].filter((arquivo) => /\.pdf$/i.test(arquivo.name || '') || arquivo.type === 'application/pdf');
+    if (!selecionados.length) { A.toast('A seleção não contém PDFs.', 'erro'); return; }
+    const status = document.getElementById('statusPdf');
+    status.innerHTML = `<div class="aviso">Lendo ${selecionados.length} PDF(s) como evidência, sem alterar os lançamentos…</div>`;
+    try {
+      const fd = new FormData(); selecionados.forEach((arquivo) => fd.append('arquivos', arquivo));
+      const resultado = await A.api(`/empresas/${S.empresaId}/importar/pdf`, { metodo:'POST', corpo:fd });
+      status.innerHTML = `<div class="aviso bom"><b>${resultado.importados || 0} PDF(s) preservado(s) para revisão.</b><br>${resultado.vinculados_xml || 0} vinculado(s) a XML já existente(s) · ${resultado.requerem_revisao || 0} aguardando XML ou confirmação.${resultado.duplicados ? `<br>${resultado.duplicados} arquivo(s) repetido(s) não foram gravados novamente.` : ''}</div>${resultado.erros?.length ? `<details class="clausula"><summary class="mini">${resultado.erros.length} aviso(s)</summary>${resultado.erros.map((erro) => `<div class="mini">• ${A.esc(erro)}</div>`).join('')}</details>` : ''}`;
+    } catch (erro) { status.innerHTML = `<div class="aviso alto">${A.esc(erro.message)}</div>`; }
+  }
+}
+
 // =========================================================================
 // LIGAÇÃO COM AS TELAS EXISTENTES
 // =========================================================================
@@ -734,5 +784,6 @@ window.MotorUI.abasBases = [
 comAbas('dados', [
   { id: 'atual', t: 'Planilhas' },
   { id: 'xml', t: 'XML e SPED', render: projImportacaoXml },
+  { id: 'pdf', t: 'PDF', render: projImportacaoPdf },
 ], 'atual', 'dadosMotor', { mostrarQuando: () => (S.aba.centralDados || 'documentos') === 'documentos' && !['documentos'].includes(S.aba.documentosCentral || 'importacao') });
 })();

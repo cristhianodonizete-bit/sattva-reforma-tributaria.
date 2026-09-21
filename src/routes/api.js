@@ -31,6 +31,7 @@ const { classificar: classificarItemFiscal } = require('../engine/classificador'
 const motorExec = require('../services/motorExec');
 const xml = require('../services/importadorXml');
 const arquivosXmlCompactados = require('../services/arquivosXmlCompactados');
+const documentoFiscalPdf = require('../services/documentoFiscalPdf');
 const sped = require('../services/importadorSped');
 const mapaRiscos = require('../services/mapaRiscos');
 const regras = require('../services/regras');
@@ -367,6 +368,7 @@ const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 
 // XMLs em ZIP/RAR costumam concentrar muitos documentos. O limite é próprio
 // desta rota e continua abaixo do limite de descompactação validado no serviço.
 const uploadXml = multer({ storage: multer.memoryStorage(), limits: { fileSize: 80 * 1024 * 1024 } });
+const uploadDocumentoPdf = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });
 const uploadBaseRegime = multer({
   dest: os.tmpdir(), limits: { fileSize: 150 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => cb(null, /\.(csv|txt)$/i.test(file.originalname)),
@@ -5346,6 +5348,61 @@ router.post('/empresas/:id/importar/xml', uploadXml.array('arquivos', 500), asyn
     ok(res, { ...relatorio, classificacao, semRegime: vinculo.semRegime,
       enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
         mensagem: 'Consulta cadastral de clientes e fornecedores agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
+  } catch (e) { erro(res, e); }
+});
+
+// ---- Evidências em PDF: nunca compõem a base fiscal sem XML ou confirmação ----
+router.get('/empresas/:id/documentos-fiscais-pdf', (req, res) => {
+  try {
+    const documentos = db.prepare(`SELECT id,nome_original,chave,cnpj_identificado,serie,documento,data_emissao,
+      valor_total,paginas,metodo_extracao,status_revisao,movimento_id,criado_em,atualizado_em
+      FROM documentos_fiscais_pdf_revisao WHERE empresa_id=? ORDER BY id DESC`).all(Number(req.params.id));
+    ok(res, { documentos });
+  } catch (e) { erro(res, e); }
+});
+
+router.get('/documentos-fiscais-pdf/:id/arquivo', (req, res) => {
+  try {
+    const documento = db.prepare('SELECT nome_original,mime_type,conteudo_original FROM documentos_fiscais_pdf_revisao WHERE id=?').get(Number(req.params.id));
+    if (!documento) throw new Error('PDF não encontrado.');
+    res.setHeader('Content-Type', documento.mime_type || 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${String(documento.nome_original || 'documento.pdf').replace(/["\\\r\n]/g, '_')}"`);
+    res.send(documento.conteudo_original);
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/importar/pdf', uploadDocumentoPdf.array('arquivos', 100), async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    if (!db.prepare('SELECT 1 FROM empresas WHERE id=?').get(empresaId)) throw new Error('Empresa não encontrada.');
+    const arquivos = req.files || [];
+    if (!arquivos.length) throw new Error('Envie ao menos um PDF no campo "arquivos".');
+    const relatorio = { enviados: arquivos.length, importados: 0, duplicados: 0, vinculados_xml: 0, requerem_revisao: 0, erros: [] };
+    const existente = db.prepare('SELECT id FROM documentos_fiscais_pdf_revisao WHERE empresa_id=? AND hash_sha256=?');
+    const movimentoPorChave = db.prepare(`SELECT id FROM movimentos WHERE empresa_id=? AND chave=?
+      ORDER BY id DESC LIMIT 1`);
+    const inserir = db.prepare(`INSERT INTO documentos_fiscais_pdf_revisao
+      (empresa_id,nome_original,mime_type,conteudo_original,hash_sha256,chave,cnpj_identificado,serie,documento,
+       data_emissao,valor_total,paginas,texto_extraido,metodo_extracao,status_revisao,movimento_id,atualizado_em)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now','localtime'))`);
+    for (const arquivo of arquivos) {
+      try {
+        if (!/\.pdf$/i.test(arquivo.originalname || '') && arquivo.mimetype !== 'application/pdf') throw new Error('Formato não suportado; selecione somente PDF.');
+        const analise = await documentoFiscalPdf.analisar(arquivo);
+        if (existente.get(empresaId, analise.hash_sha256)) { relatorio.duplicados++; continue; }
+        const movimento = analise.identidade.chave ? movimentoPorChave.get(empresaId, analise.identidade.chave) : null;
+        const status = movimento ? 'VINCULADO_XML_EXISTENTE' : analise.status;
+        inserir.run(empresaId, arquivo.originalname || 'documento.pdf', arquivo.mimetype || 'application/pdf', arquivo.buffer,
+          analise.hash_sha256, analise.identidade.chave, analise.identidade.cnpj, analise.identidade.serie,
+          analise.identidade.documento, analise.identidade.data_emissao, analise.identidade.valor_total,
+          analise.paginas, analise.texto_extraido, analise.metodo_extracao, status, movimento?.id || null);
+        relatorio.importados++;
+        if (movimento) relatorio.vinculados_xml++;
+        else relatorio.requerem_revisao++;
+      } catch (e) { relatorio.erros.push(`${arquivo.originalname || 'PDF'}: ${e.message}`); }
+    }
+    auditar(req, { empresaId, acao:'IMPORTAR_EVIDENCIA_PDF_FISCAL', entidade:'documentos_fiscais_pdf_revisao', depois:relatorio });
+    ok(res, relatorio);
   } catch (e) { erro(res, e); }
 });
 

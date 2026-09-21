@@ -715,6 +715,36 @@ CREATE TABLE IF NOT EXISTS documentos_fiscais_cancelamentos (
 );
 CREATE INDEX IF NOT EXISTS ix_cancelamentos_documentos_empresa ON documentos_fiscais_cancelamentos(empresa_id, data_emissao, numero, modelo_documento_fiscal);
 
+-- PDF de documento fiscal nunca cria movimento automaticamente. Ele é
+-- evidência preservada para conferência e só pode ficar vinculado a um XML
+-- já existente ou a uma confirmação humana posterior.
+CREATE TABLE IF NOT EXISTS documentos_fiscais_pdf_revisao (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  nome_original TEXT NOT NULL,
+  mime_type TEXT NOT NULL,
+  conteudo_original BLOB NOT NULL,
+  hash_sha256 TEXT NOT NULL,
+  chave TEXT,
+  cnpj_identificado TEXT,
+  serie TEXT,
+  documento TEXT,
+  data_emissao TEXT,
+  valor_total REAL,
+  paginas INTEGER NOT NULL DEFAULT 0,
+  texto_extraido TEXT,
+  metodo_extracao TEXT NOT NULL,
+  status_revisao TEXT NOT NULL,
+  movimento_id INTEGER REFERENCES movimentos(id) ON DELETE SET NULL,
+  criado_em TEXT DEFAULT (datetime('now','localtime')),
+  atualizado_em TEXT DEFAULT (datetime('now','localtime')),
+  UNIQUE(empresa_id, hash_sha256)
+);
+CREATE INDEX IF NOT EXISTS ix_documentos_pdf_revisao_empresa_status
+  ON documentos_fiscais_pdf_revisao(empresa_id, status_revisao, criado_em DESC);
+CREATE INDEX IF NOT EXISTS ix_documentos_pdf_revisao_chave
+  ON documentos_fiscais_pdf_revisao(empresa_id, chave);
+
 CREATE TABLE IF NOT EXISTS lotes (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
