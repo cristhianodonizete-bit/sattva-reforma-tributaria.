@@ -484,7 +484,7 @@ async function projImportacaoXml(el) {
         <h2>Importar XML fiscal</h2>
         <p class="desc">NF-e, NFC-e, CT-e e NFS-e. O sentido da operação é resolvido comparando o CNPJ da empresa com emitente e destinatário — entradas viram fornecedores, saídas viram clientes.</p>
         <div class="dropzone" id="zonaXml"><b>Solte os XMLs aqui</b>
-          <div class="mini">Selecione arquivos ou uma pasta inteira. As subpastas também são lidas; somente arquivos XML são enviados.</div>
+          <div class="mini">Em “Selecionar pasta”, escolha somente a pasta principal: as subpastas são percorridas automaticamente e somente XMLs são enviados.</div>
           <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:12px"><button type="button" class="btn pq vazio" id="selecionarXml">Selecionar XMLs</button><button type="button" class="btn pq vazio" id="selecionarPastaXml">Selecionar pasta</button></div></div>
         <div id="statusXml" style="margin-top:12px"></div>
         <hr class="sep">
@@ -519,13 +519,45 @@ async function projImportacaoXml(el) {
   i.type = 'file'; i.accept = '.xml'; i.multiple = true; i.style.display = 'none';
   const pasta = document.createElement('input');
   pasta.type = 'file'; pasta.accept = '.xml'; pasta.multiple = true; pasta.style.display = 'none';
-  // Chromium percorre recursivamente as subpastas e devolve os arquivos em
-  // webkitRelativePath. O servidor continua recebendo arquivos XML normais.
+  // Mantém o seletor nativo de diretório como alternativa a navegadores que
+  // ainda não oferecem showDirectoryPicker. Os atributos explícitos evitam
+  // que alguns navegadores tratem esse input como seleção comum de arquivos.
   pasta.webkitdirectory = true;
+  pasta.setAttribute('webkitdirectory', '');
+  pasta.setAttribute('directory', '');
+  pasta.setAttribute('mozdirectory', '');
   z.appendChild(i);
   z.appendChild(pasta);
+  const arquivosDaPasta = async (diretorio, caminho = '') => {
+    const encontrados = [];
+    for await (const [nome, entrada] of diretorio.entries()) {
+      const relativo = caminho ? `${caminho}/${nome}` : nome;
+      if (entrada.kind === 'directory') encontrados.push(...await arquivosDaPasta(entrada, relativo));
+      else if (entrada.kind === 'file') encontrados.push({ arquivo: await entrada.getFile(), caminho: relativo });
+    }
+    return encontrados;
+  };
+  const selecionarPasta = async (evento) => {
+    evento.stopPropagation();
+    // Edge e Chrome permitem escolher um diretório de verdade, inclusive com
+    // subpastas, sem pedir que o usuário marque os XMLs individualmente.
+    if (typeof window.showDirectoryPicker === 'function') {
+      try {
+        const diretorio = await window.showDirectoryPicker({ mode: 'read' });
+        await enviar(await arquivosDaPasta(diretorio));
+      } catch (erro) {
+        if (erro?.name !== 'AbortError') A.toast('Não foi possível ler a pasta selecionada.', 'erro');
+      }
+      return;
+    }
+    if (!('webkitdirectory' in pasta)) {
+      A.toast('Este navegador não oferece seleção de pastas. Abra a Sattva no Edge ou Chrome para importar a pasta inteira.', 'erro');
+      return;
+    }
+    pasta.click();
+  };
   z.querySelector('#selecionarXml').onclick = (e) => { e.stopPropagation(); i.click(); };
-  z.querySelector('#selecionarPastaXml').onclick = (e) => { e.stopPropagation(); pasta.click(); };
+  z.querySelector('#selecionarPastaXml').onclick = selecionarPasta;
   z.onclick = () => i.click();
   z.ondragover = (e) => { e.preventDefault(); z.classList.add('sobre'); };
   z.ondragleave = () => z.classList.remove('sobre');
@@ -534,8 +566,10 @@ async function projImportacaoXml(el) {
   pasta.onchange = () => { enviar(pasta.files); pasta.value = ''; };
 
   async function enviar(files) {
-    const selecionados = [...(files || [])];
-    const xmls = selecionados.filter((f) => /\.xml$/i.test(f.name));
+    const selecionados = [...(files || [])].map((item) => item?.arquivo
+      ? item
+      : { arquivo:item, caminho:item?.webkitRelativePath || item?.name || '' });
+    const xmls = selecionados.filter((x) => /\.xml$/i.test(x.arquivo?.name || ''));
     if (!xmls.length) {
       A.toast('A seleção não contém arquivos XML.', 'erro');
       return;
@@ -550,7 +584,7 @@ async function projImportacaoXml(el) {
       for (let indice = 0; indice < lotes.length; indice++) {
         box.innerHTML = `<div class="aviso">Importando lote ${indice + 1} de ${lotes.length}: ${lotes[indice].length} XML(s)…</div>`;
         const fd = new FormData();
-        lotes[indice].forEach((f) => fd.append('arquivos', f, f.webkitRelativePath || f.name));
+        lotes[indice].forEach((x) => fd.append('arquivos', x.arquivo, x.caminho || x.arquivo.name));
         respostas.push(await A.api(`/empresas/${S.empresaId}/importar/xml`, { metodo: 'POST', corpo: fd }));
       }
       const r = respostas.reduce((total, atual) => ({
