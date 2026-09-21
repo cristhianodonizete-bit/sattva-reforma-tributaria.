@@ -1219,7 +1219,7 @@ Telas.perfil = async (el) => {
   const memoriaMensalPgdas = [...composicaoPisCofinsPgdas.map((x) => ({ ...x, escopo:'ATUAL' })), ...composicaoPisCofinsPgdasHistorico.map((x) => ({ ...x, escopo:'HISTORICO' }))]
     .filter((x) => x.status === 'VALIDADO')
     .reduce((mapa, x) => {
-      const atual = mapa.get(x.competencia) || { competencia:x.competencia, escopo:x.escopo, receita_caixa:0, receita_competencia:0, pis_declarado:0, pis_competencia:null, cofins_declarado:0, cofins_competencia:null, status_competencia:'NAO_CALCULADO', motivo_competencia:null, regime_caixa:false, validado:true };
+      const atual = mapa.get(x.competencia) || { competencia:x.competencia, escopo:x.escopo, receita_caixa:0, receita_competencia:0, pis_declarado:0, pis_competencia:null, cofins_declarado:0, cofins_competencia:null, status_competencia:'NAO_CALCULADO', motivo_competencia:null, exemplos_competencia:[], regime_caixa:false, validado:true };
       atual.receita_caixa += Number(x.receita_pgdas) || 0;
       atual.receita_competencia += Number(x.receita_competencia) || 0;
       atual.pis_declarado += Number(x.pgdas_pis) || 0;
@@ -1231,6 +1231,7 @@ Telas.perfil = async (el) => {
         atual.cofins_competencia = x.cofins_competencia;
         atual.status_competencia = x.calculo_competencia_status;
         atual.motivo_competencia = x.calculo_competencia_motivo;
+        atual.exemplos_competencia = x.calculo_competencia_exemplos || [];
       }
       mapa.set(x.competencia, atual);
       return mapa;
@@ -1345,7 +1346,7 @@ Telas.perfil = async (el) => {
         { t:'Receitas', num:true, r:x=>`PGDAS/caixa ${A.moeda(x.receita_caixa)}<br>Competência ${String(x.status_competencia||'').startsWith('CALCULADO') ? A.moeda(x.receita_competencia) : 'NÃO CALCULADA'}` },
         { t:'PIS', num:true, r:x=>`Declarado ${A.moeda(x.pis_declarado)}<br>Competência ${x.pis_competencia === null ? 'NÃO CALCULADO' : A.moeda(x.pis_competencia)}<br><span class="mini">Dif. ${x.diferenca_pis === null ? '—' : A.moeda(x.diferenca_pis)}</span>` },
         { t:'Cofins', num:true, r:x=>`Declarado ${A.moeda(x.cofins_declarado)}<br>Competência ${x.cofins_competencia === null ? 'NÃO CALCULADO' : A.moeda(x.cofins_competencia)}<br><span class="mini">Dif. ${x.diferenca_cofins === null ? '—' : A.moeda(x.diferenca_cofins)}</span>` },
-        { t:'Situação', r:x=>String(x.status_competencia||'').startsWith('CALCULADO') ? `<span class="tag ${x.validado ? 'c' : 'a'}">${x.validado ? 'Calculado por competência' : 'Calculado; PGDAS divergente'}</span>${x.motivo_competencia ? `<div class="mini">${A.esc(x.motivo_competencia)}</div>` : ''}` : `<span class="tag a">Competência pendente</span><div class="mini">${A.esc(x.motivo_competencia || 'Não há vínculo seguro entre os documentos e os buckets do PGDAS.')}</div>` },
+        { t:'Situação', r:x=>String(x.status_competencia||'').startsWith('CALCULADO') ? `<span class="tag ${x.validado ? 'c' : 'a'}">${x.validado ? 'Calculado por competência' : 'Calculado; PGDAS divergente'}</span>${x.motivo_competencia ? `<div class="mini">${A.esc(x.motivo_competencia)}</div>` : ''}` : `<span class="tag a">Competência pendente</span><div class="mini">${A.esc(x.motivo_competencia || 'Não há vínculo seguro entre os documentos e os buckets do PGDAS.')}</div>${(x.exemplos_competencia||[]).map(e=>`<div class="mini" style="margin-top:4px">Ex.: ${A.esc(e.modelo)} ${A.esc(e.identificador)} · ${A.moeda(e.valor)} — ${A.esc(e.motivo)}</div>`).join('')}` },
       ], linhasMemoriaMensalPgdas)}</div>` : ''}
     </div>
     <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>${chaveRegime === 'simples_nacional' ? 'Segregação da receita no Simples Nacional' : 'Tratamentos na apuração atual'}</h2><p class="desc">${chaveRegime === 'simples_nacional' ? 'Receita e PIS/Cofins conforme os blocos validados da declaração PGDAS. Esta tabela não faz rateio nem presume tratamento a partir do XML.' : 'A fonte atual registra totais de apuração. Tratamentos só são apresentados como identificados quando vierem discriminados no documento.'}</p></div></div>

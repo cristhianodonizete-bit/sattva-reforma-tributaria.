@@ -81,6 +81,7 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio) {
         pis_perfil: perfil.pis ?? null, cofins_perfil: perfil.cofins ?? null,
         calculo_competencia_status: calculoCompetencia?.status || 'NAO_CALCULADO',
         calculo_competencia_motivo: calculoCompetencia?.motivo || null,
+        calculo_competencia_exemplos: calculoCompetencia?.exemplos || [],
         pis_competencia: calculoCompetencia?.pis ?? null, cofins_competencia: calculoCompetencia?.cofins ?? null,
       });
     }
