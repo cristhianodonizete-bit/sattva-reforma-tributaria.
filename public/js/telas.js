@@ -1256,7 +1256,7 @@ Telas.perfil = async (el) => {
     const bases = linha.memoria_calculo_competencia || [];
     const naoAssociados=linha.documentos_nao_associados || [];
     return `<details><summary><b>Ver memória e bases</b></summary><div style="margin-top:10px">${A.tabela([
-      {t:'Anexo / base dos XMLs',r:x=>`<b>Anexo ${A.esc(x.anexo || '—')}</b><div class="mini">Receita por competência: ${A.moeda(x.receita_competencia || 0)}</div>`},
+      {t:'Anexo / base dos XMLs',r:x=>`<b>Anexo ${A.esc(x.anexo || '—')}</b><div class="mini">Receita por competência: ${A.moeda(x.receita_competencia || 0)}</div><div class="mini">${x.regra?.origem === 'TABELA_SIMPLES_SEM_CAIXA_NO_ANEXO' ? 'Regra da tabela do Simples; sem receita de caixa neste Anexo.' : 'Regra do bloco PGDAS.'}</div>`},
       {t:'Alíquotas efetivas',r:x=>`PIS ${A.pct(x.regra?.pis_effective_rate || 0)}<br>COFINS ${A.pct(x.regra?.cofins_effective_rate || 0)}`},
       {t:'Cálculo',num:true,r:x=>`PIS: ${A.moeda(x.receita_competencia || 0)} × ${A.pct(x.regra?.pis_effective_rate || 0)} = <b>${A.moeda(x.pis || 0)}</b><br>COFINS: ${A.moeda(x.receita_competencia || 0)} × ${A.pct(x.regra?.cofins_effective_rate || 0)} = <b>${A.moeda(x.cofins || 0)}</b>`},
     ],bases,{vazio:'Nenhuma base documental pôde ser vinculada.'})}</div><div style="margin-top:10px">${A.tabela([

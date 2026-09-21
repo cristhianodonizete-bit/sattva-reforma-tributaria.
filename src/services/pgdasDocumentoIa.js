@@ -154,6 +154,19 @@ function calcularCompetenciaPisCofins(db,empresaId,valores,validacao){
   const anexosPorAtividade=(atividades)=>[...new Set(validacao.blocos.filter((b)=>atividades.includes(b.activity_group)).map((b)=>b.anexo).filter(Boolean))];
   const anexosServico=anexosPorAtividade(['SERVICO','LOCACAO']);
   const anexosMercadoria=anexosPorAtividade(['REVENDA','INDUSTRIA']);
+  // Regime de caixa pode não ter recebido uma atividade em determinado mês.
+  // Isso não impede o cálculo da receita emitida por competência quando o
+  // documento já tem Anexo seguro: a faixa e a repartição vêm da mesma tabela
+  // do Simples, usando RBT12 e a competência, sem inventar receita de caixa.
+  const regraDoAnexo=(anexo)=>{
+    const bloco=(porAnexoBloco[anexo] || [])[0];
+    if(bloco?.calculation)return { ...bloco.calculation, origem:'BLOCO_PGDAS' };
+    const faixa=findSimplesBracket(db,{anexo,rbt12:valores.rbt12,periodo_apuracao:valores.competencia});
+    if(!faixa)return null;
+    const aliquotaEfetiva=calculateSimplesEffectiveRate({rbt12:valores.rbt12,aliquota_nominal:faixa.aliquota_nominal,parcela_deduzir:faixa.parcela_deduzir});
+    const distribuicao=getTaxDistribution(faixa);
+    return { faixa:Number(faixa.faixa),rbt12:valores.rbt12,aliquota_nominal:Number(faixa.aliquota_nominal),parcela_deduzir:Number(faixa.parcela_deduzir),aliquota_efetiva_simples:aliquotaEfetiva,pis_distribution_percentage:distribuicao.pis_distribution_percentage,cofins_distribution_percentage:distribuicao.cofins_distribution_percentage,pis_effective_rate:calculatePisEffectiveRate(aliquotaEfetiva,distribuicao.pis_distribution_percentage),cofins_effective_rate:calculateCofinsEffectiveRate(aliquotaEfetiva,distribuicao.cofins_distribution_percentage),origem:'TABELA_SIMPLES_SEM_CAIXA_NO_ANEXO' };
+  };
   const anexoDoMovimento=(m)=>{
     if(m.ncm)return 'I';
     if(m.nbs||m.lc116)return 'III';
@@ -165,13 +178,13 @@ function calcularCompetenciaPisCofins(db,empresaId,valores,validacao){
   const documentosNaoAssociados=[];
   movs.forEach((m)=>{
     const a=anexoDoMovimento(m);
-    if(!a || !porAnexoBloco[a]){
-      documentosNaoAssociados.push({id:m.id,documento:m.documento||m.chave||`Lançamento ${m.id}`,descricao:m.descricao||'',modelo:String(m.modelo_documento_fiscal||'').toUpperCase()||'NÃO IDENTIFICADO',cfop:m.cfop||'',ncm:m.ncm||'',nbs:m.nbs||'',lc116:m.lc116||'',valor:r2(m.valor),motivo:!a?'Sem NCM, NBS/LC 116 ou modelo fiscal com Anexo único no PGDAS.':`Associado ao Anexo ${a}, mas não há bloco compatível no PGDAS desta competência.`});
+    if(!a || !regraDoAnexo(a)){
+      documentosNaoAssociados.push({id:m.id,documento:m.documento||m.chave||`Lançamento ${m.id}`,descricao:m.descricao||'',modelo:String(m.modelo_documento_fiscal||'').toUpperCase()||'NÃO IDENTIFICADO',cfop:m.cfop||'',ncm:m.ncm||'',nbs:m.nbs||'',lc116:m.lc116||'',valor:r2(m.valor),motivo:!a?'Sem NCM, NBS/LC 116 ou modelo fiscal com Anexo único no PGDAS.':`Associado ao Anexo ${a}, mas a tabela do Simples não possui faixa válida para RBT12 nesta competência.`});
       return;
     }
     porAnexo[a]=(Number(porAnexo[a])||0)+(Number(m.valor)||0);
   });
-  let pis=0,cofins=0;const memoria=[];for(const [anexo,blocos] of Object.entries(porAnexoBloco)){const bloco=blocos[0],receita=Number(porAnexo[anexo]||0);if(!receita)continue;const p=receita*bloco.calculation.pis_effective_rate,c=receita*bloco.calculation.cofins_effective_rate;pis+=p;cofins+=c;memoria.push({anexo,receita_competencia:r2(receita),pis:r2(p),cofins:r2(c),regra:bloco.calculation});}
+  let pis=0,cofins=0;const memoria=[];for(const [anexo,receitaBruta] of Object.entries(porAnexo)){const receita=Number(receitaBruta||0),regra=regraDoAnexo(anexo);if(!receita||!regra)continue;const p=receita*regra.pis_effective_rate,c=receita*regra.cofins_effective_rate;pis+=p;cofins+=c;memoria.push({anexo,receita_competencia:r2(receita),pis:r2(p),cofins:r2(c),regra});}
   if(!memoria.length){
     const exemplos=documentosNaoAssociados.slice(0,3).map((m)=>({modelo:m.modelo,identificador:m.documento,valor:m.valor,motivo:m.motivo}));
     return {status:'SEM_DOCUMENTOS_CLASSIFICADOS',pis:null,cofins:null,motivo:movs.length?'Há documentos de saída, mas nenhum pôde ser associado com segurança aos Anexos do PGDAS.':'Não há documento de saída ativo importado nesta competência.',exemplos,documentos_nao_associados:documentosNaoAssociados,memoria:[]};

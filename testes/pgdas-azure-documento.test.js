@@ -129,6 +129,14 @@ const comPendente = pgdas.calcularCompetenciaPisCofins(db,1,{ ...valores, compet
 assert.equal(comPendente.documentos_nao_associados.length,1);
 assert.equal(comPendente.documentos_nao_associados[0].valor,30);
 
+// Em regime de caixa um Anexo pode não ter recebimento no PGDAS do mês. A
+// receita emitida já classificada ainda deve ser calculada por competência
+// pela faixa/RBT12, sem criar receita de caixa naquele Anexo.
+const somenteAnexoI = { ...validacao, blocos:validacao.blocos.filter((x) => x.anexo === 'I') };
+const semCaixaNoIII = pgdas.calcularCompetenciaPisCofins(db,1,{ ...valores, competencia:'2026-06' },somenteAnexoI);
+assert.equal(semCaixaNoIII.status,'CALCULADO');
+assert.equal(semCaixaNoIII.memoria.find((x) => x.anexo === 'III').regra.origem,'TABELA_SIMPLES_SEM_CAIXA_NO_ANEXO');
+
 const desconhecido=pgdas.normalizarTexto('arquivo sem âncoras fiscais');
 assert.equal(desconhecido.find((x)=>x.campo==='document_type').status_validacao,'INVALID_DOCUMENT');
 assert.throws(()=>pgdas.ingerir(db,2,{nome_original:'x.pdf',tipo_documento:'PDF',conteudo_original:Buffer.from('x'),metodo_extracao:'teste'},campos),/Simples Nacional/);
