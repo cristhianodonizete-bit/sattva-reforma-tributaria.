@@ -1179,12 +1179,13 @@ Telas.perfil = async (el) => {
   const auditoriaMensal = tributario.auditoria_mensal || [];
   const composicaoReceita = tributario.composicao_receita || [];
   const composicaoPisCofinsPgdas = tributario.composicao_pis_cofins_pgdas || [];
+  const composicaoPisCofinsPgdasHistorico = tributario.composicao_pis_cofins_pgdas_historico || [];
   const diagnosticoPgdas = tributario.diagnostico_pgdas || { confirmadas:[], em_revisao:[], fora_do_periodo:[] };
   // Para o Simples Nacional, a segregação declarada no PGDAS é a fonte
   // tributária correta desta visão. Não é seguro tentar transformar um XML em
   // monofásico, alíquota zero ou isento quando o próprio PGDAS não o separou.
   // Cada bloco só entra após a validação matemática do documento PGDAS.
-  const segregacaoSimples = [...composicaoPisCofinsPgdas
+  const agruparSegregacaoSimples = (linhas) => [...linhas
     .filter((x) => x.status === 'VALIDADO')
     .reduce((mapa, x) => {
       const chave = `${x.anexo || 'SEM_ANEXO'}|${x.descricao_bloco || 'Sem descrição'}`;
@@ -1203,6 +1204,8 @@ Telas.perfil = async (el) => {
     }, new Map()).values()]
     .map((x) => ({ ...x, competencias: [...x.competencias].sort() }))
     .sort((a, b) => b.receita - a.receita);
+  const segregacaoSimples = agruparSegregacaoSimples(composicaoPisCofinsPgdas);
+  const segregacaoSimplesHistorico = agruparSegregacaoSimples(composicaoPisCofinsPgdasHistorico);
   const simplesCaixa = tributario.empresa?.regime_atual === 'simples_nacional' && tributario.empresa?.regime_reconhecimento_simples === 'caixa';
   const recebimentosCaixa = historico.map((x) => x.receita_recebida?.valor);
   const dasCaixa = historico.map((x) => x.pgdas?.valor);
@@ -1307,7 +1310,7 @@ Telas.perfil = async (el) => {
     </div>
     <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>${chaveRegime === 'simples_nacional' ? 'Segregação da receita no Simples Nacional' : 'Tratamentos na apuração atual'}</h2><p class="desc">${chaveRegime === 'simples_nacional' ? 'Receita e PIS/Cofins conforme os blocos validados da declaração PGDAS. Esta tabela não faz rateio nem presume tratamento a partir do XML.' : 'A fonte atual registra totais de apuração. Tratamentos só são apresentados como identificados quando vierem discriminados no documento.'}</p></div></div>
       ${chaveRegime === 'simples_nacional' && diagnosticoPgdas.em_revisao.length ? `<div class="aviso atencao" style="margin:12px 0"><b>${diagnosticoPgdas.em_revisao.length} competência(s) PGDAS baixada(s) ainda não aparece(m) na segregação.</b><br><span class="mini">Elas estão em revisão: ${A.esc(diagnosticoPgdas.em_revisao.map((x) => x.competencia).join(', '))}. A confirmação mantém a segregação auditável e então a inclui nesta tabela.</span></div>` : ''}
-      ${chaveRegime === 'simples_nacional' && diagnosticoPgdas.fora_do_periodo.length ? `<div class="aviso info" style="margin:12px 0"><b>${diagnosticoPgdas.fora_do_periodo.length} competência(s) PGDAS está(ão) fora do período analisado.</b><br><span class="mini">Não entram no Perfil atual: ${A.esc(diagnosticoPgdas.fora_do_periodo.map((x) => x.competencia).join(', '))}.</span></div>` : ''}
+      ${chaveRegime === 'simples_nacional' && diagnosticoPgdas.fora_do_periodo.length ? `<div class="aviso info" style="margin:12px 0"><b>${diagnosticoPgdas.fora_do_periodo.length} competência(s) PGDAS está(ão) fora do período analisado.</b><br><span class="mini">Elas aparecem no histórico abaixo, mas não entram no Perfil atual: ${A.esc(diagnosticoPgdas.fora_do_periodo.map((x) => x.competencia).join(', '))}.</span></div>` : ''}
       ${chaveRegime === 'simples_nacional' ? A.tabela([
         { t:'Segregação declarada', r:x=>`<b>${A.esc(x.descricao)}</b><div class="mini">Anexo ${A.esc(x.anexo || 'não identificado')}</div>` },
         { t:'Receita PGDAS', num:true, r:x=>A.moeda(x.receita) },
@@ -1325,6 +1328,13 @@ Telas.perfil = async (el) => {
         { nome:'Alíquota zero', receita:null, valor:null, situacao:tratamentoSemDetalhe },
         { nome:'Isenção / imunidade', receita:null, valor:null, situacao:tratamentoSemDetalhe },
       ], { vazio:'Nenhum tratamento informado.' })}
+      ${chaveRegime === 'simples_nacional' && segregacaoSimplesHistorico.length ? `<div style="margin-top:18px"><h3>Histórico PGDAS fora do período analisado</h3><p class="mini">Valores preservados para consulta. Não são somados à receita, ao PIS/Cofins nem às conciliações do Perfil atual.</p>${A.tabela([
+        { t:'Segregação declarada', r:x=>`<b>${A.esc(x.descricao)}</b><div class="mini">Anexo ${A.esc(x.anexo || 'não identificado')}</div>` },
+        { t:'Receita PGDAS', num:true, r:x=>A.moeda(x.receita) },
+        { t:'PIS/Cofins no PGDAS', num:true, r:x=>A.moeda(x.pis_cofins) },
+        { t:'Competências', r:x=>`${x.competencias.length} competência(s)<div class="mini">${A.esc(x.competencias.join(', '))}</div>` },
+        { t:'Situação', r:()=>'<span class="tag n">Fora do período atual</span>' },
+      ], segregacaoSimplesHistorico)}</div>` : ''}
       <p class="mini" style="margin-top:12px">A ausência de detalhe não é presumida como tributação normal. O detalhamento por operação é analisado nas Cadeias de Fornecedores e Clientes.</p>
     </div>
     <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>Apurações importadas</h2><p class="desc">Exibindo somente as competências do período analisado${periodoPerfil ? ` (${A.esc(periodoPerfil.competencia_inicio)} a ${A.esc(periodoPerfil.competencia_fim)})` : ''}. Os demais documentos seguem preservados para o Planejamento Tributário.</p></div><span class="tag">${apuracoesDoPerfil.length} competência(s)</span></div>

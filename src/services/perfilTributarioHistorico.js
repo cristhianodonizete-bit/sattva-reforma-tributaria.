@@ -359,8 +359,12 @@ function consolidar(db, empresaId, opcoes = {}) {
   const auditoria_mensal = aplicarConfirmacoesAuditoria(db, empresaId,
     montarAuditoriaMensal(documentos, apuracoes, perfis, receitasSemDfe, deducoesDevolucoes));
   const composicao_pis_cofins_pgdas = montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio);
+  // Histórico é exposto separadamente para não desaparecer da interface. Ele
+  // jamais alimenta os cards, a auditoria ou o Perfil da janela atual.
+  const composicao_pis_cofins_pgdas_historico = montarComposicaoPisCofinsPgdas(db, empresaId, [], () => true)
+    .filter((x) => !noExercicio(x.competencia));
   const diagnostico_pgdas = diagnosticarSegregacaoPgdas(db, empresaId, noExercicio);
-  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal, composicao_receita:[...composicaoReceita.values()].sort((a,b)=>b.valor-a.valor), composicao_pis_cofins_pgdas, diagnostico_pgdas };
+  return { empresa: { id: empresa.id, nome: empresa.razao_social, regime_atual: empresa.regime || 'INDETERMINADO', regime_reconhecimento_simples: empresa.regime_reconhecimento_simples || 'competencia' }, cobertura, historico, auditoria_mensal, composicao_receita:[...composicaoReceita.values()].sort((a,b)=>b.valor-a.valor), composicao_pis_cofins_pgdas, composicao_pis_cofins_pgdas_historico, diagnostico_pgdas };
 }
 
 module.exports = { consolidar, montarAuditoriaMensal, montarComposicaoPisCofinsPgdas, diagnosticarSegregacaoPgdas, assinarAuditoriaMensal };
