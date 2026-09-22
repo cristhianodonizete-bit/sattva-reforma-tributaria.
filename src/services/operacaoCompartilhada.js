@@ -1003,8 +1003,18 @@ async function publicarOperacaoEmpresa(empresaId) {
     const campos=CAMPOS[tabela];
     const linhas=db.prepare(`SELECT ${campos.join(',')} FROM ${tabela} WHERE empresa_id=?`).all(Number(empresaId))
       .map((linha) => ({ ...linha, empresa_id:empresaRemotaId }));
-    for (let inicio=0; inicio<linhas.length; inicio+=500) {
-      const { error } = await remoto.from(tabela).upsert(linhas.slice(inicio,inicio+500), { onConflict:'id' });
+    // IDs SQLite não são globais: outra instância pode gerar o mesmo número
+    // para outro XML. Em documento XML a chave eletrônica + item é a
+    // identidade fiscal estável e impede que uma publicação substitua outra.
+    const grupos = tabela === 'movimentos'
+      ? [
+        { linhas:linhas.filter((linha) => String(linha.origem || '').toLowerCase() === 'xml' && linha.chave)
+          .map(({ id, ...linha }) => linha), conflito:'empresa_id,chave,item_numero' },
+        { linhas:linhas.filter((linha) => !(String(linha.origem || '').toLowerCase() === 'xml' && linha.chave)), conflito:'id' },
+      ]
+      : [{ linhas, conflito:'id' }];
+    for (const grupo of grupos) for (let inicio=0; inicio<grupo.linhas.length; inicio+=500) {
+      const { error } = await remoto.from(tabela).upsert(grupo.linhas.slice(inicio,inicio+500), { onConflict:grupo.conflito });
       if (error) throw new Error(`${tabela}: ${error.message}`);
     }
     resultado[tabela]=linhas.length;
@@ -1013,15 +1023,17 @@ async function publicarOperacaoEmpresa(empresaId) {
   // só é considerada publicada quando cada movimento local também pode ser
   // localizado na fotografia compartilhada. Isso evita o estado enganoso
   // "lote importado" com NFC-e ausente nas telas de documentos e cadeias.
-  const locais = db.prepare('SELECT id,lote_id FROM movimentos WHERE empresa_id=?').all(Number(empresaId));
-  const idsRemotos = new Set();
+  const locais = db.prepare('SELECT id,lote_id,chave,item_numero,origem FROM movimentos WHERE empresa_id=?').all(Number(empresaId));
+  const identidadesRemotas = new Set();
   for (let inicio = 0;; inicio += 1000) {
-    const { data, error } = await remoto.from('movimentos').select('id,lote_id').eq('empresa_id', empresaRemotaId).range(inicio, inicio + 999);
+    const { data, error } = await remoto.from('movimentos').select('id,lote_id,chave,item_numero,origem').eq('empresa_id', empresaRemotaId).range(inicio, inicio + 999);
     if (error) throw new Error(`verificação de movimentos: ${error.message}`);
-    (data || []).forEach((linha) => idsRemotos.add(Number(linha.id)));
+    (data || []).forEach((linha) => identidadesRemotas.add(String(linha.origem || '').toLowerCase() === 'xml' && linha.chave
+      ? `xml:${linha.chave}:${linha.item_numero}` : `id:${linha.id}`));
     if (!data || data.length < 1000) break;
   }
-  const ausentes = locais.filter((linha) => !idsRemotos.has(Number(linha.id)));
+  const ausentes = locais.filter((linha) => !identidadesRemotas.has(String(linha.origem || '').toLowerCase() === 'xml' && linha.chave
+    ? `xml:${linha.chave}:${linha.item_numero}` : `id:${linha.id}`));
   if (ausentes.length) {
     const porLote = new Map();
     ausentes.forEach((linha) => porLote.set(linha.lote_id || 'sem_lote', (porLote.get(linha.lote_id || 'sem_lote') || 0) + 1));
