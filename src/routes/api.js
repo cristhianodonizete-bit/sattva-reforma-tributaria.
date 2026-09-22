@@ -393,6 +393,52 @@ router.use((req, res, next) => {
 const ok = (res, dados) => res.json({ ok: true, ...dados });
 const erro = (res, e, status = 400) => res.status(status).json({ ok: false, erro: e.message || String(e) });
 const sincronizarGestao = () => sincronizarGestaoSupabase().catch((e) => console.error('[supabase] sincronização de gestão:', e.message));
+async function empresaRemotaParaAuditoria(empresaId) {
+  if (!supabase.configurado()) return null;
+  const { data, error } = await supabase.admin().from('empresas').select('id')
+    .eq('origem_local_id', Number(empresaId)).maybeSingle();
+  if (error) throw new Error(`Empresa compartilhada para auditoria: ${error.message}`);
+  if (!data?.id) throw new Error('Empresa compartilhada não localizada para registrar a conferência.');
+  return Number(data.id);
+}
+async function publicarConfirmacaoAuditoriaCompartilhada(req, { empresaId, competencia, assinatura, justificativa }) {
+  const empresaRemotaId = await empresaRemotaParaAuditoria(empresaId);
+  if (!empresaRemotaId) return { compartilhado:false };
+  const { error } = await supabase.admin().from('auditoria').insert({
+    empresa_id: empresaRemotaId, usuario_id:req.usuario?.id || null,
+    acao:'CONFIRMAR_DIVERGENCIA_RECEITAS', entidade:'auditoria_receitas_confirmacoes', entidade_id:String(competencia),
+    antes:null, depois:{ competencia, assinatura, justificativa },
+  });
+  if (error) throw new Error(`Conferência não registrada na fonte compartilhada: ${error.message}`);
+  return { compartilhado:true, empresa_remota_id:empresaRemotaId };
+}
+async function restaurarConfirmacoesAuditoriaCompartilhadas(empresaId) {
+  const empresaRemotaId = await empresaRemotaParaAuditoria(empresaId);
+  if (!empresaRemotaId) return { restauradas:0 };
+  const { data, error } = await supabase.admin().from('auditoria')
+    .select('entidade_id,depois,usuario_id,criado_em').eq('empresa_id', empresaRemotaId)
+    .eq('entidade', 'auditoria_receitas_confirmacoes').eq('acao', 'CONFIRMAR_DIVERGENCIA_RECEITAS')
+    .order('criado_em', { ascending:false }).limit(120);
+  if (error) throw new Error(`Conferências compartilhadas: ${error.message}`);
+  const vistas = new Set(); let restauradas = 0;
+  db.transaction(() => {
+    const inserir = db.prepare(`INSERT INTO auditoria_receitas_confirmacoes (empresa_id,competencia,assinatura,justificativa,usuario_id,criado_em,atualizado_em)
+      VALUES (?,?,?,?,?,?,?) ON CONFLICT(empresa_id,competencia) DO UPDATE SET assinatura=excluded.assinatura,justificativa=excluded.justificativa,usuario_id=excluded.usuario_id,atualizado_em=excluded.atualizado_em`);
+    for (const linha of data || []) {
+      const depois = linha.depois && typeof linha.depois === 'object' ? linha.depois : {};
+      const competencia = String(depois.competencia || linha.entidade_id || '');
+      if (vistas.has(competencia) || !/^\d{4}-\d{2}$/.test(competencia) || !depois.assinatura || !depois.justificativa) continue;
+      vistas.add(competencia);
+      inserir.run(empresaId, competencia, String(depois.assinatura), String(depois.justificativa), linha.usuario_id || null, linha.criado_em || new Date().toISOString(), linha.criado_em || new Date().toISOString());
+      restauradas += 1;
+    }
+  })();
+  return { restauradas };
+}
+function divergenciasAbertasDoPerfil(empresaId) {
+  const perfil = perfilTributarioHistorico.consolidar(db, empresaId);
+  return (perfil.auditoria_mensal || []).filter((linha) => linha.situacao === 'DIVERGENCIA_A_CONFERIR');
+}
 async function publicarCadastroEmpresa(empresaId) {
   if (!supabase.configurado()) return { publicado: false, motivo: 'Supabase não configurado.' };
   // A gestão cria/localiza a empresa pelo origem_local_id. A atualização do
@@ -520,6 +566,13 @@ router.get('/empresas/:id/modulos-entrega', async (req, res) => {
 router.post('/empresas/:id/modulos-entrega/:modulo/fechar', async (req, res) => {
   try {
     const empresaId = Number(req.params.id); await garantirEmpresaPermitida(req, empresaId);
+    if (req.params.modulo === 'perfil') {
+      // Antes do gate, traz a última conferência durável. Isso impede que um
+      // reinício transforme uma justificativa já gravada em bloqueio falso.
+      await restaurarConfirmacoesAuditoriaCompartilhadas(empresaId);
+      const pendentes = divergenciasAbertasDoPerfil(empresaId);
+      if (pendentes.length) throw new Error(`O Perfil tributário não pode ser fechado: há ${pendentes.length} divergência(s) de receita sem justificativa (${pendentes.map((x) => x.competencia).join(', ')}).`);
+    }
     if (fechamentoModulos.MODULOS.find((m) => m.chave === req.params.modulo)?.modulo === 'diagnostico') {
       const job = motorExecucaoFila.status(empresaId);
       if (job && ['PENDENTE', 'EM_EXECUCAO', 'PROCESSANDO'].includes(String(job.status || '').toUpperCase())) {
@@ -1486,6 +1539,11 @@ router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
     // apesar de o Questor já ter enviado os relatórios ao armazenamento.
     await estadoLeituraEmpresa.atualizarComSeguranca(db, Number(req.params.id), ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, Number(req.params.id)), { motivo:'Apurações confirmadas restauradas para o Perfil' });
     const empresaId = Number(req.params.id);
+    // A justificativa é uma decisão auditável: restaura o registro durável
+    // antes de montar a auditoria. Se a fonte estiver indisponível, a cópia
+    // existente continua legível e a tela não apaga a conferência local.
+    try { await restaurarConfirmacoesAuditoriaCompartilhadas(empresaId); }
+    catch (e) { console.warn(`[auditoria] restauração de confirmações adiada: ${e.message}`); }
     estadoLeituraEmpresa.sincronizado(db, empresaId, ['documentos','cancelamentos','periodo','apuracoes','pgdas','perfil'], 'Perfil recomposto com fontes confirmadas');
     ok(res, { ...perfilTributarioHistorico.consolidar(db, empresaId, { movimentos: reconciliacaoDocumental.movimentos }),
       leitura_estado: estadoLeituraEmpresa.estado(db, empresaId, ['documentos','cancelamentos','periodo','apuracoes','pgdas','perfil']) });
@@ -1511,11 +1569,16 @@ router.post('/empresas/:id/perfil-tributario-historico/auditoria/:competencia/co
     const linha = (perfil.auditoria_mensal || []).find((x) => x.competencia === competencia);
     if (!linha || linha.situacao !== 'DIVERGENCIA_A_CONFERIR') throw new Error('Esta competência não possui uma divergência aberta para confirmar.');
     const assinatura = perfilTributarioHistorico.assinarAuditoriaMensal(linha);
+    // O sucesso só é devolvido depois que a justificativa estiver na fonte
+    // compartilhada. Assim uma atualização ou reinício não pode transformar
+    // uma conferência exibida como concluída em divergência aberta.
+    await publicarConfirmacaoAuditoriaCompartilhada(req, { empresaId, competencia, assinatura, justificativa });
     db.prepare(`INSERT INTO auditoria_receitas_confirmacoes (empresa_id,competencia,assinatura,justificativa,usuario_id,criado_em,atualizado_em)
       VALUES (?,?,?,?,?,datetime('now','localtime'),datetime('now','localtime'))
       ON CONFLICT(empresa_id,competencia) DO UPDATE SET assinatura=excluded.assinatura,justificativa=excluded.justificativa,usuario_id=excluded.usuario_id,atualizado_em=datetime('now','localtime')`)
       .run(empresaId, competencia, assinatura, justificativa, req.usuario?.id || null);
-    auditar(req, { empresaId, acao:'CONFIRMAR_DIVERGENCIA_RECEITAS', entidade:'auditoria_receitas_confirmacoes', depois:{ competencia, justificativa, assinatura } });
+    // A publicação síncrona acima já gravou a trilha remota com a empresa
+    // canônica; não registre uma segunda cópia assíncrona com id local.
     ok(res, { competencia, situacao:'CONCILIADO_JUSTIFICADO' });
   } catch (e) { erro(res, e); }
 });
