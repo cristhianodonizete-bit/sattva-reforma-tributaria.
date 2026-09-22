@@ -1496,12 +1496,18 @@ router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
 router.post('/empresas/:id/perfil-tributario-historico/auditoria/:competencia/confirmar', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
+    await garantirEmpresaPermitida(req, empresaId);
     const competencia = String(req.params.competencia || '').trim();
     const justificativa = String(req.body?.justificativa || '').trim();
     if (!/^\d{4}-\d{2}$/.test(competencia)) throw new Error('Informe uma competência válida.');
     if (justificativa.length < 10) throw new Error('Explique a divergência em pelo menos 10 caracteres.');
-    const conciliacao = await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(empresaId);
-    const perfil = perfilTributarioHistorico.consolidar(db, empresaId, { movimentos: conciliacao.movimentos });
+    // A página de Perfil já reconcilia os documentos antes de exibir a
+    // auditoria. Repetir toda a leitura remota no clique de confirmação pode
+    // exceder o prazo do proxy e devolver uma página HTML em vez de JSON.
+    // A confirmação é uma anotação sobre a memória que o usuário acabou de
+    // conferir; se PGDAS, XML ou lançamentos mudarem, a assinatura abaixo
+    // deixa de coincidir e a divergência volta a ficar aberta.
+    const perfil = perfilTributarioHistorico.consolidar(db, empresaId);
     const linha = (perfil.auditoria_mensal || []).find((x) => x.competencia === competencia);
     if (!linha || linha.situacao !== 'DIVERGENCIA_A_CONFERIR') throw new Error('Esta competência não possui uma divergência aberta para confirmar.');
     const assinatura = perfilTributarioHistorico.assinarAuditoriaMensal(linha);

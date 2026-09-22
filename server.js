@@ -28,7 +28,13 @@ const PORTA = process.env.PORT || process.env.PORTA || 3200;
 app.use(compression());
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
-app.use(express.static(path.join(__dirname, 'public')));
+// A interface não pode manter JavaScript antigo depois de uma correção de
+// regra ou de uma resposta de erro. Os dados já são lidos com no-store; o
+// mesmo vale para os arquivos da aplicação, evitando uma tela antiga contra
+// uma API nova após atualização do servidor.
+app.use(express.static(path.join(__dirname, 'public'), {
+  setHeaders(res) { res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate, private'); },
+}));
 // O conector local possui autenticação própria e nunca recebe a sessão web.
 app.use('/api/conector-questor', require('./src/routes/conectorQuestor'));
 
