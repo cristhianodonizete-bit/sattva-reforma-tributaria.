@@ -5345,7 +5345,22 @@ router.post('/empresas/:id/importar/xml', uploadXml.array('arquivos', 500), asyn
       if (tem) classificacao = bases.classificarMovimentos(req.params.id);
     } catch (_) { /* segue sem classificar */ }
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
+    // XML é a fonte primária dos cupons: depois da importação, a mesma
+    // fotografia precisa chegar ao compartilhado antes de Perfil, Cadeias ou
+    // Documentos Fiscais consultarem a base canônica. Sem isso, uma aba podia
+    // enxergar o lote local e outra voltar a uma fotografia parcial.
+    let publicacao;
+    try {
+      publicacao = await require('../services/operacaoCompartilhada').publicarOperacaoEmpresa(Number(req.params.id));
+      estadoLeituraEmpresa.invalidar(db, Number(req.params.id), ['documentos','perfil','motor','cadeias'], 'XML publicado na fonte compartilhada');
+    } catch (erroPublicacao) {
+      // A importação local continua íntegra. A falha de publicação é
+      // rastreável e nunca converte um lote já concluído em perda de dados.
+      estadoLeituraEmpresa.falhou(db, Number(req.params.id), ['documentos'], erroPublicacao.message);
+      publicacao = { pendente:true, erro:erroPublicacao.message };
+    }
     ok(res, { ...relatorio, classificacao, semRegime: vinculo.semRegime,
+      publicacao,
       enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
         mensagem: 'Consulta cadastral de clientes e fornecedores agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }

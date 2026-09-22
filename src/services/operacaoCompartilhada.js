@@ -451,6 +451,16 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   // exclusões feitas pela aplicação já removem ambas as bases na origem.
   const preservados = locais.filter((linha) => !remotos.has(Number(linha.id))
     && ['xml','sped'].includes(String(linha.origem || '').toLowerCase()));
+  // Recuperação sem reenvio: se a aplicação ainda possui fatos fiscais que a
+  // fotografia canônica não recebeu, a primeira reconciliação os publica.
+  // Isso cobre lotes XML antigos, importados antes da publicação automática,
+  // sem substituir o documento original nem exigir que o usuário selecione a
+  // mesma pasta outra vez.
+  let erroPublicacaoPendente = null;
+  if (preservados.length) {
+    try { await publicarOperacaoEmpresa(id); }
+    catch (erroPublicacao) { erroPublicacaoPendente = erroPublicacao.message; }
+  }
   const remover = locais.filter((linha) => !remotos.has(Number(linha.id)) && !preservados.includes(linha)).map((linha) => Number(linha.id));
   db.transaction(() => {
     if (remover.length) {
@@ -466,7 +476,7 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
     // request. Assim, uma tela não volta a depender do SQLite recém-reconciliado
     // nem de qualquer cache de processo entre a leitura e a consolidação.
     const movimentos = [...normalizadas, ...preservados];
-    return { ativo: true, origem: preservados.length ? `${origem}_COM_IMPORTACAO_LOCAL_PENDENTE` : origem,
+    return { ativo: true, origem: preservados.length ? `${origem}_${erroPublicacaoPendente ? 'COM_IMPORTACAO_LOCAL_PENDENTE' : 'IMPORTACAO_LOCAL_PUBLICADA'}` : origem,
       inseridos_ou_atualizados: normalizadas.length, removidos: remover.length, sincronizado_em: sincronizadoEm, movimentos };
   })();
   reconciliacoesEmAndamento.set(id, execucao);
