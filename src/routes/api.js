@@ -527,10 +527,17 @@ router.post('/empresas/:id/modulos-entrega/:modulo/fechar', async (req, res) => 
       }
     }
     const resultado = fechamentoModulos.fechar({ empresaId, modulo:req.params.modulo, usuarioId:req.usuario?.id || null, observacao:req.body?.observacao });
-    await fechamentoModulos.publicarCompartilhado(empresaId, resultado.alterado ? {
-      modulo:req.params.modulo, acao:'FECHADO', usuarioId:req.usuario?.id || null,
-      dados:{ observacao:req.body?.observacao || null },
-    } : null);
+    try {
+      await fechamentoModulos.publicarCompartilhado(empresaId, resultado.alterado ? {
+        modulo:req.params.modulo, acao:'FECHADO', usuarioId:req.usuario?.id || null,
+        dados:{ observacao:req.body?.observacao || null },
+      } : null);
+    } catch (erroPublicacao) {
+      if (resultado.alterado) fechamentoModulos.reverterFechamentoNaoConfirmado({
+        empresaId, modulo:req.params.modulo, estadoAnterior:resultado.estado_anterior, eventoId:resultado.evento_id,
+      });
+      throw new Error(`Fechamento não confirmado na fonte compartilhada; nenhuma alteração foi mantida. ${erroPublicacao.message}`);
+    }
     auditar(req, { empresaId, acao:'Fechou módulo para entrega', entidade:'empresa_modulos_entrega', entidadeId:req.params.modulo, depois:{ modulo:req.params.modulo, observacao:req.body?.observacao || null } });
     ok(res, resultado);
   } catch (e) { erro(res, e); }

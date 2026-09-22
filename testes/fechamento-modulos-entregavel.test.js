@@ -32,4 +32,10 @@ assert.equal(fechamento.reabrir({ empresaId, modulo:'perfil', usuarioId:'teste',
 for (const modulo of fechamento.MODULOS) fechamento.fechar({ empresaId, modulo:modulo.chave, usuarioId:'teste' });
 assert.equal(fechamento.exigirProntoParaEntrega(empresaId).pronto_para_entrega, true, 'todos os módulos fechados liberam a entrega');
 assert.equal(db.prepare('SELECT COUNT(*) AS n FROM empresa_submodulos_entrega_eventos WHERE empresa_id=?').get(empresaId).n, 14, 'histórico mantém fechamento e reabertura');
+const empresaFalha = Number(db.prepare('INSERT INTO empresas (cnpj,razao_social) VALUES (?,?)').run(`88${String(Date.now()).slice(-12)}`, 'Empresa de teste de confirmação').lastInsertRowid);
+const tentativa = fechamento.fechar({ empresaId:empresaFalha, modulo:'perfil', usuarioId:'teste' });
+assert.equal(fechamento.listar(empresaFalha).modulos[0].status, 'FECHADO', 'estado temporário é criado antes da confirmação');
+fechamento.reverterFechamentoNaoConfirmado({ empresaId:empresaFalha, modulo:'perfil', estadoAnterior:tentativa.estado_anterior, eventoId:tentativa.evento_id });
+assert.equal(fechamento.listar(empresaFalha).modulos[0].status, 'ABERTO', 'falha de confirmação não deixa módulo falsamente fechado');
+assert.equal(db.prepare('SELECT COUNT(*) AS n FROM empresa_submodulos_entrega_eventos WHERE empresa_id=?').get(empresaFalha).n, 0, 'evento não confirmado também é removido');
 console.log('fechamento-modulos-entregavel: bloqueio do motor, reabertura auditável e gate de entrega aprovados.');

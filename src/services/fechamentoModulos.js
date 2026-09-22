@@ -78,14 +78,18 @@ async function publicarCompartilhado(empresaId, evento = null) {
     const { error } = await remoto.from('empresa_submodulos_entrega').upsert(estados, { onConflict:'empresa_id,submodulo' });
     if (error) throw new Error(`Persistência compartilhada do fechamento: ${error.message}`);
   }
+  let historicoPendente = null;
   if (evento) {
     const { error } = await remoto.from('empresa_submodulos_entrega_eventos').insert({
       empresa_id:empresaRemotaId, submodulo:evento.modulo, acao:evento.acao, usuario_id:evento.usuarioId || null,
       dados_json:evento.dados || {}, criado_em:evento.criado_em || agora(),
     });
-    if (error) throw new Error(`Histórico compartilhado do fechamento: ${error.message}`);
+    // O marco de fechamento já está confirmado. O evento local permanece
+    // auditável e uma falha no espelho do histórico não pode reabrir um módulo
+    // que a fonte canônica já recebeu como fechado.
+    if (error) historicoPendente = `Histórico compartilhado do fechamento: ${error.message}`;
   }
-  return { ativo:true, empresa_remota_id:empresaRemotaId, estados:estados.length };
+  return { ativo:true, empresa_remota_id:empresaRemotaId, estados:estados.length, historico_pendente:historicoPendente };
 }
 function listar(empresaId) {
   empresaExiste(empresaId);
@@ -98,7 +102,7 @@ function listar(empresaId) {
   return { modulos, pronto_para_entrega:abertos.length === 0, abertos:abertos.map((m) => ({ chave:m.chave, titulo:m.titulo })) };
 }
 function registrarEvento(empresaId, modulo, acao, usuarioId, dados) {
-  db.prepare('INSERT INTO empresa_submodulos_entrega_eventos (empresa_id,submodulo,acao,usuario_id,dados_json,criado_em) VALUES (?,?,?,?,?,?)')
+  return db.prepare('INSERT INTO empresa_submodulos_entrega_eventos (empresa_id,submodulo,acao,usuario_id,dados_json,criado_em) VALUES (?,?,?,?,?,?)')
     .run(empresaId, modulo, acao, usuarioId || null, JSON.stringify(dados || {}), agora());
 }
 function fechar({ empresaId, modulo, usuarioId, observacao }) {
@@ -106,13 +110,32 @@ function fechar({ empresaId, modulo, usuarioId, observacao }) {
   const anterior = db.prepare('SELECT * FROM empresa_submodulos_entrega WHERE empresa_id=? AND submodulo=?').get(empresaId, modulo);
   if (anterior?.status === 'FECHADO') return { ...listar(empresaId), alterado:false };
   const quando = agora();
-  db.transaction(() => {
+  const evento = db.transaction(() => {
     db.prepare(`INSERT INTO empresa_submodulos_entrega (empresa_id,submodulo,status,fechado_em,fechado_por,observacao,reaberto_em,reaberto_por,motivo_reabertura,atualizado_em)
       VALUES (?,?, 'FECHADO', ?,?,?,NULL,NULL,NULL,?)
       ON CONFLICT(empresa_id,submodulo) DO UPDATE SET status='FECHADO',fechado_em=excluded.fechado_em,fechado_por=excluded.fechado_por,observacao=excluded.observacao,atualizado_em=excluded.atualizado_em`).run(empresaId, modulo, quando, usuarioId || null, String(observacao || '').trim() || null, quando);
-    registrarEvento(empresaId, modulo, 'FECHADO', usuarioId, { observacao:String(observacao || '').trim() || null, anterior_status:anterior?.status || 'ABERTO' });
+    return registrarEvento(empresaId, modulo, 'FECHADO', usuarioId, { observacao:String(observacao || '').trim() || null, anterior_status:anterior?.status || 'ABERTO' });
   })();
-  return { ...listar(empresaId), alterado:true };
+  return { ...listar(empresaId), alterado:true, evento_id:Number(evento.lastInsertRowid), estado_anterior:anterior || null };
+}
+// Se a confirmação compartilhada falhar, o fechamento não pode permanecer
+// apenas nesta instalação: ele seria visualmente fechado agora e aberto na
+// próxima sincronização. Reverte somente o marco de governança recém-criado;
+// nunca toca documentos, apurações, receitas, XMLs ou configurações.
+function reverterFechamentoNaoConfirmado({ empresaId, modulo, estadoAnterior, eventoId }) {
+  empresaExiste(empresaId); moduloValido(modulo);
+  db.transaction(() => {
+    if (estadoAnterior) {
+      db.prepare(`INSERT INTO empresa_submodulos_entrega
+        (empresa_id,submodulo,status,fechado_em,fechado_por,observacao,reaberto_em,reaberto_por,motivo_reabertura,atualizado_em)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+        ON CONFLICT(empresa_id,submodulo) DO UPDATE SET status=excluded.status,fechado_em=excluded.fechado_em,fechado_por=excluded.fechado_por,observacao=excluded.observacao,reaberto_em=excluded.reaberto_em,reaberto_por=excluded.reaberto_por,motivo_reabertura=excluded.motivo_reabertura,atualizado_em=excluded.atualizado_em`)
+        .run(empresaId, modulo, estadoAnterior.status, estadoAnterior.fechado_em, estadoAnterior.fechado_por, estadoAnterior.observacao,
+          estadoAnterior.reaberto_em, estadoAnterior.reaberto_por, estadoAnterior.motivo_reabertura, estadoAnterior.atualizado_em);
+    } else db.prepare('DELETE FROM empresa_submodulos_entrega WHERE empresa_id=? AND submodulo=?').run(empresaId, modulo);
+    if (eventoId) db.prepare('DELETE FROM empresa_submodulos_entrega_eventos WHERE id=? AND empresa_id=?').run(Number(eventoId), empresaId);
+  })();
+  return listar(empresaId);
 }
 function reabrir({ empresaId, modulo, usuarioId, motivo }) {
   empresaExiste(empresaId); moduloValido(modulo);
@@ -141,4 +164,4 @@ function exigirAberto(empresaId, modulo, acao = 'executar um novo cálculo') {
   return estado;
 }
 
-module.exports = { MODULOS, listar, fechar, reabrir, sincronizarCompartilhado, publicarCompartilhado, exigirProntoParaEntrega, exigirAberto };
+module.exports = { MODULOS, listar, fechar, reabrir, reverterFechamentoNaoConfirmado, sincronizarCompartilhado, publicarCompartilhado, exigirProntoParaEntrega, exigirAberto };
