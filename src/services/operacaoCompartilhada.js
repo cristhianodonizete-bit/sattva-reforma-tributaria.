@@ -382,10 +382,9 @@ async function carregarMovimentosCanonicos(empresa) {
 // A leitura da Central de Dados pode disparar mais de uma rota quase ao mesmo
 // tempo (lista, prontidão e Perfil). Consultar e regravar todos os movimentos
 // remotos em cada uma delas faz a navegação escalar com o volume da empresa.
-// Mantemos apenas um marco curto da última sincronização bem-sucedida. Dentro
-// dessa janela a leitura ainda vem do SQLite atual, portanto importações e
-// exclusões feitas nesta instância aparecem imediatamente; o que é adiado por
-// alguns segundos é somente uma alteração vinda de outra instância.
+// Mantemos uma fotografia curta da última leitura canônica. O atalho não pode
+// voltar ao SQLite local: ele existe apenas para reduzir chamadas consecutivas
+// sem reintroduzir mistura de fontes na mesma tela.
 const JANELA_RECONCILIACAO_MOVIMENTOS_MS = 8000;
 const reconciliacoesRecentes = new Map();
 const reconciliacoesEmAndamento = new Map();
@@ -419,11 +418,11 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   if (!opcoes.forcar && maxAgeMs > 0 && recente && agora - recente.sincronizadoEm < maxAgeMs) {
     return {
       ativo: true,
-      origem: 'CACHE_LOCAL_RECENTE',
+      origem: 'CACHE_CANONICO_RECENTE',
       inseridos_ou_atualizados: 0,
       removidos: 0,
       sincronizado_em: recente.sincronizadoEm,
-      movimentos: lerMovimentosLocais(id),
+      movimentos: recente.movimentos || [],
     };
   }
   if (!opcoes.forcar && reconciliacoesEmAndamento.has(id)) return reconciliacoesEmAndamento.get(id);
@@ -431,37 +430,35 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   const execucao = (async () => {
   const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(id);
   if (!empresa?.cnpj) throw new Error('Empresa não encontrada para reconciliação documental.');
-  const { remota, linhas, origem } = await carregarMovimentosCanonicos(empresa);
-  const normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
-  const remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
+  let leitura = await carregarMovimentosCanonicos(empresa);
+  let { remota, linhas, origem } = leitura;
+  let normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
+  let remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
   const locais = db.prepare('SELECT * FROM movimentos WHERE empresa_id=?').all(id);
-  // Uma fonte compartilhada vazia não é autorização para apagar uma
-  // importação local já concluída. Isto ocorre, por exemplo, entre o commit
-  // do SPED e sua publicação remota. Exclusões feitas pela própria aplicação
-  // atingem ambas as bases de forma coordenada e não passam por este ramo.
-  if (!normalizadas.length && locais.length) {
-    const sincronizadoEm = Date.now();
-    reconciliacoesRecentes.set(id, { sincronizadoEm });
-    return { ativo:true, origem:'BASE_LOCAL_AGUARDANDO_PUBLICACAO', inseridos_ou_atualizados:0,
-      removidos:0, sincronizado_em:sincronizadoEm, movimentos:lerMovimentosLocais(id) };
-  }
-  // Um lote XML/SPED recém-importado pode existir no SQLite alguns instantes
-  // antes de chegar ao compartilhado. Ele é fato fiscal, não cache: mantém-se
-  // na reconciliação e é devolvido à leitura junto da fotografia remota. As
-  // exclusões feitas pela aplicação já removem ambas as bases na origem.
-  const preservados = locais.filter((linha) => !remotos.has(Number(linha.id))
+  // O id técnico local pode diferir do id da fonte comum. XML tem identidade
+  // fiscal própria; nunca se devolve uma cópia local se a mesma nota já está
+  // disponível na fonte canônica.
+  const identidadeFiscal = (linha) => String(linha?.origem || '').toLowerCase() === 'xml' && linha?.chave
+    ? `xml:${linha.chave}:${linha.item_numero}` : null;
+  let identidadesRemotas = new Set(normalizadas.map(identidadeFiscal).filter(Boolean));
+  const pendentes = locais.filter((linha) => !remotos.has(Number(linha.id))
+    && !identidadesRemotas.has(identidadeFiscal(linha))
     && ['xml','sped'].includes(String(linha.origem || '').toLowerCase()));
-  // Recuperação sem reenvio: se a aplicação ainda possui fatos fiscais que a
-  // fotografia canônica não recebeu, a primeira reconciliação os publica.
-  // Isso cobre lotes XML antigos, importados antes da publicação automática,
-  // sem substituir o documento original nem exigir que o usuário selecione a
-  // mesma pasta outra vez.
-  let erroPublicacaoPendente = null;
-  if (preservados.length) {
+  // A tela não mistura duas fontes. Havendo fatos pendentes, publica primeiro
+  // e consulta novamente a fonte canônica. Se isso falhar, interrompe a
+  // leitura em vez de exibir totais parciais ou duplicados.
+  if (pendentes.length || (!normalizadas.length && locais.length)) {
     try { await publicarOperacaoEmpresa(id); }
-    catch (erroPublicacao) { erroPublicacaoPendente = erroPublicacao.message; }
+    catch (erroPublicacao) { throw new Error(`Documentos fiscais aguardam publicação segura: ${erroPublicacao.message}`); }
+    leitura = await carregarMovimentosCanonicos(empresa);
+    ({ remota, linhas, origem } = leitura);
+    normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
+    remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
+    identidadesRemotas = new Set(normalizadas.map(identidadeFiscal).filter(Boolean));
   }
-  const remover = locais.filter((linha) => !remotos.has(Number(linha.id)) && !preservados.includes(linha)).map((linha) => Number(linha.id));
+  const remover = locais.filter((linha) => !remotos.has(Number(linha.id))
+    && !identidadesRemotas.has(identidadeFiscal(linha))
+    && !['xml','sped'].includes(String(linha.origem || '').toLowerCase())).map((linha) => Number(linha.id));
   db.transaction(() => {
     if (remover.length) {
       const marcas = remover.map(() => '?').join(',');
@@ -471,13 +468,11 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
     gravar('movimentos', normalizadas, true);
   })();
     const sincronizadoEm = Date.now();
-    reconciliacoesRecentes.set(id, { sincronizadoEm });
-    // Também devolve a fotografia canônica para leituras críticas no mesmo
-    // request. Assim, uma tela não volta a depender do SQLite recém-reconciliado
-    // nem de qualquer cache de processo entre a leitura e a consolidação.
-    const movimentos = [...normalizadas, ...preservados];
-    return { ativo: true, origem: preservados.length ? `${origem}_${erroPublicacaoPendente ? 'COM_IMPORTACAO_LOCAL_PENDENTE' : 'IMPORTACAO_LOCAL_PUBLICADA'}` : origem,
-      inseridos_ou_atualizados: normalizadas.length, removidos: remover.length, sincronizado_em: sincronizadoEm, movimentos };
+    reconciliacoesRecentes.set(id, { sincronizadoEm, movimentos: normalizadas });
+    // A resposta é exclusivamente canônica. A cópia local só participa do
+    // transporte de publicação e nunca da composição visual ou financeira.
+    return { ativo: true, origem,
+      inseridos_ou_atualizados: normalizadas.length, removidos: remover.length, sincronizado_em: sincronizadoEm, movimentos:normalizadas };
   })();
   reconciliacoesEmAndamento.set(id, execucao);
   try { return await execucao; }

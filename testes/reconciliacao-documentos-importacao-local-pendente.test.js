@@ -1,6 +1,7 @@
 #!/usr/bin/env node
-/* Regressão: uma fotografia remota parcial não pode esconder o SPED que já
-   foi importado localmente enquanto sua publicação está pendente. */
+/* Regressão: uma fotografia remota parcial nunca pode ser somada ao SPED
+   local. Se a publicação não puder concluir, a tela deve falhar de forma
+   explícita em vez de exibir valores parciais ou duplicados. */
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -26,10 +27,11 @@ require.cache[caminhoSupabase] = { exports:{ configurado:() => true, admin:() =>
 const operacao = require('../src/services/operacaoCompartilhada');
 
 (async () => {
-  const resultado = await operacao.reconciliarMovimentosEmpresa(1, { forcar:true });
-  assert.match(resultado.origem, /COM_IMPORTACAO_LOCAL_PENDENTE/);
-  assert.equal(resultado.movimentos.length, 2);
+  await assert.rejects(
+    operacao.reconciliarMovimentosEmpresa(1, { forcar:true }),
+    /aguardam publicação segura/,
+  );
   assert.equal(db.prepare('SELECT COUNT(*) AS total FROM movimentos WHERE empresa_id=1').get().total, 2);
   assert.equal(db.prepare('SELECT COUNT(*) AS total FROM movimentos WHERE id=20').get().total, 1);
-  console.log('reconciliacao-documentos-importacao-local-pendente.test: SPED local preservado ao reconciliar fotografia parcial.');
+  console.log('reconciliacao-documentos-importacao-local-pendente.test: publicação pendente não mistura dados locais e canônicos.');
 })().catch((erro) => { console.error(erro); process.exit(1); });

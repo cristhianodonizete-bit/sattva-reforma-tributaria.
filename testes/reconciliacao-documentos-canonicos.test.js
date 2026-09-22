@@ -25,9 +25,17 @@ require.cache[caminhoSupabase]={exports:{configurado:()=>true,admin:()=>remoto}}
 const operacao=require('../src/services/operacaoCompartilhada');
 
 (async()=>{
-  await operacao.reconciliarMovimentosEmpresa(1);
+  const primeira = await operacao.reconciliarMovimentosEmpresa(1);
   const documento=db.prepare('SELECT situacao_documento,cancelamento_origem FROM movimentos WHERE id=10').get();
   assert.equal(documento.situacao_documento,'CANCELADO');
   assert.equal(documento.cancelamento_origem,'QUESTOR_RELATORIO_CANCELADOS');
-  console.log('reconciliacao-documentos-canonicos.test: cache reflete cancelamento canônico antes da leitura.');
+  // Simula uma sobra técnica com outro id local da mesma nota. O cache curto
+  // deve continuar devolvendo a fotografia remota, nunca a tabela SQLite.
+  db.prepare("INSERT INTO movimentos (id,empresa_id,tipo,sentido,documento,chave,competencia,valor,cfop,modelo_documento_fiscal,situacao_documento,origem) VALUES (99,1,'cliente','saida','1/21668','chave-21668','2026-04',2379.07,'5102','nfe','AUTORIZADO','xml')").run();
+  const segunda = await operacao.reconciliarMovimentosEmpresa(1);
+  assert.equal(primeira.movimentos.length,1);
+  assert.equal(segunda.origem,'CACHE_CANONICO_RECENTE');
+  assert.equal(segunda.movimentos.length,1);
+  assert.equal(segunda.movimentos[0].situacao_documento,'CANCELADO');
+  console.log('reconciliacao-documentos-canonicos.test: cache reflete somente a fotografia canônica.');
 })().catch((erro)=>{ console.error(erro); process.exit(1); });
