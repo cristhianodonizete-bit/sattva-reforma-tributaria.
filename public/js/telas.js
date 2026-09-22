@@ -1139,7 +1139,17 @@ Telas.perfil = async (el) => {
       ?? linha.apuracao_pis_cofins_historica?.[campoAlternativo]?.valor;
     return numero(extraido) ?? numero(linha[campoPerfil]?.valor);
   };
-  const competenciasDoExercicio = new Set(historico.map((x) => x.competencia).filter(Boolean));
+  // O histórico é uma fotografia complementar e pode não existir na fonte
+  // compartilhada. Para o Simples, a cobertura exigida pelo recálculo é a
+  // lista de competências do PGDAS confirmado, nunca a existência dessa
+  // fotografia auxiliar.
+  const diagnosticoPgdas = tributario.diagnostico_pgdas || { confirmadas:[], em_revisao:[], fora_do_periodo:[] };
+  const competenciasPgdasConfirmadas = new Set((diagnosticoPgdas.confirmadas || [])
+    .map((x) => x.competencia)
+    .filter((competencia) => competencia && noPeriodoDoPerfil(competencia)));
+  const competenciasDoExercicio = competenciasPgdasConfirmadas.size
+    ? competenciasPgdasConfirmadas
+    : new Set(historico.map((x) => x.competencia).filter(Boolean));
   const apuracoesDoPerfil = apuracoes.filter((x) => noPeriodoDoPerfil(x.competencia));
   const apuracoesValidasDoExercicio = apuracoes.filter((x) => noPeriodoDoPerfil(x.competencia) && competenciasDoExercicio.has(x.competencia)
     && ['VALIDADO_AUTOMATICAMENTE', 'VALIDADO_USUARIO'].includes(x.status_validacao));
@@ -1200,7 +1210,6 @@ Telas.perfil = async (el) => {
   const composicaoReceita = tributario.composicao_receita || [];
   const composicaoPisCofinsPgdas = tributario.composicao_pis_cofins_pgdas || [];
   const composicaoPisCofinsPgdasHistorico = tributario.composicao_pis_cofins_pgdas_historico || [];
-  const diagnosticoPgdas = tributario.diagnostico_pgdas || { confirmadas:[], em_revisao:[], fora_do_periodo:[] };
   // Para o Simples Nacional, a segregação declarada no PGDAS é a fonte
   // tributária correta desta visão. Não é seguro tentar transformar um XML em
   // monofásico, alíquota zero ou isento quando o próprio PGDAS não o separou.
