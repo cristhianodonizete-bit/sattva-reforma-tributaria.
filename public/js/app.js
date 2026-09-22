@@ -40,7 +40,17 @@ const App = (() => {
       // navegador após conciliação, reimportação ou alteração de situação.
       cache: 'no-store',
     });
-    const j = await r.json().catch(() => ({ ok: false, erro: 'Resposta inválida do servidor.' }));
+    // Não esconda uma falha de infraestrutura como se fosse um erro de regra
+    // tributária. Quando um proxy, uma página de erro ou uma versão desatualizada
+    // responder HTML, o usuário precisa ver o código HTTP para podermos rastrear
+    // a chamada, sem expor o conteúdo bruto da resposta na tela.
+    const corpo = await r.text();
+    let j;
+    try { j = JSON.parse(corpo); }
+    catch (_) {
+      const tipo = (r.headers.get('content-type') || '').split(';')[0] || 'conteúdo desconhecido';
+      j = { ok:false, erro:`O servidor respondeu HTTP ${r.status || 'sem status'} em formato inválido (${tipo}). Atualize a página e tente novamente. Se persistir, informe esta mensagem ao suporte.` };
+    }
     if (r.status === 401) {
       localStorage.removeItem('sattva_token');
       if (!String(location.hash || '').includes('access_token=')) {
