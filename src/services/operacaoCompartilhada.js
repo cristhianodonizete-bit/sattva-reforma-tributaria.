@@ -980,6 +980,20 @@ async function publicarContratos(remoto, empresaId, empresaRemotaId = empresaId)
 // lento e podia levar configurações não relacionadas junto; este caminho é
 // restrito aos fatos operacionais da empresa importada e preserva os IDs que
 // dão rastreabilidade ao lote, movimento e evidência C175.
+function deduplicarXmlParaPublicacao(linhas) {
+  const porIdentidade = new Map();
+  for (const linha of linhas) {
+    // A restrição remota usa exatamente esta identidade. Mantemos a linha de
+    // maior id técnico quando a instalação tiver duas cópias do mesmo item;
+    // isso somente consolida o envio e não remove qualquer evidência local.
+    const item = linha.item_numero == null ? '__SEM_ITEM__' : String(linha.item_numero);
+    const identidade = `${linha.empresa_id}:${linha.chave}:${item}`;
+    const anterior = porIdentidade.get(identidade);
+    if (!anterior || Number(linha.id) >= Number(anterior.id)) porIdentidade.set(identidade, linha);
+  }
+  return [...porIdentidade.values()];
+}
+
 async function publicarOperacaoEmpresa(empresaId) {
   if (!ativo()) return { ativo:false };
   const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
@@ -1003,7 +1017,7 @@ async function publicarOperacaoEmpresa(empresaId) {
     // identidade fiscal estável e impede que uma publicação substitua outra.
     const grupos = tabela === 'movimentos'
       ? [
-        { linhas:linhas.filter((linha) => String(linha.origem || '').toLowerCase() === 'xml' && linha.chave)
+        { linhas:deduplicarXmlParaPublicacao(linhas.filter((linha) => String(linha.origem || '').toLowerCase() === 'xml' && linha.chave))
           .map(({ id, ...linha }) => linha), conflito:'empresa_id,chave,item_numero' },
         { linhas:linhas.filter((linha) => !(String(linha.origem || '').toLowerCase() === 'xml' && linha.chave)), conflito:'id' },
       ]
@@ -1069,6 +1083,6 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
   return { empresa_remota_id: empresaRemotaId, excluidos: ids.length, movimento_ids: ids };
 }
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, deduplicarXmlParaPublicacao, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };
