@@ -302,10 +302,11 @@ Telas.dados = async (el) => {
   const consultaFornecedores = consultaDocumentos && abaDocumentosCentral === 'documentos' && abaDocumentosFiscais === 'fornecedores';
   const consultaDadosAdicionais = ['folha', 'receitas', 'margem'].includes(grupoCentral);
   const consultaApuracoes = grupoCentral === 'apuracoes';
-  // Prontidão só é necessária nas telas que a exibem ou usam suas pendências
-  // para registrar uma declaração. As listas de entradas, saídas e fornecedores
-  // não devem disparar essa leitura a cada troca de aba.
-  const consultaProntidao = consultaImportacoes || consultaDadosAdicionais || consultaApuracoes || grupoCentral === 'dashboard';
+  // O selo do cabeçalho também abre as pendências. Portanto, sempre que a
+  // Central de Dados estiver aberta, a prontidão da etapa precisa existir;
+  // antes as abas de documentos exibiam o selo sem carregar seu conteúdo e o
+  // clique era silenciosamente ignorado.
+  const consultaProntidao = consultaDocumentos || consultaDadosAdicionais || consultaApuracoes || grupoCentral === 'dashboard';
   const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, periodoResposta, prontidao, documentosFiscaisResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta] = await Promise.all([
     (consultaImportacoes || consultaFornecedores) ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${consultaFornecedores ? 'fornecedor' : aba}`) : Promise.resolve({ parceiros: [] }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/lotes`) : Promise.resolve({ lotes: [] }),
