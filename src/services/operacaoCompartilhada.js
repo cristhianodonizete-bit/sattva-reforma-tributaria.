@@ -103,20 +103,21 @@ async function buscarColecoes(remoto, tabelas, concorrencia = 4) {
   await Promise.all(Array.from({ length: Math.min(concorrencia, tabelas.length) }, trabalhador));
   return resultados;
 }
+function chaveConflitoTabela(tabela) {
+  if (tabela === 'catalogo_itens_receita') return { conflito:'(chave)', imutaveis:['chave'] };
+  if (tabela === 'excecoes_motor') return { conflito:'(empresa_id,movimento_id,codigo)', imutaveis:['id','empresa_id','movimento_id','codigo'] };
+  if (tabela === 'telemetria_autonomia_execucoes') return { conflito:'(execucao_id)', imutaveis:['execucao_id'] };
+  if (tabela === 'param_naturezas_juridicas_anexo_xi') return { conflito:'(codigo_natureza_juridica)', imutaveis:['codigo_natureza_juridica'] };
+  if (tabela === 'regras_governo') return { conflito:'(tipo,chave,cclasstrib)', imutaveis:['id','tipo','chave','cclasstrib'] };
+  return { conflito:'(id)', imutaveis:['id'] };
+}
 function gravar(tabela, linhas, dentroDaTransacao = false) {
   if (!linhas.length) return 0;
   const campos = CAMPOS[tabela];
   // Exceções têm unicidade funcional por empresa + movimento + código; o ID
   // pode divergir entre cache e Supabase. Usar a chave errada interrompia uma
   // baixa antes da fotografia e deixava o cache local incompleto.
-  const conflito = tabela === 'excecoes_motor' ? '(empresa_id,movimento_id,codigo)'
-    : tabela === 'telemetria_autonomia_execucoes' ? '(execucao_id)'
-      : tabela === 'param_naturezas_juridicas_anexo_xi' ? '(codigo_natureza_juridica)'
-      : tabela === 'regras_governo' ? '(tipo,chave,cclasstrib)' : '(id)';
-  const excluirAtualizacao = tabela === 'excecoes_motor' ? ['id','empresa_id','movimento_id','codigo']
-    : tabela === 'telemetria_autonomia_execucoes' ? ['execucao_id']
-      : tabela === 'param_naturezas_juridicas_anexo_xi' ? ['codigo_natureza_juridica']
-      : tabela === 'regras_governo' ? ['id','tipo','chave','cclasstrib'] : ['id'];
+  const { conflito, imutaveis:excluirAtualizacao } = chaveConflitoTabela(tabela);
   const sql = `INSERT INTO ${tabela} (${campos.join(',')}) VALUES (${campos.map(() => '?').join(',')})
     ON CONFLICT${conflito} DO UPDATE SET ${campos.filter((x) => !excluirAtualizacao.includes(x)).map((x) => `${x}=excluded.${x}`).join(',')}`;
   const inserir = db.prepare(sql);
@@ -1106,6 +1107,6 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
   return { empresa_remota_id: empresaRemotaId, excluidos: ids.length, movimento_ids: ids };
 }
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };
