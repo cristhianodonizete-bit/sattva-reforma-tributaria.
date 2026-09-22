@@ -2171,8 +2171,27 @@ function whereDocumentoFiscal(empresaId, referencia) {
     ? { sql:'empresa_id=? AND chave=?', valores:[Number(empresaId), filtro.chave] }
     : { sql:'empresa_id=? AND id=?', valores:[Number(empresaId), filtro.movimentoId] };
 }
+// A identidade de um item XML é chave fiscal + número do item. Há históricos
+// antigos com cópia técnica repetida; eles devem continuar auditáveis, mas não
+// podem dobrar documento, receita ou Perfil Tributário durante a leitura.
+function sqlMovimentosFiscaisCanonicos() {
+  return `WITH movimentos_canonicos AS (
+    SELECT m.*,
+      ROW_NUMBER() OVER (
+        PARTITION BY CASE WHEN NULLIF(m.chave,'') IS NOT NULL
+          THEN 'xml:' || m.chave || ':' || COALESCE(CAST(m.item_numero AS TEXT),'__SEM_ITEM__')
+          ELSE 'id:' || m.id END
+        ORDER BY CASE WHEN NULLIF(TRIM(COALESCE(m.modelo_documento_fiscal,'')),'') IS NOT NULL THEN 1 ELSE 0 END DESC,
+          CASE WHEN NULLIF(TRIM(COALESCE(m.descricao,'')),'') IS NOT NULL THEN 1 ELSE 0 END DESC,
+          CASE WHEN NULLIF(TRIM(COALESCE(m.ncm,'')),'') IS NOT NULL OR NULLIF(TRIM(COALESCE(m.nbs,'')),'') IS NOT NULL OR NULLIF(TRIM(COALESCE(m.lc116,'')),'') IS NOT NULL THEN 1 ELSE 0 END DESC,
+          m.id DESC
+      ) AS linha_canonica
+    FROM movimentos m WHERE m.empresa_id=?
+  )`;
+}
 function listarDocumentosFiscais(empresaId, limite = 2000) {
-  const documentos=db.prepare(`SELECT
+  const base=sqlMovimentosFiscaisCanonicos();
+  const documentos=db.prepare(`${base} SELECT
         CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END referencia,
         COALESCE(NULLIF(MAX(documento),''), NULLIF(MAX(chave),''), 'Lançamento #' || MIN(id)) documento,
         MIN(competencia) competencia, MIN(data_emissao) data_emissao, MAX(chave) chave, MAX(tipo) tipo, MAX(origem) origem,
@@ -2183,10 +2202,10 @@ function listarDocumentosFiscais(empresaId, limite = 2000) {
         SUM(CASE WHEN NULLIF(ncm,'') IS NOT NULL THEN 1 ELSE 0 END) itens_produto,
         SUM(CASE WHEN lower(COALESCE(modelo_documento_fiscal,''))='nfse' THEN 1 ELSE 0 END) itens_servico,
         MAX(criado_em) criado_em
-      FROM movimentos WHERE empresa_id=?
+      FROM movimentos_canonicos WHERE linha_canonica=1
       GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END
       ORDER BY COALESCE(MAX(data_emissao), MAX(competencia), MAX(criado_em)) DESC, MIN(id) DESC LIMIT ?`).all(Number(empresaId), limite);
-  const total=db.prepare(`SELECT COUNT(*) c FROM (SELECT 1 FROM movimentos WHERE empresa_id=? GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END)`).get(Number(empresaId));
+  const total=db.prepare(`${base} SELECT COUNT(*) c FROM (SELECT 1 FROM movimentos_canonicos WHERE linha_canonica=1 GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END)`).get(Number(empresaId));
   return { documentos:documentos.map((d)=>({ ...d, operacao_receita: receitaOperacional.compoeReceita(d), motivo_operacao: receitaOperacional.motivo(d) })), total:total.c, limitado:documentos.length < total.c };
 }
 function filtrarDocumentosFiscais(documentos, filtros = {}) {
@@ -2258,7 +2277,7 @@ router.get('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
   try {
     await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
     const filtro=whereDocumentoFiscal(req.params.id,req.params.referencia);
-    const itens=db.prepare(`SELECT * FROM movimentos WHERE ${filtro.sql} ORDER BY item_numero, id`).all(...filtro.valores);
+    const itens=db.prepare(`${sqlMovimentosFiscaisCanonicos()} SELECT * FROM movimentos_canonicos WHERE linha_canonica=1 AND ${filtro.sql} ORDER BY item_numero, id`).all(Number(req.params.id), ...filtro.valores);
     if (!itens.length) throw new Error('Documento fiscal não encontrado para a empresa selecionada.');
     ok(res,{ documento:{ referencia:req.params.referencia, numero:itens[0].documento || itens[0].chave || `Lançamento #${itens[0].id}`, competencia:itens[0].competencia, data_emissao:itens[0].data_emissao, origem:itens[0].origem, chave:itens[0].chave, itens } });
   } catch (e) { erro(res,e); }

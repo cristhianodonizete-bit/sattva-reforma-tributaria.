@@ -432,6 +432,7 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   if (!empresa?.cnpj) throw new Error('Empresa não encontrada para reconciliação documental.');
   let leitura = await carregarMovimentosCanonicos(empresa);
   let { remota, linhas, origem } = leitura;
+  linhas = deduplicarMovimentosFiscais(linhas);
   let normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
   let remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
   const locais = db.prepare('SELECT * FROM movimentos WHERE empresa_id=?').all(id);
@@ -452,6 +453,7 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
     catch (erroPublicacao) { throw new Error(`Documentos fiscais aguardam publicação segura: ${erroPublicacao.message}`); }
     leitura = await carregarMovimentosCanonicos(empresa);
     ({ remota, linhas, origem } = leitura);
+    linhas = deduplicarMovimentosFiscais(linhas);
     normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
     remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
     identidadesRemotas = new Set(normalizadas.map(identidadeFiscal).filter(Boolean));
@@ -980,18 +982,39 @@ async function publicarContratos(remoto, empresaId, empresaRemotaId = empresaId)
 // lento e podia levar configurações não relacionadas junto; este caminho é
 // restrito aos fatos operacionais da empresa importada e preserva os IDs que
 // dão rastreabilidade ao lote, movimento e evidência C175.
-function deduplicarXmlParaPublicacao(linhas) {
+function identidadeMovimentoFiscal(linha) {
+  if (String(linha?.origem || '').toLowerCase() === 'xml' && linha?.chave) {
+    return `xml:${linha.chave}:${linha.item_numero == null ? '__SEM_ITEM__' : String(linha.item_numero)}`;
+  }
+  return `id:${linha?.id}`;
+}
+
+function qualidadeMovimentoFiscal(linha) {
+  return (linha?.modelo_documento_fiscal ? 16 : 0)
+    + (linha?.descricao ? 8 : 0)
+    + (linha?.ncm || linha?.nbs || linha?.lc116 ? 4 : 0)
+    + (linha?.valor != null ? 2 : 0)
+    + (linha?.data_emissao ? 1 : 0);
+}
+
+function deduplicarMovimentosFiscais(linhas) {
   const porIdentidade = new Map();
   for (const linha of linhas) {
-    // A restrição remota usa exatamente esta identidade. Mantemos a linha de
-    // maior id técnico quando a instalação tiver duas cópias do mesmo item;
-    // isso somente consolida o envio e não remove qualquer evidência local.
-    const item = linha.item_numero == null ? '__SEM_ITEM__' : String(linha.item_numero);
-    const identidade = `${linha.empresa_id}:${linha.chave}:${item}`;
+    const identidade = identidadeMovimentoFiscal(linha);
     const anterior = porIdentidade.get(identidade);
-    if (!anterior || Number(linha.id) >= Number(anterior.id)) porIdentidade.set(identidade, linha);
+    // Entre cópias técnicas do mesmo item, a mais completa prevalece. Em
+    // empate, o maior id é determinístico. A consolidação existe apenas nas
+    // leituras e no envio: nenhum documento é apagado por esta função.
+    if (!anterior || qualidadeMovimentoFiscal(linha) > qualidadeMovimentoFiscal(anterior)
+      || (qualidadeMovimentoFiscal(linha) === qualidadeMovimentoFiscal(anterior) && Number(linha.id) >= Number(anterior.id))) {
+      porIdentidade.set(identidade, linha);
+    }
   }
   return [...porIdentidade.values()];
+}
+
+function deduplicarXmlParaPublicacao(linhas) {
+  return deduplicarMovimentosFiscais(linhas);
 }
 
 async function publicarOperacaoEmpresa(empresaId) {
@@ -1083,6 +1106,6 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
   return { empresa_remota_id: empresaRemotaId, excluidos: ids.length, movimento_ids: ids };
 }
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, deduplicarXmlParaPublicacao, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };
