@@ -1,6 +1,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('crypto');
 const supabase = require('./supabase');
+const { fetchComPrazo } = supabase;
 
 // Cache de autorização estritamente efêmero. O token nunca é mantido em
 // memória como chave; somente seu hash. O TTL também nunca ultrapassa o exp
@@ -30,7 +31,13 @@ function limparExpirados() {
 function exigida() { return supabase.configurado() && process.env.AUTH_REQUIRED !== 'false'; }
 function clientePublico() {
   if (!process.env.SUPABASE_ANON_KEY) throw new Error('SUPABASE_ANON_KEY não configurada.');
-  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, { auth: { persistSession: false } });
+  // Depois de um deploy não existe sessão em memória. A validação do bearer
+  // não pode ficar sem prazo esperando o Supabase e fazer o proxy devolver
+  // 502 para toda a aplicação. Usa o mesmo timeout tratado das demais
+  // chamadas compartilhadas.
+  return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_ANON_KEY, {
+    auth: { persistSession: false }, global: { fetch: fetchComPrazo },
+  });
 }
 async function montarUsuario(user) {
   limparExpirados();
@@ -69,7 +76,10 @@ async function validar(req, res, next) {
     if (venceEm > Date.now()) sessoes.set(chave, { vence_em: venceEm, usuario });
     req.usuario = usuario;
     next();
-  } catch (e) { res.status(401).json({ ok: false, erro: e.message || 'Não autorizado.' }); }
+  } catch (e) {
+    if (e?.code === 'SUPABASE_TIMEOUT') return res.status(503).json({ ok:false, erro:'A validação de acesso na fonte compartilhada está indisponível no momento. Nenhum dado foi alterado; tente novamente em instantes.' });
+    res.status(401).json({ ok: false, erro: e.message || 'Não autorizado.' });
+  }
 }
 function invalidarUsuario(usuarioId) {
   usuarios.delete(String(usuarioId));
