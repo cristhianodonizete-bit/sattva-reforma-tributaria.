@@ -1009,6 +1009,25 @@ async function publicarOperacaoEmpresa(empresaId) {
     }
     resultado[tabela]=linhas.length;
   }
+  // Não basta registrar o lote remoto: para importações volumosas, a origem
+  // só é considerada publicada quando cada movimento local também pode ser
+  // localizado na fotografia compartilhada. Isso evita o estado enganoso
+  // "lote importado" com NFC-e ausente nas telas de documentos e cadeias.
+  const locais = db.prepare('SELECT id,lote_id FROM movimentos WHERE empresa_id=?').all(Number(empresaId));
+  const idsRemotos = new Set();
+  for (let inicio = 0;; inicio += 1000) {
+    const { data, error } = await remoto.from('movimentos').select('id,lote_id').eq('empresa_id', empresaRemotaId).range(inicio, inicio + 999);
+    if (error) throw new Error(`verificação de movimentos: ${error.message}`);
+    (data || []).forEach((linha) => idsRemotos.add(Number(linha.id)));
+    if (!data || data.length < 1000) break;
+  }
+  const ausentes = locais.filter((linha) => !idsRemotos.has(Number(linha.id)));
+  if (ausentes.length) {
+    const porLote = new Map();
+    ausentes.forEach((linha) => porLote.set(linha.lote_id || 'sem_lote', (porLote.get(linha.lote_id || 'sem_lote') || 0) + 1));
+    throw new Error(`Publicação incompleta: ${ausentes.length} movimento(s) não chegaram à fonte compartilhada (${[...porLote.entries()].map(([lote,quantidade]) => `lote ${lote}: ${quantidade}`).join(', ')}).`);
+  }
+  resultado.verificacao = { movimentos_locais: locais.length, movimentos_confirmados: locais.length };
   return resultado;
 }
 // Exclusão de documento fiscal precisa ocorrer na fonte canônica antes de
