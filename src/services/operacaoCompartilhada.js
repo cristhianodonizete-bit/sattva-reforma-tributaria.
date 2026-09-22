@@ -111,6 +111,11 @@ function chaveConflitoTabela(tabela) {
   if (tabela === 'regras_governo') return { conflito:'(tipo,chave,cclasstrib)', imutaveis:['id','tipo','chave','cclasstrib'] };
   return { conflito:'(id)', imutaveis:['id'] };
 }
+// PostgREST recebe a chave sem parênteses. O catálogo de itens de receita
+// não possui coluna técnica `id`: sua identidade é a própria `chave`.
+function chaveConflitoPublicacao(tabela) {
+  return tabela === 'catalogo_itens_receita' ? 'chave' : 'id';
+}
 function gravar(tabela, linhas, dentroDaTransacao = false) {
   if (!linhas.length) return 0;
   const campos = CAMPOS[tabela];
@@ -907,8 +912,9 @@ async function publicar() {
     if (['empresas', 'empresa_qsa', 'regras_enquadramento', 'documentos_fiscais_cancelamentos'].includes(tabela)) continue;
     if (TABELAS_PRECIFICACAO.includes(tabela) || TABELAS_CONTRATOS.includes(tabela)) continue;
     const linhas = db.prepare(`SELECT ${campos.join(',')} FROM ${tabela}`).all().map((linha) => paraEmpresaRemota(tabela, linha));
+    const conflito = chaveConflitoPublicacao(tabela);
     for (let i = 0; i < linhas.length; i += 500) {
-      const { error } = await remoto.from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: 'id' });
+      const { error } = await remoto.from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: conflito });
       if (error) throw new Error(`${tabela}: ${error.message}`);
     }
     resultado[tabela] = linhas.length;
@@ -1107,6 +1113,6 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
   return { empresa_remota_id: empresaRemotaId, excluidos: ids.length, movimento_ids: ids };
 }
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };
