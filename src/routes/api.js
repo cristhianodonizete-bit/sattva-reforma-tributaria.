@@ -510,7 +510,11 @@ function atualizarDiagnosticoSeAberto(empresaId, submodulo, opcoes) {
 // append-only permite reabrir com justificativa sem apagar a evidência de que
 // o módulo já havia sido validado.
 router.get('/empresas/:id/modulos-entrega', async (req, res) => {
-  try { await garantirEmpresaPermitida(req, req.params.id); ok(res, fechamentoModulos.listar(Number(req.params.id))); }
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    await fechamentoModulos.sincronizarCompartilhado(Number(req.params.id));
+    ok(res, fechamentoModulos.listar(Number(req.params.id)));
+  }
   catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/modulos-entrega/:modulo/fechar', async (req, res) => {
@@ -523,6 +527,10 @@ router.post('/empresas/:id/modulos-entrega/:modulo/fechar', async (req, res) => 
       }
     }
     const resultado = fechamentoModulos.fechar({ empresaId, modulo:req.params.modulo, usuarioId:req.usuario?.id || null, observacao:req.body?.observacao });
+    await fechamentoModulos.publicarCompartilhado(empresaId, resultado.alterado ? {
+      modulo:req.params.modulo, acao:'FECHADO', usuarioId:req.usuario?.id || null,
+      dados:{ observacao:req.body?.observacao || null },
+    } : null);
     auditar(req, { empresaId, acao:'Fechou módulo para entrega', entidade:'empresa_modulos_entrega', entidadeId:req.params.modulo, depois:{ modulo:req.params.modulo, observacao:req.body?.observacao || null } });
     ok(res, resultado);
   } catch (e) { erro(res, e); }
@@ -531,6 +539,10 @@ router.post('/empresas/:id/modulos-entrega/:modulo/reabrir', async (req, res) =>
   try {
     const empresaId = Number(req.params.id); await garantirEmpresaPermitida(req, empresaId);
     const resultado = fechamentoModulos.reabrir({ empresaId, modulo:req.params.modulo, usuarioId:req.usuario?.id || null, motivo:req.body?.motivo });
+    await fechamentoModulos.publicarCompartilhado(empresaId, resultado.alterado ? {
+      modulo:req.params.modulo, acao:'REABERTO', usuarioId:req.usuario?.id || null,
+      dados:{ motivo:req.body?.motivo || null },
+    } : null);
     auditar(req, { empresaId, acao:'Reabriu módulo fechado', entidade:'empresa_modulos_entrega', entidadeId:req.params.modulo, depois:{ modulo:req.params.modulo, motivo:req.body?.motivo } });
     ok(res, resultado);
   } catch (e) { erro(res, e); }

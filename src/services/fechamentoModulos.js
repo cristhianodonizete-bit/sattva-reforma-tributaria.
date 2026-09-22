@@ -1,4 +1,5 @@
 const db = require('../db');
+const supabase = require('./supabase');
 
 const MODULOS = [
   { chave:'perfil', modulo:'diagnostico', titulo:'Módulo 1 · Perfil tributário' },
@@ -25,6 +26,66 @@ function moduloValido(modulo) {
   const m = porChave.get(String(modulo || ''));
   if (!m) throw new Error('Módulo inválido para fechamento.');
   return m;
+}
+function compartilhadoAtivo() {
+  return supabase.configurado() && process.env.SUPABASE_OPERACAO_COMPARTILHADA !== 'false';
+}
+async function empresaRemota(empresaId) {
+  const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!empresa?.cnpj) throw new Error('Empresa não encontrada para sincronizar o fechamento.');
+  const cnpj = String(empresa.cnpj).replace(/\D/g, '');
+  const remoto = supabase.admin();
+  const { data, error } = await remoto.from('empresas').select('id,cnpj,origem_local_id')
+    .or(`origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`).limit(10);
+  if (error) throw new Error(`Empresa compartilhada: ${error.message}`);
+  const candidatas = (data || []).filter((linha) => Number(linha.origem_local_id) === Number(empresaId)
+    || String(linha.cnpj || '').replace(/\D/g, '') === cnpj);
+  if (candidatas.length !== 1) throw new Error('Empresa compartilhada não localizada de forma única; o fechamento local foi preservado.');
+  return { remoto, empresaRemotaId:Number(candidatas[0].id) };
+}
+
+// O fechamento é um dado de governança. Diferentemente de uma preferência de
+// tela, ele precisa ter uma única fonte de verdade para não reaparecer aberto
+// após atualização, troca de máquina ou reconstrução do cache local.
+async function sincronizarCompartilhado(empresaId) {
+  empresaExiste(empresaId);
+  if (!compartilhadoAtivo()) return { ativo:false, sincronizados:0 };
+  const { remoto, empresaRemotaId } = await empresaRemota(empresaId);
+  const { data, error } = await remoto.from('empresa_submodulos_entrega').select('*').eq('empresa_id', empresaRemotaId);
+  if (error) throw new Error(`Fechamentos compartilhados: ${error.message}`);
+  const linhas = (data || []).filter((linha) => porChave.has(linha.submodulo));
+  db.transaction(() => {
+    // A origem compartilhada é canônica: remover estados locais que não estão
+    // nela evita que um cache antigo reverta uma reabertura válida.
+    db.prepare('DELETE FROM empresa_submodulos_entrega WHERE empresa_id=?').run(empresaId);
+    const inserir = db.prepare(`INSERT INTO empresa_submodulos_entrega
+      (empresa_id,submodulo,status,fechado_em,fechado_por,observacao,reaberto_em,reaberto_por,motivo_reabertura,atualizado_em)
+      VALUES (?,?,?,?,?,?,?,?,?,?)`);
+    linhas.forEach((linha) => inserir.run(empresaId, linha.submodulo, linha.status, linha.fechado_em, linha.fechado_por,
+      linha.observacao, linha.reaberto_em, linha.reaberto_por, linha.motivo_reabertura, linha.atualizado_em));
+  })();
+  return { ativo:true, empresa_remota_id:empresaRemotaId, sincronizados:linhas.length };
+}
+
+async function publicarCompartilhado(empresaId, evento = null) {
+  empresaExiste(empresaId);
+  if (!compartilhadoAtivo()) return { ativo:false };
+  const { remoto, empresaRemotaId } = await empresaRemota(empresaId);
+  const estados = db.prepare(`SELECT submodulo,status,fechado_em,fechado_por,observacao,reaberto_em,reaberto_por,motivo_reabertura,atualizado_em
+    FROM empresa_submodulos_entrega WHERE empresa_id=?`).all(empresaId)
+    .map((linha) => ({ ...linha, empresa_id:empresaRemotaId }));
+  if (estados.length) {
+    const { error } = await remoto.from('empresa_submodulos_entrega').upsert(estados, { onConflict:'empresa_id,submodulo' });
+    if (error) throw new Error(`Persistência compartilhada do fechamento: ${error.message}`);
+  }
+  if (evento) {
+    const { error } = await remoto.from('empresa_submodulos_entrega_eventos').insert({
+      empresa_id:empresaRemotaId, submodulo:evento.modulo, acao:evento.acao, usuario_id:evento.usuarioId || null,
+      dados_json:evento.dados || {}, criado_em:evento.criado_em || agora(),
+    });
+    if (error) throw new Error(`Histórico compartilhado do fechamento: ${error.message}`);
+  }
+  return { ativo:true, empresa_remota_id:empresaRemotaId, estados:estados.length };
 }
 function listar(empresaId) {
   empresaExiste(empresaId);
@@ -80,4 +141,4 @@ function exigirAberto(empresaId, modulo, acao = 'executar um novo cálculo') {
   return estado;
 }
 
-module.exports = { MODULOS, listar, fechar, reabrir, exigirProntoParaEntrega, exigirAberto };
+module.exports = { MODULOS, listar, fechar, reabrir, sincronizarCompartilhado, publicarCompartilhado, exigirProntoParaEntrega, exigirAberto };
