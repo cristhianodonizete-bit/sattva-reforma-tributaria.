@@ -1,8 +1,13 @@
 const db = require('../db');
 const fila = require('./processamentoCarteira');
 const staging = require('./motorStaging');
+const supabase = require('./supabase');
 
 const TIPO = 'MOTOR_COMPLETO';
+const json = (valor, padrao = null) => {
+  if (valor === null || valor === undefined || valor === '') return padrao;
+  return typeof valor === 'string' ? JSON.parse(valor) : valor;
+};
 
 async function solicitar(empresaId, opcoes = {}) {
   const empresa = db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId);
@@ -17,8 +22,8 @@ async function solicitar(empresaId, opcoes = {}) {
 
 function etapas(job, foto) {
   if (!job) return [];
-  const payload = job.payload ? JSON.parse(job.payload) : {};
-  const resultado = job.resultado ? JSON.parse(job.resultado) : null;
+  const payload = json(job.payload, {});
+  const resultado = json(job.resultado);
   const fase = String(foto?.status || job.status || 'PENDENTE');
   const concluido = fase === 'CONCLUIDO' || job.status === 'CONCLUIDO';
   const falhou = fase === 'FALHOU' || job.status === 'FALHOU';
@@ -37,12 +42,28 @@ function etapas(job, foto) {
   ];
 }
 
-function status(empresaId) {
-  const job = db.prepare(`SELECT id,empresa_id,competencia,tipo_job,status,tentativas,max_tentativas,erro,resultado,criado_em,iniciado_em,finalizado_em
+function statusLocal(empresaId) {
+  return db.prepare(`SELECT id,empresa_id,competencia,tipo_job,status,tentativas,max_tentativas,erro,resultado,criado_em,iniciado_em,finalizado_em
     FROM jobs_carteira WHERE empresa_id=? AND tipo_job=? ORDER BY criado_em DESC LIMIT 1`).get(empresaId, TIPO);
+}
+
+async function status(empresaId) {
+  let job = statusLocal(empresaId);
+  // O SQLite pode ser recriado pelo Render. Quando isso ocorrer, a tela não
+  // pode concluir que a execução "sumiu": a fila compartilhada é a fonte de
+  // verdade e permite reconstruir o acompanhamento sem disparar cálculo.
+  if (!job && supabase.configurado()) {
+    const { data, error } = await supabase.admin().from('jobs_carteira')
+      .select('id,empresa_id,competencia,tipo_job,status,tentativas,max_tentativas,erro,resultado,criado_em,iniciado_em,finalizado_em')
+      .eq('empresa_id', Number(empresaId)).eq('tipo_job', TIPO)
+      .order('criado_em', { ascending: false }).limit(1);
+    if (error) throw new Error(`Status compartilhado do motor: ${error.message}`);
+    job = data?.[0] || null;
+  }
   if (!job) return null;
   const foto = staging.consultar(job.id);
-  return { ...job, resultado: job.resultado ? JSON.parse(job.resultado) : null, staging: foto,
+  const resultado = json(job.resultado);
+  return { ...job, resultado, staging: foto,
     estado: foto?.status || job.status, etapas: etapas(job, foto) };
 }
 

@@ -5584,12 +5584,14 @@ router.post('/empresas/:id/motor/executar', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.get('/empresas/:id/motor/status', (req, res) => {
-  const job = motorExecucaoFila.status(Number(req.params.id));
-  const inicio = job?.iniciado_em || job?.criado_em;
-  const fim = job?.finalizado_em || null;
-  const duracao_ms = inicio ? Math.max(0, new Date(fim || Date.now()).getTime() - new Date(inicio).getTime()) : null;
-  ok(res, { job, duracao_ms });
+router.get('/empresas/:id/motor/status', async (req, res) => {
+  try {
+    const job = await motorExecucaoFila.status(Number(req.params.id));
+    const inicio = job?.iniciado_em || job?.criado_em;
+    const fim = job?.finalizado_em || null;
+    const duracao_ms = inicio ? Math.max(0, new Date(fim || Date.now()).getTime() - new Date(inicio).getTime()) : null;
+    ok(res, { job, duracao_ms });
+  } catch (e) { erro(res, e); }
 });
 
 router.get('/empresas/:id/motor', (req, res) => {

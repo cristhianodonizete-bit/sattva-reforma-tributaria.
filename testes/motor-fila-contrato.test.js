@@ -5,6 +5,8 @@ const motor = fs.readFileSync(path.join(__dirname, '../src/services/motorExecuca
 const api = fs.readFileSync(path.join(__dirname, '../src/routes/api.js'), 'utf8');
 assert.match(motor, /const TIPO = 'MOTOR_COMPLETO'/);
 assert.match(motor, /iniciarWorker: false/);
+assert.match(motor, /from\('jobs_carteira'\)/);
+assert.match(motor, /a fila compartilhada é a fonte de/i);
 assert.match(fila, /payload: JSON\.stringify\(opcoes\.payload/);
 assert.match(fila, /if \(opcoes\.iniciarWorker === true\)/);
 assert.doesNotMatch(fila, /iniciarWorker !== false/);
