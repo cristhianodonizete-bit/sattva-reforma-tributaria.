@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "node server.js",
+    "worker": "node worker.js",
     "dev": "node --watch server.js",
     "test:cbs": "node testes/cadeia-cbs.test.js",
     "test:cff": "node testes/cff-catalogo.test.js",
