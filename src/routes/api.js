@@ -2271,8 +2271,15 @@ function sqlMovimentosFiscaisCanonicos() {
     FROM movimentos m WHERE m.empresa_id=?
   )`;
 }
-function listarDocumentosFiscais(empresaId, limite = 2000) {
+function listarDocumentosFiscais(empresaId, limite = 100, pagina = 1) {
+  // A lista é uma leitura de tela. `limite=0` é reservado à exportação
+  // explícita, que pode percorrer todo o conjunto sem forçar a interface a
+  // transferir milhares de documentos de uma vez.
+  const limiteNormalizado = Math.min(Math.max(Number(limite) || 0, 0), 10000);
+  const paginaNormalizada = limiteNormalizado ? Math.max(1, Number(pagina) || 1) : 1;
+  const deslocamento = limiteNormalizado ? (paginaNormalizada - 1) * limiteNormalizado : 0;
   const base=sqlMovimentosFiscaisCanonicos();
+  const limiteSql = limiteNormalizado ? 'LIMIT ? OFFSET ?' : 'LIMIT -1 OFFSET 0';
   const documentos=db.prepare(`${base} SELECT
         CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END referencia,
         COALESCE(NULLIF(MAX(documento),''), NULLIF(MAX(chave),''), 'Lançamento #' || MIN(id)) documento,
@@ -2286,9 +2293,12 @@ function listarDocumentosFiscais(empresaId, limite = 2000) {
         MAX(criado_em) criado_em
       FROM movimentos_canonicos WHERE linha_canonica=1
       GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END
-      ORDER BY COALESCE(MAX(data_emissao), MAX(competencia), MAX(criado_em)) DESC, MIN(id) DESC LIMIT ?`).all(Number(empresaId), limite);
+      ORDER BY COALESCE(MAX(data_emissao), MAX(competencia), MAX(criado_em)) DESC, MIN(id) DESC ${limiteSql}`).all(Number(empresaId), ...(limiteNormalizado ? [limiteNormalizado, deslocamento] : []));
   const total=db.prepare(`${base} SELECT COUNT(*) c FROM (SELECT 1 FROM movimentos_canonicos WHERE linha_canonica=1 GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END)`).get(Number(empresaId));
-  return { documentos:documentos.map((d)=>({ ...d, operacao_receita: receitaOperacional.compoeReceita(d), motivo_operacao: receitaOperacional.motivo(d) })), total:total.c, limitado:documentos.length < total.c };
+  return { documentos:documentos.map((d)=>({ ...d, operacao_receita: receitaOperacional.compoeReceita(d), motivo_operacao: receitaOperacional.motivo(d) })), total:total.c,
+    paginacao: { pagina:paginaNormalizada, limite:limiteNormalizado || null, totalPaginas:limiteNormalizado ? Math.max(1, Math.ceil(total.c / limiteNormalizado)) : 1,
+      temAnterior:limiteNormalizado ? paginaNormalizada > 1 : false, temProxima:limiteNormalizado ? deslocamento + documentos.length < total.c : false },
+    limitado:limiteNormalizado ? documentos.length < total.c : false };
 }
 function filtrarDocumentosFiscais(documentos, filtros = {}) {
   const busca=String(filtros.busca || '').trim().toLowerCase();
@@ -2329,15 +2339,16 @@ router.get('/empresas/:id/estado-dados', (req, res) => {
 router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
   try {
     await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
-    const limite=Math.min(Math.max(Number(req.query.limite) || 500, 1), 2000);
-    ok(res,{ ...listarDocumentosFiscais(req.params.id,limite), leitura_estado: estadoLeituraEmpresa.estado(db, Number(req.params.id), ['documentos','cancelamentos']) });
+    const limite=Math.min(Math.max(Number(req.query.limite) || 100, 1), 2000);
+    const pagina=Math.max(1, Number(req.query.pagina) || 1);
+    ok(res,{ ...listarDocumentosFiscais(req.params.id,limite,pagina), leitura_estado: estadoLeituraEmpresa.estado(db, Number(req.params.id), ['documentos','cancelamentos']) });
   } catch (e) { erro(res,e); }
 });
 router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);
     await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
-    const resultado=listarDocumentosFiscais(req.params.id,2000);
+    const resultado=listarDocumentosFiscais(req.params.id,0);
     const documentos=filtrarDocumentosFiscais(resultado.documentos,req.query);
     const linhas=documentos.map((d)=>({
       'Competência':d.competencia || '', 'Documento':d.documento || '', 'Chave fiscal':d.chave || '',

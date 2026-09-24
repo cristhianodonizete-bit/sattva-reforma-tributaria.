@@ -316,7 +316,14 @@ Telas.dados = async (el) => {
     consultaApuracoes && simplesNacional ? A.api(`/empresas/${S.empresaId}/pgdas/documentos`) : Promise.resolve({ documentos: [] }),
     consultaApuracoes ? A.api(`/empresas/${S.empresaId}/periodo-analisado`) : Promise.resolve({ periodo: null }),
     consultaProntidao ? A.api(`/empresas/${S.empresaId}/prontidao-dados`) : Promise.resolve({ etapas: [] }),
-    consultaListaFiscal ? A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=2000`) : Promise.resolve({ documentos: [], total: 0 }),
+    consultaListaFiscal ? (() => {
+      const filtrosAtivos=Object.values(S.aba.documentosFiscais || {}).some((v)=>String(v || '').trim() !== '');
+      const pagina=filtrosAtivos ? 1 : Math.max(1, Number(S.cache.documentosFiscaisPagina) || 1);
+      // Os filtros atuais são aplicados na tela e precisam manter a janela
+      // ampla já existente. Sem filtro, a lista é paginada no servidor para
+      // que uma empresa grande não transfira milhares de documentos ao abrir.
+      return A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=${filtrosAtivos ? 2000 : 100}&pagina=${pagina}`);
+    })() : Promise.resolve({ documentos: [], total: 0, paginacao: {} }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`) : Promise.resolve({ movimentos: [], total: 0 }),
     consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? A.api(`/empresas/${S.empresaId}/referencias-vendas`) : Promise.resolve(null),
     grupoCentral === 'receitas' ? A.api('/config/itens-receita') : Promise.resolve({ itens: [] }),
@@ -492,7 +499,7 @@ Telas.dados = async (el) => {
     </div>` : ''}
     ${consultaDocumentos && abaDocumentosCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosFiscais === 'entradas' ? 'ativa' : ''}" data-documentos-fiscais-aba="entradas">Entradas</button><button class="aba ${abaDocumentosFiscais === 'saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="saidas">Saídas</button><button class="aba ${abaDocumentosFiscais === 'fornecedores' ? 'ativa' : ''}" data-documentos-fiscais-aba="fornecedores">Fornecedores</button></div><div class="cartao" id="documentosFiscais" data-documentos-fiscais-painel="documentos">
       <div class="cabecalho-lista"><div><h2>${abaDocumentosFiscais === 'entradas' ? 'Documentos fiscais de entrada' : 'Documentos fiscais de saída'}</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p>${leituraDocumentos}</div><div style="display:flex;gap:8px;align-items:center"><button class="btn pq vazio" id="exportarDocumentosFiscais">Exportar Excel</button><span class="tag ${situacaoDocumentos === 'ATUALIZADO' ? 'c' : 'a'}">${situacaoDocumentos === 'ATUALIZADO' ? 'Atualizado' : situacaoDocumentos === 'ATUALIZACAO_PENDENTE' ? 'Atualizando' : 'Última fotografia válida'}</span><span class="tag">${documentosFiscaisFiltrados.length} de ${documentosFiscaisResposta.total || 0} documento(s)</span></div></div>
-      ${documentosFiscaisResposta.limitado ? '<div class="aviso info">Mostrando os 2.000 documentos mais recentes.</div>' : ''}
+      ${documentosFiscaisResposta.limitado ? `<div class="aviso info">${documentosFiscaisResposta.paginacao?.limite === 100 ? 'Lista paginada: use os controles abaixo para navegar pelos documentos.' : 'Mostrando os 2.000 documentos mais recentes; refine os filtros para localizar documentos fora desta janela.'}</div>` : ''}
       <section class="documentos-filtros" aria-label="Filtros dos documentos fiscais">
         <div class="documentos-filtros-topo"><div><span class="olho">LOCALIZAR DOCUMENTOS</span><p>Combine os filtros e aplique quando terminar.</p></div><button class="btn vazio pq" id="limparFiltrosDocumentos">Limpar filtros</button></div>
         <div class="documentos-filtros-campos">
@@ -515,6 +522,7 @@ Telas.dados = async (el) => {
         { t:'Origem', r:d=>A.esc(d.origem || '—') },
         { t:'Ações', r:d=>`<button class="btn pq vazio" data-abrir-documento="${A.esc(d.referencia)}">Abrir</button> <button class="btn pq perigo" data-excluir-documento="${A.esc(d.referencia)}">Excluir</button>` },
       ], documentosFiscaisFiltrados, { vazio:'Nenhum documento atende aos filtros selecionados.' })}
+      ${documentosFiscaisResposta.paginacao?.limite === 100 && (documentosFiscaisResposta.paginacao?.temAnterior || documentosFiscaisResposta.paginacao?.temProxima) ? `<div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;margin-top:12px"><button class="btn pq vazio" data-documentos-pagina="${documentosFiscaisResposta.paginacao.pagina - 1}" ${documentosFiscaisResposta.paginacao.temAnterior ? '' : 'disabled'}>Anterior</button><span class="mini">Página ${documentosFiscaisResposta.paginacao.pagina} de ${documentosFiscaisResposta.paginacao.totalPaginas}</span><button class="btn pq vazio" data-documentos-pagina="${documentosFiscaisResposta.paginacao.pagina + 1}" ${documentosFiscaisResposta.paginacao.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''}
     </div>
     <div class="cartao" data-documentos-central-painel="documentos" data-documentos-fiscais-painel="fornecedores" id="historico">
       <h2>Fornecedores cadastrados</h2>
@@ -565,11 +573,13 @@ Telas.dados = async (el) => {
         valor_maximo: String(document.getElementById('filtroDocumentoValorMaximo')?.value || '').replace(',','.'),
         busca: document.getElementById('filtroDocumentoBusca')?.value || '',
       };
+      S.cache.documentosFiscaisPagina = 1;
       A.ir('dados');
     };
     document.getElementById('aplicarFiltrosDocumentos')?.addEventListener('click', atualizarFiltroDocumentos);
     document.getElementById('filtroDocumentoBusca')?.addEventListener('keydown', (evento) => { if (evento.key === 'Enter') { evento.preventDefault(); atualizarFiltroDocumentos(); } });
-    document.getElementById('limparFiltrosDocumentos')?.addEventListener('click', () => { S.aba.documentosFiscais = {}; A.ir('dados'); });
+    document.getElementById('limparFiltrosDocumentos')?.addEventListener('click', () => { S.aba.documentosFiscais = {}; S.cache.documentosFiscaisPagina = 1; A.ir('dados'); });
+    el.querySelectorAll('[data-documentos-pagina]').forEach((botao) => botao.addEventListener('click', () => { S.cache.documentosFiscaisPagina = Math.max(1, Number(botao.dataset.documentosPagina) || 1); A.ir('dados'); }));
     document.getElementById('exportarDocumentosFiscais')?.addEventListener('click', async () => {
       const filtros=new URLSearchParams(S.aba.documentosFiscais || {});
       try { await A.baixarArquivo(`/empresas/${S.empresaId}/documentos-fiscais/exportar${filtros.toString() ? `?${filtros}` : ''}`, 'documentos-fiscais.xlsx'); }
