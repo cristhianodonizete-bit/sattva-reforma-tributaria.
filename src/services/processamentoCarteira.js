@@ -45,7 +45,12 @@ async function iniciar(opcoes = {}) {
     status: 'PENDENTE', tentativas: 0, max_tentativas: 3, payload: JSON.stringify(opcoes.payload || { incremental: true }), criado_em: agora() }));
   db.transaction(() => jobs.forEach((j) => { inserirItem.run(processamentoId, j.empresa_id); inserirJob.run(j.id, j.processamento_id, j.empresa_id, j.competencia, j.tipo_job, j.prioridade, j.payload, j.criado_em); }))();
   for (const job of jobs) await espelharJob(job);
-  if (opcoes.iniciarWorker !== false) executar(processamentoId).catch((e) => console.error('[fila carteira]', e.message));
+  // O serviço HTTP apenas registra trabalho na fila durável. Consumir a fila
+  // neste processo fazia um clique do usuário disputar CPU e memória com as
+  // telas, além de tornar o resultado dependente da instância web atual. A
+  // execução só é permitida por chamada explícita do processo worker (ou por
+  // ferramentas locais de manutenção que optem por iniciarWorker=true).
+  if (opcoes.iniciarWorker === true) executar(processamentoId).catch((e) => console.error('[fila carteira]', e.message));
   return consultar(processamentoId);
 }
 

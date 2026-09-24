@@ -5577,7 +5577,9 @@ router.post('/empresas/:id/motor/executar', async (req, res) => {
     const r = await motorExecucaoFila.solicitar(empresaId, { ...(req.body || {}), reconciliacao_documental: {
       movimentos: reconciliacao.inseridos_ou_atualizados, removidos: reconciliacao.removidos, origem: reconciliacao.origem,
     } });
-    processamentoCarteira.executar(r.processamento_id).catch((e) => console.error('[motor completo]', e.message));
+    // A rota encerra depois de persistir o pedido. O worker de segundo plano
+    // é o único consumidor da fila; o servidor web não pode iniciar cálculo
+    // integral em resposta a um clique.
     ok(res, { assincro: true, reconciliacao_documental: { movimentos: reconciliacao.inseridos_ou_atualizados, removidos: reconciliacao.removidos, origem: reconciliacao.origem }, ...r });
   } catch (e) { erro(res, e); }
 });
