@@ -1484,6 +1484,19 @@ CREATE INDEX IF NOT EXISTS ix_motor_autonomia ON motor_resultados(empresa_id, ex
 -- plano de consulta; não modifica nenhuma linha do motor.
 CREATE INDEX IF NOT EXISTS ix_motor_cadeia_ordenacao ON motor_resultados(empresa_id, preco_atual DESC, id);
 
+-- Fotografia derivada de leitura das Cadeias. Não contém XML, não substitui
+-- motor_resultados e só pode ser reutilizada para a mesma execução e período.
+CREATE TABLE IF NOT EXISTS cadeia_fotografias (
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  execucao_id INTEGER NOT NULL REFERENCES motor_execucoes(id) ON DELETE CASCADE,
+  periodo_chave TEXT NOT NULL,
+  lado TEXT NOT NULL,
+  dados_json TEXT NOT NULL,
+  criado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  PRIMARY KEY (empresa_id, execucao_id, periodo_chave, lado)
+);
+CREATE INDEX IF NOT EXISTS ix_cadeia_fotografias_execucao ON cadeia_fotografias(empresa_id, execucao_id, periodo_chave, lado);
+
 -- Fila local e derivada do motor incremental. Não é dado fiscal, não é
 -- publicada no Supabase e não substitui motor_resultados: apenas evita ler a
 -- carteira inteira a cada abertura de tela para descobrir o que mudou.

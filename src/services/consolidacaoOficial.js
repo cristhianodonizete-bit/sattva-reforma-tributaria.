@@ -355,6 +355,19 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   const regimeEmpresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime || '';
   const base = linhas(empresaId, { ...opcoes, tipo });
   const chavePeriodo = base.periodo ? `${base.periodo.competencia_inicio}:${base.periodo.competencia_fim}` : 'sem-periodo';
+  const leituraResumo = opcoes.incluirDetalhes === false && opcoes.incluirBeneficios !== true
+    && Number(opcoes.paginaParceiros || 1) === 1 && Number(opcoes.paginaDetalhes || 1) === 1;
+  // A fotografia só é aceita quando aponta para a execução ativa e para o
+  // período exato da consulta. Uma importação/reexecução muda execucao_id e
+  // torna a fotografia anterior automaticamente inelegível, sem apagá-la.
+  if (leituraResumo && base.execucao?.id) {
+    const fotografia = db.prepare('SELECT dados_json FROM cadeia_fotografias WHERE empresa_id=? AND execucao_id=? AND periodo_chave=? AND lado=?')
+      .get(empresaId, base.execucao.id, chavePeriodo, lado);
+    if (fotografia?.dados_json) {
+      try { return { ...JSON.parse(fotografia.dados_json), fotografia_leitura:'REUTILIZADA' }; }
+      catch (_) { /* fotografia inválida é ignorada; resultados oficiais permanecem a fonte */ }
+    }
+  }
   const adicionais = lado === 'cliente' ? outrasReceitasDaCadeiaCliente(empresaId, base.periodo, base.execucao?.ano || 2027) : [];
   const marcaAdicionais = adicionais.map((x) => `${x.movimento_id}:${x.preco_atual}`).join('|');
   const chaveCache = `${empresaId}:${base.execucao?.id || 'sem-execucao'}:${chavePeriodo}:${tipo}:${marcaAdicionais}:${opcoes.incluirDetalhes === false ? 0 : 1}:${opcoes.incluirBeneficios === true ? 1 : 0}:${opcoes.paginaDetalhes || 1}:${opcoes.limiteDetalhes || 100}:${opcoes.paginaParceiros || 1}:${opcoes.limiteParceiros || 100}`;
@@ -523,6 +536,13 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     cenarios: [{ ano: base.execucao?.ano || 2027, valor: t.valor, baseEconomica: t.baseEconomica, ibs: t.ibs, cbs: t.cbs, cbsDentroDoDas: t.cbsDentroDoDas, ibsDentroDoDas: t.ibsDentroDoDas, tributosSubstituidosDoDas: t.tributosSubstituidosDoDas, dasAtual: t.dasAtual, dasResidualHibrido: t.dasResidualHibrido, dasHibridoPendente: t.dasHibridoPendente, dasHibridoProvisorio: t.dasHibridoProvisorio, precoFinal: t.precoFinal, credito: t.creditoFinal, creditoPotencial: t.creditoPotencial, impactoOperacao: t.impactoOperacao, impactoOperacaoPerc: t.impactoOperacaoPerc }],
     riscos: [], fonte: 'motor_resultados' };
   cadeiasPorExecucao.set(chaveCache, resultado);
+  if (leituraResumo && base.execucao?.id) {
+    const fotografia = { ...resultado, detalhes: [], operacoesBeneficios: [], fotografia_leitura:'GERADA' };
+    db.prepare(`INSERT INTO cadeia_fotografias(empresa_id,execucao_id,periodo_chave,lado,dados_json,criado_em)
+      VALUES (?,?,?,?,?,datetime('now','localtime'))
+      ON CONFLICT(empresa_id,execucao_id,periodo_chave,lado) DO UPDATE SET dados_json=excluded.dados_json,criado_em=excluded.criado_em`)
+      .run(empresaId, base.execucao.id, chavePeriodo, lado, JSON.stringify(fotografia));
+  }
   while (cadeiasPorExecucao.size > LIMITE_FOTOGRAFIAS_EM_MEMORIA * 12) cadeiasPorExecucao.delete(cadeiasPorExecucao.keys().next().value);
   return resultado;
 }
