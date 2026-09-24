@@ -545,11 +545,14 @@ function submoduloFechado(empresaId, submodulo) {
   return fechamentoModulos.listar(Number(empresaId)).modulos.find((m) => m.chave === submodulo)?.status === 'FECHADO';
 }
 function atualizarDiagnosticoSeAberto(empresaId, submodulo, opcoes) {
-  // Consultar um módulo fechado é permitido, mas sua leitura usa a fotografia
-  // materializada. Isso impede que abrir Cadeias ou Impacto Final dispare um
-  // cálculo silencioso depois da aprovação.
+  // GET é leitura: nunca executa motor. Isso vale para módulo aberto e
+  // fechado. Um cálculo é disparado somente por importação, alteração que
+  // invalide movimentos, fila explícita ou comando do operador. Assim abrir
+  // Cadeias, Cenários ou Impacto não consome CPU nem cria execuções extras.
   if (submoduloFechado(empresaId, submodulo)) return { empresa_id:Number(empresaId), reprocessados:0, status:'FOTOGRAFIA_FECHADA' };
-  return motorExec.reprocessarIncremental(Number(empresaId), opcoes);
+  const pendentes = motorExec.pendentesIncrementais(Number(empresaId), opcoes);
+  return { empresa_id:Number(empresaId), reprocessados:0, pendentes:pendentes.length,
+    status: pendentes.length ? 'PROCESSAMENTO_PENDENTE' : 'FOTOGRAFIA_ATUAL' };
 }
 
 // Fechamento é um marco de governança, não uma alteração fiscal. O histórico

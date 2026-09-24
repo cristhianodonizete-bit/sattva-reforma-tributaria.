@@ -714,16 +714,23 @@ function gravarLinhasComColunas(tabela, linhas, dentroDaTransacao = false) {
 }
 async function baixarResultadosMotor(remotoInformado = null) {
   const remoto = remotoInformado || supabase.admin();
-  const execucoes = await buscarTudo(remoto, 'motor_execucoes_operacionais');
   // O histórico permanece no Supabase, mas o SQLite que atende as telas deve
-  // receber exclusivamente a fotografia ativa. Sem este filtro, uma execução
-  // anterior seria somada novamente após qualquer reinício da instância.
+  // receber exclusivamente a fotografia ativa e as execuções que ela de fato
+  // referencia. Trazer todo o histórico a cada boot crescia sem limite e era
+  // desnecessário para qualquer tela operacional.
   const resultados = [];
   for (let de = 0;; de += 1000) {
     const { data, error } = await remoto.from('motor_resultados_operacionais').select('*').eq('ativo', true).range(de, de + 999);
     if (error) throw new Error(`motor_resultados_operacionais: ${error.message}`);
     resultados.push(...(data || []));
     if (!data || data.length < 1000) break;
+  }
+  const execucaoIds = [...new Set(resultados.map((x) => Number(x.execucao_id)).filter(Number.isInteger))];
+  const execucoes = [];
+  for (let de = 0; de < execucaoIds.length; de += 500) {
+    const { data, error } = await remoto.from('motor_execucoes_operacionais').select('*').in('id', execucaoIds.slice(de, de + 500));
+    if (error) throw new Error(`motor_execucoes_operacionais: ${error.message}`);
+    execucoes.push(...(data || []));
   }
   // Validação obrigatória antes de apagar a fotografia local. Uma fotografia
   // operacional não pode referenciar movimento que ainda não chegou à base
