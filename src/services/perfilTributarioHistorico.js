@@ -249,17 +249,20 @@ function consolidar(db, empresaId, opcoes = {}) {
   const colunasMovimentos = new Set(db.prepare('PRAGMA table_info(movimentos)').all().map((x) => x.name));
   const colunaMovimento = (nome) => colunasMovimentos.has(nome) ? nome : `NULL AS ${nome}`;
   const temEvidenciaPisCofins = tabelaExiste(db, 'enriquecimento_pis_cofins_evidencias');
-  const movimentosFonte = Array.isArray(opcoes.movimentos)
-    ? opcoes.movimentos
-    : db.prepare(temEvidenciaPisCofins
+  const filtroPeriodoMovimentos = periodo ? ' AND m.competencia>=? AND m.competencia<=?' : '';
+  const parametrosMovimentos = periodo ? [empresaId, periodo.competencia_inicio, periodo.competencia_fim] : [empresaId];
+  const consultaMovimentos = temEvidenciaPisCofins
       ? `SELECT m.competencia,m.valor,m.iss,m.tipo,m.sentido,m.documento,m.chave,m.descricao,m.data_emissao,m.frete,m.seguro,m.outras,m.desconto,m.cfop,m.nbs,m.lc116,m.modelo_documento_fiscal,m.situacao_documento,m.normalizacao_evidencia,
           e.cst_pis AS cst_pis_documentado,e.cst_cofins AS cst_cofins_documentado,e.tratamento_especifico AS tratamento_pis_cofins_documentado,
           e.origem_evidencia AS origem_evidencia_pis_cofins
         FROM movimentos m
         LEFT JOIN enriquecimento_pis_cofins_evidencias e ON e.movimento_id=m.id AND e.empresa_id=m.empresa_id AND e.origem_evidencia='SPED_C175'
-        WHERE m.empresa_id=? AND COALESCE(m.competencia,'')<>''`
+        WHERE m.empresa_id=? AND COALESCE(m.competencia,'')<>''${filtroPeriodoMovimentos}`
       : `SELECT competencia,valor,iss,tipo,sentido,${colunaMovimento('documento')},${colunaMovimento('chave')},${colunaMovimento('descricao')},${colunaMovimento('data_emissao')},${colunaMovimento('frete')},${colunaMovimento('seguro')},${colunaMovimento('outras')},${colunaMovimento('desconto')},${colunaMovimento('cfop')},${colunaMovimento('nbs')},${colunaMovimento('lc116')},${colunaMovimento('modelo_documento_fiscal')},${colunaMovimento('situacao_documento')},${colunaMovimento('normalizacao_evidencia')}
-        FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''`).all(empresaId);
+        FROM movimentos m WHERE m.empresa_id=? AND COALESCE(m.competencia,'')<>''${filtroPeriodoMovimentos}`;
+  const movimentosFonte = Array.isArray(opcoes.movimentos)
+    ? opcoes.movimentos
+    : db.prepare(consultaMovimentos).all(...parametrosMovimentos);
   const deducoesDevolucoes = [];
   movimentosFonte
     .filter((x) => Number(x.empresa_id || empresaId) === Number(empresaId) && String(x.competencia || '') !== '')

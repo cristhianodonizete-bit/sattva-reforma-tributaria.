@@ -1516,15 +1516,19 @@ router.get('/empresas/:id/perfil/analise', async (req, res) => {
 router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
-    // A composição usa movimentos fiscais por modelo. Reconcilia somente a
-    // empresa aberta para impedir que uma linha residual do SQLite altere
-    // NF-e, NFS-e ou o faturamento exibido depois de a fonte compartilhada
-    // já ter sido corrigida.
-    const reconciliacaoDocumental = await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(Number(req.params.id));
     // O período é configurado por empresa no Supabase. Restaurá-lo antes da
     // leitura impede que uma instância nova consolide todo o histórico local
     // em vez de somente o exercício selecionado.
     await estadoLeituraEmpresa.atualizarComSeguranca(db, Number(req.params.id), ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(Number(req.params.id)), { motivo:'Período conferido para o Perfil Tributário' });
+    const empresaId = Number(req.params.id);
+    const periodoPerfil = db.prepare('SELECT competencia_inicio,competencia_fim FROM empresa_periodo_analisado WHERE empresa_id=?').get(empresaId);
+    // A composição usa movimentos fiscais por modelo. A fonte canônica é
+    // reconciliada somente na janela do Perfil: meses fora do exercício não
+    // são carregados, removidos nem regravados durante esta leitura.
+    const reconciliacaoDocumental = await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(empresaId, {
+      competenciaInicio: periodoPerfil?.competencia_inicio,
+      competenciaFim: periodoPerfil?.competencia_fim,
+    });
     // A restauração só complementa o cache com os PDFs/evidências duráveis;
     // uma indisponibilidade transitória não pode derrubar toda a leitura do
     // Perfil Tributário já persistido.
@@ -1541,7 +1545,6 @@ router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
     // fazia uma instância recém-iniciada mostrar PIS/Cofins indeterminado
     // apesar de o Questor já ter enviado os relatórios ao armazenamento.
     await estadoLeituraEmpresa.atualizarComSeguranca(db, Number(req.params.id), ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, Number(req.params.id)), { motivo:'Apurações confirmadas restauradas para o Perfil' });
-    const empresaId = Number(req.params.id);
     // A justificativa é uma decisão auditável: restaura o registro durável
     // antes de montar a auditoria. Se a fonte estiver indisponível, a cópia
     // existente continua legível e a tela não apaga a conferência local.

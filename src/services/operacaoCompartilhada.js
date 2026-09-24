@@ -355,8 +355,16 @@ async function baixarRegrasEnquadramento(remotoInformado = null) {
 // confirmado na base compartilhada. Esta reconciliação é deliberadamente
 // restrita à empresa consultada e à tabela de movimentos; não altera a fonte
 // remota e não exige nova consulta ao Questor.
-async function carregarMovimentosCanonicos(empresa) {
+function escopoCompetencias(opcoes = {}) {
+  const inicio = String(opcoes.competenciaInicio || '');
+  const fim = String(opcoes.competenciaFim || '');
+  return /^\d{4}-\d{2}$/.test(inicio) && /^\d{4}-\d{2}$/.test(fim) && inicio <= fim
+    ? { inicio, fim, chave: `${inicio}:${fim}` } : null;
+}
+
+async function carregarMovimentosCanonicos(empresa, opcoes = {}) {
   const cnpj = String(empresa.cnpj).replace(/\D/g, '');
+  const escopo = escopoCompetencias(opcoes);
   if (ativo() && !process.env.SUPABASE_DB_URL) {
     const remoto = supabase.admin();
     const { data: empresasRemotas, error: erroEmpresa } = await remoto.from('empresas').select('id,cnpj,origem_local_id').eq('cnpj', cnpj).limit(2);
@@ -364,7 +372,9 @@ async function carregarMovimentosCanonicos(empresa) {
     if ((empresasRemotas || []).length !== 1) throw new Error('Não foi possível identificar unicamente a empresa compartilhada para a reconciliação documental.');
     const remota = empresasRemotas[0], linhas = [];
     for (let de = 0;; de += 1000) {
-      const { data, error } = await remoto.from('movimentos').select('*').eq('empresa_id', remota.id).range(de, de + 999);
+      let consulta = remoto.from('movimentos').select('*').eq('empresa_id', remota.id);
+      if (escopo) consulta = consulta.gte('competencia', escopo.inicio).lte('competencia', escopo.fim);
+      const { data, error } = await consulta.range(de, de + 999);
       if (error) throw error;
       linhas.push(...(data || []));
       if (!data || data.length < 1000) return { remota, linhas, origem: 'SUPABASE_API' };
@@ -380,7 +390,9 @@ async function carregarMovimentosCanonicos(empresa) {
     const empresas = await banco.query("SELECT id,cnpj,origem_local_id FROM empresas WHERE regexp_replace(cnpj,'[^0-9]','','g')=$1 LIMIT 2", [cnpj]);
     if (empresas.rows.length !== 1) throw new Error('Não foi possível identificar unicamente a empresa compartilhada para a reconciliação documental.');
     const remota = empresas.rows[0];
-    const linhas = (await banco.query('SELECT * FROM movimentos WHERE empresa_id=$1', [remota.id])).rows;
+    const condicaoEscopo = escopo ? ' AND competencia >= $2 AND competencia <= $3' : '';
+    const parametros = escopo ? [remota.id, escopo.inicio, escopo.fim] : [remota.id];
+    const linhas = (await banco.query(`SELECT * FROM movimentos WHERE empresa_id=$1${condicaoEscopo}`, parametros)).rows;
     return { remota, linhas, origem: 'POSTGRES_COMPARTILHADO' };
   } finally { await banco.end(); }
 }
@@ -395,12 +407,16 @@ const JANELA_RECONCILIACAO_MOVIMENTOS_MS = 8000;
 const reconciliacoesRecentes = new Map();
 const reconciliacoesEmAndamento = new Map();
 
-function lerMovimentosLocais(empresaId) {
-  return db.prepare('SELECT * FROM movimentos WHERE empresa_id=?').all(Number(empresaId));
+function lerMovimentosLocais(empresaId, opcoes = {}) {
+  const escopo = escopoCompetencias(opcoes);
+  return escopo
+    ? db.prepare('SELECT * FROM movimentos WHERE empresa_id=? AND competencia>=? AND competencia<=?').all(Number(empresaId), escopo.inicio, escopo.fim)
+    : db.prepare('SELECT * FROM movimentos WHERE empresa_id=?').all(Number(empresaId));
 }
 
 async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   const id = Number(empresaId);
+  const escopo = escopoCompetencias(opcoes);
   // A importação feita nesta instância é persistida no SQLite local. Quando a
   // operação compartilhada não foi configurada, bloquear a leitura do Perfil
   // esconderia documentos recém-importados e induziria uma nova importação.
@@ -413,14 +429,15 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
       inseridos_ou_atualizados: 0,
       removidos: 0,
       sincronizado_em: Date.now(),
-      movimentos: lerMovimentosLocais(id),
+      movimentos: lerMovimentosLocais(id, opcoes),
     };
   }
   const agora = Date.now();
   const maxAgeMs = Number.isFinite(Number(opcoes.maxAgeMs))
     ? Number(opcoes.maxAgeMs)
     : JANELA_RECONCILIACAO_MOVIMENTOS_MS;
-  const recente = reconciliacoesRecentes.get(id);
+  const chaveCache = `${id}:${escopo?.chave || 'TODAS'}`;
+  const recente = reconciliacoesRecentes.get(chaveCache);
   if (!opcoes.forcar && maxAgeMs > 0 && recente && agora - recente.sincronizadoEm < maxAgeMs) {
     return {
       ativo: true,
@@ -431,17 +448,20 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
       movimentos: recente.movimentos || [],
     };
   }
-  if (!opcoes.forcar && reconciliacoesEmAndamento.has(id)) return reconciliacoesEmAndamento.get(id);
+  if (!opcoes.forcar && reconciliacoesEmAndamento.has(chaveCache)) return reconciliacoesEmAndamento.get(chaveCache);
 
   const execucao = (async () => {
   const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(id);
   if (!empresa?.cnpj) throw new Error('Empresa não encontrada para reconciliação documental.');
-  let leitura = await carregarMovimentosCanonicos(empresa);
+  let leitura = await carregarMovimentosCanonicos(empresa, opcoes);
   let { remota, linhas, origem } = leitura;
   linhas = deduplicarMovimentosFiscais(linhas);
   let normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
   let remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
-  const locais = db.prepare('SELECT * FROM movimentos WHERE empresa_id=?').all(id);
+  // Em leitura por competência, a reconciliação nunca toma decisões sobre
+  // documentos de outros meses. Isso reduz volume e protege o histórico fora
+  // da janela analisada contra qualquer atualização incidental do cache.
+  const locais = lerMovimentosLocais(id, opcoes);
   // O id técnico local pode diferir do id da fonte comum. XML tem identidade
   // fiscal própria; nunca se devolve uma cópia local se a mesma nota já está
   // disponível na fonte canônica.
@@ -457,7 +477,7 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   if (pendentes.length || (!normalizadas.length && locais.length)) {
     try { await publicarOperacaoEmpresa(id); }
     catch (erroPublicacao) { throw new Error(`Documentos fiscais aguardam publicação segura: ${erroPublicacao.message}`); }
-    leitura = await carregarMovimentosCanonicos(empresa);
+    leitura = await carregarMovimentosCanonicos(empresa, opcoes);
     ({ remota, linhas, origem } = leitura);
     linhas = deduplicarMovimentosFiscais(linhas);
     normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
@@ -476,15 +496,15 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
     gravar('movimentos', normalizadas, true);
   })();
     const sincronizadoEm = Date.now();
-    reconciliacoesRecentes.set(id, { sincronizadoEm, movimentos: normalizadas });
+    reconciliacoesRecentes.set(chaveCache, { sincronizadoEm, movimentos: normalizadas });
     // A resposta é exclusivamente canônica. A cópia local só participa do
     // transporte de publicação e nunca da composição visual ou financeira.
     return { ativo: true, origem,
       inseridos_ou_atualizados: normalizadas.length, removidos: remover.length, sincronizado_em: sincronizadoEm, movimentos:normalizadas };
   })();
-  reconciliacoesEmAndamento.set(id, execucao);
+  reconciliacoesEmAndamento.set(chaveCache, execucao);
   try { return await execucao; }
-  finally { reconciliacoesEmAndamento.delete(id); }
+  finally { reconciliacoesEmAndamento.delete(chaveCache); }
 }
 
 // A trilha remota é a fonte de verdade para o delta. O marco só é avançado
