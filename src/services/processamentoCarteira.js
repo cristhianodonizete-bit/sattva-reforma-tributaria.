@@ -127,14 +127,18 @@ async function processarUm() {
       db.prepare('UPDATE jobs_carteira SET heartbeat=? WHERE id=?').run(agora(), job.id);
       if (job.tipo_job === 'MOTOR_COMPLETO') {
         const payload = JSON.parse(job.payload || '{}');
-        motorStaging.criar(job.id, job.empresa_id);
-        motorStaging.atualizar(job.id, 'SINCRONIZANDO_CADASTRO');
         const cnpj = require('./cnpjReceita');
         const operacao = require('./operacaoCompartilhada');
         // A conferência de documentos, período, PGDAS/apurações e receitas é
         // pesada e pertence ao worker. Ela é restrita à empresa e à janela
         // analisada do job; a requisição HTTP apenas enfileira o pedido.
         const preparado = await require('./preparacaoMotor').preparar(job.empresa_id);
+        // Em um worker recém-iniciado a empresa só existe no SQLite depois
+        // da preparação. Criar o staging antes disso violava a FK e abortava
+        // o job antes do cálculo; a fotografia ativa remota permanecia certa,
+        // mas o trabalho nunca chegava ao motor.
+        motorStaging.criar(job.id, job.empresa_id);
+        motorStaging.atualizar(job.id, 'SINCRONIZANDO_CADASTRO');
         await cnpj.sincronizarConfirmacoesManuaisQsa(Number(job.empresa_id));
         motorStaging.atualizar(job.id, 'CALCULANDO');
         const resultado = motorExec.executar(job.empresa_id, { ano: Number(payload.ano) || Number(job.competencia) || 2027, anexoSimples: payload.anexo, publicarAssincrona: false });
