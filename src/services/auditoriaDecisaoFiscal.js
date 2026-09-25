@@ -16,21 +16,28 @@ function auditar(db, empresaId) {
       SELECT m.*,
         NULLIF(TRIM(COALESCE(m.codigo_produto,'')), '') AS codigo_normalizado,
         NULLIF(TRIM(COALESCE(m.ncm,'')), '') AS ncm_normalizado,
-        NULLIF(TRIM(COALESCE(m.descricao,'')), '') AS descricao_normalizada
+        NULLIF(LOWER(TRIM(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.descricao,''), ',', ''), '.', ''), ' ', ''), '-', ''))), '') AS descricao_normalizada
       FROM movimentos m
       WHERE m.empresa_id=?
         AND COALESCE(m.situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')
-    ), conflitos AS (
+    ), conflitos_ncm AS (
       SELECT codigo_normalizado
       FROM ativos
       WHERE codigo_normalizado IS NOT NULL
       GROUP BY codigo_normalizado
       HAVING COUNT(DISTINCT COALESCE(ncm_normalizado,'')) > 1
+    ), conflitos_descricao AS (
+      SELECT codigo_normalizado
+      FROM ativos
+      WHERE codigo_normalizado IS NOT NULL
+      GROUP BY codigo_normalizado
+      HAVING COUNT(DISTINCT COALESCE(descricao_normalizada,'')) > 1
     ), avaliados AS (
       SELECT a.*,
         CASE
+          WHEN a.codigo_normalizado IN (SELECT codigo_normalizado FROM conflitos_ncm) THEN 'CONFLITO_DE_DADOS'
+          WHEN a.codigo_normalizado IN (SELECT codigo_normalizado FROM conflitos_descricao) THEN 'REVISAR_DESCRICAO'
           WHEN a.produto_empresa_id IS NOT NULL THEN 'ELEGIVEL_IDENTIDADE_INTERNA'
-          WHEN a.codigo_normalizado IN (SELECT codigo_normalizado FROM conflitos) THEN 'CONFLITO_DE_DADOS'
           WHEN a.codigo_normalizado IS NOT NULL THEN 'ELEGIVEL_CODIGO_EMPRESA'
           ELSE 'PENDENTE_IDENTIDADE'
         END AS situacao_identidade,
@@ -78,7 +85,7 @@ function auditar(db, empresaId) {
       potencial_reuso_percentual:itens ? Math.round((1 - chaves / itens) * 10_000) / 100 : 0,
     },
     situacoes:estados,
-    regra_de_seguranca:'Somente itens com identidade interna ou código estável da empresa, sem conflito de NCM, entram na estimativa. A auditoria não classifica tributos nem autoriza consolidação automática.',
+    regra_de_seguranca:'Somente itens com identidade interna ou código estável da empresa, sem conflito de NCM ou descrição normalizada, entram na estimativa. A auditoria não classifica tributos nem autoriza consolidação automática.',
   };
 }
 
