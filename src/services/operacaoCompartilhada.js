@@ -378,6 +378,11 @@ async function prepararContextoMotorEmpresa(empresaId) {
   Object.assign(resultado.referencias, await baixarRegrasEnquadramento(remoto));
   for (const tabela of REFERENCIAS_GLOBAIS_DO_MOTOR) {
     const linhas = await buscarTudo(remoto, tabela);
+    // A instância do worker pode conter a semente local destas regras. A
+    // fotografia compartilhada é a referência; limpar somente o espelho
+    // técnico evita colisão entre a chave id local e a unicidade funcional.
+    // Não toca em documentos, movimentos ou qualquer dado compartilhado.
+    if (tabela === 'regras_governo') db.prepare('DELETE FROM regras_governo').run();
     resultado.referencias[tabela] = gravar(tabela, linhas);
   }
   for (const tabela of TABELAS_MOTOR_DA_EMPRESA) {
