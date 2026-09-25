@@ -1,0 +1,10 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs'); const path = require('node:path');
+const op = fs.readFileSync(path.join(__dirname, '../src/services/operacaoCompartilhada.js'), 'utf8');
+const prep = fs.readFileSync(path.join(__dirname, '../src/services/preparacaoMotor.js'), 'utf8');
+assert.match(op, /async function prepararContextoMotorEmpresa\(empresaId\)/);
+assert.match(op, /TABELAS_MOTOR_DA_EMPRESA/);
+assert.match(op, /REFERENCIAS_GLOBAIS_DO_MOTOR/);
+assert.match(op, /gravarEmpresas\(\[empresaRemota\]\)/);
+assert.match(prep, /await operacaoCompartilhada\.prepararContextoMotorEmpresa\(id\)/);
+console.log('worker-contexto-empresa: worker restaura apenas a empresa e referências antes do motor.');

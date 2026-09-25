@@ -12,6 +12,9 @@ const operacaoCompartilhada = require('./operacaoCompartilhada');
 
 async function preparar(empresaId) {
   const id = Number(empresaId);
+  // A instância do worker não compartilha o SQLite do serviço web. Primeiro
+  // recompomos a empresa e as referências necessárias, de forma delimitada.
+  await operacaoCompartilhada.prepararContextoMotorEmpresa(id);
   await estadoLeituraEmpresa.atualizarComSeguranca(db, id, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(id), { motivo:'Período conferido pelo worker' });
   const periodo = periodoAnalisado.obter(id);
   if (!periodo) throw new Error('Defina o Período analisado antes de executar o motor.');

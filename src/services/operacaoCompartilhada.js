@@ -350,6 +350,47 @@ async function baixarRegrasEnquadramento(remotoInformado = null) {
   return { regras_enquadramento: gravar('regras_enquadramento', linhas) };
 }
 
+// O worker do Render possui disco efêmero. Antes de calcular um job, ele
+// recompõe somente a identidade da empresa e as referências fiscais usadas
+// pelo motor. Não carrega documentos de outras empresas e não escreve na
+// fonte compartilhada.
+const TABELAS_MOTOR_DA_EMPRESA = [
+  'empresa_servicos_fiscais', 'parceiros', 'empresa_qsa',
+  'enriquecimento_servicos_evidencias', 'enriquecimento_pis_cofins_evidencias',
+  'pendencias_enriquecimento_fiscal',
+];
+const REFERENCIAS_GLOBAIS_DO_MOTOR = ['base_ncm', 'base_servicos', 'regras_governo', 'param_naturezas_juridicas_anexo_xi'];
+
+async function prepararContextoMotorEmpresa(empresaId) {
+  if (!ativo()) throw new Error('A fonte compartilhada não está configurada para preparar o worker.');
+  const id = Number(empresaId);
+  if (!Number.isInteger(id) || id <= 0) throw new Error('Empresa inválida para preparar o worker.');
+  const remoto = supabase.admin();
+  const { data: candidatas, error: erroEmpresa } = await remoto.from('empresas').select('*')
+    .or(`origem_local_id.eq.${id},id.eq.${id}`).limit(3);
+  if (erroEmpresa) throw new Error(`Empresa do worker: ${erroEmpresa.message}`);
+  const empresas = (candidatas || []).filter((empresa) => Number(empresa.origem_local_id || empresa.id) === id);
+  if (empresas.length !== 1) throw new Error(`Empresa compartilhada não identificada unicamente para o job ${id}.`);
+  const empresaRemota = empresas[0];
+  gravarEmpresas([empresaRemota]);
+  const mapaEmpresa = new Map([[String(empresaRemota.id), id]]);
+  const resultado = { empresa: 1, referencias: {}, dados_empresa: {} };
+  Object.assign(resultado.referencias, await baixarConfiguracao(CONFIG_TABELAS, remoto));
+  Object.assign(resultado.referencias, await baixarRegrasEnquadramento(remoto));
+  for (const tabela of REFERENCIAS_GLOBAIS_DO_MOTOR) {
+    const linhas = await buscarTudo(remoto, tabela);
+    resultado.referencias[tabela] = gravar(tabela, linhas);
+  }
+  for (const tabela of TABELAS_MOTOR_DA_EMPRESA) {
+    const { data, error } = await remoto.from(tabela).select('*').eq('empresa_id', empresaRemota.id);
+    if (error) throw new Error(`${tabela}: ${error.message}`);
+    const linhas = normalizarEmpresaIdDoCache(tabela, data || [], mapaEmpresa);
+    resultado.dados_empresa[tabela] = tabela === 'empresa_qsa' ? gravarEmpresaQsa(linhas) : gravar(tabela, linhas);
+  }
+  try { require('./regras').invalidar(); } catch (_) { /* somente cache */ }
+  return resultado;
+}
+
 // A composição do Perfil é uma leitura financeira: ela não pode usar uma
 // linha residual do cache após uma importação, exclusão ou cancelamento já
 // confirmado na base compartilhada. Esta reconciliação é deliberadamente
@@ -1177,5 +1218,5 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
 }
 
 module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
-  baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, filtrarOrfaosOperacionais,
+  baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, prepararContextoMotorEmpresa, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };
