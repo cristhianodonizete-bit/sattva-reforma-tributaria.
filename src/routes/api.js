@@ -87,6 +87,7 @@ const monitoramentoAtualizacoesReforma = require('../services/monitoramentoAtual
 const receitaOperacional = require('../services/receitaOperacional');
 const estadoLeituraEmpresa = require('../services/estadoLeituraEmpresa');
 const integridadeOperacional = require('../services/integridadeOperacional');
+const saudeOperacional = require('../services/saudeOperacional');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -667,6 +668,10 @@ router.use(async (req, res, next) => {
 // OPERAÇÃO COMPARTILHADA — dashboard lido da base Supabase
 // ===========================================================================
 router.get('/operacao/performance', (_req, res) => ok(res, performanceTelemetry.resumo()));
+router.get('/operacao/saude', async (_req, res) => {
+  try { ok(res, await saudeOperacional.resumo(db, { supabase, telemetria:performanceTelemetry })); }
+  catch (e) { erro(res, e); }
+});
 router.post('/operacao/performance/navegacao', (req, res) => {
   const tela = String(req.body?.tela || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 80);
   if (!tela) return erro(res, new Error('Tela de navegação não informada.'), 400);
