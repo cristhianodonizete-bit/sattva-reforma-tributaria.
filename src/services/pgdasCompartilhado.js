@@ -1,6 +1,15 @@
 /* Fonte durável do PGDAS. SQLite é apenas cache; PDF e evidências residem no Supabase. */
 const { Client } = require('pg');
 const db = require('../db');
+const supabase = require('./supabase');
+
+function binarioDaFonte(valor) {
+  // PostgREST representa bytea como hexadecimal. SQLite precisa receber o
+  // Buffer para preservar o PDF original sem depender da instância atual.
+  if (typeof valor === 'string' && valor.startsWith('\\x')) return Buffer.from(valor.slice(2), 'hex');
+  if (valor?.type === 'Buffer' && Array.isArray(valor.data)) return Buffer.from(valor.data);
+  return valor;
+}
 
 async function comCliente(acao) {
   // Nunca aceite sucesso local para evidência fiscal. Sem esta conexão a
@@ -14,6 +23,15 @@ async function empresaRemota(client, empresaLocalId) {
   const r = await client.query('SELECT id FROM public.empresas WHERE origem_local_id=$1 OR id=$1 ORDER BY id LIMIT 2', [empresaLocalId]);
   if (r.rows.length !== 1) throw new Error('Empresa remota não localizada de forma única para persistir PGDAS.');
   return r.rows[0].id;
+}
+async function empresaRemotaApi(empresaLocalId) {
+  const { data, error } = await supabase.admin().from('empresas')
+    .select('id,origem_local_id')
+    .or(`origem_local_id.eq.${Number(empresaLocalId)},id.eq.${Number(empresaLocalId)}`)
+    .limit(2);
+  if (error) throw new Error(`Empresa compartilhada indisponível para PGDAS: ${error.message}`);
+  if ((data || []).length !== 1) throw new Error('Empresa remota não localizada de forma única para restaurar PGDAS.');
+  return data[0].id;
 }
 async function publicar(empresaLocalId, documentoLocalId) {
   const documento = db.prepare('SELECT * FROM pgdas_documentos WHERE id=? AND empresa_id=?').get(documentoLocalId, empresaLocalId);
@@ -34,30 +52,16 @@ async function publicar(empresaLocalId, documentoLocalId) {
     } catch (e) { await client.query('ROLLBACK'); throw e; }
   });
 }
-async function restaurar(empresaLocalId) {
+function aplicarRestauracao(empresaLocalId, documentos, camposPorDocumento) {
   // Não usar "há algum documento no cache" como critério de restauração. Em
   // uma instância nova o SQLite pode conter somente parte da empresa; esse
   // atalho era justamente o que fazia a lista e os botões divergirem.
-  return comCliente(async (client) => {
-    const empresaId = await empresaRemota(client, empresaLocalId);
-    const docs = await client.query('SELECT * FROM public.pgdas_documentos WHERE empresa_id=$1 ORDER BY id', [empresaId]);
-    const camposPorDocumento = new Map();
-    // Uma única consulta evita o padrão N+1 que fazia a restauração ficar
-    // perceptivelmente lenta à medida que o histórico de PGDAS crescia.
-    // A fonte continua sendo a mesma e os campos permanecem íntegros.
-    if (docs.rows.length) {
-      const campos = await client.query(`SELECT * FROM public.pgdas_documento_campos
-        WHERE documento_id = ANY($1::bigint[]) ORDER BY documento_id,id`, [docs.rows.map((x) => x.id)]);
-      for (const campo of campos.rows) {
-        const lista = camposPorDocumento.get(campo.documento_id) || [];
-        lista.push(campo); camposPorDocumento.set(campo.documento_id, lista);
-      }
-    }
     const inserirDocumento = db.prepare(`INSERT INTO pgdas_documentos (empresa_id,nome_original,tipo_documento,mime_type,conteudo_original,hash_sha256,competencia_detectada,data_processamento,metodo_extracao,status_processamento) VALUES (?,?,?,?,?,?,?,?,?,?)`);
     const inserirCampo = db.prepare(`INSERT INTO pgdas_documento_campos (documento_id,campo,valor_extraido,rotulo_original,pagina_ou_localizacao,confianca,metodo_extracao,status_validacao) VALUES (?,?,?,?,?,?,?,?)`);
     let restaurados = 0;
     db.transaction(() => {
-      for (const remoto of docs.rows) {
+      for (const remotoBruto of documentos) {
+        const remoto = { ...remotoBruto, conteudo_original:binarioDaFonte(remotoBruto.conteudo_original) };
         const existente=db.prepare('SELECT id FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaLocalId, remoto.hash_sha256);
         // A versão anterior restaurava somente registros ausentes. Se um
         // metadado legado já existisse no SQLite sem o bytea, o PDF nunca era
@@ -78,8 +82,48 @@ async function restaurar(empresaLocalId) {
         restaurados += 1;
       }
     })();
-    return { restaurados };
+  return { restaurados };
+}
+async function restaurarViaApi(empresaLocalId) {
+  const remoto = supabase.admin();
+  const empresaId = await empresaRemotaApi(empresaLocalId);
+  const { data: documentos, error: erroDocumentos } = await remoto.from('pgdas_documentos')
+    .select('*').eq('empresa_id', empresaId).order('id');
+  if (erroDocumentos) throw new Error(`Documentos PGDAS compartilhados: ${erroDocumentos.message}`);
+  const camposPorDocumento = new Map();
+  const ids = (documentos || []).map((x) => x.id);
+  if (ids.length) {
+    const { data: campos, error: erroCampos } = await remoto.from('pgdas_documento_campos')
+      .select('*').in('documento_id', ids).order('documento_id').order('id');
+    if (erroCampos) throw new Error(`Campos PGDAS compartilhados: ${erroCampos.message}`);
+    for (const campo of campos || []) {
+      const lista = camposPorDocumento.get(campo.documento_id) || [];
+      lista.push(campo); camposPorDocumento.set(campo.documento_id, lista);
+    }
+  }
+  return aplicarRestauracao(empresaLocalId, documentos || [], camposPorDocumento);
+}
+async function restaurarViaBanco(empresaLocalId) {
+  return comCliente(async (client) => {
+    const empresaId = await empresaRemota(client, empresaLocalId);
+    const docs = await client.query('SELECT * FROM public.pgdas_documentos WHERE empresa_id=$1 ORDER BY id', [empresaId]);
+    const camposPorDocumento = new Map();
+    if (docs.rows.length) {
+      const campos = await client.query(`SELECT * FROM public.pgdas_documento_campos
+        WHERE documento_id = ANY($1::bigint[]) ORDER BY documento_id,id`, [docs.rows.map((x) => x.id)]);
+      for (const campo of campos.rows) {
+        const lista = camposPorDocumento.get(campo.documento_id) || [];
+        lista.push(campo); camposPorDocumento.set(campo.documento_id, lista);
+      }
+    }
+    return aplicarRestauracao(empresaLocalId, docs.rows, camposPorDocumento);
   });
+}
+async function restaurar(empresaLocalId) {
+  // O worker não depende da URL Postgres: usa a mesma API compartilhada que
+  // já está configurada nele. O acesso direto permanece apenas como
+  // compatibilidade para instalações sem credenciais de API.
+  return supabase.configurado() ? restaurarViaApi(empresaLocalId) : restaurarViaBanco(empresaLocalId);
 }
 async function localizarLocal(empresaLocalId, referencia) {
   const ref=String(referencia || '');
