@@ -774,16 +774,30 @@ async function baixarResultadosMotor(remotoInformado = null) {
 async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin();
+  const execucaoId = Number(opcoes.execucao_id);
+  const publicacaoPorExecucao = Number.isInteger(execucaoId) && execucaoId > 0;
   const empresasRemotas = await buscarTudo(remoto, 'empresas');
   const empresaRemotaPorOrigem = new Map((empresasRemotas || []).map((empresa) => [
     Number(empresa.origem_local_id || empresa.id), Number(empresa.id),
   ]).filter(([origem, remotoId]) => origem > 0 && remotoId > 0));
   const empresaRemota = (id) => empresaRemotaPorOrigem.get(Number(id)) || Number(id);
-  const filtro = empresaId == null ? '' : ' WHERE empresa_id=?';
-  const parametros = empresaId == null ? [] : [empresaId];
-  const execucoes = db.prepare(`SELECT * FROM motor_execucoes${filtro}`).all(...parametros)
+  // O worker publica a fotografia que acabou de calcular, nunca o histórico
+  // inteiro da empresa. Além de reduzir memória e tempo de rede, isto mantém
+  // a chave usada na promoção exatamente igual ao lote que foi gravado.
+  const clausulas = []; const parametros = [];
+  if (empresaId != null) { clausulas.push('empresa_id=?'); parametros.push(empresaId); }
+  if (publicacaoPorExecucao) { clausulas.push('id=?'); parametros.push(execucaoId); }
+  const filtroExecucoes = clausulas.length ? ` WHERE ${clausulas.join(' AND ')}` : '';
+  const execucoes = db.prepare(`SELECT * FROM motor_execucoes${filtroExecucoes}`).all(...parametros)
     .map((x) => ({ id: x.id, empresa_id: empresaRemota(x.empresa_id), dados: x }));
-  const resultados = db.prepare(`SELECT * FROM motor_resultados${filtro}`).all(...parametros)
+  if (publicacaoPorExecucao && execucoes.length !== 1) {
+    throw new Error(`Fotografia do motor não localizada para empresa ${empresaId} e execução ${execucaoId}.`);
+  }
+  const clausulasResultados = []; const parametrosResultados = [];
+  if (empresaId != null) { clausulasResultados.push('empresa_id=?'); parametrosResultados.push(empresaId); }
+  if (publicacaoPorExecucao) { clausulasResultados.push('execucao_id=?'); parametrosResultados.push(execucaoId); }
+  const filtroResultados = clausulasResultados.length ? ` WHERE ${clausulasResultados.join(' AND ')}` : '';
+  const resultados = db.prepare(`SELECT * FROM motor_resultados${filtroResultados}`).all(...parametrosResultados)
     .map((x) => ({ id: x.id, empresa_id: empresaRemota(x.empresa_id), movimento_id: x.movimento_id, dados: x,
       // A tabela compartilhada usa "ativo=false" como padrão. Sem marcar a
       // nova fotografia explicitamente, o cálculo correto ficava gravado no
@@ -797,6 +811,9 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
       parametro_version: x.parametro_version, motor_version: x.motor_version,
       estado_autonomia: x.estado_autonomia, codigo_causa: x.codigo_causa,
       origem_resolucao: x.origem_resolucao, requer_intervencao_humana: x.requer_intervencao_humana }));
+  if (publicacaoPorExecucao && resultados.length !== Number(opcoes.quantidade_esperada)) {
+    throw new Error(`Fotografia local incompleta para execução ${execucaoId}: esperado ${opcoes.quantidade_esperada}, encontrado ${resultados.length}.`);
+  }
   // A restrição remota garante um único resultado ativo por movimento. A
   // publicação sempre envia a fotografia local completa da empresa, portanto
   // a fotografia anterior precisa ser encerrada antes de ativar a substituta.
@@ -807,14 +824,20 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
       .update({ ativo: false }).eq('empresa_id', idEmpresa).eq('ativo', true);
     if (error) throw new Error(`motor_resultados_operacionais preparação: ${error.message}`);
   }
+  // 100 linhas evita que uma foto grande gere uma requisição PostgREST lenta
+  // ou ultrapasse a memória do worker. É transporte de resultado derivado;
+  // nenhuma linha-fonte fiscal é alterada aqui.
+  const tamanhoLote = Math.max(25, Math.min(250, Number(process.env.PUBLICACAO_MOTOR_LOTE) || 100));
   for (const [tabela, linhas] of [['motor_execucoes_operacionais', execucoes], ['motor_resultados_operacionais', resultados]]) {
-    for (let i = 0; i < linhas.length; i += 500) {
-      const { error } = await remoto.from(tabela).upsert(linhas.slice(i, i + 500), { onConflict: 'id' });
+    for (let i = 0; i < linhas.length; i += tamanhoLote) {
+      const { error } = await remoto.from(tabela).upsert(linhas.slice(i, i + tamanhoLote), { onConflict: 'id' });
       if (error) throw new Error(`${tabela}: ${error.message}`);
     }
   }
-  const telemetrias = db.prepare(`SELECT * FROM telemetria_autonomia_execucoes${filtro}`).all(...parametros);
-  const excecoesExecucao = db.prepare(`SELECT * FROM excecoes_motor_execucoes${filtro}`).all(...parametros);
+  const filtroTelemetrias = publicacaoPorExecucao ? ' WHERE empresa_id=? AND execucao_id=?' : (empresaId == null ? '' : ' WHERE empresa_id=?');
+  const parametrosTelemetrias = publicacaoPorExecucao ? [empresaId, execucaoId] : (empresaId == null ? [] : [empresaId]);
+  const telemetrias = db.prepare(`SELECT * FROM telemetria_autonomia_execucoes${filtroTelemetrias}`).all(...parametrosTelemetrias);
+  const excecoesExecucao = db.prepare(`SELECT * FROM excecoes_motor_execucoes${filtroTelemetrias}`).all(...parametrosTelemetrias);
   const avisos = [];
   if (telemetrias.length) {
     const { error } = await remoto.from('telemetria_autonomia_execucoes').upsert(telemetrias, { onConflict: 'execucao_id' });
@@ -826,7 +849,7 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
       if (error) { avisos.push(`excecoes_motor_execucoes: ${error.message}`); break; }
     }
   }
-  return { execucoes: execucoes.length, resultados: resultados.length, telemetrias: telemetrias.length, excecoes_execucao: excecoesExecucao.length, avisos,
+  return { execucoes: execucoes.length, resultados: resultados.length, telemetrias: telemetrias.length, excecoes_execucao: excecoesExecucao.length, avisos, execucao_id: publicacaoPorExecucao ? execucaoId : null,
     // A fotografia é gravada com a identidade remota da empresa. Quem a
     // promove precisa usar essa mesma identidade; o id SQLite pode diferir.
     empresa_remota_id: empresaId == null ? null : empresaRemota(empresaId) };
@@ -841,15 +864,28 @@ async function promoverFotografiaMotor(empresaId, execucaoId, quantidadeEsperada
 }
 async function validarFotografiaAtivaMotor(empresaId, execucaoId, quantidadeEsperada) {
   if (!ativo()) return { ativo: false };
-  const { data, error } = await supabase.admin().from('motor_resultados_operacionais')
-    .select('execucao_id').eq('empresa_id', Number(empresaId)).eq('ativo', true);
-  if (error) throw new Error(`Validação da fotografia ativa: ${error.message}`);
-  const linhas = data || [];
-  const execucoes = [...new Set(linhas.map((x) => Number(x.execucao_id)))];
-  if (linhas.length !== Number(quantidadeEsperada) || execucoes.length !== 1 || execucoes[0] !== Number(execucaoId)) {
-    throw new Error(`Promoção não confirmada: esperado execução ${execucaoId} com ${quantidadeEsperada} item(ns); ativo ${execucoes.join(',') || '—'} com ${linhas.length}.`);
+  // Validação por agregação: não transfere toda a fotografia ativa para o
+  // processo Node (ponto crítico quando uma empresa tiver 100 mil itens).
+  if (process.env.SUPABASE_DB_URL) {
+    const banco = new Client({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
+    await banco.connect();
+    try {
+      const { rows } = await banco.query(`SELECT
+        count(*) FILTER (WHERE ativo)::int AS total_ativo,
+        count(*) FILTER (WHERE ativo AND execucao_id=$2)::int AS total_execucao,
+        count(DISTINCT execucao_id) FILTER (WHERE ativo)::int AS execucoes_ativas
+        FROM motor_resultados_operacionais WHERE empresa_id=$1`, [Number(empresaId), Number(execucaoId)]);
+      const estado = rows[0] || {};
+      if (Number(estado.total_ativo) !== Number(quantidadeEsperada) || Number(estado.total_execucao) !== Number(quantidadeEsperada) || Number(estado.execucoes_ativas) !== 1) {
+        throw new Error(`Promoção não confirmada: esperado execução ${execucaoId} com ${quantidadeEsperada} item(ns); ativo ${estado.total_ativo || 0}, execução ${estado.total_execucao || 0}, fotografias ${estado.execucoes_ativas || 0}.`);
+      }
+      return { confirmada: true, execucao_id: Number(execucaoId), quantidade: Number(estado.total_ativo) };
+    } finally { await banco.end(); }
   }
-  return { confirmada: true, execucao_id: Number(execucaoId), quantidade: linhas.length };
+  const { count, error } = await supabase.admin().from('motor_resultados_operacionais')
+    .select('id', { count: 'exact', head: true }).eq('empresa_id', Number(empresaId)).eq('execucao_id', Number(execucaoId)).eq('ativo', true);
+  if (error || Number(count) !== Number(quantidadeEsperada)) throw new Error(`Validação da fotografia ativa: ${error?.message || `esperado ${quantidadeEsperada}, encontrado ${count || 0}`}`);
+  return { confirmada: true, execucao_id: Number(execucaoId), quantidade: Number(count) };
 }
 // Parâmetros fiscais e de cálculo podem ser restaurados isoladamente do resto
 // do cache. É usado antes de a aplicação entregar qualquer alíquota à tela ou

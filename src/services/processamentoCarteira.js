@@ -141,7 +141,9 @@ async function processarUm() {
         const execucao = motorExec.ultimaExecucao(job.empresa_id);
         const quantidade = resultado.resumo.itens;
         motorStaging.atualizar(job.id, 'PUBLICANDO', { execucao_id: execucao.id, quantidade_esperada: quantidade, resumo: resultado.resumo });
-        const publicacao = await operacao.publicarResultadosMotor(job.empresa_id, { ativar: false });
+        const publicacao = await operacao.publicarResultadosMotor(job.empresa_id, {
+          ativar: false, execucao_id: execucao.id, quantidade_esperada: quantidade,
+        });
         // O resultado é publicado com o id da empresa compartilhada. Em
         // instalações em que este difere do id local, promover com o id local
         // encontrava zero itens e descartava uma fotografia já gravada.

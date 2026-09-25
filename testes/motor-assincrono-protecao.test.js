@@ -4,8 +4,9 @@ const op = fs.readFileSync(path.join(__dirname, '../src/services/operacaoCompart
 const migration = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20260903_promocao_atomica_fotografia_motor.sql'), 'utf8');
 assert.match(fila, /job\.tipo_job === 'MOTOR_COMPLETO'/, 'worker deve reconhecer o job completo');
 assert.match(fila, /sincronizarConfirmacoesManuaisQsa/, 'worker deve restaurar somente QSA manual');
-assert.match(fila, /publicarResultadosMotor\(job\.empresa_id, \{ ativar: false \}\)/, 'fotografia nova deve ser publicada inativa');
-assert.match(fila, /promoverFotografiaMotor\(job\.empresa_id, execucao\.id, quantidade\)/, 'promoção só ocorre após a publicação');
+assert.match(fila, /publicarResultadosMotor\(job\.empresa_id, \{/, 'fotografia nova deve ser publicada inativa');
+assert.match(fila, /ativar: false, execucao_id: execucao\.id/, 'publicação deve ser restrita à execução atual');
+assert.match(fila, /promoverFotografiaMotor\(empresaFotografia, execucao\.id, quantidade\)/, 'promoção só ocorre após a publicação');
 assert.match(fila, /motorStaging\.atualizar\(job\.id, 'FALHOU'/, 'falha deve ser registrada no staging');
 assert.match(op, /opcoes\.ativar !== false/, 'publicação inativa não pode marcar resultado como ativo');
 assert.match(migration, /v_quantidade <> p_quantidade_esperada/, 'promoção deve rejeitar fotografia incompleta');
