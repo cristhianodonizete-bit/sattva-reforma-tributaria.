@@ -38,12 +38,11 @@ function auditar(db, empresaId) {
           WHEN a.codigo_normalizado IN (SELECT codigo_normalizado FROM conflitos_ncm) THEN 'CONFLITO_DE_DADOS'
           WHEN a.codigo_normalizado IN (SELECT codigo_normalizado FROM conflitos_descricao) THEN 'REVISAR_DESCRICAO'
           WHEN a.produto_empresa_id IS NOT NULL THEN 'ELEGIVEL_IDENTIDADE_INTERNA'
-          WHEN a.codigo_normalizado IS NOT NULL THEN 'ELEGIVEL_CODIGO_EMPRESA'
+          WHEN a.codigo_normalizado IS NOT NULL THEN 'AGUARDANDO_IDENTIDADE_CANONICA'
           ELSE 'PENDENTE_IDENTIDADE'
         END AS situacao_identidade,
         CASE
           WHEN a.produto_empresa_id IS NOT NULL THEN 'PRODUTO_EMPRESA:' || a.produto_empresa_id
-          WHEN a.codigo_normalizado IS NOT NULL THEN 'CODIGO_EMPRESA:' || a.codigo_normalizado
           ELSE NULL
         END AS identidade
       FROM ativos a
@@ -62,12 +61,12 @@ function auditar(db, empresaId) {
     SELECT COUNT(DISTINCT identidade || '|' || COALESCE(sentido,'') || '|' || COALESCE(cfop,'') || '|' ||
       COALESCE(regime,'') || '|' || COALESCE(reducao,'') || '|' || COALESCE(cclasstrib,'') || '|' || COALESCE(modelo_documento_fiscal,'')) quantidade
     FROM avaliados
-    WHERE situacao_identidade IN ('ELEGIVEL_IDENTIDADE_INTERNA','ELEGIVEL_CODIGO_EMPRESA')`).get(id);
+    WHERE situacao_identidade='ELEGIVEL_IDENTIDADE_INTERNA'`).get(id);
   const consolidados = db.prepare(`${base}
     SELECT COUNT(DISTINCT COALESCE(competencia,'') || '|' || identidade || '|' || COALESCE(sentido,'') || '|' || COALESCE(cfop,'') || '|' ||
       COALESCE(regime,'') || '|' || COALESCE(reducao,'') || '|' || COALESCE(cclasstrib,'') || '|' || COALESCE(modelo_documento_fiscal,'')) quantidade
     FROM avaliados
-    WHERE situacao_identidade IN ('ELEGIVEL_IDENTIDADE_INTERNA','ELEGIVEL_CODIGO_EMPRESA')`).get(id);
+    WHERE situacao_identidade='ELEGIVEL_IDENTIDADE_INTERNA'`).get(id);
   const cancelados = db.prepare(`SELECT COUNT(*) quantidade, COALESCE(SUM(valor),0) valor
     FROM movimentos WHERE empresa_id=? AND COALESCE(situacao_documento,'AUTORIZADO') IN ('CANCELADO','DENEGADO','INUTILIZADO')`).get(id);
 
@@ -85,7 +84,7 @@ function auditar(db, empresaId) {
       potencial_reuso_percentual:itens ? Math.round((1 - chaves / itens) * 10_000) / 100 : 0,
     },
     situacoes:estados,
-    regra_de_seguranca:'Somente itens com identidade interna ou código estável da empresa, sem conflito de NCM ou descrição normalizada, entram na estimativa. A auditoria não classifica tributos nem autoriza consolidação automática.',
+    regra_de_seguranca:'Código de produto é somente evidência de origem e não torna item elegível. Somente identidade canônica interna validada, sem conflito de NCM ou descrição normalizada, entra na estimativa. A auditoria não classifica tributos nem autoriza consolidação automática.',
   };
 }
 

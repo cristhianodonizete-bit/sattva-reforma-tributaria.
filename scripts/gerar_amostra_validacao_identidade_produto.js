@@ -18,9 +18,9 @@ const linha = (item, prioridade) => [
 
 const relatorio = JSON.parse(fs.readFileSync(entrada, 'utf8'));
 const cabecalho = ['prioridade','situacao','codigo_produto','ocorrencias','valor','competencias','ncms_encontrados','descricoes_encontradas','cadastro_confirmado','apresentacao_confirmada','decisao_revisor','observacao'];
-const estaveis = (relatorio.codigos || []).filter((x) => x.situacao === 'CANDIDATO_ESTAVEL')
+const estaveis = (relatorio.codigos || []).filter((x) => x.situacao === 'AGUARDANDO_IDENTIDADE_CANONICA')
   .sort((a, b) => Number(b.valor || 0) - Number(a.valor || 0)).slice(0, limite);
-const ressalvas = (relatorio.codigos || []).filter((x) => x.situacao !== 'CANDIDATO_ESTAVEL')
+const ressalvas = (relatorio.codigos || []).filter((x) => x.situacao !== 'AGUARDANDO_IDENTIDADE_CANONICA')
   .sort((a, b) => Number(b.valor || 0) - Number(a.valor || 0));
 fs.mkdirSync(pastaSaida, { recursive:true });
 const base = path.basename(entrada, path.extname(entrada)).replace(/^auditoria-identidade-produto-/, '');

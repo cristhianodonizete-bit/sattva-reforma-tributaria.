@@ -32,12 +32,12 @@ async function main() {
         GROUP BY NULLIF(TRIM(COALESCE(codigo_produto,'')), '')
       )
       SELECT codigo_produto,ocorrencias,valor,competencias,ncms,descricoes,descricoes_normalizadas,
-        CASE WHEN CARDINALITY(ncms)=1 THEN 'CANDIDATO_ESTAVEL'
+        CASE WHEN CARDINALITY(ncms)=1 THEN 'AGUARDANDO_IDENTIDADE_CANONICA'
           WHEN CARDINALITY(ncms)>1 THEN 'CONFLITO_NCM'
           ELSE 'PENDENTE_NCM_OU_IDENTIDADE' END AS situacao
       FROM codigos ORDER BY (COALESCE(valor,'0'))::numeric DESC, ocorrencias DESC, codigo_produto`, [empresaId]);
     for (const item of itens.rows) {
-      if (item.situacao === 'CANDIDATO_ESTAVEL' && (item.descricoes_normalizadas || []).length > 1) item.situacao = 'REVISAR_DESCRICAO';
+      if (item.situacao === 'AGUARDANDO_IDENTIDADE_CANONICA' && (item.descricoes_normalizadas || []).length > 1) item.situacao = 'REVISAR_DESCRICAO';
     }
     const semCodigo = await client.query(`SELECT COUNT(*)::int AS quantidade, COALESCE(SUM(valor),0)::text AS valor
       FROM movimentos WHERE empresa_id=$1
@@ -50,7 +50,7 @@ async function main() {
     const relatorio = {
       natureza:'AUDITORIA_SOMENTE_LEITURA', gerado_em:new Date().toISOString(),
       empresa:empresa.rows[0],
-      criterio:'Código de produto da empresa; NCM único e descrição normalizada única tornam o código candidato estável. Não é classificação tributária nem cria vínculo persistente.',
+      criterio:'Código de produto é apenas evidência de origem. NCM e descrição consistentes servem para revisão humana, mas não criam identidade canônica nem classificação tributária.',
       resumo:{ codigos_analisados:itens.rows.length, por_situacao:resumo, itens_sem_codigo:Number(semCodigo.rows[0].quantidade), valor_itens_sem_codigo:semCodigo.rows[0].valor },
       codigos:itens.rows,
     };
