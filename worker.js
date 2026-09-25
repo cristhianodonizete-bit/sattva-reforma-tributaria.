@@ -6,6 +6,14 @@ require('dotenv').config();
 const ativo = String(process.env.WORKER_ATIVO || '').toLowerCase() === 'true';
 const intervaloMs = Math.max(5_000, Number(process.env.WORKER_INTERVALO_MS) || 15_000);
 
+function relatarConfiguracao() {
+  // Diagnóstico sem vazar nomes, URLs ou segredos. Isso permite validar a
+  // preparação do worker ainda pausado, antes de ele poder assumir um job.
+  const supabaseOk = Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const pgdasOk = Boolean(process.env.SUPABASE_DB_URL);
+  console.log(`worker fonte compartilhada: ${supabaseOk ? 'CONFIGURADA' : 'INCOMPLETA'}; PGDAS: ${pgdasOk ? 'CONFIGURADO' : 'INCOMPLETO'}`);
+}
+
 async function ciclo() {
   if (!ativo) return;
   const fila = require('./src/services/processamentoCarteira');
@@ -18,6 +26,7 @@ async function ciclo() {
 
 async function iniciar() {
   console.log(`worker iniciado: ${ativo ? 'ATIVO' : 'PAUSADO'}; intervalo ${intervaloMs} ms`);
+  relatarConfiguracao();
   if (!ativo) {
     // Mantém o processo vivo para validar deploy, variáveis e conectividade
     // sem processar qualquer informação fiscal.
