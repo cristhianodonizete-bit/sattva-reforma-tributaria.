@@ -1,0 +1,27 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs'); const os = require('node:os'); const path = require('node:path');
+const pasta = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-auditoria-decisao-'));
+process.env.SATTVA_DADOS = pasta;
+const db = require('../src/db');
+const auditoria = require('../src/services/auditoriaDecisaoFiscal');
+const empresa = Number(db.prepare('INSERT INTO empresas (cnpj,razao_social,regime) VALUES (?,?,?)').run('70000000000001', 'Empresa auditoria', 'lucro_presumido').lastInsertRowid);
+const inserir = db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,competencia,valor,origem,codigo_produto,ncm,documento,item_numero,situacao_documento)
+  VALUES (?,?,?,?,?,?,?,?,?,?,?)`);
+inserir.run(empresa, 'produto', 'saida', '2026-01', 100, 'xml', 'A1', '3004.90.99', '1', 1, 'AUTORIZADO');
+inserir.run(empresa, 'produto', 'saida', '2026-01', 200, 'xml', 'A1', '3004.90.99', '2', 1, 'AUTORIZADO');
+inserir.run(empresa, 'produto', 'saida', '2026-02', 300, 'xml', 'A1', '3004.90.99', '3', 1, 'AUTORIZADO');
+inserir.run(empresa, 'produto', 'saida', '2026-01', 50, 'xml', 'CONFLITO', '1001.00.00', '4', 1, 'AUTORIZADO');
+inserir.run(empresa, 'produto', 'saida', '2026-01', 60, 'xml', 'CONFLITO', '1002.00.00', '5', 1, 'AUTORIZADO');
+inserir.run(empresa, 'produto', 'saida', '2026-01', 70, 'xml', '', '', '6', 1, 'AUTORIZADO');
+inserir.run(empresa, 'produto', 'saida', '2026-01', 80, 'xml', 'A1', '3004.90.99', '7', 1, 'CANCELADO');
+const r = auditoria.auditar(db, empresa);
+assert.equal(r.natureza, 'AUDITORIA_SOMENTE_LEITURA');
+assert.equal(r.resumo.itens_analisaveis, 6);
+assert.equal(r.resumo.itens_cancelados, 1);
+assert.equal(r.situacoes.ELEGIVEL_CODIGO_EMPRESA.quantidade, 3);
+assert.equal(r.situacoes.CONFLITO_DE_DADOS.quantidade, 2);
+assert.equal(r.situacoes.PENDENTE_IDENTIDADE.quantidade, 1);
+assert.equal(r.resumo.decisoes_candidatas, 1);
+assert.equal(r.resumo.consolidados_mensais_candidatos, 2);
+db.close(); fs.rmSync(pasta, { recursive:true, force:true });
+console.log('auditoria-decisao-fiscal: leitura, identidade e conflito: OK');

@@ -88,6 +88,7 @@ const receitaOperacional = require('../services/receitaOperacional');
 const estadoLeituraEmpresa = require('../services/estadoLeituraEmpresa');
 const integridadeOperacional = require('../services/integridadeOperacional');
 const saudeOperacional = require('../services/saudeOperacional');
+const auditoriaDecisaoFiscal = require('../services/auditoriaDecisaoFiscal');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -574,6 +575,14 @@ router.get('/empresas/:id/integridade-operacional', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);
     ok(res, integridadeOperacional.auditar(db, Number(req.params.id)));
+  } catch (e) { erro(res, e); }
+});
+// Estudo preparatório para consolidação futura. A rota não sincroniza fonte,
+// não executa motor e não altera documentos, resultados ou classificações.
+router.get('/empresas/:id/auditoria-decisao-fiscal', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    ok(res, auditoriaDecisaoFiscal.auditar(db, Number(req.params.id)));
   } catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/modulos-entrega/:modulo/fechar', async (req, res) => {
