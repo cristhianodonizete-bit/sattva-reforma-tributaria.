@@ -128,6 +128,10 @@ async function processarUm() {
         motorStaging.atualizar(job.id, 'SINCRONIZANDO_CADASTRO');
         const cnpj = require('./cnpjReceita');
         const operacao = require('./operacaoCompartilhada');
+        // A conferência de documentos, período, PGDAS/apurações e receitas é
+        // pesada e pertence ao worker. Ela é restrita à empresa e à janela
+        // analisada do job; a requisição HTTP apenas enfileira o pedido.
+        const preparado = await require('./preparacaoMotor').preparar(job.empresa_id);
         await cnpj.sincronizarConfirmacoesManuaisQsa(Number(job.empresa_id));
         motorStaging.atualizar(job.id, 'CALCULANDO');
         const resultado = motorExec.executar(job.empresa_id, { ano: Number(payload.ano) || Number(job.competencia) || 2027, anexoSimples: payload.anexo, publicarAssincrona: false });
@@ -142,7 +146,9 @@ async function processarUm() {
         await operacao.promoverFotografiaMotor(empresaFotografia, execucao.id, quantidade);
         await operacao.validarFotografiaAtivaMotor(empresaFotografia, execucao.id, quantidade);
         motorStaging.atualizar(job.id, 'CONCLUIDO');
-        await finalizar(job, 'CONCLUIDO', null, { itens: quantidade, execucao_id: execucao.id, excecoes: excecoesMotor.resumo(job.empresa_id) });
+        await finalizar(job, 'CONCLUIDO', null, { itens: quantidade, execucao_id: execucao.id, periodo: preparado.periodo, reconciliacao_documental: {
+          movimentos: preparado.reconciliacao.inseridos_ou_atualizados, removidos: preparado.reconciliacao.removidos, origem: preparado.reconciliacao.origem,
+        }, excecoes: excecoesMotor.resumo(job.empresa_id) });
         continue;
       }
       bases.classificarMovimentos(job.empresa_id);

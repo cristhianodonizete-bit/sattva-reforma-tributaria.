@@ -5565,22 +5565,15 @@ router.get('/empresas/:id/motor/prontidao', async (req, res) => {
 router.post('/empresas/:id/motor/executar', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
-    // A fotografia oficial só pode ser refeita sobre os documentos canônicos.
-    // Sem esta reconciliação, um reinício do Render deixava o SQLite vazio e
-    // uma execução aparentemente concluída publicava zero itens, mesmo com
-    // NF-e/NFS-e já persistidas na fonte compartilhada.
-    const base = await prepararBaseParaMotor(empresaId);
-    const { reconciliacao, prontidao } = base;
-    if (!prontidao.motor.liberado) throw new Error(`Motor bloqueado: ${prontidao.motor.pendencias.join(' ')}`);
+    // O clique apenas protege módulos fechados e cria o job. A conferência
+    // fiscal canônica ocorre no worker, sobre empresa e período delimitados.
     const bloqueados = fechamentoModulos.listar(empresaId).modulos.filter((m) => m.modulo === 'diagnostico' && m.status === 'FECHADO');
     if (bloqueados.length) throw new Error(`O motor integral atualizaria submódulos fechados. Reabra somente os necessários: ${bloqueados.map((m) => m.titulo).join(', ')}.`);
-    const r = await motorExecucaoFila.solicitar(empresaId, { ...(req.body || {}), reconciliacao_documental: {
-      movimentos: reconciliacao.inseridos_ou_atualizados, removidos: reconciliacao.removidos, origem: reconciliacao.origem,
-    } });
+    const r = await motorExecucaoFila.solicitar(empresaId, req.body || {});
     // A rota encerra depois de persistir o pedido. O worker de segundo plano
     // é o único consumidor da fila; o servidor web não pode iniciar cálculo
     // integral em resposta a um clique.
-    ok(res, { assincro: true, reconciliacao_documental: { movimentos: reconciliacao.inseridos_ou_atualizados, removidos: reconciliacao.removidos, origem: reconciliacao.origem }, ...r });
+    ok(res, { assincro: true, ...r });
   } catch (e) { erro(res, e); }
 });
 
