@@ -5912,9 +5912,9 @@ router.post('/config/processamentos-carteira', async (_req, res) => {
   try { ok(res, { processamento: await processamentoCarteira.iniciar({ tipo: 'RECALCULO_INCREMENTAL' }) }); }
   catch (e) { erro(res, e); }
 });
-function consultarProcessamentoCarteira(req, res) {
+async function consultarProcessamentoCarteira(req, res) {
   try {
-    const processamento = req.params.id ? processamentoCarteira.consultar(req.params.id) : processamentoCarteira.ultimo();
+    const processamento = req.params.id ? await processamentoCarteira.consultar(req.params.id) : await processamentoCarteira.ultimo();
     ok(res, { processamento });
   } catch (e) { erro(res, e); }
 }

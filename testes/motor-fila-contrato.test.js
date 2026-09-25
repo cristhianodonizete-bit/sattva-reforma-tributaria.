@@ -10,6 +10,8 @@ assert.match(motor, /a fila compartilhada é a fonte de/i);
 assert.match(fila, /payload: JSON\.stringify\(opcoes\.payload/);
 assert.match(fila, /const grupoId = String\(opcoes\.grupo_id \|\| id\(\)\)/);
 assert.match(fila, /grupo_id: grupoId/);
+assert.match(fila, /function resumirGrupo\(grupoId, jobs = \[\]\)/);
+assert.match(fila, /Acompanhamento compartilhado da fila/);
 assert.match(fila, /if \(opcoes\.iniciarWorker === true\)/);
 assert.doesNotMatch(fila, /iniciarWorker !== false/);
 const rotaMotor = api.slice(api.indexOf("router.post('/empresas/:id/motor/executar'"), api.indexOf("router.get('/empresas/:id/motor/status'"));

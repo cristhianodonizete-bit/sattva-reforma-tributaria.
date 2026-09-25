@@ -32,7 +32,7 @@ async function iniciar(opcoes = {}) {
   const ativo = empresas.map((empresaId) => db.prepare(`SELECT * FROM jobs_carteira
     WHERE empresa_id=? AND competencia=? AND tipo_job=? AND status IN ('PENDENTE','PROCESSANDO')`).get(empresaId, competencia, tipo)).filter(Boolean);
   if (ativo.length === empresas.length && ativo.length) {
-    const processamento = consultar(ativo[0].processamento_id);
+    const processamento = consultarLocal(ativo[0].processamento_id);
     return { ...(processamento || {}), grupo_id: ativo[0].grupo_id || null, deduplicado: true, jobs: ativo };
   }
   const cab = db.prepare(`INSERT INTO processamentos_carteira (grupo_id,tipo,status,total_empresas,iniciado_em)
@@ -52,7 +52,7 @@ async function iniciar(opcoes = {}) {
   // execução só é permitida por chamada explícita do processo worker (ou por
   // ferramentas locais de manutenção que optem por iniciarWorker=true).
   if (opcoes.iniciarWorker === true) executar(processamentoId).catch((e) => console.error('[fila carteira]', e.message));
-  return { ...consultar(processamentoId), grupo_id: grupoId };
+  return { ...consultarLocal(processamentoId), grupo_id: grupoId };
 }
 
 async function recuperarAbandonados() {
@@ -178,13 +178,87 @@ async function cancelar(idJob) {
   return { cancelado: true, job_id: idJob };
 }
 
-function consultar(idProcessamento) {
+function consultarLocal(idProcessamento) {
   const cabecalho = db.prepare('SELECT * FROM processamentos_carteira WHERE id=?').get(idProcessamento);
   if (!cabecalho) return null;
   const itens = db.prepare('SELECT * FROM processamentos_carteira_itens WHERE processamento_id=? ORDER BY id').all(idProcessamento);
   const jobs = db.prepare('SELECT * FROM jobs_carteira WHERE processamento_id=? ORDER BY prioridade DESC,criado_em').all(idProcessamento);
   return { ...cabecalho, itens, jobs };
 }
-function ultimo() { const x = db.prepare('SELECT id FROM processamentos_carteira ORDER BY id DESC LIMIT 1').get(); return x ? consultar(x.id) : null; }
 
-module.exports = { iniciar, executar, recuperarAbandonados, consultar, ultimo, cancelar, claim, workerId };
+const json = (valor, padrao = {}) => {
+  if (valor === null || valor === undefined || valor === '') return padrao;
+  return typeof valor === 'string' ? JSON.parse(valor) : valor;
+};
+
+function resumirGrupo(grupoId, jobs = []) {
+  const normalizados = jobs.map((job) => ({ ...job, resultado: json(job.resultado) }));
+  const total = normalizados.length;
+  const emExecucao = normalizados.some((job) => job.status === 'PROCESSANDO');
+  const pendentes = normalizados.some((job) => job.status === 'PENDENTE');
+  const finalizados = normalizados.filter((job) => ['CONCLUIDO','FALHOU','CANCELADO'].includes(job.status));
+  const comExcecoes = normalizados.filter((job) => job.status === 'CONCLUIDO' && Number(job.resultado?.excecoes?.abertas || 0) > 0);
+  const automaticas = normalizados.filter((job) => job.status === 'CONCLUIDO' && Number(job.resultado?.excecoes?.abertas || 0) === 0);
+  const bloqueadas = normalizados.filter((job) => ['FALHOU','CANCELADO'].includes(job.status));
+  const status = emExecucao ? 'EXECUTANDO' : pendentes ? 'AGENDADO' : finalizados.length === total ? 'CONCLUIDO' : 'AGENDADO';
+  const itens = normalizados.map((job) => ({
+    empresa_id: job.empresa_id,
+    status: job.status === 'CONCLUIDO' ? (Number(job.resultado?.excecoes?.abertas || 0) ? 'COM_EXCECOES' : 'AUTOMATICA') : job.status,
+    motivo: job.erro || null,
+    itens_processados: Number(job.resultado?.itens || 0),
+    excecoes_abertas: Number(job.resultado?.excecoes?.abertas || 0),
+    iniciado_em: job.iniciado_em || null,
+    concluido_em: job.finalizado_em || null,
+    job_id: job.id,
+  }));
+  return {
+    id: null, grupo_id: grupoId, tipo: normalizados[0]?.tipo_job || null, status,
+    total_empresas: total, processadas: finalizados.length, automaticas: automaticas.length,
+    com_premissas: 0, com_excecoes: comExcecoes.length, bloqueadas: bloqueadas.length,
+    iniciado_em: normalizados.map((job) => job.iniciado_em).filter(Boolean).sort()[0] || null,
+    concluido_em: finalizados.length === total ? normalizados.map((job) => job.finalizado_em).filter(Boolean).sort().at(-1) || null : null,
+    criado_em: normalizados.map((job) => job.criado_em).filter(Boolean).sort()[0] || null,
+    itens, jobs: normalizados,
+  };
+}
+
+async function consultarCompartilhado(grupoId) {
+  if (!grupoId || !supabase.configurado()) return null;
+  const { data, error } = await supabase.admin().from('jobs_carteira')
+    .select('id,grupo_id,empresa_id,competencia,tipo_job,prioridade,status,tentativas,max_tentativas,erro,resultado,criado_em,iniciado_em,finalizado_em')
+    .eq('grupo_id', grupoId).order('prioridade', { ascending: false }).order('criado_em', { ascending: true });
+  if (error) throw new Error(`Acompanhamento compartilhado da fila: ${error.message}`);
+  return data?.length ? resumirGrupo(grupoId, data) : null;
+}
+
+async function consultar(identificador) {
+  const texto = String(identificador || '');
+  const local = /^\d+$/.test(texto) ? consultarLocal(Number(texto)) : null;
+  const grupoId = local?.grupo_id || (/^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(texto) ? texto : null);
+  try {
+    const compartilhado = await consultarCompartilhado(grupoId);
+    return compartilhado || local;
+  } catch (erro) {
+    // Status é observabilidade. Uma indisponibilidade transitória não pode
+    // transformar a tela de controle em erro 502, nem autoriza alterar jobs.
+    console.error('[fila] acompanhamento compartilhado indisponível:', erro.message);
+    return local;
+  }
+}
+
+async function ultimo() {
+  try {
+    if (supabase.configurado()) {
+      const { data, error } = await supabase.admin().from('jobs_carteira').select('grupo_id')
+        .not('grupo_id', 'is', null).order('criado_em', { ascending: false }).limit(1);
+      if (error) throw new Error(`Último processamento compartilhado: ${error.message}`);
+      if (data?.[0]?.grupo_id) return consultarCompartilhado(data[0].grupo_id);
+    }
+  } catch (erro) {
+    console.error('[fila] último processamento compartilhado indisponível:', erro.message);
+  }
+  const x = db.prepare('SELECT id FROM processamentos_carteira ORDER BY id DESC LIMIT 1').get();
+  return x ? consultarLocal(x.id) : null;
+}
+
+module.exports = { iniciar, executar, recuperarAbandonados, consultar, ultimo, cancelar, claim, workerId, resumirGrupo };
