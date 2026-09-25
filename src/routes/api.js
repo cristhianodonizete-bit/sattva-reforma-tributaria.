@@ -5426,7 +5426,8 @@ router.post('/empresas/:id/importar/xml', uploadXml.array('arquivos', 500), asyn
               relatorio.duplicados++;
               continue;
             }
-            const identidade = i.codigo_produto ? identidadeProduto.resolver({ empresa_id:Number(req.params.id), tipo_origem:'XML_CPROD', codigo_origem:i.codigo_produto, ncm:i.ncm, descricao:i.descricao, data:i.data_emissao }) : null;
+            // O código do XML permanece no movimento como evidência. A identidade
+            // canônica só será vinculada por fluxo explícito de validação.
             const partesDocumento=String(i.documento||'').split('/');
             const numeroDocumento=(partesDocumento[partesDocumento.length-1]||'').replace(/\D/g,'');
             const serieDocumento=(partesDocumento.length>1?partesDocumento[0]:'').replace(/\D/g,'');
@@ -5456,7 +5457,6 @@ router.post('/empresas/:id/importar/xml', uploadXml.array('arquivos', 500), asyn
               movimentosCancelados.add(Number(movimento.lastInsertRowid));
               relatorio.documentos_cancelados++;
             }
-            if (identidade?.produto_empresa_id) db.prepare('UPDATE movimentos SET produto_empresa_id=? WHERE id=?').run(identidade.produto_empresa_id, movimento.lastInsertRowid);
             normalizacaoFiscalXml.validarMovimento(Number(movimento.lastInsertRowid));
             relatorio.itens++;
             if (i.sentido === 'entrada') relatorio.entradas++;
@@ -5798,7 +5798,8 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
           }
 
           for (const i of r.itens) {
-            const identidade = i.codigo_produto ? identidadeProduto.resolver({ empresa_id:Number(req.params.id), tipo_origem:'SPED_COD_ITEM', codigo_origem:i.codigo_produto, ncm:i.ncm, descricao:i.descricao, data:i.data_emissao }) : null;
+            // O código do SPED permanece no movimento como evidência. A identidade
+            // canônica só será vinculada por fluxo explícito de validação.
             const movimento = insMov.run(req.params.id, lote.lastInsertRowid, i.tipo, i.sentido, i.nome, i.inscr_federal,
               i.descricao, i.ncm || '', i.nbs || '', i.lc116 || '', i.cfop || '', i.cst || '', '', i.competencia,
               i.documento, i.chave || '', i.item_numero, i.codigo_produto || '', i.quantidade || 0,
@@ -5810,7 +5811,6 @@ router.post('/empresas/:id/importar/sped', upload.array('arquivos', 60), async (
               i.cst_pis || i.cst || null, i.cst_cofins || null, lote.lastInsertRowid,
               i.documento || null, i.base_pis ?? null, i.base_cofins ?? null,
               i.aliquota_pis ?? null, i.aliquota_cofins ?? null);
-            if (identidade?.produto_empresa_id) db.prepare('UPDATE movimentos SET produto_empresa_id=? WHERE id=last_insert_rowid()').run(identidade.produto_empresa_id);
             rel.itens++;
             if (i.sentido === 'entrada') rel.entradas++; else rel.saidas++;
           }

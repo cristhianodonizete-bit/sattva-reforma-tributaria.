@@ -1,0 +1,13 @@
+const assert=require('assert'),fs=require('fs'),os=require('os'),path=require('path');
+const pasta=fs.mkdtempSync(path.join(os.tmpdir(),'sattva-identidade-sem-codigo-'));process.env.SATTVA_DADOS=pasta;
+const db=require('../src/db'),identidade=require('../src/services/identidadeProduto');
+const empresa=Number(db.prepare("INSERT INTO empresas(cnpj,razao_social) VALUES('88888888000188','Empresa identidade')").run().lastInsertRowid);
+const bruto=identidade.resolver({empresa_id:empresa,tipo_origem:'XML_CPROD',codigo_origem:'CODIGO-CLIENTE',ncm:'30049099',descricao:'Produto recebido'});
+assert.equal(bruto.status,'AGUARDANDO_IDENTIDADE_CANONICA');assert.equal(bruto.produto_empresa_id,null);
+assert.equal(db.prepare('SELECT COUNT(*) c FROM produtos_empresa').get().c,0);assert.equal(db.prepare('SELECT COUNT(*) c FROM produto_aliases').get().c,0);
+const produto=Number(db.prepare('INSERT INTO produtos_empresa (empresa_id,codigo_produto_atual,ncm_atual,descricao_atual) VALUES (?,?,?,?)').run(empresa,'CANONICO-VALIDADO','30049099','Produto validado').lastInsertRowid);
+db.prepare('INSERT INTO produto_aliases (produto_empresa_id,empresa_id,tipo_origem,codigo_origem) VALUES (?,?,?,?)').run(produto,empresa,'XML_CPROD','CODIGO-CLIENTE');
+const alias=identidade.resolver({empresa_id:empresa,tipo_origem:'XML_CPROD',codigo_origem:'CODIGO-CLIENTE',ncm:'30049099'});
+assert.equal(alias.status,'ALIAS_SEM_VALIDACAO_CANONICA');assert.equal(alias.produto_empresa_id,null);assert.equal(alias.alias_produto_empresa_id,produto);
+assert.equal(db.prepare('SELECT COUNT(*) c FROM produtos_empresa').get().c,1);assert.equal(db.prepare('SELECT COUNT(*) c FROM produto_aliases').get().c,1);
+console.log('identidade-produto-sem-codigo-automatico: importação preserva evidência sem criar ou vincular identidade: OK');db.close();fs.rmSync(pasta,{recursive:true,force:true});

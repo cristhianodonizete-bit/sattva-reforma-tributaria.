@@ -1,10 +1,12 @@
 const assert=require('assert'),fs=require('fs'),os=require('os'),path=require('path');
 const pasta=fs.mkdtempSync(path.join(os.tmpdir(),'sattva-assistivos-')); process.env.SATTVA_DADOS=pasta;
-const db=require('../src/db'),cfc=require('../src/services/cadastroFiscalComplementar'),identidade=require('../src/services/identidadeProduto'),motor=require('../src/services/motorCondicionalPisCofins'),{aplicarPercentual,arredondarMoeda}=require('../src/services/percentual');
+const db=require('../src/db'),cfc=require('../src/services/cadastroFiscalComplementar'),motor=require('../src/services/motorCondicionalPisCofins'),{aplicarPercentual,arredondarMoeda}=require('../src/services/percentual');
 const rascunhos=JSON.parse(fs.readFileSync(path.resolve(__dirname,'../outputs/fechamento_4_restantes_lote_76.json'))).regras;
 const empresa=Number(db.prepare("INSERT INTO empresas(cnpj,razao_social) VALUES('84700000000001','Assistivos E2E')").run().lastInsertRowid);
 function regras(ncm){return rascunhos.filter(r=>r.ncm===ncm).map(r=>({regra_id:r.id,familia_regra:r.familia,prioridade:r.prioridade_proposta,vigencia_inicio:r.vigencia_inicio,vigencia_fim:r.vigencia_fim,regime_pis_cofins:r.regime_pis_cofins,condicoes:r.condicoes_obrigatorias.map(c=>({...c,valor:c.valor})),resultado:{cst_pis:r.cst_pis,cst_cofins:r.cst_cofins,pis_percentual:r.pis_percentual,cofins_percentual:r.cofins_percentual,tratamento:r.tratamento_resultante}}));}
-function ctx(ncm,codigo,data='2026-04-01',regime='CUMULATIVO',fatos={}){const p=identidade.resolver({empresa_id:empresa,tipo_origem:'CADASTRO',codigo_origem:codigo,ncm,descricao:'Assistivo'});return {empresa_id:empresa,produto_empresa_id:p.produto_empresa_id,ncm,codigo_produto:codigo,data_operacao:data,regime_pis_cofins:regime,fatos_operacao:fatos};}
+const produtos=new Map();
+function produtoCanonico(ncm,codigo){const chave=`${ncm}|${codigo}`;if(!produtos.has(chave))produtos.set(chave,Number(db.prepare('INSERT INTO produtos_empresa (empresa_id,codigo_produto_atual,ncm_atual,descricao_atual) VALUES (?,?,?,?)').run(empresa,codigo,ncm,'Assistivo').lastInsertRowid));return produtos.get(chave);}
+function ctx(ncm,codigo,data='2026-04-01',regime='CUMULATIVO',fatos={}){return {empresa_id:empresa,produto_empresa_id:produtoCanonico(ncm,codigo),ncm,codigo_produto:codigo,data_operacao:data,regime_pis_cofins:regime,fatos_operacao:fatos};}
 function avaliar(ncm,codigo,fatos,data,regime){return motor.selecionar(regras(ncm),ctx(ncm,codigo,data,regime,fatos),{criar_pendencia:true});}
 for(const ncm of ['84701000','84719014']){
   assert.equal(avaliar(ncm,`${ncm}-T`,{possui_sintetizador_voz:true},'2026-03-31').status,'APLICAVEL');
