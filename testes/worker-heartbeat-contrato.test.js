@@ -1,0 +1,13 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const raiz = path.join(__dirname, '..');
+const worker = fs.readFileSync(path.join(raiz, 'worker.js'), 'utf8');
+const servico = fs.readFileSync(path.join(raiz, 'src/services/workerHeartbeat.js'), 'utf8');
+const migration = fs.readFileSync(path.join(raiz, 'supabase/migrations/20260925_worker_heartbeat.sql'), 'utf8');
+assert.match(worker, /registrarHeartbeat\('ATIVO'\)/);
+assert.match(worker, /registrarHeartbeat\('ERRO', erro\.message\)/);
+assert.match(servico, /from\('worker_heartbeats'\)\.upsert/);
+assert.match(migration, /create table if not exists public\.worker_heartbeats/);
+assert.match(migration, /enable row level security/);
+console.log('worker-heartbeat: contrato de presença durável: OK');

@@ -10,26 +10,39 @@ async function resumo(db, { supabase, telemetria, memoria = process.memoryUsage(
   const alertaIntegridade = integridades.filter((x) => x.situacao !== 'INTEGRO');
   let jobs = [];
   let erroFila = null;
+  let presencaWorker = null;
+  let erroHeartbeat = null;
   if (supabase.configurado()) {
     const { data, error } = await supabase.admin().from('jobs_carteira')
       .select('id,empresa_id,status,tentativas,max_tentativas,heartbeat,criado_em,finalizado_em,erro')
       .order('criado_em', { ascending:false }).limit(100);
     if (error) erroFila = error.message; else jobs = data || [];
+    const { data: heartbeats, error: erroPresenca } = await supabase.admin().from('worker_heartbeats')
+      .select('worker_id,status,heartbeat,iniciado_em,atualizado_em,detalhes')
+      .order('heartbeat', { ascending:false }).limit(1);
+    if (erroPresenca) erroHeartbeat = erroPresenca.message;
+    else presencaWorker = (heartbeats || [])[0] || null;
   }
   const porStatus = jobs.reduce((mapa, job) => ({ ...mapa, [job.status]:numero(mapa[job.status]) + 1 }), {});
   const agora = Date.now();
   const processando = jobs.find((job) => job.status === 'PROCESSANDO') || null;
   const heartbeatRecente = processando?.heartbeat && agora - Date.parse(processando.heartbeat) < 60_000;
+  const presencaRecente = presencaWorker?.heartbeat && agora - Date.parse(presencaWorker.heartbeat) < 90_000;
   const pendente = jobs.find((job) => job.status === 'PENDENTE') || null;
   const worker = processando
     ? { situacao:heartbeatRecente ? 'PROCESSANDO_COM_HEARTBEAT' : 'PROCESSAMENTO_SEM_HEARTBEAT_RECENTE', job_id:processando.id, heartbeat:processando.heartbeat }
-    : pendente ? { situacao:'FILA_AGUARDANDO_WORKER', job_id:pendente.id, criado_em:pendente.criado_em }
-      : { situacao:'OCIOSO_NAO_VERIFICAVEL', motivo:'O heartbeat atual é registrado somente durante jobs em execução.' };
+    : presencaRecente && presencaWorker.status === 'ATIVO' ? { situacao:'OCIOSO_COM_HEARTBEAT', ...presencaWorker }
+      : presencaRecente && presencaWorker.status === 'PAUSADO' ? { situacao:'PAUSADO', ...presencaWorker }
+        : pendente ? { situacao:'FILA_AGUARDANDO_WORKER', job_id:pendente.id, criado_em:pendente.criado_em, ultimo_heartbeat:presencaWorker?.heartbeat || null }
+          : presencaWorker ? { situacao:'SEM_HEARTBEAT_RECENTE', ...presencaWorker }
+            : { situacao:erroHeartbeat ? 'HEARTBEAT_INDISPONIVEL' : 'SEM_HEARTBEAT_REGISTRADO', motivo:erroHeartbeat || 'O worker ainda não registrou presença.' };
   const rotasLentas = (local.rotas || []).filter((rota) => numero(rota.p95_ms) >= 1000);
   const alertas = [];
   if (erroFila) alertas.push({ gravidade:'ALTA', codigo:'FILA_INDISPONIVEL', mensagem:erroFila });
+  if (erroHeartbeat) alertas.push({ gravidade:'MEDIA', codigo:'HEARTBEAT_INDISPONIVEL', mensagem:erroHeartbeat });
   if (worker.situacao === 'PROCESSAMENTO_SEM_HEARTBEAT_RECENTE') alertas.push({ gravidade:'ALTA', codigo:'WORKER_SEM_HEARTBEAT', mensagem:'Há job em processamento sem heartbeat recente.' });
   if (worker.situacao === 'FILA_AGUARDANDO_WORKER') alertas.push({ gravidade:'MEDIA', codigo:'FILA_AGUARDANDO', mensagem:'Há job pendente aguardando worker.' });
+  if (worker.situacao === 'SEM_HEARTBEAT_RECENTE') alertas.push({ gravidade:'ALTA', codigo:'WORKER_SEM_SINAL', mensagem:'O worker não registrou presença recente.' });
   if (porStatus.FALHOU) alertas.push({ gravidade:'MEDIA', codigo:'JOBS_FALHOS', mensagem:`Há ${porStatus.FALHOU} job(s) falho(s) no histórico recente.` });
   if (alertaIntegridade.length) alertas.push({ gravidade:'ALTA', codigo:'INTEGRIDADE_EMPRESA', mensagem:`${alertaIntegridade.length} empresa(s) exigem revisão de integridade.` });
   if (rotasLentas.length) alertas.push({ gravidade:'MEDIA', codigo:'ROTAS_LENTAS', mensagem:`${rotasLentas.length} rota(s) com p95 acima de 1 segundo.` });
