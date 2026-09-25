@@ -64,7 +64,8 @@ const COLUNAS_NOVAS = {
     autonomia_calculo_cbs_propria: 'INTEGER', autonomia_credito_entrada: 'INTEGER', autonomia_credito_cliente: 'INTEGER',
     autonomia_classificatoria: 'TEXT', autonomia_diagnostico_completo: 'INTEGER', memoria_autonomia_dimensoes: 'TEXT',
   },
-  jobs_carteira: { proxima_tentativa_em: 'TEXT', resultado: 'TEXT' },
+  jobs_carteira: { proxima_tentativa_em: 'TEXT', resultado: 'TEXT', grupo_id: 'TEXT' },
+  processamentos_carteira: { grupo_id: 'TEXT' },
   param_regimes: { credito_cbs_simples_referencia: 'REAL' },
   param_irpj_csll_versionados: {
     limite_receita_anual: 'REAL',
@@ -1710,6 +1711,7 @@ CREATE INDEX IF NOT EXISTS ix_excecoes_execucao_ativa ON excecoes_motor_execucoe
 CREATE TABLE IF NOT EXISTS jobs_carteira (
   id TEXT PRIMARY KEY,
   processamento_id INTEGER,
+  grupo_id TEXT,
   empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
   competencia TEXT,
   tipo_job TEXT NOT NULL DEFAULT 'RECALCULO_INCREMENTAL',
@@ -1729,6 +1731,7 @@ CREATE TABLE IF NOT EXISTS jobs_carteira (
   UNIQUE(processamento_id, empresa_id, competencia, tipo_job)
 );
 CREATE INDEX IF NOT EXISTS ix_jobs_carteira_status ON jobs_carteira(status, prioridade DESC, criado_em);
+CREATE INDEX IF NOT EXISTS ix_jobs_carteira_grupo ON jobs_carteira(grupo_id, criado_em);
 CREATE UNIQUE INDEX IF NOT EXISTS ux_jobs_carteira_ativo
   ON jobs_carteira(empresa_id, competencia, tipo_job)
   WHERE status IN ('PENDENTE','PROCESSANDO');
@@ -1737,6 +1740,7 @@ CREATE UNIQUE INDEX IF NOT EXISTS ux_jobs_carteira_ativo
 -- a operação seja acompanhável e retomável, sem abrir 600 projetos um a um.
 CREATE TABLE IF NOT EXISTS processamentos_carteira (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
+  grupo_id TEXT,
   tipo TEXT DEFAULT 'RECALCULO',
   status TEXT DEFAULT 'AGENDADO',
   total_empresas INTEGER DEFAULT 0,

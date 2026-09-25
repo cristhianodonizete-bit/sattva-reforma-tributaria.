@@ -26,24 +26,25 @@ async function iniciar(opcoes = {}) {
   const empresas = opcoes.empresas || db.prepare('SELECT id FROM empresas ORDER BY id').all().map((x) => x.id);
   const competencia = String(opcoes.competencia || '2027');
   const tipo = opcoes.tipo || 'RECALCULO_INCREMENTAL';
+  const grupoId = String(opcoes.grupo_id || id());
   // A mesma empresa/competência/tipo não pode receber dois jobs ativos. Se
   // já existir, o pedido apenas reaproveita o processamento em curso.
   const ativo = empresas.map((empresaId) => db.prepare(`SELECT * FROM jobs_carteira
     WHERE empresa_id=? AND competencia=? AND tipo_job=? AND status IN ('PENDENTE','PROCESSANDO')`).get(empresaId, competencia, tipo)).filter(Boolean);
   if (ativo.length === empresas.length && ativo.length) {
     const processamento = consultar(ativo[0].processamento_id);
-    return { ...(processamento || {}), deduplicado: true, jobs: ativo };
+    return { ...(processamento || {}), grupo_id: ativo[0].grupo_id || null, deduplicado: true, jobs: ativo };
   }
-  const cab = db.prepare(`INSERT INTO processamentos_carteira (tipo,status,total_empresas,iniciado_em)
-    VALUES (?,'AGENDADO',?,datetime('now','localtime'))`).run(tipo, empresas.length);
+  const cab = db.prepare(`INSERT INTO processamentos_carteira (grupo_id,tipo,status,total_empresas,iniciado_em)
+    VALUES (? ,?,'AGENDADO',?,datetime('now','localtime'))`).run(grupoId, tipo, empresas.length);
   const processamentoId = Number(cab.lastInsertRowid);
   const inserirItem = db.prepare("INSERT INTO processamentos_carteira_itens (processamento_id,empresa_id,status) VALUES (?,?,'AGENDADA')");
-  const inserirJob = db.prepare(`INSERT INTO jobs_carteira (id,processamento_id,empresa_id,competencia,tipo_job,prioridade,status,payload,criado_em)
-    VALUES (?,?,?,?,?,?, 'PENDENTE',?,?)`);
-  const jobs = empresas.filter((empresaId) => !ativo.some((j) => Number(j.empresa_id) === Number(empresaId))).map((empresaId) => ({ id: id(), processamento_id: processamentoId, empresa_id: empresaId,
+  const inserirJob = db.prepare(`INSERT INTO jobs_carteira (id,processamento_id,grupo_id,empresa_id,competencia,tipo_job,prioridade,status,payload,criado_em)
+    VALUES (?,?,?,?,?,?,?, 'PENDENTE',?,?)`);
+  const jobs = empresas.filter((empresaId) => !ativo.some((j) => Number(j.empresa_id) === Number(empresaId))).map((empresaId) => ({ id: id(), processamento_id: processamentoId, grupo_id: grupoId, empresa_id: empresaId,
     competencia, tipo_job: tipo, prioridade: Number(opcoes.prioridade) || 0,
     status: 'PENDENTE', tentativas: 0, max_tentativas: 3, payload: JSON.stringify(opcoes.payload || { incremental: true }), criado_em: agora() }));
-  db.transaction(() => jobs.forEach((j) => { inserirItem.run(processamentoId, j.empresa_id); inserirJob.run(j.id, j.processamento_id, j.empresa_id, j.competencia, j.tipo_job, j.prioridade, j.payload, j.criado_em); }))();
+  db.transaction(() => jobs.forEach((j) => { inserirItem.run(processamentoId, j.empresa_id); inserirJob.run(j.id, j.processamento_id, j.grupo_id, j.empresa_id, j.competencia, j.tipo_job, j.prioridade, j.payload, j.criado_em); }))();
   for (const job of jobs) await espelharJob(job);
   // O serviço HTTP apenas registra trabalho na fila durável. Consumir a fila
   // neste processo fazia um clique do usuário disputar CPU e memória com as
@@ -51,7 +52,7 @@ async function iniciar(opcoes = {}) {
   // execução só é permitida por chamada explícita do processo worker (ou por
   // ferramentas locais de manutenção que optem por iniciarWorker=true).
   if (opcoes.iniciarWorker === true) executar(processamentoId).catch((e) => console.error('[fila carteira]', e.message));
-  return consultar(processamentoId);
+  return { ...consultar(processamentoId), grupo_id: grupoId };
 }
 
 async function recuperarAbandonados() {
