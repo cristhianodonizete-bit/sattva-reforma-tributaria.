@@ -430,7 +430,10 @@ function escopoCompetencias(opcoes = {}) {
 async function carregarMovimentosCanonicos(empresa, opcoes = {}) {
   const cnpj = String(empresa.cnpj).replace(/\D/g, '');
   const escopo = escopoCompetencias(opcoes);
-  if (ativo() && !process.env.SUPABASE_DB_URL) {
+  // O worker já possui a API autenticada da fonte compartilhada. Priorizá-la
+  // elimina a dependência de uma URL PostgreSQL direta para a leitura fiscal
+  // do job, que pode variar entre Web e Worker sem afetar a fonte de verdade.
+  if (ativo()) {
     const remoto = supabase.admin();
     const { data: empresasRemotas, error: erroEmpresa } = await remoto.from('empresas').select('id,cnpj,origem_local_id').eq('cnpj', cnpj).limit(2);
     if (erroEmpresa) throw erroEmpresa;
@@ -929,24 +932,8 @@ async function promoverFotografiaMotor(empresaId, execucaoId, quantidadeEsperada
 }
 async function validarFotografiaAtivaMotor(empresaId, execucaoId, quantidadeEsperada) {
   if (!ativo()) return { ativo: false };
-  // Validação por agregação: não transfere toda a fotografia ativa para o
-  // processo Node (ponto crítico quando uma empresa tiver 100 mil itens).
-  if (process.env.SUPABASE_DB_URL) {
-    const banco = new Client({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized: false } });
-    await banco.connect();
-    try {
-      const { rows } = await banco.query(`SELECT
-        count(*) FILTER (WHERE ativo)::int AS total_ativo,
-        count(*) FILTER (WHERE ativo AND execucao_id=$2)::int AS total_execucao,
-        count(DISTINCT execucao_id) FILTER (WHERE ativo)::int AS execucoes_ativas
-        FROM motor_resultados_operacionais WHERE empresa_id=$1`, [Number(empresaId), Number(execucaoId)]);
-      const estado = rows[0] || {};
-      if (Number(estado.total_ativo) !== Number(quantidadeEsperada) || Number(estado.total_execucao) !== Number(quantidadeEsperada) || Number(estado.execucoes_ativas) !== 1) {
-        throw new Error(`Promoção não confirmada: esperado execução ${execucaoId} com ${quantidadeEsperada} item(ns); ativo ${estado.total_ativo || 0}, execução ${estado.total_execucao || 0}, fotografias ${estado.execucoes_ativas || 0}.`);
-      }
-      return { confirmada: true, execucao_id: Number(execucaoId), quantidade: Number(estado.total_ativo) };
-    } finally { await banco.end(); }
-  }
+  // Contagem no servidor via API, sem transferir a fotografia (inclusive para
+  // empresas com 100 mil itens) e sem depender da conexão PostgreSQL direta.
   const { count, error } = await supabase.admin().from('motor_resultados_operacionais')
     .select('id', { count: 'exact', head: true }).eq('empresa_id', Number(empresaId)).eq('execucao_id', Number(execucaoId)).eq('ativo', true);
   if (error || Number(count) !== Number(quantidadeEsperada)) throw new Error(`Validação da fotografia ativa: ${error?.message || `esperado ${quantidadeEsperada}, encontrado ${count || 0}`}`);

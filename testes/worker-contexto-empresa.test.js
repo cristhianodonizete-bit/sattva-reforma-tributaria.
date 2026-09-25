@@ -7,6 +7,8 @@ assert.match(op, /async function prepararContextoMotorEmpresa\(empresaId\)/);
 assert.match(op, /TABELAS_MOTOR_DA_EMPRESA/);
 assert.match(op, /REFERENCIAS_GLOBAIS_DO_MOTOR/);
 assert.match(op, /DELETE FROM regras_governo/);
+assert.match(op, /if \(ativo\(\)\) \{/);
+assert.match(op, /sem depender da conexão PostgreSQL direta/);
 assert.match(op, /restaurarEvidenciasMotorAposDocumentos/);
 assert.match(op, /gravarEmpresas\(\[empresaRemota\]\)/);
 assert.match(prep, /await operacaoCompartilhada\.prepararContextoMotorEmpresa\(id\)/);
