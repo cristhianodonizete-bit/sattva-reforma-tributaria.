@@ -1,0 +1,10 @@
+const assert = require('assert');
+const { resumo } = require('../src/services/assinaturaContextoFiscal');
+const base = { empresa_id:1, competencia:'2026-01', tipo:'cliente', sentido:'saida', modelo_documento_fiscal:'nfce', cfop:'5102', ncm:'30049099', cst:'00', regime_cadastro:'', perfil_cadastro:'', inscr_federal:'', valor:10 };
+const igual = { ...base, id:2, valor:20 };
+const outroCfop = { ...base, id:3, cfop:'5405', valor:30 };
+const revisado = { ...base, id:4, tem_revisao_beneficio:true, valor:40 };
+const r = resumo([{ ...base, id:1 }, igual, outroCfop, revisado]);
+assert.equal(r.itens,4);assert.equal(r.contextos,3);assert.equal(r.chamadas_evitaveis,1);assert.equal(r.reducao_percentual,25);
+assert.equal(r.grupos.find((g) => g.itens===2).valor,30);
+console.log('assinatura-contexto-fiscal: reuso conservador, separação de contexto e revisão individual: OK');
