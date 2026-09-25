@@ -5,6 +5,8 @@ const prep = fs.readFileSync(path.join(__dirname, '../src/services/preparacaoMot
 assert.match(op, /async function prepararContextoMotorEmpresa\(empresaId\)/);
 assert.match(op, /TABELAS_MOTOR_DA_EMPRESA/);
 assert.match(op, /REFERENCIAS_GLOBAIS_DO_MOTOR/);
+assert.match(op, /restaurarEvidenciasMotorAposDocumentos/);
 assert.match(op, /gravarEmpresas\(\[empresaRemota\]\)/);
 assert.match(prep, /await operacaoCompartilhada\.prepararContextoMotorEmpresa\(id\)/);
+assert.match(prep, /await operacaoCompartilhada\.restaurarEvidenciasMotorAposDocumentos\(id\)/);
 console.log('worker-contexto-empresa: worker restaura apenas a empresa e referências antes do motor.');

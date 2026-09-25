@@ -24,6 +24,7 @@ async function preparar(empresaId) {
     () => operacaoCompartilhada.reconciliarMovimentosEmpresa(id, { competenciaInicio: periodo.competencia_inicio, competenciaFim: periodo.competencia_fim }),
     { motivo:'Documentos canônicos conferidos pelo worker' },
   );
+  await operacaoCompartilhada.restaurarEvidenciasMotorAposDocumentos(id);
   const empresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(id);
   if (empresa?.regime === 'simples_nacional') {
     await estadoLeituraEmpresa.atualizarComSeguranca(db, id, ['pgdas'], () => pgdasCompartilhado.restaurar(id), { motivo:'PGDAS confirmado restaurado pelo worker' });

@@ -356,9 +356,8 @@ async function baixarRegrasEnquadramento(remotoInformado = null) {
 // fonte compartilhada.
 const TABELAS_MOTOR_DA_EMPRESA = [
   'empresa_servicos_fiscais', 'parceiros', 'empresa_qsa',
-  'enriquecimento_servicos_evidencias', 'enriquecimento_pis_cofins_evidencias',
-  'pendencias_enriquecimento_fiscal',
 ];
+const TABELAS_MOTOR_APOS_DOCUMENTOS = ['enriquecimento_servicos_evidencias', 'enriquecimento_pis_cofins_evidencias'];
 const REFERENCIAS_GLOBAIS_DO_MOTOR = ['base_ncm', 'base_servicos', 'regras_governo', 'param_naturezas_juridicas_anexo_xi'];
 
 async function prepararContextoMotorEmpresa(empresaId) {
@@ -388,6 +387,26 @@ async function prepararContextoMotorEmpresa(empresaId) {
     resultado.dados_empresa[tabela] = tabela === 'empresa_qsa' ? gravarEmpresaQsa(linhas) : gravar(tabela, linhas);
   }
   try { require('./regras').invalidar(); } catch (_) { /* somente cache */ }
+  return resultado;
+}
+
+// Evidências apontam para movimentos fiscais. Elas só podem ser restauradas
+// depois que a reconciliação da empresa inseriu os documentos no SQLite do
+// worker; restaurá-las antes violaria FK e interromperia o job sem cálculo.
+async function restaurarEvidenciasMotorAposDocumentos(empresaId) {
+  if (!ativo()) throw new Error('A fonte compartilhada não está configurada para restaurar evidências do motor.');
+  const id = Number(empresaId); const remoto = supabase.admin();
+  const { data: candidatas, error: erroEmpresa } = await remoto.from('empresas').select('id,origem_local_id')
+    .or(`origem_local_id.eq.${id},id.eq.${id}`).limit(3);
+  if (erroEmpresa) throw new Error(`Empresa do worker: ${erroEmpresa.message}`);
+  const empresaRemota = (candidatas || []).find((empresa) => Number(empresa.origem_local_id || empresa.id) === id);
+  if (!empresaRemota) throw new Error(`Empresa compartilhada não identificada para restaurar evidências do job ${id}.`);
+  const mapaEmpresa = new Map([[String(empresaRemota.id), id]]); const resultado = {};
+  for (const tabela of TABELAS_MOTOR_APOS_DOCUMENTOS) {
+    const { data, error } = await remoto.from(tabela).select('*').eq('empresa_id', empresaRemota.id);
+    if (error) throw new Error(`${tabela}: ${error.message}`);
+    resultado[tabela] = gravar(tabela, normalizarEmpresaIdDoCache(tabela, data || [], mapaEmpresa));
+  }
   return resultado;
 }
 
@@ -1218,5 +1237,5 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
 }
 
 module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
-  baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, prepararContextoMotorEmpresa, filtrarOrfaosOperacionais,
+  baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, prepararContextoMotorEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };
