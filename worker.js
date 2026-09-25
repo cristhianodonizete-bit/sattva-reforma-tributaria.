@@ -8,11 +8,11 @@ const intervaloMs = Math.max(5_000, Number(process.env.WORKER_INTERVALO_MS) || 1
 
 async function ciclo() {
   if (!ativo) return;
-  const operacao = require('./src/services/operacaoCompartilhada');
   const fila = require('./src/services/processamentoCarteira');
-  // A fila compartilhada é a autoridade para assumir trabalho. A preparação
-  // local ocorre antes de qualquer claim e uma falha não descarta o job.
-  await operacao.sincronizarIncremental();
+  // Não sincronizar a carteira inteira ao iniciar o worker. A fila
+  // compartilhada entrega um job por vez e cada job prepara exclusivamente
+  // sua empresa e período; assim 100 mil documentos de uma empresa não
+  // viram carga-base para todos os processos.
   await fila.executar();
 }
 

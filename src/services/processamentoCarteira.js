@@ -11,7 +11,10 @@ const workerId = `${process.env.RENDER_INSTANCE_ID || process.env.HOSTNAME || 'l
 const id = () => crypto.randomUUID();
 const agora = () => new Date().toISOString();
 const proximaTentativa = (tentativas) => new Date(Date.now() + Math.min(60_000, 1_000 * (2 ** Math.max(0, Number(tentativas) - 1)))).toISOString();
-const concorrencia = () => Math.max(1, Math.min(8, Number(process.env.PROCESSAMENTO_CARTEIRA_CONCORRENCIA) || 2));
+// Cálculo fiscal pode carregar milhares de itens. Um job por vez é o padrão
+// conservador para a instância de 512 MB; aumento de concorrência é decisão
+// explícita de capacidade, nunca efeito de um deploy.
+const concorrencia = () => Math.max(1, Math.min(8, Number(process.env.PROCESSAMENTO_CARTEIRA_CONCORRENCIA) || 1));
 
 async function espelharJob(job) {
   if (!supabase.configurado()) return;

@@ -12,6 +12,7 @@ assert.match(fila, /const grupoId = String\(opcoes\.grupo_id \|\| id\(\)\)/);
 assert.match(fila, /grupo_id: grupoId/);
 assert.match(fila, /function resumirGrupo\(grupoId, jobs = \[\]\)/);
 assert.match(fila, /Acompanhamento compartilhado da fila/);
+assert.match(fila, /PROCESSAMENTO_CARTEIRA_CONCORRENCIA\) \|\| 1/);
 assert.match(fila, /require\('\.\/preparacaoMotor'\)\.preparar\(job\.empresa_id\)/);
 assert.match(api, /A conferência\n\s+\/\/ fiscal canônica ocorre no worker/);
 assert.match(fila, /if \(opcoes\.iniciarWorker === true\)/);
