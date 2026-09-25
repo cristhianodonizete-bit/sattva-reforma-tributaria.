@@ -86,6 +86,7 @@ const mapaOperacional = require('../services/mapaOperacional');
 const monitoramentoAtualizacoesReforma = require('../services/monitoramentoAtualizacoesReforma');
 const receitaOperacional = require('../services/receitaOperacional');
 const estadoLeituraEmpresa = require('../services/estadoLeituraEmpresa');
+const integridadeOperacional = require('../services/integridadeOperacional');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -565,6 +566,14 @@ router.get('/empresas/:id/modulos-entrega', async (req, res) => {
     ok(res, fechamentoModulos.listar(Number(req.params.id)));
   }
   catch (e) { erro(res, e); }
+});
+// Diagnóstico operacional explícito. É leitura pura: não sincroniza fonte,
+// não executa motor e não altera o fechamento ou qualquer fato fiscal.
+router.get('/empresas/:id/integridade-operacional', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    ok(res, integridadeOperacional.auditar(db, Number(req.params.id)));
+  } catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/modulos-entrega/:modulo/fechar', async (req, res) => {
   try {
