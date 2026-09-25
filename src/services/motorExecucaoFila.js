@@ -48,11 +48,12 @@ function statusLocal(empresaId) {
 }
 
 async function status(empresaId) {
-  let job = statusLocal(empresaId);
-  // O SQLite pode ser recriado pelo Render. Quando isso ocorrer, a tela não
-  // pode concluir que a execução "sumiu": a fila compartilhada é a fonte de
-  // verdade e permite reconstruir o acompanhamento sem disparar cálculo.
-  if (!job && supabase.configurado()) {
+  let job = null;
+  // O cache SQLite pode sobreviver a uma publicação ou ficar atrasado após
+  // reinício. A fila compartilhada é a fonte de verdade inclusive quando há
+  // uma cópia local; consultá-la primeiro impede a tela de manter um job
+  // concluído como "na fila".
+  if (supabase.configurado()) {
     const { data, error } = await supabase.admin().from('jobs_carteira')
       .select('id,empresa_id,competencia,tipo_job,status,tentativas,max_tentativas,erro,resultado,criado_em,iniciado_em,finalizado_em')
       .eq('empresa_id', Number(empresaId)).eq('tipo_job', TIPO)
@@ -60,11 +61,12 @@ async function status(empresaId) {
     if (error) throw new Error(`Status compartilhado do motor: ${error.message}`);
     job = data?.[0] || null;
   }
+  if (!job) job = statusLocal(empresaId);
   if (!job) return null;
   const foto = staging.consultar(job.id);
   const resultado = json(job.resultado);
   return { ...job, resultado, staging: foto,
-    estado: foto?.status || job.status, etapas: etapas(job, foto) };
+    estado: job.status, etapas: etapas(job, null) };
 }
 
 module.exports = { TIPO, solicitar, status, etapas };

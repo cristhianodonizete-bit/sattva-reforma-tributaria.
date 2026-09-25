@@ -7,6 +7,8 @@ assert.match(motor, /const TIPO = 'MOTOR_COMPLETO'/);
 assert.match(motor, /iniciarWorker: false/);
 assert.match(motor, /from\('jobs_carteira'\)/);
 assert.match(motor, /a fila compartilhada é a fonte de/i);
+assert.match(motor, /if \(supabase\.configurado\(\)\) \{/);
+assert.match(motor, /estado: job\.status, etapas: etapas\(job, null\)/);
 assert.match(fila, /payload: JSON\.stringify\(opcoes\.payload/);
 assert.match(fila, /const grupoId = String\(opcoes\.grupo_id \|\| id\(\)\)/);
 assert.match(fila, /grupo_id: grupoId/);
