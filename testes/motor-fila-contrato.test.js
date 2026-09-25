@@ -21,4 +21,7 @@ assert.match(fila, /if \(opcoes\.iniciarWorker === true\)/);
 assert.doesNotMatch(fila, /iniciarWorker !== false/);
 const rotaMotor = api.slice(api.indexOf("router.post('/empresas/:id/motor/executar'"), api.indexOf("router.get('/empresas/:id/motor/status'"));
 assert.doesNotMatch(rotaMotor, /processamentoCarteira\.executar/);
+const rotaProntidaoMotor = api.slice(api.indexOf("router.get('/empresas/:id/motor/prontidao'"), api.indexOf("router.post('/empresas/:id/motor/executar'"));
+assert.doesNotMatch(rotaProntidaoMotor, /prepararBaseParaMotor/);
+assert.match(rotaProntidaoMotor, /Prontidão exibida para execução do motor/);
 console.log('motor-fila-contrato: job deduplicado e consumo exclusivo do worker: OK');

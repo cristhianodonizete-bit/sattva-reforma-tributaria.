@@ -5558,8 +5558,12 @@ async function prepararBaseParaMotor(empresaId) {
 router.get('/empresas/:id/motor/prontidao', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
-    const base = await prepararBaseParaMotor(empresaId);
-    ok(res, { ...base.prontidao, reconciliacao_documental: { movimentos: base.reconciliacao.inseridos_ou_atualizados, removidos: base.reconciliacao.removidos, origem: base.reconciliacao.origem } });
+    // Esta rota é consultada repetidamente pela interface. Não pode iniciar
+    // preparação fiscal ou sincronização ampla: a conferência canônica é
+    // feita pelo worker imediatamente antes do cálculo. Aqui apenas usamos a
+    // prontidão durável, com a proteção incremental de curto prazo.
+    await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['prontidao'], () => prontidaoDados.sincronizarCompartilhado(empresaId), { motivo:'Prontidão exibida para execução do motor' });
+    ok(res, prontidaoDados.obter(empresaId));
   } catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/motor/executar', async (req, res) => {
