@@ -255,8 +255,13 @@ function projetarItem(item, ctx) {
   const regimeAdquirenteProjetado = empresaHibrida && sentido === 'entrada' ? 'simples_regime_regular' : regimeAdquirente;
 
   // ---------- 1. CLASSIFICAÇÃO (sempre antes do cálculo) ----------
-  const cls = classificar(item, { empresa: ctx.empresa, sentido, regimeContraparte: ctx.regimeContraparte,
-    perfilDestinatario: ctx.perfilDestinatario, elegibilidadeAnexoXi: ctx.elegibilidadeAnexoXi });
+  // A execução oficial não fornece classificação prévia. O campo opcional é
+  // exclusivo da comparação em sombra e permite provar que o reuso em memória
+  // produz o mesmo resultado antes de qualquer otimização persistente.
+  const cls = ctx.classificacaoPrecalculada
+    ? structuredClone(ctx.classificacaoPrecalculada)
+    : classificar(item, { empresa: ctx.empresa, sentido, regimeContraparte: ctx.regimeContraparte,
+      perfilDestinatario: ctx.perfilDestinatario, elegibilidadeAnexoXi: ctx.elegibilidadeAnexoXi });
   const contextoClassificatorio = contextoAposEquivalencia(item, cls, ctx.decisaoClassificatoria || null);
 
   // ---------- 2. BASE ECONÔMICA ----------
