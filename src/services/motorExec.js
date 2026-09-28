@@ -22,6 +22,7 @@ const revisaoBeneficiosFiscais = require('./revisaoBeneficiosFiscais');
 const motorCondicionalPisCofins = require('./motorCondicionalPisCofins');
 const receitaOperacional = require('./receitaOperacional');
 const motorReceitasSemDfe = require('./motorReceitasSemDfe');
+const telemetriaReusoClassificacao = require('./telemetriaReusoClassificacao');
 const registrarErroSombra = (m, oficial, erro) => {
   try { db.prepare(`INSERT INTO motor_condicional_sombra (movimento_id,empresa_id,produto_empresa_id,ncm,status_avaliacao,resultado_oficial,resultado_sombra,motivo) VALUES (?,?,?,?,?,?,?,?)`)
     .run(m.id || null,m.empresa_id,m.produto_empresa_id || null,m.ncm || null,'ERRO',JSON.stringify(oficial),null,`SOMBRA:${String(erro?.message || 'erro').slice(0,300)}`); } catch (_) { /* auditoria não interrompe o oficial */ }
@@ -175,6 +176,15 @@ function executar(empresaId, opcoes = {}) {
   // intactos; a mesma implementação do motor continua sendo utilizada.
   const empresa = opcoes.regimeEmpresa ? { ...empresaPersistida, regime: opcoes.regimeEmpresa } : empresaPersistida;
   const ano = Number(opcoes.ano) || 2027;
+  // Opt-in operacional: observar não é reutilizar. A chave é desligada por
+  // padrão para que nenhuma medição adicional aconteça sem autorização.
+  const observadorReuso = telemetriaReusoClassificacao.criar({
+    ativo: opcoes.telemetriaReuso === true || String(process.env.REUSO_CLASSIFICACAO_TELEMETRIA || '').toLowerCase() === 'true',
+  });
+  const projetarOficial = (item, contexto) => {
+    observadorReuso.registrar(item, contexto);
+    return motor.projetarItem(item, contexto);
+  };
   // Receitas sem DF-e não são movimentos fiscais, mas recebem a mesma
   // resolução versionada CBS/IBS antes das projeções e comparações de regime.
   const processamentoReceitasSemDfe = motorReceitasSemDfe.reprocessarEmpresa(db, empresaId);
@@ -222,7 +232,7 @@ function executar(empresaId, opcoes = {}) {
     const condicionalPis = motorCondicionalPisCofins.resolverTratamentoAtivo(m, { regime: regime || empresa.regime });
     if (condicionalPis.status === 'APLICAVEL') item.catalogo_fiscal = condicionalPis.catalogo_fiscal;
     else if (condicionalPis.status === 'INDETERMINADA') item.condicao_material_pendente = true;
-    let proj = motor.projetarItem(item, {
+    let proj = projetarOficial(item, {
       empresa, sentido: 'entrada', ano, regimeContraparte: regime, simplesEmitente,
       elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(empresa.cnpj), qsa: { status: 'PENDENTE', motivo: 'QSA do emitente fornecedor não disponível nesta versão.' } },
     });
@@ -302,7 +312,7 @@ function executar(empresaId, opcoes = {}) {
     const condicionalPis = motorCondicionalPisCofins.resolverTratamentoAtivo(m, { regime: empresa.regime });
     if (condicionalPis.status === 'APLICAVEL') item.catalogo_fiscal = condicionalPis.catalogo_fiscal;
     else if (condicionalPis.status === 'INDETERMINADA') item.condicao_material_pendente = true;
-    let proj = motor.projetarItem(item, {
+    let proj = projetarOficial(item, {
       empresa, sentido: 'saida', ano, regimeContraparte: regime,
       perfilDestinatario: dest.perfil, simplesEmitente: empresaSimples,
       elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(m.inscr_federal), qsa: qsaEmitente },
@@ -378,6 +388,7 @@ function executar(empresaId, opcoes = {}) {
         diferencaTotal: r2(t.filter((x) => !x.conferencia.confere)
           .reduce((s2, x) => s2 + Math.abs(x.conferencia.difTotal), 0)) };
     })(),
+    telemetria_reuso_classificacao: observadorReuso.resumo(),
   };
 
   if (opcoes.gravar !== false) gravar(empresaId, ano, resumo, entradas, saidas, {
