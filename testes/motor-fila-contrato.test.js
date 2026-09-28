@@ -19,6 +19,7 @@ assert.match(fila, /require\('\.\/preparacaoMotor'\)\.preparar\(job\.empresa_id\
 assert.match(api, /A conferência\n\s+\/\/ fiscal canônica ocorre no worker/);
 assert.match(fila, /if \(opcoes\.iniciarWorker === true\)/);
 assert.doesNotMatch(fila, /iniciarWorker !== false/);
+assert.match(fila, /telemetria_reuso_classificacao: resultado\.resumo\.telemetria_reuso_classificacao/, 'o job deve expor somente a telemetria observacional da execução');
 const rotaMotor = api.slice(api.indexOf("router.post('/empresas/:id/motor/executar'"), api.indexOf("router.get('/empresas/:id/motor/status'"));
 assert.doesNotMatch(rotaMotor, /processamentoCarteira\.executar/);
 const rotaProntidaoMotor = api.slice(api.indexOf("router.get('/empresas/:id/motor/prontidao'"), api.indexOf("router.post('/empresas/:id/motor/executar'"));

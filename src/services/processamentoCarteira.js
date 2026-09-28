@@ -157,7 +157,11 @@ async function processarUm() {
         motorStaging.atualizar(job.id, 'CONCLUIDO');
         await finalizar(job, 'CONCLUIDO', null, { itens: quantidade, execucao_id: execucao.id, periodo: preparado.periodo, reconciliacao_documental: {
           movimentos: preparado.reconciliacao.inseridos_ou_atualizados, removidos: preparado.reconciliacao.removidos, origem: preparado.reconciliacao.origem,
-        }, excecoes: excecoesMotor.resumo(job.empresa_id) });
+        }, excecoes: excecoesMotor.resumo(job.empresa_id),
+        // Métrica observacional; não é usada para promover fotografia nem para
+        // decidir classificação. Ela torna o experimento consultável no
+        // acompanhamento durável do próprio job.
+        telemetria_reuso_classificacao: resultado.resumo.telemetria_reuso_classificacao });
         continue;
       }
       bases.classificarMovimentos(job.empresa_id);
