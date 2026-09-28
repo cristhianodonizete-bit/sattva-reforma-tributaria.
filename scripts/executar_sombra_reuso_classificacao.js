@@ -13,11 +13,15 @@ const empresaId = Number(process.argv[2] || 38);
 const limite = Math.max(1, Number(process.argv[3] || 20000));
 const raiz = path.join(__dirname, '..');
 const origem = path.join(raiz, 'dados', 'reforma.db');
-const temporario = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-sombra-reuso-'));
-const destino = path.join(raiz, 'outputs', `sombra-reuso-classificacao-empresa-${empresaId}.json`);
+const diretorioExterno = process.env.SATTVA_SOMBRA_DIRETORIO || '';
+const temporario = diretorioExterno || fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-sombra-reuso-'));
+const apagarTemporario = !diretorioExterno;
+const destino = process.env.SATTVA_SOMBRA_DESTINO || path.join(raiz, 'outputs', `sombra-reuso-classificacao-empresa-${empresaId}.json`);
 
-if (!fs.existsSync(origem)) throw new Error(`Base local não encontrada: ${origem}`);
-fs.copyFileSync(origem, path.join(temporario, 'reforma.db'));
+if (!diretorioExterno) {
+  if (!fs.existsSync(origem)) throw new Error(`Base local não encontrada: ${origem}`);
+  fs.copyFileSync(origem, path.join(temporario, 'reforma.db'));
+}
 process.env.SATTVA_DADOS = temporario;
 
 const db = require('../src/db');
@@ -66,5 +70,5 @@ try {
   assert.equal(resultado.aprovado, true, 'A sombra encontrou divergências; nenhum reuso deve ser aplicado.');
 } finally {
   try { db.close(); } catch (_) { /* encerramento */ }
-  fs.rmSync(temporario, { recursive:true, force:true });
+  if (apagarTemporario) fs.rmSync(temporario, { recursive:true, force:true });
 }
