@@ -2294,30 +2294,50 @@ function sqlMovimentosFiscaisCanonicos() {
     FROM movimentos m WHERE m.empresa_id=?
   )`;
 }
-function listarDocumentosFiscais(empresaId, limite = 100, pagina = 1) {
+function filtroSqlDocumentosFiscais(filtros = {}) {
+  const condicoes = [], valores = [];
+  const competencia = String(filtros.competencia || '').trim();
+  const modelo = String(filtros.modelo || '').trim().toUpperCase();
+  const sentido = String(filtros.sentido || '').trim();
+  const busca = String(filtros.busca || '').trim().toLowerCase();
+  const minimo = filtros.valor_minimo === undefined || filtros.valor_minimo === '' ? null : Number(String(filtros.valor_minimo).replace(',','.'));
+  const maximo = filtros.valor_maximo === undefined || filtros.valor_maximo === '' ? null : Number(String(filtros.valor_maximo).replace(',','.'));
+  if (competencia) { condicoes.push('competencia=?'); valores.push(competencia); }
+  if (modelo) { condicoes.push("UPPER(COALESCE(NULLIF(modelo_documento_fiscal,''),'NAO_IDENTIFICADO'))=?"); valores.push(modelo); }
+  if (sentido) { condicoes.push('tipo=?'); valores.push(sentido); }
+  if (Number.isFinite(minimo)) { condicoes.push('valor>=?'); valores.push(minimo); }
+  if (Number.isFinite(maximo)) { condicoes.push('valor<=?'); valores.push(maximo); }
+  if (busca) { condicoes.push("LOWER(COALESCE(NULLIF(documento,''), NULLIF(chave,''), 'Lançamento #' || item_id) || ' ' || COALESCE(chave,'') || ' ' || COALESCE(parceiro,'')) LIKE ?"); valores.push(`%${busca}%`); }
+  return { sql:condicoes.length ? ` WHERE ${condicoes.join(' AND ')}` : '', valores };
+}
+function listarDocumentosFiscais(empresaId, limite = 100, pagina = 1, filtros = {}) {
   // A lista é uma leitura de tela. `limite=0` é reservado à exportação
   // explícita, que pode percorrer todo o conjunto sem forçar a interface a
   // transferir milhares de documentos de uma vez.
   const limiteNormalizado = Math.min(Math.max(Number(limite) || 0, 0), 10000);
   const paginaNormalizada = limiteNormalizado ? Math.max(1, Number(pagina) || 1) : 1;
   const deslocamento = limiteNormalizado ? (paginaNormalizada - 1) * limiteNormalizado : 0;
-  const base=sqlMovimentosFiscaisCanonicos();
-  const limiteSql = limiteNormalizado ? 'LIMIT ? OFFSET ?' : 'LIMIT -1 OFFSET 0';
-  const documentos=db.prepare(`${base} SELECT
+  const filtro=filtroSqlDocumentosFiscais(filtros);
+  const base=`${sqlMovimentosFiscaisCanonicos()}, documentos_agrupados AS (
+      SELECT
         CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END referencia,
         COALESCE(NULLIF(MAX(documento),''), NULLIF(MAX(chave),''), 'Lançamento #' || MIN(id)) documento,
         MIN(competencia) competencia, MIN(data_emissao) data_emissao, MAX(chave) chave, MAX(tipo) tipo, MAX(origem) origem,
         MAX(cfop) cfop, MAX(nbs) nbs, MAX(lc116) lc116, MAX(iss) iss, MAX(modelo_documento_fiscal) modelo_documento_fiscal,
         MAX(situacao_documento) situacao_documento, MAX(cancelamento_origem) cancelamento_origem,
         MAX(normalizacao_status) normalizacao_status, MAX(normalizacao_evidencia) normalizacao_evidencia,
-        MAX(nome) parceiro, MAX(inscr_federal) inscr_federal, COUNT(*) itens, SUM(COALESCE(valor,0)) valor,
+        MAX(nome) parceiro, MAX(inscr_federal) inscr_federal, MIN(id) item_id, COUNT(*) itens, SUM(COALESCE(valor,0)) valor,
         SUM(CASE WHEN NULLIF(ncm,'') IS NOT NULL THEN 1 ELSE 0 END) itens_produto,
         SUM(CASE WHEN lower(COALESCE(modelo_documento_fiscal,''))='nfse' THEN 1 ELSE 0 END) itens_servico,
         MAX(criado_em) criado_em
       FROM movimentos_canonicos WHERE linha_canonica=1
       GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END
-      ORDER BY COALESCE(MAX(data_emissao), MAX(competencia), MAX(criado_em)) DESC, MIN(id) DESC ${limiteSql}`).all(Number(empresaId), ...(limiteNormalizado ? [limiteNormalizado, deslocamento] : []));
-  const total=db.prepare(`${base} SELECT COUNT(*) c FROM (SELECT 1 FROM movimentos_canonicos WHERE linha_canonica=1 GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END)`).get(Number(empresaId));
+    )`;
+  const limiteSql = limiteNormalizado ? 'LIMIT ? OFFSET ?' : 'LIMIT -1 OFFSET 0';
+  const documentos=db.prepare(`${base} SELECT * FROM documentos_agrupados${filtro.sql}
+      ORDER BY COALESCE(data_emissao, competencia, criado_em) DESC, item_id DESC ${limiteSql}`)
+    .all(Number(empresaId), ...filtro.valores, ...(limiteNormalizado ? [limiteNormalizado, deslocamento] : []));
+  const total=db.prepare(`${base} SELECT COUNT(*) c FROM documentos_agrupados${filtro.sql}`).get(Number(empresaId), ...filtro.valores);
   return { documentos:documentos.map((d)=>({ ...d, operacao_receita: receitaOperacional.compoeReceita(d), motivo_operacao: receitaOperacional.motivo(d) })), total:total.c,
     paginacao: { pagina:paginaNormalizada, limite:limiteNormalizado || null, totalPaginas:limiteNormalizado ? Math.max(1, Math.ceil(total.c / limiteNormalizado)) : 1,
       temAnterior:limiteNormalizado ? paginaNormalizada > 1 : false, temProxima:limiteNormalizado ? deslocamento + documentos.length < total.c : false },
@@ -2364,7 +2384,9 @@ router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
     await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
     const limite=Math.min(Math.max(Number(req.query.limite) || 100, 1), 2000);
     const pagina=Math.max(1, Number(req.query.pagina) || 1);
-    ok(res,{ ...listarDocumentosFiscais(req.params.id,limite,pagina), leitura_estado: estadoLeituraEmpresa.estado(db, Number(req.params.id), ['documentos','cancelamentos']) });
+    const filtros={ competencia:req.query.competencia, modelo:req.query.modelo, sentido:req.query.sentido,
+      busca:req.query.busca, valor_minimo:req.query.valor_minimo, valor_maximo:req.query.valor_maximo };
+    ok(res,{ ...listarDocumentosFiscais(req.params.id,limite,pagina,filtros), leitura_estado: estadoLeituraEmpresa.estado(db, Number(req.params.id), ['documentos','cancelamentos']) });
   } catch (e) { erro(res,e); }
 });
 router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {

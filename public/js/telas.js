@@ -317,12 +317,15 @@ Telas.dados = async (el) => {
     consultaApuracoes ? A.api(`/empresas/${S.empresaId}/periodo-analisado`) : Promise.resolve({ periodo: null }),
     consultaProntidao ? A.api(`/empresas/${S.empresaId}/prontidao-dados`) : Promise.resolve({ etapas: [] }),
     consultaListaFiscal ? (() => {
-      const filtrosAtivos=Object.values(S.aba.documentosFiscais || {}).some((v)=>String(v || '').trim() !== '');
-      const pagina=filtrosAtivos ? 1 : Math.max(1, Number(S.cache.documentosFiscaisPagina) || 1);
-      // Os filtros atuais são aplicados na tela e precisam manter a janela
-      // ampla já existente. Sem filtro, a lista é paginada no servidor para
-      // que uma empresa grande não transfira milhares de documentos ao abrir.
-      return A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=${filtrosAtivos ? 2000 : 100}&pagina=${pagina}`);
+      const filtros=new URLSearchParams(S.aba.documentosFiscais || {});
+      const sentido=abaDocumentosFiscais === 'entradas' ? 'fornecedor' : 'cliente';
+      filtros.set('sentido', sentido);
+      // Competência, modelo, busca e valor são filtrados antes da paginação,
+      // no servidor. A operação depende do Mapa de CFOP e continua usando a
+      // regra fiscal existente; somente ela mantém a janela ampla temporária.
+      const filtroOperacao=['SIM','NAO'].includes(String(S.aba.documentosFiscais?.receita || '').toUpperCase());
+      const pagina=filtroOperacao ? 1 : Math.max(1, Number(S.cache.documentosFiscaisPagina) || 1);
+      return A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=${filtroOperacao ? 2000 : 100}&pagina=${pagina}&${filtros.toString()}`);
     })() : Promise.resolve({ documentos: [], total: 0, paginacao: {} }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`) : Promise.resolve({ movimentos: [], total: 0 }),
     consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? A.api(`/empresas/${S.empresaId}/referencias-vendas`) : Promise.resolve(null),
@@ -499,7 +502,7 @@ Telas.dados = async (el) => {
     </div>` : ''}
     ${consultaDocumentos && abaDocumentosCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosFiscais === 'entradas' ? 'ativa' : ''}" data-documentos-fiscais-aba="entradas">Entradas</button><button class="aba ${abaDocumentosFiscais === 'saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="saidas">Saídas</button><button class="aba ${abaDocumentosFiscais === 'fornecedores' ? 'ativa' : ''}" data-documentos-fiscais-aba="fornecedores">Fornecedores</button></div><div class="cartao" id="documentosFiscais" data-documentos-fiscais-painel="documentos">
       <div class="cabecalho-lista"><div><h2>${abaDocumentosFiscais === 'entradas' ? 'Documentos fiscais de entrada' : 'Documentos fiscais de saída'}</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p>${leituraDocumentos}</div><div style="display:flex;gap:8px;align-items:center"><button class="btn pq vazio" id="exportarDocumentosFiscais">Exportar Excel</button><span class="tag ${situacaoDocumentos === 'ATUALIZADO' ? 'c' : 'a'}">${situacaoDocumentos === 'ATUALIZADO' ? 'Atualizado' : situacaoDocumentos === 'ATUALIZACAO_PENDENTE' ? 'Atualizando' : 'Última fotografia válida'}</span><span class="tag">${documentosFiscaisFiltrados.length} de ${documentosFiscaisResposta.total || 0} documento(s)</span></div></div>
-      ${documentosFiscaisResposta.limitado ? `<div class="aviso info">${documentosFiscaisResposta.paginacao?.limite === 100 ? 'Lista paginada: use os controles abaixo para navegar pelos documentos.' : 'Mostrando os 2.000 documentos mais recentes; refine os filtros para localizar documentos fora desta janela.'}</div>` : ''}
+      ${documentosFiscaisResposta.limitado ? `<div class="aviso info">${documentosFiscaisResposta.paginacao?.limite === 100 ? 'Lista paginada: os filtros de competência, modelo, documento e valor foram aplicados antes da paginação.' : 'A regra “Compõe receita” usa o Mapa de CFOP e mantém uma janela de até 2.000 documentos. Refine os demais filtros para localizar documentos fora desta janela.'}</div>` : ''}
       <section class="documentos-filtros" aria-label="Filtros dos documentos fiscais">
         <div class="documentos-filtros-topo"><div><span class="olho">LOCALIZAR DOCUMENTOS</span><p>Combine os filtros e aplique quando terminar.</p></div><button class="btn vazio pq" id="limparFiltrosDocumentos">Limpar filtros</button></div>
         <div class="documentos-filtros-campos">
