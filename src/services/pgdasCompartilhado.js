@@ -62,13 +62,21 @@ function aplicarRestauracao(empresaLocalId, documentos, camposPorDocumento) {
     db.transaction(() => {
       for (const remotoBruto of documentos) {
         const remoto = { ...remotoBruto, conteudo_original:binarioDaFonte(remotoBruto.conteudo_original) };
-        const existente=db.prepare('SELECT id FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaLocalId, remoto.hash_sha256);
+        // O hash identifica a mesma evidência. Mas uma nova consulta oficial
+        // para a mesma competência pode entregar um PDF diferente (e mais
+        // recente). Nesse caso o SQLite não pode manter a versão antiga como
+        // a última da competência: o Supabase é a fonte canônica.
+        const existentePorHash = db.prepare('SELECT id FROM pgdas_documentos WHERE empresa_id=? AND hash_sha256=?').get(empresaLocalId, remoto.hash_sha256);
+        const existentePorCompetencia = remoto.competencia_detectada
+          ? db.prepare('SELECT id FROM pgdas_documentos WHERE empresa_id=? AND competencia_detectada=? ORDER BY id DESC LIMIT 1').get(empresaLocalId, remoto.competencia_detectada)
+          : null;
+        const existente = existentePorHash || existentePorCompetencia;
         // A versão anterior restaurava somente registros ausentes. Se um
         // metadado legado já existisse no SQLite sem o bytea, o PDF nunca era
         // reposto e o botão de reprocessar falhava. O Supabase é a fonte do
         // original: sempre atualizamos o binário e os metadados do cache.
         if (existente) {
-          db.prepare(`UPDATE pgdas_documentos SET nome_original=?,tipo_documento=?,mime_type=?,conteudo_original=?,competencia_detectada=?,data_processamento=?,metodo_extracao=?,status_processamento=? WHERE id=?`).run(remoto.nome_original,remoto.tipo_documento,remoto.mime_type,remoto.conteudo_original,remoto.competencia_detectada,remoto.data_processamento,remoto.metodo_extracao,remoto.status_processamento,existente.id);
+          db.prepare(`UPDATE pgdas_documentos SET nome_original=?,tipo_documento=?,mime_type=?,conteudo_original=?,hash_sha256=?,competencia_detectada=?,data_processamento=?,metodo_extracao=?,status_processamento=? WHERE id=?`).run(remoto.nome_original,remoto.tipo_documento,remoto.mime_type,remoto.conteudo_original,remoto.hash_sha256,remoto.competencia_detectada,remoto.data_processamento,remoto.metodo_extracao,remoto.status_processamento,existente.id);
           // A memória dos campos também é evidência durável. Sem repô-la, o
           // PDF reaparecia depois de um reinício, mas a composição tributária
           // do Perfil ficava vazia ou desatualizada.
@@ -162,4 +170,4 @@ async function obterOriginal(empresaLocalId, referencia) {
     return {...documento,conteudo_original:Buffer.from(documento.conteudo_original)};
   });
 }
-module.exports = { publicar, restaurar, localizarLocal, obterOriginal };
+module.exports = { publicar, restaurar, localizarLocal, obterOriginal, aplicarRestauracao };
