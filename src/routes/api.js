@@ -2373,6 +2373,14 @@ async function reconciliarDocumentosFiscaisParaLeitura(empresaId) {
     { motivo:'Documentos conferidos na fonte compartilhada' },
   );
 }
+// Ativação deliberadamente estreita. Sem as três variáveis, a rota histórica
+// permanece a única rota de tela. Isso permite reversão imediata no Render
+// sem tocar em dados nem em cálculo.
+function leituraDocumentalDiretaControlada(empresaId, competencia) {
+  return process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_ATIVA === 'true'
+    && Number(process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_ID) === Number(empresaId)
+    && String(process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_COMPETENCIA || '') === String(competencia || '');
+}
 router.get('/empresas/:id/estado-dados', (req, res) => {
   try {
     const recursos = String(req.query.recursos || '').split(',').filter(Boolean);
@@ -2381,6 +2389,12 @@ router.get('/empresas/:id/estado-dados', (req, res) => {
 });
 router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
   try {
+    if (leituraDocumentalDiretaControlada(req.params.id, req.query.competencia)) {
+      await garantirEmpresaPermitida(req, req.params.id);
+      const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(Number(req.params.id));
+      const leitura=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { limite:req.query.limite, pagina:req.query.pagina });
+      return ok(res,{ ...leitura, fonte:'SUPABASE_COMPARTILHADO_CONTROLADO', leitura_estado:[] });
+    }
     await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
     const limite=Math.min(Math.max(Number(req.query.limite) || 100, 1), 2000);
     const pagina=Math.max(1, Number(req.query.pagina) || 1);

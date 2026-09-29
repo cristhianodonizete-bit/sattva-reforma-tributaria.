@@ -43,7 +43,10 @@ async function listar(cnpj, filtros = {}, opcoes = {}) {
     params.push(l, offset);
     const dados = await db.query(`${base} ${filtro} ORDER BY COALESCE(data_emissao::text,competencia,criado_em::text) DESC,item_id DESC LIMIT $${params.length-1} OFFSET $${params.length}`, params);
     await db.query('ROLLBACK');
-    return { fonte:'SUPABASE_COMPARTILHADO_SOMBRA', documentos:dados.rows, total:count.rows[0].total, paginacao:{pagina:p,limite:l,totalPaginas:Math.max(1,Math.ceil(count.rows[0].total/l))} };
+    const total = count.rows[0].total;
+    return { fonte:'SUPABASE_COMPARTILHADO_SOMBRA', documentos:dados.rows, total,
+      limitado: dados.rows.length < total,
+      paginacao:{pagina:p,limite:l,totalPaginas:Math.max(1,Math.ceil(total/l)),temAnterior:p>1,temProxima:offset+dados.rows.length<total} };
   } catch (e) { try { await db.query('ROLLBACK'); } catch (_) {} throw e; }
   finally { await db.end(); }
 }

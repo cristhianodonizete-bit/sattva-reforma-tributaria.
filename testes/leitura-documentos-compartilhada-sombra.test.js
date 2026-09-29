@@ -13,6 +13,8 @@ assert.match(leitor, /m\.competencia=\$2/, 'competência é aplicada antes da de
 assert.match(rotaSombra, /garantirEmpresaPermitida/, 'rota sombra exige sessão autorizada');
 assert.match(rotaSombra, /documentosFiscaisCompartilhados/, 'rota sombra usa leitor isolado');
 assert.match(rotaNormal, /reconciliarDocumentosFiscaisParaLeitura/, 'rota normal permanece inalterada durante a comparação');
-assert.doesNotMatch(rotaNormal, /documentosFiscaisCompartilhados/, 'leitura direta ainda não foi ativada para usuários');
+assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_ATIVA === 'true'/, 'leitura direta exige ativação explícita');
+assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_ID/, 'ativação é limitada a uma empresa');
+assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_COMPETENCIA/, 'ativação é limitada a uma competência');
 
 console.log('leitura-documentos-compartilhada-sombra: isolamento e contrato somente-leitura: OK');
