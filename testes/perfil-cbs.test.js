@@ -9,7 +9,7 @@ const perfil = require('../src/services/perfilCbs');
 
 db.prepare("INSERT INTO empresas (id,cnpj,razao_social,regime) VALUES (1,'00000000000100','Empresa teste','lucro_real')").run();
 db.prepare("INSERT INTO motor_execucoes (id,empresa_id,ano,itens,resumo,criado_em) VALUES (1,1,2027,3,'{}','2026-08-24 12:00:00')").run();
-db.prepare("INSERT INTO movimentos (id,empresa_id,tipo,competencia,valor,documento,descricao,criado_em) VALUES (1,1,'cliente','2026-08',1000,'N1','Venda','2026-08-24 10:00:00'),(2,1,'fornecedor','2026-08',500,'N2','Compra','2026-08-24 10:00:00'),(3,1,'fornecedor','2026-08',200,'N3','Compra pendente','2026-08-24 10:00:00')").run();
+db.prepare("INSERT INTO movimentos (id,empresa_id,tipo,competencia,valor,documento,descricao,cfop,criado_em) VALUES (1,1,'cliente','2026-08',1000,'N1','Venda','5102','2026-08-24 10:00:00'),(2,1,'fornecedor','2026-08',500,'N2','Compra',NULL,'2026-08-24 10:00:00'),(3,1,'fornecedor','2026-08',200,'N3','Compra pendente',NULL,'2026-08-24 10:00:00')").run();
 const ins = db.prepare("INSERT INTO motor_resultados (empresa_id,movimento_id,execucao_id,sentido,ano,status_classificacao,status_credito,natureza,preco_atual,base_economica,cbs,credito_cbs,tratamento,detalhe) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)");
 ins.run(1,1,1,'saida',2027,'CLASSIFICADO','PROJETADO','CALCULADO',1000,900,82.89,0,'TRIBUTAÇÃO INTEGRAL','{}');
 ins.run(1,2,1,'entrada',2027,'CLASSIFICADO','PROJETADO','CALCULADO',500,450,41.45,41.45,'TRIBUTAÇÃO INTEGRAL','{}');
