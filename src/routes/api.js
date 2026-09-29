@@ -2506,6 +2506,18 @@ router.post('/empresas/:id/classificacao-fiscal-complementar/lote', async (req, 
 // Correção pontual da classificação do fato original. O campo do XML é
 // preservado; a revisão do usuário fica explícita no próprio lançamento e
 // não aciona o motor nem reprocessa a empresa inteira.
+// Esta leitura é usada pelo modal de pendências. Ela evita transferir milhares
+// de movimentos apenas para abrir um único fato já identificado pela fila.
+router.get('/empresas/:id/movimentos/:movimentoId', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const movimento = db.prepare(`SELECT id,empresa_id,tipo,nome,inscr_federal,descricao,ncm,nbs,lc116,cst,competencia,
+      valor,base_calculo,pis,cofins,iss,regime,origem,documento,chave,modelo_documento_fiscal,situacao_documento
+      FROM movimentos WHERE empresa_id=? AND id=?`).get(req.params.id, req.params.movimentoId);
+    if (!movimento) throw new Error('Lançamento não encontrado para a empresa selecionada.');
+    ok(res, { movimento });
+  } catch (e) { erro(res, e); }
+});
 router.put('/empresas/:id/movimentos/:movimentoId/classificacao', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);

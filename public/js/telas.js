@@ -629,9 +629,7 @@ Telas.dados = async (el) => {
     el.querySelectorAll('[data-abrir-pendencia]').forEach((botao) => botao.addEventListener('click', async () => {
       const pendencia = pendenciasDaAba.find((p) => String(p.movimento_id) === String(botao.dataset.abrirPendencia));
       if (!pendencia) return;
-      const tipo = pendencia.sentido === 'saida' ? 'cliente' : 'fornecedor';
-      const { movimentos: lista } = await A.api(`/empresas/${S.empresaId}/movimentos?tipo=${tipo}&limite=5000`);
-      const m = lista.find((x) => Number(x.id) === Number(pendencia.movimento_id));
+      const { movimento: m } = await A.api(`/empresas/${S.empresaId}/movimentos/${encodeURIComponent(pendencia.movimento_id)}`);
       if (!m) { A.toast('O lançamento não está disponível para a empresa selecionada.', 'erro'); return; }
       A.modal({ titulo: `Lançamento #${m.id}`, descricao: 'Conferência do fato original. A pendência não altera os valores do lançamento.', confirmar: 'Salvar classificação',
         corpo: `<div class="aviso atencao"><b>${A.esc(pendencia.dimensao)} · ${A.esc(pendencia.status)}</b><br>${A.esc(pendencia.causa)}<div class="mini" style="margin-top:6px"><b>Ação:</b> ${A.esc(pendencia.acao)}<br><b>Fonte mínima:</b> ${A.esc(pendencia.fonte_minima)}</div></div>` +
