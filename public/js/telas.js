@@ -1223,9 +1223,10 @@ Telas.perfil = async (el) => {
   // Para o Simples Nacional, a segregação declarada no PGDAS é a fonte
   // tributária correta desta visão. Não é seguro tentar transformar um XML em
   // monofásico, alíquota zero ou isento quando o próprio PGDAS não o separou.
-  // Cada bloco só entra após a validação matemática do documento PGDAS.
+  // A confirmação do documento PGDAS torna a segregação declarada visível.
+  // A reprodução matemática é exibida como conferência, nunca como filtro.
   const agruparSegregacaoSimples = (linhas) => [...linhas
-    .filter((x) => x.status === 'VALIDADO')
+    .filter((x) => x.status_confirmacao === 'CONFIRMADO_PGDAS')
     .reduce((mapa, x) => {
       const chave = `${x.anexo || 'SEM_ANEXO'}|${x.descricao_bloco || 'Sem descrição'}`;
       const atual = mapa.get(chave) || {
@@ -1234,19 +1235,21 @@ Telas.perfil = async (el) => {
         receita: 0,
         pis_cofins: 0,
         competencias: new Set(),
+        competencias_requerem_revisao: new Set(),
       };
       atual.receita += Number(x.receita_pgdas) || 0;
       atual.pis_cofins += (Number(x.pgdas_pis) || 0) + (Number(x.pgdas_cofins) || 0);
       atual.competencias.add(x.competencia);
+      if (x.status_reproducao !== 'CONFERE') atual.competencias_requerem_revisao.add(x.competencia);
       mapa.set(chave, atual);
       return mapa;
     }, new Map()).values()]
-    .map((x) => ({ ...x, competencias: [...x.competencias].sort() }))
+    .map((x) => ({ ...x, competencias: [...x.competencias].sort(), competencias_requerem_revisao: [...x.competencias_requerem_revisao].sort() }))
     .sort((a, b) => b.receita - a.receita);
   const segregacaoSimples = agruparSegregacaoSimples(composicaoPisCofinsPgdas);
   const segregacaoSimplesHistorico = agruparSegregacaoSimples(composicaoPisCofinsPgdasHistorico);
   const resumoPgdasHistorico = composicaoPisCofinsPgdasHistorico
-    .filter((x) => x.status === 'VALIDADO')
+    .filter((x) => x.status_confirmacao === 'CONFIRMADO_PGDAS')
     .reduce((total, x) => ({
       receita: total.receita + (Number(x.receita_pgdas) || 0),
       pis: total.pis + (Number(x.pgdas_pis) || 0),
@@ -1365,7 +1368,9 @@ Telas.perfil = async (el) => {
         { t:'Receita PGDAS', num:true, r:x=>A.moeda(x.receita) },
         { t:'PIS/Cofins no PGDAS', num:true, r:x=>A.moeda(x.pis_cofins) },
         { t:'Competências', r:x=>`${x.competencias.length} competência(s)<div class="mini">${A.esc(x.competencias.join(', '))}</div>` },
-        { t:'Situação', r:()=>'<span class="tag c">Confirmada no PGDAS</span>' },
+        { t:'Situação', r:x=>x.competencias_requerem_revisao.length
+          ? `<span class="tag a">Confirmada; conferência pendente</span><div class="mini">${A.esc(x.competencias_requerem_revisao.join(', '))}</div>`
+          : '<span class="tag c">Confirmada no PGDAS</span>' },
       ], segregacaoSimples, { vazio:'Nenhuma segregação PGDAS confirmada foi encontrada no período analisado. Envie e confirme as declarações PGDAS para exibir a composição.' }) : A.tabela([
         { t:'Tratamento', r:x=>`<b>${A.esc(x.nome)}</b>` },
         { t:'Receita', num:true, r:x=>x.receita === null ? 'NÃO IDENTIFICADA' : A.moeda(x.receita) },
@@ -1382,7 +1387,9 @@ Telas.perfil = async (el) => {
         { t:'Receita PGDAS', num:true, r:x=>A.moeda(x.receita) },
         { t:'PIS/Cofins no PGDAS', num:true, r:x=>A.moeda(x.pis_cofins) },
         { t:'Competências', r:x=>`${x.competencias.length} competência(s)<div class="mini">${A.esc(x.competencias.join(', '))}</div>` },
-        { t:'Situação', r:()=>'<span class="tag n">Fora do período atual</span>' },
+        { t:'Situação', r:x=>x.competencias_requerem_revisao.length
+          ? `<span class="tag a">Confirmada; conferência pendente</span><div class="mini">${A.esc(x.competencias_requerem_revisao.join(', '))}</div>`
+          : '<span class="tag n">Fora do período atual</span>' },
       ], segregacaoSimplesHistorico)}</div>` : ''}
       <p class="mini" style="margin-top:12px">A ausência de detalhe não é presumida como tributação normal. O detalhamento por operação é analisado nas Cadeias de Fornecedores e Clientes.</p>
     </div>

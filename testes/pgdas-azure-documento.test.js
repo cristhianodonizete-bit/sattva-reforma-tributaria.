@@ -1,6 +1,7 @@
 const assert = require('assert');
 const sqlite = require('../src/sqlite');
 const pgdas = require('../src/services/pgdasDocumentoIa');
+const perfilHistorico = require('../src/services/perfilTributarioHistorico');
 const r2 = (v) => Math.round((Number(v) + Number.EPSILON) * 10000) / 10000;
 
 const db = sqlite.abrir(':memory:');
@@ -105,6 +106,17 @@ assert.equal(confirmado.status_processamento,'VALIDADO_USUARIO');
 const perfilConfirmado=db.prepare('SELECT pis,cofins FROM perfil_tributario WHERE empresa_id=1 AND competencia=?').get('2026-06');
 assert.equal(perfilConfirmado.pis,387.18, 'Perfil recebe PIS efetivamente apurado no PGDAS validado');
 assert.equal(perfilConfirmado.cofins,1784.61, 'Perfil recebe COFINS efetivamente apurada no PGDAS validado');
+
+// Um PGDAS confirmado não pode sumir da segregação só porque a reprodução
+// matemática posterior divergiu. A divergência continua sinalizada, mas a
+// declaração permanece visível e auditável.
+const blocosComDivergencia = JSON.parse(db.prepare("SELECT valor_extraido FROM pgdas_documento_campos WHERE documento_id=? AND campo='revenue_blocks'").get(doc.documento_id).valor_extraido);
+blocosComDivergencia[0].taxes.pis += 1;
+db.prepare("UPDATE pgdas_documento_campos SET valor_extraido=? WHERE documento_id=? AND campo='revenue_blocks'").run(JSON.stringify(blocosComDivergencia), doc.documento_id);
+const composicaoConfirmada = perfilHistorico.montarComposicaoPisCofinsPgdas(db, 1, [db.prepare("SELECT * FROM perfil_tributario WHERE empresa_id=1 AND competencia='2026-06'").get()], () => true);
+assert.equal(composicaoConfirmada.length, 4, 'todos os blocos declarados permanecem visíveis');
+assert.ok(composicaoConfirmada.every((x) => x.status_confirmacao === 'CONFIRMADO_PGDAS'));
+assert.ok(composicaoConfirmada.every((x) => x.status_reproducao === 'REQUER_REVISAO'));
 
 // Uma divergência do PGDAS precisa ficar exposta, mas não pode inutilizar a
 // memória documental quando Anexo/faixa/alíquotas já são determináveis.

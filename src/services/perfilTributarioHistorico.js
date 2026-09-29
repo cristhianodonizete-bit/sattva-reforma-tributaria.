@@ -69,17 +69,27 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio, opco
       receitas_sem_dfe: base.receitas_sem_dfe || [],
     });
     const perfil = perfilPorCompetencia.get(competencia) || {};
-    for (const bloco of validacao.blocos || []) {
-      const regra = bloco.calculation || {}, aceite = bloco.aceite_tributario || {};
-      linhas.push({ competencia, documento: documento.nome_original, status: validacao.validada ? 'VALIDADO' : 'REVISAR',
+    // A confirmação humana torna o documento PGDAS uma fonte declarada. A
+    // reprodução matemática é uma conferência posterior, não uma condição
+    // para esconder a segregação que foi efetivamente declarada. Em especial,
+    // `validarRegraBlocos` pode parar antes de montar a memória quando encontra
+    // uma divergência; por isso a listagem parte sempre dos blocos extraídos.
+    for (const blocoDeclarado of blocos) {
+      const blocoValidado = (validacao.blocos || []).find((x) => x.description_raw === blocoDeclarado.description_raw
+        && Number(x.revenue_amount) === Number(blocoDeclarado.revenue_amount));
+      const regra = blocoValidado?.calculation || {}, aceite = blocoValidado?.aceite_tributario || {};
+      linhas.push({ competencia, documento: documento.nome_original,
+        status_confirmacao: 'CONFIRMADO_PGDAS',
+        status_reproducao: validacao.validada ? 'CONFERE' : 'REQUER_REVISAO',
+        motivo_reproducao: validacao.motivo || null,
         regime_apuracao: String(bruto.regime_apuracao || 'NAO_IDENTIFICADO').toUpperCase(),
         rpa_competencia: bruto.rpa_competencia == null ? null : numero(bruto.rpa_competencia),
         rpa_caixa: bruto.rpa_caixa == null ? null : numero(bruto.rpa_caixa),
-        descricao_bloco: bloco.description_raw, receita_pgdas: numero(bloco.revenue_amount), receita_competencia: (calculoCompetencia?.memoria || []).find((x) => x.anexo === bloco.anexo)?.receita_competencia ?? null,
+        descricao_bloco: blocoDeclarado.description_raw, receita_pgdas: numero(blocoDeclarado.revenue_amount), receita_competencia: (calculoCompetencia?.memoria || []).find((x) => x.anexo === blocoDeclarado.anexo)?.receita_competencia ?? null,
         receita_competencia_total: calculoCompetencia?.receita_competencia_total ?? null,
         receita_competencia_vinculada: calculoCompetencia?.receita_competencia_vinculada ?? null,
         receita_competencia_sem_anexo: calculoCompetencia?.receita_competencia_sem_anexo ?? null,
-        anexo: aceite.anexo, rbt12: aceite.rbt12, faixa: aceite.faixa, aliquota_nominal: aceite.aliquota_nominal,
+        anexo: aceite.anexo || blocoDeclarado.anexo || null, rbt12: aceite.rbt12, faixa: aceite.faixa, aliquota_nominal: aceite.aliquota_nominal,
         parcela_deduzir: aceite.parcela_deduzir, simples_effective_rate: aceite.aliquota_efetiva_simples,
         pis_distribution_percentage: aceite.pis_distribution_percentage, pis_effective_rate: aceite.pis_effective_rate,
         cofins_distribution_percentage: aceite.cofins_distribution_percentage, cofins_effective_rate: aceite.cofins_effective_rate,
