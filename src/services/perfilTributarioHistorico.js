@@ -244,13 +244,19 @@ function consolidar(db, empresaId, opcoes = {}) {
   const periodo = tabelaExiste(db, 'empresa_periodo_analisado')
     ? db.prepare('SELECT competencia_inicio,competencia_fim FROM empresa_periodo_analisado WHERE empresa_id=?').get(empresaId) : null;
   const noExercicio = (competencia) => !periodo || (competencia >= periodo.competencia_inicio && competencia <= periodo.competencia_fim);
+  // As telas exibem apenas o exercício analisado. Aplicar a mesma janela na
+  // consulta evita carregar anos inteiros para depois descartá-los em memória;
+  // não muda fatos, cálculos ou a regra de quais competências são exibidas.
+  const filtroPeriodo = periodo ? ' AND competencia>=? AND competencia<=?' : '';
+  const parametrosPeriodo = periodo ? [empresaId, periodo.competencia_inicio, periodo.competencia_fim] : [empresaId];
 
-  const perfis = db.prepare('SELECT * FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,\'\')<>\'\' ORDER BY competencia').all(empresaId).filter((x) => noExercicio(x.competencia));
-  const folhas = db.prepare('SELECT * FROM folhas_pagamento_competencias WHERE empresa_id=?').all(empresaId).filter((x) => noExercicio(x.competencia));
-  const margens = db.prepare('SELECT * FROM margens_operacionais_premissas WHERE empresa_id=?').all(empresaId);
-  const todasReceitasSemDfe = db.prepare('SELECT * FROM receitas_sem_dfe WHERE empresa_id=?').all(empresaId);
-  const receitasSemDfe = todasReceitasSemDfe.filter((x) => noExercicio(x.competencia));
-  const cbs = db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=?').all(empresaId);
+  const perfis = db.prepare(`SELECT * FROM perfil_tributario WHERE empresa_id=? AND COALESCE(competencia,'')<>''${filtroPeriodo} ORDER BY competencia`).all(...parametrosPeriodo);
+  const folhas = db.prepare(`SELECT * FROM folhas_pagamento_competencias WHERE empresa_id=?${filtroPeriodo}`).all(...parametrosPeriodo);
+  const margens = periodo
+    ? db.prepare('SELECT * FROM margens_operacionais_premissas WHERE empresa_id=? AND periodo_inicio<=? AND periodo_fim>=?').all(empresaId, periodo.competencia_fim, periodo.competencia_inicio)
+    : db.prepare('SELECT * FROM margens_operacionais_premissas WHERE empresa_id=?').all(empresaId);
+  const receitasSemDfe = db.prepare(`SELECT * FROM receitas_sem_dfe WHERE empresa_id=?${filtroPeriodo}`).all(...parametrosPeriodo);
+  const cbs = db.prepare(`SELECT * FROM perfil_cbs_competencias WHERE empresa_id=?${filtroPeriodo}`).all(...parametrosPeriodo);
   const documentosPorCompetencia = new Map();
   const composicaoReceita = new Map();
   // Bases antigas podem ainda não ter recebido as colunas fiscais mais
@@ -316,7 +322,8 @@ function consolidar(db, empresaId, opcoes = {}) {
   const apuracoes = tabelaExiste(db, 'pis_cofins_apuracoes_historicas')
     ? db.prepare(`SELECT a.*, d.nome_original, d.hash_sha256 FROM pis_cofins_apuracoes_historicas a
       JOIN pis_cofins_apuracao_documentos d ON d.id=a.documento_id
-      WHERE a.empresa_id=? AND COALESCE(a.competencia,'')<>'' ORDER BY a.id DESC`).all(empresaId).filter((x) => noExercicio(x.competencia))
+      WHERE a.empresa_id=? AND COALESCE(a.competencia,'')<>''${periodo ? ' AND a.competencia>=? AND a.competencia<=?' : ''} ORDER BY a.id DESC`)
+      .all(...(periodo ? [empresaId, periodo.competencia_inicio, periodo.competencia_fim] : [empresaId]))
     : [];
 
   const porCompetencia = new Map();
