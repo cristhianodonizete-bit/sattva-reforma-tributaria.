@@ -2411,6 +2411,19 @@ router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
     res.setHeader('Content-Disposition',`attachment; filename="documentos-fiscais-${req.params.id}.xlsx"`); res.send(arquivo);
   } catch(e) { erro(res,e); }
 });
+// Diagnóstico controlado: não é usado pela interface e não toca a projeção
+// SQLite. Permite comparar a futura leitura direta antes de qualquer ativação.
+router.get('/empresas/:id/documentos-fiscais/sombra-compartilhada', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresa = db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(Number(req.params.id));
+    if (!empresa?.cnpj) throw new Error('Empresa não encontrada para a leitura documental compartilhada.');
+    const leitura = await require('../services/documentosFiscaisCompartilhados').listar(empresa.cnpj, {
+      competencia:req.query.competencia, modelo:req.query.modelo, sentido:req.query.sentido, busca:req.query.busca,
+    }, { limite:req.query.limite, pagina:req.query.pagina });
+    ok(res, leitura);
+  } catch (e) { erro(res, e); }
+});
 router.get('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
   try {
     await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
