@@ -72,11 +72,17 @@ async function listar(cnpj, filtros = {}, opcoes = {}) {
       FROM canonicos WHERE linha=1 GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:'||chave ELSE 'movimento:'||id::text END
     ) SELECT * FROM docs`;
     const filtro = filtrosSql({ ...filtros, competencia: null }, params);
-    const count = await db.query(`SELECT COUNT(*)::int total FROM (${base}) d ${filtro}`, params);
+    // Resultado e página compartilham a mesma CTE: uma ida ao PostgreSQL
+    // devolve a página e seu total. Antes eram duas consultas sequenciais
+    // (COUNT e SELECT), cujo tempo de rede dominava a leitura aquecida.
     params.push(l, offset);
-    const dados = await db.query(`${base} ${filtro} ORDER BY COALESCE(data_emissao::text,competencia,criado_em::text) DESC,item_id DESC LIMIT $${params.length-1} OFFSET $${params.length}`, params);
+    const dados = await db.query(`WITH resultado AS (${base} ${filtro}), pagina AS (
+      SELECT * FROM resultado
+      ORDER BY COALESCE(data_emissao::text,competencia,criado_em::text) DESC,item_id DESC
+      LIMIT $${params.length-1} OFFSET $${params.length}
+    ) SELECT pagina.*, (SELECT COUNT(*)::int FROM resultado) total FROM pagina`, params);
     await db.query('ROLLBACK');
-    const total = count.rows[0].total;
+    const total = dados.rows.length ? dados.rows[0].total : 0;
     return { fonte:'SUPABASE_COMPARTILHADO_SOMBRA', documentos:dados.rows, total,
       limitado: dados.rows.length < total,
       paginacao:{pagina:p,limite:l,totalPaginas:Math.max(1,Math.ceil(total/l)),temAnterior:p>1,temProxima:offset+dados.rows.length<total} };

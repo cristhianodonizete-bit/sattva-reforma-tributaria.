@@ -12,6 +12,8 @@ assert.match(leitor, /ROLLBACK/, 'leitor direto encerra a leitura sem persistir 
 assert.match(leitor, /new Pool\(/, 'leitor direto reutiliza conexões em vez de abrir uma por filtro');
 assert.match(leitor, /max:4/, 'pool direto mantém concorrência limitada');
 assert.match(leitor, /db\.release\(\)/, 'conexão é devolvida ao pool ao fim da leitura');
+assert.match(leitor, /WITH resultado AS/, 'total e página são obtidos na mesma consulta');
+assert.doesNotMatch(leitor, /const count = await db\.query/, 'leitor não faz uma consulta separada apenas para contar');
 assert.doesNotMatch(leitor, /\b(INSERT|UPDATE|DELETE|CREATE|ALTER|DROP)\b/i, 'leitor direto não contém comandos de escrita ou estrutura');
 assert.match(leitor, /m\.competencia=\$2/, 'competência é aplicada antes da deduplicação');
 assert.match(leitor, /valor >= \$\$\{parametros\.length\}/, 'valor mínimo é filtrado na fonte antes da paginação');
