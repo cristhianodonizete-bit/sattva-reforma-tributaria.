@@ -1813,6 +1813,41 @@ router.get('/empresas/:id/perfil-cbs/:competencia/detalhes', (req, res) => {
   try { ok(res, { operacoes: perfilCbs.detalhes(req.params.id, req.params.competencia, { sentido: req.query.sentido }) }); }
   catch (e) { erro(res, e); }
 });
+// Rastreabilidade de crédito: lê exclusivamente a última fotografia já
+// materializada pelo motor. Não chama o motor, não reconcilia documentos e
+// não escreve em nenhuma tabela; é uma visão paginada para conferência.
+router.get('/empresas/:id/creditos-cbs/entradas', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId=Number(req.params.id);
+    const execucao=motorExec.ultimaExecucao(empresaId);
+    if (!execucao) return ok(res,{ operacoes:[], total:0, total_credito_cbs:0, paginacao:{ pagina:1, limite:100, totalPaginas:1, temAnterior:false, temProxima:false }, leitura:'Sem fotografia do motor materializada.' });
+    const competencia=String(req.query.competencia || '').trim();
+    const limite=Math.min(Math.max(Number(req.query.limite) || 100, 1), 200);
+    const pagina=Math.max(Number(req.query.pagina) || 1, 1);
+    const parametros=[empresaId, execucao.id];
+    let competenciaSql='';
+    if (competencia) { parametros.push(competencia); competenciaSql=' AND m.competencia=?'; }
+    const base=`FROM motor_resultados r
+      JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
+      WHERE r.empresa_id=? AND r.execucao_id=? AND r.sentido='entrada'
+        AND COALESCE(r.credito_cbs,0)>0${competenciaSql}`;
+    const totais=db.prepare(`SELECT COUNT(*) total, COALESCE(SUM(r.credito_cbs),0) total_credito_cbs ${base}`).get(...parametros);
+    const offset=(pagina-1)*limite;
+    const linhas=db.prepare(`SELECT m.id movimento_id,m.competencia,m.documento,m.chave,m.descricao,m.codigo_produto,m.ncm,m.nbs,m.lc116,m.nome fornecedor,m.inscr_federal fornecedor_cnpj,
+      m.valor valor_entrada,r.base_economica,r.credito_cbs,r.tipo_credito,r.modalidade_credito,r.status_credito,r.status_credito_determinacao,r.natureza,r.cst,r.cclasstrib,r.tratamento,r.regra_vencedora,r.motivo_intervencao,r.detalhe
+      ${base} ORDER BY m.competencia DESC,r.credito_cbs DESC,r.id DESC LIMIT ? OFFSET ?`).all(...parametros,limite,offset)
+      .map((x) => {
+        let detalhe={}; try { detalhe=JSON.parse(x.detalhe || '{}'); } catch (_) { /* rastreabilidade permanece disponível mesmo com memória antiga inválida */ }
+        return { ...x, detalhe:undefined,
+          status_credito:x.status_credito_determinacao || x.status_credito || 'INDETERMINADO',
+          motivo_credito:detalhe.credito?.motivo || x.motivo_intervencao || x.regra_vencedora || 'Crédito registrado na fotografia materializada do motor.' };
+      });
+    ok(res,{ operacoes:linhas, total:totais.total, total_credito_cbs:Number(totais.total_credito_cbs || 0),
+      execucao_id:execucao.id, leitura:'Leitura da última fotografia materializada; nenhum cálculo foi executado.',
+      paginacao:{ pagina, limite, totalPaginas:Math.max(1,Math.ceil(totais.total/limite)), temAnterior:pagina>1, temProxima:offset+linhas.length<totais.total } });
+  } catch (e) { erro(res, e); }
+});
 
 function analisarPerfil(empresa, linhas) {
   const s = (f) => linhas.reduce((a, l) => a + (Number(l[f]) || 0), 0);

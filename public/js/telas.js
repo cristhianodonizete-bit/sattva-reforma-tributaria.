@@ -1495,7 +1495,14 @@ async function telaCadeia(el, tipo) {
   const mostrarBeneficios = !eForn && abaCliente === 'beneficios';
   const paginaRastreabilidade = Math.max(1, Number(S.cache[`cadeia_pagina_${tipo}`]) || 1);
   const paginaParceiros = Math.max(1, Number(S.cache[`cadeia_parceiros_${tipo}`]) || 1);
-  const { analise, pendenciasReferencias = [] } = await A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidade ? 1 : 0}&beneficios=${mostrarBeneficios ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100&pagina_parceiros=${paginaParceiros}&limite_parceiros=100`);
+  const paginaCreditosCbs=Math.max(1, Number(S.cache.creditosCbsEntradasPagina) || 1);
+  const [cadeiaResposta, creditosCbsResposta] = await Promise.all([
+    A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidade ? 1 : 0}&beneficios=${mostrarBeneficios ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100&pagina_parceiros=${paginaParceiros}&limite_parceiros=100`),
+    // A cadeia consolidada continua disponível mesmo se a visão auxiliar de
+    // rastreabilidade não puder ser lida em uma fotografia antiga.
+    eForn ? A.api(`/empresas/${S.empresaId}/creditos-cbs/entradas?pagina=${paginaCreditosCbs}&limite=100`).catch(() => ({ operacoes:[], paginacao:{}, leitura:'Rastreabilidade de crédito indisponível nesta fotografia.' })) : Promise.resolve({ operacoes:[], paginacao:{} }),
+  ]);
+  const { analise, pendenciasReferencias = [] } = cadeiaResposta;
   const t = analise.totais;
   const ultimo = analise.cenarios[analise.cenarios.length - 1] || {};
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
@@ -1551,6 +1558,20 @@ async function telaCadeia(el, tipo) {
       <p class="desc">100% = o fornecedor repassa integralmente a desoneração/oneração ao preço. 0% = preço congelado.</p>
       <input type="range" min="0" max="1" step="0.1" value="${rep}" id="repasse">
       <div style="display:flex;justify-content:space-between" class="mini"><span>0% (preço congelado)</span><b class="mono">${A.pct(rep, 0)}</b><span>100% (repasse total)</span></div>
+    </div>` : ''}
+    ${eForn ? `<div class="cartao" style="margin-top:16px"><h2>Entradas que geram crédito CBS</h2>
+      <p class="desc">Rastreabilidade da última fotografia materializada do motor. A tela apenas lê os resultados existentes: não importa, não recalcula e não altera documentos.</p>
+      <div class="grade g3" style="margin-top:12px">${A.kpi('Entradas com crédito', creditosCbsResposta.total || 0, 'itens com crédito CBS maior que zero')}${A.kpi('Crédito CBS identificado', A.moeda(creditosCbsResposta.total_credito_cbs || 0), 'soma da fotografia atual')}${A.kpi('Execução do motor', creditosCbsResposta.execucao_id ? `#${creditosCbsResposta.execucao_id}` : 'Não disponível', 'origem da leitura')}</div>
+      <p class="mini" style="margin-top:12px">${A.esc(creditosCbsResposta.leitura || '')}</p>
+      ${A.tabela([
+        { t:'Competência / documento', r:x=>`<b class="mono">${A.esc(x.documento || x.chave || 'Sem número')}</b><div class="mini">${A.esc(x.competencia || '—')}</div>` },
+        { t:'Fornecedor / item', r:x=>`${A.esc(x.fornecedor || 'Não identificado')}<div class="mini">${A.esc(x.descricao || 'Item sem descrição')}</div><div class="mini mono">${A.esc(x.codigo_produto || x.ncm || x.nbs || 'Sem código')}</div>` },
+        { t:'Entrada / base', num:true, r:x=>`${A.moeda(x.valor_entrada)}<div class="mini">Base: ${A.moeda(x.base_economica)}</div>` },
+        { t:'Crédito CBS', num:true, r:x=>`<b>${A.moeda(x.credito_cbs)}</b><div class="mini">${A.esc(x.tipo_credito || 'Regra geral')}</div>` },
+        { t:'Situação', r:x=>`<span class="tag ${String(x.status_credito).includes('PREMISSA') ? 'a' : 'c'}">${A.esc(x.status_credito)}</span><div class="mini">${A.esc(x.modalidade_credito || x.tratamento || '')}</div>` },
+        { t:'Motivo / regra', r:x=>`<span class="mini">${A.esc(x.motivo_credito || '—')}</span>` },
+      ], creditosCbsResposta.operacoes || [], { vazio:'Nenhuma entrada com crédito CBS maior que zero na fotografia atual.' })}
+      ${(() => { const p=creditosCbsResposta.paginacao || {}; return p.totalPaginas>1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">Página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-creditos-cbs-pagina="${p.pagina-1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-creditos-cbs-pagina="${p.pagina+1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
     ${!eForn ? `<div class="abas" style="margin-top:16px">
       <button class="${abaCliente === 'carteira' ? 'ativo' : ''}" data-aba-cliente="carteira">Carteira por perfil</button>
@@ -1675,6 +1696,9 @@ async function telaCadeia(el, tipo) {
   });
   el.querySelectorAll('[data-cadeia-parceiros]').forEach((botao) => {
     botao.onclick = () => { S.cache[`cadeia_parceiros_${tipo}`] = Number(botao.dataset.cadeiaParceiros) || 1; A.ir(tipo === 'fornecedor' ? 'fornecedores' : 'clientes'); };
+  });
+  el.querySelectorAll('[data-creditos-cbs-pagina]').forEach((botao) => {
+    botao.onclick = () => { S.cache.creditosCbsEntradasPagina=Number(botao.dataset.creditosCbsPagina) || 1; A.ir('fornecedores'); };
   });
   document.getElementById('corrigirDadosCadeia')?.addEventListener('click', () => {
     S.aba.dados = 'cliente'; S.aba.dadosMotor = 'atual'; A.ir('dados');
