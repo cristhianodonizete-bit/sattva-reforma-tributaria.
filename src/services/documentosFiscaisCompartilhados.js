@@ -51,8 +51,13 @@ async function listar(cnpj, filtros = {}, opcoes = {}) {
     const params = [empresa.rows[0].id];
     // Competência, quando informada, entra aqui, antes da deduplicação. A
     // invariável foi validada globalmente em auditoria read-only.
-    const ondeItens = filtros.competencia ? ` AND m.competencia=$2` : '';
-    if (filtros.competencia) params.push(String(filtros.competencia));
+    const condicoesItens=[];
+    if (filtros.competencia) { params.push(String(filtros.competencia)); condicoesItens.push(`m.competencia=$${params.length}`); }
+    // Auditoria pré-índice confirmou que nenhum documento canônico possui
+    // mais de um tipo. Assim, antecipar a aba (entrada/saída) mantém o mesmo
+    // resultado e permite ao PostgreSQL usar a terceira coluna do índice.
+    if (filtros.sentido) { params.push(String(filtros.sentido)); condicoesItens.push(`m.tipo=$${params.length}`); }
+    const ondeItens=condicoesItens.length ? ` AND ${condicoesItens.join(' AND ')}` : '';
     const base = `WITH canonicos AS (
       SELECT m.*,ROW_NUMBER() OVER (
         PARTITION BY CASE WHEN NULLIF(m.chave,'') IS NOT NULL THEN 'xml:'||m.chave||':'||COALESCE(m.item_numero::text,'__SEM_ITEM__') ELSE 'id:'||m.id::text END
@@ -74,7 +79,7 @@ async function listar(cnpj, filtros = {}, opcoes = {}) {
        SUM(CASE WHEN lower(COALESCE(modelo_documento_fiscal,''))='nfse' THEN 1 ELSE 0 END)::int itens_servico,MAX(criado_em) criado_em
       FROM canonicos WHERE linha=1 GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:'||chave ELSE 'movimento:'||id::text END
     ) SELECT * FROM docs`;
-    const filtro = filtrosSql({ ...filtros, competencia: null }, params);
+    const filtro = filtrosSql({ ...filtros, competencia: null, sentido: null }, params);
     // Resultado e página compartilham a mesma CTE: uma ida ao PostgreSQL
     // devolve a página e seu total. Antes eram duas consultas sequenciais
     // (COUNT e SELECT), cujo tempo de rede dominava a leitura aquecida.
