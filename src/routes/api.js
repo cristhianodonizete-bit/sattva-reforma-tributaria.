@@ -2418,8 +2418,24 @@ router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
 router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);
-    await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
-    const resultado=listarDocumentosFiscais(req.params.id,0);
+    const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(req.params.id));
+    let resultado;
+    if (leituraDocumentalDiretaControlada(empresa, req.query.competencia)) {
+      // Exportação explícita não deve reativar a reconciliação pesada da tela
+      // quando a leitura direta controlada já foi validada. Há um limite
+      // defensivo: acima dele a exportação assíncrona deverá ser usada, nunca
+      // uma planilha parcial ou uma sobrecarga silenciosa do Web Service.
+      const leitura=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { exportacao:true });
+      if (leitura.exportacao_limitada) throw new Error(`Exportação direta excede ${leitura.documentos.length} documentos; gere-a pelo fluxo assíncrono para preservar a navegação.`);
+      resultado={ documentos:leitura.documentos.map((d)=>({
+        ...d,
+        operacao_receita:receitaOperacional.compoeReceita(d),
+        motivo_operacao:receitaOperacional.motivo(d),
+      })) };
+    } else {
+      await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
+      resultado=listarDocumentosFiscais(req.params.id,0);
+    }
     const documentos=filtrarDocumentosFiscais(resultado.documentos,req.query);
     const linhas=documentos.map((d)=>({
       'Competência':d.competencia || '', 'Documento':d.documento || '', 'Chave fiscal':d.chave || '',

@@ -5,6 +5,7 @@ const leitor = fs.readFileSync(require.resolve('../src/services/documentosFiscai
 const api = fs.readFileSync(require.resolve('../src/routes/api'), 'utf8');
 const telas = fs.readFileSync(require.resolve('../public/js/telas'), 'utf8');
 const rotaNormal = api.slice(api.indexOf("router.get('/empresas/:id/documentos-fiscais'"), api.indexOf("router.get('/empresas/:id/documentos-fiscais/exportar'"));
+const rotaExportacao = api.slice(api.indexOf("router.get('/empresas/:id/documentos-fiscais/exportar'"), api.indexOf("router.get('/empresas/:id/documentos-fiscais/sombra-compartilhada'"));
 const rotaSombra = api.slice(api.indexOf("router.get('/empresas/:id/documentos-fiscais/sombra-compartilhada'"), api.indexOf("router.get('/empresas/:id/documentos-fiscais/:referencia'"));
 
 assert.match(leitor, /BEGIN READ ONLY/, 'leitor direto abre transação somente leitura');
@@ -20,6 +21,8 @@ assert.match(leitor, /valor >= \$\$\{parametros\.length\}/, 'valor mínimo é fi
 assert.match(leitor, /valor <= \$\$\{parametros\.length\}/, 'valor máximo é filtrado na fonte antes da paginação');
 assert.match(leitor, /normalizacao_evidencia/, 'a leitura direta preserva a evidência necessária à regra operacional');
 assert.match(leitor, /situacao_documento/, 'a leitura direta preserva o estado fiscal do documento');
+assert.match(leitor, /exportacao_limitada/, 'exportação direta nunca devolve planilha parcial silenciosamente');
+assert.match(leitor, /leitura_metricas/, 'leitor retorna telemetria de latência sem persistir documentos');
 assert.match(rotaSombra, /garantirEmpresaPermitida/, 'rota sombra exige sessão autorizada');
 assert.match(rotaSombra, /documentosFiscaisCompartilhados/, 'rota sombra usa leitor isolado');
 assert.match(rotaNormal, /reconciliarDocumentosFiscaisParaLeitura/, 'rota normal permanece inalterada durante a comparação');
@@ -28,6 +31,9 @@ assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_ID/, 'ativação é 
 assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_CNPJ/, 'a trava aceita CNPJ estável entre instâncias');
 assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_COMPETENCIA/, 'ativação é limitada a uma competência');
 assert.match(rotaNormal, /receitaOperacional\.compoeReceita\(d\)/, 'a operação usa a mesma regra da leitura histórica');
+assert.match(rotaExportacao, /leituraDocumentalDiretaControlada/, 'exportação direta respeita o mesmo escopo controlado da tela');
+assert.match(rotaExportacao, /exportacao_limitada/, 'exportação acima do limite é bloqueada em vez de truncada');
 assert.match(telas, /Leitura direta em validação/, 'a interface identifica o recorte em validação');
+assert.match(telas, /leitura_metricas/, 'a interface exibe telemetria da leitura controlada');
 
 console.log('leitura-documentos-compartilhada-sombra: isolamento e contrato somente-leitura: OK');

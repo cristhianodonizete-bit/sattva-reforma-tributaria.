@@ -23,6 +23,7 @@ function obterPool() {
 
 function limite(v) { return Math.min(Math.max(Number(v) || 100, 1), 100); }
 function pagina(v) { return Math.max(Number(v) || 1, 1); }
+function limiteExportacao() { return Math.min(Math.max(Number(process.env.LIMITE_EXPORTACAO_DOCUMENTOS_DIRETA) || 10000, 1), 50000); }
 
 function filtrosSql(f = {}, parametros) {
   const partes = [];
@@ -39,7 +40,9 @@ function filtrosSql(f = {}, parametros) {
 
 async function listar(cnpj, filtros = {}, opcoes = {}) {
   if (!process.env.SUPABASE_DB_URL) throw new Error('Fonte compartilhada indisponível para a leitura direta de documentos.');
-  const l = limite(opcoes.limite), p = pagina(opcoes.pagina), offset = (p - 1) * l;
+  const inicio=process.hrtime.bigint();
+  const exportacao=opcoes.exportacao === true;
+  const l = exportacao ? limiteExportacao() : limite(opcoes.limite), p = exportacao ? 1 : pagina(opcoes.pagina), offset = (p - 1) * l;
   const db = await obterPool().connect();
   try {
     await db.query('BEGIN READ ONLY');
@@ -83,7 +86,8 @@ async function listar(cnpj, filtros = {}, opcoes = {}) {
     ) SELECT pagina.*, (SELECT COUNT(*)::int FROM resultado) total FROM pagina`, params);
     await db.query('ROLLBACK');
     const total = dados.rows.length ? dados.rows[0].total : 0;
-    return { fonte:'SUPABASE_COMPARTILHADO_SOMBRA', documentos:dados.rows, total,
+    return { fonte:'SUPABASE_COMPARTILHADO_SOMBRA', documentos:dados.rows, total, exportacao_limitada:exportacao && total > dados.rows.length,
+      leitura_metricas:{ tempo_ms:Number((Number(process.hrtime.bigint()-inicio)/1e6).toFixed(1)), total_documentos:total, origem:'FONTE_COMPARTILHADA_DIRETA' },
       limitado: dados.rows.length < total,
       paginacao:{pagina:p,limite:l,totalPaginas:Math.max(1,Math.ceil(total/l)),temAnterior:p>1,temProxima:offset+dados.rows.length<total} };
   } catch (e) { try { await db.query('ROLLBACK'); } catch (_) {} throw e; }

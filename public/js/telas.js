@@ -337,10 +337,11 @@ Telas.dados = async (el) => {
   const documentosFiscais = documentosFiscaisResposta.documentos || [];
   const estadoDocumentos = documentosFiscaisResposta.leitura_estado || [];
   const leituraDiretaControlada = documentosFiscaisResposta.fonte === 'SUPABASE_COMPARTILHADO_CONTROLADO';
+  const tempoLeituraDireta=Number(documentosFiscaisResposta.leitura_metricas?.tempo_ms || 0);
   const situacaoDocumentos = estadoDocumentos.some((x) => x.situacao === 'ULTIMA_FOTOGRAFIA_VALIDA') ? 'ULTIMA_FOTOGRAFIA_VALIDA'
     : estadoDocumentos.some((x) => x.situacao === 'ATUALIZACAO_PENDENTE') ? 'ATUALIZACAO_PENDENTE' : 'ATUALIZADO';
   const leituraDocumentos = leituraDiretaControlada
-    ? '<span class="mini" style="color:#0f766e">Leitura direta em validação · fonte compartilhada · sem sincronização local</span>'
+    ? `<span class="mini" style="color:#0f766e">Leitura direta em validação · fonte compartilhada · sem sincronização local${tempoLeituraDireta ? ` · ${tempoLeituraDireta.toLocaleString('pt-BR',{ maximumFractionDigits:0 })} ms` : ''}</span>`
     : situacaoDocumentos === 'ATUALIZADO'
     ? '<span class="mini">Dados conferidos na fonte compartilhada</span>'
     : situacaoDocumentos === 'ATUALIZACAO_PENDENTE'
@@ -588,6 +589,9 @@ Telas.dados = async (el) => {
     el.querySelectorAll('[data-documentos-pagina]').forEach((botao) => botao.addEventListener('click', () => { S.cache.documentosFiscaisPagina = Math.max(1, Number(botao.dataset.documentosPagina) || 1); A.ir('dados'); }));
     document.getElementById('exportarDocumentosFiscais')?.addEventListener('click', async () => {
       const filtros=new URLSearchParams(S.aba.documentosFiscais || {});
+      // A aba determina o mesmo recorte da lista. Sem este parâmetro, uma
+      // exportação de Saídas poderia incluir entradas apesar da tela filtrada.
+      filtros.set('sentido', abaDocumentosFiscais === 'entradas' ? 'fornecedor' : 'cliente');
       try { await A.baixarArquivo(`/empresas/${S.empresaId}/documentos-fiscais/exportar${filtros.toString() ? `?${filtros}` : ''}`, 'documentos-fiscais.xlsx'); }
       catch(e) { A.toast(e.message,'erro'); }
     });
