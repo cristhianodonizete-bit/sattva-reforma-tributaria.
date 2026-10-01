@@ -1848,6 +1848,46 @@ router.get('/empresas/:id/creditos-cbs/entradas', async (req, res) => {
       paginacao:{ pagina, limite, totalPaginas:Math.max(1,Math.ceil(totais.total/limite)), temAnterior:pagina>1, temProxima:offset+linhas.length<totais.total } });
   } catch (e) { erro(res, e); }
 });
+// Relatório por documento de entrada. A situação é uma síntese explícita dos
+// itens da nota: uma nota mista nunca é escondida nem marcada como crédito
+// integral. Assim a conferência começa no documento e pode seguir para os
+// itens da visão logo abaixo, sempre sem recalcular ou escrever.
+router.get('/empresas/:id/creditos-cbs/documentos', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId=Number(req.params.id);
+    const execucao=motorExec.ultimaExecucao(empresaId);
+    if (!execucao) return ok(res,{ documentos:[], total:0, total_credito_cbs:0, paginacao:{ pagina:1, limite:100, totalPaginas:1, temAnterior:false, temProxima:false }, leitura:'Sem fotografia do motor materializada.' });
+    const limite=Math.min(Math.max(Number(req.query.limite) || 100, 1), 200);
+    const pagina=Math.max(Number(req.query.pagina) || 1, 1);
+    const params=[empresaId,execucao.id];
+    const base=`WITH itens AS (
+      SELECT CASE WHEN NULLIF(m.chave,'') IS NOT NULL THEN 'chave:'||m.chave ELSE 'movimento:'||m.id END referencia,
+        m.competencia,m.documento,m.chave,m.nome fornecedor,m.inscr_federal fornecedor_cnpj,m.valor,r.base_economica,r.credito_cbs,
+        COALESCE(r.status_credito_determinacao,r.status_credito,'INDETERMINADO') status_credito,
+        CASE WHEN COALESCE(r.credito_cbs,0)>0 THEN 1 ELSE 0 END tem_credito,
+        CASE WHEN UPPER(COALESCE(r.status_credito_determinacao,r.status_credito,'')) IN ('INDETERMINADO','DADOS_INSUFICIENTES','SUJEITO_VALIDACAO') THEN 1 ELSE 0 END pendente
+      FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
+      WHERE r.empresa_id=? AND r.execucao_id=? AND r.sentido='entrada'
+    ), documentos AS (
+      SELECT referencia,MIN(competencia) competencia,COALESCE(NULLIF(MAX(documento),''),NULLIF(MAX(chave),''),'Documento sem número') documento,MAX(chave) chave,
+        MAX(fornecedor) fornecedor,MAX(fornecedor_cnpj) fornecedor_cnpj,COUNT(*) itens,SUM(COALESCE(valor,0)) valor_entrada,
+        SUM(COALESCE(base_economica,0)) base_economica,SUM(COALESCE(credito_cbs,0)) credito_cbs,SUM(tem_credito) itens_com_credito,SUM(pendente) itens_pendentes
+      FROM itens GROUP BY referencia
+    )`;
+    const totais=db.prepare(`${base} SELECT COUNT(*) total,COALESCE(SUM(credito_cbs),0) total_credito_cbs FROM documentos`).get(...params);
+    const offset=(pagina-1)*limite;
+    const documentos=db.prepare(`${base} SELECT *,CASE
+      WHEN itens_com_credito=itens THEN 'POSSUI_CREDITO'
+      WHEN itens_com_credito>0 THEN 'CREDITO_PARCIAL'
+      WHEN itens_pendentes>0 THEN 'A_VALIDAR'
+      ELSE 'NAO_POSSUI_CREDITO' END situacao_credito
+      FROM documentos ORDER BY competencia DESC,credito_cbs DESC,documento DESC LIMIT ? OFFSET ?`).all(...params,limite,offset);
+    ok(res,{ documentos,total:totais.total,total_credito_cbs:Number(totais.total_credito_cbs || 0),execucao_id:execucao.id,
+      leitura:'Leitura da última fotografia materializada; nenhum cálculo foi executado.',
+      paginacao:{ pagina,limite,totalPaginas:Math.max(1,Math.ceil(totais.total/limite)),temAnterior:pagina>1,temProxima:offset+documentos.length<totais.total } });
+  } catch (e) { erro(res,e); }
+});
 
 function analisarPerfil(empresa, linhas) {
   const s = (f) => linhas.reduce((a, l) => a + (Number(l[f]) || 0), 0);

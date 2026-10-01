@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const api = fs.readFileSync(require.resolve('../src/routes/api'), 'utf8');
 const telas = fs.readFileSync(require.resolve('../public/js/telas'), 'utf8');
 const rota = api.slice(api.indexOf("router.get('/empresas/:id/creditos-cbs/entradas'"), api.indexOf('\nfunction analisarPerfil'));
+const rotaDocumentos = api.slice(api.indexOf("router.get('/empresas/:id/creditos-cbs/documentos'"), api.indexOf('\nfunction analisarPerfil'));
 
 assert.match(rota, /garantirEmpresaPermitida/, 'a rastreabilidade exige empresa autorizada');
 assert.match(rota, /motorExec\.ultimaExecucao/, 'a consulta é limitada à fotografia mais recente do motor');
@@ -13,5 +14,11 @@ assert.match(rota, /r\.execucao_id=\?/, 'a consulta não mistura resultados de e
 assert.doesNotMatch(rota, /motorExec\.executar|reprocessar|INSERT|UPDATE|DELETE/, 'a rota é somente leitura e não reprocessa ou altera dados');
 assert.match(telas, /Entradas que geram crédito CBS/, 'a cadeia de fornecedores expõe a rastreabilidade na interface');
 assert.match(telas, /creditos-cbs\/entradas/, 'a interface lê o endpoint específico de crédito');
+assert.match(rotaDocumentos, /GROUP BY referencia/, 'relatório consolida itens por documento fiscal');
+assert.match(rotaDocumentos, /CREDITO_PARCIAL/, 'documento misto não é apresentado como crédito integral');
+assert.match(rotaDocumentos, /NAO_POSSUI_CREDITO/, 'notas sem crédito permanecem visíveis no relatório');
+assert.match(rotaDocumentos, /A_VALIDAR/, 'pendências não são convertidas em ausência de crédito');
+assert.doesNotMatch(rotaDocumentos, /motorExec\.executar|reprocessar|INSERT|UPDATE|DELETE/, 'relatório por nota é somente leitura');
+assert.match(telas, /Relatório de notas de entrada e crédito CBS/, 'a interface apresenta todas as notas de entrada');
 
 console.log('rastreabilidade-credito-cbs: leitura materializada e segregação de entradas: OK');
