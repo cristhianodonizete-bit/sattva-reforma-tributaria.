@@ -336,11 +336,6 @@ Telas.dados = async (el) => {
   const { lotes = [] } = lotesResposta;
   const { movimentos = [], total = 0 } = movimentosResposta;
   const documentosFiscais = documentosFiscaisResposta.documentos || [];
-  // As opções vêm de uma leitura distinta de toda a aba. A página atual é
-  // apenas o resultado, portanto não pode determinar o que o usuário pode
-  // filtrar. Mantemos também a seleção atual caso uma fonte fique defasada.
-  const competenciasDocumento=[...new Set([...(opcoesFiltrosDocumentosResposta.competencias || []), filtroDocumentos.competencia].filter(Boolean))].sort().reverse();
-  const modelosDocumento=[...new Set([...(opcoesFiltrosDocumentosResposta.modelos || []), filtroDocumentos.modelo].filter(Boolean).map((v)=>String(v).toUpperCase()))].sort();
   const estadoDocumentos = documentosFiscaisResposta.leitura_estado || [];
   const leituraDiretaControlada = documentosFiscaisResposta.fonte === 'SUPABASE_COMPARTILHADO_CONTROLADO';
   const tempoLeituraDireta=Number(documentosFiscaisResposta.leitura_metricas?.tempo_ms || 0);
@@ -354,6 +349,11 @@ Telas.dados = async (el) => {
       ? '<span class="mini">Há atualização em processamento; esta lista será renovada ao concluir.</span>'
       : '<span class="mini">Exibindo a última fotografia válida; a atualização da fonte falhou.</span>';
   const filtroDocumentos = S.aba.documentosFiscais || {};
+  // As opções vêm de uma leitura distinta de toda a aba. A página atual é
+  // apenas o resultado, portanto não pode determinar o que o usuário pode
+  // filtrar. Mantemos também a seleção atual caso uma fonte fique defasada.
+  const competenciasDocumento=[...new Set([...(opcoesFiltrosDocumentosResposta.competencias || []), filtroDocumentos.competencia].filter(Boolean))].sort().reverse();
+  const modelosDocumento=[...new Set([...(opcoesFiltrosDocumentosResposta.modelos || []), filtroDocumentos.modelo].filter(Boolean).map((v)=>String(v).toUpperCase()))].sort();
   const textoFiltroDocumento = String(filtroDocumentos.busca || '').trim().toLowerCase();
   const sentidoDocumentoAba = abaDocumentosFiscais === 'entradas' ? 'fornecedor' : abaDocumentosFiscais === 'saidas' ? 'cliente' : '';
   const documentosFiscaisFiltrados = documentosFiscais.filter((d) =>
