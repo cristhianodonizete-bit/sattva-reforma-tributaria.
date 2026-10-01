@@ -1,7 +1,25 @@
 // Leitura direta e estritamente somente-leitura da fonte operacional.
 // Não conhece SQLite, motor, filas ou publicação: a tela pode compará-la sem
 // alterar qualquer fotografia fiscal local.
-const { Client } = require('pg');
+const { Pool } = require('pg');
+
+// A leitura direta é uma rota de tela. Reabrir uma conexão TLS a cada filtro
+// era o custo dominante da validação, não a consulta. O pool é pequeno,
+// exclusivo deste leitor e cada uso continua delimitado por READ ONLY +
+// ROLLBACK; ele nunca retém dados de empresa em memória.
+let pool = null;
+function obterPool() {
+  if (!pool) {
+    pool = new Pool({
+      connectionString:process.env.SUPABASE_DB_URL,
+      ssl:{ rejectUnauthorized:false },
+      max:4,
+      idleTimeoutMillis:30000,
+      connectionTimeoutMillis:10000,
+    });
+  }
+  return pool;
+}
 
 function limite(v) { return Math.min(Math.max(Number(v) || 100, 1), 100); }
 function pagina(v) { return Math.max(Number(v) || 1, 1); }
@@ -22,8 +40,7 @@ function filtrosSql(f = {}, parametros) {
 async function listar(cnpj, filtros = {}, opcoes = {}) {
   if (!process.env.SUPABASE_DB_URL) throw new Error('Fonte compartilhada indisponível para a leitura direta de documentos.');
   const l = limite(opcoes.limite), p = pagina(opcoes.pagina), offset = (p - 1) * l;
-  const db = new Client({ connectionString: process.env.SUPABASE_DB_URL, ssl: { rejectUnauthorized:false } });
-  await db.connect();
+  const db = await obterPool().connect();
   try {
     await db.query('BEGIN READ ONLY');
     const empresa = await db.query("SELECT id FROM public.empresas WHERE regexp_replace(cnpj,'[^0-9]','','g')=$1 LIMIT 2", [String(cnpj).replace(/\D/g,'')]);
@@ -64,6 +81,6 @@ async function listar(cnpj, filtros = {}, opcoes = {}) {
       limitado: dados.rows.length < total,
       paginacao:{pagina:p,limite:l,totalPaginas:Math.max(1,Math.ceil(total/l)),temAnterior:p>1,temProxima:offset+dados.rows.length<total} };
   } catch (e) { try { await db.query('ROLLBACK'); } catch (_) {} throw e; }
-  finally { await db.end(); }
+  finally { db.release(); }
 }
 module.exports = { listar };
