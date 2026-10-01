@@ -11,6 +11,10 @@ function filtrosSql(f = {}, parametros) {
   if (f.competencia) { parametros.push(String(f.competencia)); partes.push(`competencia=$${parametros.length}`); }
   if (f.sentido) { parametros.push(String(f.sentido)); partes.push(`tipo=$${parametros.length}`); }
   if (f.modelo) { parametros.push(String(f.modelo).toUpperCase()); partes.push(`UPPER(COALESCE(NULLIF(modelo_documento_fiscal,''),'NAO_IDENTIFICADO'))=$${parametros.length}`); }
+  const minimo=f.valor_minimo === undefined || f.valor_minimo === '' ? null : Number(String(f.valor_minimo).replace(',','.'));
+  const maximo=f.valor_maximo === undefined || f.valor_maximo === '' ? null : Number(String(f.valor_maximo).replace(',','.'));
+  if (Number.isFinite(minimo)) { parametros.push(minimo); partes.push(`valor >= $${parametros.length}`); }
+  if (Number.isFinite(maximo)) { parametros.push(maximo); partes.push(`valor <= $${parametros.length}`); }
   if (f.busca) { parametros.push(`%${String(f.busca).trim().toLowerCase()}%`); partes.push(`LOWER(COALESCE(documento,chave,'') || ' ' || COALESCE(chave,'') || ' ' || COALESCE(parceiro,'')) LIKE $${parametros.length}`); }
   return partes.length ? `WHERE ${partes.join(' AND ')}` : '';
 }
@@ -30,12 +34,24 @@ async function listar(cnpj, filtros = {}, opcoes = {}) {
     const ondeItens = filtros.competencia ? ` AND m.competencia=$2` : '';
     if (filtros.competencia) params.push(String(filtros.competencia));
     const base = `WITH canonicos AS (
-      SELECT m.*,ROW_NUMBER() OVER (PARTITION BY CASE WHEN NULLIF(m.chave,'') IS NOT NULL THEN 'xml:'||m.chave||':'||COALESCE(m.item_numero::text,'__SEM_ITEM__') ELSE 'id:'||m.id::text END ORDER BY m.id DESC) linha
+      SELECT m.*,ROW_NUMBER() OVER (
+        PARTITION BY CASE WHEN NULLIF(m.chave,'') IS NOT NULL THEN 'xml:'||m.chave||':'||COALESCE(m.item_numero::text,'__SEM_ITEM__') ELSE 'id:'||m.id::text END
+        ORDER BY CASE WHEN NULLIF(BTRIM(COALESCE(m.modelo_documento_fiscal,'')),'') IS NOT NULL THEN 1 ELSE 0 END DESC,
+          CASE WHEN NULLIF(BTRIM(COALESCE(m.descricao,'')),'') IS NOT NULL THEN 1 ELSE 0 END DESC,
+          CASE WHEN NULLIF(BTRIM(COALESCE(m.ncm,'')),'') IS NOT NULL OR NULLIF(BTRIM(COALESCE(m.nbs,'')),'') IS NOT NULL OR NULLIF(BTRIM(COALESCE(m.lc116,'')),'') IS NOT NULL THEN 1 ELSE 0 END DESC,
+          m.id DESC
+      ) linha
       FROM public.movimentos m WHERE m.empresa_id=$1${ondeItens}
     ), docs AS (
       SELECT CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:'||chave ELSE 'movimento:'||id::text END referencia,
        COALESCE(NULLIF(MAX(documento),''),NULLIF(MAX(chave),''),'Lançamento #'||MIN(id)::text) documento,
-       MIN(competencia) competencia,MIN(data_emissao) data_emissao,MAX(chave) chave,MAX(tipo) tipo,MAX(origem) origem,MAX(cfop) cfop,MAX(modelo_documento_fiscal) modelo_documento_fiscal,MAX(nome) parceiro,MIN(id) item_id,COUNT(*)::int itens,SUM(COALESCE(valor,0)) valor,MAX(criado_em) criado_em
+       MIN(competencia) competencia,MIN(data_emissao) data_emissao,MAX(chave) chave,MAX(tipo) tipo,MAX(origem) origem,MAX(cfop) cfop,
+       MAX(nbs) nbs,MAX(lc116) lc116,MAX(iss) iss,MAX(modelo_documento_fiscal) modelo_documento_fiscal,
+       MAX(situacao_documento) situacao_documento,MAX(cancelamento_origem) cancelamento_origem,
+       MAX(normalizacao_status) normalizacao_status,MAX(normalizacao_evidencia) normalizacao_evidencia,
+       MAX(nome) parceiro,MAX(inscr_federal) inscr_federal,MIN(id) item_id,COUNT(*)::int itens,SUM(COALESCE(valor,0)) valor,
+       SUM(CASE WHEN NULLIF(ncm,'') IS NOT NULL THEN 1 ELSE 0 END)::int itens_produto,
+       SUM(CASE WHEN lower(COALESCE(modelo_documento_fiscal,''))='nfse' THEN 1 ELSE 0 END)::int itens_servico,MAX(criado_em) criado_em
       FROM canonicos WHERE linha=1 GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:'||chave ELSE 'movimento:'||id::text END
     ) SELECT * FROM docs`;
     const filtro = filtrosSql({ ...filtros, competencia: null }, params);
