@@ -1,0 +1,3 @@
+const fs=require('fs'); const path=require('path'); require('dotenv').config();
+const { Client }=require('pg');
+(async()=>{const db=new Client({connectionString:process.env.SUPABASE_DB_URL,ssl:{rejectUnauthorized:false}});await db.connect();try{await db.query('begin');await db.query(fs.readFileSync(path.join(__dirname,'../supabase/migrations/20261001_exportacoes_documentos_assincronas.sql'),'utf8'));await db.query('commit');console.log('Fila técnica e bucket privado de exportações criados.');}catch(e){try{await db.query('rollback');}catch(_){}throw e;}finally{await db.end();}})().catch(e=>{console.error(e.stack||e.message);process.exitCode=1;});
