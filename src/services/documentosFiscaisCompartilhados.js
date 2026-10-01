@@ -98,4 +98,28 @@ async function listar(cnpj, filtros = {}, opcoes = {}) {
   } catch (e) { try { await db.query('ROLLBACK'); } catch (_) {} throw e; }
   finally { db.release(); }
 }
-module.exports = { listar };
+
+// As opções do formulário não podem nascer da página atual: isso fazia uma
+// competência ou um modelo desaparecer depois de aplicar outro filtro. Esta
+// consulta devolve somente metadados distintos da mesma fonte, sem carregar
+// documentos, sem sincronização e sem qualquer escrita.
+async function listarOpcoesFiltros(cnpj, sentido) {
+  if (!process.env.SUPABASE_DB_URL) throw new Error('Fonte compartilhada indisponível para as opções de filtro.');
+  const db = await obterPool().connect();
+  try {
+    await db.query('BEGIN READ ONLY');
+    const empresa = await db.query("SELECT id FROM public.empresas WHERE regexp_replace(cnpj,'[^0-9]','','g')=$1 LIMIT 2", [String(cnpj).replace(/\D/g,'')]);
+    if (empresa.rows.length !== 1) throw new Error('Empresa compartilhada não identificada unicamente para as opções de filtro.');
+    const params = [empresa.rows[0].id];
+    let tipoSql = '';
+    if (sentido) { params.push(String(sentido)); tipoSql = ` AND tipo=$${params.length}`; }
+    const [competencias, modelos] = await Promise.all([
+      db.query(`SELECT DISTINCT competencia FROM public.movimentos WHERE empresa_id=$1${tipoSql} AND NULLIF(competencia,'') IS NOT NULL ORDER BY competencia DESC`, params),
+      db.query(`SELECT DISTINCT UPPER(COALESCE(NULLIF(modelo_documento_fiscal,''),'NAO_IDENTIFICADO')) modelo FROM public.movimentos WHERE empresa_id=$1${tipoSql} ORDER BY modelo`, params),
+    ]);
+    await db.query('ROLLBACK');
+    return { competencias:competencias.rows.map((r) => r.competencia), modelos:modelos.rows.map((r) => r.modelo), fonte:'SUPABASE_COMPARTILHADO_CONTROLADO' };
+  } catch (e) { try { await db.query('ROLLBACK'); } catch (_) {} throw e; }
+  finally { db.release(); }
+}
+module.exports = { listar, listarOpcoesFiltros };

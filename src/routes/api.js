@@ -2377,12 +2377,15 @@ async function reconciliarDocumentosFiscaisParaLeitura(empresaId) {
 // permanece a única rota de tela. Isso permite reversão imediata no Render
 // sem tocar em dados nem em cálculo.
 function leituraDocumentalDiretaControlada(empresa, competencia) {
+  return leituraDocumentalDiretaHabilitadaParaEmpresa(empresa)
+    && String(process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_COMPETENCIA || '') === String(competencia || '');
+}
+function leituraDocumentalDiretaHabilitadaParaEmpresa(empresa) {
   const cnpjAlvo=String(process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_CNPJ || '').replace(/\D/g,'');
   const empresaAlvoPorCnpj=cnpjAlvo && String(empresa?.cnpj || '').replace(/\D/g,'') === cnpjAlvo;
   const empresaAlvoPorId=!cnpjAlvo && Number(process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_ID) === Number(empresa?.id);
   return process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_ATIVA === 'true'
-    && (empresaAlvoPorCnpj || empresaAlvoPorId)
-    && String(process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_COMPETENCIA || '') === String(competencia || '');
+    && (empresaAlvoPorCnpj || empresaAlvoPorId);
 }
 router.get('/empresas/:id/estado-dados', (req, res) => {
   try {
@@ -2452,6 +2455,26 @@ router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
     res.setHeader('Content-Type','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
     res.setHeader('Content-Disposition',`attachment; filename="documentos-fiscais-${req.params.id}.xlsx"`); res.send(arquivo);
   } catch(e) { erro(res,e); }
+});
+// Metadados do formulário: deliberadamente não recebe competência, modelo ou
+// paginação. Assim um filtro já aplicado nunca esconde outro mês ou NFS-e.
+// É apenas leitura; não reconcilia, não importa e não altera a fotografia.
+router.get('/empresas/:id/documentos-fiscais/opcoes-filtros', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId=Number(req.params.id);
+    const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa) throw new Error('Empresa não encontrada.');
+    const sentido=String(req.query.sentido || '').trim();
+    if (leituraDocumentalDiretaHabilitadaParaEmpresa(empresa)) {
+      return ok(res, await require('../services/documentosFiscaisCompartilhados').listarOpcoesFiltros(empresa.cnpj, sentido));
+    }
+    const parametros=[empresaId];
+    const tipoSql=sentido ? (parametros.push(sentido), ' AND tipo=?') : '';
+    const competencias=db.prepare(`SELECT DISTINCT competencia FROM movimentos WHERE empresa_id=?${tipoSql} AND NULLIF(competencia,'') IS NOT NULL ORDER BY competencia DESC`).all(...parametros).map((r)=>r.competencia);
+    const modelos=db.prepare(`SELECT DISTINCT UPPER(COALESCE(NULLIF(modelo_documento_fiscal,''),'NAO_IDENTIFICADO')) modelo FROM movimentos WHERE empresa_id=?${tipoSql} ORDER BY modelo`).all(...parametros).map((r)=>r.modelo);
+    ok(res,{ competencias, modelos, fonte:'BASE_LOCAL_LEITURA' });
+  } catch (e) { erro(res, e); }
 });
 // Diagnóstico controlado: não é usado pela interface e não toca a projeção
 // SQLite. Permite comparar a futura leitura direta antes de qualquer ativação.

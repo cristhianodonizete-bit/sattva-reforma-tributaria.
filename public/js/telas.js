@@ -307,7 +307,7 @@ Telas.dados = async (el) => {
   // antes as abas de documentos exibiam o selo sem carregar seu conteúdo e o
   // clique era silenciosamente ignorado.
   const consultaProntidao = consultaDocumentos || consultaDadosAdicionais || consultaApuracoes || grupoCentral === 'dashboard';
-  const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, periodoResposta, prontidao, documentosFiscaisResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta] = await Promise.all([
+  const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, periodoResposta, prontidao, documentosFiscaisResposta, opcoesFiltrosDocumentosResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta] = await Promise.all([
     (consultaImportacoes || consultaFornecedores) ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${consultaFornecedores ? 'fornecedor' : aba}`) : Promise.resolve({ parceiros: [] }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/lotes`) : Promise.resolve({ lotes: [] }),
     consultaDadosAdicionais ? A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`) : Promise.resolve({ folhas: [], receitas_sem_dfe: [], margens: [] }),
@@ -327,6 +327,7 @@ Telas.dados = async (el) => {
       const pagina=filtroOperacao ? 1 : Math.max(1, Number(S.cache.documentosFiscaisPagina) || 1);
       return A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=${filtroOperacao ? 2000 : 100}&pagina=${pagina}&${filtros.toString()}`);
     })() : Promise.resolve({ documentos: [], total: 0, paginacao: {} }),
+    consultaListaFiscal ? A.api(`/empresas/${S.empresaId}/documentos-fiscais/opcoes-filtros?sentido=${abaDocumentosFiscais === 'entradas' ? 'fornecedor' : 'cliente'}`) : Promise.resolve({ competencias: [], modelos: [] }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`) : Promise.resolve({ movimentos: [], total: 0 }),
     consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? A.api(`/empresas/${S.empresaId}/referencias-vendas`) : Promise.resolve(null),
     grupoCentral === 'receitas' ? A.api('/config/itens-receita') : Promise.resolve({ itens: [] }),
@@ -335,6 +336,11 @@ Telas.dados = async (el) => {
   const { lotes = [] } = lotesResposta;
   const { movimentos = [], total = 0 } = movimentosResposta;
   const documentosFiscais = documentosFiscaisResposta.documentos || [];
+  // As opções vêm de uma leitura distinta de toda a aba. A página atual é
+  // apenas o resultado, portanto não pode determinar o que o usuário pode
+  // filtrar. Mantemos também a seleção atual caso uma fonte fique defasada.
+  const competenciasDocumento=[...new Set([...(opcoesFiltrosDocumentosResposta.competencias || []), filtroDocumentos.competencia].filter(Boolean))].sort().reverse();
+  const modelosDocumento=[...new Set([...(opcoesFiltrosDocumentosResposta.modelos || []), filtroDocumentos.modelo].filter(Boolean).map((v)=>String(v).toUpperCase()))].sort();
   const estadoDocumentos = documentosFiscaisResposta.leitura_estado || [];
   const leituraDiretaControlada = documentosFiscaisResposta.fonte === 'SUPABASE_COMPARTILHADO_CONTROLADO';
   const tempoLeituraDireta=Number(documentosFiscaisResposta.leitura_metricas?.tempo_ms || 0);
@@ -510,9 +516,9 @@ Telas.dados = async (el) => {
       <section class="documentos-filtros" aria-label="Filtros dos documentos fiscais">
         <div class="documentos-filtros-topo"><div><span class="olho">LOCALIZAR DOCUMENTOS</span><p>Combine os filtros e aplique quando terminar.</p></div><button class="btn vazio pq" id="limparFiltrosDocumentos">Limpar filtros</button></div>
         <div class="documentos-filtros-campos">
-          <label class="campo"><span>Competência</span><select id="filtroDocumentoCompetencia"><option value="">Todas</option>${[...new Set(documentosFiscais.map((d)=>d.competencia).filter(Boolean))].sort().reverse().map((v)=>`<option value="${A.esc(v)}" ${filtroDocumentos.competencia===v?'selected':''}>${A.esc(v)}</option>`).join('')}</select></label>
+          <label class="campo"><span>Competência</span><select id="filtroDocumentoCompetencia"><option value="">Todas</option>${competenciasDocumento.map((v)=>`<option value="${A.esc(v)}" ${filtroDocumentos.competencia===v?'selected':''}>${A.esc(v)}</option>`).join('')}</select></label>
           <label class="campo"><span>Documento ou chave</span><input id="filtroDocumentoBusca" value="${A.esc(filtroDocumentos.busca || '')}" placeholder="Ex.: 21668"></label>
-          <label class="campo"><span>Natureza / modelo</span><select id="filtroDocumentoModelo"><option value="">Todos</option>${[...new Set(documentosFiscais.map((d)=>String(d.modelo_documento_fiscal || 'NAO_IDENTIFICADO').toUpperCase()))].sort().map((v)=>`<option value="${A.esc(v)}" ${filtroDocumentos.modelo===v?'selected':''}>${A.esc(v === 'NAO_IDENTIFICADO' ? 'Não identificado' : v)}</option>`).join('')}</select></label>
+          <label class="campo"><span>Natureza / modelo</span><select id="filtroDocumentoModelo"><option value="">Todos</option>${modelosDocumento.map((v)=>`<option value="${A.esc(v)}" ${filtroDocumentos.modelo===v?'selected':''}>${A.esc(v === 'NAO_IDENTIFICADO' ? 'Não identificado' : v)}</option>`).join('')}</select></label>
           <label class="campo"><span>Operação</span><select id="filtroDocumentoReceita"><option value="">Todas</option><option value="SIM" ${filtroDocumentos.receita==='SIM'?'selected':''}>Compõe receita</option><option value="NAO" ${filtroDocumentos.receita==='NAO'?'selected':''}>Não compõe</option></select></label>
           <label class="campo"><span>Valor mínimo</span><input id="filtroDocumentoValorMinimo" inputmode="decimal" value="${A.esc(filtroDocumentos.valor_minimo || '')}" placeholder="Ex.: 1000,00"></label>
           <label class="campo"><span>Valor máximo</span><input id="filtroDocumentoValorMaximo" inputmode="decimal" value="${A.esc(filtroDocumentos.valor_maximo || '')}" placeholder="Ex.: 5000,00"></label>
