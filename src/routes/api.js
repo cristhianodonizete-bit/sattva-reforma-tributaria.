@@ -2396,7 +2396,16 @@ router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
     if (leituraDocumentalDiretaControlada(empresa, req.query.competencia)) {
       await garantirEmpresaPermitida(req, req.params.id);
       const leitura=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { limite:req.query.limite, pagina:req.query.pagina });
-      return ok(res,{ ...leitura, fonte:'SUPABASE_COMPARTILHADO_CONTROLADO', leitura_estado:[] });
+      // A fonte compartilhada traz os fatos do documento; a indicação de
+      // receita é uma regra de apresentação já usada pela rota histórica.
+      // Reaplicá-la aqui evita que a leitura direta trate ausência de campo
+      // derivado como "não compõe receita". Não há escrita, cálculo ou motor.
+      const documentos=leitura.documentos.map((d)=>({
+        ...d,
+        operacao_receita:receitaOperacional.compoeReceita(d),
+        motivo_operacao:receitaOperacional.motivo(d),
+      }));
+      return ok(res,{ ...leitura, documentos, fonte:'SUPABASE_COMPARTILHADO_CONTROLADO', leitura_estado:[] });
     }
     await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
     const limite=Math.min(Math.max(Number(req.query.limite) || 100, 1), 2000);
