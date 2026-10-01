@@ -336,9 +336,12 @@ Telas.dados = async (el) => {
   const { movimentos = [], total = 0 } = movimentosResposta;
   const documentosFiscais = documentosFiscaisResposta.documentos || [];
   const estadoDocumentos = documentosFiscaisResposta.leitura_estado || [];
+  const leituraDiretaControlada = documentosFiscaisResposta.fonte === 'SUPABASE_COMPARTILHADO_CONTROLADO';
   const situacaoDocumentos = estadoDocumentos.some((x) => x.situacao === 'ULTIMA_FOTOGRAFIA_VALIDA') ? 'ULTIMA_FOTOGRAFIA_VALIDA'
     : estadoDocumentos.some((x) => x.situacao === 'ATUALIZACAO_PENDENTE') ? 'ATUALIZACAO_PENDENTE' : 'ATUALIZADO';
-  const leituraDocumentos = situacaoDocumentos === 'ATUALIZADO'
+  const leituraDocumentos = leituraDiretaControlada
+    ? '<span class="mini" style="color:#0f766e">Leitura direta em validação · fonte compartilhada · sem sincronização local</span>'
+    : situacaoDocumentos === 'ATUALIZADO'
     ? '<span class="mini">Dados conferidos na fonte compartilhada</span>'
     : situacaoDocumentos === 'ATUALIZACAO_PENDENTE'
       ? '<span class="mini">Há atualização em processamento; esta lista será renovada ao concluir.</span>'

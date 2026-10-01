@@ -3,6 +3,7 @@ const fs = require('node:fs');
 
 const leitor = fs.readFileSync(require.resolve('../src/services/documentosFiscaisCompartilhados'), 'utf8');
 const api = fs.readFileSync(require.resolve('../src/routes/api'), 'utf8');
+const telas = fs.readFileSync(require.resolve('../public/js/telas'), 'utf8');
 const rotaNormal = api.slice(api.indexOf("router.get('/empresas/:id/documentos-fiscais'"), api.indexOf("router.get('/empresas/:id/documentos-fiscais/exportar'"));
 const rotaSombra = api.slice(api.indexOf("router.get('/empresas/:id/documentos-fiscais/sombra-compartilhada'"), api.indexOf("router.get('/empresas/:id/documentos-fiscais/:referencia'"));
 
@@ -16,5 +17,6 @@ assert.match(rotaNormal, /reconciliarDocumentosFiscaisParaLeitura/, 'rota normal
 assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_ATIVA === 'true'/, 'leitura direta exige ativação explícita');
 assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_ID/, 'ativação é limitada a uma empresa');
 assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_COMPETENCIA/, 'ativação é limitada a uma competência');
+assert.match(telas, /Leitura direta em validação/, 'a interface identifica o recorte em validação');
 
 console.log('leitura-documentos-compartilhada-sombra: isolamento e contrato somente-leitura: OK');
