@@ -6272,10 +6272,13 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
       const competencia=String(linha.competencia || '').trim(), valor=Number(linha.valor);
       if (!periodoAnalisado.noPeriodo(competencia,periodo)) throw new Error(`A competência ${competencia || 'informada'} está fora do Período analisado.`);
       if (!Number.isFinite(valor) || valor < 0) throw new Error(`Valor inválido para ${competencia}.`);
-      const existente=db.prepare("SELECT id FROM movimentos WHERE empresa_id=? AND origem='MANUAL_ENTRADA' AND chave=?").get(empresaId,`MANUAL_ENTRADA:${itemHash}:${competencia}`);
-      if (existente) throw new Error(`Já existe lançamento manual deste item em ${competencia}.`);
+      const chaveMovimento=`MANUAL_ENTRADA:${itemHash}:${competencia}`;
+      const existente=db.prepare("SELECT id,valor FROM movimentos WHERE empresa_id=? AND origem='MANUAL_ENTRADA' AND chave=?").get(empresaId,chaveMovimento);
+      // Uma repetição após falha de rede é uma retomada de publicação, não
+      // uma segunda entrada. Mantemos o fato original e evitamos duplicá-lo.
+      if (existente) { inseridos.push({ id:existente.id, competencia, valor:existente.valor, existente:true }); continue; }
       const evidencia=JSON.stringify({ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null });
-      const r=inserir.run(empresaId,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,`MANUAL_ENTRADA:${itemHash}:${competencia}`,evidencia);
+      const r=inserir.run(empresaId,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,chaveMovimento,evidencia);
       inseridos.push({ id:r.lastInsertRowid, competencia, valor });
     } })();
     let publicacao=null;
