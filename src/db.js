@@ -2811,6 +2811,20 @@ if (db.prepare('SELECT COUNT(*) c FROM param_regras').get().c === 0) {
 db.prepare(`INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem)
   VALUES ('capacitacao','limite_padrao_turma','30','numero','Limite padrão de participantes','Sugestão aplicada ao programar uma nova turma; cada turma pode ter seu próprio limite.','pessoas',1)`).run();
 
+// Catálogo técnico para entradas manuais. Ele não é uma nota fiscal e não
+// altera nenhum XML existente: somente preenche campos declarados no novo
+// lançamento manual, que permanece identificável por sua própria origem.
+const ITENS_ENTRADA_MANUAL_PADRAO = [
+  ['LICENCA_USO_SISTEMAS_SOFTWARE','Licença de uso de sistemas/software',0,'000001','000','Salvo tratamento específico da operação',1],
+  ['MATERIAL_ESCRITORIO','Material de escritório',0,'000001','000','Validar produto/NCM se houver tratamento específico',2],
+  ['ALUGUEL_IMOVEL_COMERCIAL','Aluguel de imóvel comercial',.70,'200027','200','Aplicável à locação, cessão onerosa e arrendamento de imóvel tributados',3],
+  ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',4],
+];
+db.transaction(() => ITENS_ENTRADA_MANUAL_PADRAO.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem]) => db.prepare(`INSERT OR IGNORE INTO param_regras
+  (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)`)
+  .run(chave,nome,observacao,ordem) && db.prepare(`UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=? AND valor='{}'`)
+  .run(JSON.stringify({ nome,beneficio,cclasstrib,cst,observacao }),chave)))();
+
 // Catálogo técnico de receitas complementares. O lançamento só escolhe um
 // item daqui; a tributação é resolvida pelo regime da própria empresa.
 const ITENS_RECEITA_PADRAO = [

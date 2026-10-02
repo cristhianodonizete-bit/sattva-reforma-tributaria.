@@ -514,7 +514,7 @@ Telas.dados = async (el) => {
       ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}
     ${consultaDocumentos && abaDocumentosCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosFiscais === 'entradas' ? 'ativa' : ''}" data-documentos-fiscais-aba="entradas">Entradas</button><button class="aba ${abaDocumentosFiscais === 'saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="saidas">Saídas</button><button class="aba ${abaDocumentosFiscais === 'rastreabilidade-saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="rastreabilidade-saidas">Rastreabilidade das saídas</button><button class="aba ${abaDocumentosFiscais === 'fornecedores' ? 'ativa' : ''}" data-documentos-fiscais-aba="fornecedores">Fornecedores</button></div><div class="cartao" id="documentosFiscais" data-documentos-fiscais-painel="documentos">
-      <div class="cabecalho-lista"><div><h2>${abaDocumentosFiscais === 'entradas' ? 'Documentos fiscais de entrada' : 'Documentos fiscais de saída'}</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p>${leituraDocumentos}</div><div style="display:flex;gap:8px;align-items:center"><button class="btn pq vazio" id="exportarDocumentosFiscais">Exportar Excel</button><span class="tag ${situacaoDocumentos === 'ATUALIZADO' ? 'c' : 'a'}">${situacaoDocumentos === 'ATUALIZADO' ? 'Atualizado' : situacaoDocumentos === 'ATUALIZACAO_PENDENTE' ? 'Atualizando' : 'Última fotografia válida'}</span><span class="tag">${documentosFiscaisFiltrados.length} de ${documentosFiscaisResposta.total || 0} documento(s)</span></div></div>
+      <div class="cabecalho-lista"><div><h2>${abaDocumentosFiscais === 'entradas' ? 'Documentos fiscais de entrada' : 'Documentos fiscais de saída'}</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p>${leituraDocumentos}</div><div style="display:flex;gap:8px;align-items:center">${abaDocumentosFiscais === 'entradas' ? '<button class="btn pq" id="lancarEntradaManual">Lançar entrada manual</button>' : ''}<button class="btn pq vazio" id="exportarDocumentosFiscais">Exportar Excel</button><span class="tag ${situacaoDocumentos === 'ATUALIZADO' ? 'c' : 'a'}">${situacaoDocumentos === 'ATUALIZADO' ? 'Atualizado' : situacaoDocumentos === 'ATUALIZACAO_PENDENTE' ? 'Atualizando' : 'Última fotografia válida'}</span><span class="tag">${documentosFiscaisFiltrados.length} de ${documentosFiscaisResposta.total || 0} documento(s)</span></div></div>
       ${documentosFiscaisResposta.limitado ? `<div class="aviso info">${documentosFiscaisResposta.paginacao?.limite === 100 ? 'Lista paginada: os filtros de competência, modelo, documento e valor foram aplicados antes da paginação.' : 'A regra “Compõe receita” usa o Mapa de CFOP e mantém uma janela de até 2.000 documentos. Refine os demais filtros para localizar documentos fora desta janela.'}</div>` : ''}
       <section class="documentos-filtros" aria-label="Filtros dos documentos fiscais">
         <div class="documentos-filtros-topo"><div><span class="olho">LOCALIZAR DOCUMENTOS</span><p>Combine os filtros e aplique quando terminar.</p></div><button class="btn vazio pq" id="limparFiltrosDocumentos">Limpar filtros</button></div>
@@ -631,6 +631,25 @@ Telas.dados = async (el) => {
           {t:'Valor',num:true,r:i=>A.moeda(i.valor)},
         ],documento.itens_detalhados || [],{vazio:'Nenhum item encontrado.'})}`, aoConfirmar:async()=>{} });
     }));
+    document.getElementById('lancarEntradaManual')?.addEventListener('click', async () => {
+      try {
+        const [configuracao,periodoRespostaManual]=await Promise.all([A.api('/config/regras'),A.api(`/empresas/${S.empresaId}/periodo-analisado`)]);
+        const periodo=periodoRespostaManual.periodo;
+        if (!periodo) throw new Error('Defina o Período analisado antes de lançar uma entrada manual.');
+        const competencias=[]; for(let c=periodo.competencia_inicio;c<=periodo.competencia_fim;){competencias.push(c); const [ano,mes]=c.split('-').map(Number); c=`${mes===12?ano+1:ano}-${String(mes===12?1:mes+1).padStart(2,'0')}`;}
+        const itens=configuracao.itensEntradaManual || [];
+        A.modal({ titulo:'Lançar entradas manuais', largura:920, confirmar:'Registrar entradas',
+          descricao:'Cada competência selecionada cria um lançamento de entrada novo e auditável. Não altera XMLs, notas existentes nem executa o motor.',
+          corpo:`<div class="aviso info">Selecione um item do cadastro técnico. Se ele não existir, informe o item avulso; ele será lançado apenas nesta operação e não altera o cadastro global.</div><div class="grade g2"><label class="campo"><span>Item cadastrado</span><select id="entradaManualItem"><option value="">Item avulso</option>${itens.map(i=>`<option value="${A.esc(i.chave)}">${A.esc(i.nome)} · benefício ${A.pct(i.beneficio || 0)}</option>`).join('')}</select></label>${A.campo('entradaManualAvulso','Item avulso (se não cadastrado)','')}</div><h3 style="margin-top:16px">Competências do Período analisado</h3><p class="mini">Marque as competências que deseja incluir e informe o valor de cada uma.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">${competencias.map(c=>`<label class="campo" style="border:1px solid var(--borda);padding:10px;border-radius:8px"><span><input type="checkbox" data-entrada-manual-competencia="${c}"> ${c}</span><input inputmode="decimal" data-entrada-manual-valor="${c}" placeholder="Valor da entrada"></label>`).join('')}</div>`,
+          aoConfirmar: async () => {
+            const selecionadas=[...document.querySelectorAll('[data-entrada-manual-competencia]:checked')].map(x=>x.dataset.entradaManualCompetencia);
+            const competencias=selecionadas.map(competencia=>({competencia,valor:String(document.querySelector(`[data-entrada-manual-valor="${competencia}"]`)?.value || '').replace(',','.')}));
+            const r=await A.api(`/empresas/${S.empresaId}/entradas-manuais`,{metodo:'POST',corpo:{item_chave:document.getElementById('entradaManualItem')?.value || '',item_novo:document.getElementById('entradaManualAvulso')?.value || '',competencias}});
+            A.toast(`${r.inseridos.length} entrada(s) manual(is) registrada(s). O motor não foi executado.`, 'ok'); A.ir('dados');
+          },
+        });
+      } catch(e) { A.toast(e.message,'erro'); }
+    });
     document.getElementById('exportarDocumentosFiscais')?.addEventListener('click', async () => {
       const filtros=new URLSearchParams(S.aba.documentosFiscais || {});
       // A aba determina o mesmo recorte da lista. Sem este parâmetro, uma

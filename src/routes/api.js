@@ -6187,11 +6187,26 @@ router.post('/config/cadastros-mestre/popular', async (_req, res) => {
   try { ok(res, coberturaDiagnostico.popularCadastrosMestre()); } catch (e) { erro(res, e); }
 });
 
+function assegurarItensEntradaManualPadrao() {
+  const itens=[
+    ['LICENCA_USO_SISTEMAS_SOFTWARE','Licença de uso de sistemas/software',0,'000001','000','Salvo tratamento específico da operação',1],
+    ['MATERIAL_ESCRITORIO','Material de escritório',0,'000001','000','Validar produto/NCM se houver tratamento específico',2],
+    ['ALUGUEL_IMOVEL_COMERCIAL','Aluguel de imóvel comercial',.70,'200027','200','Aplicável à locação, cessão onerosa e arrendamento de imóvel tributados',3],
+    ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',4],
+  ];
+  const inserir=db.prepare("INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)");
+  const atualizar=db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=? AND valor='{}'");
+  db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem]) => {
+    inserir.run(chave,nome,observacao,ordem);
+    atualizar.run(JSON.stringify({ nome,beneficio,cclasstrib,cst,observacao }),chave);
+  }))();
+}
 router.get('/config/regras', async (_req, res) => {
   try {
     // Esta é a rota que alimenta a tela de Configurações. Ela consulta a
     // fonte compartilhada antes de montar o formulário, nunca um cache antigo.
     if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas','param_regimes','param_cfop','catalogo_itens_receita','regras_itens_receita_regime']);
+    assegurarItensEntradaManualPadrao();
     regras.invalidar();
     const local = db.prepare('SELECT ano,cbs,ibs,calcular_ibs,atualizado_em FROM param_aliquotas WHERE ano=2027').get() || null;
     const auditoria = { cache_render: local, supabase_configurado: supabase.configurado(),
@@ -6216,7 +6231,11 @@ router.get('/config/regras', async (_req, res) => {
     const itensReceita = db.prepare('SELECT chave,nome,classificacao_fiscal,ativo,ordem FROM catalogo_itens_receita ORDER BY ordem,nome').all();
     const regrasItensReceita = db.prepare(`SELECT r.*, c.nome AS item_nome FROM regras_itens_receita_regime r
       JOIN catalogo_itens_receita c ON c.chave=r.item_chave ORDER BY c.ordem,r.regime_empresa,r.vigencia_inicio DESC`).all();
-    ok(res, { ...regras.tudo(), auditoria, auditoriaRegimeSimples, itensReceita, regrasItensReceita });
+    const itensEntradaManual = db.prepare("SELECT chave,valor,label,descricao,ordem FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((x) => {
+      let dados={}; try { dados=JSON.parse(x.valor || '{}'); } catch (_) { /* cadastro antigo inválido fica visível sem travar a tela */ }
+      return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', observacao:dados.observacao || x.descricao || '' };
+    });
+    ok(res, { ...regras.tudo(), auditoria, auditoriaRegimeSimples, itensReceita, regrasItensReceita, itensEntradaManual });
   } catch (e) { erro(res, e); }
 });
 
@@ -6226,6 +6245,44 @@ router.get('/config/itens-receita', async (_req, res) => {
     ok(res, { itens: db.prepare('SELECT chave,nome,classificacao_fiscal FROM catalogo_itens_receita WHERE ativo=1 ORDER BY ordem,nome').all() });
   }
   catch (e) { erro(res, e); }
+});
+
+// Lançamento manual é aditivo: cada competência cria seu próprio movimento
+// de entrada, marcado como MANUAL_ENTRADA. Não altera documentos importados e
+// não executa o motor; qualquer cálculo posterior continua sendo ação explícita.
+router.post('/empresas/:id/entradas-manuais', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    assegurarItensEntradaManualPadrao();
+    const empresaId=Number(req.params.id), periodo=await exigirPeriodoParaImportacao(req), corpo=req.body || {};
+    const competencias=Array.isArray(corpo.competencias) ? corpo.competencias : [];
+    if (!competencias.length) throw new Error('Selecione ao menos uma competência e informe seu valor.');
+    const chave=String(corpo.item_chave || '').trim();
+    const cadastro=chave ? db.prepare("SELECT valor,label,descricao FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(chave) : null;
+    let regra={}; if (cadastro) try { regra=JSON.parse(cadastro.valor || '{}'); } catch (_) { regra={}; }
+    const descricao=String(cadastro ? (regra.nome || cadastro.label) : corpo.item_novo || '').trim();
+    if (!descricao) throw new Error('Selecione um item cadastrado ou informe o item avulso.');
+    const beneficio=regra.beneficio === undefined ? 0 : Number(regra.beneficio);
+    if (!Number.isFinite(beneficio) || beneficio < 0 || beneficio > 1) throw new Error('O benefício do item deve estar entre 0% e 100%.');
+    const itemHash=crypto.createHash('sha256').update(`${empresaId}|${chave || 'AVULSO'}|${descricao}`).digest('hex').slice(0,16);
+    const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
+      VALUES (?,'fornecedor','entrada','Lançamento manual',?,?,?,?,?,?,?,?,?,?,?,?,?,?,'MANUAL_ENTRADA','manual_entrada','DECLARADO_MANUAL',?)`);
+    const inseridos=[];
+    db.transaction(() => { for (const linha of competencias) {
+      const competencia=String(linha.competencia || '').trim(), valor=Number(linha.valor);
+      if (!periodoAnalisado.noPeriodo(competencia,periodo)) throw new Error(`A competência ${competencia || 'informada'} está fora do Período analisado.`);
+      if (!Number.isFinite(valor) || valor < 0) throw new Error(`Valor inválido para ${competencia}.`);
+      const existente=db.prepare("SELECT id FROM movimentos WHERE empresa_id=? AND origem='MANUAL_ENTRADA' AND chave=?").get(empresaId,`MANUAL_ENTRADA:${itemHash}:${competencia}`);
+      if (existente) throw new Error(`Já existe lançamento manual deste item em ${competencia}.`);
+      const evidencia=JSON.stringify({ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null });
+      const r=inserir.run(empresaId,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,`MANUAL_ENTRADA:${itemHash}:${competencia}`,evidencia);
+      inseridos.push({ id:r.lastInsertRowid, competencia, valor });
+    } })();
+    let publicacao=null;
+    if (require('../services/operacaoCompartilhada').ativo()) publicacao=await require('../services/operacaoCompartilhada').publicarOperacaoEmpresa(empresaId);
+    auditar(req,{ empresaId,acao:'incluiu_entradas_manuais',entidade:'movimentos',entidadeId:inseridos.map(x=>x.id).join(','),depois:{ item:descricao, competencias:inseridos, beneficio, origem:'MANUAL_ENTRADA' } });
+    ok(res,{ inseridos, publicacao });
+  } catch(e) { erro(res,e); }
 });
 
 /**

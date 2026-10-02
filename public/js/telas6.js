@@ -25,6 +25,7 @@ const ABAS = [
   { id: 'reducoes', t: 'Reduções' },
   { id: 'simples', t: 'Simples Nacional' },
   { id: 'cfop', t: 'Mapa de natureza por CFOP' },
+  { id: 'entradas_manuais', t: 'Itens de entrada manual' },
   { id: 'outras_receitas', t: 'Outras receitas' },
   { id: 'limiares', t: 'Limiares e padrões' },
   { id: 'ensaio', t: 'Ensaio de regra' },
@@ -51,8 +52,19 @@ Telas.configuracoes = async (el) => {
       A.ir('configuracoes');
     });
   const box = document.getElementById('corpoConfig');
-  ({ controle, aliquotas, tributos, regimes, reducoes, simples, cfop, outras_receitas, limiares, ensaio, historico }[aba])(box, d);
+  ({ controle, aliquotas, tributos, regimes, reducoes, simples, cfop, entradas_manuais, outras_receitas, limiares, ensaio, historico }[aba])(box, d);
 };
+
+function entradas_manuais(box, d) {
+  const itens=d.itensEntradaManual || [];
+  box.innerHTML=`<div class="aviso"><b>Cadastro técnico para lançamentos manuais de entrada.</b> O percentual informa o benefício declarado para a nova entrada. CST e cClassTrib são opcionais; quando preenchidos, ficam registrados no lançamento manual. Alterações só afetam lançamentos futuros e não reprocessam documentos existentes.</div><div class="cartao"><h2>Itens cadastrados</h2>${A.tabela([
+    {t:'Item',r:x=>`<b>${A.esc(x.nome)}</b><div class="mini">${A.esc(x.chave)}</div>`},
+    {t:'Benefício',num:true,r:x=>A.pct(x.beneficio || 0)},
+    {t:'CST',r:x=>`<span class="mono">${A.esc(x.cst || '—')}</span>`},
+    {t:'cClassTrib',r:x=>`<span class="mono">${A.esc(x.cclasstrib || '—')}</span>`},
+    {t:'Observação',r:x=>A.esc(x.observacao || '—')},
+  ],itens,{vazio:'Nenhum item de entrada manual foi cadastrado.'})}</div>`;
+}
 
 function outras_receitas(box, d) {
   const rotuloRegime = { lucro_real: 'Lucro Real', lucro_presumido: 'Lucro Presumido', simples_nacional: 'Simples Nacional' };
