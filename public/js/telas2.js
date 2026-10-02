@@ -903,7 +903,7 @@ Telas.questor = async (el) => {
       const r=await A.api(`/empresas/${S.empresaId}/questor/razao/testar`,{metodo:'POST',corpo:fd,formData:true});
       const linhas=Array.isArray(r.linhas)?r.linhas:[];
       const situacao=(x)=>x.situacao==='ENCONTRADO'?'<span class="tag c">Encontrado</span>':x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="tag c">Encontrado · XML prevalece</span>':'<span class="tag a">Ausente</span>';
-      const cadastro=(x)=>x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="mini">XML considerado</span>':x.item_sugerido?`<span class="tag c">${A.esc(x.item_sugerido.nome)}</span>`:'<span class="tag a">Solicitar cadastro</span>';
+      const cadastro=(x)=>x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="mini">XML considerado</span>':x.item_sugerido?`<span class="tag c">${A.esc(x.item_sugerido.nome)}</span>`:`<button type="button" class="btn vazio pq" data-cadastrar-item-razao="${A.esc(x.identificador)}">Cadastrar item</button>`;
       const tabela=A.tabela([
         {t:'Incluir',r:x=>x.situacao==='AUSENTE'&&x.item_sugerido?`<input type="checkbox" name="razao_incluir" value="${A.esc(x.identificador)}">`:''},
         {t:'Data / lançamento',r:x=>`${A.esc(x.data||'—')}<div class="mini">Seq. ${A.esc(x.sequencia||'—')}${x.documento?` · NF ${A.esc(x.documento)}`:''}</div>`},
@@ -912,12 +912,28 @@ Telas.questor = async (el) => {
         {t:'Conciliação',r:situacao},
         {t:'Cadastro de entrada',r:cadastro},
       ],linhas,{vazio:'Nenhum débito elegível foi encontrado no arquivo.'});
-      A.modal({titulo:'Resultado do teste do razão',largura:1280,confirmar:r.com_item_cadastrado?'Incluir selecionados':'Fechar',descricao:`${r.linhas_lidas||0} lançamento(s) elegível(is) · ${r.encontradas||0} já representado(s) · ${r.divergencias||0} com diferença tratada pelo XML · ${r.ausentes||0} ausente(s) · ${r.com_item_cadastrado||0} com item cadastrado · ${r.precisam_cadastro||0} para cadastrar. Somente ausentes com item cadastrado podem ser incluídos.`,corpo:`<div style="max-height:520px;overflow:auto">${tabela}${r.linhas_lidas>r.total_exibido?`<p class="mini" style="margin-top:10px">Exibindo os primeiros ${r.total_exibido} registros para validação.</p>`:''}</div>`,aoConfirmar:async()=>{
+      const resultadoModal=A.modal({titulo:'Resultado do teste do razão',largura:1280,confirmar:'Incluir selecionados',descricao:`${r.linhas_lidas||0} lançamento(s) elegível(is) · ${r.encontradas||0} já representado(s) · ${r.divergencias||0} com diferença tratada pelo XML · ${r.ausentes||0} ausente(s) · ${r.com_item_cadastrado||0} com item cadastrado · ${r.precisam_cadastro||0} para cadastrar. Somente ausentes com item cadastrado podem ser incluídos.`,corpo:`<div style="max-height:520px;overflow:auto">${tabela}${r.linhas_lidas>r.total_exibido?`<p class="mini" style="margin-top:10px">Exibindo os primeiros ${r.total_exibido} registros para validação.</p>`:''}</div>`,aoConfirmar:async()=>{
         const escolhidos=[...document.querySelectorAll('input[name="razao_incluir"]:checked')].map(x=>linhas.find(linha=>linha.identificador===x.value)).filter(Boolean);
         if(!escolhidos.length) throw new Error('Marque ao menos um lançamento ausente com item cadastrado.');
         const resposta=await A.api(`/empresas/${S.empresaId}/questor/razao/incluir`,{metodo:'POST',corpo:{lancamentos:escolhidos}});
         A.toast(`${resposta.incluidos||0} lançamento(s) incluído(s) pelo razão.`, 'ok'); A.ir('questor');
       }});
+      resultadoModal.fundo.querySelectorAll('[data-cadastrar-item-razao]').forEach((botao)=>botao.onclick=()=>{
+        const linha=linhas.find(x=>x.identificador===botao.dataset.cadastrarItemRazao); if(!linha) return;
+        A.modal({titulo:'Cadastrar item de entrada',largura:760,descricao:'O item será usado neste lançamento e nos próximos lançamentos equivalentes. PIS e Cofins são obrigatórios para Lucro Real e Lucro Presumido.',corpo:
+          A.campo('nome','Item',linha.descricao || linha.conta || '')+
+          A.campo('beneficio','% benefício CBS','0','number')+
+          A.campo('cclasstrib','cClassTrib (opcional)')+A.campo('cst','CST (opcional)')+
+          `<div class="grade g2"><div><b>Lucro Real</b>${A.campo('pis_lucro_real','PIS (%)','','number')}${A.campo('cofins_lucro_real','Cofins (%)','','number')}</div><div><b>Lucro Presumido</b>${A.campo('pis_lucro_presumido','PIS (%)','','number')}${A.campo('cofins_lucro_presumido','Cofins (%)','','number')}</div></div>`+
+          A.area('observacao','Observação',`Razão Questor · ${linha.conta_codigo || ''} · ${linha.conta || ''}`,2),confirmar:'Salvar item',aoConfirmar:async(f)=>{
+            const novo=await A.api('/config/itens-entrada-manual',{metodo:'POST',corpo:f});
+            linha.item_sugerido={chave:novo.chave,nome:novo.nome};
+            const tr=botao.closest('tr'); const celulas=tr.querySelectorAll('td');
+            celulas[0].innerHTML=`<input type="checkbox" name="razao_incluir" value="${A.esc(linha.identificador)}">`;
+            celulas[5].innerHTML=`<span class="tag c">${A.esc(novo.nome)}</span>`;
+            A.toast('Item cadastrado. Esta linha já pode ser selecionada para inclusão.', 'ok');
+          }});
+      });
     }});
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
