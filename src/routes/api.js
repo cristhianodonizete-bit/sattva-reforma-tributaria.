@@ -5533,13 +5533,14 @@ router.post('/empresas/:id/questor/documentos-fiscais/conciliar', upload.single(
 });
 
 function atualizarCadastroDaPreviaRazao(linhas) {
+  const normalizarConta=(valor)=>String(valor || '').replace(/\D/g,'');
   const itens=db.prepare("SELECT chave,label,valor FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((x)=>{
     let regra={}; try { regra=JSON.parse(x.valor || '{}'); } catch (_) { /* ignora configuração inválida */ }
-    return { chave:x.chave, nome:regra.nome || x.label || x.chave, contas_questor:Array.isArray(regra.contas_questor) ? regra.contas_questor.map(String) : [] };
+    return { chave:x.chave, nome:regra.nome || x.label || x.chave, contas_questor:Array.isArray(regra.contas_questor) ? regra.contas_questor.map(normalizarConta).filter(Boolean) : [] };
   });
   return (Array.isArray(linhas)?linhas:[]).map((linha)=>{
     if (linha.situacao!=='AUSENTE') return linha;
-    const item=itens.find((x)=>x.contas_questor.includes(String(linha.conta_codigo || '')));
+    const item=itens.find((x)=>x.contas_questor.includes(normalizarConta(linha.conta_codigo)));
     return item ? { ...linha, item_sugerido:{chave:item.chave,nome:item.nome} } : linha;
   });
 }
@@ -5547,6 +5548,10 @@ function atualizarCadastroDaPreviaRazao(linhas) {
 router.get('/empresas/:id/questor/razao/ultima-conciliacao', async (req,res)=>{
   try {
     await garantirEmpresaPermitida(req, req.params.id);
+    // O cadastro de item é publicado na configuração compartilhada. Baixá-lo
+    // antes da reaplicação impede que uma instância com cache antigo mantenha
+    // a conta como "dependente de cadastro".
+    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_regras']);
     const previa=db.prepare('SELECT arquivo,resultado_json,atualizado_em FROM questor_razao_previas WHERE empresa_id=?').get(Number(req.params.id));
     if (!previa) return ok(res,{ disponivel:false });
     let resultado={}; try { resultado=JSON.parse(previa.resultado_json || '{}'); } catch (_) { throw new Error('A última conciliação do razão não pôde ser lida.'); }
