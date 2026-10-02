@@ -57,17 +57,21 @@ Telas.configuracoes = async (el) => {
 
 function entradas_manuais(box, d) {
   const itens=d.itensEntradaManual || [];
-  box.innerHTML=`<div class="aviso"><b>Cadastro técnico para lançamentos manuais de entrada.</b> O percentual informa o benefício declarado para a nova entrada. CST e cClassTrib são opcionais; quando preenchidos, ficam registrados no lançamento manual. Alterações só afetam lançamentos futuros e não reprocessam documentos existentes.</div><div class="cartao"><div class="cabecalho-lista"><div><h2>Itens cadastrados</h2><p class="desc">Cadastre um item quando ele precisar ficar disponível nos próximos lançamentos manuais.</p></div><button class="btn pq" id="adicionarItemEntradaManual">Adicionar item</button></div>${A.tabela([
-    {t:'Item',r:x=>`<b>${A.esc(x.nome)}</b><div class="mini">${A.esc(x.chave)}</div>`},
-    {t:'Benefício',num:true,r:x=>A.pct(x.beneficio || 0)},
-    {t:'CST',r:x=>`<span class="mono">${A.esc(x.cst || '—')}</span>`},
-    {t:'cClassTrib',r:x=>`<span class="mono">${A.esc(x.cclasstrib || '—')}</span>`},
+  const rotulo={lucro_real:'Lucro Real',lucro_presumido:'Lucro Presumido',simples_nacional:'Simples Nacional'};
+  const linhas=itens.flatMap(item=>Object.entries(item.regimes || {}).map(([regime,regra])=>({...item,regime,...regra})));
+  box.innerHTML=`<div class="aviso"><b>Cadastro técnico para lançamentos manuais de entrada.</b> O percentual informa o benefício declarado para a nova entrada. PIS e Cofins são referências históricas por regime e não presumem crédito: a elegibilidade continua dependente do documento e da operação. Alterações só afetam lançamentos futuros.</div><div class="cartao"><div class="cabecalho-lista"><div><h2>Itens e regras por regime</h2><p class="desc">Mesmo modelo das regras de Outras receitas, com a referência atual e o enquadramento CBS/IBS.</p></div><button class="btn pq" id="adicionarItemEntradaManual">Adicionar item</button></div>${A.tabela([
+    {t:'Item padronizado',r:x=>`<b>${A.esc(x.nome)}</b><div class="mini">${A.esc(x.chave)}</div>`},
+    {t:'Regime',r:x=>A.esc(rotulo[x.regime] || x.regime)},
+    {t:'PIS',num:true,r:x=>x.pis === null || x.pis === undefined ? '—' : A.pct(x.pis)},
+    {t:'Cofins',num:true,r:x=>x.cofins === null || x.cofins === undefined ? '—' : A.pct(x.cofins)},
+    {t:'Tratamento atual',r:x=>A.esc(x.tratamento_atual || '—')},
+    {t:'CBS / IBS',r:x=>`<b>${A.esc(x.cst || '—')} / ${A.esc(x.cclasstrib || '—')}</b><div class="mini">benefício ${A.pct(x.beneficio || 0)}</div>`},
     {t:'Observação',r:x=>A.esc(x.observacao || '—')},
-  ],itens,{vazio:'Nenhum item de entrada manual foi cadastrado.'})}</div>`;
+  ],linhas,{vazio:'Nenhum item de entrada manual foi cadastrado.'})}</div>`;
   document.getElementById('adicionarItemEntradaManual')?.addEventListener('click',()=>A.modal({
     titulo:'Adicionar item de entrada manual', confirmar:'Adicionar ao cadastro',
     descricao:'O item ficará disponível para lançamentos futuros. Não altera documentos, lançamentos ou resultados já calculados.',
-    corpo:`${A.campo('nome','Item','')}<div class="grade g3">${A.campo('beneficio','% benefício','0','number','min="0" max="100" step="0.01"')}${A.campo('cst','CST (opcional)','','text','maxlength="3" inputmode="numeric"')}${A.campo('cclasstrib','cClassTrib (opcional)','','text','maxlength="6" inputmode="numeric"')}</div>${A.campo('observacao','Observação','')}`,
+    corpo:`${A.campo('nome','Item','')}<div class="grade g3">${A.campo('beneficio','% benefício','0','number','min="0" max="100" step="0.01"')}${A.campo('cst','CST (opcional)','','text','maxlength="3" inputmode="numeric"')}${A.campo('cclasstrib','cClassTrib (opcional)','','text','maxlength="6" inputmode="numeric"')}</div><h3>Referência PIS/Cofins por regime</h3><div class="grade g2">${A.campo('pis_lucro_real','PIS — Lucro Real (%)','1.65','number','min="0" max="100" step="0.0001"')}${A.campo('cofins_lucro_real','Cofins — Lucro Real (%)','7.60','number','min="0" max="100" step="0.0001"')}${A.campo('pis_lucro_presumido','PIS — Lucro Presumido (%)','0.65','number','min="0" max="100" step="0.0001"')}${A.campo('cofins_lucro_presumido','Cofins — Lucro Presumido (%)','3.00','number','min="0" max="100" step="0.0001"')}</div>${A.campo('tratamento_lucro_real','Tratamento atual — Lucro Real','Não cumulativo: confirmar elegibilidade documental do crédito.')}${A.campo('tratamento_lucro_presumido','Tratamento atual — Lucro Presumido','Cumulativo: crédito de entrada não é presumido.')}${A.campo('observacao','Observação','')}`,
     aoConfirmar:async(d)=>{ await A.api('/config/itens-entrada-manual',{metodo:'POST',corpo:d}); A.toast('Item de entrada manual incluído no cadastro.','ok'); A.ir('configuracoes'); },
   }));
 }

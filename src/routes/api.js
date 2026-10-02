@@ -6187,6 +6187,13 @@ router.post('/config/cadastros-mestre/popular', async (_req, res) => {
   try { ok(res, coberturaDiagnostico.popularCadastrosMestre()); } catch (e) { erro(res, e); }
 });
 
+function regimesPadraoEntrada() {
+  return {
+    lucro_real:{ pis:0.0165, cofins:0.076, tratamento_atual:'Não cumulativo: alíquotas históricas de referência; crédito depende da elegibilidade e da documentação.' },
+    lucro_presumido:{ pis:0.0065, cofins:0.03, tratamento_atual:'Cumulativo: alíquotas históricas de referência; crédito de entrada não é presumido.' },
+    simples_nacional:{ pis:null, cofins:null, tratamento_atual:'Apuração no DAS; sem PIS/Cofins segregados no lançamento.' },
+  };
+}
 function assegurarItensEntradaManualPadrao() {
   const itens=[
     ['LICENCA_USO_SISTEMAS_SOFTWARE','Licença de uso de sistemas/software',0,'000001','000','Salvo tratamento específico da operação',1],
@@ -6195,10 +6202,12 @@ function assegurarItensEntradaManualPadrao() {
     ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',4],
   ];
   const inserir=db.prepare("INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)");
-  const atualizar=db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=? AND valor='{}'");
+  const existente=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?");
+  const atualizar=db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?");
   db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem]) => {
     inserir.run(chave,nome,observacao,ordem);
-    atualizar.run(JSON.stringify({ nome,beneficio,cclasstrib,cst,observacao }),chave);
+    let anterior={}; try { anterior=JSON.parse(existente.get(chave)?.valor || '{}'); } catch (_) { /* será reparado sem apagar campos conhecidos */ }
+    if (!Object.keys(anterior).length || !anterior.regimes) atualizar.run(JSON.stringify({ nome,beneficio,cclasstrib,cst,observacao,...anterior,regimes:anterior.regimes || regimesPadraoEntrada() }),chave);
   }))();
 }
 router.get('/config/regras', async (_req, res) => {
@@ -6233,7 +6242,7 @@ router.get('/config/regras', async (_req, res) => {
       JOIN catalogo_itens_receita c ON c.chave=r.item_chave ORDER BY c.ordem,r.regime_empresa,r.vigencia_inicio DESC`).all();
     const itensEntradaManual = db.prepare("SELECT chave,valor,label,descricao,ordem FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((x) => {
       let dados={}; try { dados=JSON.parse(x.valor || '{}'); } catch (_) { /* cadastro antigo inválido fica visível sem travar a tela */ }
-      return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', observacao:dados.observacao || x.descricao || '' };
+      return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', observacao:dados.observacao || x.descricao || '', regimes:dados.regimes || regimesPadraoEntrada() };
     });
     ok(res, { ...regras.tudo(), auditoria, auditoriaRegimeSimples, itensReceita, regrasItensReceita, itensEntradaManual });
   } catch (e) { erro(res, e); }
@@ -6263,7 +6272,12 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
     if (cst && cst.length !== 3) throw new Error('CST deve ter 3 dígitos, quando informado.');
     if (cclasstrib && cclasstrib.length !== 6) throw new Error('cClassTrib deve ter 6 dígitos, quando informado.');
     const ordem=Number(db.prepare("SELECT COALESCE(MAX(ordem),0)+1 ordem FROM param_regras WHERE grupo='itens_entrada_manual'").get().ordem);
-    const regra={ nome, beneficio:beneficioInformado / 100, cst, cclasstrib, observacao:String(b.observacao || '').trim() };
+    const percentual=(campo) => { const n=Number(String(b[campo] ?? '').replace(',','.')); return Number.isFinite(n) && n >= 0 && n <= 100 ? n / 100 : null; };
+    const regra={ nome, beneficio:beneficioInformado / 100, cst, cclasstrib, observacao:String(b.observacao || '').trim(), regimes:{
+      lucro_real:{ pis:percentual('pis_lucro_real'),cofins:percentual('cofins_lucro_real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
+      lucro_presumido:{ pis:percentual('pis_lucro_presumido'),cofins:percentual('cofins_lucro_presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
+      simples_nacional:{ pis:null,cofins:null,tratamento_atual:'Apuração no DAS; sem PIS/Cofins segregados no lançamento.' },
+    } };
     db.prepare("INSERT INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)")
       .run(chave,nome,regra.observacao,ordem);
     db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?").run(JSON.stringify(regra),chave);
