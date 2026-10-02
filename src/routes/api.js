@@ -5506,6 +5506,18 @@ router.post('/empresas/:id/questor/conector/conciliacoes-entradas/:tarefaId/incl
   ok(res,{incluidos:inseridos.length,inseridos,ja_incluidos,leitura:'Foram incluídas somente as notas selecionadas. Nenhum cálculo do motor foi executado automaticamente.'});
 } catch(e){erro(res,e);} });
 
+// Leitura operacional independente da fotografia do motor: a inclusão pelo
+// Questor precisa continuar visível na Cadeia antes de um recálculo explícito.
+router.get('/empresas/:id/questor/entradas-conciliadas', async (req,res)=>{ try {
+  await garantirEmpresaPermitida(req, req.params.id);
+  const entradas=db.prepare(`SELECT id,competencia,documento,modelo_documento_fiscal,data_emissao,nome,inscr_federal,descricao,ncm,valor,pis,cofins,normalizacao_evidencia,criado_em
+    FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_CONCILIACAO_ENTRADA' ORDER BY data_emissao DESC,id DESC`).all(Number(req.params.id)).map((x)=>{
+      let evidencia={}; try { evidencia=JSON.parse(x.normalizacao_evidencia||'{}'); } catch (_) { /* mantém a lista mesmo com histórico antigo */ }
+      return {...x,normalizacao_evidencia:undefined,origem:'QUESTOR_CONCILIACAO_ENTRADA',tarefa_id:evidencia.tarefa_id||null,lancamento_questor:evidencia.lancamento_questor||null};
+    });
+  ok(res,{entradas,total:entradas.length,leitura:'Entradas incluídas mediante confirmação na conciliação com o Questor. Esta leitura não executa o motor.'});
+} catch(e){erro(res,e);} });
+
 // Referências que o Questor confirmou como canceladas, mas cujo XML/DF-e ainda
 // não chegou à plataforma. Elas ficam visíveis para conferência e serão
 // aplicadas automaticamente quando o documento for importado.

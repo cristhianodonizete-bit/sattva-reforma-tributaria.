@@ -1592,12 +1592,13 @@ async function telaCadeia(el, tipo) {
   const paginaParceiros = Math.max(1, Number(S.cache[`cadeia_parceiros_${tipo}`]) || 1);
   const paginaCreditosCbs=Math.max(1, Number(S.cache.creditosCbsEntradasPagina) || 1);
   const paginaDocumentosCreditoCbs=Math.max(1, Number(S.cache.documentosCreditoCbsPagina) || 1);
-  const [cadeiaResposta, creditosCbsResposta, documentosCreditoCbsResposta] = await Promise.all([
+  const [cadeiaResposta, creditosCbsResposta, documentosCreditoCbsResposta, entradasQuestorResposta] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidade ? 1 : 0}&beneficios=${mostrarBeneficios ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100&pagina_parceiros=${paginaParceiros}&limite_parceiros=100`),
     // A cadeia consolidada continua disponível mesmo se a visão auxiliar de
     // rastreabilidade não puder ser lida em uma fotografia antiga.
     mostrarCreditosCbs ? A.api(`/empresas/${S.empresaId}/creditos-cbs/entradas?pagina=${paginaCreditosCbs}&limite=100`).catch(() => ({ operacoes:[], paginacao:{}, leitura:'Rastreabilidade de crédito indisponível nesta fotografia.' })) : Promise.resolve({ operacoes:[], paginacao:{} }),
     mostrarNotasCreditoCbs ? A.api(`/empresas/${S.empresaId}/creditos-cbs/documentos?pagina=${paginaDocumentosCreditoCbs}&limite=100`).catch(() => ({ documentos:[], paginacao:{}, leitura:'Relatório por nota indisponível nesta fotografia.' })) : Promise.resolve({ documentos:[], paginacao:{} }),
+    eForn && mostrarRastreabilidade ? A.api(`/empresas/${S.empresaId}/questor/entradas-conciliadas`).catch(() => ({ entradas:[], total:0, leitura:'Entradas conciliadas indisponíveis.' })) : Promise.resolve({ entradas:[], total:0 }),
   ]);
   const { analise, pendenciasReferencias = [] } = cadeiaResposta;
   const t = analise.totais;
@@ -1759,7 +1760,16 @@ async function telaCadeia(el, tipo) {
       ], analise.operacoesBeneficios, { vazio: 'Nenhum benefício foi aplicado pelo motor nesta execução.' })}`
       : `<div class="aviso neutro" style="margin-top:14px"><b>Nenhuma venda com benefício fiscal aplicado nesta execução.</b><br>Quando o motor aplicar redução de CBS ou alíquota zero a uma operação, ela aparecerá nesta lista com o respectivo fundamento.</div>`}
     </div>` : ''}
-    ${mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade por item</h2>
+    ${mostrarRastreabilidade ? `${eForn && entradasQuestorResposta.total ? `<div class="cartao" style="margin-top:16px"><h2>Entradas conciliadas e incluídas pelo Questor</h2>
+      <p class="desc">Estas notas foram incluídas somente após confirmação na conciliação. Elas aparecem aqui mesmo antes de uma nova execução do motor; a origem não é inferida.</p>
+      <p class="mini">${A.esc(entradasQuestorResposta.leitura || '')}</p>
+      ${A.tabela([
+        {t:'Documento / emissão',r:x=>`<b class="mono">${A.esc(x.documento || '—')}</b><div class="mini">${A.esc(x.data_emissao || x.competencia || '—')} · ${A.esc(String(x.modelo_documento_fiscal || '—').toUpperCase())}</div>`},
+        {t:'Fornecedor / item',r:x=>`${A.esc(x.nome || 'Não informado')}<div class="mini">${A.esc(x.descricao || 'Sem descrição')}</div><div class="mini mono">${x.ncm ? `NCM ${A.esc(x.ncm)}` : 'Sem NCM'}</div>`},
+        {t:'Valor / PIS-Cofins',num:true,r:x=>`${A.moeda(x.valor)}<div class="mini">PIS ${A.moeda(x.pis)} · Cofins ${A.moeda(x.cofins)}</div>`},
+        {t:'Conciliação / origem',r:x=>`<span class="tag c">Conciliada · incluída</span><div class="mini">Questor · lançamento ${A.esc(x.lancamento_questor || '—')}</div><div class="mini mono">Tarefa #${A.esc(x.tarefa_id || '—')}</div>`},
+      ], entradasQuestorResposta.entradas || [], {vazio:'Nenhuma entrada foi incluída a partir da conciliação Questor.'})}
+    </div>` : ''}<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade por item</h2>
       <p class="desc">Mostra, item a item, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. As notas e os itens com crédito CBS acima são recortes desta mesma fotografia; nada é recalculado nesta tela.</p>
       ${pendenciasPisCofins.length ? `<div class="aviso atencao" style="margin-top:14px"><b>${pendenciasPisCofins.length} item(ns) deixam o total de PIS/Cofins “A validar”.</b><br><span class="mini">A lista abaixo traz exatamente os lançamentos sem carga histórica determinada; CBS e crédito CBS continuam apresentados a partir da fotografia do motor.</span></div><div style="margin-top:12px">${A.tabela([
         {t:'Documento / competência',r:d=>`<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '—')}</div>`},
@@ -1793,6 +1803,7 @@ async function telaCadeia(el, tipo) {
         { t: 'Total retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.total) },
         { t: rotuloBase, num: true, r: (d) => A.moeda(d.valorSemImposto) },
         { t: 'Origem', r: (d) => `<span class="tag ${String(d.origemBaseEconomica).toUpperCase() === 'DOCUMENTO' ? 'c' : 'a'}">${A.esc(d.origemBaseEconomica || 'a validar')}</span>` },
+        ...(eForn ? [{ t:'Conciliação / fonte', r:d=>String(d.origemMovimento || '').toUpperCase()==='QUESTOR_CONCILIACAO_ENTRADA' ? '<span class="tag c">Conciliada · Questor</span><div class="mini">Incluída pelo Questor após confirmação</div>' : '<span class="mini">Não incluída por conciliação Questor</span>' }] : []),
         { t: 'Memória por tributo', r: (d) => ['pis', 'cofins', 'iss', 'icms'].map((k) => {
           const m = d.memoriaTributos?.[k];
           return m ? `${k.toUpperCase()}: ${A.esc(m.origem || 'INDETERMINADO')} · ${A.esc(m.regra || m.status || '')}` : '';
