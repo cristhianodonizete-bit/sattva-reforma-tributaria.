@@ -738,7 +738,7 @@ Telas.questor = async (el) => {
         <div class="grade g2">${A.campo('inicio', 'Data inicial', '', 'date')}${A.campo('fim', 'Data final', '', 'date')}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button></div>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="buscarCancelamentosQuestor">Buscar cancelamentos no Questor</button><button class="btn vazio" id="conciliarCancelamentosQuestor">Importar relatório exportado</button></div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="conciliarCfopsSaidasQuestor">Conciliar CFOPs de saída</button><button class="btn vazio" id="conciliarEntradasQuestor">Conciliar notas de entrada</button></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="conciliarCfopsSaidasQuestor">Conciliar CFOPs de saída</button><button class="btn vazio" id="conciliarEntradasQuestor">Conciliar notas de entrada</button><button class="btn vazio" id="testarRazaoQuestor">Testar razão exportado</button></div>
         <div style="margin-top:10px"><button class="btn vazio" id="importarLocacoesQuestor">Buscar locações REC para outras receitas</button><p class="mini" style="margin:6px 0 0">Importa somente lançamentos REC cuja descrição indique locação/aluguel. Imóveis e bens móveis são classificados separadamente.</p></div>
         <div class="aviso neutro" style="margin-top:14px"><b>Solicitação em lote</b><br><span class="mini">Selecione várias empresas e uma busca já homologada. O conector processa uma empresa por vez e a fila conserva o resultado individual.</span><br><button class="btn vazio pq" id="solicitarLoteQuestor" style="margin-top:9px">Solicitar informações em lote</button></div>
         <div id="statusImportacaoQuestor" class="mini" role="status" style="margin-top:10px"></div>
@@ -893,6 +893,26 @@ Telas.questor = async (el) => {
     try { const r=await A.api(`/empresas/${S.empresaId}/questor/conector/conciliar-entradas`,{metodo:'POST',corpo:{inicio,fim}}); status.innerHTML=`<span class="tag c">Solicitação registrada</span><div class="mini" style="margin-top:6px">Conciliação de entradas enviada ao conector (solicitação ${A.esc(r.tarefa_id)}). Confira o resultado na fila.</div>`; A.toast('Conciliação de entradas enviada ao conector.','ok'); }
     catch(e){ status.innerHTML=`<span class="tag alto">Não foi possível solicitar</span><div class="mini" style="margin-top:6px">${A.esc(e.message)}</div>`; A.toast(e.message,'erro'); }
     finally { botao.disabled=false; botao.textContent='Conciliar notas de entrada'; }
+  };
+  document.getElementById('testarRazaoQuestor').onclick = () => {
+    if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
+    A.modal({titulo:'Testar conciliação pelo razão',largura:760,descricao:'Envie o Razão exportado pelo Questor em XLSX, XLS ou CSV. Esta etapa apenas compara os débitos de contas de compras, custos e despesas operacionais com as entradas existentes. Nenhum lançamento será incluído.',corpo:'<input type="file" id="arquivoRazaoQuestor" accept=".xlsx,.xls,.csv" required>',confirmar:'Ler e comparar',aoConfirmar:async()=>{
+      const arquivo=document.getElementById('arquivoRazaoQuestor').files[0];
+      if(!arquivo) throw new Error('Selecione o arquivo de razão exportado pelo Questor.');
+      const fd=new FormData(); fd.append('arquivo',arquivo);
+      const r=await A.api(`/empresas/${S.empresaId}/questor/razao/testar`,{metodo:'POST',corpo:fd,formData:true});
+      const linhas=Array.isArray(r.linhas)?r.linhas:[];
+      const situacao=(x)=>x.situacao==='ENCONTRADO'?'<span class="tag c">Encontrado</span>':'<span class="tag a">Ausente</span>';
+      const cadastro=(x)=>x.item_sugerido?`<span class="tag c">${A.esc(x.item_sugerido.nome)}</span>`:'<span class="tag a">Solicitar cadastro</span>';
+      const tabela=A.tabela([
+        {t:'Data / lançamento',r:x=>`${A.esc(x.data||'—')}<div class="mini">Seq. ${A.esc(x.sequencia||'—')}${x.documento?` · NF ${A.esc(x.documento)}`:''}</div>`},
+        {t:'Conta / histórico',r:x=>`<b>${A.esc(x.conta_codigo||'—')}</b><div class="mini">${A.esc(x.conta||'')}</div><div class="mini">${A.esc(x.historico||'')}</div>`},
+        {t:'Valor',num:true,r:x=>A.moeda(Number(x.valor||0))},
+        {t:'Conciliação',r:situacao},
+        {t:'Cadastro de entrada',r:cadastro},
+      ],linhas,{vazio:'Nenhum débito elegível foi encontrado no arquivo.'});
+      A.modal({titulo:'Resultado do teste do razão',largura:1280,confirmar:'Fechar',descricao:`${r.linhas_lidas||0} lançamento(s) elegível(is) · ${r.encontradas||0} já representado(s) · ${r.ausentes||0} ausente(s) · ${r.com_item_cadastrado||0} com item cadastrado · ${r.precisam_cadastro||0} para cadastrar. Nenhum dado foi incluído.`,corpo:`<div style="max-height:520px;overflow:auto">${tabela}${r.linhas_lidas>r.total_exibido?`<p class="mini" style="margin-top:10px">Exibindo os primeiros ${r.total_exibido} registros para validação.</p>`:''}</div>`});
+    }});
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
   document.getElementById('reconciliarCancelamentosPendentes')?.addEventListener('click', async () => {

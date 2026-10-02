@@ -5532,6 +5532,84 @@ router.post('/empresas/:id/questor/documentos-fiscais/conciliar', upload.single(
   } catch(e){ erro(res,e); }
 });
 
+// Teste por arquivo do Razão Questor. Esta etapa é deliberadamente somente
+// leitura: valida o leiaute e mede a cobertura antes de existir qualquer
+// integração nWeb ou inclusão de lançamentos no Sattva.
+router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId=Number(req.params.id);
+    if (!req.file?.buffer) throw new Error('Envie o arquivo de Razão exportado pelo Questor em XLSX, XLS ou CSV.');
+    const ext=(req.file.originalname.split('.').pop() || '').toLowerCase();
+    if (!['xlsx','xls','csv'].includes(ext)) throw new Error('O teste aceita somente XLSX, XLS ou CSV.');
+    const livro=XLSX.read(req.file.buffer,{type:'buffer',raw:false,cellDates:true});
+    const normalizar=(v)=>String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    const chave=(v)=>normalizar(v).replace(/[^a-z0-9]/g,'');
+    // O XLS exportado pelo Questor pode renderizar a célula monetária com
+    // ponto decimal (417.80), enquanto CSV costuma usar vírgula (417,80).
+    // Tratar ambos impede que 417,80 vire 41.780 na conciliação.
+    const numero=(v)=>{ let s=String(v || '').replace(/[^0-9,.-]/g,''); if (!s) return null;
+      if (s.includes(',')) s=s.replace(/\./g,'').replace(',','.');
+      const n=Number(s); return Number.isFinite(n) ? n : null; };
+    const data=(v)=>{ const s=String(v || '').trim(); const br=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if(br) { const ano=br[3].length===2?`20${br[3]}`:br[3]; return `${ano}-${br[2].padStart(2,'0')}-${br[1].padStart(2,'0')}`; } return /^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(0,10):''; };
+    const codigoConta=(texto)=>String(texto || '').match(/Conta:\s*\d+\s*-\s*([\d.]+)/i)?.[1] || '';
+    const elegivel=(conta)=>/^(3\.2|3\.5|3\.7\.03\.(011|013|015|016))/.test(conta);
+    const documentoNoHistorico=(texto)=>String(texto || '').match(/\bNF(?:E|SE|CE)?\s*(?:NUMERO|N[º°O])?\s*(\d{3,})\b/i)?.[1] || '';
+    const itensCadastro=db.prepare("SELECT chave,label,valor FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((x)=>{
+      let regra={}; try { regra=JSON.parse(x.valor || '{}'); } catch (_) { /* cadastro inválido não bloqueia a prévia */ }
+      return { chave:x.chave, nome:regra.nome || x.label || x.chave };
+    });
+    const sugerirItem=(conta,historico,descricao)=>{
+      const texto=normalizar(`${conta} ${historico} ${descricao}`);
+      const termos=/software|processamento de dados/.test(texto)?['licenca','software']
+        :/escritorio/.test(texto)?['escritorio']
+        :/limpeza|conservacao/.test(texto)?['limpeza']
+        :/locacao|aluguel/.test(texto)?['aluguel','imovel'] : [];
+      return itensCadastro.find((item)=>termos.some((termo)=>normalizar(item.nome).includes(termo))) || null;
+    };
+    const existentes=db.prepare("SELECT id,documento,data_emissao,valor,nome,origem FROM movimentos WHERE empresa_id=? AND tipo='fornecedor'").all(empresaId);
+    const dig=(v)=>String(v || '').replace(/\D/g,'');
+    const linhas=[]; let cabeçalho=null; let cabecalhosValidos=0;
+    for (const nomeAba of livro.SheetNames) {
+      const matriz=XLSX.utils.sheet_to_json(livro.Sheets[nomeAba],{header:1,defval:'',raw:false});
+      let mapa={};
+      for (const bruta of matriz) {
+        const primeira=String(bruta[0] || '').trim();
+        if (chave(primeira)==='data' && bruta.some((v)=>chave(v)==='historico')) { mapa=Object.fromEntries(bruta.map((v,i)=>[chave(v),i])); cabecalhosValidos++; continue; }
+        const historico=String(bruta[mapa.historico] || '').trim();
+        if (/^conta:/i.test(historico)) { cabeçalho={ texto:historico, codigo:codigoConta(historico) }; continue; }
+        if (!cabeçalho || !historico || !elegivel(cabeçalho.codigo)) continue;
+        const valorDebito=numero(bruta[mapa.debito]);
+        if (valorDebito === null || valorDebito <= 0) continue;
+        const emissao=data(bruta[mapa.data]); const documento=documentoNoHistorico(historico);
+        const correspondencias=existentes.filter((movimento)=>{
+          const mesmoDocumento=documento && dig(String(movimento.documento || '').split('/').at(-1))===dig(documento);
+          const mesmoValor=Math.abs(Number(movimento.valor || 0)-valorDebito)<0.02;
+          const mesmaData=!emissao || !movimento.data_emissao || String(movimento.data_emissao).slice(0,10)===emissao;
+          return (mesmoDocumento && mesmoValor) || (!documento && mesmoValor && mesmaData && normalizar(movimento.nome).includes(normalizar(bruta[mapa.descricao] || '').slice(0,18)));
+        });
+        const item=sugerirItem(cabeçalho.texto,historico,bruta[mapa.descricao]);
+        linhas.push({
+          identificador:`${nomeAba}|${bruta[mapa.sequencia] || ''}|${emissao}|${valorDebito}|${historico}`,
+          conta_codigo:cabeçalho.codigo, conta:cabeçalho.texto.replace(/^Conta:\s*/i,''), data:emissao,
+          sequencia:String(bruta[mapa.sequencia] || ''), historico, contrapartida:String(bruta[mapa.contrapartida] || ''),
+          descricao:String(bruta[mapa.descricao] || ''), participante:String(bruta[mapa.participante] || ''), valor:valorDebito,
+          documento, situacao:correspondencias.length?'ENCONTRADO':'AUSENTE',
+          movimentos_encontrados:correspondencias.map((x)=>({id:x.id,documento:x.documento,origem:x.origem,valor:x.valor})),
+          item_sugerido:item ? {chave:item.chave,nome:item.nome} : null,
+          observacao:correspondencias.length?'Lançamento já representado em uma entrada do Sattva.':'Lançamento contábil sem entrada equivalente; ainda não foi incluído.',
+        });
+      }
+    }
+    if (!cabecalhosValidos) throw new Error('Não identificamos o cabeçalho do Razão. Esperado: Data, Sequência, Histórico, Contrapartida, Descrição, Valor, Débito e Crédito.');
+    const ausentes=linhas.filter((x)=>x.situacao==='AUSENTE');
+    const comCadastro=ausentes.filter((x)=>x.item_sugerido).length;
+    ok(res,{ arquivo:req.file.originalname, leitura:'TESTE_SEM_INCLUSAO', linhas_lidas:linhas.length, encontradas:linhas.length-ausentes.length,
+      ausentes:ausentes.length, com_item_cadastrado:comCadastro, precisam_cadastro:ausentes.length-comCadastro,
+      linhas:linhas.slice(0,500), total_exibido:Math.min(500,linhas.length), observacao:'Prévia do Razão. Nenhum lançamento foi incluído, classificado ou enviado ao motor.' });
+  } catch(e) { erro(res,e); }
+});
+
 router.post('/empresas/:id/questor/conector/documentos-fiscais-cancelados', async (req,res)=>{ try {
   const empresaId=Number(req.params.id), empresa=db.prepare('SELECT codigo_questor FROM empresas WHERE id=?').get(empresaId);
   if(!empresa?.codigo_questor) throw new Error('Informe o Código Questor no cadastro da empresa antes da busca.');
