@@ -6247,6 +6247,31 @@ router.get('/config/itens-receita', async (_req, res) => {
   catch (e) { erro(res, e); }
 });
 
+router.post('/config/itens-entrada-manual', async (req, res) => {
+  try {
+    assegurarItensEntradaManualPadrao();
+    const b=req.body || {};
+    const nome=String(b.nome || '').trim();
+    if (!nome) throw new Error('Informe o nome do item.');
+    const beneficioInformado=Number(String(b.beneficio ?? '').replace(',','.'));
+    if (!Number.isFinite(beneficioInformado) || beneficioInformado < 0 || beneficioInformado > 100) throw new Error('O benefício deve estar entre 0% e 100%.');
+    const chaveBase=nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,70);
+    if (!chaveBase) throw new Error('Não foi possível gerar a chave do item.');
+    let chave=chaveBase, sequencia=2;
+    while (db.prepare("SELECT 1 FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(chave)) chave=`${chaveBase}_${sequencia++}`;
+    const cst=String(b.cst || '').replace(/\D/g,''); const cclasstrib=String(b.cclasstrib || '').replace(/\D/g,'');
+    if (cst && cst.length !== 3) throw new Error('CST deve ter 3 dígitos, quando informado.');
+    if (cclasstrib && cclasstrib.length !== 6) throw new Error('cClassTrib deve ter 6 dígitos, quando informado.');
+    const ordem=Number(db.prepare("SELECT COALESCE(MAX(ordem),0)+1 ordem FROM param_regras WHERE grupo='itens_entrada_manual'").get().ordem);
+    const regra={ nome, beneficio:beneficioInformado / 100, cst, cclasstrib, observacao:String(b.observacao || '').trim() };
+    db.prepare("INSERT INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)")
+      .run(chave,nome,regra.observacao,ordem);
+    db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?").run(JSON.stringify(regra),chave);
+    await confirmarParametrosCompartilhados();
+    ok(res,{ chave,...regra });
+  } catch(e) { erro(res,e); }
+});
+
 // Lançamento manual é aditivo: cada competência cria seu próprio movimento
 // de entrada, marcado como MANUAL_ENTRADA. Não altera documentos importados e
 // não executa o motor; qualquer cálculo posterior continua sendo ação explícita.

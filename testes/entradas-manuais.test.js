@@ -11,13 +11,16 @@ const classificador=fs.readFileSync(path.join(raiz,'src/engine/classificador.js'
 
 for (const chave of ['LICENCA_USO_SISTEMAS_SOFTWARE','MATERIAL_ESCRITORIO','ALUGUEL_IMOVEL_COMERCIAL','MATERIAL_LIMPEZA']) assert.match(db,new RegExp(chave));
 assert.match(api,/router\.post\('\/empresas\/:id\/entradas-manuais'/);
+assert.match(api,/router\.post\('\/config\/itens-entrada-manual'/);
 assert.match(api,/exigirPeriodoParaImportacao/);
 assert.match(api,/periodoAnalisado\.noPeriodo/);
 assert.match(api,/MANUAL_ENTRADA/);
 assert.match(api,/publicarOperacaoEmpresa/);
+assert.match(tela,/grupoCentral === 'receitas'/);
 assert.match(tela,/Lançar entrada manual/);
 assert.match(tela,/fila incremental/);
 assert.match(config,/Itens de entrada manual/);
+assert.match(config,/Adicionar item/);
 assert.match(motor,/entradaManual/);
 assert.match(classificador,/lançamento manual de entrada/);
 assert.match(classificador,/reducao_cbs:beneficio/);

@@ -57,13 +57,19 @@ Telas.configuracoes = async (el) => {
 
 function entradas_manuais(box, d) {
   const itens=d.itensEntradaManual || [];
-  box.innerHTML=`<div class="aviso"><b>Cadastro técnico para lançamentos manuais de entrada.</b> O percentual informa o benefício declarado para a nova entrada. CST e cClassTrib são opcionais; quando preenchidos, ficam registrados no lançamento manual. Alterações só afetam lançamentos futuros e não reprocessam documentos existentes.</div><div class="cartao"><h2>Itens cadastrados</h2>${A.tabela([
+  box.innerHTML=`<div class="aviso"><b>Cadastro técnico para lançamentos manuais de entrada.</b> O percentual informa o benefício declarado para a nova entrada. CST e cClassTrib são opcionais; quando preenchidos, ficam registrados no lançamento manual. Alterações só afetam lançamentos futuros e não reprocessam documentos existentes.</div><div class="cartao"><div class="cabecalho-lista"><div><h2>Itens cadastrados</h2><p class="desc">Cadastre um item quando ele precisar ficar disponível nos próximos lançamentos manuais.</p></div><button class="btn pq" id="adicionarItemEntradaManual">Adicionar item</button></div>${A.tabela([
     {t:'Item',r:x=>`<b>${A.esc(x.nome)}</b><div class="mini">${A.esc(x.chave)}</div>`},
     {t:'Benefício',num:true,r:x=>A.pct(x.beneficio || 0)},
     {t:'CST',r:x=>`<span class="mono">${A.esc(x.cst || '—')}</span>`},
     {t:'cClassTrib',r:x=>`<span class="mono">${A.esc(x.cclasstrib || '—')}</span>`},
     {t:'Observação',r:x=>A.esc(x.observacao || '—')},
   ],itens,{vazio:'Nenhum item de entrada manual foi cadastrado.'})}</div>`;
+  document.getElementById('adicionarItemEntradaManual')?.addEventListener('click',()=>A.modal({
+    titulo:'Adicionar item de entrada manual', confirmar:'Adicionar ao cadastro',
+    descricao:'O item ficará disponível para lançamentos futuros. Não altera documentos, lançamentos ou resultados já calculados.',
+    corpo:`${A.campo('nome','Item','')}<div class="grade g3">${A.campo('beneficio','% benefício','0','number','min="0" max="100" step="0.01"')}${A.campo('cst','CST (opcional)','','text','maxlength="3" inputmode="numeric"')}${A.campo('cclasstrib','cClassTrib (opcional)','','text','maxlength="6" inputmode="numeric"')}</div>${A.campo('observacao','Observação','')}`,
+    aoConfirmar:async(d)=>{ await A.api('/config/itens-entrada-manual',{metodo:'POST',corpo:d}); A.toast('Item de entrada manual incluído no cadastro.','ok'); A.ir('configuracoes'); },
+  }));
 }
 
 function outras_receitas(box, d) {
