@@ -2485,6 +2485,27 @@ function filtrarDocumentosFiscais(documentos, filtros = {}) {
     && (!Number.isFinite(maximo) || Number(d.valor) <= maximo)
     && (!busca || `${d.documento || ''} ${d.chave || ''} ${d.parceiro || ''}`.toLowerCase().includes(busca)));
 }
+// A leitura direta do Supabase é a fonte da lista fiscal. Entradas que o
+// usuário acabou de confirmar no Questor podem ainda estar somente no cache
+// operacional enquanto a publicação durável termina. Elas são acrescentadas
+// aqui, com origem explícita, para não desaparecerem da própria aba Entradas.
+// Não há reconciliação, cálculo ou escrita nesta função.
+function entradasQuestorPendentesNaListaFiscal(empresaId, filtros = {}) {
+  return filtrarDocumentosFiscais(listarDocumentosFiscais(empresaId, 0, 1, { ...filtros, sentido:'fornecedor' }).documentos, { ...filtros, sentido:'fornecedor' })
+    .filter((d) => String(d.origem || '').toUpperCase() === 'QUESTOR_CONCILIACAO_ENTRADA')
+    .map((d) => ({ ...d, conciliada_questor:true }));
+}
+function incorporarEntradasQuestorNaLeituraDireta(leitura, empresaId, filtros = {}) {
+  if (String(filtros.sentido || '') !== 'fornecedor') return leitura;
+  const pendentes=entradasQuestorPendentesNaListaFiscal(empresaId, filtros);
+  const referencias=new Set((leitura.documentos || []).map((d) => String(d.referencia || `chave:${d.chave || ''}`)));
+  const adicionais=pendentes.filter((d) => !referencias.has(String(d.referencia || `chave:${d.chave || ''}`)));
+  if (!adicionais.length) return leitura;
+  const documentos=[...(leitura.documentos || []), ...adicionais].sort((a,b) => String(b.data_emissao || b.competencia || b.criado_em || '').localeCompare(String(a.data_emissao || a.competencia || a.criado_em || '')) || Number(b.item_id || 0)-Number(a.item_id || 0));
+  const total=Number(leitura.total || 0)+adicionais.length;
+  return { ...leitura, documentos, total, limitado:true,
+    leitura_metricas:{ ...(leitura.leitura_metricas || {}), entradas_questor_pendentes_publicacao:adicionais.length } };
+}
 // Documento fiscal é uma evidência operacional. A tela e a exportação não
 // podem aceitar um cache antigo após cancelamento/retificação no Questor: a
 // leitura sempre reconcilia somente a empresa aberta com a fonte canônica.
@@ -2528,7 +2549,8 @@ router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
     const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(req.params.id));
     if (leituraDocumentalDiretaControlada(empresa, req.query.competencia)) {
       await garantirEmpresaPermitida(req, req.params.id);
-      const leitura=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { limite:req.query.limite, pagina:req.query.pagina });
+      const leituraRemota=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { limite:req.query.limite, pagina:req.query.pagina });
+      const leitura=incorporarEntradasQuestorNaLeituraDireta(leituraRemota, Number(req.params.id), req.query);
       // A fonte compartilhada traz os fatos do documento; a indicação de
       // receita é uma regra de apresentação já usada pela rota histórica.
       // Reaplicá-la aqui evita que a leitura direta trate ausência de campo
@@ -2558,7 +2580,8 @@ router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
       // quando a leitura direta controlada já foi validada. Há um limite
       // defensivo: acima dele a exportação assíncrona deverá ser usada, nunca
       // uma planilha parcial ou uma sobrecarga silenciosa do Web Service.
-      const leitura=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { exportacao:true });
+      const leituraRemota=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { exportacao:true });
+      const leitura=incorporarEntradasQuestorNaLeituraDireta(leituraRemota, Number(req.params.id), req.query);
       if (leitura.exportacao_limitada) throw new Error(`Exportação direta excede ${leitura.documentos.length} documentos; gere-a pelo fluxo assíncrono para preservar a navegação.`);
       resultado={ documentos:leitura.documentos.map((d)=>({
         ...d,
@@ -2597,7 +2620,12 @@ router.get('/empresas/:id/documentos-fiscais/opcoes-filtros', async (req, res) =
     if (!empresa) throw new Error('Empresa não encontrada.');
     const sentido=String(req.query.sentido || '').trim();
     if (leituraDocumentalDiretaHabilitadaParaEmpresa(empresa)) {
-      return ok(res, await require('../services/documentosFiscaisCompartilhados').listarOpcoesFiltros(empresa.cnpj, sentido));
+      const opcoes=await require('../services/documentosFiscaisCompartilhados').listarOpcoesFiltros(empresa.cnpj, sentido);
+      const pendentes=sentido === 'fornecedor' ? entradasQuestorPendentesNaListaFiscal(empresaId, { sentido }) : [];
+      return ok(res, { ...opcoes,
+        competencias:[...new Set([...(opcoes.competencias || []),...pendentes.map((x)=>x.competencia).filter(Boolean)])].sort().reverse(),
+        modelos:[...new Set([...(opcoes.modelos || []),...pendentes.map((x)=>String(x.modelo_documento_fiscal || 'NAO_IDENTIFICADO').toUpperCase())])].sort(),
+      });
     }
     const parametros=[empresaId];
     const tipoSql=sentido ? (parametros.push(sentido), ' AND tipo=?') : '';
@@ -2635,9 +2663,15 @@ router.get('/empresas/:id/documentos-fiscais/saidas/rastreabilidade-cfop', async
 });
 router.get('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
   try {
-    await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
     const filtro=whereDocumentoFiscal(req.params.id,req.params.referencia);
-    const itens=db.prepare(`${sqlMovimentosFiscaisCanonicos()} SELECT * FROM movimentos_canonicos WHERE linha_canonica=1 AND ${filtro.sql} ORDER BY item_numero, id`).all(Number(req.params.id), ...filtro.valores);
+    // Uma inclusão Questor recém-confirmada pode ainda aguardar a publicação
+    // na fonte compartilhada. Abrir o documento deve funcionar nesse intervalo
+    // sem chamar a reconciliação, que só conhece a fotografia remota.
+    let itens=db.prepare(`${sqlMovimentosFiscaisCanonicos()} SELECT * FROM movimentos_canonicos WHERE linha_canonica=1 AND ${filtro.sql} AND origem='QUESTOR_CONCILIACAO_ENTRADA' ORDER BY item_numero, id`).all(Number(req.params.id), ...filtro.valores);
+    if (!itens.length) {
+      await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
+      itens=db.prepare(`${sqlMovimentosFiscaisCanonicos()} SELECT * FROM movimentos_canonicos WHERE linha_canonica=1 AND ${filtro.sql} ORDER BY item_numero, id`).all(Number(req.params.id), ...filtro.valores);
+    }
     if (!itens.length) throw new Error('Documento fiscal não encontrado para a empresa selecionada.');
     ok(res,{ documento:{ referencia:req.params.referencia, numero:itens[0].documento || itens[0].chave || `Lançamento #${itens[0].id}`, competencia:itens[0].competencia, data_emissao:itens[0].data_emissao, origem:itens[0].origem, chave:itens[0].chave, itens } });
   } catch (e) { erro(res,e); }
@@ -5508,13 +5542,25 @@ router.post('/empresas/:id/questor/conector/conciliacoes-entradas/:tarefaId/incl
     inclusoes[nota.identificador]={status:'INCLUIDA',incluida_em:new Date().toISOString(),movimento_ids:ids};
     inseridos.push({identificador:nota.identificador,documento:nota.documento,serie:nota.serie,valor:nota.valor,movimento_ids:ids});
   }})();
+  // A confirmação já criou os fatos locais de forma transacional. Em seguida
+  // tentamos publicá-los isoladamente na fonte compartilhada para que a aba
+  // Documentos fiscais (leitura direta) também os enxergue. Uma falha nessa
+  // publicação não desfaz a confirmação nem oculta a nota: a tela a expõe
+  // como entrada Questor pendente de publicação.
+  let publicacaoCompartilhada;
+  try {
+    publicacaoCompartilhada=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,inseridos.flatMap((x)=>x.movimento_ids));
+  } catch (erroPublicacao) {
+    publicacaoCompartilhada={ ativo:true, pendente:true, erro:erroPublicacao.message };
+  }
+  inseridos.forEach((x)=>{ if(inclusoes[x.identificador]) inclusoes[x.identificador].publicacao_compartilhada=publicacaoCompartilhada; });
   resultado.inclusoes=inclusoes;
   resultado.notas=resultado.notas.map((nota)=>inclusoes[nota.identificador] ? {...nota,situacao:'INCLUIDA',inclusao:inclusoes[nota.identificador],observacao:'Incluída a partir do relatório do Questor, mediante confirmação do usuário.'} : nota);
   resultado.incluidas=Object.keys(inclusoes).length;
   db.prepare('UPDATE questor_conector_tarefas SET resultado_json=? WHERE id=?').run(JSON.stringify(resultado),tarefaId);
   await questorPersistencia.publicarTarefa(db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(tarefaId));
-  auditar(req,{empresaId,acao:'INCLUIU_ENTRADAS_DA_CONCILIACAO_QUESTOR',entidade:'movimentos',entidadeId:inseridos.flatMap((x)=>x.movimento_ids).join(','),depois:{tarefa_id:tarefaId,inseridos,ja_incluidos,origem:'QUESTOR_CONCILIACAO_ENTRADA'}});
-  ok(res,{incluidos:inseridos.length,inseridos,ja_incluidos,leitura:'Foram incluídas somente as notas selecionadas. Nenhum cálculo do motor foi executado automaticamente.'});
+  auditar(req,{empresaId,acao:'INCLUIU_ENTRADAS_DA_CONCILIACAO_QUESTOR',entidade:'movimentos',entidadeId:inseridos.flatMap((x)=>x.movimento_ids).join(','),depois:{tarefa_id:tarefaId,inseridos,ja_incluidos,origem:'QUESTOR_CONCILIACAO_ENTRADA',publicacao_compartilhada:publicacaoCompartilhada}});
+  ok(res,{incluidos:inseridos.length,inseridos,ja_incluidos,publicacao_compartilhada:publicacaoCompartilhada,leitura:'Foram incluídas somente as notas selecionadas. Nenhum cálculo do motor foi executado automaticamente.'});
 } catch(e){erro(res,e);} });
 
 // Leitura operacional independente da fotografia do motor: a inclusão pelo

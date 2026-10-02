@@ -1196,6 +1196,38 @@ async function publicarOperacaoEmpresa(empresaId) {
   resultado.verificacao = { movimentos_locais: locais.length, movimentos_confirmados: locais.length };
   return resultado;
 }
+
+// Entradas incluídas após a conciliação com o Questor não são XMLs. Por isso
+// não podem depender da publicação genérica por id local: esse id é efêmero
+// entre instâncias. A chave Questor já é estável por item e permite publicar
+// somente esses fatos confirmados, sem reenviar a fotografia inteira.
+async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) {
+  if (!ativo()) return { ativo:false, publicados:0, pendentes:movimentoIds.length };
+  const ids=[...new Set(movimentoIds.map(Number).filter(Number.isInteger))];
+  if (!ids.length) return { ativo:true, publicados:0, pendentes:0 };
+  const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!empresa?.cnpj) throw new Error('Empresa não encontrada para publicar as entradas conciliadas.');
+  const remoto=supabase.admin();
+  const cnpj=String(empresa.cnpj).replace(/\D/g,'');
+  const { data:candidatas, error:erroEmpresa }=await remoto.from('empresas').select('id,cnpj,origem_local_id')
+    .or(`origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`).limit(10);
+  if (erroEmpresa) throw new Error(`Empresa compartilhada: ${erroEmpresa.message}`);
+  const empresas=(candidatas || []).filter((x)=>Number(x.origem_local_id)===Number(empresaId) || String(x.cnpj || '').replace(/\D/g,'')===cnpj);
+  if (empresas.length!==1) throw new Error('Empresa compartilhada não localizada de forma única; as entradas locais foram preservadas.');
+  const marcas=ids.map(()=>'?').join(',');
+  const locais=db.prepare(`SELECT ${CAMPOS.movimentos.join(',')} FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_CONCILIACAO_ENTRADA' AND id IN (${marcas})`).all(Number(empresaId),...ids);
+  const chaves=locais.map((x)=>String(x.chave || '')).filter(Boolean);
+  if (!chaves.length) return { ativo:true, publicados:0, pendentes:0 };
+  const { data:existentes, error:erroExistentes }=await remoto.from('movimentos').select('chave').eq('empresa_id',Number(empresas[0].id)).in('chave',chaves);
+  if (erroExistentes) throw new Error(`Entradas conciliadas compartilhadas: ${erroExistentes.message}`);
+  const jaPublicadas=new Set((existentes || []).map((x)=>String(x.chave)));
+  const novas=locais.filter((x)=>!jaPublicadas.has(String(x.chave))).map(({ id, ...linha })=>({ ...linha, empresa_id:Number(empresas[0].id) }));
+  if (novas.length) {
+    const { error }=await remoto.from('movimentos').insert(novas);
+    if (error) throw new Error(`Entradas conciliadas compartilhadas: ${error.message}`);
+  }
+  return { ativo:true, publicados:novas.length, ja_publicados:locais.length-novas.length, pendentes:0 };
+}
 // Exclusão de documento fiscal precisa ocorrer na fonte canônica antes de
 // atingir o cache. Caso contrário, a próxima reconciliação restaura o XML e
 // a tela transmite a impressão de que o botão não funcionou.
@@ -1228,6 +1260,6 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
   return { empresa_remota_id: empresaRemotaId, excluidos: ids.length, movimento_ids: ids };
 }
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, prepararContextoMotorEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };
