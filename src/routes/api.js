@@ -5480,7 +5480,7 @@ router.post('/empresas/:id/questor/conector/conciliacoes-entradas/:tarefaId/incl
   const inclusoes=resultado.inclusoes && typeof resultado.inclusoes==='object' ? resultado.inclusoes : {};
   const existente=db.prepare('SELECT id FROM movimentos WHERE empresa_id=? AND chave=? LIMIT 1');
   const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,inscr_federal,descricao,ncm,competencia,valor,valor_produto,base_calculo,pis,cofins,documento,item_numero,chave,modelo_documento_fiscal,data_emissao,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia,quantidade)
-    VALUES (?,'fornecedor','entrada',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'QUESTOR_CONCILIACAO_ENTRADA','questor_conciliacao_entrada','PENDENTE_CLASSIFICACAO',?,?)`);
+    VALUES (?,'fornecedor','entrada',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'QUESTOR_CONCILIACAO_ENTRADA','questor_conciliacao_entrada','PENDENTE_CLASSIFICACAO',?,?)`);
   const inseridos=[], jaIncluidos=[];
   db.transaction(()=>{ for(const nota of notas) {
     if(nota.situacao!=='AUSENTE') { jaIncluidos.push({identificador:nota.identificador,motivo:'A nota já foi encontrada no Sattva.'}); continue; }
