@@ -5542,16 +5542,16 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
     if (!req.file?.buffer) throw new Error('Envie o arquivo de Razão exportado pelo Questor em XLSX, XLS ou CSV.');
     const ext=(req.file.originalname.split('.').pop() || '').toLowerCase();
     if (!['xlsx','xls','csv'].includes(ext)) throw new Error('O teste aceita somente XLSX, XLS ou CSV.');
-    const livro=XLSX.read(req.file.buffer,{type:'buffer',raw:false,cellDates:true});
+    const livro=XLSX.read(req.file.buffer,{type:'buffer',cellDates:true});
     const normalizar=(v)=>String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
     const chave=(v)=>normalizar(v).replace(/[^a-z0-9]/g,'');
     // O XLS exportado pelo Questor pode renderizar a célula monetária com
     // ponto decimal (417.80), enquanto CSV costuma usar vírgula (417,80).
     // Tratar ambos impede que 417,80 vire 41.780 na conciliação.
-    const numero=(v)=>{ let s=String(v || '').replace(/[^0-9,.-]/g,''); if (!s) return null;
+    const numero=(v)=>{ if (typeof v==='number') return Number.isFinite(v) ? v : null; let s=String(v || '').replace(/[^0-9,.-]/g,''); if (!s) return null;
       if (s.includes(',')) s=s.replace(/\./g,'').replace(',','.');
       const n=Number(s); return Number.isFinite(n) ? n : null; };
-    const data=(v)=>{ const s=String(v || '').trim(); const br=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if(br) { const ano=br[3].length===2?`20${br[3]}`:br[3]; return `${ano}-${br[2].padStart(2,'0')}-${br[1].padStart(2,'0')}`; } return /^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(0,10):''; };
+    const data=(v)=>{ if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString().slice(0,10); const s=String(v || '').trim(); const br=s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2,4})/); if(br) { const ano=br[3].length===2?`20${br[3]}`:br[3]; return `${ano}-${br[2].padStart(2,'0')}-${br[1].padStart(2,'0')}`; } return /^\d{4}-\d{2}-\d{2}/.test(s)?s.slice(0,10):''; };
     const codigoConta=(texto)=>String(texto || '').match(/Conta:\s*\d+\s*-\s*([\d.]+)/i)?.[1] || '';
     const elegivel=(conta)=>/^(3\.2|3\.5|3\.7\.03\.(011|013|015|016))/.test(conta);
     const documentoNoHistorico=(texto)=>String(texto || '').match(/\bNF(?:E|SE|CE)?\s*(?:NUMERO|N[º°O])?\s*(\d{3,})\b/i)?.[1] || '';
@@ -5578,7 +5578,10 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
     const dig=(v)=>String(v || '').replace(/\D/g,'');
     const linhas=[]; let cabeçalho=null; let cabecalhosValidos=0;
     for (const nomeAba of livro.SheetNames) {
-      const matriz=XLSX.utils.sheet_to_json(livro.Sheets[nomeAba],{header:1,defval:'',raw:false});
+      // `raw:true` preserva 9.885,79 como 9885.79. A leitura formatada do
+      // XLS troca os separadores em alguns relatórios e reduziria esse valor
+      // para 9,89, produzindo um falso "ausente".
+      const matriz=XLSX.utils.sheet_to_json(livro.Sheets[nomeAba],{header:1,defval:'',raw:true});
       let mapa={};
       for (const bruta of matriz) {
         const primeira=String(bruta[0] || '').trim();
@@ -5589,30 +5592,35 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
         const valorDebito=numero(bruta[mapa.debito]);
         if (valorDebito === null || valorDebito <= 0) continue;
         const emissao=data(bruta[mapa.data]); const documento=documentoNoHistorico(historico);
-        const correspondencias=existentes.filter((movimento)=>{
-          const mesmoDocumento=documento && dig(String(movimento.documento || '').split('/').at(-1))===dig(documento);
+        const porDocumento=existentes.filter((movimento)=>documento && dig(String(movimento.documento || '').split('/').at(-1))===dig(documento));
+        const candidatos=documento ? porDocumento : existentes;
+        const correspondencias=candidatos.filter((movimento)=>{
           const mesmoValor=Math.abs(Number(movimento.valor || 0)-valorDebito)<0.02;
           const mesmaData=!emissao || !movimento.data_emissao || String(movimento.data_emissao).slice(0,10)===emissao;
-          return (mesmoDocumento && mesmoValor) || (!documento && mesmoValor && mesmaData && normalizar(movimento.nome).includes(normalizar(bruta[mapa.descricao] || '').slice(0,18)));
+          return (mesmoValor && mesmaData) || (!documento && mesmoValor && mesmaData && normalizar(movimento.nome).includes(normalizar(bruta[mapa.descricao] || '').slice(0,18)));
         });
         const item=sugerirItem(cabeçalho.texto,historico,bruta[mapa.descricao]);
+        const situacao=correspondencias.length ? 'ENCONTRADO' : porDocumento.length ? 'DIVERGENCIA_VALOR' : 'AUSENTE';
         linhas.push({
           identificador:`${nomeAba}|${bruta[mapa.sequencia] || ''}|${emissao}|${valorDebito}|${historico}`,
           conta_codigo:cabeçalho.codigo, conta:cabeçalho.texto.replace(/^Conta:\s*/i,''), data:emissao,
           sequencia:String(bruta[mapa.sequencia] || ''), historico, contrapartida:String(bruta[mapa.contrapartida] || ''),
           descricao:String(bruta[mapa.descricao] || ''), participante:String(bruta[mapa.participante] || ''), valor:valorDebito,
-          documento, situacao:correspondencias.length?'ENCONTRADO':'AUSENTE',
-          movimentos_encontrados:correspondencias.map((x)=>({id:x.id,documento:x.documento,origem:x.origem,valor:x.valor})),
+          documento, situacao,
+          movimentos_encontrados:(correspondencias.length ? correspondencias : porDocumento).map((x)=>({id:x.id,documento:x.documento,origem:x.origem,valor:x.valor})),
           item_sugerido:item ? {chave:item.chave,nome:item.nome} : null,
-          observacao:correspondencias.length?'Lançamento já representado em uma entrada do Sattva.':'Lançamento contábil sem entrada equivalente; ainda não foi incluído.',
+          observacao:situacao==='ENCONTRADO' ? 'Lançamento já representado em uma entrada do Sattva.'
+            : situacao==='DIVERGENCIA_VALOR' ? `Documento localizado no Sattva, mas o valor difere: razão ${valorDebito.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} · Sattva ${porDocumento.map((x)=>Number(x.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})).join(', ')}.`
+            : 'Lançamento contábil sem entrada equivalente; ainda não foi incluído.',
         });
       }
     }
     if (!cabecalhosValidos) throw new Error('Não identificamos o cabeçalho do Razão. Esperado: Data, Sequência, Histórico, Contrapartida, Descrição, Valor, Débito e Crédito.');
     const ausentes=linhas.filter((x)=>x.situacao==='AUSENTE');
+    const divergencias=linhas.filter((x)=>x.situacao==='DIVERGENCIA_VALOR');
     const comCadastro=ausentes.filter((x)=>x.item_sugerido).length;
     ok(res,{ arquivo:req.file.originalname, leitura:'TESTE_SEM_INCLUSAO', linhas_lidas:linhas.length, encontradas:linhas.length-ausentes.length,
-      ausentes:ausentes.length, com_item_cadastrado:comCadastro, precisam_cadastro:ausentes.length-comCadastro,
+      ausentes:ausentes.length, divergencias:divergencias.length, com_item_cadastrado:comCadastro, precisam_cadastro:ausentes.length-comCadastro,
       linhas:linhas.slice(0,500), total_exibido:Math.min(500,linhas.length), observacao:'Prévia do Razão. Nenhum lançamento foi incluído, classificado ou enviado ao motor.' });
   } catch(e) { erro(res,e); }
 });
