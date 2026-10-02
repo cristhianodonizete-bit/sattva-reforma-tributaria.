@@ -302,13 +302,14 @@ Telas.dados = async (el) => {
   const consultaRastreabilidadeCfop = consultaDocumentos && abaDocumentosCentral === 'documentos' && abaDocumentosFiscais === 'rastreabilidade-saidas';
   const consultaFornecedores = consultaDocumentos && abaDocumentosCentral === 'documentos' && abaDocumentosFiscais === 'fornecedores';
   const consultaDadosAdicionais = ['folha', 'receitas', 'margem'].includes(grupoCentral);
+  const consultaEntradasManuais = grupoCentral === 'entradas_manuais';
   const consultaApuracoes = grupoCentral === 'apuracoes';
   // O selo do cabeçalho também abre as pendências. Portanto, sempre que a
   // Central de Dados estiver aberta, a prontidão da etapa precisa existir;
   // antes as abas de documentos exibiam o selo sem carregar seu conteúdo e o
   // clique era silenciosamente ignorado.
   const consultaProntidao = consultaDocumentos || consultaDadosAdicionais || consultaApuracoes || grupoCentral === 'dashboard';
-  const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, periodoResposta, prontidao, documentosFiscaisResposta, opcoesFiltrosDocumentosResposta, rastreabilidadeCfopResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta] = await Promise.all([
+  const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, periodoResposta, prontidao, documentosFiscaisResposta, opcoesFiltrosDocumentosResposta, rastreabilidadeCfopResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta, entradasManuaisResposta] = await Promise.all([
     (consultaImportacoes || consultaFornecedores) ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${consultaFornecedores ? 'fornecedor' : aba}`) : Promise.resolve({ parceiros: [] }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/lotes`) : Promise.resolve({ lotes: [] }),
     consultaDadosAdicionais ? A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`) : Promise.resolve({ folhas: [], receitas_sem_dfe: [], margens: [] }),
@@ -333,12 +334,14 @@ Telas.dados = async (el) => {
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`) : Promise.resolve({ movimentos: [], total: 0 }),
     consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? A.api(`/empresas/${S.empresaId}/referencias-vendas`) : Promise.resolve(null),
     grupoCentral === 'receitas' ? A.api('/config/itens-receita') : Promise.resolve({ itens: [] }),
+    consultaEntradasManuais ? A.api(`/empresas/${S.empresaId}/entradas-manuais`) : Promise.resolve({ entradas:[], total:0 }),
   ]);
   const { parceiros = [] } = parceirosResposta;
   const { lotes = [] } = lotesResposta;
   const { movimentos = [], total = 0 } = movimentosResposta;
   const documentosFiscais = documentosFiscaisResposta.documentos || [];
   const documentosRastreabilidadeCfop = rastreabilidadeCfopResposta.documentos || [];
+  const entradasManuais=entradasManuaisResposta.entradas || [];
   const estadoDocumentos = documentosFiscaisResposta.leitura_estado || [];
   const leituraDiretaControlada = documentosFiscaisResposta.fonte === 'SUPABASE_COMPARTILHADO_CONTROLADO';
   const tempoLeituraDireta=Number(documentosFiscaisResposta.leitura_metricas?.tempo_ms || 0);
@@ -414,6 +417,7 @@ Telas.dados = async (el) => {
     documentos: { titulo:'Documentos fiscais', descricao:'Importe e acompanhe documentos fiscais, XML ou SPED. A cobertura precisa contemplar o período analisado.', prontidao:'documentos' },
     folha: { titulo:'Folha de pagamento', descricao:'Informe ou importe a folha agregada por competência.', prontidao:'folha' },
     receitas: { titulo:'Outras receitas', descricao:'Registre receitas que não estejam nos documentos fiscais.', prontidao:'receitas' },
+    entradas_manuais: { titulo:'Entradas manuais', descricao:'Registre e acompanhe entradas manuais por competência, separadas dos documentos fiscais importados.' },
     apuracoes: { titulo:'Apurações tributárias', descricao:'Período analisado, ano anterior e dois anos anteriores conforme o regime.', prontidao:'apuracoes' },
     margem: { titulo:'Margem operacional', descricao:'Premissa utilizada nos cenários e no planejamento tributário.', prontidao:'margem' },
     dashboard: { titulo:'Prontidão das entregas', descricao:'Veja o que ainda falta para o sistema concluir as entregas.' },
@@ -478,7 +482,7 @@ Telas.dados = async (el) => {
       {t:'Situação',r:x=>`<span class="tag ${x.status_validacao === 'PENDENTE' ? 'a' : 'c'}">${A.esc(x.status_validacao === 'VALIDADO' ? 'Informada' : x.status_validacao || 'Informada')}</span>`},
       {t:'',r:x=>`<button class="btn pq vazio" data-editar-folha="${A.esc(x.id)}">Editar</button>`},
     ],dadosAdicionais.folhas || [],{vazio:'Nenhuma folha informada ainda.'})}</div>` : ''}
-    ${grupoCentral === 'receitas' ? `<div class="cartao" style="margin-top:16px"><p class="desc">Possível duplicidade não é consolidada automaticamente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addReceitaSemDfe">Adicionar receita</button><button class="btn" id="lancarEntradaManual">Lançar entrada manual</button><button class="btn vazio" id="importarReceitaSemDfe">Importar planilha</button><button class="btn vazio" id="declararReceitaNaoAplicavel">Declarar não se aplica</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/receitas_sem_dfe').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Receitas registradas',(dadosAdicionais.receitas_sem_dfe || []).length,'não consolidadas automaticamente')}${A.kpi('Pendências',(itemProntidao('receitas')?.pendencias || []).length,'competências a resolver')}</div></div>
+    ${grupoCentral === 'receitas' ? `<div class="cartao" style="margin-top:16px"><p class="desc">Possível duplicidade não é consolidada automaticamente.</p><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addReceitaSemDfe">Adicionar receita</button><button class="btn vazio" id="importarReceitaSemDfe">Importar planilha</button><button class="btn vazio" id="declararReceitaNaoAplicavel">Declarar não se aplica</button><button class="btn vazio" onclick="App.baixarArquivo('/modelos/receitas_sem_dfe').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Receitas registradas',(dadosAdicionais.receitas_sem_dfe || []).length,'não consolidadas automaticamente')}${A.kpi('Pendências',(itemProntidao('receitas')?.pendencias || []).length,'competências a resolver')}</div></div>
     <div class="cartao" style="margin-top:16px"><h2>Receitas registradas</h2><p class="desc">Cada lançamento mostra o valor, a origem e a evidência que o trouxe para a base. As importações do Questor permanecem rastreáveis pelo número do lançamento.</p>${A.tabela([
       {t:'Competência',r:x=>`<b class="mono">${A.esc(x.competencia || '—')}</b>`},
       {t:'Item padronizado',r:x=>`<b>${A.esc(x.tipo_receita || '—')}</b><div class="mini">${A.esc(x.item_receita_chave || '')}</div>`},
@@ -488,6 +492,14 @@ Telas.dados = async (el) => {
       {t:'Situação',r:x=>`<span class="tag ${x.status_validacao === 'POSSIVEL_DUPLICIDADE' ? 'a' : 'c'}">${A.esc(x.status_validacao === 'POSSIVEL_DUPLICIDADE' ? 'Revisar duplicidade' : 'Registrada')}</span>`},
       {t:'Ações',r:x=>`<button class="btn pq perigo" data-excluir-receita="${A.esc(x.id)}">Excluir</button>`},
     ],dadosAdicionais.receitas_sem_dfe || [],{vazio:'Nenhuma receita complementar registrada ainda.'})}</div>` : ''}
+    ${grupoCentral === 'entradas_manuais' ? `<div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>Lançamentos manuais de entrada</h2><p class="desc">Entradas criadas manualmente por competência. Elas permanecem separadas dos XMLs e documentos importados; a consulta abaixo não executa o motor.</p></div><button class="btn" id="lancarEntradaManual">Lançar entrada manual</button></div><div class="grade g3" style="margin-top:16px">${A.kpi('Lançamentos registrados',entradasManuais.length,'fatos manuais preservados')}${A.kpi('Valor informado',A.moeda(entradasManuais.reduce((s,x)=>s+Number(x.valor||0),0)),'sem consolidação automática')}${A.kpi('Situação','Na fila do motor','execução segue o fluxo normal')}</div><p class="mini" style="margin-top:14px">${A.esc(entradasManuaisResposta.leitura || '')}</p>${A.tabela([
+      {t:'Competência',r:x=>`<b class="mono">${A.esc(x.competencia || '—')}</b>`},
+      {t:'Item',r:x=>`<b>${A.esc(x.descricao || x.nome || '—')}</b><div class="mini">${A.esc(x.item_cadastrado || 'Item avulso')}</div>`},
+      {t:'CBS / IBS declarado',r:x=>`CST ${A.esc(x.cst_declarado || '—')} · cClassTrib ${A.esc(x.cclasstrib_declarado || '—')}<div class="mini">benefício ${x.beneficio_percentual === null || x.beneficio_percentual === undefined ? '—' : A.pct(x.beneficio_percentual)}</div>`},
+      {t:'Referência PIS/Cofins',r:x=>{const r=x.referencia_pis_cofins || {}; return r.pis_cofins_percentual !== null && r.pis_cofins_percentual !== undefined ? `Conjunto ${A.pct(r.pis_cofins_percentual)}<div class="mini">${A.esc(r.regime || '')}</div>` : `PIS ${r.pis_percentual === null || r.pis_percentual === undefined ? '—' : A.pct(r.pis_percentual)} · Cofins ${r.cofins_percentual === null || r.cofins_percentual === undefined ? '—' : A.pct(r.cofins_percentual)}<div class="mini">${A.esc(r.regime || '')}</div>`;}},
+      {t:'Valor',num:true,r:x=>A.moeda(x.valor)},
+      {t:'Registrado em',r:x=>A.esc(x.criado_em || '—')},
+    ],entradasManuais,{vazio:'Nenhuma entrada manual foi lançada.'})}</div>` : ''}
   ${grupoCentral === 'apuracoes' ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;gap:8px;flex-wrap:wrap">${simplesNacional ? '<button class="btn" id="centralPgdas">Importar PGDAS</button><button class="btn vazio" id="centralIntegra">Integra Contador</button><button class="btn vazio" id="testarIntegraPgdas" hidden>Diagnosticar acesso Integra</button><button class="btn vazio" id="baixarPgdasIntegra" hidden>Baixar PGDAS — Integra Contador</button><button class="btn vazio" id="verJsonIntegra" hidden>Ver JSON de uma competência</button><button class="btn vazio" id="verLogsIntegra" hidden>Ver últimas consultas</button><button class="btn vazio" onclick="App.baixarArquivo(\'/modelos/pgdas\').catch(e=>App.toast(e.message,\'erro\'))">Baixar modelo PGDAS</button>' : `<button class="btn" id="centralApuracao">Enviar apuração PIS/Cofins</button>`}<button class="btn vazio" id="declararHistoricoApuracao">Declarar início posterior/inatividade</button></div>${historicoIndisponivelApuracoes.length ? `<div class="aviso atencao" style="margin-top:14px"><b>Histórico não disponível declarado:</b> ${A.esc(historicoIndisponivelApuracoes.join(', '))}. Essas competências não tiveram dados baixados/importados; foram registradas como ausência declarada e não representam apuração.</div>` : ''}<div class="grade g2" style="margin-top:16px">${A.kpi('Documentos enviados',simplesNacional ? (pgdasResposta.documentos || []).length : apuracoesImportadas.length,'histórico de apurações')}${A.kpi('Pendências',(itemProntidao('apuracoes')?.pendencias || []).length,'competências a resolver')}</div><div class="aviso ${simplesNacional ? 'bom' : 'atencao'}" style="margin-top:14px">${simplesNacional ? 'Empresa do Simples Nacional: planilha XLSX, XLS ou CSV é lida de forma estruturada. PDF digital do PGDAS é lido localmente e exige revisão antes de entrar no histórico.' : exigeApuracaoPisCofins ? 'Empresa no Lucro Presumido ou Lucro Real: envie a apuração histórica de PIS/Cofins.' : 'A apuração aplicável depende do regime cadastrado da empresa.'}</div>${!simplesNacional ? `<div style="margin-top:18px"><h3>Importações de apuração</h3><p class="mini">Cada competência preserva o documento e a origem utilizada na análise.</p>${A.tabela([{t:'Competência',r:x=>`<b>${A.esc(x.competencia || 'Não identificada')}</b>`},{t:'Fonte',r:x=>`<span class="tag ${x.fonte_importacao === 'Questor' ? 'c' : ''}">${A.esc(x.fonte_importacao)}</span>`},{t:'Documento / relatório',r:x=>A.esc(x.nome_original || 'Sem nome')},{t:'Importado em',r:x=>A.esc(x.importado_em || '—')},{t:'Situação',r:x=>A.esc(x.status_validacao || x.status_processamento || 'INDETERMINADO')}],apuracoesImportadas,{vazio:'Nenhuma apuração importada ainda. Use PDF, planilha ou a integração Questor.'})}</div>` : ''}${simplesNacional && (pgdasResposta.documentos || []).length ? `<div style="margin-top:14px"><h3>Documentos PGDAS em revisão</h3><p class="mini">O destino não muda a validação: somente documentos confirmados entram nos cálculos. A competência fora da janela atual fica preservada para o Planejamento Tributário.</p>${A.tabela([{t:'Arquivo',r:x=>A.esc(x.nome_original)},{t:'Competência',r:x=>A.esc(x.competencia_detectada || 'Não identificada')},{t:'Destino de uso',r:x=>destinoPgdas(x)},{t:'Fonte',r:x=>String(x.tipo_documento || '').startsWith('INTEGRA_CONTADOR')?'Integra Contador / PDF oficial':String(x.metodo_extracao || '').includes('AZURE')?'Azure / PDF':'Arquivo enviado'},{t:'Situação',r:x=>A.esc(x.status_processamento)},{t:'',r:x=>{const ref=A.esc(x.hash_sha256 || x.id);return `<button class="btn pq vazio" data-pgdas-revisar="${ref}">Revisar</button><button class="btn pq vazio" data-pgdas-reprocessar="${ref}">Reprocessar</button>${x.status_processamento === 'VALIDADO_USUARIO' ? '<span class="mini"> Confirmado</span>' : `<button class="btn pq" data-pgdas-confirmar="${ref}">Confirmar dados</button>`}`;}}],pgdasResposta.documentos)}</div>` : ''}</div>` : ''}
     ${grupoCentral === 'margem' ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addMargemOperacional">Informar margem operacional</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Margens informadas',(dadosAdicionais.margens || []).length,'premissas declaradas')}${A.kpi('Pendências',(itemProntidao('margem')?.pendencias || []).length,'informações a resolver')}</div></div>` : ''}
     ${grupoCentral !== 'documentos' && Object.prototype.hasOwnProperty.call(pendenciasGrupo, grupoCentral) ? `<div class="cartao" style="margin-top:16px"><h2>Pendências deste grupo</h2>${pendenciasGrupo[grupoCentral].length ? A.tabela([{t:'Registro',r:x=>A.esc(x.competencia || x.periodo_inicio || 'Sem período')},{t:'Situação',r:x=>grupoCentral === 'receitas' ? 'Possível duplicidade ou campo obrigatório ausente' : 'Complete os campos obrigatórios antes da análise.'}],pendenciasGrupo[grupoCentral],{vazio:'Sem pendências.'}) : A.vazio('Sem pendências','Os dados disponíveis deste grupo não exigem ação adicional.')}</div>` : ''}
@@ -1565,9 +1577,9 @@ const barras = (itens) => itens.map(([rot, v]) => `<div style="margin-bottom:11p
 async function telaCadeia(el, tipo) {
   const rep = S.cache[`rep_${tipo}`] === undefined ? 1 : S.cache[`rep_${tipo}`];
   const eForn = tipo === 'fornecedor';
-  const abaCliente = S.aba.clientesCadeia || 'carteira';
-  const mostrarRastreabilidade = !eForn && abaCliente === 'rastreabilidade';
-  const mostrarBeneficios = !eForn && abaCliente === 'beneficios';
+  const abaCadeia = eForn ? (S.aba.fornecedoresCadeia || 'carteira') : (S.aba.clientesCadeia || 'carteira');
+  const mostrarRastreabilidade = abaCadeia === 'rastreabilidade';
+  const mostrarBeneficios = !eForn && abaCadeia === 'beneficios';
   const paginaRastreabilidade = Math.max(1, Number(S.cache[`cadeia_pagina_${tipo}`]) || 1);
   const paginaParceiros = Math.max(1, Number(S.cache[`cadeia_parceiros_${tipo}`]) || 1);
   const paginaCreditosCbs=Math.max(1, Number(S.cache.creditosCbsEntradasPagina) || 1);
@@ -1586,9 +1598,9 @@ async function telaCadeia(el, tipo) {
   const cbsReferencia = Number(S.params?.aliquotaReferencia?.cbs) || 0;
   const ibsReferencia = ibsAtivo ? (Number(S.params?.aliquotaReferencia?.ibs) || 0) : 0;
   const rotuloBase = ibsAtivo ? 'Base econômica integral' : 'Base econômica CBS';
-  const mostrarCarteira = eForn || abaCliente === 'carteira';
-  const mostrarRiscos = eForn || abaCliente === 'riscos';
-  const mostrarAbc = eForn || abaCliente === 'abc';
+  const mostrarCarteira = abaCadeia === 'carteira';
+  const mostrarRiscos = abaCadeia === 'riscos';
+  const mostrarAbc = abaCadeia === 'abc';
   const resumoBeneficios = analise.tratamentoBeneficios || { operacoes: 0 };
   const simplesHibrido = !eForn && analise.projecao_regime === 'SIMPLES_HIBRIDO';
   const outrasReceitasSemCliente = analise.outras_receitas_sem_cliente || { registros: 0, valor: 0, cbs: 0 };
@@ -1663,13 +1675,13 @@ async function telaCadeia(el, tipo) {
       ], documentosCreditoCbsResposta.documentos || [], { vazio:'Nenhuma nota de entrada na fotografia atual do motor.' })}
       ${(() => { const p=documentosCreditoCbsResposta.paginacao || {}; return p.totalPaginas>1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">Página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-documentos-credito-cbs-pagina="${p.pagina-1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-documentos-credito-cbs-pagina="${p.pagina+1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
-    ${!eForn ? `<div class="abas" style="margin-top:16px">
-      <button class="${abaCliente === 'carteira' ? 'ativo' : ''}" data-aba-cliente="carteira">Carteira por perfil</button>
-      <button class="${abaCliente === 'riscos' ? 'ativo' : ''}" data-aba-cliente="riscos">Riscos e oportunidades</button>
-      <button class="${abaCliente === 'abc' ? 'ativo' : ''}" data-aba-cliente="abc">Curva ABC</button>
-      <button class="${abaCliente === 'rastreabilidade' ? 'ativo' : ''}" data-aba-cliente="rastreabilidade">Rastreabilidade</button>
-      <button class="${abaCliente === 'beneficios' ? 'ativo' : ''}" data-aba-cliente="beneficios">Benefícios fiscais aplicados</button>
-    </div>` : ''}
+    <div class="abas" style="margin-top:16px">
+      <button class="${abaCadeia === 'carteira' ? 'ativo' : ''}" data-aba-cadeia="carteira">${eForn ? 'Compras por fornecedor' : 'Carteira por perfil'}</button>
+      <button class="${abaCadeia === 'riscos' ? 'ativo' : ''}" data-aba-cadeia="riscos">Riscos e oportunidades</button>
+      <button class="${abaCadeia === 'abc' ? 'ativo' : ''}" data-aba-cadeia="abc">Curva ABC</button>
+      <button class="${abaCadeia === 'rastreabilidade' ? 'ativo' : ''}" data-aba-cadeia="rastreabilidade">Rastreabilidade</button>
+      ${!eForn ? `<button class="${abaCadeia === 'beneficios' ? 'ativo' : ''}" data-aba-cadeia="beneficios">Benefícios fiscais aplicados</button>` : ''}
+    </div>
     ${mostrarRiscos ? `<div class="cartao" style="margin-top:16px"><h2>Riscos e oportunidades</h2><p class="desc">Leitura da carteira sob a ótica da empresa vendedora.</p>${A.avisos(analise.riscos)}
       ${!eForn && analise.riscos.some((r) => r.codigo === 'base_estimada_regime') ? '<button class="btn vazio" id="corrigirReferencias" style="margin-top:12px">Corrigir referências fiscais dos serviços</button>' : ''}
     </div>` : ''}
@@ -1738,7 +1750,7 @@ async function telaCadeia(el, tipo) {
       <p class="desc">Mostra, documento a documento, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. Não recalcula nada nesta tela: todos os dados vêm da memória persistida do motor.</p>
       ${A.tabela([
         { t: 'Documento', r: (d) => `<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '')}</div>` },
-        { t: 'Cliente', r: (d) => `${A.esc(d.parceiro)}<div class="mini mono">${A.cnpjFmt(d.cnpj)}</div>` },
+        { t: eForn ? 'Fornecedor' : 'Cliente', r: (d) => `${A.esc(d.parceiro)}<div class="mini mono">${A.cnpjFmt(d.cnpj)}</div>` },
         { t: 'Item / referência fiscal', r: (d) => {
           const produto = d.tipoFiscal === 'PRODUTO';
           const servico = d.tipoFiscal === 'SERVICO';
@@ -1746,7 +1758,7 @@ async function telaCadeia(el, tipo) {
           const decisao = d.cclasstrib ? `CST ${d.cst || '—'} · cClassTrib ${d.cclasstrib}` : `Classificação ${d.statusClassificacao || 'a validar'}`;
           return `<b>${A.esc(d.produto || 'Sem descrição')}</b><div class="mini"><span class="tag ${produto ? 'c' : servico ? 'a' : 'n'}">${produto ? 'Produto' : servico ? 'Serviço' : 'A classificar'}</span> <span class="mono">${A.esc(referencia)}</span></div><div class="mini">${A.esc(decisao)}</div>`;
         } },
-        { t: 'Venda atual', num: true, r: (d) => A.moeda(d.valor) },
+        { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: (d) => A.moeda(d.valor) },
         { t: 'ICMS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.icms) },
         { t: 'ISS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.iss) },
         ...(!ibsAtivo ? [
@@ -1767,10 +1779,10 @@ async function telaCadeia(el, tipo) {
         ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (d) => A.moeda(d.ibs) }] : []),
         { t: 'CBS', num: true, r: (d) => A.moeda(d.cbs) },
         ...(simplesHibrido ? [{ t: '(-) CBS no DAS', num: true, r: (d) => A.moeda(d.cbsDentroDoDas) }] : []),
-        { t: 'Venda projetada', num: true, r: (d) => A.moeda(d.precoFinal) },
+        { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (d) => A.moeda(d.precoFinal) },
         { t: 'Impacto', num: true, r: (d) => A.setaR$(d.impactoOperacao) },
         { t: 'Impacto %', num: true, r: (d) => A.setaPct(d.impactoOperacaoPerc) },
-      ], analise.detalhes, { vazio: 'Não há vendas para rastrear.' })}
+      ], analise.detalhes, { vazio: eForn ? 'Não há entradas para rastrear.' : 'Não há vendas para rastrear.' })}
       ${(() => { const p = analise.paginacaoDetalhes || {}; return p.totalPaginas > 1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">${p.total} operações · página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-cadeia-pagina="${p.pagina - 1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-cadeia-pagina="${p.pagina + 1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}` : A.vazio('Sem movimentação importada',
       `Importe a movimentação de ${eForn ? 'fornecedores' : 'clientes'} para gerar esta análise.`,
@@ -1778,11 +1790,11 @@ async function telaCadeia(el, tipo) {
 
   const r = document.getElementById('repasse');
   if (r) r.onchange = () => { S.cache[`rep_${tipo}`] = Number(r.value); A.ir(tipo === 'fornecedor' ? 'fornecedores' : 'clientes'); };
-  el.querySelectorAll('[data-aba-cliente]').forEach((botao) => {
-    botao.onclick = () => { S.aba.clientesCadeia = botao.dataset.abaCliente; S.cache.cadeia_pagina_cliente = 1; A.ir('clientes'); };
+  el.querySelectorAll('[data-aba-cadeia]').forEach((botao) => {
+    botao.onclick = () => { if (eForn) S.aba.fornecedoresCadeia = botao.dataset.abaCadeia; else S.aba.clientesCadeia = botao.dataset.abaCadeia; S.cache[`cadeia_pagina_${tipo}`] = 1; A.ir(eForn ? 'fornecedores' : 'clientes'); };
   });
   el.querySelectorAll('[data-cadeia-pagina]').forEach((botao) => {
-    botao.onclick = () => { S.cache[`cadeia_pagina_${tipo}`] = Number(botao.dataset.cadeiaPagina) || 1; A.ir('clientes'); };
+    botao.onclick = () => { S.cache[`cadeia_pagina_${tipo}`] = Number(botao.dataset.cadeiaPagina) || 1; A.ir(eForn ? 'fornecedores' : 'clientes'); };
   });
   el.querySelectorAll('[data-cadeia-parceiros]').forEach((botao) => {
     botao.onclick = () => { S.cache[`cadeia_parceiros_${tipo}`] = Number(botao.dataset.cadeiaParceiros) || 1; A.ir(tipo === 'fornecedor' ? 'fornecedores' : 'clientes'); };

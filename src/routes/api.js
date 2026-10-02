@@ -6299,6 +6299,21 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
   } catch(e) { erro(res,e); }
 });
 
+// Consulta dos lançamentos manuais: exclusivamente leitura, sem motor nem
+// sincronização. A evidência preserva a referência adotada no cadastro.
+router.get('/empresas/:id/entradas-manuais', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const entradas=db.prepare(`SELECT id,competencia,nome,descricao,valor,cst_declarado,cclasstrib_declarado,normalizacao_evidencia,criado_em
+      FROM movimentos WHERE empresa_id=? AND origem='MANUAL_ENTRADA' ORDER BY competencia DESC,id DESC`).all(Number(req.params.id)).map((x)=>{
+      let evidencia={}; try { evidencia=JSON.parse(x.normalizacao_evidencia || '{}'); } catch (_) { /* preserva a listagem mesmo com evidência legada */ }
+      return { ...x, normalizacao_evidencia:undefined, item_cadastrado:evidencia.item_cadastrado || null,
+        beneficio_percentual:evidencia.beneficio_percentual ?? null, referencia_pis_cofins:evidencia.referencia_pis_cofins || null };
+    });
+    ok(res,{ entradas, total:entradas.length, leitura:'Lançamentos manuais já registrados. Esta consulta não executa o motor nem altera documentos.' });
+  } catch(e) { erro(res,e); }
+});
+
 // Lançamento manual é aditivo: cada competência cria seu próprio movimento
 // de entrada, marcado como MANUAL_ENTRADA. Não altera documentos importados e
 // não executa o motor; qualquer cálculo posterior continua sendo ação explícita.

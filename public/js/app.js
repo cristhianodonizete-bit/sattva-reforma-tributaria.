@@ -247,6 +247,7 @@ const App = (() => {
       { id: 'dados', t: 'Documentos fiscais', i: '⇧', centralGrupo: 'documentos' },
       { id: 'dados', t: 'Folha', i: '⇧', centralGrupo: 'folha' },
       { id: 'dados', t: 'Outras receitas', i: '⇧', centralGrupo: 'receitas' },
+      { id: 'dados', t: 'Entradas manuais', i: '⇩', centralGrupo: 'entradas_manuais' },
       { id: 'dados', t: 'Apurações', i: '⇧', centralGrupo: 'apuracoes' },
       { id: 'dados', t: 'Margem operacional', i: '⇧', centralGrupo: 'margem' },
       { id: 'questor', t: 'Integração Questor', i: '↔' },
