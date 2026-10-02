@@ -5630,6 +5630,47 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
   } catch(e) { erro(res,e); }
 });
 
+// Inclusão confirmada dos lançamentos que o teste do razão classificou como
+// ausentes. A fonte canônica é consultada novamente para impedir duplicidade
+// caso um XML tenha chegado entre a prévia e a confirmação.
+router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    assegurarItensEntradaManualPadrao();
+    const empresaId=Number(req.params.id), selecionados=Array.isArray(req.body?.lancamentos) ? req.body.lancamentos : [];
+    if (!selecionados.length) throw new Error('Selecione ao menos um lançamento ausente com item cadastrado.');
+    const periodo=await exigirPeriodoParaImportacao(req);
+    const empresa=db.prepare('SELECT cnpj,regime FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa?.cnpj) throw new Error('Empresa não encontrada para a inclusão pelo razão.');
+    const leitura=await require('../services/documentosFiscaisCompartilhados').listar(empresa.cnpj,{sentido:'fornecedor'},{exportacao:true});
+    const dig=(v)=>String(v || '').replace(/\D/g,'');
+    const docs=new Set((leitura.documentos || []).map((x)=>dig(String(x.documento || '').split('/').at(-1))).filter(Boolean));
+    const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
+      VALUES (?,'fornecedor','entrada',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'razao','QUESTOR_RAZAO','questor_razao','DECLARADO_QUESTOR_RAZAO',?)`);
+    const resultado={incluidos:0, ja_existentes:0, precisam_cadastro:0, ignorados:0, mensagens:[]};
+    db.transaction(()=>{ for(const linha of selecionados) {
+      const itemChave=String(linha?.item_sugerido?.chave || '');
+      const cadastro=itemChave && db.prepare("SELECT valor,label FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(itemChave);
+      if (!cadastro) { resultado.precisam_cadastro++; continue; }
+      const documento=String(linha.documento || '').replace(/\D/g,'');
+      if (documento && docs.has(documento)) { resultado.ja_existentes++; continue; }
+      const competencia=String(linha.data || '').slice(0,7), valor=Number(linha.valor);
+      if (!periodoAnalisado.noPeriodo(competencia,periodo) || !Number.isFinite(valor) || valor<=0) { resultado.ignorados++; continue; }
+      let regra={}; try { regra=JSON.parse(cadastro.valor || '{}'); } catch (_) { regra={}; }
+      const beneficio=Number(regra.beneficio || 0); const idBase=String(linha.identificador || `${competencia}|${linha.sequencia}|${linha.conta_codigo}|${valor}`);
+      const chave=`QUESTOR_RAZAO:${crypto.createHash('sha256').update(`${empresaId}|${idBase}`).digest('hex').slice(0,24)}`;
+      if (db.prepare('SELECT 1 FROM movimentos WHERE empresa_id=? AND chave=?').get(empresaId,chave)) { resultado.ignorados++; continue; }
+      const referencia={ ...(regra.regimes?.[empresa.regime] || {}), item_cadastrado:{chave:itemChave,nome:regra.nome || cadastro.label}, beneficio_percentual:beneficio,
+        origem:'QUESTOR_RAZAO', conta:linha.conta || '', conta_codigo:linha.conta_codigo || '', sequencia:linha.sequencia || '', historico:linha.historico || '', participante:linha.participante || '', incluido_em:new Date().toISOString() };
+      inserir.run(empresaId,'Razão Questor',regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,
+        regra.cst || '',regra.cclasstrib || '',regra.cst || '',regra.cclasstrib || '',itemChave,documento || null,1,chave,JSON.stringify(referencia));
+      resultado.incluidos++;
+    }});
+    if (resultado.incluidos) await require('../services/operacaoCompartilhada').publicarOperacaoEmpresa(empresaId);
+    ok(res,resultado);
+  } catch(e) { erro(res,e); }
+});
+
 router.post('/empresas/:id/questor/conector/documentos-fiscais-cancelados', async (req,res)=>{ try {
   const empresaId=Number(req.params.id), empresa=db.prepare('SELECT codigo_questor FROM empresas WHERE id=?').get(empresaId);
   if(!empresa?.codigo_questor) throw new Error('Informe o Código Questor no cadastro da empresa antes da busca.');
@@ -6691,9 +6732,9 @@ router.get('/empresas/:id/entradas-manuais', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);
     const entradas=db.prepare(`SELECT id,competencia,nome,descricao,valor,cst_declarado,cclasstrib_declarado,normalizacao_evidencia,criado_em
-      FROM movimentos WHERE empresa_id=? AND origem='MANUAL_ENTRADA' ORDER BY competencia DESC,id DESC`).all(Number(req.params.id)).map((x)=>{
+      FROM movimentos WHERE empresa_id=? AND origem IN ('MANUAL_ENTRADA','QUESTOR_RAZAO') ORDER BY competencia DESC,id DESC`).all(Number(req.params.id)).map((x)=>{
       let evidencia={}; try { evidencia=JSON.parse(x.normalizacao_evidencia || '{}'); } catch (_) { /* preserva a listagem mesmo com evidência legada */ }
-      return { ...x, normalizacao_evidencia:undefined, item_cadastrado:evidencia.item_cadastrado || null,
+      return { ...x, normalizacao_evidencia:undefined, origem:x.origem, item_cadastrado:evidencia.item_cadastrado || null,
         beneficio_percentual:evidencia.beneficio_percentual ?? null, referencia_pis_cofins:evidencia.referencia_pis_cofins || null };
     });
     ok(res,{ entradas, total:entradas.length, leitura:'Lançamentos manuais já registrados. Esta consulta não executa o motor nem altera documentos.' });

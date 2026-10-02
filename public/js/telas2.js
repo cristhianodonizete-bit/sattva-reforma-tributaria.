@@ -905,13 +905,19 @@ Telas.questor = async (el) => {
       const situacao=(x)=>x.situacao==='ENCONTRADO'?'<span class="tag c">Encontrado</span>':x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="tag c">Encontrado · XML prevalece</span>':'<span class="tag a">Ausente</span>';
       const cadastro=(x)=>x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="mini">XML considerado</span>':x.item_sugerido?`<span class="tag c">${A.esc(x.item_sugerido.nome)}</span>`:'<span class="tag a">Solicitar cadastro</span>';
       const tabela=A.tabela([
+        {t:'Incluir',r:x=>x.situacao==='AUSENTE'&&x.item_sugerido?`<input type="checkbox" name="razao_incluir" value="${A.esc(x.identificador)}">`:''},
         {t:'Data / lançamento',r:x=>`${A.esc(x.data||'—')}<div class="mini">Seq. ${A.esc(x.sequencia||'—')}${x.documento?` · NF ${A.esc(x.documento)}`:''}</div>`},
         {t:'Conta / histórico',r:x=>`<b>${A.esc(x.conta_codigo||'—')}</b><div class="mini">${A.esc(x.conta||'')}</div><div class="mini">${A.esc(x.historico||'')}</div>`},
         {t:'Valor',num:true,r:x=>A.moeda(Number(x.valor||0))},
         {t:'Conciliação',r:situacao},
         {t:'Cadastro de entrada',r:cadastro},
       ],linhas,{vazio:'Nenhum débito elegível foi encontrado no arquivo.'});
-      A.modal({titulo:'Resultado do teste do razão',largura:1280,confirmar:'Fechar',descricao:`${r.linhas_lidas||0} lançamento(s) elegível(is) · ${r.encontradas||0} já representado(s) · ${r.divergencias||0} com diferença tratada pelo XML · ${r.ausentes||0} ausente(s) · ${r.com_item_cadastrado||0} com item cadastrado · ${r.precisam_cadastro||0} para cadastrar. Nenhum dado foi incluído.`,corpo:`<div style="max-height:520px;overflow:auto">${tabela}${r.linhas_lidas>r.total_exibido?`<p class="mini" style="margin-top:10px">Exibindo os primeiros ${r.total_exibido} registros para validação.</p>`:''}</div>`});
+      A.modal({titulo:'Resultado do teste do razão',largura:1280,confirmar:r.com_item_cadastrado?'Incluir selecionados':'Fechar',descricao:`${r.linhas_lidas||0} lançamento(s) elegível(is) · ${r.encontradas||0} já representado(s) · ${r.divergencias||0} com diferença tratada pelo XML · ${r.ausentes||0} ausente(s) · ${r.com_item_cadastrado||0} com item cadastrado · ${r.precisam_cadastro||0} para cadastrar. Somente ausentes com item cadastrado podem ser incluídos.`,corpo:`<div style="max-height:520px;overflow:auto">${tabela}${r.linhas_lidas>r.total_exibido?`<p class="mini" style="margin-top:10px">Exibindo os primeiros ${r.total_exibido} registros para validação.</p>`:''}</div>`,aoConfirmar:async()=>{
+        const escolhidos=[...document.querySelectorAll('input[name="razao_incluir"]:checked')].map(x=>linhas.find(linha=>linha.identificador===x.value)).filter(Boolean);
+        if(!escolhidos.length) throw new Error('Marque ao menos um lançamento ausente com item cadastrado.');
+        const resposta=await A.api(`/empresas/${S.empresaId}/questor/razao/incluir`,{metodo:'POST',corpo:{lancamentos:escolhidos}});
+        A.toast(`${resposta.incluidos||0} lançamento(s) incluído(s) pelo razão.`, 'ok'); A.ir('questor');
+      }});
     }});
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
