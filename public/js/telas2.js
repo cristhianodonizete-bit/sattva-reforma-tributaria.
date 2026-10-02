@@ -920,7 +920,7 @@ Telas.questor = async (el) => {
           <label>Situação<select id="filtroRazaoSituacao"><option value="todas">Todas</option><option value="ausente">Ausentes</option><option value="encontrado">Encontrados</option><option value="xml">Encontrados · XML prevalece</option></select></label>
           <label>Cadastro<select id="filtroRazaoCadastro"><option value="todos">Todos</option><option value="pendente">Dependem de cadastro</option><option value="cadastrado">Com item cadastrado</option></select></label>
           <label>Item, conta, NF ou histórico<input id="filtroRazaoTexto" placeholder="Ex.: material aplicado"></label>
-          <button type="button" class="btn" id="aplicarFiltroRazao">Aplicar filtros</button><button type="button" class="btn vazio" id="atualizarCadastroRazao">Atualizar itens cadastrados</button><button type="button" class="btn vazio" id="limparFiltroRazao">Limpar</button>
+          <button type="button" class="btn" id="aplicarFiltroRazao">Aplicar filtros</button><button type="button" class="btn vazio" id="selecionarTodosRazao">Selecionar todos visíveis</button><button type="button" class="btn vazio" id="limparSelecaoRazao">Limpar seleção</button><button type="button" class="btn vazio" id="atualizarCadastroRazao">Atualizar itens cadastrados</button><button type="button" class="btn vazio" id="limparFiltroRazao">Limpar filtros</button>
         </div>
         <div class="mini" id="resumoFiltroRazao" style="margin:-4px 0 10px"></div>
         <div id="tabelaRazaoFiltrada" style="max-height:520px;overflow:auto">${tabela(linhas)}${r.linhas_lidas>r.total_exibido?`<p class="mini" style="margin-top:10px">Exibindo os primeiros ${r.total_exibido} registros para validação.</p>`:''}</div>`,aoConfirmar:async()=>{
@@ -966,6 +966,12 @@ Telas.questor = async (el) => {
       };
       resultadoModal.fundo.addEventListener('change',(evento)=>{ if(evento.target.matches('input[name="razao_incluir"]')) { if(evento.target.checked) selecao.add(evento.target.value); else selecao.delete(evento.target.value); } });
       resultadoModal.fundo.querySelector('#aplicarFiltroRazao').onclick=aplicarFiltrosRazao;
+      resultadoModal.fundo.querySelector('#selecionarTodosRazao').onclick=()=>{
+        resultadoModal.fundo.querySelectorAll('input[name="razao_incluir"]').forEach((caixa)=>{ caixa.checked=true; selecao.add(caixa.value); });
+      };
+      resultadoModal.fundo.querySelector('#limparSelecaoRazao').onclick=()=>{
+        resultadoModal.fundo.querySelectorAll('input[name="razao_incluir"]').forEach((caixa)=>{ caixa.checked=false; selecao.delete(caixa.value); });
+      };
       resultadoModal.fundo.querySelector('#atualizarCadastroRazao').onclick=async()=>{
         const botao=resultadoModal.fundo.querySelector('#atualizarCadastroRazao'); botao.disabled=true; botao.textContent='Atualizando…';
         try {
