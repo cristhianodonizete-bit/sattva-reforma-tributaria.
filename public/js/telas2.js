@@ -904,21 +904,30 @@ Telas.questor = async (el) => {
       const linhas=Array.isArray(r.linhas)?r.linhas:[];
       const situacao=(x)=>x.situacao==='ENCONTRADO'?'<span class="tag c">Encontrado</span>':x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="tag c">Encontrado · XML prevalece</span>':'<span class="tag a">Ausente</span>';
       const cadastro=(x)=>x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="mini">XML considerado</span>':x.item_sugerido?`<span class="tag c">${A.esc(x.item_sugerido.nome)}</span>`:`<button type="button" class="btn vazio pq" data-cadastrar-item-razao="${A.esc(x.identificador)}">Cadastrar item</button>`;
-      const tabela=A.tabela([
-        {t:'Incluir',r:x=>x.situacao==='AUSENTE'&&x.item_sugerido?`<input type="checkbox" name="razao_incluir" value="${A.esc(x.identificador)}">`:''},
+      const selecao=new Set();
+      const tabela=(lista)=>A.tabela([
+        {t:'Incluir',r:x=>x.situacao==='AUSENTE'&&x.item_sugerido?`<input type="checkbox" name="razao_incluir" value="${A.esc(x.identificador)}" ${selecao.has(x.identificador)?'checked':''}>`:''},
         {t:'Data / lançamento',r:x=>`${A.esc(x.data||'—')}<div class="mini">Seq. ${A.esc(x.sequencia||'—')}${x.documento?` · NF ${A.esc(x.documento)}`:''}</div>`},
         {t:'Conta / histórico',r:x=>`<b>${A.esc(x.conta_codigo||'—')}</b><div class="mini">${A.esc(x.conta||'')}</div><div class="mini">${A.esc(x.historico||'')}</div>`},
         {t:'Valor',num:true,r:x=>A.moeda(Number(x.valor||0))},
         {t:'Conciliação',r:situacao},
         {t:'Cadastro de entrada',r:cadastro},
-      ],linhas,{vazio:'Nenhum débito elegível foi encontrado no arquivo.'});
-      const resultadoModal=A.modal({titulo:'Resultado do teste do razão',largura:1280,confirmar:'Incluir selecionados',descricao:`${r.linhas_lidas||0} lançamento(s) elegível(is) · ${r.encontradas||0} já representado(s) · ${r.divergencias||0} com diferença tratada pelo XML · ${r.ausentes||0} ausente(s) · ${r.com_item_cadastrado||0} com item cadastrado · ${r.precisam_cadastro||0} para cadastrar. Somente ausentes com item cadastrado podem ser incluídos.`,corpo:`<div style="max-height:520px;overflow:auto">${tabela}${r.linhas_lidas>r.total_exibido?`<p class="mini" style="margin-top:10px">Exibindo os primeiros ${r.total_exibido} registros para validação.</p>`:''}</div>`,aoConfirmar:async()=>{
-        const escolhidos=[...document.querySelectorAll('input[name="razao_incluir"]:checked')].map(x=>linhas.find(linha=>linha.identificador===x.value)).filter(Boolean);
+      ],lista,{vazio:'Nenhum lançamento corresponde aos filtros aplicados.'});
+      const resultadoModal=A.modal({titulo:'Resultado do teste do razão',largura:1280,confirmar:'Incluir selecionados',descricao:`${r.linhas_lidas||0} lançamento(s) elegível(is) · ${r.encontradas||0} já representado(s) · ${r.divergencias||0} com diferença tratada pelo XML · ${r.ausentes||0} ausente(s) · ${r.com_item_cadastrado||0} com item cadastrado · ${r.precisam_cadastro||0} para cadastrar. Somente ausentes com item cadastrado podem ser incluídos.`,corpo:`
+        <div class="filtros" style="margin:0 0 12px;display:flex;gap:10px;align-items:end;flex-wrap:wrap">
+          <label>Situação<select id="filtroRazaoSituacao"><option value="todas">Todas</option><option value="ausente">Ausentes</option><option value="encontrado">Encontrados</option><option value="xml">Encontrados · XML prevalece</option></select></label>
+          <label>Cadastro<select id="filtroRazaoCadastro"><option value="todos">Todos</option><option value="pendente">Dependem de cadastro</option><option value="cadastrado">Com item cadastrado</option></select></label>
+          <label>Item, conta, NF ou histórico<input id="filtroRazaoTexto" placeholder="Ex.: material aplicado"></label>
+          <button type="button" class="btn" id="aplicarFiltroRazao">Aplicar filtros</button><button type="button" class="btn vazio" id="limparFiltroRazao">Limpar</button>
+        </div>
+        <div class="mini" id="resumoFiltroRazao" style="margin:-4px 0 10px"></div>
+        <div id="tabelaRazaoFiltrada" style="max-height:520px;overflow:auto">${tabela(linhas)}${r.linhas_lidas>r.total_exibido?`<p class="mini" style="margin-top:10px">Exibindo os primeiros ${r.total_exibido} registros para validação.</p>`:''}</div>`,aoConfirmar:async()=>{
+        const escolhidos=linhas.filter((linha)=>selecao.has(linha.identificador));
         if(!escolhidos.length) throw new Error('Marque ao menos um lançamento ausente com item cadastrado.');
         const resposta=await A.api(`/empresas/${S.empresaId}/questor/razao/incluir`,{metodo:'POST',corpo:{lancamentos:escolhidos}});
         A.toast(`${resposta.incluidos||0} lançamento(s) incluído(s) pelo razão.`, 'ok'); A.ir('questor');
       }});
-      resultadoModal.fundo.querySelectorAll('[data-cadastrar-item-razao]').forEach((botao)=>botao.onclick=()=>{
+      const vincularCadastro=()=>resultadoModal.fundo.querySelectorAll('[data-cadastrar-item-razao]').forEach((botao)=>botao.onclick=()=>{
         const linha=linhas.find(x=>x.identificador===botao.dataset.cadastrarItemRazao); if(!linha) return;
         const nomeItem=String(linha.conta || '').replace(/^\s*[\d.]+\s*/, '').trim() || linha.historico || 'Entrada do razão';
         A.modal({titulo:'Cadastrar item de entrada',largura:760,descricao:'O item será usado neste lançamento e nos próximos lançamentos equivalentes. PIS e Cofins são obrigatórios para Lucro Real e Lucro Presumido.',corpo:
@@ -932,14 +941,31 @@ Telas.questor = async (el) => {
             const relacionadas=linhas.filter(x=>x.situacao==='AUSENTE'&&x.conta_codigo===linha.conta_codigo);
             relacionadas.forEach((relacionada)=>{
               relacionada.item_sugerido={chave:novo.chave,nome:novo.nome};
-              const b=[...resultadoModal.fundo.querySelectorAll('[data-cadastrar-item-razao]')].find(x=>x.dataset.cadastrarItemRazao===relacionada.identificador);
-              if(!b) return; const celulas=b.closest('tr').querySelectorAll('td');
-              celulas[0].innerHTML=`<input type="checkbox" name="razao_incluir" value="${A.esc(relacionada.identificador)}">`;
-              celulas[5].innerHTML=`<span class="tag c">${A.esc(novo.nome)}</span>`;
             });
+            aplicarFiltrosRazao();
             A.toast(`Item cadastrado e aplicado a ${relacionadas.length} lançamento(s) da mesma conta.`, 'ok');
           }});
       });
+      const aplicarFiltrosRazao=()=>{
+        const situacaoFiltro=resultadoModal.fundo.querySelector('#filtroRazaoSituacao').value;
+        const cadastroFiltro=resultadoModal.fundo.querySelector('#filtroRazaoCadastro').value;
+        const texto=String(resultadoModal.fundo.querySelector('#filtroRazaoTexto').value || '').trim().toLowerCase();
+        const filtradas=linhas.filter((linha)=>{
+          const porSituacao=situacaoFiltro==='todas' || (situacaoFiltro==='ausente'&&linha.situacao==='AUSENTE') || (situacaoFiltro==='encontrado'&&linha.situacao==='ENCONTRADO') || (situacaoFiltro==='xml'&&linha.situacao==='ENCONTRADO_XML_PREVALECE');
+          const precisaCadastro=linha.situacao==='AUSENTE'&&!linha.item_sugerido;
+          const porCadastro=cadastroFiltro==='todos' || (cadastroFiltro==='pendente'&&precisaCadastro) || (cadastroFiltro==='cadastrado'&&linha.situacao==='AUSENTE'&&Boolean(linha.item_sugerido));
+          const base=`${linha.conta_codigo||''} ${linha.conta||''} ${linha.historico||''} ${linha.documento||''} ${linha.item_sugerido?.nome||''}`.toLowerCase();
+          return porSituacao&&porCadastro&&(!texto||base.includes(texto));
+        });
+        resultadoModal.fundo.querySelector('#tabelaRazaoFiltrada').innerHTML=tabela(filtradas);
+        resultadoModal.fundo.querySelector('#resumoFiltroRazao').textContent=`${filtradas.length} de ${linhas.length} lançamento(s) exibido(s).`;
+        vincularCadastro();
+      };
+      resultadoModal.fundo.addEventListener('change',(evento)=>{ if(evento.target.matches('input[name="razao_incluir"]')) { if(evento.target.checked) selecao.add(evento.target.value); else selecao.delete(evento.target.value); } });
+      resultadoModal.fundo.querySelector('#aplicarFiltroRazao').onclick=aplicarFiltrosRazao;
+      resultadoModal.fundo.querySelector('#filtroRazaoTexto').addEventListener('keydown',(evento)=>{ if(evento.key==='Enter') { evento.preventDefault(); aplicarFiltrosRazao(); } });
+      resultadoModal.fundo.querySelector('#limparFiltroRazao').onclick=()=>{ resultadoModal.fundo.querySelector('#filtroRazaoSituacao').value='todas'; resultadoModal.fundo.querySelector('#filtroRazaoCadastro').value='todos'; resultadoModal.fundo.querySelector('#filtroRazaoTexto').value=''; aplicarFiltrosRazao(); };
+      aplicarFiltrosRazao();
     }});
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
