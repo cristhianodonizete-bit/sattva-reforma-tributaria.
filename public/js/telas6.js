@@ -82,9 +82,35 @@ Telas.controleProjeto = async (el) => Telas.configuracoes(el);
 
 async function controle(box) {
   box.innerHTML = '<div class="carregando">Verificando o projeto…</div>';
-  const d = await A.api('/config/controle');
-  const carteira = (await A.api('/config/processamentos-carteira')).processamento;
+  const [d, carteiraResposta, saude] = await Promise.all([
+    A.api('/config/controle'),
+    A.api('/config/processamentos-carteira'),
+    A.api('/operacao/saude').catch((erro) => ({ erro: erro.message || 'Painel de saúde indisponível.' })),
+  ]);
+  const carteira = carteiraResposta.processamento;
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
+  const formatarDataSaude = (valor) => valor ? new Date(valor).toLocaleString('pt-BR') : '—';
+  const tagSaude = (valor) => {
+    const texto = String(valor || 'INDISPONÍVEL');
+    const classe = /ONLINE|OCIOSO_COM_HEARTBEAT|PROCESSANDO_COM_HEARTBEAT|CONCLUIDO/.test(texto) ? 'c'
+      : /FALHOU|SEM_HEARTBEAT|AGUARDANDO|INDISPONIVEL/.test(texto) ? 'a' : 'n';
+    return `<span class="tag ${classe}">${A.esc(texto.replaceAll('_', ' '))}</span>`;
+  };
+  const painelSaude = saude.erro ? `<div class="cartao" style="margin-top:16px"><h2>Saúde operacional</h2>
+      <div class="aviso atencao"><b>Não foi possível consultar a saúde agora.</b> ${A.esc(saude.erro)}</div></div>` : `<div class="cartao" style="margin-top:16px">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><h2>Saúde operacional</h2><p class="desc">Leitura sob demanda. Não executa o motor, não sincroniza e não altera dados.</p></div><button class="btn pq vazio" id="atualizarSaude">Atualizar</button></div>
+      <div class="grade g4">
+        ${A.kpi('Web', tagSaude(saude.web?.situacao), `memória: ${A.moeda ? `${Number(saude.web?.heap_mb || 0).toLocaleString('pt-BR')} MB heap · ${Number(saude.web?.rss_mb || 0).toLocaleString('pt-BR')} MB RSS` : '—'}`)}
+        ${A.kpi('Worker', tagSaude(saude.worker?.situacao), saude.worker?.heartbeat ? `sinal: ${formatarDataSaude(saude.worker.heartbeat)}` : 'sem job em execução')}
+        ${A.kpi('Fila pendente', saude.fila?.pendentes || 0, `${saude.fila?.falhos || 0} falho(s) nos últimos 100 jobs`, saude.fila?.pendentes || saude.fila?.falhos ? 'destaque' : '')}
+        ${A.kpi('Rotas acima de 1 s', saude.performance?.rotas_lentas?.length || 0, `${saude.performance?.requisicoes || 0} requisições desde o início do Web`, saude.performance?.rotas_lentas?.length ? 'destaque' : '')}
+      </div>
+      <div class="grade g2" style="margin-top:16px">
+        <div class="aviso neutro"><b>Último job concluído</b><br>${saude.fila?.ultimo_concluido ? `Empresa ${A.esc(saude.fila.ultimo_concluido.empresa_id || '—')} · ${formatarDataSaude(saude.fila.ultimo_concluido.finalizado_em)}` : 'Nenhum job concluído entre os últimos 100 registros.'}</div>
+        <div class="aviso ${saude.fila?.ultimo_falho ? 'atencao' : 'bom'}"><b>Último job falho</b><br>${saude.fila?.ultimo_falho ? `Empresa ${A.esc(saude.fila.ultimo_falho.empresa_id || '—')} · ${formatarDataSaude(saude.fila.ultimo_falho.finalizado_em)}${saude.fila.ultimo_falho.erro ? `<div class="mini">${A.esc(saude.fila.ultimo_falho.erro)}</div>` : ''}` : 'Nenhuma falha entre os últimos 100 registros.'}</div>
+      </div>
+      ${saude.alertas?.length ? `<div class="aviso atencao" style="margin-top:16px"><b>Atenções:</b> ${saude.alertas.map((a) => A.esc(a.mensagem)).join(' · ')}</div>` : '<div class="aviso bom" style="margin-top:16px"><b>Sem alertas operacionais neste instante.</b></div>'}
+    </div>`;
   box.innerHTML = `<div class="grade g4">
       ${A.kpi('Clientes a identificar', d.total.clientesPendentes, 'cadastro e perfil pendentes', d.total.clientesPendentes ? 'destaque' : '')}
       ${A.kpi('Receita sem perfil confirmado', A.moeda(d.total.receitaPendente), 'prioridade do enriquecimento', d.total.receitaPendente ? 'destaque' : '')}
@@ -96,6 +122,7 @@ async function controle(box) {
       <p class="desc"><b>${A.esc(carteira.status)}</b> · ${carteira.processadas}/${carteira.total_empresas} empresa(s) · ${carteira.automaticas} automática(s) · ${carteira.com_premissas} com premissas · ${carteira.com_excecoes} com exceções · ${carteira.bloqueadas} bloqueada(s).</p>
       ${carteira.status === 'EXECUTANDO' || carteira.status === 'AGENDADO' ? '<button class="btn vazio" id="atualizarCarteira">Atualizar acompanhamento</button>' : ''}
     </div>` : ''}
+    ${painelSaude}
     <div class="cartao" style="margin-top:16px"><h2>Inconsistências por empresa</h2>
       ${A.tabela([
         { t: 'Empresa', r: (x) => `<b>${A.esc(x.razao_social)}</b>` },
@@ -109,6 +136,7 @@ async function controle(box) {
         { t: '', r: (x) => x.excecoes?.abertas ? `<button class="btn pq vazio" data-excecoes="${x.id}" data-empresa="${A.esc(x.razao_social)}">Ver exceções</button>` : (x.clientesPendentes || x.classificacoesPendentes || x.servicosSemReferencia) ? `<button class="btn pq vazio" data-corrigir="${x.id}" data-destino="${x.servicosSemReferencia || x.clientesPendentes ? 'dados' : 'bases'}">Corrigir</button>` : '<span class="tag c">sem pendências</span>' },
       ], d.empresas)}</div>`;
   document.getElementById('atualizarCarteira')?.addEventListener('click', () => A.ir('configuracoes'));
+  document.getElementById('atualizarSaude')?.addEventListener('click', () => A.ir('controleProjeto'));
   box.querySelectorAll('[data-corrigir]').forEach((botao) => { botao.onclick = async () => {
     localStorage.setItem('sattva_empresa', botao.dataset.corrigir); await A.carregarEmpresas();
     if (botao.dataset.destino === 'dados') S.aba.dados = 'cliente';

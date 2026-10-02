@@ -12,7 +12,11 @@ const telemetria = { resumo:() => ({ total_requisicoes:2, rotas:[{ rota:'GET /le
 (async () => {
   const r = await saude.resumo(db, { supabase, telemetria, memoria:{ heapUsed:1024 * 1024, rss:2 * 1024 * 1024 } });
   assert.equal(r.natureza, 'PAINEL_SOMENTE_LEITURA');
+  assert.equal(r.web.situacao, 'ONLINE');
   assert.equal(r.worker.situacao, 'OCIOSO_COM_HEARTBEAT');
+  assert.equal(r.fila.pendentes, 1);
+  assert.equal(r.fila.falhos, 0);
+  assert.equal(r.fila.ultimo_concluido, null);
   assert.ok(!r.alertas.some((x) => x.codigo === 'FILA_AGUARDANDO'));
   assert.ok(r.alertas.some((x) => x.codigo === 'ROTAS_LENTAS'));
   db.close(); fs.rmSync(pasta, { recursive:true, force:true });

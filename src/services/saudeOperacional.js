@@ -24,6 +24,8 @@ async function resumo(db, { supabase, telemetria, memoria = process.memoryUsage(
     else presencaWorker = (heartbeats || [])[0] || null;
   }
   const porStatus = jobs.reduce((mapa, job) => ({ ...mapa, [job.status]:numero(mapa[job.status]) + 1 }), {});
+  const ultimoConcluido = jobs.find((job) => job.status === 'CONCLUIDO') || null;
+  const ultimoFalho = jobs.find((job) => job.status === 'FALHOU') || null;
   const agora = Date.now();
   const processando = jobs.find((job) => job.status === 'PROCESSANDO') || null;
   const heartbeatRecente = processando?.heartbeat && agora - Date.parse(processando.heartbeat) < 60_000;
@@ -48,8 +50,16 @@ async function resumo(db, { supabase, telemetria, memoria = process.memoryUsage(
   if (rotasLentas.length) alertas.push({ gravidade:'MEDIA', codigo:'ROTAS_LENTAS', mensagem:`${rotasLentas.length} rota(s) com p95 acima de 1 segundo.` });
   return {
     natureza:'PAINEL_SOMENTE_LEITURA', gerado_em:new Date().toISOString(),
-    web:{ heap_mb:Math.round(numero(memoria.heapUsed) / 1024 / 1024 * 100) / 100, rss_mb:Math.round(numero(memoria.rss) / 1024 / 1024 * 100) / 100 },
-    worker, fila:{ por_status:porStatus, ultimos_jobs:jobs.slice(0, 10), erro:erroFila },
+    web:{ situacao:'ONLINE', heap_mb:Math.round(numero(memoria.heapUsed) / 1024 / 1024 * 100) / 100, rss_mb:Math.round(numero(memoria.rss) / 1024 / 1024 * 100) / 100 },
+    worker, fila:{
+      por_status:porStatus,
+      pendentes:numero(porStatus.PENDENTE),
+      falhos:numero(porStatus.FALHOU),
+      ultimo_concluido:ultimoConcluido,
+      ultimo_falho:ultimoFalho,
+      ultimos_jobs:jobs.slice(0, 10),
+      erro:erroFila,
+    },
     performance:{ requisicoes:local.total_requisicoes, rotas_lentas:rotasLentas },
     integridade:{ empresas_analisadas:integridades.length, atencao:alertaIntegridade.map((x) => ({ empresa:x.empresa, situacao:x.situacao, achados:x.achados })) },
     alertas,
