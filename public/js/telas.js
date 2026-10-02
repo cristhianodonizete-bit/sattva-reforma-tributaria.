@@ -1592,13 +1592,14 @@ async function telaCadeia(el, tipo) {
   const paginaParceiros = Math.max(1, Number(S.cache[`cadeia_parceiros_${tipo}`]) || 1);
   const paginaCreditosCbs=Math.max(1, Number(S.cache.creditosCbsEntradasPagina) || 1);
   const paginaDocumentosCreditoCbs=Math.max(1, Number(S.cache.documentosCreditoCbsPagina) || 1);
-  const [cadeiaResposta, creditosCbsResposta, documentosCreditoCbsResposta, entradasQuestorResposta] = await Promise.all([
+  const [cadeiaResposta, creditosCbsResposta, documentosCreditoCbsResposta, entradasQuestorResposta, elegibilidadePisCofinsResposta] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidade ? 1 : 0}&beneficios=${mostrarBeneficios ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100&pagina_parceiros=${paginaParceiros}&limite_parceiros=100`),
     // A cadeia consolidada continua disponível mesmo se a visão auxiliar de
     // rastreabilidade não puder ser lida em uma fotografia antiga.
     mostrarCreditosCbs ? A.api(`/empresas/${S.empresaId}/creditos-cbs/entradas?pagina=${paginaCreditosCbs}&limite=100`).catch(() => ({ operacoes:[], paginacao:{}, leitura:'Rastreabilidade de crédito indisponível nesta fotografia.' })) : Promise.resolve({ operacoes:[], paginacao:{} }),
     mostrarNotasCreditoCbs ? A.api(`/empresas/${S.empresaId}/creditos-cbs/documentos?pagina=${paginaDocumentosCreditoCbs}&limite=100`).catch(() => ({ documentos:[], paginacao:{}, leitura:'Relatório por nota indisponível nesta fotografia.' })) : Promise.resolve({ documentos:[], paginacao:{} }),
     eForn && mostrarRastreabilidade ? A.api(`/empresas/${S.empresaId}/questor/entradas-conciliadas`).catch(() => ({ entradas:[], total:0, leitura:'Entradas conciliadas indisponíveis.' })) : Promise.resolve({ entradas:[], total:0 }),
+    eForn && mostrarRastreabilidade ? A.api(`/empresas/${S.empresaId}/elegibilidade-pis-cofins/entradas`).catch(() => ({ documentos:[], resumo:{}, leitura:'Triagem de PIS/Cofins indisponível.' })) : Promise.resolve({ documentos:[], resumo:{} }),
   ]);
   const { analise, pendenciasReferencias = [] } = cadeiaResposta;
   // A fotografia do motor não é recalculada automaticamente ao incluir uma
@@ -1613,7 +1614,9 @@ async function telaCadeia(el, tipo) {
     const chave=chaveNotaEntrada(item), atual=questorPorNota.get(chave) || {competencia:item.competencia,documento:item.documento,modelo_documento_fiscal:item.modelo_documento_fiscal,data_emissao:item.data_emissao,fornecedor:item.nome,fornecedor_cnpj:item.inscr_federal,valor_entrada:0,itens:0,credito_cbs:0,itens_com_credito:0,itens_pendentes:0,pis_cofins_atual:null,regimes_fornecedor:[],origem_questor:true,tarefa_questor:item.tarefa_id,lancamento_questor:item.lancamento_questor,situacao_credito:'AGUARDANDO_MOTOR'};
     atual.valor_entrada+=Number(item.valor)||0; atual.itens+=1; questorPorNota.set(chave,atual);
   }
-  const documentosEntradaExibidos=[...documentosMotor.map((x)=>({...x,origem_questor:Boolean(x.origem_questor)})),...([...questorPorNota.entries()].filter(([chave])=>!chavesMotor.has(chave)).map(([,x])=>x))];
+  const chaveElegibilidade=(x)=>`${String(x.modelo_documento_fiscal || '').toLowerCase()}|${String(x.documento || '').replace(/\D/g,'')}`;
+  const elegibilidadePorNota=new Map((elegibilidadePisCofinsResposta.documentos || []).map((x)=>[chaveElegibilidade(x),x]));
+  const documentosEntradaExibidos=[...documentosMotor.map((x)=>({...x,origem_questor:Boolean(x.origem_questor)})),...([...questorPorNota.entries()].filter(([chave])=>!chavesMotor.has(chave)).map(([,x])=>x))].map((x)=>({...x,elegibilidade_pis_cofins:elegibilidadePorNota.get(chaveElegibilidade(x)) || null}));
   const t = analise.totais;
   const rotuloRegimeFornecedor=(regime)=>({ lucro_real:'Lucro Real', lucro_presumido:'Lucro Presumido', simples_nacional:'Simples Nacional', mei:'MEI', regime_regular:'Regime regular', indeterminado:'A validar' }[String(regime || '').toLowerCase()] || (regime ? String(regime).replace(/_/g,' ') : 'A validar'));
   const pisCofinsDaFotografia=(valor, origem, motivo)=>valor === null || valor === undefined
@@ -1696,13 +1699,14 @@ async function telaCadeia(el, tipo) {
     </div>` : ''}
     ${mostrarNotasCreditoCbs ? `<div class="cartao" style="margin-top:16px"><h2>Notas de entrada</h2>
       <p class="desc">Conferência por nota dentro da mesma rastreabilidade. A coluna final identifica a origem e se a nota foi conciliada e incluída pelo Questor. “Crédito parcial” significa que a nota possui itens com e sem crédito; “A validar” não é convertido em zero.</p>
-      <div class="grade g3" style="margin-top:12px">${A.kpi('Notas exibidas', documentosEntradaExibidos.length, 'fotografia do motor e inclusões Questor')}${A.kpi('Crédito CBS nas notas', A.moeda(documentosCreditoCbsResposta.total_credito_cbs || 0), 'soma dos itens já analisados pelo motor')}${A.kpi('Execução do motor', documentosCreditoCbsResposta.execucao_id ? `#${documentosCreditoCbsResposta.execucao_id}` : 'Não disponível', 'origem da fotografia')}</div>
+      <div class="grade g4" style="margin-top:12px">${A.kpi('Notas exibidas', documentosEntradaExibidos.length, 'fotografia do motor e inclusões Questor')}${A.kpi('Elegíveis com evidência', elegibilidadePisCofinsResposta.resumo?.ELEGIVEL_COM_EVIDENCIA || 0, 'itens PIS/Cofins; requer revisão fiscal')}${A.kpi('Crédito CBS nas notas', A.moeda(documentosCreditoCbsResposta.total_credito_cbs || 0), 'soma dos itens já analisados pelo motor')}${A.kpi('Execução do motor', documentosCreditoCbsResposta.execucao_id ? `#${documentosCreditoCbsResposta.execucao_id}` : 'Não disponível', 'origem da fotografia')}</div>
       <p class="mini" style="margin-top:12px">${A.esc(documentosCreditoCbsResposta.leitura || '')}</p>
       ${A.tabela([
         { t:'Competência / nota', r:x=>`<b class="mono">${A.esc(x.documento || x.chave || 'Sem número')}</b><div class="mini">${A.esc(x.competencia || '—')}</div>` },
         { t:'Fornecedor', r:x=>`${A.esc(x.fornecedor || 'Não identificado')}<div class="mini mono">${A.cnpjFmt(x.fornecedor_cnpj || '')}</div>` },
         { t:'Regime do fornecedor', r:x=>{const regimes=x.regimes_fornecedor || []; return regimes.length ? regimes.map((r)=>`<span class="tag ${String(r).toLowerCase()==='indeterminado'?'a':'c'}">${A.esc(rotuloRegimeFornecedor(r))}</span>`).join(' ') : '<span class="tag a">A validar</span>';} },
         { t:'Valor / itens', num:true, r:x=>`${A.moeda(x.valor_entrada)}<div class="mini">${x.itens} item(ns)</div>` },
+        { t:'Elegibilidade PIS/Cofins', r:x=>{const e=x.elegibilidade_pis_cofins;if(!e)return '<span class="tag a">A validar</span><div class="mini">Sem triagem disponível.</div>';const classe={ELEGIVEL_COM_EVIDENCIA:'c',CANDIDATO_VALIDAR:'a',NAO_ELEGIVEL:'n',BLOQUEADO_REGIME:'n',A_VALIDAR_REGIME:'a'}[e.status]||'a';return `<span class="tag ${classe}">${A.esc(e.rotulo || e.status)}</span><div class="mini">${A.esc(e.motivo || '')}</div><div class="mini">${A.esc(e.evidencia || '')}</div>`;} },
         { t:'Antes — PIS/Cofins', num:true, r:x=>pisCofinsDaFotografia(x.pis_cofins_atual,(x.origens_pis_cofins || []).join(' · '),(x.motivos_pis_cofins || []).join(' · ')) },
         { t:'Crédito CBS', num:true, r:x=>`${A.moeda(x.credito_cbs)}<div class="mini">${x.itens_com_credito} com crédito · ${x.itens_pendentes} a validar</div>` },
         { t:'Situação', r:x=>{ const r={POSSUI_CREDITO:['Possui crédito','c'],CREDITO_PARCIAL:['Crédito parcial','a'],A_VALIDAR:['A validar','a'],NAO_POSSUI_CREDITO:['Não possui crédito','n'],AGUARDANDO_MOTOR:['Aguardando motor','a']}[x.situacao_credito] || [x.situacao_credito,'n']; return `<span class="tag ${r[1]}">${r[0]}</span>`; } },

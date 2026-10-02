@@ -46,6 +46,7 @@ const cnpjReceita = require('../services/cnpjReceita');
 const baseRegime = require('../services/baseRegimeReceita');
 const relatorio = require('../services/relatorio');
 const perfilCbs = require('../services/perfilCbs');
+const elegibilidadeCreditoPisCofins = require('../services/elegibilidadeCreditoPisCofins');
 const excecoesMotor = require('../services/excecoesMotor');
 const autonomiaTelemetry = require('../services/autonomiaTelemetry');
 const coberturaDiagnostico = require('../services/coberturaDiagnostico');
@@ -1814,6 +1815,16 @@ router.get('/empresas/:id/perfil-cbs/:competencia/detalhes', (req, res) => {
   try { ok(res, { operacoes: perfilCbs.detalhes(req.params.id, req.params.competencia, { sentido: req.query.sentido }) }); }
   catch (e) { erro(res, e); }
 });
+// Triagem de essencialidade/relevância para o crédito histórico de
+// PIS/Cofins. É exclusivamente leitura e não transforma candidatos em
+// créditos. A confirmação fiscal permanece uma etapa humana e auditável.
+router.get('/empresas/:id/elegibilidade-pis-cofins/entradas', async (req,res)=>{
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    ok(res,elegibilidadeCreditoPisCofins.listar(Number(req.params.id)));
+  } catch(e) { erro(res,e); }
+});
+
 // Rastreabilidade de crédito: lê exclusivamente a última fotografia já
 // materializada pelo motor. Não chama o motor, não reconcilia documentos e
 // não escreve em nenhuma tabela; é uma visão paginada para conferência.
@@ -1872,14 +1883,14 @@ router.get('/empresas/:id/creditos-cbs/documentos', async (req, res) => {
     const params=[empresaId,execucao.id];
     const base=`WITH itens AS (
       SELECT CASE WHEN NULLIF(m.chave,'') IS NOT NULL THEN 'chave:'||m.chave ELSE 'movimento:'||m.id END referencia,
-        m.competencia,m.documento,m.chave,m.nome fornecedor,m.inscr_federal fornecedor_cnpj,m.origem origem_movimento,m.valor,r.base_economica,r.credito_cbs,
+        m.competencia,m.documento,m.chave,m.modelo_documento_fiscal,m.nome fornecedor,m.inscr_federal fornecedor_cnpj,m.origem origem_movimento,m.valor,r.base_economica,r.credito_cbs,
         COALESCE(r.status_credito_determinacao,r.status_credito,'INDETERMINADO') status_credito,
         CASE WHEN COALESCE(r.credito_cbs,0)>0 THEN 1 ELSE 0 END tem_credito,
         CASE WHEN UPPER(COALESCE(r.status_credito_determinacao,r.status_credito,'')) IN ('INDETERMINADO','DADOS_INSUFICIENTES','SUJEITO_VALIDACAO') THEN 1 ELSE 0 END pendente
       FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
       WHERE r.empresa_id=? AND r.execucao_id=? AND r.sentido='entrada'
     ), documentos AS (
-      SELECT referencia,MIN(competencia) competencia,COALESCE(NULLIF(MAX(documento),''),NULLIF(MAX(chave),''),'Documento sem número') documento,MAX(chave) chave,
+      SELECT referencia,MIN(competencia) competencia,COALESCE(NULLIF(MAX(documento),''),NULLIF(MAX(chave),''),'Documento sem número') documento,MAX(modelo_documento_fiscal) modelo_documento_fiscal,MAX(chave) chave,
         MAX(fornecedor) fornecedor,MAX(fornecedor_cnpj) fornecedor_cnpj,MAX(CASE WHEN origem_movimento='QUESTOR_CONCILIACAO_ENTRADA' THEN 1 ELSE 0 END) origem_questor,COUNT(*) itens,SUM(COALESCE(valor,0)) valor_entrada,
         SUM(COALESCE(base_economica,0)) base_economica,SUM(COALESCE(credito_cbs,0)) credito_cbs,SUM(tem_credito) itens_com_credito,SUM(pendente) itens_pendentes
       FROM itens GROUP BY referencia
