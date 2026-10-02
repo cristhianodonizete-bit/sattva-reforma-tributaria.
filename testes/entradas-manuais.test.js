@@ -26,6 +26,8 @@ assert.match(config,/PIS/);
 assert.match(config,/Cofins/);
 assert.match(api,/regimesPadraoEntrada/);
 assert.match(api,/pis_lucro_real/);
+assert.match(api,/referencia_pis_cofins/);
+assert.match(tela,/referenciaPisCofinsEntradaManual/);
 assert.match(motor,/entradaManual/);
 assert.match(classificador,/lançamento manual de entrada/);
 assert.match(classificador,/reducao_cbs:beneficio/);

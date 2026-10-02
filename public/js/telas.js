@@ -640,7 +640,24 @@ Telas.dados = async (el) => {
         const itens=configuracao.itensEntradaManual || [];
         A.modal({ titulo:'Lançar entradas manuais', largura:920, confirmar:'Registrar entradas',
           descricao:'Cada competência selecionada cria um lançamento de entrada novo e auditável. Ele entra na fila incremental e será considerado normalmente na próxima execução do motor, sem alterar XMLs ou notas existentes.',
-          corpo:`<div class="aviso info">Selecione um item do cadastro técnico. Se ele não existir, informe o item avulso; ele será lançado apenas nesta operação e não altera o cadastro global.</div><div class="grade g2"><label class="campo"><span>Item cadastrado</span><select id="entradaManualItem"><option value="">Item avulso</option>${itens.map(i=>`<option value="${A.esc(i.chave)}">${A.esc(i.nome)} · benefício ${A.pct(i.beneficio || 0)}</option>`).join('')}</select></label>${A.campo('entradaManualAvulso','Item avulso (se não cadastrado)','')}</div><h3 style="margin-top:16px">Competências do Período analisado</h3><p class="mini">Marque as competências que deseja incluir e informe o valor de cada uma.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">${competencias.map(c=>`<label class="campo" style="border:1px solid var(--borda);padding:10px;border-radius:8px"><span><input type="checkbox" data-entrada-manual-competencia="${c}"> ${c}</span><input inputmode="decimal" data-entrada-manual-valor="${c}" placeholder="Valor da entrada"></label>`).join('')}</div>`,
+          corpo:`<div class="aviso info">Selecione um item do cadastro técnico. Se ele não existir, informe o item avulso; ele será lançado apenas nesta operação e não altera o cadastro global.</div><div class="grade g2"><label class="campo"><span>Item cadastrado</span><select id="entradaManualItem"><option value="">Item avulso</option>${itens.map(i=>`<option value="${A.esc(i.chave)}">${A.esc(i.nome)} · benefício ${A.pct(i.beneficio || 0)}</option>`).join('')}</select></label>${A.campo('entradaManualAvulso','Item avulso (se não cadastrado)','')}</div><div class="aviso info" id="referenciaPisCofinsEntradaManual" style="margin-top:12px"></div><h3 style="margin-top:16px">Competências do Período analisado</h3><p class="mini">Marque as competências que deseja incluir e informe o valor de cada uma.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">${competencias.map(c=>`<label class="campo" style="border:1px solid var(--borda);padding:10px;border-radius:8px"><span><input type="checkbox" data-entrada-manual-competencia="${c}"> ${c}</span><input inputmode="decimal" data-entrada-manual-valor="${c}" placeholder="Valor da entrada"></label>`).join('')}</div>`,
+          aoAbrir: (fundo) => {
+            const seletor=fundo.querySelector('#entradaManualItem');
+            const referencia=fundo.querySelector('#referenciaPisCofinsEntradaManual');
+            const atualizarReferencia=() => {
+              const item=itens.find(i=>i.chave === seletor?.value);
+              const regra=item?.regimes?.[regimeEmpresa];
+              if (!regra) {
+                referencia.innerHTML='Referência histórica de PIS/Cofins: informe-a no documento/evidência. Nenhuma taxa ou crédito é presumido para item avulso.';
+                return;
+              }
+              const pis=regra.pis === null || regra.pis === undefined ? '—' : A.pct(regra.pis);
+              const cofins=regra.cofins === null || regra.cofins === undefined ? '—' : A.pct(regra.cofins);
+              referencia.innerHTML=`Referência histórica para o regime desta empresa: <b>PIS ${A.esc(pis)}</b> · <b>Cofins ${A.esc(cofins)}</b>${regra.tratamento_atual ? `<div class="mini">${A.esc(regra.tratamento_atual)}</div>` : ''}<div class="mini">Essa referência será registrada como evidência; não cria crédito nem altera o cálculo de CBS.</div>`;
+            };
+            seletor?.addEventListener('change',atualizarReferencia);
+            atualizarReferencia();
+          },
           aoConfirmar: async () => {
             const selecionadas=[...document.querySelectorAll('[data-entrada-manual-competencia]:checked')].map(x=>x.dataset.entradaManualCompetencia);
             const competencias=selecionadas.map(competencia=>({competencia,valor:String(document.querySelector(`[data-entrada-manual-valor="${competencia}"]`)?.value || '').replace(',','.')}));

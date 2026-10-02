@@ -6301,6 +6301,11 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
     let regra={}; if (cadastro) try { regra=JSON.parse(cadastro.valor || '{}'); } catch (_) { regra={}; }
     const descricao=String(cadastro ? (regra.nome || cadastro.label) : corpo.item_novo || '').trim();
     if (!descricao) throw new Error('Selecione um item cadastrado ou informe o item avulso.');
+    const empresa=db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId);
+    const regimeEmpresa=String(empresa?.regime || '');
+    // PIS/Cofins é referência histórica do cadastro para o regime da empresa.
+    // Não é valor de crédito e, por isso, não ocupa os campos monetários do movimento.
+    const referenciaPisCofins=regra.regimes?.[regimeEmpresa] || null;
     const beneficio=regra.beneficio === undefined ? 0 : Number(regra.beneficio);
     if (!Number.isFinite(beneficio) || beneficio < 0 || beneficio > 1) throw new Error('O benefício do item deve estar entre 0% e 100%.');
     const itemHash=crypto.createHash('sha256').update(`${empresaId}|${chave || 'AVULSO'}|${descricao}`).digest('hex').slice(0,16);
@@ -6316,14 +6321,15 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
       // Uma repetição após falha de rede é uma retomada de publicação, não
       // uma segunda entrada. Mantemos o fato original e evitamos duplicá-lo.
       if (existente) { inseridos.push({ id:existente.id, competencia, valor:existente.valor, existente:true }); continue; }
-      const evidencia=JSON.stringify({ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null });
+      const evidencia=JSON.stringify({ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null,
+        referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null });
       const r=inserir.run(empresaId,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,chaveMovimento,evidencia);
       inseridos.push({ id:r.lastInsertRowid, competencia, valor });
     } })();
     let publicacao=null;
     if (require('../services/operacaoCompartilhada').ativo()) publicacao=await require('../services/operacaoCompartilhada').publicarOperacaoEmpresa(empresaId);
-    auditar(req,{ empresaId,acao:'incluiu_entradas_manuais',entidade:'movimentos',entidadeId:inseridos.map(x=>x.id).join(','),depois:{ item:descricao, competencias:inseridos, beneficio, origem:'MANUAL_ENTRADA' } });
-    ok(res,{ inseridos, publicacao });
+    auditar(req,{ empresaId,acao:'incluiu_entradas_manuais',entidade:'movimentos',entidadeId:inseridos.map(x=>x.id).join(','),depois:{ item:descricao, competencias:inseridos, beneficio, origem:'MANUAL_ENTRADA', referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null } : null } });
+    ok(res,{ inseridos, publicacao, referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null });
   } catch(e) { erro(res,e); }
 });
 
