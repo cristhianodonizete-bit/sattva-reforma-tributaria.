@@ -695,6 +695,7 @@ Telas.questor = async (el) => {
   const { conectores } = await A.api('/questor/conectores');
   const { tarefas } = await A.api('/questor/tarefas');
   const cancelamentosPendentes = S.empresaId ? await A.api(`/empresas/${S.empresaId}/questor/cancelamentos-pendentes`).catch(() => ({ total:0, documentos:[], encontrados:[], total_encontrados:0, total_conciliados:0 })) : { total:0, documentos:[], encontrados:[], total_encontrados:0, total_conciliados:0 };
+  const ultimaRazao = S.empresaId ? await A.api(`/empresas/${S.empresaId}/questor/razao/ultima-conciliacao`).catch(() => ({ disponivel:false })) : { disponivel:false };
   const estadoTarefa = (t) => ({
     PENDENTE: ['Aguardando conector', 'a'], EM_EXECUCAO: ['Processando', ''], CONCLUIDA: ['Concluída', 'c'], ERRO: ['Falhou', 'alto'],
   }[t.status] || [t.status, '']);
@@ -738,7 +739,8 @@ Telas.questor = async (el) => {
         <div class="grade g2">${A.campo('inicio', 'Data inicial', '', 'date')}${A.campo('fim', 'Data final', '', 'date')}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button></div>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="buscarCancelamentosQuestor">Buscar cancelamentos no Questor</button><button class="btn vazio" id="conciliarCancelamentosQuestor">Importar relatório exportado</button></div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="conciliarCfopsSaidasQuestor">Conciliar CFOPs de saída</button><button class="btn vazio" id="conciliarEntradasQuestor">Conciliar notas de entrada</button><button class="btn vazio" id="testarRazaoQuestor">Testar razão exportado</button></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="conciliarCfopsSaidasQuestor">Conciliar CFOPs de saída</button><button class="btn vazio" id="conciliarEntradasQuestor">Conciliar notas de entrada</button><button class="btn vazio" id="testarRazaoQuestor">Abrir conciliação do razão</button></div>
+        <p class="mini" style="margin:6px 0 0">${ultimaRazao.disponivel ? `Última conciliação do Razão salva em ${A.esc(ultimaRazao.atualizado_em || 'data não informada')} · ${A.esc(ultimaRazao.linhas_lidas || 0)} lançamento(s). Clique em “Abrir conciliação do razão” para consultá-la ou enviar um novo arquivo.` : 'Ainda não há uma conciliação do Razão salva para esta empresa.'}</p>
         <div style="margin-top:10px"><button class="btn vazio" id="importarLocacoesQuestor">Buscar locações REC para outras receitas</button><p class="mini" style="margin:6px 0 0">Importa somente lançamentos REC cuja descrição indique locação/aluguel. Imóveis e bens móveis são classificados separadamente.</p></div>
         <div class="aviso neutro" style="margin-top:14px"><b>Solicitação em lote</b><br><span class="mini">Selecione várias empresas e uma busca já homologada. O conector processa uma empresa por vez e a fila conserva o resultado individual.</span><br><button class="btn vazio pq" id="solicitarLoteQuestor" style="margin-top:9px">Solicitar informações em lote</button></div>
         <div id="statusImportacaoQuestor" class="mini" role="status" style="margin-top:10px"></div>
