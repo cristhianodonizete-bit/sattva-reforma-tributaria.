@@ -10,13 +10,16 @@ const supabase = { configurado:() => true, admin:() => ({ from:(tabela) => ({ se
 }) }) }) }) }) };
 const telemetria = { resumo:() => ({ total_requisicoes:2, rotas:[{ rota:'GET /lenta', p95_ms:1400 }] }) };
 (async () => {
-  const r = await saude.resumo(db, { supabase, telemetria, memoria:{ heapUsed:1024 * 1024, rss:2 * 1024 * 1024 } });
+  const r = await saude.resumo(db, { supabase, telemetria, memoria:{ heapUsed:1024 * 1024, rss:2 * 1024 * 1024 },
+    lerFatos:async () => ({ disponivel:true, por_empresa:new Map([[1, { documentos:0, saidas:0, perfil_competencias:0, pgdas_validados:0, apuracoes_validadas:0, resultados_ativos:0 }]]) }),
+  });
   assert.equal(r.natureza, 'PAINEL_SOMENTE_LEITURA');
   assert.equal(r.web.situacao, 'ONLINE');
   assert.equal(r.worker.situacao, 'OCIOSO_COM_HEARTBEAT');
   assert.equal(r.fila.pendentes, 1);
   assert.equal(r.fila.falhos, 0);
   assert.equal(r.fila.ultimo_concluido, null);
+  assert.equal(r.integridade.fonte, 'SUPABASE_DURAVEL');
   assert.ok(!r.alertas.some((x) => x.codigo === 'FILA_AGUARDANDO'));
   assert.ok(r.alertas.some((x) => x.codigo === 'ROTAS_LENTAS'));
   db.close(); fs.rmSync(pasta, { recursive:true, force:true });

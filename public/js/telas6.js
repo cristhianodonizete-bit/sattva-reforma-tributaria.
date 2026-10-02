@@ -105,7 +105,7 @@ async function controle(box) {
     </details>` : '';
   const painelSaude = saude.erro ? `<div class="cartao" style="margin-top:16px"><h2>Saúde operacional</h2>
       <div class="aviso atencao"><b>Não foi possível consultar a saúde agora.</b> ${A.esc(saude.erro)}</div></div>` : `<div class="cartao" style="margin-top:16px">
-      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><h2>Saúde operacional</h2><p class="desc">Leitura sob demanda. Não executa o motor, não sincroniza e não altera dados.</p></div><button class="btn pq vazio" id="atualizarSaude">Atualizar</button></div>
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><h2>Saúde operacional</h2><p class="desc">Leitura sob demanda. Não executa o motor, não sincroniza e não altera dados.</p><p class="mini">Integridade consultada em: ${tagSaude(saude.integridade?.fonte || 'CACHE_LOCAL')}</p></div><button class="btn pq vazio" id="atualizarSaude">Atualizar</button></div>
       <div class="grade g4">
         ${A.kpi('Web', tagSaude(saude.web?.situacao), `memória: ${A.moeda ? `${Number(saude.web?.heap_mb || 0).toLocaleString('pt-BR')} MB heap · ${Number(saude.web?.rss_mb || 0).toLocaleString('pt-BR')} MB RSS` : '—'}`)}
         ${A.kpi('Worker', tagSaude(saude.worker?.situacao), saude.worker?.heartbeat ? `sinal: ${formatarDataSaude(saude.worker.heartbeat)}` : 'sem job em execução')}
