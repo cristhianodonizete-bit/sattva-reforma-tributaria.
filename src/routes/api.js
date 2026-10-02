@@ -5567,7 +5567,14 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
         :/locacao|aluguel/.test(texto)?['aluguel','imovel'] : [];
       return itensCadastro.find((item)=>termos.some((termo)=>normalizar(item.nome).includes(termo))) || null;
     };
-    const existentes=db.prepare("SELECT id,documento,data_emissao,valor,nome,origem FROM movimentos WHERE empresa_id=? AND tipo='fornecedor'").all(empresaId);
+    // O razão é lançado no total do documento, enquanto uma NFe pode possuir
+    // diversos itens na fonte fiscal. Comparar cada item isoladamente fazia
+    // uma nota de R$ 104,00 em dois itens parecer ausente no razão.
+    const existentes=db.prepare(`SELECT MIN(id) id, MAX(documento) documento, MIN(data_emissao) data_emissao,
+      SUM(COALESCE(valor,0)) valor, MAX(nome) nome, GROUP_CONCAT(DISTINCT origem) origem
+      FROM movimentos WHERE empresa_id=? AND tipo='fornecedor'
+      GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:'||chave
+        ELSE 'documento:'||COALESCE(documento,'')||':'||COALESCE(data_emissao,'') END`).all(empresaId);
     const dig=(v)=>String(v || '').replace(/\D/g,'');
     const linhas=[]; let cabeçalho=null; let cabecalhosValidos=0;
     for (const nomeAba of livro.SheetNames) {
