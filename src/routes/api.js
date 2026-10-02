@@ -27,6 +27,7 @@ const conciliadorQuestor = require('./conectorQuestor');
 const ia = require('../services/ia');
 const rag = require('../services/rag');
 const bases = require('../services/basesReforma');
+const catalogoFiscal = require('../services/catalogoFiscal');
 const motor = require('../engine/motor');
 const { classificar: classificarItemFiscal } = require('../engine/classificador');
 const motorExec = require('../services/motorExec');
@@ -2836,11 +2837,58 @@ function ehServicoDeVenda(m) {
     || (!String(m.ncm || '').replace(/\D/g, '') && Boolean(String(m.descricao || '').trim()));
 }
 
-// A referência é uma premissa para documentos antigos ou sem detalhamento.
-// Quando o XML já traz PIS/COFINS efetivamente destacado, ele é a evidência
-// prioritária do motor e não deve bloquear a leitura da cadeia.
-function requerReferenciaFiscalServico(m) {
-  return ehServicoDeVenda(m) && (Number(m.pis || 0) + Number(m.cofins || 0) <= 0);
+// A ausência de PIS/COFINS destacado em documento antigo não é, por si só,
+// ausência de cálculo. A ordem efetiva do motor é: documento, catálogo
+// específico, referência voluntária da empresa e regra geral do regime.
+// Esta leitura mantém as divergências de código/descrição na Conformidade
+// Documental e só expõe uma exceção quando ela muda materialmente a carga.
+function regraGeralServicoDoRegime(regime) {
+  const regra = regras.regime(regime);
+  if (!regra || regra.pisCofins === null || regra.pisCofins === undefined) return null;
+  return {
+    chave: `regime:${regime}`,
+    descricao: `Regra geral — ${regra.label || regime}`,
+    pis_cofins: Number(regra.pisCofins),
+    das_efetivo: null,
+    iss_aliquota: null,
+    origem: 'REGRA_GERAL_REGIME',
+    sintetica: true,
+  };
+}
+
+function situacaoTributacaoServico(m, empresa, referenciaManual = null) {
+  const regime = empresa?.regime || 'lucro_real';
+  const documento = Number(m.pis || 0) + Number(m.cofins || 0);
+  if (documento > 0 || m.pis_cofins_zero_comprovado === true) {
+    return { fonte: 'DOCUMENTO', referencia: null, exigeReferencia: false };
+  }
+
+  const regraGeralConfirmada = ['lucro_real', 'lucro_presumido'].includes(regime);
+  const especifica = catalogoFiscal.resolver({ ...m, regime, regra_geral_regime_confirmada: regraGeralConfirmada }, { ignorarDocumento: true });
+  if (especifica.percentual !== null && especifica.percentual !== undefined) {
+    return {
+      fonte: 'CATALOGO_ESPECIFICO', referencia: null, exigeReferencia: false,
+      detalhe: especifica.metodo || 'Regra específica do catálogo',
+    };
+  }
+
+  // A referência individual é uma exceção voluntária. Ela continua disponível
+  // para uma regra da empresa que realmente se afaste do padrão, mas a falta
+  // dela jamais transforma um serviço regular em pendência.
+  if (referenciaManual && especifica.continuar) {
+    return { fonte: 'REFERENCIA_EMPRESA', referencia: referenciaManual, exigeReferencia: false };
+  }
+
+  const regraGeral = regraGeralServicoDoRegime(regime);
+  if (regraGeral && (regime === 'simples_nacional' || especifica.continuar)) {
+    return { fonte: 'REGRA_GERAL_REGIME', referencia: regraGeral, exigeReferencia: false };
+  }
+
+  // Há impedimento material (por exemplo, monofasia sem a informação que a
+  // resolve). Não se pede uma alíquota manual para mascará-lo: a revisão fica
+  // na Conformidade Documental, onde a evidência fiscal pode ser tratada.
+  return { fonte: 'CONFORMIDADE_DOCUMENTAL', referencia: null, exigeReferencia: false,
+    detalhe: especifica.motivoIndeterminacao || especifica.metodo || 'Evidência material pendente' };
 }
 
 function prepararCadeia(empresa, tipo, query = {}) {
@@ -2851,12 +2899,15 @@ function prepararCadeia(empresa, tipo, query = {}) {
   if (tipo === 'cliente') {
     const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresa.id);
     const mapaRefs = new Map(refs.map((r) => [r.chave, r]));
-    movimentos = movimentos.map((m) => ({ ...m, referenciaFiscal: encontrarReferenciaServico(m, mapaRefs) }));
-    const pendentes = movimentos.filter((m) => requerReferenciaFiscalServico(m) && !m.referenciaFiscal);
-    // Referências da empresa melhoram a reconstrução, mas ausência não pode
-    // impedir a análise. O motor mantém documento, catálogo e regime como
-    // precedências e devolve a pendência para revisão humana.
-    query.pendenciasReferencias = pendentes;
+    movimentos = movimentos.map((m) => {
+      const manual = encontrarReferenciaServico(m, mapaRefs);
+      const situacao = situacaoTributacaoServico(m, empresa, manual);
+      return { ...m, referenciaFiscal: situacao.referencia || manual, situacaoTributacaoServico: situacao };
+    });
+    // A ausência de cadastro individual não é pendência: o motor já usa a
+    // regra geral do regime. Divergências materiais são tratadas pela tela de
+    // Conformidade Documental, sem interromper a análise da cadeia.
+    query.pendenciasReferencias = [];
   }
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
   const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
@@ -2897,6 +2948,8 @@ const normalizarAliquotaLegada = (valor) => {
 
 router.get('/empresas/:id/referencias-vendas', (req, res) => {
   try {
+    const empresa = db.prepare('SELECT id,regime FROM empresas WHERE id=?').get(req.params.id);
+    if (!empresa) throw new Error('Empresa não encontrada.');
     const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
     const mapa = new Map(referencias.filter((r) => r.ativo).map((r) => [r.chave, r]));
     const porChave = new Map();
@@ -2906,20 +2959,29 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
         const atual = porChave.get(chave) || { chave, nbs: m.nbs || '', lc116: m.lc116 || '', descricao: m.descricao || 'Serviço sem descrição', registros: 0, valor: 0, registrosSemDocumento: 0 };
         atual.registros += 1;
         atual.valor += Number(m.valor) || 0;
-        if (requerReferenciaFiscalServico(m)) atual.registrosSemDocumento += 1;
+        const manual = encontrarReferenciaServico(m, mapa);
+        const situacao = situacaoTributacaoServico(m, empresa, manual);
+        atual.situacoes = atual.situacoes || [];
+        atual.situacoes.push(situacao);
+        if (situacao.fonte === 'CONFORMIDADE_DOCUMENTAL') atual.registrosConformidade = (atual.registrosConformidade || 0) + 1;
         porChave.set(chave, atual);
       });
     // Mantém no catálogo também serviços preparados antes da primeira venda.
     referencias.filter((r) => r.ativo).forEach((r) => {
-      if (!porChave.has(r.chave)) porChave.set(r.chave, { chave: r.chave, nbs: r.nbs || '', lc116: String(r.chave || '').startsWith('lc116:') ? String(r.chave).slice(6) : '', descricao: r.descricao || 'Serviço', registros: 0, valor: 0, registrosSemDocumento: 0 });
+      if (!porChave.has(r.chave)) porChave.set(r.chave, { chave: r.chave, nbs: r.nbs || '', lc116: String(r.chave || '').startsWith('lc116:') ? String(r.chave).slice(6) : '', descricao: r.descricao || 'Serviço', registros: 0, valor: 0, registrosSemDocumento: 0, situacoes: [] });
     });
     const servicos = [...porChave.values()].sort((a, b) => b.valor - a.valor)
       .map((s) => {
         const direta = mapa.get(s.chave) || null;
-        const referencia = direta || encontrarReferenciaServico(s, mapa);
-        const exigeReferencia = s.registrosSemDocumento > 0;
-        return { ...s, configurado: Boolean(referencia), exigeReferencia, coberto: Boolean(referencia) || !exigeReferencia, referencia,
-          correspondencia: !referencia ? '' : (direta ? (s.nbs ? 'NBS' : s.lc116 ? 'LC 116' : 'descrição') : 'descrição reaproveitada') };
+        const manual = direta || encontrarReferenciaServico(s, mapa);
+        const fontes = s.situacoes || [];
+        const prioridade = ['CONFORMIDADE_DOCUMENTAL', 'CATALOGO_ESPECIFICO', 'REFERENCIA_EMPRESA', 'REGRA_GERAL_REGIME', 'DOCUMENTO'];
+        const situacao = prioridade.map((fonte) => fontes.find((x) => x.fonte === fonte)).find(Boolean)
+          || situacaoTributacaoServico(s, empresa, manual);
+        const referencia = situacao.referencia || manual;
+        return { ...s, configurado: Boolean(manual), exigeReferencia: false, coberto: situacao.fonte !== 'CONFORMIDADE_DOCUMENTAL', referencia, situacao,
+          correspondencia: situacao.fonte === 'REGRA_GERAL_REGIME' ? 'Regra geral do regime'
+            : !manual ? '' : (direta ? (s.nbs ? 'NBS' : s.lc116 ? 'LC 116' : 'descrição') : 'descrição reaproveitada') };
       });
     const resumo_identificacao=servicos.reduce((r,s)=>{
       if (String(s.nbs || '').replace(/\D/g,'')) r.com_nbs++;
@@ -2927,7 +2989,8 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
       else r.sem_referencia_tecnica++;
       return r;
     },{com_nbs:0,com_lc116:0,sem_referencia_tecnica:0});
-    ok(res, { referencias, servicos, resumo_identificacao, pendentes: servicos.filter((s) => s.exigeReferencia && !s.configurado) });
+    ok(res, { referencias, servicos, resumo_identificacao, pendentes: [],
+      conformidade: servicos.filter((s) => s.situacao?.fonte === 'CONFORMIDADE_DOCUMENTAL') });
   } catch (e) { erro(res, e); }
 });
 

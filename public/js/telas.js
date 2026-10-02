@@ -506,15 +506,28 @@ Telas.dados = async (el) => {
     ${grupoCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosCentral==='importacao'?'ativa':''}" data-documentos-central-aba="importacao">Importações</button><button class="aba ${abaDocumentosCentral==='documentos'?'ativa':''}" data-documentos-central-aba="documentos">Documentos fiscais</button></div>` : ''}
     ${consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
-      <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
+      <p class="desc">O cálculo segue a ordem: documento, regra específica do catálogo e regra geral do regime. A referência por serviço é opcional e só serve para registrar uma exceção real à regra geral; divergências de NBS, LC 116 ou descrição ficam em Conformidade Documental.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn vazio pq" id="addReferenciaServico">Adicionar serviço ao cadastro</button><button class="btn vazio pq" id="importarReferenciasServico">Importar referências</button><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/referencias_servicos').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>
-      ${referenciasVendas.pendentes.length ? `<div class="aviso atencao"><b>${referenciasVendas.pendentes.length} serviço(s) exigem referência fiscal.</b> Defina PIS/COFINS ou DAS efetivo antes de usar uma estimativa para a venda.</div>` : '<div class="aviso bom"><b>Serviços identificados com referência cadastrada.</b></div>'}
+      ${referenciasVendas.conformidade?.length ? `<div class="aviso atencao"><b>${referenciasVendas.conformidade.length} serviço(s) possuem evidência material pendente.</b> Eles permanecem em Conformidade Documental; não foram convertidos em alíquota manual.</div>` : '<div class="aviso bom"><b>Serviços cobertos pelo documento, catálogo ou regra geral do regime.</b></div>'}
       <div class="grade g3" style="margin:12px 0">${A.kpi('Com NBS',referenciasVendas.resumo_identificacao?.com_nbs || 0,'chave fiscal prioritária')}${A.kpi('Com LC 116, sem NBS',referenciasVendas.resumo_identificacao?.com_lc116 || 0,'usam LC 116 como chave')}${A.kpi('Sem NBS / LC 116',referenciasVendas.resumo_identificacao?.sem_referencia_tecnica || 0,'exigem identificação técnica')}</div>
       ${A.tabela([
         { t: 'NBS / LC 116 / serviço', r: (s) => `<b class="mono">${A.esc(s.nbs ? `NBS ${s.nbs}` : s.lc116 ? `LC 116 ${s.lc116}` : 'sem NBS / LC 116')}</b><div class="mini">${A.esc(s.descricao || '')}</div>` },
         { t: 'Vendas', num: true, r: (s) => A.moeda(s.valor) },
-        { t: 'Referência', r: (s) => s.configurado ? '<span class="tag c">configurada</span>' : s.exigeReferencia ? '<span class="tag b">obrigatória</span>' : '<span class="tag n">documento</span>' },
-        { t: 'Vínculo', r: (s) => s.configurado ? `<span class="mini">${A.esc(s.correspondencia)}</span>` : s.exigeReferencia ? '—' : '<span class="mini">PIS/COFINS veio no documento</span>' },
+        { t: 'Cálculo atual', r: (s) => {
+          const fonte=s.situacao?.fonte;
+          if (fonte==='DOCUMENTO') return '<span class="tag n">documento</span>';
+          if (fonte==='CATALOGO_ESPECIFICO') return '<span class="tag c">regra específica</span>';
+          if (fonte==='REFERENCIA_EMPRESA') return '<span class="tag c">exceção cadastrada</span>';
+          if (fonte==='REGRA_GERAL_REGIME') return '<span class="tag c">regra do regime</span>';
+          return '<span class="tag b">conformidade</span>';
+        } },
+        { t: 'Fonte', r: (s) => {
+          const fonte=s.situacao?.fonte;
+          if (fonte==='DOCUMENTO') return '<span class="mini">PIS/COFINS veio no documento</span>';
+          if (fonte==='CATALOGO_ESPECIFICO') return `<span class="mini">${A.esc(s.situacao?.detalhe || 'Catálogo fiscal')}</span>`;
+          if (fonte==='CONFORMIDADE_DOCUMENTAL') return `<span class="mini">${A.esc(s.situacao?.detalhe || 'Revisar em Conformidade Documental')}</span>`;
+          return `<span class="mini">${A.esc(s.correspondencia || 'Regra geral do regime')}</span>`;
+        } },
         { t: 'Alíquota atual', r: (s) => {
           if (!s.referencia) return '—';
           const r = s.referencia;
@@ -523,7 +536,7 @@ Telas.dados = async (el) => {
           const i = r.iss_aliquota !== null && r.iss_aliquota !== undefined ? `ISS ${A.pct(r.iss_aliquota)}` : '';
           return [p, d, i].filter(Boolean).join('<br>') || '—';
         } },
-        { t: '', r: (s) => `<button class="btn pq ${s.configurado ? 'vazio' : ''}" data-ref-servico="${A.esc(s.chave)}">${s.configurado ? 'Editar' : s.exigeReferencia ? 'Definir referência' : 'Cadastrar referência'}</button>` },
+        { t: '', r: (s) => s.configurado ? `<button class="btn pq vazio" data-ref-servico="${A.esc(s.chave)}">Editar exceção</button>` : '' },
       ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}
     ${consultaDocumentos && abaDocumentosCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosFiscais === 'entradas' ? 'ativa' : ''}" data-documentos-fiscais-aba="entradas">Entradas</button><button class="aba ${abaDocumentosFiscais === 'saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="saidas">Saídas</button><button class="aba ${abaDocumentosFiscais === 'rastreabilidade-saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="rastreabilidade-saidas">Rastreabilidade das saídas</button><button class="aba ${abaDocumentosFiscais === 'fornecedores' ? 'ativa' : ''}" data-documentos-fiscais-aba="fornecedores">Fornecedores</button></div><div class="cartao" id="documentosFiscais" data-documentos-fiscais-painel="documentos">
