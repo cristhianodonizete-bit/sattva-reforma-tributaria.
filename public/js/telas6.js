@@ -59,11 +59,12 @@ function entradas_manuais(box, d) {
   const itens=d.itensEntradaManual || [];
   const rotulo={lucro_real:'Lucro Real',lucro_presumido:'Lucro Presumido',simples_nacional:'Simples Nacional'};
   const linhas=itens.flatMap(item=>Object.entries(item.regimes || {}).map(([regime,regra])=>({...item,regime,...regra})));
-  box.innerHTML=`<div class="aviso"><b>Cadastro técnico para lançamentos manuais de entrada.</b> PIS e Cofins são obrigatórios para Lucro Real e Lucro Presumido; são referências históricas por regime e não presumem crédito. A elegibilidade continua dependente do documento e da operação. Alterações só afetam lançamentos futuros.</div><div class="cartao"><div class="cabecalho-lista"><div><h2>Itens e regras por regime</h2><p class="desc">Mesmo modelo das regras de Outras receitas, com a referência atual e o enquadramento CBS/IBS.</p></div><button class="btn pq" id="adicionarItemEntradaManual">Adicionar item</button></div>${A.tabela([
+  box.innerHTML=`<div class="aviso"><b>Cadastro técnico para lançamentos manuais de entrada.</b> PIS e Cofins são obrigatórios para Lucro Real e Lucro Presumido. No Simples, a referência conjunta vem da regra vigente em Regras e parâmetros (hoje, 2,5%), sem divisão presumida entre os dois tributos. A elegibilidade continua dependente do documento e da operação. Alterações só afetam lançamentos futuros.</div><div class="cartao"><div class="cabecalho-lista"><div><h2>Itens e regras por regime</h2><p class="desc">Mesmo modelo das regras de Outras receitas, com a referência atual e o enquadramento CBS/IBS.</p></div><button class="btn pq" id="adicionarItemEntradaManual">Adicionar item</button></div>${A.tabela([
     {t:'Item padronizado',r:x=>`<b>${A.esc(x.nome)}</b><div class="mini">${A.esc(x.chave)}</div>`},
     {t:'Regime',r:x=>A.esc(rotulo[x.regime] || x.regime)},
     {t:'PIS',num:true,r:x=>x.pis === null || x.pis === undefined ? '—' : A.pct(x.pis)},
     {t:'Cofins',num:true,r:x=>x.cofins === null || x.cofins === undefined ? '—' : A.pct(x.cofins)},
+    {t:'PIS/Cofins conjunto',num:true,r:x=>x.pis_cofins === null || x.pis_cofins === undefined ? '—' : `${A.pct(x.pis_cofins)} · Simples`},
     {t:'Tratamento atual',r:x=>A.esc(x.tratamento_atual || '—')},
     {t:'CBS / IBS',r:x=>`<b>${A.esc(x.cst || '—')} / ${A.esc(x.cclasstrib || '—')}</b><div class="mini">benefício ${A.pct(x.beneficio || 0)}</div>`},
     {t:'Observação',r:x=>A.esc(x.observacao || '—')},

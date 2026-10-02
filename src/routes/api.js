@@ -6188,10 +6188,15 @@ router.post('/config/cadastros-mestre/popular', async (_req, res) => {
 });
 
 function regimesPadraoEntrada() {
+  const simples=db.prepare("SELECT pis_cofins,obs FROM param_regimes WHERE chave='simples_nacional'").get();
+  const pisCofinsSimples=Number(simples?.pis_cofins);
   return {
     lucro_real:{ pis:0.0165, cofins:0.076, tratamento_atual:'Não cumulativo: alíquotas históricas de referência; crédito depende da elegibilidade e da documentação.' },
     lucro_presumido:{ pis:0.0065, cofins:0.03, tratamento_atual:'Cumulativo: alíquotas históricas de referência; crédito de entrada não é presumido.' },
-    simples_nacional:{ pis:null, cofins:null, tratamento_atual:'Apuração no DAS; sem PIS/Cofins segregados no lançamento.' },
+    // A regra do Simples é conjunta e vem de Regras e parâmetros. Não é
+    // seguro inventar uma divisão entre PIS e Cofins que não existe na fonte.
+    simples_nacional:{ pis:null, cofins:null, pis_cofins:Number.isFinite(pisCofinsSimples) ? pisCofinsSimples / 100 : null,
+      tratamento_atual:simples?.obs || 'Apuração no DAS; premissa conjunta de PIS/Cofins conforme Regras e parâmetros.' },
   };
 }
 function assegurarItensEntradaManualPadrao() {
@@ -6240,9 +6245,11 @@ router.get('/config/regras', async (_req, res) => {
     const itensReceita = db.prepare('SELECT chave,nome,classificacao_fiscal,ativo,ordem FROM catalogo_itens_receita ORDER BY ordem,nome').all();
     const regrasItensReceita = db.prepare(`SELECT r.*, c.nome AS item_nome FROM regras_itens_receita_regime r
       JOIN catalogo_itens_receita c ON c.chave=r.item_chave ORDER BY c.ordem,r.regime_empresa,r.vigencia_inicio DESC`).all();
+    const padraoRegimesEntrada=regimesPadraoEntrada();
     const itensEntradaManual = db.prepare("SELECT chave,valor,label,descricao,ordem FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((x) => {
       let dados={}; try { dados=JSON.parse(x.valor || '{}'); } catch (_) { /* cadastro antigo inválido fica visível sem travar a tela */ }
-      return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', observacao:dados.observacao || x.descricao || '', regimes:dados.regimes || regimesPadraoEntrada() };
+      return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', observacao:dados.observacao || x.descricao || '',
+        regimes:{ ...padraoRegimesEntrada, ...(dados.regimes || {}), simples_nacional:{ ...padraoRegimesEntrada.simples_nacional, ...(dados.regimes?.simples_nacional || {}) } } };
     });
     ok(res, { ...regras.tudo(), auditoria, auditoriaRegimeSimples, itensReceita, regrasItensReceita, itensEntradaManual });
   } catch (e) { erro(res, e); }
@@ -6282,7 +6289,7 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
     const regra={ nome, beneficio:beneficioInformado / 100, cst, cclasstrib, observacao:String(b.observacao || '').trim(), regimes:{
       lucro_real:{ pis:percentualObrigatorio('pis_lucro_real','PIS — Lucro Real'),cofins:percentualObrigatorio('cofins_lucro_real','Cofins — Lucro Real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ pis:percentualObrigatorio('pis_lucro_presumido','PIS — Lucro Presumido'),cofins:percentualObrigatorio('cofins_lucro_presumido','Cofins — Lucro Presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
-      simples_nacional:{ pis:null,cofins:null,tratamento_atual:'Apuração no DAS; sem PIS/Cofins segregados no lançamento.' },
+      simples_nacional:regimesPadraoEntrada().simples_nacional,
     } };
     db.prepare("INSERT INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)")
       .run(chave,nome,regra.observacao,ordem);
@@ -6311,7 +6318,9 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
     const regimeEmpresa=String(empresa?.regime || '');
     // PIS/Cofins é referência histórica do cadastro para o regime da empresa.
     // Não é valor de crédito e, por isso, não ocupa os campos monetários do movimento.
-    const referenciaPisCofins=regra.regimes?.[regimeEmpresa] || null;
+    const referenciaPisCofins=regra.regimes?.[regimeEmpresa]
+      ? { ...regimesPadraoEntrada()[regimeEmpresa], ...regra.regimes[regimeEmpresa] }
+      : null;
     const beneficio=regra.beneficio === undefined ? 0 : Number(regra.beneficio);
     if (!Number.isFinite(beneficio) || beneficio < 0 || beneficio > 1) throw new Error('O benefício do item deve estar entre 0% e 100%.');
     const itemHash=crypto.createHash('sha256').update(`${empresaId}|${chave || 'AVULSO'}|${descricao}`).digest('hex').slice(0,16);
@@ -6328,14 +6337,14 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
       // uma segunda entrada. Mantemos o fato original e evitamos duplicá-lo.
       if (existente) { inseridos.push({ id:existente.id, competencia, valor:existente.valor, existente:true }); continue; }
       const evidencia=JSON.stringify({ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null,
-        referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null });
+        referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, pis_cofins_percentual:referenciaPisCofins.pis_cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null });
       const r=inserir.run(empresaId,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,chaveMovimento,evidencia);
       inseridos.push({ id:r.lastInsertRowid, competencia, valor });
     } })();
     let publicacao=null;
     if (require('../services/operacaoCompartilhada').ativo()) publicacao=await require('../services/operacaoCompartilhada').publicarOperacaoEmpresa(empresaId);
-    auditar(req,{ empresaId,acao:'incluiu_entradas_manuais',entidade:'movimentos',entidadeId:inseridos.map(x=>x.id).join(','),depois:{ item:descricao, competencias:inseridos, beneficio, origem:'MANUAL_ENTRADA', referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null } : null } });
-    ok(res,{ inseridos, publicacao, referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null });
+    auditar(req,{ empresaId,acao:'incluiu_entradas_manuais',entidade:'movimentos',entidadeId:inseridos.map(x=>x.id).join(','),depois:{ item:descricao, competencias:inseridos, beneficio, origem:'MANUAL_ENTRADA', referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, pis_cofins_percentual:referenciaPisCofins.pis_cofins ?? null } : null } });
+    ok(res,{ inseridos, publicacao, referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, pis_cofins_percentual:referenciaPisCofins.pis_cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null });
   } catch(e) { erro(res,e); }
 });
 

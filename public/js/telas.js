@@ -653,7 +653,8 @@ Telas.dados = async (el) => {
               }
               const pis=regra.pis === null || regra.pis === undefined ? '—' : A.pct(regra.pis);
               const cofins=regra.cofins === null || regra.cofins === undefined ? '—' : A.pct(regra.cofins);
-              referencia.innerHTML=`Referência histórica para o regime desta empresa: <b>PIS ${A.esc(pis)}</b> · <b>Cofins ${A.esc(cofins)}</b>${regra.tratamento_atual ? `<div class="mini">${A.esc(regra.tratamento_atual)}</div>` : ''}<div class="mini">Essa referência será registrada como evidência; não cria crédito nem altera o cálculo de CBS.</div>`;
+              const conjunto=regra.pis_cofins === null || regra.pis_cofins === undefined ? '' : ` · <b>PIS/Cofins conjunto ${A.esc(A.pct(regra.pis_cofins))}</b>`;
+              referencia.innerHTML=`Referência histórica para o regime desta empresa: <b>PIS ${A.esc(pis)}</b> · <b>Cofins ${A.esc(cofins)}</b>${conjunto}${regra.tratamento_atual ? `<div class="mini">${A.esc(regra.tratamento_atual)}</div>` : ''}<div class="mini">Essa referência será registrada como evidência; não cria crédito nem altera o cálculo de CBS.</div>`;
             };
             seletor?.addEventListener('change',atualizarReferencia);
             atualizarReferencia();
