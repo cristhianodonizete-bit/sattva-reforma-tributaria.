@@ -902,8 +902,8 @@ Telas.questor = async (el) => {
       const fd=new FormData(); fd.append('arquivo',arquivo);
       const r=await A.api(`/empresas/${S.empresaId}/questor/razao/testar`,{metodo:'POST',corpo:fd,formData:true});
       const linhas=Array.isArray(r.linhas)?r.linhas:[];
-      const situacao=(x)=>x.situacao==='ENCONTRADO'?'<span class="tag c">Encontrado</span>':x.situacao==='DIVERGENCIA_VALOR'?'<span class="tag alto">Divergência de valor</span>':'<span class="tag a">Ausente</span>';
-      const cadastro=(x)=>x.situacao==='DIVERGENCIA_VALOR'?'<span class="mini">Revisar documento</span>':x.item_sugerido?`<span class="tag c">${A.esc(x.item_sugerido.nome)}</span>`:'<span class="tag a">Solicitar cadastro</span>';
+      const situacao=(x)=>x.situacao==='ENCONTRADO'?'<span class="tag c">Encontrado</span>':x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="tag c">Encontrado · XML prevalece</span>':'<span class="tag a">Ausente</span>';
+      const cadastro=(x)=>x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="mini">XML considerado</span>':x.item_sugerido?`<span class="tag c">${A.esc(x.item_sugerido.nome)}</span>`:'<span class="tag a">Solicitar cadastro</span>';
       const tabela=A.tabela([
         {t:'Data / lançamento',r:x=>`${A.esc(x.data||'—')}<div class="mini">Seq. ${A.esc(x.sequencia||'—')}${x.documento?` · NF ${A.esc(x.documento)}`:''}</div>`},
         {t:'Conta / histórico',r:x=>`<b>${A.esc(x.conta_codigo||'—')}</b><div class="mini">${A.esc(x.conta||'')}</div><div class="mini">${A.esc(x.historico||'')}</div>`},
@@ -911,7 +911,7 @@ Telas.questor = async (el) => {
         {t:'Conciliação',r:situacao},
         {t:'Cadastro de entrada',r:cadastro},
       ],linhas,{vazio:'Nenhum débito elegível foi encontrado no arquivo.'});
-      A.modal({titulo:'Resultado do teste do razão',largura:1280,confirmar:'Fechar',descricao:`${r.linhas_lidas||0} lançamento(s) elegível(is) · ${r.encontradas||0} já representado(s) · ${r.divergencias||0} divergência(s) de valor · ${r.ausentes||0} ausente(s) · ${r.com_item_cadastrado||0} com item cadastrado · ${r.precisam_cadastro||0} para cadastrar. Nenhum dado foi incluído.`,corpo:`<div style="max-height:520px;overflow:auto">${tabela}${r.linhas_lidas>r.total_exibido?`<p class="mini" style="margin-top:10px">Exibindo os primeiros ${r.total_exibido} registros para validação.</p>`:''}</div>`});
+      A.modal({titulo:'Resultado do teste do razão',largura:1280,confirmar:'Fechar',descricao:`${r.linhas_lidas||0} lançamento(s) elegível(is) · ${r.encontradas||0} já representado(s) · ${r.divergencias||0} com diferença tratada pelo XML · ${r.ausentes||0} ausente(s) · ${r.com_item_cadastrado||0} com item cadastrado · ${r.precisam_cadastro||0} para cadastrar. Nenhum dado foi incluído.`,corpo:`<div style="max-height:520px;overflow:auto">${tabela}${r.linhas_lidas>r.total_exibido?`<p class="mini" style="margin-top:10px">Exibindo os primeiros ${r.total_exibido} registros para validação.</p>`:''}</div>`});
     }});
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');

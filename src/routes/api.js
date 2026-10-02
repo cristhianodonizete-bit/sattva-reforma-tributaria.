@@ -5600,7 +5600,10 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
           return (mesmoValor && mesmaData) || (!documento && mesmoValor && mesmaData && normalizar(movimento.nome).includes(normalizar(bruta[mapa.descricao] || '').slice(0,18)));
         });
         const item=sugerirItem(cabeçalho.texto,historico,bruta[mapa.descricao]);
-        const situacao=correspondencias.length ? 'ENCONTRADO' : porDocumento.length ? 'DIVERGENCIA_VALOR' : 'AUSENTE';
+        // O XML é a fonte fiscal prevalente. Quando o documento já existe,
+        // uma diferença com o razão não autoriza nova inclusão nem troca do
+        // valor: fica apenas registrada como evidência para revisão.
+        const situacao=correspondencias.length ? 'ENCONTRADO' : porDocumento.length ? 'ENCONTRADO_XML_PREVALECE' : 'AUSENTE';
         linhas.push({
           identificador:`${nomeAba}|${bruta[mapa.sequencia] || ''}|${emissao}|${valorDebito}|${historico}`,
           conta_codigo:cabeçalho.codigo, conta:cabeçalho.texto.replace(/^Conta:\s*/i,''), data:emissao,
@@ -5610,14 +5613,14 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
           movimentos_encontrados:(correspondencias.length ? correspondencias : porDocumento).map((x)=>({id:x.id,documento:x.documento,origem:x.origem,valor:x.valor})),
           item_sugerido:item ? {chave:item.chave,nome:item.nome} : null,
           observacao:situacao==='ENCONTRADO' ? 'Lançamento já representado em uma entrada do Sattva.'
-            : situacao==='DIVERGENCIA_VALOR' ? `Documento localizado no Sattva, mas o valor difere: razão ${valorDebito.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} · Sattva ${porDocumento.map((x)=>Number(x.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})).join(', ')}.`
+            : situacao==='ENCONTRADO_XML_PREVALECE' ? `Documento localizado. O XML prevalece: razão ${valorDebito.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} · XML ${porDocumento.map((x)=>Number(x.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})).join(', ')}.`
             : 'Lançamento contábil sem entrada equivalente; ainda não foi incluído.',
         });
       }
     }
     if (!cabecalhosValidos) throw new Error('Não identificamos o cabeçalho do Razão. Esperado: Data, Sequência, Histórico, Contrapartida, Descrição, Valor, Débito e Crédito.');
     const ausentes=linhas.filter((x)=>x.situacao==='AUSENTE');
-    const divergencias=linhas.filter((x)=>x.situacao==='DIVERGENCIA_VALOR');
+    const divergencias=linhas.filter((x)=>x.situacao==='ENCONTRADO_XML_PREVALECE');
     const comCadastro=ausentes.filter((x)=>x.item_sugerido).length;
     ok(res,{ arquivo:req.file.originalname, leitura:'TESTE_SEM_INCLUSAO', linhas_lidas:linhas.length, encontradas:linhas.length-ausentes.length,
       ausentes:ausentes.length, divergencias:divergencias.length, com_item_cadastrado:comCadastro, precisam_cadastro:ausentes.length-comCadastro,
