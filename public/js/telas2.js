@@ -920,8 +920,9 @@ Telas.questor = async (el) => {
       }});
       resultadoModal.fundo.querySelectorAll('[data-cadastrar-item-razao]').forEach((botao)=>botao.onclick=()=>{
         const linha=linhas.find(x=>x.identificador===botao.dataset.cadastrarItemRazao); if(!linha) return;
+        const nomeItem=String(linha.conta || '').replace(/^\s*[\d.]+\s*/, '').trim() || linha.historico || 'Entrada do razão';
         A.modal({titulo:'Cadastrar item de entrada',largura:760,descricao:'O item será usado neste lançamento e nos próximos lançamentos equivalentes. PIS e Cofins são obrigatórios para Lucro Real e Lucro Presumido.',corpo:
-          A.campo('nome','Item',linha.descricao || linha.conta || '')+
+          A.campo('nome','Item',nomeItem)+
           `<input type="hidden" name="conta_questor" value="${A.esc(linha.conta_codigo || '')}">`+
           A.campo('beneficio','% benefício CBS','0','number')+
           A.campo('cclasstrib','cClassTrib (opcional)')+A.campo('cst','CST (opcional)')+
