@@ -5567,14 +5567,16 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
         :/locacao|aluguel/.test(texto)?['aluguel','imovel'] : [];
       return itensCadastro.find((item)=>termos.some((termo)=>normalizar(item.nome).includes(termo))) || null;
     };
-    // O razão é lançado no total do documento, enquanto uma NFe pode possuir
-    // diversos itens na fonte fiscal. Comparar cada item isoladamente fazia
-    // uma nota de R$ 104,00 em dois itens parecer ausente no razão.
-    const existentes=db.prepare(`SELECT MIN(id) id, MAX(documento) documento, MIN(data_emissao) data_emissao,
-      SUM(COALESCE(valor,0)) valor, MAX(nome) nome, GROUP_CONCAT(DISTINCT origem) origem
-      FROM movimentos WHERE empresa_id=? AND tipo='fornecedor'
-      GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:'||chave
-        ELSE 'documento:'||COALESCE(documento,'')||':'||COALESCE(data_emissao,'') END`).all(empresaId);
+    // A prévia precisa conciliar contra a mesma fonte canônica usada em
+    // Documentos fiscais. O cache SQLite pode estar atrasado e fazia uma NFe
+    // já visível na Central de Dados parecer ausente no razão.
+    const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa?.cnpj) throw new Error('Empresa não encontrada para a conciliação do razão.');
+    const leituraDocumentos=await require('../services/documentosFiscaisCompartilhados')
+      .listar(empresa.cnpj,{sentido:'fornecedor'},{exportacao:true});
+    const existentes=(leituraDocumentos.documentos || []).map((x)=>({
+      id:x.item_id, documento:x.documento, data_emissao:x.data_emissao, valor:x.valor, nome:x.parceiro, origem:x.origem,
+    }));
     const dig=(v)=>String(v || '').replace(/\D/g,'');
     const linhas=[]; let cabeçalho=null; let cabecalhosValidos=0;
     for (const nomeAba of livro.SheetNames) {
