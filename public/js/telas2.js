@@ -705,6 +705,12 @@ Telas.questor = async (el) => {
     if (t.tipo === 'PARAMETROS_RELATORIO') return `<button class="btn vazio pq" data-ver-retorno-questor="${t.id}">Ver parâmetros retornados</button>`;
     let resultado = {}, resumo = 'Processamento concluído.';
     try { resultado = JSON.parse(t.resultado_json || '{}'); resumo = JSON.stringify(resultado); } catch (_) { /* mantém o texto padrão */ }
+    let payload={}; try { payload=JSON.parse(t.payload_json||'{}'); } catch (_) { /* retorno genérico abaixo */ }
+    if (payload.modo==='CONCILIAR_ENTRADAS') {
+      if (!Array.isArray(resultado.notas)) return `<span class="mini">Resultado recebido; prepare a visão detalhada sem consultar novamente o Questor.</span> <button class="btn vazio pq" data-detalhar-conciliacao-entradas="${t.id}">Preparar nota a nota</button>`;
+      resumo=`${resultado.pareados||0} encontrada(s) · ${resultado.ausentes||0} ausente(s) · ${resultado.incluidas||0} incluída(s)`;
+      return `<span class="mini">${A.esc(resumo)}</span> <button class="btn vazio pq" data-ver-conciliacao-entradas="${t.id}">Ver nota a nota</button>`;
+    }
     if (t.tipo === 'IMPORTAR_OUTRAS_RECEITAS_LOCACAO') {
       resumo = `${resultado.linhas_lidas || 0} linha(s) lida(s) · ${resultado.importados || 0} importada(s) · ${resultado.ignorados || 0} ignorada(s)`;
     }
@@ -906,6 +912,29 @@ Telas.questor = async (el) => {
     let retorno = tarefa?.resultado_json || '{}';
     try { retorno = JSON.stringify(JSON.parse(retorno), null, 2); } catch (_) { /* exibe a resposta original */ }
     A.modal({titulo:'Resultado da solicitação Questor',confirmar:null,largura:900,descricao:'Retorno completo do Questor e do processamento realizado pela Sattva.',corpo:`<pre class="mini" style="white-space:pre-wrap;max-height:520px;overflow:auto;background:#f4f7f9;padding:12px;border-radius:8px">${A.esc(retorno)}</pre>`});
+  });
+  el.querySelectorAll('[data-ver-conciliacao-entradas]').forEach((botao) => botao.onclick = () => {
+    const tarefa = tarefas.find((t) => String(t.id) === botao.dataset.verConciliacaoEntradas);
+    let resultado={}; try { resultado=JSON.parse(tarefa?.resultado_json||'{}'); } catch (_) { resultado={}; }
+    const notas=Array.isArray(resultado.notas)?resultado.notas:[];
+    const linha=(nota)=>{
+      const status=nota.situacao==='INCLUIDA'?'c':nota.situacao==='ENCONTRADA'?'':'a';
+      const rotulo=nota.situacao==='INCLUIDA'?'Incluída':nota.situacao==='ENCONTRADA'?'Encontrada':'Ausente';
+      const podeIncluir=nota.situacao==='AUSENTE';
+      return `<tr><td>${podeIncluir?`<input type="checkbox" name="entrada_questor_incluir" value="${A.esc(nota.identificador)}">`:''}</td><td><b>${A.esc(nota.documento||'—')}</b><div class="mini">Série ${A.esc(nota.serie||'—')} · ${A.esc(String(nota.modelo||'—').toUpperCase())}</div></td><td>${A.esc(nota.data||'—')}</td><td>${A.esc(nota.fornecedor||'Não informado')}</td><td>${A.moeda(Number(nota.valor||0))}</td><td><span class="tag ${status}">${rotulo}</span><div class="mini">${A.esc(nota.observacao||'')}</div></td></tr>`;
+    };
+    const corpo=`<div class="aviso neutro" style="margin-bottom:12px"><b>${notas.length} nota(s) lida(s)</b> · ${resultado.pareados||0} encontrada(s) · ${resultado.ausentes||0} ausente(s) · ${resultado.incluidas||0} incluída(s).<br><span class="mini">Somente as notas marcadas como ausentes podem ser incluídas. A inclusão cria os itens retornados pelo Questor e não executa o motor automaticamente.</span></div><div style="max-height:440px;overflow:auto"><table class="tabela"><thead><tr><th>Incluir</th><th>Nota</th><th>Emissão</th><th>Fornecedor</th><th>Valor</th><th>Resultado</th></tr></thead><tbody>${notas.map(linha).join('')||'<tr><td colspan="6" class="mini">Não há notas detalhadas neste retorno. Execute uma nova conciliação de entradas.</td></tr>'}</tbody></table></div>`;
+    A.modal({titulo:'Conciliação de entradas · nota a nota',largura:1200,descricao:'Resultado por documento retornado pelo Questor. A seleção é a confirmação explícita para incluir somente as notas ausentes.',corpo,confirmar:notas.some((x)=>x.situacao==='AUSENTE')?'Incluir selecionadas':null,aoConfirmar:async()=>{
+      const identificadores=[...document.querySelectorAll('input[name="entrada_questor_incluir"]:checked')].map((x)=>x.value);
+      if(!identificadores.length) throw new Error('Marque ao menos uma nota ausente para incluir.');
+      const r=await A.api(`/empresas/${S.empresaId}/questor/conector/conciliacoes-entradas/${tarefa.id}/incluir`,{metodo:'POST',corpo:{identificadores}});
+      A.toast(`${r.incluidos||0} nota(s) incluída(s) a partir do Questor.`, 'ok'); A.ir('questor');
+    }});
+  });
+  el.querySelectorAll('[data-detalhar-conciliacao-entradas]').forEach((botao)=>botao.onclick=async()=>{
+    botao.disabled=true; botao.textContent='Preparando…';
+    try { const r=await A.api(`/empresas/${S.empresaId}/questor/conector/conciliacoes-entradas/${botao.dataset.detalharConciliacaoEntradas}/detalhar`,{metodo:'POST',corpo:{}}); A.toast(`${r.notas||0} nota(s) detalhada(s), sem inclusão automática.`, 'ok'); A.ir('questor'); }
+    catch(e){ A.toast(e.message,'erro'); botao.disabled=false; botao.textContent='Preparar nota a nota'; }
   });
   const codificar64 = (bytes) => btoa(String.fromCharCode(...new Uint8Array(bytes)));
   const decodificar64 = (texto) => Uint8Array.from(atob(texto), (c) => c.charCodeAt(0));

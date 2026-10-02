@@ -23,6 +23,7 @@ const { analisarCadeia } = require('../engine/cadeia');
 const consolidacaoOficial = require('../services/consolidacaoOficial');
 const imp = require('../services/importador');
 const questor = require('../services/questor');
+const conciliadorQuestor = require('./conectorQuestor');
 const ia = require('../services/ia');
 const rag = require('../services/rag');
 const bases = require('../services/basesReforma');
@@ -5442,6 +5443,68 @@ router.post('/empresas/:id/questor/conector/conciliar-entradas', async (req,res)
   const tarefa=db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(r.lastInsertRowid); await questorPersistencia.publicarTarefa(tarefa);
   ok(res,{tarefa_id:r.lastInsertRowid});
 }catch(e){erro(res,e);}});
+
+// Torna detalhados também os retornos que foram obtidos antes da tela nota a
+// nota existir. Reprocessa apenas o relatório já armazenado, sem nova chamada
+// ao Questor, sem incluir e sem alterar documentos fiscais.
+router.post('/empresas/:id/questor/conector/conciliacoes-entradas/:tarefaId/detalhar', async (req,res)=>{ try {
+  await garantirEmpresaPermitida(req, req.params.id);
+  const empresaId=Number(req.params.id), tarefaId=Number(req.params.tarefaId);
+  const tarefa=db.prepare("SELECT * FROM questor_conector_tarefas WHERE id=? AND empresa_id=? AND status='CONCLUIDA'").get(tarefaId,empresaId);
+  if(!tarefa) throw new Error('Conciliação concluída não encontrada para esta empresa.');
+  let payload={}, resultado={}; try { payload=JSON.parse(tarefa.payload_json||'{}'); resultado=JSON.parse(tarefa.resultado_json||'{}'); } catch (_) { throw new Error('O retorno desta conciliação não pôde ser lido.'); }
+  if(payload.modo!=='CONCILIAR_ENTRADAS') throw new Error('Esta solicitação não é uma conciliação de entradas.');
+  if(!resultado.relatorio) throw new Error('O relatório original não está disponível nesta tarefa. Execute a conciliação novamente.');
+  const detalhado=conciliadorQuestor.conciliarEntradasQuestor(empresaId,resultado.relatorio);
+  resultado={...resultado,...detalhado};
+  db.prepare('UPDATE questor_conector_tarefas SET resultado_json=? WHERE id=?').run(JSON.stringify(resultado),tarefaId);
+  await questorPersistencia.publicarTarefa(db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(tarefaId));
+  ok(res,{notas:detalhado.notas.length,pareados:detalhado.pareados,ausentes:detalhado.ausentes,leitura:'Detalhamento gerado a partir do relatório já recebido; nenhuma nota foi incluída.'});
+} catch(e){erro(res,e);} });
+
+// A inclusão nasce exclusivamente de uma conferência concluída. Nunca é
+// disparada pelo retorno do conector: o usuário escolhe cada nota ausente e
+// a evidência do Questor permanece no lançamento criado.
+router.post('/empresas/:id/questor/conector/conciliacoes-entradas/:tarefaId/incluir', async (req,res)=>{ try {
+  await garantirEmpresaPermitida(req, req.params.id);
+  const empresaId=Number(req.params.id), tarefaId=Number(req.params.tarefaId);
+  const tarefa=db.prepare("SELECT * FROM questor_conector_tarefas WHERE id=? AND empresa_id=? AND status='CONCLUIDA'").get(tarefaId,empresaId);
+  if(!tarefa) throw new Error('Conciliação concluída não encontrada para esta empresa.');
+  let payload={}, resultado={}; try { payload=JSON.parse(tarefa.payload_json||'{}'); resultado=JSON.parse(tarefa.resultado_json||'{}'); } catch (_) { throw new Error('O retorno desta conciliação não pôde ser lido. Execute a conferência novamente.'); }
+  if(payload.modo!=='CONCILIAR_ENTRADAS' || !Array.isArray(resultado.notas)) throw new Error('Esta solicitação não é uma conciliação de entradas compatível.');
+  const selecionadas=[...new Set((Array.isArray(req.body?.identificadores)?req.body.identificadores:[]).map(String))];
+  if(!selecionadas.length) throw new Error('Selecione ao menos uma nota ausente para incluir.');
+  const porId=new Map(resultado.notas.map((x)=>[String(x.identificador),x]));
+  const notas=selecionadas.map((id)=>porId.get(id)).filter(Boolean);
+  if(notas.length!==selecionadas.length) throw new Error('Uma ou mais notas selecionadas não pertencem a esta conciliação. Atualize a tela e tente novamente.');
+  const inclusoes=resultado.inclusoes && typeof resultado.inclusoes==='object' ? resultado.inclusoes : {};
+  const existente=db.prepare('SELECT id FROM movimentos WHERE empresa_id=? AND chave=? LIMIT 1');
+  const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,inscr_federal,descricao,ncm,competencia,valor,valor_produto,base_calculo,pis,cofins,documento,item_numero,chave,modelo_documento_fiscal,data_emissao,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia,quantidade)
+    VALUES (?,'fornecedor','entrada',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'QUESTOR_CONCILIACAO_ENTRADA','questor_conciliacao_entrada','PENDENTE_CLASSIFICACAO',?,?)`);
+  const inseridos=[], jaIncluidos=[];
+  db.transaction(()=>{ for(const nota of notas) {
+    if(nota.situacao!=='AUSENTE') { jaIncluidos.push({identificador:nota.identificador,motivo:'A nota já foi encontrada no Sattva.'}); continue; }
+    const itens=Array.isArray(nota.itens)&&nota.itens.length ? nota.itens : [{sequencia:1,descricao:`Nota ${nota.documento}`,ncm:null,quantidade:1,valor:nota.valor,pis:null,cofins:null}];
+    const ids=[];
+    for(const item of itens) {
+      const chave=`QUESTOR_ENTRADA:${tarefaId}:${nota.identificador}:${item.sequencia||1}`;
+      const anterior=existente.get(empresaId,chave);
+      if(anterior) { ids.push(anterior.id); continue; }
+      const evidencia=JSON.stringify({fonte:'QUESTOR_CONFERENCIA_ENTRADAS',tarefa_id:tarefaId,lancamento_questor:nota.lancamento,fornecedor_questor:nota.fornecedor||null,documento_questor:nota.documento,serie_questor:nota.serie,valor_documento_questor:nota.valor,item_questor:item});
+      const r=inserir.run(empresaId,nota.fornecedor||'Fornecedor informado pelo Questor',nota.cnpj||null,item.descricao||`Nota ${nota.documento}`,item.ncm||null,String(nota.data||'').slice(0,7),Number(item.valor ?? nota.valor ?? 0),Number(item.valor ?? nota.valor ?? 0),Number(item.valor ?? nota.valor ?? 0),Number(item.pis||0),Number(item.cofins||0),`${nota.serie||''}/${nota.documento}`,Number(item.sequencia||1),chave,nota.modelo||null,nota.data||null,evidencia,Number(item.quantidade||0)||null);
+      ids.push(r.lastInsertRowid);
+    }
+    inclusoes[nota.identificador]={status:'INCLUIDA',incluida_em:new Date().toISOString(),movimento_ids:ids};
+    inseridos.push({identificador:nota.identificador,documento:nota.documento,serie:nota.serie,valor:nota.valor,movimento_ids:ids});
+  }})();
+  resultado.inclusoes=inclusoes;
+  resultado.notas=resultado.notas.map((nota)=>inclusoes[nota.identificador] ? {...nota,situacao:'INCLUIDA',inclusao:inclusoes[nota.identificador],observacao:'Incluída a partir do relatório do Questor, mediante confirmação do usuário.'} : nota);
+  resultado.incluidas=Object.keys(inclusoes).length;
+  db.prepare('UPDATE questor_conector_tarefas SET resultado_json=? WHERE id=?').run(JSON.stringify(resultado),tarefaId);
+  await questorPersistencia.publicarTarefa(db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(tarefaId));
+  auditar(req,{empresaId,acao:'INCLUIU_ENTRADAS_DA_CONCILIACAO_QUESTOR',entidade:'movimentos',entidadeId:inseridos.flatMap((x)=>x.movimento_ids).join(','),depois:{tarefa_id:tarefaId,inseridos,ja_incluidos,origem:'QUESTOR_CONCILIACAO_ENTRADA'}});
+  ok(res,{incluidos:inseridos.length,inseridos,ja_incluidos,leitura:'Foram incluídas somente as notas selecionadas. Nenhum cálculo do motor foi executado automaticamente.'});
+} catch(e){erro(res,e);} });
 
 // Referências que o Questor confirmou como canceladas, mas cujo XML/DF-e ainda
 // não chegou à plataforma. Elas ficam visíveis para conferência e serão

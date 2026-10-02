@@ -193,13 +193,20 @@ function lerConferenciaEntradasQuestor(texto) {
 }
 function conciliarEntradasQuestor(empresaId,texto) {
   const questor=lerConferenciaEntradasQuestor(texto);
-  const existentes=db.prepare("SELECT documento,modelo_documento_fiscal,data_emissao,inscr_federal,valor FROM movimentos WHERE empresa_id=? AND tipo='fornecedor'").all(empresaId);
+  const existentes=db.prepare("SELECT id,documento,modelo_documento_fiscal,data_emissao,inscr_federal,valor,origem FROM movimentos WHERE empresa_id=? AND tipo='fornecedor'").all(empresaId);
   const dig=v=>String(v||'').replace(/\D/g,'');
-  const existe=(q)=>existentes.some((x)=>dig(String(x.documento).split('/').at(-1))===dig(q.documento)
+  const encontrados=(q)=>existentes.filter((x)=>dig(String(x.documento).split('/').at(-1))===dig(q.documento)
     && String(x.modelo_documento_fiscal||'').toLowerCase()===q.modelo
     && (!q.data || String(x.data_emissao||'').slice(0,10)===q.data || Math.abs(Number(x.valor||0)-Number(q.valor||0))<0.02));
-  const ausentes=questor.filter((x)=>!existe(x));
-  return {linhas_lidas:questor.length,pareados:questor.length-ausentes.length,ausentes:ausentes.length,documentos_ausentes:ausentes,
+  const notas=questor.map((q)=>{
+    const correspondencias=encontrados(q);
+    const identificador=`${q.data}|${q.modelo}|${q.serie}|${q.documento}|${q.lancamento}`;
+    return {...q,identificador,situacao:correspondencias.length?'ENCONTRADA':'AUSENTE',
+      movimentos_encontrados:correspondencias.map((x)=>({id:x.id,origem:x.origem,valor:x.valor})),
+      observacao:correspondencias.length?'Nota já existente no Sattva; nenhuma alteração foi feita.':'Nota não localizada no Sattva; disponível para inclusão confirmada.'};
+  });
+  const ausentes=notas.filter((x)=>x.situacao==='AUSENTE');
+  return {linhas_lidas:notas.length,pareados:notas.length-ausentes.length,ausentes:ausentes.length,notas,documentos_ausentes:ausentes,
     observacao:'Conferência somente leitura. A inclusão dos ausentes exige confirmação explícita.'};
 }
 
@@ -380,3 +387,4 @@ module.exports=router;
 module.exports.lerCancelamentosQuestor=lerCancelamentosQuestor;
 module.exports.lerLocacoesQuestor=lerLocacoesQuestor;
 module.exports.lerConferenciaEntradasQuestor=lerConferenciaEntradasQuestor;
+module.exports.conciliarEntradasQuestor=conciliarEntradasQuestor;
