@@ -1602,6 +1602,7 @@ async function telaCadeia(el, tipo) {
   const mostrarRiscos = abaCadeia === 'riscos';
   const mostrarAbc = abaCadeia === 'abc';
   const resumoBeneficios = analise.tratamentoBeneficios || { operacoes: 0 };
+  const pendenciasPisCofins = (analise.detalhes || []).filter((x) => x.pisCofinsAtual === null || x.pisCofinsAtual === undefined);
   const simplesHibrido = !eForn && analise.projecao_regime === 'SIMPLES_HIBRIDO';
   const outrasReceitasSemCliente = analise.outras_receitas_sem_cliente || { registros: 0, valor: 0, cbs: 0 };
   const pisAntes = (x) => x.pisCofinsNoDas ? 'no DAS' : x.pisIndeterminado ? 'a validar' : A.moeda(x.pisCofinsAtual);
@@ -1748,6 +1749,14 @@ async function telaCadeia(el, tipo) {
     </div>` : ''}
     ${mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade da base econômica</h2>
       <p class="desc">Mostra, documento a documento, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. Não recalcula nada nesta tela: todos os dados vêm da memória persistida do motor.</p>
+      ${pendenciasPisCofins.length ? `<div class="aviso atencao" style="margin-top:14px"><b>${pendenciasPisCofins.length} item(ns) deixam o total de PIS/Cofins “A validar”.</b><br><span class="mini">A lista abaixo traz exatamente os lançamentos sem carga histórica determinada; CBS e crédito CBS continuam apresentados a partir da fotografia do motor.</span></div><div style="margin-top:12px">${A.tabela([
+        {t:'Documento / competência',r:d=>`<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '—')}</div>`},
+        {t:eForn ? 'Fornecedor' : 'Cliente',r:d=>`${A.esc(d.parceiro || 'Não identificado')}<div class="mini mono">${A.cnpjFmt(d.cnpj || '')}</div>`},
+        {t:'Item / NCM ou NBS',r:d=>{const codigo=d.ncm ? `NCM ${d.ncm}` : d.nbs ? `NBS ${d.nbs}${d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : 'Código não informado'; return `<b>${A.esc(d.produto || 'Sem descrição')}</b><div class="mini mono">${A.esc(codigo)}</div>`;}},
+        {t:'Motivo',r:d=>`<span class="tag a">Carga histórica pendente</span><div class="mini">${A.esc(d.motivoBaseEconomica || d.origemPisCofins || 'Sem valor de PIS/Cofins na memória do motor.')}</div>`},
+        {t:'CBS',num:true,r:d=>A.moeda(d.cbs)},
+        ...(eForn ? [{t:'Crédito CBS',num:true,r:d=>A.moeda(d.creditoCbs)}] : []),
+      ],pendenciasPisCofins,{vazio:'Nenhum item pendente.'})}</div>` : '<div class="aviso bom" style="margin-top:14px"><b>Todos os itens desta página têm carga histórica de PIS/Cofins determinada.</b></div>'}
       ${A.tabela([
         { t: 'Documento', r: (d) => `<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '')}</div>` },
         { t: eForn ? 'Fornecedor' : 'Cliente', r: (d) => `${A.esc(d.parceiro)}<div class="mini mono">${A.cnpjFmt(d.cnpj)}</div>` },
