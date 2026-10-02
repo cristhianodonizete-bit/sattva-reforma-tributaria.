@@ -96,6 +96,13 @@ async function controle(box) {
       : /FALHOU|SEM_HEARTBEAT|AGUARDANDO|INDISPONIVEL/.test(texto) ? 'a' : 'n';
     return `<span class="tag ${classe}">${A.esc(texto.replaceAll('_', ' '))}</span>`;
   };
+  const detalhesIntegridade = (saude.integridade?.atencao || []).length ? `<details class="aviso atencao" style="margin-top:16px">
+      <summary><b>Ver diagnóstico de integridade por empresa</b> · ${saude.integridade.atencao.length} empresa(s)</summary>
+      <div style="margin-top:12px">${saude.integridade.atencao.map((item) => `<div style="padding:10px 0;border-top:1px solid var(--borda)">
+        <b>${A.esc(item.empresa?.razao_social || `Empresa ${item.empresa?.id || '—'}`)}</b> · ${tagSaude(item.situacao)}
+        <div class="mini" style="margin-top:5px">${(item.achados || []).map((achado) => `${A.esc(achado.codigo)}: ${A.esc(achado.mensagem)}`).join('<br>')}</div>
+      </div>`).join('')}</div>
+    </details>` : '';
   const painelSaude = saude.erro ? `<div class="cartao" style="margin-top:16px"><h2>Saúde operacional</h2>
       <div class="aviso atencao"><b>Não foi possível consultar a saúde agora.</b> ${A.esc(saude.erro)}</div></div>` : `<div class="cartao" style="margin-top:16px">
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:center"><div><h2>Saúde operacional</h2><p class="desc">Leitura sob demanda. Não executa o motor, não sincroniza e não altera dados.</p></div><button class="btn pq vazio" id="atualizarSaude">Atualizar</button></div>
@@ -110,6 +117,7 @@ async function controle(box) {
         <div class="aviso ${saude.fila?.ultimo_falho ? 'atencao' : 'bom'}"><b>Último job falho</b><br>${saude.fila?.ultimo_falho ? `Empresa ${A.esc(saude.fila.ultimo_falho.empresa_id || '—')} · ${formatarDataSaude(saude.fila.ultimo_falho.finalizado_em)}${saude.fila.ultimo_falho.erro ? `<div class="mini">${A.esc(saude.fila.ultimo_falho.erro)}</div>` : ''}` : 'Nenhuma falha entre os últimos 100 registros.'}</div>
       </div>
       ${saude.alertas?.length ? `<div class="aviso atencao" style="margin-top:16px"><b>Atenções:</b> ${saude.alertas.map((a) => A.esc(a.mensagem)).join(' · ')}</div>` : '<div class="aviso bom" style="margin-top:16px"><b>Sem alertas operacionais neste instante.</b></div>'}
+      ${detalhesIntegridade}
     </div>`;
   box.innerHTML = `<div class="grade g4">
       ${A.kpi('Clientes a identificar', d.total.clientesPendentes, 'cadastro e perfil pendentes', d.total.clientesPendentes ? 'destaque' : '')}
