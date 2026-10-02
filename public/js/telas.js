@@ -1579,11 +1579,15 @@ async function telaCadeia(el, tipo) {
   // repasse permanece exclusivamente em Projeção de cenários, não aqui.
   const rep = 1;
   const eForn = tipo === 'fornecedor';
-  const abaCadeia = eForn ? (S.aba.fornecedoresCadeia || 'carteira') : (S.aba.clientesCadeia || 'carteira');
+  const abaCadeiaSalva = eForn ? (S.aba.fornecedoresCadeia || 'carteira') : (S.aba.clientesCadeia || 'carteira');
+  // As duas listas auxiliares foram incorporadas à Rastreabilidade. Quem
+  // estava numa URL/estado antigo é levado para ela, sem perder a navegação.
+  const abaCadeia = eForn && ['creditos_cbs','notas_credito_cbs'].includes(abaCadeiaSalva)
+    ? 'rastreabilidade' : abaCadeiaSalva;
   const mostrarRastreabilidade = abaCadeia === 'rastreabilidade';
   const mostrarBeneficios = !eForn && abaCadeia === 'beneficios';
-  const mostrarCreditosCbs = eForn && abaCadeia === 'creditos_cbs';
-  const mostrarNotasCreditoCbs = eForn && abaCadeia === 'notas_credito_cbs';
+  const mostrarCreditosCbs = eForn && mostrarRastreabilidade;
+  const mostrarNotasCreditoCbs = eForn && mostrarRastreabilidade;
   const paginaRastreabilidade = Math.max(1, Number(S.cache[`cadeia_pagina_${tipo}`]) || 1);
   const paginaParceiros = Math.max(1, Number(S.cache[`cadeia_parceiros_${tipo}`]) || 1);
   const paginaCreditosCbs=Math.max(1, Number(S.cache.creditosCbsEntradasPagina) || 1);
@@ -1658,10 +1662,10 @@ async function telaCadeia(el, tipo) {
       <button class="${abaCadeia === 'riscos' ? 'ativo' : ''}" data-aba-cadeia="riscos">Riscos e oportunidades</button>
       <button class="${abaCadeia === 'abc' ? 'ativo' : ''}" data-aba-cadeia="abc">Curva ABC</button>
       <button class="${abaCadeia === 'rastreabilidade' ? 'ativo' : ''}" data-aba-cadeia="rastreabilidade">Rastreabilidade</button>
-      ${eForn ? `<button class="${abaCadeia === 'creditos_cbs' ? 'ativo' : ''}" data-aba-cadeia="creditos_cbs">Entradas com crédito CBS</button><button class="${abaCadeia === 'notas_credito_cbs' ? 'ativo' : ''}" data-aba-cadeia="notas_credito_cbs">Notas de entrada e crédito CBS</button>` : `<button class="${abaCadeia === 'beneficios' ? 'ativo' : ''}" data-aba-cadeia="beneficios">Benefícios fiscais aplicados</button>`}
+      ${!eForn ? `<button class="${abaCadeia === 'beneficios' ? 'ativo' : ''}" data-aba-cadeia="beneficios">Benefícios fiscais aplicados</button>` : ''}
     </div>
-    ${mostrarCreditosCbs ? `<div class="cartao" style="margin-top:16px"><h2>Entradas que geram crédito CBS</h2>
-      <p class="desc">Rastreabilidade da última fotografia materializada do motor. A tela apenas lê os resultados existentes: não importa, não recalcula e não altera documentos.</p>
+    ${mostrarCreditosCbs ? `<div class="cartao" style="margin-top:16px"><h2>Itens com crédito CBS</h2>
+      <p class="desc">Recorte da rastreabilidade: somente itens de entrada com crédito CBS maior que zero. A tela lê a fotografia materializada; não importa, não recalcula e não altera documentos.</p>
       <div class="grade g3" style="margin-top:12px">${A.kpi('Entradas com crédito', creditosCbsResposta.total || 0, 'itens com crédito CBS maior que zero')}${A.kpi('Crédito CBS identificado', A.moeda(creditosCbsResposta.total_credito_cbs || 0), 'soma da fotografia atual')}${A.kpi('Execução do motor', creditosCbsResposta.execucao_id ? `#${creditosCbsResposta.execucao_id}` : 'Não disponível', 'origem da leitura')}</div>
       <p class="mini" style="margin-top:12px">${A.esc(creditosCbsResposta.leitura || '')}</p>
       ${A.tabela([
@@ -1676,8 +1680,8 @@ async function telaCadeia(el, tipo) {
       ], creditosCbsResposta.operacoes || [], { vazio:'Nenhuma entrada com crédito CBS maior que zero na fotografia atual.' })}
       ${(() => { const p=creditosCbsResposta.paginacao || {}; return p.totalPaginas>1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">Página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-creditos-cbs-pagina="${p.pagina-1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-creditos-cbs-pagina="${p.pagina+1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
-    ${mostrarNotasCreditoCbs ? `<div class="cartao" style="margin-top:16px"><h2>Relatório de notas de entrada e crédito CBS</h2>
-      <p class="desc">Todas as notas da última fotografia do motor. “Crédito parcial” significa que a mesma nota possui itens com e sem crédito; “A validar” não é convertido em zero.</p>
+    ${mostrarNotasCreditoCbs ? `<div class="cartao" style="margin-top:16px"><h2>Notas de entrada</h2>
+      <p class="desc">Conferência por nota dentro da mesma rastreabilidade. “Crédito parcial” significa que a nota possui itens com e sem crédito; “A validar” não é convertido em zero.</p>
       <div class="grade g3" style="margin-top:12px">${A.kpi('Notas analisadas', documentosCreditoCbsResposta.total || 0, 'documentos de entrada na fotografia')}${A.kpi('Crédito CBS nas notas', A.moeda(documentosCreditoCbsResposta.total_credito_cbs || 0), 'soma dos itens com crédito')}${A.kpi('Execução do motor', documentosCreditoCbsResposta.execucao_id ? `#${documentosCreditoCbsResposta.execucao_id}` : 'Não disponível', 'origem da leitura')}</div>
       <p class="mini" style="margin-top:12px">${A.esc(documentosCreditoCbsResposta.leitura || '')}</p>
       ${A.tabela([
@@ -1755,8 +1759,8 @@ async function telaCadeia(el, tipo) {
       ], analise.operacoesBeneficios, { vazio: 'Nenhum benefício foi aplicado pelo motor nesta execução.' })}`
       : `<div class="aviso neutro" style="margin-top:14px"><b>Nenhuma venda com benefício fiscal aplicado nesta execução.</b><br>Quando o motor aplicar redução de CBS ou alíquota zero a uma operação, ela aparecerá nesta lista com o respectivo fundamento.</div>`}
     </div>` : ''}
-    ${mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade da base econômica</h2>
-      <p class="desc">Mostra, documento a documento, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. Não recalcula nada nesta tela: todos os dados vêm da memória persistida do motor.</p>
+    ${mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade por item</h2>
+      <p class="desc">Mostra, item a item, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. As notas e os itens com crédito CBS acima são recortes desta mesma fotografia; nada é recalculado nesta tela.</p>
       ${pendenciasPisCofins.length ? `<div class="aviso atencao" style="margin-top:14px"><b>${pendenciasPisCofins.length} item(ns) deixam o total de PIS/Cofins “A validar”.</b><br><span class="mini">A lista abaixo traz exatamente os lançamentos sem carga histórica determinada; CBS e crédito CBS continuam apresentados a partir da fotografia do motor.</span></div><div style="margin-top:12px">${A.tabela([
         {t:'Documento / competência',r:d=>`<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '—')}</div>`},
         {t:eForn ? 'Fornecedor' : 'Cliente',r:d=>`${A.esc(d.parceiro || 'Não identificado')}<div class="mini mono">${A.cnpjFmt(d.cnpj || '')}</div>`},
