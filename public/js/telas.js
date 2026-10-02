@@ -1605,7 +1605,9 @@ async function telaCadeia(el, tipo) {
   const pendenciasPisCofins = (analise.detalhes || []).filter((x) => x.pisCofinsAtual === null || x.pisCofinsAtual === undefined);
   const simplesHibrido = !eForn && analise.projecao_regime === 'SIMPLES_HIBRIDO';
   const outrasReceitasSemCliente = analise.outras_receitas_sem_cliente || { registros: 0, valor: 0, cbs: 0 };
-  const pisAntes = (x) => x.pisCofinsNoDas ? 'no DAS' : x.pisIndeterminado ? 'a validar' : A.moeda(x.pisCofinsAtual);
+  // O DAS é a origem da carga, não motivo para ocultar o valor. A soma já
+  // foi materializada pelo motor/PGDAS; a tela apenas a identifica como tal.
+  const pisAntes = (x) => x.pisIndeterminado ? 'a validar' : x.pisCofinsNoDas ? `no DAS · ${A.moeda(x.pisCofinsAtual)}` : A.moeda(x.pisCofinsAtual);
   const tributosReforma = (x) => `${ibsAtivo ? `IBS ${A.moeda(x.ibs)} · ` : ''}CBS ${A.moeda(x.cbs)}`;
   const valorDasHibrido = (x, campo) => x.dasHibridoPendente && !Number(x.dasAtual) ? 'A validar' : A.moeda(x[campo]);
 
@@ -1621,7 +1623,7 @@ async function telaCadeia(el, tipo) {
     (t.registros ? `
     <div class="grade g4">
       ${A.kpi(eForn ? 'Compra atual' : 'Venda atual', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
-      ${A.kpi('Antes — PIS/Cofins', t.pisIndeterminado ? 'A validar' : t.pisCofinsNoDas ? 'No DAS' : A.moeda(t.pisCofinsAtual), 'carga atual identificada')}
+      ${A.kpi('Antes — PIS/Cofins', t.pisIndeterminado ? 'A validar' : A.moeda(t.pisCofinsAtual), t.pisCofinsNoDas ? 'carga atual no DAS' : 'carga atual identificada')}
       ${simplesHibrido ? A.kpi('(-) CBS já no DAS', valorDasHibrido(t, 'cbsDentroDoDas'), 'parcela substituída no Híbrido') : ''}
       ${simplesHibrido ? A.kpi('DAS sem CBS', valorDasHibrido(t, 'dasResidualHibrido'), `DAS atual ${valorDasHibrido(t, 'dasAtual')} − CBS retirada`) : ''}
       ${A.kpi(`Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, tributosReforma(ultimo), 'projeção da reforma')}
@@ -1631,7 +1633,7 @@ async function telaCadeia(el, tipo) {
       <p class="desc">${simplesHibrido ? 'No Híbrido, a CBS regular substitui a parcela de CBS já recolhida dentro do DAS. Portanto, o impacto no faturamento é a diferença líquida entre as duas — sem duplicidade.' : 'Comparação da carga atual com a projeção da reforma: antes, PIS/Cofins; depois, CBS e a diferença econômica no preço.'} CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
       ${A.tabela([
         { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: () => A.moeda(t.valor) },
-        { t: 'Antes — PIS/Cofins', num: true, r: () => t.pisIndeterminado ? 'A validar' : t.pisCofinsNoDas ? 'No DAS' : A.moeda(t.pisCofinsAtual) },
+        { t: 'Antes — PIS/Cofins', num: true, r: () => t.pisIndeterminado ? 'A validar' : `${A.moeda(t.pisCofinsAtual)}${t.pisCofinsNoDas ? ' · no DAS' : ''}` },
         { t: rotuloBase, num: true, r: () => A.moeda(ultimo.baseEconomica || 0) },
         ...(simplesHibrido ? [{ t: 'DAS atual', num: true, r: () => valorDasHibrido(ultimo, 'dasAtual') }] : []),
         ...(simplesHibrido ? [{ t: '(-) CBS no DAS', num: true, r: () => valorDasHibrido(ultimo, 'cbsDentroDoDas') }] : []),

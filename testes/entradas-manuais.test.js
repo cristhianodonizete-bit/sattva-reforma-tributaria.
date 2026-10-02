@@ -38,6 +38,7 @@ assert.match(tela,/Lançamentos manuais de entrada/);
 assert.match(tela,/data-aba-cadeia/);
 assert.match(tela,/NCM \$\{d\.ncm/);
 assert.match(tela,/deixam o total de PIS\/Cofins/);
+assert.match(tela,/carga atual no DAS/);
 assert.match(motor,/entradaManual/);
 assert.match(classificador,/lançamento manual de entrada/);
 assert.match(classificador,/reducao_cbs:beneficio/);
