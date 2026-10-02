@@ -2837,6 +2837,13 @@ function ehServicoDeVenda(m) {
     || (!String(m.ncm || '').replace(/\D/g, '') && Boolean(String(m.descricao || '').trim()));
 }
 
+// O regime resolvido é a fonte cadastral mais específica quando disponível;
+// o campo legado permanece como fallback para bases ainda não enriquecidas.
+function regimeEfetivoEmpresa(empresa) {
+  const resolvido = String(empresa?.regime_resolvido || '').trim();
+  return resolvido && resolvido !== 'indeterminado' ? resolvido : (empresa?.regime || 'lucro_real');
+}
+
 // A ausência de PIS/COFINS destacado em documento antigo não é, por si só,
 // ausência de cálculo. A ordem efetiva do motor é: documento, catálogo
 // específico, referência voluntária da empresa e regra geral do regime.
@@ -2857,7 +2864,7 @@ function regraGeralServicoDoRegime(regime) {
 }
 
 function situacaoTributacaoServico(m, empresa, referenciaManual = null) {
-  const regime = empresa?.regime || 'lucro_real';
+  const regime = regimeEfetivoEmpresa(empresa);
   const documento = Number(m.pis || 0) + Number(m.cofins || 0);
   if (documento > 0 || m.pis_cofins_zero_comprovado === true) {
     return { fonte: 'DOCUMENTO', referencia: null, exigeReferencia: false };
@@ -2948,7 +2955,7 @@ const normalizarAliquotaLegada = (valor) => {
 
 router.get('/empresas/:id/referencias-vendas', (req, res) => {
   try {
-    const empresa = db.prepare('SELECT id,regime FROM empresas WHERE id=?').get(req.params.id);
+    const empresa = db.prepare('SELECT id,regime,regime_resolvido FROM empresas WHERE id=?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada.');
     const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
     const mapa = new Map(referencias.filter((r) => r.ativo).map((r) => [r.chave, r]));
@@ -2989,7 +2996,21 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
       else r.sem_referencia_tecnica++;
       return r;
     },{com_nbs:0,com_lc116:0,sem_referencia_tecnica:0});
-    ok(res, { referencias, servicos, resumo_identificacao, pendentes: [],
+    // Esta tela é um cadastro de exceções. Serviços que seguem a regra geral
+    // do regime não devem voltar como suposta pendência nem poluir a lista.
+    // Divergências documentais permanecem exclusivamente em Conformidade.
+    const servicosExcecao = servicos.filter((s) => s.configurado || s.situacao?.fonte === 'CATALOGO_ESPECIFICO');
+    const resumo_cobertura = {
+      total_identificados: servicos.length,
+      regra_geral: servicos.filter((s) => s.situacao?.fonte === 'REGRA_GERAL_REGIME').length,
+      documento: servicos.filter((s) => s.situacao?.fonte === 'DOCUMENTO').length,
+      catalogo_especifico: servicos.filter((s) => s.situacao?.fonte === 'CATALOGO_ESPECIFICO').length,
+      excecao_empresa: servicos.filter((s) => s.configurado).length,
+      conformidade_documental: servicos.filter((s) => s.situacao?.fonte === 'CONFORMIDADE_DOCUMENTAL').length,
+      aliquota_regra_geral: regraGeralServicoDoRegime(regimeEfetivoEmpresa(empresa))?.pis_cofins ?? null,
+    };
+    ok(res, { referencias, servicos: servicosExcecao, resumo_identificacao, resumo_cobertura, pendentes: [],
+      // Mantido no contrato para a tela de Conformidade; não é exibido aqui.
       conformidade: servicos.filter((s) => s.situacao?.fonte === 'CONFORMIDADE_DOCUMENTAL') });
   } catch (e) { erro(res, e); }
 });

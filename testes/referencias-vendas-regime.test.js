@@ -30,9 +30,9 @@ async function executar() {
       criarServico(empresaId);
       const resposta = await obter(empresaId);
       assert.equal(resposta.pendentes.length, 0, `${regime} não pode exigir referência individual`);
-      assert.equal(resposta.servicos.length, 1);
-      assert.equal(resposta.servicos[0].situacao.fonte, 'REGRA_GERAL_REGIME');
-      assert.equal(Number(resposta.servicos[0].referencia.pis_cofins), esperado);
+      assert.equal(resposta.servicos.length, 0, `${regime} não pode aparecer na lista de exceções`);
+      assert.equal(resposta.resumo_cobertura.regra_geral, 1);
+      assert.equal(Number(resposta.resumo_cobertura.aliquota_regra_geral), esperado);
     }
   } finally {
     await new Promise((resolve, reject) => servidor.close((e) => e ? reject(e) : resolve()));
