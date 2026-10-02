@@ -5532,6 +5532,31 @@ router.post('/empresas/:id/questor/documentos-fiscais/conciliar', upload.single(
   } catch(e){ erro(res,e); }
 });
 
+function atualizarCadastroDaPreviaRazao(linhas) {
+  const itens=db.prepare("SELECT chave,label,valor FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((x)=>{
+    let regra={}; try { regra=JSON.parse(x.valor || '{}'); } catch (_) { /* ignora configuração inválida */ }
+    return { chave:x.chave, nome:regra.nome || x.label || x.chave, contas_questor:Array.isArray(regra.contas_questor) ? regra.contas_questor.map(String) : [] };
+  });
+  return (Array.isArray(linhas)?linhas:[]).map((linha)=>{
+    if (linha.situacao!=='AUSENTE') return linha;
+    const item=itens.find((x)=>x.contas_questor.includes(String(linha.conta_codigo || '')));
+    return item ? { ...linha, item_sugerido:{chave:item.chave,nome:item.nome} } : linha;
+  });
+}
+
+router.get('/empresas/:id/questor/razao/ultima-conciliacao', async (req,res)=>{
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const previa=db.prepare('SELECT arquivo,resultado_json,atualizado_em FROM questor_razao_previas WHERE empresa_id=?').get(Number(req.params.id));
+    if (!previa) return ok(res,{ disponivel:false });
+    let resultado={}; try { resultado=JSON.parse(previa.resultado_json || '{}'); } catch (_) { throw new Error('A última conciliação do razão não pôde ser lida.'); }
+    const linhas=atualizarCadastroDaPreviaRazao(resultado.linhas);
+    const ausentes=linhas.filter((x)=>x.situacao==='AUSENTE');
+    ok(res,{ ...resultado, linhas, arquivo:previa.arquivo || resultado.arquivo || '', atualizado_em:previa.atualizado_em, disponivel:true,
+      ausentes:ausentes.length, com_item_cadastrado:ausentes.filter((x)=>x.item_sugerido).length, precisam_cadastro:ausentes.filter((x)=>!x.item_sugerido).length });
+  } catch(e) { erro(res,e); }
+});
+
 // Teste por arquivo do Razão Questor. Esta etapa é deliberadamente somente
 // leitura: valida o leiaute e mede a cobertura antes de existir qualquer
 // integração nWeb ou inclusão de lançamentos no Sattva.
@@ -5628,9 +5653,13 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
     const ausentes=linhas.filter((x)=>x.situacao==='AUSENTE');
     const divergencias=linhas.filter((x)=>x.situacao==='ENCONTRADO_XML_PREVALECE');
     const comCadastro=ausentes.filter((x)=>x.item_sugerido).length;
-    ok(res,{ arquivo:req.file.originalname, leitura:'TESTE_SEM_INCLUSAO', linhas_lidas:linhas.length, encontradas:linhas.length-ausentes.length,
+    const resultado={ arquivo:req.file.originalname, leitura:'TESTE_SEM_INCLUSAO', linhas_lidas:linhas.length, encontradas:linhas.length-ausentes.length,
       ausentes:ausentes.length, divergencias:divergencias.length, com_item_cadastrado:comCadastro, precisam_cadastro:ausentes.length-comCadastro,
-      linhas:linhas.slice(0,500), total_exibido:Math.min(500,linhas.length), observacao:'Prévia do Razão. Nenhum lançamento foi incluído, classificado ou enviado ao motor.' });
+      linhas:linhas.slice(0,500), total_exibido:Math.min(500,linhas.length), observacao:'Prévia do Razão. Nenhum lançamento foi incluído, classificado ou enviado ao motor.' };
+    db.prepare(`INSERT INTO questor_razao_previas (empresa_id,arquivo,resultado_json,atualizado_em) VALUES (?,?,?,datetime('now','localtime'))
+      ON CONFLICT(empresa_id) DO UPDATE SET arquivo=excluded.arquivo,resultado_json=excluded.resultado_json,atualizado_em=datetime('now','localtime')`)
+      .run(empresaId,req.file.originalname,JSON.stringify(resultado));
+    ok(res,{ ...resultado, disponivel:true });
   } catch(e) { erro(res,e); }
 });
 

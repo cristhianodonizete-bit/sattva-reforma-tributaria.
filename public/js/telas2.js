@@ -896,11 +896,11 @@ Telas.questor = async (el) => {
   };
   document.getElementById('testarRazaoQuestor').onclick = () => {
     if (!S.empresaId) return A.toast('Selecione uma empresa', 'erro');
-    A.modal({titulo:'Testar conciliação pelo razão',largura:760,descricao:'Envie o Razão exportado pelo Questor em XLSX, XLS ou CSV. Esta etapa apenas compara os débitos de contas de compras, custos e despesas operacionais com as entradas existentes. Nenhum lançamento será incluído.',corpo:'<input type="file" id="arquivoRazaoQuestor" accept=".xlsx,.xls,.csv" required>',confirmar:'Ler e comparar',aoConfirmar:async()=>{
+    A.modal({titulo:'Conciliação pelo razão',largura:760,descricao:'Envie um novo Razão em XLSX, XLS ou CSV para atualizar a análise. Sem selecionar arquivo, o sistema abre a última conciliação salva para esta empresa.',corpo:'<input type="file" id="arquivoRazaoQuestor" accept=".xlsx,.xls,.csv"><p class="mini" style="margin-top:8px">O cadastro de um item é aplicado à última conciliação salva; não é necessário enviar o arquivo novamente.</p>',confirmar:'Abrir / atualizar conciliação',aoConfirmar:async()=>{
       const arquivo=document.getElementById('arquivoRazaoQuestor').files[0];
-      if(!arquivo) throw new Error('Selecione o arquivo de razão exportado pelo Questor.');
-      const fd=new FormData(); fd.append('arquivo',arquivo);
-      const r=await A.api(`/empresas/${S.empresaId}/questor/razao/testar`,{metodo:'POST',corpo:fd,formData:true});
+      let r;
+      if(arquivo) { const fd=new FormData(); fd.append('arquivo',arquivo); r=await A.api(`/empresas/${S.empresaId}/questor/razao/testar`,{metodo:'POST',corpo:fd,formData:true}); }
+      else { r=await A.api(`/empresas/${S.empresaId}/questor/razao/ultima-conciliacao`); if(!r.disponivel) throw new Error('Ainda não há uma conciliação salva. Selecione o arquivo de Razão para iniciar.'); }
       const linhas=Array.isArray(r.linhas)?r.linhas:[];
       const situacao=(x)=>x.situacao==='ENCONTRADO'?'<span class="tag c">Encontrado</span>':x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="tag c">Encontrado · XML prevalece</span>':'<span class="tag a">Ausente</span>';
       const cadastro=(x)=>x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="mini">XML considerado</span>':x.item_sugerido?`<span class="tag c">${A.esc(x.item_sugerido.nome)}</span>`:`<button type="button" class="btn vazio pq" data-cadastrar-item-razao="${A.esc(x.identificador)}">Cadastrar item</button>`;
