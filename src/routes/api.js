@@ -1872,7 +1872,7 @@ router.get('/empresas/:id/creditos-cbs/documentos', async (req, res) => {
     const params=[empresaId,execucao.id];
     const base=`WITH itens AS (
       SELECT CASE WHEN NULLIF(m.chave,'') IS NOT NULL THEN 'chave:'||m.chave ELSE 'movimento:'||m.id END referencia,
-        m.competencia,m.documento,m.chave,m.nome fornecedor,m.inscr_federal fornecedor_cnpj,m.valor,r.base_economica,r.credito_cbs,
+        m.competencia,m.documento,m.chave,m.nome fornecedor,m.inscr_federal fornecedor_cnpj,m.origem origem_movimento,m.valor,r.base_economica,r.credito_cbs,
         COALESCE(r.status_credito_determinacao,r.status_credito,'INDETERMINADO') status_credito,
         CASE WHEN COALESCE(r.credito_cbs,0)>0 THEN 1 ELSE 0 END tem_credito,
         CASE WHEN UPPER(COALESCE(r.status_credito_determinacao,r.status_credito,'')) IN ('INDETERMINADO','DADOS_INSUFICIENTES','SUJEITO_VALIDACAO') THEN 1 ELSE 0 END pendente
@@ -1880,7 +1880,7 @@ router.get('/empresas/:id/creditos-cbs/documentos', async (req, res) => {
       WHERE r.empresa_id=? AND r.execucao_id=? AND r.sentido='entrada'
     ), documentos AS (
       SELECT referencia,MIN(competencia) competencia,COALESCE(NULLIF(MAX(documento),''),NULLIF(MAX(chave),''),'Documento sem número') documento,MAX(chave) chave,
-        MAX(fornecedor) fornecedor,MAX(fornecedor_cnpj) fornecedor_cnpj,COUNT(*) itens,SUM(COALESCE(valor,0)) valor_entrada,
+        MAX(fornecedor) fornecedor,MAX(fornecedor_cnpj) fornecedor_cnpj,MAX(CASE WHEN origem_movimento='QUESTOR_CONCILIACAO_ENTRADA' THEN 1 ELSE 0 END) origem_questor,COUNT(*) itens,SUM(COALESCE(valor,0)) valor_entrada,
         SUM(COALESCE(base_economica,0)) base_economica,SUM(COALESCE(credito_cbs,0)) credito_cbs,SUM(tem_credito) itens_com_credito,SUM(pendente) itens_pendentes
       FROM itens GROUP BY referencia
     )`;

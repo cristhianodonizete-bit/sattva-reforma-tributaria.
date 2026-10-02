@@ -1601,6 +1601,19 @@ async function telaCadeia(el, tipo) {
     eForn && mostrarRastreabilidade ? A.api(`/empresas/${S.empresaId}/questor/entradas-conciliadas`).catch(() => ({ entradas:[], total:0, leitura:'Entradas conciliadas indisponíveis.' })) : Promise.resolve({ entradas:[], total:0 }),
   ]);
   const { analise, pendenciasReferencias = [] } = cadeiaResposta;
+  // A fotografia do motor não é recalculada automaticamente ao incluir uma
+  // nota conciliada. Para que ela não desapareça até a próxima execução,
+  // agregamos os itens Questor na própria lista de Notas de entrada, nunca em
+  // uma seção paralela.
+  const chaveNotaEntrada=(x)=>`${String(x.data_emissao || x.competencia || '').slice(0,10)}|${String(x.modelo_documento_fiscal || '').toLowerCase()}|${String(x.documento || '')}`;
+  const documentosMotor=documentosCreditoCbsResposta.documentos || [];
+  const chavesMotor=new Set(documentosMotor.map(chaveNotaEntrada));
+  const questorPorNota=new Map();
+  for(const item of entradasQuestorResposta.entradas || []) {
+    const chave=chaveNotaEntrada(item), atual=questorPorNota.get(chave) || {competencia:item.competencia,documento:item.documento,modelo_documento_fiscal:item.modelo_documento_fiscal,data_emissao:item.data_emissao,fornecedor:item.nome,fornecedor_cnpj:item.inscr_federal,valor_entrada:0,itens:0,credito_cbs:0,itens_com_credito:0,itens_pendentes:0,pis_cofins_atual:null,regimes_fornecedor:[],origem_questor:true,tarefa_questor:item.tarefa_id,lancamento_questor:item.lancamento_questor,situacao_credito:'AGUARDANDO_MOTOR'};
+    atual.valor_entrada+=Number(item.valor)||0; atual.itens+=1; questorPorNota.set(chave,atual);
+  }
+  const documentosEntradaExibidos=[...documentosMotor.map((x)=>({...x,origem_questor:Boolean(x.origem_questor)})),...([...questorPorNota.entries()].filter(([chave])=>!chavesMotor.has(chave)).map(([,x])=>x))];
   const t = analise.totais;
   const rotuloRegimeFornecedor=(regime)=>({ lucro_real:'Lucro Real', lucro_presumido:'Lucro Presumido', simples_nacional:'Simples Nacional', mei:'MEI', regime_regular:'Regime regular', indeterminado:'A validar' }[String(regime || '').toLowerCase()] || (regime ? String(regime).replace(/_/g,' ') : 'A validar'));
   const pisCofinsDaFotografia=(valor, origem, motivo)=>valor === null || valor === undefined
@@ -1682,8 +1695,8 @@ async function telaCadeia(el, tipo) {
       ${(() => { const p=creditosCbsResposta.paginacao || {}; return p.totalPaginas>1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">Página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-creditos-cbs-pagina="${p.pagina-1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-creditos-cbs-pagina="${p.pagina+1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
     ${mostrarNotasCreditoCbs ? `<div class="cartao" style="margin-top:16px"><h2>Notas de entrada</h2>
-      <p class="desc">Conferência por nota dentro da mesma rastreabilidade. “Crédito parcial” significa que a nota possui itens com e sem crédito; “A validar” não é convertido em zero.</p>
-      <div class="grade g3" style="margin-top:12px">${A.kpi('Notas analisadas', documentosCreditoCbsResposta.total || 0, 'documentos de entrada na fotografia')}${A.kpi('Crédito CBS nas notas', A.moeda(documentosCreditoCbsResposta.total_credito_cbs || 0), 'soma dos itens com crédito')}${A.kpi('Execução do motor', documentosCreditoCbsResposta.execucao_id ? `#${documentosCreditoCbsResposta.execucao_id}` : 'Não disponível', 'origem da leitura')}</div>
+      <p class="desc">Conferência por nota dentro da mesma rastreabilidade. A coluna final identifica a origem e se a nota foi conciliada e incluída pelo Questor. “Crédito parcial” significa que a nota possui itens com e sem crédito; “A validar” não é convertido em zero.</p>
+      <div class="grade g3" style="margin-top:12px">${A.kpi('Notas exibidas', documentosEntradaExibidos.length, 'fotografia do motor e inclusões Questor')}${A.kpi('Crédito CBS nas notas', A.moeda(documentosCreditoCbsResposta.total_credito_cbs || 0), 'soma dos itens já analisados pelo motor')}${A.kpi('Execução do motor', documentosCreditoCbsResposta.execucao_id ? `#${documentosCreditoCbsResposta.execucao_id}` : 'Não disponível', 'origem da fotografia')}</div>
       <p class="mini" style="margin-top:12px">${A.esc(documentosCreditoCbsResposta.leitura || '')}</p>
       ${A.tabela([
         { t:'Competência / nota', r:x=>`<b class="mono">${A.esc(x.documento || x.chave || 'Sem número')}</b><div class="mini">${A.esc(x.competencia || '—')}</div>` },
@@ -1692,8 +1705,9 @@ async function telaCadeia(el, tipo) {
         { t:'Valor / itens', num:true, r:x=>`${A.moeda(x.valor_entrada)}<div class="mini">${x.itens} item(ns)</div>` },
         { t:'Antes — PIS/Cofins', num:true, r:x=>pisCofinsDaFotografia(x.pis_cofins_atual,(x.origens_pis_cofins || []).join(' · '),(x.motivos_pis_cofins || []).join(' · ')) },
         { t:'Crédito CBS', num:true, r:x=>`${A.moeda(x.credito_cbs)}<div class="mini">${x.itens_com_credito} com crédito · ${x.itens_pendentes} a validar</div>` },
-        { t:'Situação', r:x=>{ const r={POSSUI_CREDITO:['Possui crédito','c'],CREDITO_PARCIAL:['Crédito parcial','a'],A_VALIDAR:['A validar','a'],NAO_POSSUI_CREDITO:['Não possui crédito','n']}[x.situacao_credito] || [x.situacao_credito,'n']; return `<span class="tag ${r[1]}">${r[0]}</span>`; } },
-      ], documentosCreditoCbsResposta.documentos || [], { vazio:'Nenhuma nota de entrada na fotografia atual do motor.' })}
+        { t:'Situação', r:x=>{ const r={POSSUI_CREDITO:['Possui crédito','c'],CREDITO_PARCIAL:['Crédito parcial','a'],A_VALIDAR:['A validar','a'],NAO_POSSUI_CREDITO:['Não possui crédito','n'],AGUARDANDO_MOTOR:['Aguardando motor','a']}[x.situacao_credito] || [x.situacao_credito,'n']; return `<span class="tag ${r[1]}">${r[0]}</span>`; } },
+        { t:'Conciliação / origem', r:x=>x.origem_questor ? `<span class="tag c">Conciliada · Questor</span><div class="mini">Incluída pela conciliação${x.lancamento_questor ? ` · lançamento ${A.esc(x.lancamento_questor)}` : ''}</div>${x.tarefa_questor ? `<div class="mini mono">Tarefa #${A.esc(x.tarefa_questor)}</div>` : ''}` : '<span class="mini">Não incluída pela conciliação Questor</span>' },
+      ], documentosEntradaExibidos, { vazio:'Nenhuma nota de entrada disponível.' })}
       ${(() => { const p=documentosCreditoCbsResposta.paginacao || {}; return p.totalPaginas>1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">Página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-documentos-credito-cbs-pagina="${p.pagina-1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-documentos-credito-cbs-pagina="${p.pagina+1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
     ${mostrarRiscos ? `<div class="cartao" style="margin-top:16px"><h2>Riscos e oportunidades</h2><p class="desc">Leitura da carteira sob a ótica da empresa vendedora.</p>${A.avisos(analise.riscos)}
@@ -1760,16 +1774,7 @@ async function telaCadeia(el, tipo) {
       ], analise.operacoesBeneficios, { vazio: 'Nenhum benefício foi aplicado pelo motor nesta execução.' })}`
       : `<div class="aviso neutro" style="margin-top:14px"><b>Nenhuma venda com benefício fiscal aplicado nesta execução.</b><br>Quando o motor aplicar redução de CBS ou alíquota zero a uma operação, ela aparecerá nesta lista com o respectivo fundamento.</div>`}
     </div>` : ''}
-    ${mostrarRastreabilidade ? `${eForn && entradasQuestorResposta.total ? `<div class="cartao" style="margin-top:16px"><h2>Entradas conciliadas e incluídas pelo Questor</h2>
-      <p class="desc">Estas notas foram incluídas somente após confirmação na conciliação. Elas aparecem aqui mesmo antes de uma nova execução do motor; a origem não é inferida.</p>
-      <p class="mini">${A.esc(entradasQuestorResposta.leitura || '')}</p>
-      ${A.tabela([
-        {t:'Documento / emissão',r:x=>`<b class="mono">${A.esc(x.documento || '—')}</b><div class="mini">${A.esc(x.data_emissao || x.competencia || '—')} · ${A.esc(String(x.modelo_documento_fiscal || '—').toUpperCase())}</div>`},
-        {t:'Fornecedor / item',r:x=>`${A.esc(x.nome || 'Não informado')}<div class="mini">${A.esc(x.descricao || 'Sem descrição')}</div><div class="mini mono">${x.ncm ? `NCM ${A.esc(x.ncm)}` : 'Sem NCM'}</div>`},
-        {t:'Valor / PIS-Cofins',num:true,r:x=>`${A.moeda(x.valor)}<div class="mini">PIS ${A.moeda(x.pis)} · Cofins ${A.moeda(x.cofins)}</div>`},
-        {t:'Conciliação / origem',r:x=>`<span class="tag c">Conciliada · incluída</span><div class="mini">Questor · lançamento ${A.esc(x.lancamento_questor || '—')}</div><div class="mini mono">Tarefa #${A.esc(x.tarefa_id || '—')}</div>`},
-      ], entradasQuestorResposta.entradas || [], {vazio:'Nenhuma entrada foi incluída a partir da conciliação Questor.'})}
-    </div>` : ''}<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade por item</h2>
+    ${mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade por item</h2>
       <p class="desc">Mostra, item a item, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. As notas e os itens com crédito CBS acima são recortes desta mesma fotografia; nada é recalculado nesta tela.</p>
       ${pendenciasPisCofins.length ? `<div class="aviso atencao" style="margin-top:14px"><b>${pendenciasPisCofins.length} item(ns) deixam o total de PIS/Cofins “A validar”.</b><br><span class="mini">A lista abaixo traz exatamente os lançamentos sem carga histórica determinada; CBS e crédito CBS continuam apresentados a partir da fotografia do motor.</span></div><div style="margin-top:12px">${A.tabela([
         {t:'Documento / competência',r:d=>`<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '—')}</div>`},
