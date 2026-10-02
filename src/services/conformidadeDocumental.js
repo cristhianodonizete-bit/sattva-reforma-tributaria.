@@ -12,6 +12,41 @@ const NBS_INTERNA_SEM_CORRESPONDENCIA = '999999999';
 
 const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
 const r2 = (v) => Math.round(n(v) * 100) / 100;
+const textoNormalizado = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+
+// Não tenta adivinhar a natureza do serviço por texto livre. A leitura abaixo
+// só aponta uma contradição explícita entre as duas famílias mais recorrentes
+// na emissão: “suporte” e “consultoria/assessoria”.
+function familiaSemanticaServico(texto) {
+  const t = textoNormalizado(texto);
+  const suporte = /\bsuporte\b/.test(t);
+  const consultoria = /\bconsultor(?:ia)?\b|\bassessoria\b/.test(t);
+  if (suporte === consultoria) return null;
+  return suporte ? 'SUPORTE' : 'CONSULTORIA';
+}
+
+function divergenciaDescricaoServico(movimento, consulta) {
+  const documento = familiaSemanticaServico(movimento.descricao);
+  if (!documento) return null;
+  const familiasCatalogo = new Set((consulta.candidatos || [])
+    .map((x) => familiaSemanticaServico(`${x.descricao_item || ''} ${x.descricao_nbs || ''}`))
+    .filter(Boolean));
+  // Catálogo ambíguo ou sem vocabulário objetivo: não transforma hipótese em
+  // pendência. A conferência é apenas quando há oposição literal comprovável.
+  if (familiasCatalogo.size !== 1 || familiasCatalogo.has(documento)) return null;
+  const catalogo = [...familiasCatalogo][0];
+  const descricaoCatalogo = (consulta.candidatos || [])
+    .map((x) => x.descricao_nbs || x.descricao_item || '')
+    .find((x) => familiaSemanticaServico(x) === catalogo) || 'referência fiscal cadastrada';
+  const nome = (x) => x === 'SUPORTE' ? 'suporte' : 'consultoria/assessoria';
+  return {
+    tipo: 'DESCRICAO_SERVICO_DIVERGENTE', severidade: 'ATENCAO',
+    titulo: `Descrição sugere ${nome(documento)}, mas a referência fiscal sugere ${nome(catalogo)}`,
+    evidencia: `Descrição do documento: “${String(movimento.descricao || '').trim()}”. Descrição da referência LC 116/NBS: “${descricaoCatalogo}”.`,
+    solucao: 'Confirme o escopo efetivamente contratado e prestado. Corrija a descrição ou os códigos na origem somente se houver divergência real; este apontamento não altera o cálculo tributário.',
+    candidatos: (consulta.candidatos || []).map(candidato),
+  };
+}
 
 function candidato(linha) {
   return {
@@ -97,6 +132,8 @@ function avaliar(movimento) {
     solucao: 'Confirme a descrição do serviço e a combinação documental aplicável. Trate como prioridade alta somente se a análise econômica apontar impacto tributário material.',
     candidatos,
   };
+  const descricaoDivergente = divergenciaDescricaoServico(movimento, consulta);
+  if (descricaoDivergente) return descricaoDivergente;
   return null;
 }
 

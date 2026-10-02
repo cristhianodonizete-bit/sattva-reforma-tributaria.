@@ -251,7 +251,7 @@ Telas.conformidadeDocumental = async (el) => {
       return (opcoes.length ? opcoes : [null]).map((candidato) => ({ ...erro, candidato }));
     });
     return A.tabela([
-      { t:'Não conformidade', r:x=>`<span class="tag ${x.item.severidade === 'ALTA' ? 'a' : 'b'}">${A.esc(x.item.tipo)}</span><div style="margin-top:6px"><b>${A.esc(x.item.titulo)}</b></div><div class="mini">LC 116: ${A.esc(x.item.lc116 || 'não informado')} · NBS: ${A.esc(x.item.nbs || 'não informado')}</div>` },
+      { t:'Não conformidade', r:x=>`<span class="tag ${x.item.severidade === 'ALTA' ? 'a' : 'b'}">${A.esc(x.item.tipo)}</span><div style="margin-top:6px"><b>${A.esc(x.item.titulo)}</b></div><div class="mini">LC 116: ${A.esc(x.item.lc116 || 'não informado')} · NBS: ${A.esc(x.item.nbs || 'não informado')}</div><div class="mini" style="margin-top:6px">${A.esc(x.item.evidencia || '')}</div><div class="mini" style="margin-top:6px"><b>Ação:</b> ${A.esc(x.item.solucao || '')}</div>` },
       { t:'Ocorrências e exemplos', r:x=>`${x.ocorrencias.length} ocorrência(s)<div class="mini" style="margin-top:6px">${x.ocorrencias.slice(0, 2).map((i) => `${A.esc(i.documento || 'sem número')} · item ${A.esc(i.item_numero || '—')} · ${A.esc(i.contraparte)}`).join('<br>')}</div>${x.ocorrencias.length > 2 ? '<div class="mini">+ outros documentos com o mesmo erro</div>' : ''}` },
       { t:'LC 116 compatível', r:x=>A.esc(x.candidato?.lc116 || '—') },
       { t:'NBS compatível', r:x=>x.candidato ? `${A.esc(x.candidato.nbs || '—')}<div class="mini">${A.esc(x.candidato.descricao_nbs || '')}</div>` : 'Nenhuma correlação cadastrada' },

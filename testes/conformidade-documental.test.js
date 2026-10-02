@@ -46,4 +46,15 @@ const comTratamentosAlternativos = conformidade.listar(empresaId);
 assert.equal(comTratamentosAlternativos.itens.some((x) => x.documento === 'NF-3' || x.documento === 'NF-4'), false, 'tratamentos alternativos não tornam a chave LC116/NBS incompatível');
 assert.equal(comTratamentosAlternativos.itens.some((x) => x.documento === 'NFE-1'), false, 'NF-e não pode entrar na conformidade de LC116 por código residual');
 
+// A descrição livre não reclassifica, mas uma oposição textual explícita deve
+// ficar visível na Conformidade Documental: suporte não é consultoria.
+db.prepare(`INSERT INTO base_servicos (lc116,nbs,descricao_item,descricao_nbs,cclasstrib,nome_cclasstrib,reducao)
+  VALUES ('0107','115013000','Consultoria em tecnologia','Consultoria em tecnologia da informação','000001','Tributação integral','integral')`).run();
+const divergencia = conformidade.avaliar({
+  lc116: '0107', nbs: '115013000', descricao: 'Suporte técnico remoto ao sistema',
+});
+assert.equal(divergencia.tipo, 'DESCRICAO_SERVICO_DIVERGENTE');
+assert.match(divergencia.titulo, /suporte.*consultoria/i);
+assert.match(divergencia.solucao, /não altera o cálculo/i);
+
 console.log('conformidade-documental: evidência, candidatos e somente leitura: OK');
