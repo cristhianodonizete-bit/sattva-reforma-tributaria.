@@ -332,7 +332,9 @@ Telas.dados = async (el) => {
     (consultaListaFiscal || consultaRastreabilidadeCfop) ? A.api(`/empresas/${S.empresaId}/documentos-fiscais/opcoes-filtros?sentido=${abaDocumentosFiscais === 'entradas' ? 'fornecedor' : 'cliente'}`) : Promise.resolve({ competencias: [], modelos: [] }),
     consultaRastreabilidadeCfop ? (() => { const filtros=new URLSearchParams(S.aba.rastreabilidadeCfop || {}); return A.api(`/empresas/${S.empresaId}/documentos-fiscais/saidas/rastreabilidade-cfop?limite=30&pagina=${Math.max(1,Number(S.cache.rastreabilidadeCfopPagina)||1)}&${filtros.toString()}`); })() : Promise.resolve({ documentos: [], total:0, paginacao:{} }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`) : Promise.resolve({ movimentos: [], total: 0 }),
-    consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? A.api(`/empresas/${S.empresaId}/referencias-vendas`) : Promise.resolve(null),
+    // Exceções de tributação são administradas em Configuração técnica; esta
+    // central permanece focada nos documentos e não consulta esse cadastro.
+    Promise.resolve({ referencias: [], servicos: [] }),
     grupoCentral === 'receitas' ? A.api('/config/itens-receita') : Promise.resolve({ itens: [] }),
     consultaEntradasManuais ? A.api(`/empresas/${S.empresaId}/entradas-manuais`) : Promise.resolve({ entradas:[], total:0 }),
   ]);
@@ -504,7 +506,7 @@ Telas.dados = async (el) => {
     ${grupoCentral === 'margem' ? `<div class="cartao" style="margin-top:16px"><div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="addMargemOperacional">Informar margem operacional</button></div><div class="grade g2" style="margin-top:16px">${A.kpi('Margens informadas',(dadosAdicionais.margens || []).length,'premissas declaradas')}${A.kpi('Pendências',(itemProntidao('margem')?.pendencias || []).length,'informações a resolver')}</div></div>` : ''}
     ${grupoCentral !== 'documentos' && Object.prototype.hasOwnProperty.call(pendenciasGrupo, grupoCentral) ? `<div class="cartao" style="margin-top:16px"><h2>Pendências deste grupo</h2>${pendenciasGrupo[grupoCentral].length ? A.tabela([{t:'Registro',r:x=>A.esc(x.competencia || x.periodo_inicio || 'Sem período')},{t:'Situação',r:x=>grupoCentral === 'receitas' ? 'Possível duplicidade ou campo obrigatório ausente' : 'Complete os campos obrigatórios antes da análise.'}],pendenciasGrupo[grupoCentral],{vazio:'Sem pendências.'}) : A.vazio('Sem pendências','Os dados disponíveis deste grupo não exigem ação adicional.')}</div>` : ''}
     ${grupoCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosCentral==='importacao'?'ativa':''}" data-documentos-central-aba="importacao">Importações</button><button class="aba ${abaDocumentosCentral==='documentos'?'ativa':''}" data-documentos-central-aba="documentos">Documentos fiscais</button></div>` : ''}
-    ${consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? `<div class="cartao" style="margin-top:16px">
+    ${false && consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? `<div class="cartao" style="margin-top:16px">
       <h2>Referências fiscais das vendas por serviço</h2>
       <p class="desc">O cálculo segue a ordem: documento, regra específica do catálogo e regra geral do regime. A referência por serviço é opcional e só serve para registrar uma exceção real à regra geral; divergências de NBS, LC 116 ou descrição ficam em Conformidade Documental.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn vazio pq" id="addReferenciaServico">Adicionar serviço ao cadastro</button><button class="btn vazio pq" id="importarReferenciasServico">Importar referências</button><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/referencias_servicos').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>
