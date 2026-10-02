@@ -1197,6 +1197,44 @@ async function publicarOperacaoEmpresa(empresaId) {
   return resultado;
 }
 
+// A conferência de CFOP não altera o XML: ela acrescenta ao fato fiscal a
+// evidência contábil devolvida pelo Questor. A rastreabilidade lê a fonte
+// compartilhada diretamente; publicar somente esses campos evita que a tela
+// fique defasada e também evita reenviar toda a fotografia operacional.
+async function publicarCfopsQuestorConciliados(empresaId, movimentoIds = []) {
+  if (!ativo()) return { ativo:false, publicados:0, pendentes:movimentoIds.length };
+  const ids=[...new Set(movimentoIds.map(Number).filter(Number.isInteger))];
+  if (!ids.length) return { ativo:true, publicados:0, pendentes:0 };
+  const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!empresa?.cnpj) throw new Error('Empresa não encontrada para publicar os CFOPs conciliados.');
+  const remoto=supabase.admin();
+  const cnpj=String(empresa.cnpj).replace(/\D/g,'');
+  const { data:candidatas, error:erroEmpresa }=await remoto.from('empresas').select('id,cnpj,origem_local_id')
+    .or(`origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`).limit(10);
+  if (erroEmpresa) throw new Error(`Empresa compartilhada: ${erroEmpresa.message}`);
+  const empresas=(candidatas || []).filter((x)=>Number(x.origem_local_id)===Number(empresaId) || String(x.cnpj || '').replace(/\D/g,'')===cnpj);
+  if (empresas.length!==1) throw new Error('Empresa compartilhada não localizada de forma única; os CFOPs locais foram preservados.');
+  const marcas=ids.map(()=>'?').join(',');
+  const locais=db.prepare(`SELECT id,chave,item_numero,normalizacao_status,normalizacao_evidencia FROM movimentos
+    WHERE empresa_id=? AND id IN (${marcas})`).all(Number(empresaId),...ids)
+    .filter((x)=>String(x.chave || '').trim());
+  let publicados=0, naoLocalizados=0;
+  for (const movimento of locais) {
+    let consulta=remoto.from('movimentos').update({
+      normalizacao_status:movimento.normalizacao_status,
+      normalizacao_evidencia:movimento.normalizacao_evidencia,
+    }).eq('empresa_id',Number(empresas[0].id)).eq('chave',movimento.chave);
+    consulta=movimento.item_numero === null || movimento.item_numero === undefined
+      ? consulta.is('item_numero',null)
+      : consulta.eq('item_numero',movimento.item_numero);
+    const { data, error }=await consulta.select('id');
+    if (error) throw new Error(`CFOPs conciliados compartilhados: ${error.message}`);
+    if (!data?.length) { naoLocalizados++; continue; }
+    publicados+=data.length;
+  }
+  return { ativo:true, publicados, nao_localizados:naoLocalizados, pendentes:ids.length-locais.length };
+}
+
 // Entradas incluídas após a conciliação com o Questor não são XMLs. Por isso
 // não podem depender da publicação genérica por id local: esse id é efêmero
 // entre instâncias. A chave Questor já é estável por item e permite publicar
@@ -1260,6 +1298,6 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
   return { empresa_remota_id: empresaRemotaId, excluidos: ids.length, movimento_ids: ids };
 }
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, prepararContextoMotorEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };

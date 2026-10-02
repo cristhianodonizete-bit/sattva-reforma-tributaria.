@@ -168,7 +168,9 @@ async function conciliarCfopSaidasQuestor(empresaId, texto) {
     if(mudou) saida.atualizados++;
   }))();
   if(idsAlterados.length) db.prepare(`DELETE FROM motor_resultados WHERE movimento_id IN (${idsAlterados.map(()=>'?').join(',')})`).run(...idsAlterados);
-  return saida;
+  // IDs servem apenas para propagar a evidência desta execução para a fonte
+  // compartilhada. O CFOP XML continua intacto.
+  return { ...saida, movimentos_alterados:idsAlterados };
 }
 
 // Conferência de Entradas (Gráfico). O Questor imprime uma linha de cabeçalho
@@ -357,10 +359,15 @@ router.post('/tarefas/:id/resultado',async(req,res)=>{
     if(ok&&t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS') { resultado={...resultado,...await conciliarCancelamentosQuestor(t.empresa_id,resultado.relatorio)}; }
     if(ok&&t.tipo==='CONCILIAR_CFOP_SAIDAS') {
       const payload=JSON.parse(t.payload_json||'{}');
-      resultado={...resultado,...(payload.modo==='CONCILIAR_ENTRADAS'
+      const conciliacao=(payload.modo==='CONCILIAR_ENTRADAS'
         ? conciliarEntradasQuestor(t.empresa_id,resultado.relatorio)
-        : await conciliarCfopSaidasQuestor(t.empresa_id,resultado.relatorio))};
-      if(payload.modo!=='CONCILIAR_ENTRADAS') require('../services/operacaoCompartilhada').publicar().catch(()=>{});
+        : await conciliarCfopSaidasQuestor(t.empresa_id,resultado.relatorio));
+      resultado={...resultado,...conciliacao};
+      if(payload.modo!=='CONCILIAR_ENTRADAS') {
+        const compartilhamento=await require('../services/operacaoCompartilhada')
+          .publicarCfopsQuestorConciliados(t.empresa_id,conciliacao.movimentos_alterados || []);
+        resultado.compartilhamento_cfop=compartilhamento;
+      }
     }
     if(ok&&t.tipo==='CONCILIAR_ENTRADAS_QUESTOR') { resultado={...resultado,...conciliarEntradasQuestor(t.empresa_id,resultado.relatorio)}; }
     if(ok&&t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO') { resultado={...resultado,...await importarLocacoesQuestor(t.empresa_id,resultado.relatorio)}; }
