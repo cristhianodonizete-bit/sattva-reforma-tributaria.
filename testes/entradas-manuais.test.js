@@ -26,6 +26,8 @@ assert.match(config,/PIS/);
 assert.match(config,/Cofins/);
 assert.match(api,/regimesPadraoEntrada/);
 assert.match(api,/pis_lucro_real/);
+assert.match(api,/percentualObrigatorio/);
+assert.match(config,/Obrigatória para Lucro Real e Lucro Presumido/);
 assert.match(api,/referencia_pis_cofins/);
 assert.match(tela,/referenciaPisCofinsEntradaManual/);
 assert.match(motor,/entradaManual/);

@@ -6272,10 +6272,16 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
     if (cst && cst.length !== 3) throw new Error('CST deve ter 3 dígitos, quando informado.');
     if (cclasstrib && cclasstrib.length !== 6) throw new Error('cClassTrib deve ter 6 dígitos, quando informado.');
     const ordem=Number(db.prepare("SELECT COALESCE(MAX(ordem),0)+1 ordem FROM param_regras WHERE grupo='itens_entrada_manual'").get().ordem);
-    const percentual=(campo) => { const n=Number(String(b[campo] ?? '').replace(',','.')); return Number.isFinite(n) && n >= 0 && n <= 100 ? n / 100 : null; };
+    const percentualObrigatorio=(campo,rotulo) => {
+      const informado=String(b[campo] ?? '').trim();
+      if (!informado) throw new Error(`Informe ${rotulo}.`);
+      const n=Number(informado.replace(',','.'));
+      if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error(`${rotulo} deve estar entre 0% e 100%.`);
+      return n / 100;
+    };
     const regra={ nome, beneficio:beneficioInformado / 100, cst, cclasstrib, observacao:String(b.observacao || '').trim(), regimes:{
-      lucro_real:{ pis:percentual('pis_lucro_real'),cofins:percentual('cofins_lucro_real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
-      lucro_presumido:{ pis:percentual('pis_lucro_presumido'),cofins:percentual('cofins_lucro_presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
+      lucro_real:{ pis:percentualObrigatorio('pis_lucro_real','PIS — Lucro Real'),cofins:percentualObrigatorio('cofins_lucro_real','Cofins — Lucro Real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
+      lucro_presumido:{ pis:percentualObrigatorio('pis_lucro_presumido','PIS — Lucro Presumido'),cofins:percentualObrigatorio('cofins_lucro_presumido','Cofins — Lucro Presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
       simples_nacional:{ pis:null,cofins:null,tratamento_atual:'Apuração no DAS; sem PIS/Cofins segregados no lançamento.' },
     } };
     db.prepare("INSERT INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)")
