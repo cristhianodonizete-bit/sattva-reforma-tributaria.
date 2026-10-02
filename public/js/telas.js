@@ -1582,6 +1582,8 @@ async function telaCadeia(el, tipo) {
   const abaCadeia = eForn ? (S.aba.fornecedoresCadeia || 'carteira') : (S.aba.clientesCadeia || 'carteira');
   const mostrarRastreabilidade = abaCadeia === 'rastreabilidade';
   const mostrarBeneficios = !eForn && abaCadeia === 'beneficios';
+  const mostrarCreditosCbs = eForn && abaCadeia === 'creditos_cbs';
+  const mostrarNotasCreditoCbs = eForn && abaCadeia === 'notas_credito_cbs';
   const paginaRastreabilidade = Math.max(1, Number(S.cache[`cadeia_pagina_${tipo}`]) || 1);
   const paginaParceiros = Math.max(1, Number(S.cache[`cadeia_parceiros_${tipo}`]) || 1);
   const paginaCreditosCbs=Math.max(1, Number(S.cache.creditosCbsEntradasPagina) || 1);
@@ -1590,8 +1592,8 @@ async function telaCadeia(el, tipo) {
     A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidade ? 1 : 0}&beneficios=${mostrarBeneficios ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100&pagina_parceiros=${paginaParceiros}&limite_parceiros=100`),
     // A cadeia consolidada continua disponível mesmo se a visão auxiliar de
     // rastreabilidade não puder ser lida em uma fotografia antiga.
-    eForn ? A.api(`/empresas/${S.empresaId}/creditos-cbs/entradas?pagina=${paginaCreditosCbs}&limite=100`).catch(() => ({ operacoes:[], paginacao:{}, leitura:'Rastreabilidade de crédito indisponível nesta fotografia.' })) : Promise.resolve({ operacoes:[], paginacao:{} }),
-    eForn ? A.api(`/empresas/${S.empresaId}/creditos-cbs/documentos?pagina=${paginaDocumentosCreditoCbs}&limite=100`).catch(() => ({ documentos:[], paginacao:{}, leitura:'Relatório por nota indisponível nesta fotografia.' })) : Promise.resolve({ documentos:[], paginacao:{} }),
+    mostrarCreditosCbs ? A.api(`/empresas/${S.empresaId}/creditos-cbs/entradas?pagina=${paginaCreditosCbs}&limite=100`).catch(() => ({ operacoes:[], paginacao:{}, leitura:'Rastreabilidade de crédito indisponível nesta fotografia.' })) : Promise.resolve({ operacoes:[], paginacao:{} }),
+    mostrarNotasCreditoCbs ? A.api(`/empresas/${S.empresaId}/creditos-cbs/documentos?pagina=${paginaDocumentosCreditoCbs}&limite=100`).catch(() => ({ documentos:[], paginacao:{}, leitura:'Relatório por nota indisponível nesta fotografia.' })) : Promise.resolve({ documentos:[], paginacao:{} }),
   ]);
   const { analise, pendenciasReferencias = [] } = cadeiaResposta;
   const t = analise.totais;
@@ -1647,7 +1649,14 @@ async function telaCadeia(el, tipo) {
       <p class="mini" style="margin-top:12px"><b>Crédito potencial juridicamente associado à operação:</b> ${A.moeda(ultimo.creditoPotencial || 0)}. A CBS da venda é exibida separadamente e não pressupõe direito de crédito para Pessoa Física, Simples ou outro perfil sem apropriação.</p>
       ${!eForn ? `<div class="aviso neutro" style="margin-top:12px"><b>Origem do PIS/COFINS usado na base econômica</b><br>${Object.entries(t.origensPisCofins || {}).map(([origem, x]) => `${A.esc(origem)}: <b>${A.moeda(x.valor)}</b> em ${x.registros} lançamento(s) · ${A.pct(t.valor ? x.vendas / t.valor : 0, 1)} das vendas`).join(' · ') || 'Sem informação disponível.'}</div>` : ''}
     </div>
-    ${eForn ? `<div class="cartao" style="margin-top:16px"><h2>Entradas que geram crédito CBS</h2>
+    <div class="abas" style="margin-top:16px">
+      <button class="${abaCadeia === 'carteira' ? 'ativo' : ''}" data-aba-cadeia="carteira">${eForn ? 'Compras por fornecedor' : 'Carteira por perfil'}</button>
+      <button class="${abaCadeia === 'riscos' ? 'ativo' : ''}" data-aba-cadeia="riscos">Riscos e oportunidades</button>
+      <button class="${abaCadeia === 'abc' ? 'ativo' : ''}" data-aba-cadeia="abc">Curva ABC</button>
+      <button class="${abaCadeia === 'rastreabilidade' ? 'ativo' : ''}" data-aba-cadeia="rastreabilidade">Rastreabilidade</button>
+      ${eForn ? `<button class="${abaCadeia === 'creditos_cbs' ? 'ativo' : ''}" data-aba-cadeia="creditos_cbs">Entradas com crédito CBS</button><button class="${abaCadeia === 'notas_credito_cbs' ? 'ativo' : ''}" data-aba-cadeia="notas_credito_cbs">Notas de entrada e crédito CBS</button>` : `<button class="${abaCadeia === 'beneficios' ? 'ativo' : ''}" data-aba-cadeia="beneficios">Benefícios fiscais aplicados</button>`}
+    </div>
+    ${mostrarCreditosCbs ? `<div class="cartao" style="margin-top:16px"><h2>Entradas que geram crédito CBS</h2>
       <p class="desc">Rastreabilidade da última fotografia materializada do motor. A tela apenas lê os resultados existentes: não importa, não recalcula e não altera documentos.</p>
       <div class="grade g3" style="margin-top:12px">${A.kpi('Entradas com crédito', creditosCbsResposta.total || 0, 'itens com crédito CBS maior que zero')}${A.kpi('Crédito CBS identificado', A.moeda(creditosCbsResposta.total_credito_cbs || 0), 'soma da fotografia atual')}${A.kpi('Execução do motor', creditosCbsResposta.execucao_id ? `#${creditosCbsResposta.execucao_id}` : 'Não disponível', 'origem da leitura')}</div>
       <p class="mini" style="margin-top:12px">${A.esc(creditosCbsResposta.leitura || '')}</p>
@@ -1661,7 +1670,7 @@ async function telaCadeia(el, tipo) {
       ], creditosCbsResposta.operacoes || [], { vazio:'Nenhuma entrada com crédito CBS maior que zero na fotografia atual.' })}
       ${(() => { const p=creditosCbsResposta.paginacao || {}; return p.totalPaginas>1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">Página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-creditos-cbs-pagina="${p.pagina-1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-creditos-cbs-pagina="${p.pagina+1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
-    ${eForn ? `<div class="cartao" style="margin-top:16px"><h2>Relatório de notas de entrada e crédito CBS</h2>
+    ${mostrarNotasCreditoCbs ? `<div class="cartao" style="margin-top:16px"><h2>Relatório de notas de entrada e crédito CBS</h2>
       <p class="desc">Todas as notas da última fotografia do motor. “Crédito parcial” significa que a mesma nota possui itens com e sem crédito; “A validar” não é convertido em zero.</p>
       <div class="grade g3" style="margin-top:12px">${A.kpi('Notas analisadas', documentosCreditoCbsResposta.total || 0, 'documentos de entrada na fotografia')}${A.kpi('Crédito CBS nas notas', A.moeda(documentosCreditoCbsResposta.total_credito_cbs || 0), 'soma dos itens com crédito')}${A.kpi('Execução do motor', documentosCreditoCbsResposta.execucao_id ? `#${documentosCreditoCbsResposta.execucao_id}` : 'Não disponível', 'origem da leitura')}</div>
       <p class="mini" style="margin-top:12px">${A.esc(documentosCreditoCbsResposta.leitura || '')}</p>
@@ -1674,13 +1683,6 @@ async function telaCadeia(el, tipo) {
       ], documentosCreditoCbsResposta.documentos || [], { vazio:'Nenhuma nota de entrada na fotografia atual do motor.' })}
       ${(() => { const p=documentosCreditoCbsResposta.paginacao || {}; return p.totalPaginas>1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">Página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-documentos-credito-cbs-pagina="${p.pagina-1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-documentos-credito-cbs-pagina="${p.pagina+1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
-    <div class="abas" style="margin-top:16px">
-      <button class="${abaCadeia === 'carteira' ? 'ativo' : ''}" data-aba-cadeia="carteira">${eForn ? 'Compras por fornecedor' : 'Carteira por perfil'}</button>
-      <button class="${abaCadeia === 'riscos' ? 'ativo' : ''}" data-aba-cadeia="riscos">Riscos e oportunidades</button>
-      <button class="${abaCadeia === 'abc' ? 'ativo' : ''}" data-aba-cadeia="abc">Curva ABC</button>
-      <button class="${abaCadeia === 'rastreabilidade' ? 'ativo' : ''}" data-aba-cadeia="rastreabilidade">Rastreabilidade</button>
-      ${!eForn ? `<button class="${abaCadeia === 'beneficios' ? 'ativo' : ''}" data-aba-cadeia="beneficios">Benefícios fiscais aplicados</button>` : ''}
-    </div>
     ${mostrarRiscos ? `<div class="cartao" style="margin-top:16px"><h2>Riscos e oportunidades</h2><p class="desc">Leitura da carteira sob a ótica da empresa vendedora.</p>${A.avisos(analise.riscos)}
       ${!eForn && analise.riscos.some((r) => r.codigo === 'base_estimada_regime') ? '<button class="btn vazio" id="corrigirReferencias" style="margin-top:12px">Corrigir referências fiscais dos serviços</button>' : ''}
     </div>` : ''}
