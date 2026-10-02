@@ -299,6 +299,7 @@ Telas.dados = async (el) => {
   const consultaDocumentos = grupoCentral === 'documentos';
   const consultaImportacoes = consultaDocumentos && abaDocumentosCentral === 'importacao';
   const consultaListaFiscal = consultaDocumentos && abaDocumentosCentral === 'documentos' && ['entradas', 'saidas'].includes(abaDocumentosFiscais);
+  const consultaRastreabilidadeCfop = consultaDocumentos && abaDocumentosCentral === 'documentos' && abaDocumentosFiscais === 'rastreabilidade-saidas';
   const consultaFornecedores = consultaDocumentos && abaDocumentosCentral === 'documentos' && abaDocumentosFiscais === 'fornecedores';
   const consultaDadosAdicionais = ['folha', 'receitas', 'margem'].includes(grupoCentral);
   const consultaApuracoes = grupoCentral === 'apuracoes';
@@ -307,7 +308,7 @@ Telas.dados = async (el) => {
   // antes as abas de documentos exibiam o selo sem carregar seu conteúdo e o
   // clique era silenciosamente ignorado.
   const consultaProntidao = consultaDocumentos || consultaDadosAdicionais || consultaApuracoes || grupoCentral === 'dashboard';
-  const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, periodoResposta, prontidao, documentosFiscaisResposta, opcoesFiltrosDocumentosResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta] = await Promise.all([
+  const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, periodoResposta, prontidao, documentosFiscaisResposta, opcoesFiltrosDocumentosResposta, rastreabilidadeCfopResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta] = await Promise.all([
     (consultaImportacoes || consultaFornecedores) ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${consultaFornecedores ? 'fornecedor' : aba}`) : Promise.resolve({ parceiros: [] }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/lotes`) : Promise.resolve({ lotes: [] }),
     consultaDadosAdicionais ? A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`) : Promise.resolve({ folhas: [], receitas_sem_dfe: [], margens: [] }),
@@ -327,7 +328,8 @@ Telas.dados = async (el) => {
       const pagina=filtroOperacao ? 1 : Math.max(1, Number(S.cache.documentosFiscaisPagina) || 1);
       return A.api(`/empresas/${S.empresaId}/documentos-fiscais?limite=${filtroOperacao ? 2000 : 100}&pagina=${pagina}&${filtros.toString()}`);
     })() : Promise.resolve({ documentos: [], total: 0, paginacao: {} }),
-    consultaListaFiscal ? A.api(`/empresas/${S.empresaId}/documentos-fiscais/opcoes-filtros?sentido=${abaDocumentosFiscais === 'entradas' ? 'fornecedor' : 'cliente'}`) : Promise.resolve({ competencias: [], modelos: [] }),
+    (consultaListaFiscal || consultaRastreabilidadeCfop) ? A.api(`/empresas/${S.empresaId}/documentos-fiscais/opcoes-filtros?sentido=${abaDocumentosFiscais === 'entradas' ? 'fornecedor' : 'cliente'}`) : Promise.resolve({ competencias: [], modelos: [] }),
+    consultaRastreabilidadeCfop ? (() => { const filtros=new URLSearchParams(S.aba.rastreabilidadeCfop || {}); return A.api(`/empresas/${S.empresaId}/documentos-fiscais/saidas/rastreabilidade-cfop?limite=30&pagina=${Math.max(1,Number(S.cache.rastreabilidadeCfopPagina)||1)}&${filtros.toString()}`); })() : Promise.resolve({ documentos: [], total:0, paginacao:{} }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/movimentos?tipo=${aba}&limite=${filtroPendencia?.movimento_id ? 5000 : 200}`) : Promise.resolve({ movimentos: [], total: 0 }),
     consultaListaFiscal && abaDocumentosFiscais === 'saidas' ? A.api(`/empresas/${S.empresaId}/referencias-vendas`) : Promise.resolve(null),
     grupoCentral === 'receitas' ? A.api('/config/itens-receita') : Promise.resolve({ itens: [] }),
@@ -336,6 +338,7 @@ Telas.dados = async (el) => {
   const { lotes = [] } = lotesResposta;
   const { movimentos = [], total = 0 } = movimentosResposta;
   const documentosFiscais = documentosFiscaisResposta.documentos || [];
+  const documentosRastreabilidadeCfop = rastreabilidadeCfopResposta.documentos || [];
   const estadoDocumentos = documentosFiscaisResposta.leitura_estado || [];
   const leituraDiretaControlada = documentosFiscaisResposta.fonte === 'SUPABASE_COMPARTILHADO_CONTROLADO';
   const tempoLeituraDireta=Number(documentosFiscaisResposta.leitura_metricas?.tempo_ms || 0);
@@ -510,7 +513,7 @@ Telas.dados = async (el) => {
         { t: '', r: (s) => `<button class="btn pq ${s.configurado ? 'vazio' : ''}" data-ref-servico="${A.esc(s.chave)}">${s.configurado ? 'Editar' : s.exigeReferencia ? 'Definir referência' : 'Cadastrar referência'}</button>` },
       ], referenciasVendas.servicos, { vazio: 'Nenhum serviço foi identificado nas vendas importadas.' })}
     </div>` : ''}
-    ${consultaDocumentos && abaDocumentosCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosFiscais === 'entradas' ? 'ativa' : ''}" data-documentos-fiscais-aba="entradas">Entradas</button><button class="aba ${abaDocumentosFiscais === 'saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="saidas">Saídas</button><button class="aba ${abaDocumentosFiscais === 'fornecedores' ? 'ativa' : ''}" data-documentos-fiscais-aba="fornecedores">Fornecedores</button></div><div class="cartao" id="documentosFiscais" data-documentos-fiscais-painel="documentos">
+    ${consultaDocumentos && abaDocumentosCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosFiscais === 'entradas' ? 'ativa' : ''}" data-documentos-fiscais-aba="entradas">Entradas</button><button class="aba ${abaDocumentosFiscais === 'saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="saidas">Saídas</button><button class="aba ${abaDocumentosFiscais === 'rastreabilidade-saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="rastreabilidade-saidas">Rastreabilidade das saídas</button><button class="aba ${abaDocumentosFiscais === 'fornecedores' ? 'ativa' : ''}" data-documentos-fiscais-aba="fornecedores">Fornecedores</button></div><div class="cartao" id="documentosFiscais" data-documentos-fiscais-painel="documentos">
       <div class="cabecalho-lista"><div><h2>${abaDocumentosFiscais === 'entradas' ? 'Documentos fiscais de entrada' : 'Documentos fiscais de saída'}</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p>${leituraDocumentos}</div><div style="display:flex;gap:8px;align-items:center"><button class="btn pq vazio" id="exportarDocumentosFiscais">Exportar Excel</button><span class="tag ${situacaoDocumentos === 'ATUALIZADO' ? 'c' : 'a'}">${situacaoDocumentos === 'ATUALIZADO' ? 'Atualizado' : situacaoDocumentos === 'ATUALIZACAO_PENDENTE' ? 'Atualizando' : 'Última fotografia válida'}</span><span class="tag">${documentosFiscaisFiltrados.length} de ${documentosFiscaisResposta.total || 0} documento(s)</span></div></div>
       ${documentosFiscaisResposta.limitado ? `<div class="aviso info">${documentosFiscaisResposta.paginacao?.limite === 100 ? 'Lista paginada: os filtros de competência, modelo, documento e valor foram aplicados antes da paginação.' : 'A regra “Compõe receita” usa o Mapa de CFOP e mantém uma janela de até 2.000 documentos. Refine os demais filtros para localizar documentos fora desta janela.'}</div>` : ''}
       <section class="documentos-filtros" aria-label="Filtros dos documentos fiscais">
@@ -536,6 +539,20 @@ Telas.dados = async (el) => {
         { t:'Ações', r:d=>`<button class="btn pq vazio" data-abrir-documento="${A.esc(d.referencia)}">Abrir</button> <button class="btn pq perigo" data-excluir-documento="${A.esc(d.referencia)}">Excluir</button>` },
       ], documentosFiscaisFiltrados, { vazio:'Nenhum documento atende aos filtros selecionados.' })}
       ${documentosFiscaisResposta.paginacao?.limite === 100 && (documentosFiscaisResposta.paginacao?.temAnterior || documentosFiscaisResposta.paginacao?.temProxima) ? `<div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;margin-top:12px"><button class="btn pq vazio" data-documentos-pagina="${documentosFiscaisResposta.paginacao.pagina - 1}" ${documentosFiscaisResposta.paginacao.temAnterior ? '' : 'disabled'}>Anterior</button><span class="mini">Página ${documentosFiscaisResposta.paginacao.pagina} de ${documentosFiscaisResposta.paginacao.totalPaginas}</span><button class="btn pq vazio" data-documentos-pagina="${documentosFiscaisResposta.paginacao.pagina + 1}" ${documentosFiscaisResposta.paginacao.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''}
+    </div>
+    <div class="cartao" data-documentos-central-painel="documentos" data-documentos-fiscais-painel="rastreabilidade-saidas" id="rastreabilidadeCfopSaidas">
+      <div class="cabecalho-lista"><div><h2>Rastreabilidade das notas de saída</h2><p class="desc">Cada nota mantém seus itens e seus CFOPs. A leitura é direta da fonte compartilhada, não sincroniza dados locais e não executa o motor tributário.</p><span class="mini" style="color:#0f766e">Fonte compartilhada · somente leitura · CFOP XML preservado</span></div><span class="tag">${rastreabilidadeCfopResposta.total || 0} nota(s)</span></div>
+      <div class="grade g3" style="margin:14px 0">${A.kpi('Notas nesta página',documentosRastreabilidadeCfop.length,'resultado paginado')}${A.kpi('Itens nesta página',documentosRastreabilidadeCfop.reduce((s,d)=>s+Number(d.itens || 0),0),'linhas fiscais preservadas')}${A.kpi('Notas com mais de um CFOP',documentosRastreabilidadeCfop.filter((d)=>(d.composicao_cfop || []).length>1).length,'composição por item')}</div>
+      <section class="documentos-filtros" aria-label="Filtros da rastreabilidade das saídas"><div class="documentos-filtros-topo"><div><span class="olho">LOCALIZAR NOTAS DE SAÍDA</span><p>Filtre sem alterar a classificação, os documentos ou a fotografia do motor.</p></div><button class="btn vazio pq" id="limparFiltrosRastreabilidadeCfop">Limpar filtros</button></div><div class="documentos-filtros-campos"><label class="campo"><span>Competência</span><select id="filtroRastreabilidadeCompetencia"><option value="">Todas</option>${(opcoesFiltrosDocumentosResposta.competencias || []).map((v)=>`<option value="${A.esc(v)}" ${(S.aba.rastreabilidadeCfop?.competencia || '')===v?'selected':''}>${A.esc(v)}</option>`).join('')}</select></label><label class="campo"><span>Documento, chave ou cliente</span><input id="filtroRastreabilidadeBusca" value="${A.esc(S.aba.rastreabilidadeCfop?.busca || '')}" placeholder="Ex.: 21668"></label><button class="btn documentos-filtros-aplicar" id="aplicarFiltrosRastreabilidadeCfop">Aplicar filtros <span aria-hidden="true">→</span></button></div></section>
+      ${A.tabela([
+        {t:'Nota / competência',r:d=>`<b>${A.esc(d.documento || 'Sem número')}</b><div class="mini">${A.esc(d.competencia || 'Sem competência')}${d.data_emissao ? ` · ${A.esc(d.data_emissao)}` : ''}</div>`},
+        {t:'Cliente',r:d=>A.esc(d.parceiro || 'Não identificado')},
+        {t:'CFOPs por item',r:d=>(d.composicao_cfop || []).map((x)=>`<div><span class="mono">${A.esc(x.cfop_xml || 'sem CFOP')}${x.cfop_efetivo && x.cfop_efetivo!==x.cfop_xml ? ` → ${A.esc(x.cfop_efetivo)}` : ''}</span> <span class="mini">· ${x.itens} item(ns) · ${A.moeda(x.valor)}</span></div>`).join('') || 'Sem CFOP'},
+        {t:'Efeito na receita',r:d=>{const c=d.composicao_cfop || []; const sim=c.filter(x=>x.compoe_receita).reduce((s,x)=>s+x.itens,0); const nao=c.reduce((s,x)=>s+x.itens,0)-sim; return '<span class="tag '+(sim?'c':'a')+'">'+(sim ? sim+' compõe' : 'Não compõe')+'</span>'+(nao?' <span class="mini">'+nao+' fora</span>':'');}},
+        {t:'Valor',num:true,r:d=>A.moeda(d.valor)},
+        {t:'',r:d=>`<button class="btn pq vazio" data-ver-rastreabilidade-cfop="${A.esc(d.referencia)}">Ver rastreabilidade</button>`},
+      ],documentosRastreabilidadeCfop,{vazio:'Nenhuma nota de saída atende aos filtros selecionados.'})}
+      ${rastreabilidadeCfopResposta.paginacao?.temAnterior || rastreabilidadeCfopResposta.paginacao?.temProxima ? `<div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;margin-top:12px"><button class="btn pq vazio" data-rastreabilidade-cfop-pagina="${rastreabilidadeCfopResposta.paginacao.pagina-1}" ${rastreabilidadeCfopResposta.paginacao.temAnterior?'':'disabled'}>Anterior</button><span class="mini">Página ${rastreabilidadeCfopResposta.paginacao.pagina} de ${rastreabilidadeCfopResposta.paginacao.totalPaginas}</span><button class="btn pq vazio" data-rastreabilidade-cfop-pagina="${rastreabilidadeCfopResposta.paginacao.pagina+1}" ${rastreabilidadeCfopResposta.paginacao.temProxima?'':'disabled'}>Próxima</button></div>`:''}
     </div>
     <div class="cartao" data-documentos-central-painel="documentos" data-documentos-fiscais-painel="fornecedores" id="historico">
       <h2>Fornecedores cadastrados</h2>
@@ -593,6 +610,27 @@ Telas.dados = async (el) => {
     document.getElementById('filtroDocumentoBusca')?.addEventListener('keydown', (evento) => { if (evento.key === 'Enter') { evento.preventDefault(); atualizarFiltroDocumentos(); } });
     document.getElementById('limparFiltrosDocumentos')?.addEventListener('click', () => { S.aba.documentosFiscais = {}; S.cache.documentosFiscaisPagina = 1; A.ir('dados'); });
     el.querySelectorAll('[data-documentos-pagina]').forEach((botao) => botao.addEventListener('click', () => { S.cache.documentosFiscaisPagina = Math.max(1, Number(botao.dataset.documentosPagina) || 1); A.ir('dados'); }));
+    const atualizarRastreabilidadeCfop=()=>{
+      S.aba.rastreabilidadeCfop={ competencia:document.getElementById('filtroRastreabilidadeCompetencia')?.value || '', busca:document.getElementById('filtroRastreabilidadeBusca')?.value || '' };
+      S.cache.rastreabilidadeCfopPagina=1; A.ir('dados');
+    };
+    document.getElementById('aplicarFiltrosRastreabilidadeCfop')?.addEventListener('click', atualizarRastreabilidadeCfop);
+    document.getElementById('filtroRastreabilidadeBusca')?.addEventListener('keydown',(evento)=>{ if(evento.key==='Enter'){ evento.preventDefault(); atualizarRastreabilidadeCfop(); } });
+    document.getElementById('limparFiltrosRastreabilidadeCfop')?.addEventListener('click',()=>{ S.aba.rastreabilidadeCfop={}; S.cache.rastreabilidadeCfopPagina=1; A.ir('dados'); });
+    el.querySelectorAll('[data-rastreabilidade-cfop-pagina]').forEach((botao)=>botao.addEventListener('click',()=>{ S.cache.rastreabilidadeCfopPagina=Math.max(1,Number(botao.dataset.rastreabilidadeCfopPagina)||1); A.ir('dados'); }));
+    el.querySelectorAll('[data-ver-rastreabilidade-cfop]').forEach((botao)=>botao.addEventListener('click',()=>{
+      const documento=documentosRastreabilidadeCfop.find((d)=>d.referencia===botao.dataset.verRastreabilidadeCfop); if(!documento) return;
+      A.modal({ titulo:`Rastreabilidade da saída — ${documento.documento || 'Sem número'}`, largura:1100, confirmar:'Fechar',
+        descricao:`${documento.competencia || 'Competência não identificada'} · leitura direta da fonte compartilhada · nenhum dado foi reprocessado.`,
+        corpo:`<div class="aviso info"><b>Como ler:</b> CFOP XML é o valor original do item. “CFOP efetivo” só difere quando existe evidência de conferência; essa evidência não substitui o XML.</div>${A.tabela([
+          {t:'Item',r:i=>A.esc(i.item_numero || i.id || '—')}, {t:'Produto / serviço',r:i=>A.esc(i.descricao || 'Não identificado')},
+          {t:'NCM / NBS',r:i=>`<span class="mono mini">${A.esc(i.ncm || i.nbs || i.lc116 || '—')}</span>`},
+          {t:'CFOP XML',r:i=>`<span class="mono">${A.esc(i.cfop_xml || '—')}</span>`},
+          {t:'CFOP efetivo',r:i=>`<span class="mono">${A.esc(i.cfop_efetivo || '—')}</span>${i.cfop_efetivo && i.cfop_efetivo!==i.cfop_xml?'<div class="mini">evidência de conferência</div>':''}`},
+          {t:'Efeito',r:i=>i.compoe_receita?'<span class="tag c">Compõe receita</span>':`<span class="tag a">Não compõe</span><div class="mini">${A.esc(i.motivo_operacao || '')}</div>`},
+          {t:'Valor',num:true,r:i=>A.moeda(i.valor)},
+        ],documento.itens_detalhados || [],{vazio:'Nenhum item encontrado.'})}`, aoConfirmar:async()=>{} });
+    }));
     document.getElementById('exportarDocumentosFiscais')?.addEventListener('click', async () => {
       const filtros=new URLSearchParams(S.aba.documentosFiscais || {});
       // A aba determina o mesmo recorte da lista. Sem este parâmetro, uma

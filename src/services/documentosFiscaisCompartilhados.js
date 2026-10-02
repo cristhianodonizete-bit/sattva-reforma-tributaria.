@@ -2,6 +2,7 @@
 // Não conhece SQLite, motor, filas ou publicação: a tela pode compará-la sem
 // alterar qualquer fotografia fiscal local.
 const { Pool } = require('pg');
+const receitaOperacional = require('./receitaOperacional');
 
 // A leitura direta é uma rota de tela. Reabrir uma conexão TLS a cada filtro
 // era o custo dominante da validação, não a consulta. O pool é pequeno,
@@ -122,4 +123,70 @@ async function listarOpcoesFiltros(cnpj, sentido) {
   } catch (e) { try { await db.query('ROLLBACK'); } catch (_) {} throw e; }
   finally { db.release(); }
 }
-module.exports = { listar, listarOpcoesFiltros };
+
+// Rastreabilidade não reutiliza a projeção SQLite nem reconcilia a empresa:
+// é uma leitura paginada das notas de saída e de seus itens canônicos na
+// fonte durável. Assim, uma nota com CFOPs distintos continua auditável sem
+// que o cabeçalho "MAX(cfop)" da listagem comum seja tomado como regra fiscal.
+async function listarRastreabilidadeSaidas(cnpj, filtros = {}, opcoes = {}) {
+  if (!process.env.SUPABASE_DB_URL) throw new Error('Fonte compartilhada indisponível para a rastreabilidade de CFOP.');
+  const inicio=process.hrtime.bigint();
+  const l=limite(opcoes.limite), p=pagina(opcoes.pagina), offset=(p-1)*l;
+  const db=await obterPool().connect();
+  try {
+    await db.query('BEGIN READ ONLY');
+    const empresa=await db.query("SELECT id FROM public.empresas WHERE regexp_replace(cnpj,'[^0-9]','','g')=$1 LIMIT 2",[String(cnpj).replace(/\D/g,'')]);
+    if (empresa.rows.length !== 1) throw new Error('Empresa compartilhada não identificada unicamente para a rastreabilidade.');
+    const params=[empresa.rows[0].id, 'cliente'];
+    const partes=[];
+    if (filtros.competencia) { params.push(String(filtros.competencia)); partes.push(`m.competencia=$${params.length}`); }
+    if (filtros.busca) { params.push(`%${String(filtros.busca).trim().toLowerCase()}%`); partes.push(`LOWER(COALESCE(m.documento,'') || ' ' || COALESCE(m.chave,'') || ' ' || COALESCE(m.nome,'')) LIKE $${params.length}`); }
+    const onde=partes.length ? ` AND ${partes.join(' AND ')}` : '';
+    params.push(l,offset);
+    const dados=await db.query(`WITH canonicos AS (
+      SELECT m.*, ROW_NUMBER() OVER (
+        PARTITION BY CASE WHEN NULLIF(m.chave,'') IS NOT NULL THEN 'xml:'||m.chave||':'||COALESCE(m.item_numero::text,'__SEM_ITEM__') ELSE 'id:'||m.id::text END
+        ORDER BY CASE WHEN NULLIF(BTRIM(COALESCE(m.modelo_documento_fiscal,'')),'') IS NOT NULL THEN 1 ELSE 0 END DESC,
+          CASE WHEN NULLIF(BTRIM(COALESCE(m.descricao,'')),'') IS NOT NULL THEN 1 ELSE 0 END DESC, m.id DESC
+      ) linha
+      FROM public.movimentos m WHERE m.empresa_id=$1 AND m.tipo=$2${onde}
+    ), itens AS (SELECT *, CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:'||chave ELSE 'movimento:'||id::text END referencia_item FROM canonicos WHERE linha=1), documentos AS (
+      SELECT referencia_item referencia,
+        COALESCE(NULLIF(MAX(documento),''),NULLIF(MAX(chave),''),'Lançamento #'||MIN(id)::text) documento,
+        MIN(competencia) competencia, MIN(data_emissao) data_emissao, MAX(chave) chave, MAX(nome) parceiro,
+        MAX(modelo_documento_fiscal) modelo_documento_fiscal, MAX(situacao_documento) situacao_documento,
+        SUM(COALESCE(valor,0)) valor, COUNT(*)::int itens,
+        jsonb_agg(jsonb_build_object('id',id,'item_numero',item_numero,'descricao',descricao,'cfop',cfop,
+          'valor',COALESCE(valor,0),'ncm',ncm,'nbs',nbs,'lc116',lc116,'origem',origem,
+          'modelo_documento_fiscal',modelo_documento_fiscal,'situacao_documento',situacao_documento,
+          'normalizacao_evidencia',normalizacao_evidencia) ORDER BY item_numero,id) itens_detalhados
+      FROM itens GROUP BY referencia_item
+    ), pagina AS (
+      SELECT *, (COUNT(*) OVER())::int total FROM documentos
+      ORDER BY COALESCE(data_emissao::text,competencia) DESC, referencia DESC
+      LIMIT $${params.length-1} OFFSET $${params.length}
+    ) SELECT * FROM pagina`,params);
+    await db.query('ROLLBACK');
+    const documentos=dados.rows.map((d) => {
+      const itens=(d.itens_detalhados || []).map((item) => ({ ...item,
+        cfop_xml:String(item.cfop || '').replace(/\D/g,''),
+        cfop_efetivo:receitaOperacional.cfopEfetivo(item),
+        compoe_receita:receitaOperacional.compoeReceita(item),
+        motivo_operacao:receitaOperacional.motivo(item),
+      }));
+      const porCfop=new Map();
+      itens.forEach((item) => {
+        const chave=[item.cfop_xml || 'SEM_CFOP',item.cfop_efetivo || 'SEM_CFOP',item.compoe_receita ? 'SIM' : 'NAO',item.motivo_operacao].join('|');
+        const atual=porCfop.get(chave) || { cfop_xml:item.cfop_xml || '',cfop_efetivo:item.cfop_efetivo || '',compoe_receita:item.compoe_receita,motivo_operacao:item.motivo_operacao,itens:0,valor:0 };
+        atual.itens+=1; atual.valor+=Number(item.valor || 0); porCfop.set(chave,atual);
+      });
+      return { ...d, itens_detalhados:itens, composicao_cfop:[...porCfop.values()] };
+    });
+    const total=dados.rows.length ? Number(dados.rows[0].total || 0) : 0;
+    return { fonte:'SUPABASE_COMPARTILHADO_LEITURA_DIRETA', documentos, total,
+      leitura_metricas:{ tempo_ms:Number((Number(process.hrtime.bigint()-inicio)/1e6).toFixed(1)), total_documentos:total, origem:'FONTE_COMPARTILHADA_DIRETA' },
+      paginacao:{pagina:p,limite:l,totalPaginas:Math.max(1,Math.ceil(total/l)),temAnterior:p>1,temProxima:offset+documentos.length<total} };
+  } catch(e) { try { await db.query('ROLLBACK'); } catch (_) {} throw e; }
+  finally { db.release(); }
+}
+module.exports = { listar, listarOpcoesFiltros, listarRastreabilidadeSaidas };

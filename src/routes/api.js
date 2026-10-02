@@ -2564,6 +2564,20 @@ router.get('/empresas/:id/documentos-fiscais/sombra-compartilhada', async (req, 
     ok(res, leitura);
   } catch (e) { erro(res, e); }
 });
+// Visão de auditoria por nota e item. Não chama a reconciliação local, não
+// executa motor e não altera CFOPs: lê a fonte compartilhada em transação
+// READ ONLY para expor a composição real de uma saída com vários CFOPs.
+router.get('/empresas/:id/documentos-fiscais/saidas/rastreabilidade-cfop', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(Number(req.params.id));
+    if (!empresa?.cnpj) throw new Error('Empresa não encontrada para a rastreabilidade das saídas.');
+    const leitura=await require('../services/documentosFiscaisCompartilhados').listarRastreabilidadeSaidas(empresa.cnpj, {
+      competencia:req.query.competencia, busca:req.query.busca,
+    }, { limite:req.query.limite, pagina:req.query.pagina });
+    ok(res, leitura);
+  } catch(e) { erro(res,e); }
+});
 router.get('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
   try {
     await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
