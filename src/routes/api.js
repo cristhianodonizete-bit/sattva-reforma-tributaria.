@@ -1841,7 +1841,15 @@ router.get('/empresas/:id/creditos-cbs/entradas', async (req, res) => {
         let detalhe={}; try { detalhe=JSON.parse(x.detalhe || '{}'); } catch (_) { /* rastreabilidade permanece disponível mesmo com memória antiga inválida */ }
         return { ...x, detalhe:undefined,
           status_credito:x.status_credito_determinacao || x.status_credito || 'INDETERMINADO',
-          motivo_credito:detalhe.credito?.motivo || x.motivo_intervencao || x.regra_vencedora || 'Crédito registrado na fotografia materializada do motor.' };
+          motivo_credito:detalhe.credito?.motivo || x.motivo_intervencao || x.regra_vencedora || 'Crédito registrado na fotografia materializada do motor.',
+          // São dados da fotografia, não uma nova inferência na tela. Eles
+          // explicam por que a carga atual foi determinada (ou ficou pendente)
+          // antes de o usuário avaliar o crédito CBS.
+          regime_fornecedor:detalhe.regimeEmitente || x.regime_cbs_emitente || null,
+          pis_cofins_atual:detalhe.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor ?? null,
+          origem_pis_cofins:detalhe.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_origem || 'INDETERMINADO',
+          motivo_pis_cofins:detalhe.reconstrucao?.memoriaPisCofins?.motivo_indeterminacao
+            || detalhe.reconstrucao?.memoriaPisCofins?.base_reconstrucao_metodo || null };
       });
     ok(res,{ operacoes:linhas, total:totais.total, total_credito_cbs:Number(totais.total_credito_cbs || 0),
       execucao_id:execucao.id, leitura:'Leitura da última fotografia materializada; nenhum cálculo foi executado.',
@@ -1883,6 +1891,41 @@ router.get('/empresas/:id/creditos-cbs/documentos', async (req, res) => {
       WHEN itens_pendentes>0 THEN 'A_VALIDAR'
       ELSE 'NAO_POSSUI_CREDITO' END situacao_credito
       FROM documentos ORDER BY competencia DESC,credito_cbs DESC,documento DESC LIMIT ? OFFSET ?`).all(...params,limite,offset);
+    // A visão por nota é agregada no SQL por desempenho. Para não perder a
+    // explicação fiscal, lê somente os itens das notas da página e soma a
+    // memória PIS/Cofins já materializada pelo motor (sem recalcular nada).
+    const referencias=documentos.map((x)=>x.referencia).filter(Boolean);
+    if (referencias.length) {
+      const marcas=referencias.map(()=>'?').join(',');
+      const itensDaPagina=db.prepare(`SELECT CASE WHEN NULLIF(m.chave,'') IS NOT NULL THEN 'chave:'||m.chave ELSE 'movimento:'||m.id END referencia,
+          r.regime_cbs_emitente,r.detalhe
+        FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
+        WHERE r.empresa_id=? AND r.execucao_id=? AND r.sentido='entrada'
+          AND (CASE WHEN NULLIF(m.chave,'') IS NOT NULL THEN 'chave:'||m.chave ELSE 'movimento:'||m.id END) IN (${marcas})`).all(empresaId,execucao.id,...referencias);
+      const memoriaPorNota=new Map();
+      for (const item of itensDaPagina) {
+        let detalhe={}; try { detalhe=JSON.parse(item.detalhe || '{}'); } catch (_) { /* fotografia antiga permanece legível */ }
+        const memoria=detalhe.reconstrucao?.memoriaPisCofins || {};
+        const atual=memoria.carga_atual_pis_cofins_valor;
+        const acumulado=memoriaPorNota.get(item.referencia) || { regimes:new Set(), origens:new Set(), pis:0, pendente:false, motivos:new Set() };
+        const regime=detalhe.regimeEmitente || item.regime_cbs_emitente;
+        if (regime) acumulado.regimes.add(regime);
+        if (memoria.carga_atual_pis_cofins_origem) acumulado.origens.add(memoria.carga_atual_pis_cofins_origem);
+        if (atual === null || atual === undefined) {
+          acumulado.pendente=true;
+          if (memoria.motivo_indeterminacao || memoria.base_reconstrucao_metodo) acumulado.motivos.add(memoria.motivo_indeterminacao || memoria.base_reconstrucao_metodo);
+        } else acumulado.pis+=Number(atual) || 0;
+        memoriaPorNota.set(item.referencia,acumulado);
+      }
+      for (const documento of documentos) {
+        const memoria=memoriaPorNota.get(documento.referencia);
+        documento.regimes_fornecedor=memoria ? [...memoria.regimes] : [];
+        documento.pis_cofins_atual=memoria && !memoria.pendente ? memoria.pis : null;
+        documento.pis_cofins_pendente=Boolean(memoria?.pendente);
+        documento.origens_pis_cofins=memoria ? [...memoria.origens] : [];
+        documento.motivos_pis_cofins=memoria ? [...memoria.motivos] : [];
+      }
+    }
     ok(res,{ documentos,total:totais.total,total_credito_cbs:Number(totais.total_credito_cbs || 0),execucao_id:execucao.id,
       leitura:'Leitura da última fotografia materializada; nenhum cálculo foi executado.',
       paginacao:{ pagina,limite,totalPaginas:Math.max(1,Math.ceil(totais.total/limite)),temAnterior:pagina>1,temProxima:offset+documentos.length<totais.total } });

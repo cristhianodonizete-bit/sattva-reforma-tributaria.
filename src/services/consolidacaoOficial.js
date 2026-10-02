@@ -465,6 +465,10 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     // serviço só porque a tela de rastreabilidade é comum aos dois tipos.
     tipoFiscal: x.ncm || n(x.detalhe?.reconstrucao?.tributosAtuais?.icms) > 0 || n(x.detalhe?.reconstrucao?.tributosAtuais?.ipi) > 0 ? 'PRODUTO' : (x.nbs || x.lc116 ? 'SERVICO' : 'A_CLASSIFICAR'),
     movimento_id: x.movimento_id, documento: x.documento || x.chave || '', parceiro: x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || '', cnpj: x.inscr_federal || '',
+    // O regime é uma informação da fotografia do motor. Expô-lo na
+    // rastreabilidade torna visível a premissa que determina a regra geral
+    // de PIS/Cofins, sem deduzir nem modificar cadastro de fornecedor.
+    regimeEmitente: x.detalhe?.regimeEmitente || x.regime_cbs_emitente || null,
     produto: x.descricao || '', ncm: x.ncm || '', nbs: x.nbs || '', lc116: x.lc116 || '', cfop: x.cfop || '', competencia: x.competencia || null,
     statusClassificacao: x.status_classificacao || x.detalhe?.classificacao?.status || 'INDETERMINADO', cclasstrib: x.cclasstrib || x.detalhe?.classificacao?.cclasstrib || '', cst: x.cst || x.detalhe?.classificacao?.cst || '',
     valor: r2(x.preco_atual), valorSemImposto: r2(x.base_economica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.detalhe?.cbsDentroDoDas), origemCbsDentroDoDas: x.detalhe?.origemCbsDentroDoDas || 'NAO_APLICAVEL', ibsDentroDoDas: r2(x.detalhe?.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.detalhe?.tributosSubstituidosDoDas), precoFinal: r2(x.preco_projetado),

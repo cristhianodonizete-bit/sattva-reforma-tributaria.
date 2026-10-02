@@ -1597,6 +1597,10 @@ async function telaCadeia(el, tipo) {
   ]);
   const { analise, pendenciasReferencias = [] } = cadeiaResposta;
   const t = analise.totais;
+  const rotuloRegimeFornecedor=(regime)=>({ lucro_real:'Lucro Real', lucro_presumido:'Lucro Presumido', simples_nacional:'Simples Nacional', mei:'MEI', regime_regular:'Regime regular', indeterminado:'A validar' }[String(regime || '').toLowerCase()] || (regime ? String(regime).replace(/_/g,' ') : 'A validar'));
+  const pisCofinsDaFotografia=(valor, origem, motivo)=>valor === null || valor === undefined
+    ? `<span class="tag a">A validar</span><div class="mini">${A.esc(motivo || origem || 'Sem carga histórica determinada')}</div>`
+    : `<b>${A.moeda(valor)}</b><div class="mini">${A.esc(origem || 'Fotografia do motor')}</div>`;
   const ultimo = analise.cenarios[analise.cenarios.length - 1] || {};
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   const cbsReferencia = Number(S.params?.aliquotaReferencia?.cbs) || 0;
@@ -1663,7 +1667,9 @@ async function telaCadeia(el, tipo) {
       ${A.tabela([
         { t:'Competência / documento', r:x=>`<b class="mono">${A.esc(x.documento || x.chave || 'Sem número')}</b><div class="mini">${A.esc(x.competencia || '—')}</div>` },
         { t:'Fornecedor / item', r:x=>`${A.esc(x.fornecedor || 'Não identificado')}<div class="mini">${A.esc(x.descricao || 'Item sem descrição')}</div><div class="mini mono">${A.esc(x.codigo_produto || x.ncm || x.nbs || 'Sem código')}</div>` },
+        { t:'Regime do fornecedor', r:x=>`<span class="tag ${['indeterminado',''].includes(String(x.regime_fornecedor || '').toLowerCase()) ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(x.regime_fornecedor))}</span>` },
         { t:'Entrada / base', num:true, r:x=>`${A.moeda(x.valor_entrada)}<div class="mini">Base: ${A.moeda(x.base_economica)}</div>` },
+        { t:'Antes — PIS/Cofins', num:true, r:x=>pisCofinsDaFotografia(x.pis_cofins_atual,x.origem_pis_cofins,x.motivo_pis_cofins) },
         { t:'Crédito CBS', num:true, r:x=>`<b>${A.moeda(x.credito_cbs)}</b><div class="mini">${A.esc(x.tipo_credito || 'Regra geral')}</div>` },
         { t:'Situação', r:x=>`<span class="tag ${String(x.status_credito).includes('PREMISSA') ? 'a' : 'c'}">${A.esc(x.status_credito)}</span><div class="mini">${A.esc(x.modalidade_credito || x.tratamento || '')}</div>` },
         { t:'Motivo / regra', r:x=>`<span class="mini">${A.esc(x.motivo_credito || '—')}</span>` },
@@ -1677,7 +1683,9 @@ async function telaCadeia(el, tipo) {
       ${A.tabela([
         { t:'Competência / nota', r:x=>`<b class="mono">${A.esc(x.documento || x.chave || 'Sem número')}</b><div class="mini">${A.esc(x.competencia || '—')}</div>` },
         { t:'Fornecedor', r:x=>`${A.esc(x.fornecedor || 'Não identificado')}<div class="mini mono">${A.cnpjFmt(x.fornecedor_cnpj || '')}</div>` },
+        { t:'Regime do fornecedor', r:x=>{const regimes=x.regimes_fornecedor || []; return regimes.length ? regimes.map((r)=>`<span class="tag ${String(r).toLowerCase()==='indeterminado'?'a':'c'}">${A.esc(rotuloRegimeFornecedor(r))}</span>`).join(' ') : '<span class="tag a">A validar</span>';} },
         { t:'Valor / itens', num:true, r:x=>`${A.moeda(x.valor_entrada)}<div class="mini">${x.itens} item(ns)</div>` },
+        { t:'Antes — PIS/Cofins', num:true, r:x=>pisCofinsDaFotografia(x.pis_cofins_atual,(x.origens_pis_cofins || []).join(' · '),(x.motivos_pis_cofins || []).join(' · ')) },
         { t:'Crédito CBS', num:true, r:x=>`${A.moeda(x.credito_cbs)}<div class="mini">${x.itens_com_credito} com crédito · ${x.itens_pendentes} a validar</div>` },
         { t:'Situação', r:x=>{ const r={POSSUI_CREDITO:['Possui crédito','c'],CREDITO_PARCIAL:['Crédito parcial','a'],A_VALIDAR:['A validar','a'],NAO_POSSUI_CREDITO:['Não possui crédito','n']}[x.situacao_credito] || [x.situacao_credito,'n']; return `<span class="tag ${r[1]}">${r[0]}</span>`; } },
       ], documentosCreditoCbsResposta.documentos || [], { vazio:'Nenhuma nota de entrada na fotografia atual do motor.' })}
@@ -1760,6 +1768,7 @@ async function telaCadeia(el, tipo) {
       ${A.tabela([
         { t: 'Documento', r: (d) => `<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '')}</div>` },
         { t: eForn ? 'Fornecedor' : 'Cliente', r: (d) => `${A.esc(d.parceiro)}<div class="mini mono">${A.cnpjFmt(d.cnpj)}</div>` },
+        ...(eForn ? [{ t:'Regime do fornecedor', r:d=>`<span class="tag ${String(d.regimeEmitente || '').toLowerCase()==='indeterminado' ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(d.regimeEmitente))}</span>` }] : []),
         { t: 'Item / referência fiscal', r: (d) => {
           const produto = d.tipoFiscal === 'PRODUTO';
           const servico = d.tipoFiscal === 'SERVICO';
@@ -1776,6 +1785,7 @@ async function telaCadeia(el, tipo) {
         ] : []),
         { t: 'PIS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.pis) },
         { t: 'COFINS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.cofins) },
+        { t: 'Antes — PIS/Cofins', num: true, r: (d) => pisCofinsDaFotografia(d.pisCofinsAtual,d.origemPisCofins,d.motivoBaseEconomica) },
         { t: 'Total retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.total) },
         { t: rotuloBase, num: true, r: (d) => A.moeda(d.valorSemImposto) },
         { t: 'Origem', r: (d) => `<span class="tag ${String(d.origemBaseEconomica).toUpperCase() === 'DOCUMENTO' ? 'c' : 'a'}">${A.esc(d.origemBaseEconomica || 'a validar')}</span>` },
