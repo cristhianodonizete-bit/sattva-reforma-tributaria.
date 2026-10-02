@@ -922,16 +922,21 @@ Telas.questor = async (el) => {
         const linha=linhas.find(x=>x.identificador===botao.dataset.cadastrarItemRazao); if(!linha) return;
         A.modal({titulo:'Cadastrar item de entrada',largura:760,descricao:'O item será usado neste lançamento e nos próximos lançamentos equivalentes. PIS e Cofins são obrigatórios para Lucro Real e Lucro Presumido.',corpo:
           A.campo('nome','Item',linha.descricao || linha.conta || '')+
+          `<input type="hidden" name="conta_questor" value="${A.esc(linha.conta_codigo || '')}">`+
           A.campo('beneficio','% benefício CBS','0','number')+
           A.campo('cclasstrib','cClassTrib (opcional)')+A.campo('cst','CST (opcional)')+
           `<div class="grade g2"><div><b>Lucro Real</b>${A.campo('pis_lucro_real','PIS (%)','','number')}${A.campo('cofins_lucro_real','Cofins (%)','','number')}</div><div><b>Lucro Presumido</b>${A.campo('pis_lucro_presumido','PIS (%)','','number')}${A.campo('cofins_lucro_presumido','Cofins (%)','','number')}</div></div>`+
           A.area('observacao','Observação',`Razão Questor · ${linha.conta_codigo || ''} · ${linha.conta || ''}`,2),confirmar:'Salvar item',aoConfirmar:async(f)=>{
             const novo=await A.api('/config/itens-entrada-manual',{metodo:'POST',corpo:f});
-            linha.item_sugerido={chave:novo.chave,nome:novo.nome};
-            const tr=botao.closest('tr'); const celulas=tr.querySelectorAll('td');
-            celulas[0].innerHTML=`<input type="checkbox" name="razao_incluir" value="${A.esc(linha.identificador)}">`;
-            celulas[5].innerHTML=`<span class="tag c">${A.esc(novo.nome)}</span>`;
-            A.toast('Item cadastrado. Esta linha já pode ser selecionada para inclusão.', 'ok');
+            const relacionadas=linhas.filter(x=>x.situacao==='AUSENTE'&&x.conta_codigo===linha.conta_codigo);
+            relacionadas.forEach((relacionada)=>{
+              relacionada.item_sugerido={chave:novo.chave,nome:novo.nome};
+              const b=[...resultadoModal.fundo.querySelectorAll('[data-cadastrar-item-razao]')].find(x=>x.dataset.cadastrarItemRazao===relacionada.identificador);
+              if(!b) return; const celulas=b.closest('tr').querySelectorAll('td');
+              celulas[0].innerHTML=`<input type="checkbox" name="razao_incluir" value="${A.esc(relacionada.identificador)}">`;
+              celulas[5].innerHTML=`<span class="tag c">${A.esc(novo.nome)}</span>`;
+            });
+            A.toast(`Item cadastrado e aplicado a ${relacionadas.length} lançamento(s) da mesma conta.`, 'ok');
           }});
       });
     }});

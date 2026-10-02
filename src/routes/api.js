@@ -5557,10 +5557,14 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
     const documentoNoHistorico=(texto)=>String(texto || '').match(/\bNF(?:E|SE|CE)?\s*(?:NUMERO|N[º°O])?\s*(\d{3,})\b/i)?.[1] || '';
     const itensCadastro=db.prepare("SELECT chave,label,valor FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((x)=>{
       let regra={}; try { regra=JSON.parse(x.valor || '{}'); } catch (_) { /* cadastro inválido não bloqueia a prévia */ }
-      return { chave:x.chave, nome:regra.nome || x.label || x.chave };
+      return { chave:x.chave, nome:regra.nome || x.label || x.chave,
+        contas_questor:Array.isArray(regra.contas_questor) ? regra.contas_questor.map(String) : [] };
     });
     const sugerirItem=(conta,historico,descricao)=>{
       const texto=normalizar(`${conta} ${historico} ${descricao}`);
+      const codigo=codigoConta(conta);
+      const porConta=itensCadastro.find((item)=>item.contas_questor.includes(codigo));
+      if (porConta) return porConta;
       const termos=/software|processamento de dados/.test(texto)?['licenca','software']
         :/escritorio/.test(texto)?['escritorio']
         :/limpeza|conservacao/.test(texto)?['limpeza']
@@ -6713,7 +6717,8 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
       if (!Number.isFinite(n) || n < 0 || n > 100) throw new Error(`${rotulo} deve estar entre 0% e 100%.`);
       return n / 100;
     };
-    const regra={ nome, beneficio:beneficioInformado / 100, cst, cclasstrib, observacao:String(b.observacao || '').trim(), regimes:{
+    const contasQuestor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
+    const regra={ nome, beneficio:beneficioInformado / 100, cst, cclasstrib, observacao:String(b.observacao || '').trim(), contas_questor:contasQuestor, regimes:{
       lucro_real:{ pis:percentualObrigatorio('pis_lucro_real','PIS — Lucro Real'),cofins:percentualObrigatorio('cofins_lucro_real','Cofins — Lucro Real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ pis:percentualObrigatorio('pis_lucro_presumido','PIS — Lucro Presumido'),cofins:percentualObrigatorio('cofins_lucro_presumido','Cofins — Lucro Presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
       simples_nacional:regimesPadraoEntrada().simples_nacional,
