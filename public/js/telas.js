@@ -1575,7 +1575,9 @@ const barras = (itens) => itens.map(([rot, v]) => `<div style="margin-bottom:11p
 // 1.b / 1.c CADEIAS
 // ===========================================================================
 async function telaCadeia(el, tipo) {
-  const rep = S.cache[`rep_${tipo}`] === undefined ? 1 : S.cache[`rep_${tipo}`];
+  // A cadeia é uma leitura operacional da fotografia atual. O grau de
+  // repasse permanece exclusivamente em Projeção de cenários, não aqui.
+  const rep = 1;
   const eForn = tipo === 'fornecedor';
   const abaCadeia = eForn ? (S.aba.fornecedoresCadeia || 'carteira') : (S.aba.clientesCadeia || 'carteira');
   const mostrarRastreabilidade = abaCadeia === 'rastreabilidade';
@@ -1645,12 +1647,6 @@ async function telaCadeia(el, tipo) {
       <p class="mini" style="margin-top:12px"><b>Crédito potencial juridicamente associado à operação:</b> ${A.moeda(ultimo.creditoPotencial || 0)}. A CBS da venda é exibida separadamente e não pressupõe direito de crédito para Pessoa Física, Simples ou outro perfil sem apropriação.</p>
       ${!eForn ? `<div class="aviso neutro" style="margin-top:12px"><b>Origem do PIS/COFINS usado na base econômica</b><br>${Object.entries(t.origensPisCofins || {}).map(([origem, x]) => `${A.esc(origem)}: <b>${A.moeda(x.valor)}</b> em ${x.registros} lançamento(s) · ${A.pct(t.valor ? x.vendas / t.valor : 0, 1)} das vendas`).join(' · ') || 'Sem informação disponível.'}</div>` : ''}
     </div>
-    ${eForn ? `<div class="cartao" style="margin-top:16px">
-      <h2>Grau de repasse simulado</h2>
-      <p class="desc">100% = o fornecedor repassa integralmente a desoneração/oneração ao preço. 0% = preço congelado.</p>
-      <input type="range" min="0" max="1" step="0.1" value="${rep}" id="repasse">
-      <div style="display:flex;justify-content:space-between" class="mini"><span>0% (preço congelado)</span><b class="mono">${A.pct(rep, 0)}</b><span>100% (repasse total)</span></div>
-    </div>` : ''}
     ${eForn ? `<div class="cartao" style="margin-top:16px"><h2>Entradas que geram crédito CBS</h2>
       <p class="desc">Rastreabilidade da última fotografia materializada do motor. A tela apenas lê os resultados existentes: não importa, não recalcula e não altera documentos.</p>
       <div class="grade g3" style="margin-top:12px">${A.kpi('Entradas com crédito', creditosCbsResposta.total || 0, 'itens com crédito CBS maior que zero')}${A.kpi('Crédito CBS identificado', A.moeda(creditosCbsResposta.total_credito_cbs || 0), 'soma da fotografia atual')}${A.kpi('Execução do motor', creditosCbsResposta.execucao_id ? `#${creditosCbsResposta.execucao_id}` : 'Não disponível', 'origem da leitura')}</div>
@@ -1799,8 +1795,6 @@ async function telaCadeia(el, tipo) {
       `Importe a movimentação de ${eForn ? 'fornecedores' : 'clientes'} para gerar esta análise.`,
       '<button class="btn" onclick="App.ir(\'dados\')">Ir para importação</button>'));
 
-  const r = document.getElementById('repasse');
-  if (r) r.onchange = () => { S.cache[`rep_${tipo}`] = Number(r.value); A.ir(tipo === 'fornecedor' ? 'fornecedores' : 'clientes'); };
   el.querySelectorAll('[data-aba-cadeia]').forEach((botao) => {
     botao.onclick = () => { if (eForn) S.aba.fornecedoresCadeia = botao.dataset.abaCadeia; else S.aba.clientesCadeia = botao.dataset.abaCadeia; S.cache[`cadeia_pagina_${tipo}`] = 1; A.ir(eForn ? 'fornecedores' : 'clientes'); };
   });
