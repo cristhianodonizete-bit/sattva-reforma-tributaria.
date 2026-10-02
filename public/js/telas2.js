@@ -934,6 +934,7 @@ Telas.questor = async (el) => {
           A.campo('nome','Item',nomeItem)+
           `<input type="hidden" name="conta_questor" value="${A.esc(linha.conta_codigo || '')}">`+
           A.campo('beneficio','% benefício CBS','0','number')+
+          `<label class="campo"><span><input type="checkbox" name="gera_credito" value="false"> Não gera crédito CBS/IBS</span><small class="mini">Mantém o lançamento e a rastreabilidade, com crédito projetado igual a zero.</small></label>`+
           A.campo('cclasstrib','cClassTrib (opcional)')+A.campo('cst','CST (opcional)')+
           `<div class="grade g2"><div><b>Lucro Real</b>${A.campo('pis_lucro_real','PIS (%)','','number')}${A.campo('cofins_lucro_real','Cofins (%)','','number')}</div><div><b>Lucro Presumido</b>${A.campo('pis_lucro_presumido','PIS (%)','','number')}${A.campo('cofins_lucro_presumido','Cofins (%)','','number')}</div></div>`+
           A.area('observacao','Observação',`Razão Questor · ${linha.conta_codigo || ''} · ${linha.conta || ''}`,2),confirmar:'Salvar item',aoConfirmar:async(f)=>{

@@ -5664,7 +5664,7 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       const beneficio=Number(regra.beneficio || 0); const idBase=String(linha.identificador || `${competencia}|${linha.sequencia}|${linha.conta_codigo}|${valor}`);
       const chave=`QUESTOR_RAZAO:${crypto.createHash('sha256').update(`${empresaId}|${idBase}`).digest('hex').slice(0,24)}`;
       if (db.prepare('SELECT 1 FROM movimentos WHERE empresa_id=? AND chave=?').get(empresaId,chave)) { resultado.ignorados++; continue; }
-      const referencia={ ...(regra.regimes?.[empresa.regime] || {}), item_cadastrado:{chave:itemChave,nome:regra.nome || cadastro.label}, beneficio_percentual:beneficio,
+      const referencia={ tipo:'LANCAMENTO_MANUAL_ENTRADA', gera_credito:regra.gera_credito !== false, ...(regra.regimes?.[empresa.regime] || {}), item_cadastrado:{chave:itemChave,nome:regra.nome || cadastro.label}, beneficio_percentual:beneficio,
         origem:'QUESTOR_RAZAO', conta:linha.conta || '', conta_codigo:linha.conta_codigo || '', sequencia:linha.sequencia || '', historico:linha.historico || '', participante:linha.participante || '', incluido_em:new Date().toISOString() };
       inserir.run(empresaId,'Razão Questor',regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,
         regra.cst || '',regra.cclasstrib || '',regra.cst || '',regra.cclasstrib || '',itemChave,documento || null,1,chave,JSON.stringify(referencia));
@@ -6679,7 +6679,7 @@ router.get('/config/regras', async (_req, res) => {
     const padraoRegimesEntrada=regimesPadraoEntrada();
     const itensEntradaManual = db.prepare("SELECT chave,valor,label,descricao,ordem FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((x) => {
       let dados={}; try { dados=JSON.parse(x.valor || '{}'); } catch (_) { /* cadastro antigo inválido fica visível sem travar a tela */ }
-      return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', observacao:dados.observacao || x.descricao || '',
+      return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), gera_credito:dados.gera_credito !== false, cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', observacao:dados.observacao || x.descricao || '',
         regimes:{ ...padraoRegimesEntrada, ...(dados.regimes || {}), simples_nacional:{ ...padraoRegimesEntrada.simples_nacional, ...(dados.regimes?.simples_nacional || {}) } } };
     });
     ok(res, { ...regras.tudo(), auditoria, auditoriaRegimeSimples, itensReceita, regrasItensReceita, itensEntradaManual });
@@ -6702,6 +6702,7 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
     if (!nome) throw new Error('Informe o nome do item.');
     const beneficioInformado=Number(String(b.beneficio ?? '').replace(',','.'));
     if (!Number.isFinite(beneficioInformado) || beneficioInformado < 0 || beneficioInformado > 100) throw new Error('O benefício deve estar entre 0% e 100%.');
+    const geraCredito=!(b.gera_credito === false || String(b.gera_credito || '').toLowerCase() === 'false' || String(b.gera_credito || '') === '0');
     const chaveBase=nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,70);
     if (!chaveBase) throw new Error('Não foi possível gerar a chave do item.');
     let chave=chaveBase, sequencia=2;
@@ -6718,7 +6719,7 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
       return n / 100;
     };
     const contasQuestor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
-    const regra={ nome, beneficio:beneficioInformado / 100, cst, cclasstrib, observacao:String(b.observacao || '').trim(), contas_questor:contasQuestor, regimes:{
+    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, observacao:String(b.observacao || '').trim(), contas_questor:contasQuestor, regimes:{
       lucro_real:{ pis:percentualObrigatorio('pis_lucro_real','PIS — Lucro Real'),cofins:percentualObrigatorio('cofins_lucro_real','Cofins — Lucro Real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ pis:percentualObrigatorio('pis_lucro_presumido','PIS — Lucro Presumido'),cofins:percentualObrigatorio('cofins_lucro_presumido','Cofins — Lucro Presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
       simples_nacional:regimesPadraoEntrada().simples_nacional,
@@ -6783,7 +6784,7 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
       // Uma repetição após falha de rede é uma retomada de publicação, não
       // uma segunda entrada. Mantemos o fato original e evitamos duplicá-lo.
       if (existente) { inseridos.push({ id:existente.id, competencia, valor:existente.valor, existente:true }); continue; }
-      const evidencia=JSON.stringify({ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null,
+      const evidencia=JSON.stringify({ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, gera_credito:regra.gera_credito !== false, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null,
         referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, pis_cofins_percentual:referenciaPisCofins.pis_cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null });
       const r=inserir.run(empresaId,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,chaveMovimento,evidencia);
       inseridos.push({ id:r.lastInsertRowid, competencia, valor });

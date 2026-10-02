@@ -324,14 +324,16 @@ function projetarItem(item, ctx) {
 
   // ---------- 5. CRÉDITO ----------
   const percentualEfetivoSimples = !!(simplesInfo && simplesInfo.aliquotaEfetiva);
-  const cred = avaliarCredito({
-    regimeAdquirente: regimeAdquirenteProjetado, regimeFornecedor: regimeEmitente, cls, sentido,
-    decisaoClassificatoria: contextoClassificatorio.decisao,
-    simplesFornecedorConhecido: percentualEfetivoSimples,
-    // O status de crédito deve registrar DETERMINADO quando a operação traz o
-    // percentual efetivo. A premissa só é enviada quando foi realmente usada.
-    simplesFornecedorReferencia: percentualEfetivoSimples ? null : referenciaCreditoSimples,
-  });
+  const cred = sentido === 'entrada' && item.entradaManual?.geraCredito === false
+    ? credito('SEM_DIREITO', 'SEM_CREDITO', null, 'DETERMINADO', 'Cadastro do item de entrada: não gera crédito CBS/IBS nesta projeção.')
+    : avaliarCredito({
+      regimeAdquirente: regimeAdquirenteProjetado, regimeFornecedor: regimeEmitente, cls, sentido,
+      decisaoClassificatoria: contextoClassificatorio.decisao,
+      simplesFornecedorConhecido: percentualEfetivoSimples,
+      // O status de crédito deve registrar DETERMINADO quando a operação traz o
+      // percentual efetivo. A premissa só é enviada quando foi realmente usada.
+      simplesFornecedorReferencia: percentualEfetivoSimples ? null : referenciaCreditoSimples,
+    });
   if (!classificacaoBloqueiaCredito(cls, contextoClassificatorio.decisao)
     && contextoClassificatorio.equivalente) {
     cred.decisaoClassificatoria = {

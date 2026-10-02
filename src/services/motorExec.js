@@ -421,7 +421,7 @@ function normalizar(m) {
     pis_cofins_referencia: m.referenciaFiscal?.pis_cofins,
     frete: m.frete, seguro: m.seguro, outras: m.outras, desconto: m.desconto,
     data_emissao: m.data_emissao, origem:m.origem,
-    entradaManual: evidencia.tipo === 'LANCAMENTO_MANUAL_ENTRADA' ? { beneficioPercentual:Number(evidencia.beneficio_percentual || 0), observacao:evidencia.observacao || '' } : null,
+    entradaManual: evidencia.tipo === 'LANCAMENTO_MANUAL_ENTRADA' ? { beneficioPercentual:Number(evidencia.beneficio_percentual || 0), geraCredito:evidencia.gera_credito !== false, observacao:evidencia.observacao || '' } : null,
     revisaoBeneficio: m.revisaoBeneficio || null,
     declarado: (m.cst_declarado || m.cclasstrib_declarado || m.ibs_declarado || m.cbs_declarado) ? {
       cst: m.cst_declarado, cclasstrib: m.cclasstrib_declarado,
