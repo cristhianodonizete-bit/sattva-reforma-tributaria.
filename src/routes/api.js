@@ -2815,11 +2815,15 @@ function carregarMovimentos(empresaId, tipo) {
 function chaveReferenciaServico(m) {
   const nbs = String(m.nbs || '').replace(/\D/g, '');
   if (nbs) return `nbs:${nbs}`;
+  const lc116Bruta=String(m.lc116 || '').replace(/\D/g, '');
+  const lc116=lc116Bruta ? lc116Bruta.padStart(4,'0') : '';
+  if (lc116) return `lc116:${lc116}`;
   return `descricao:${String(m.descricao || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160)}`;
 }
 
 function encontrarReferenciaServico(m, mapa) {
   return mapa.get(chaveReferenciaServico(m))
+    || (String(m.nbs || '').replace(/\D/g,'') && String(m.lc116 || '').replace(/\D/g,'') ? mapa.get(chaveReferenciaServico({ lc116:m.lc116 })) : null)
     || mapa.get(chaveReferenciaServico({ descricao: m.descricao }))
     || null;
 }
@@ -2896,10 +2900,10 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
     const referencias = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? ORDER BY descricao').all(req.params.id);
     const mapa = new Map(referencias.filter((r) => r.ativo).map((r) => [r.chave, r]));
     const porChave = new Map();
-    db.prepare(`SELECT nbs, ncm, iss, pis, cofins, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente' AND COALESCE(situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')`).all(req.params.id)
+    db.prepare(`SELECT nbs, lc116, ncm, iss, pis, cofins, descricao, valor FROM movimentos WHERE empresa_id=? AND tipo='cliente' AND COALESCE(situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')`).all(req.params.id)
       .filter(ehServicoDeVenda).forEach((m) => {
         const chave = chaveReferenciaServico(m);
-        const atual = porChave.get(chave) || { chave, nbs: m.nbs || '', descricao: m.descricao || 'Serviço sem descrição', registros: 0, valor: 0, registrosSemDocumento: 0 };
+        const atual = porChave.get(chave) || { chave, nbs: m.nbs || '', lc116: m.lc116 || '', descricao: m.descricao || 'Serviço sem descrição', registros: 0, valor: 0, registrosSemDocumento: 0 };
         atual.registros += 1;
         atual.valor += Number(m.valor) || 0;
         if (requerReferenciaFiscalServico(m)) atual.registrosSemDocumento += 1;
@@ -2907,7 +2911,7 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
       });
     // Mantém no catálogo também serviços preparados antes da primeira venda.
     referencias.filter((r) => r.ativo).forEach((r) => {
-      if (!porChave.has(r.chave)) porChave.set(r.chave, { chave: r.chave, nbs: r.nbs || '', descricao: r.descricao || 'Serviço', registros: 0, valor: 0, registrosSemDocumento: 0 });
+      if (!porChave.has(r.chave)) porChave.set(r.chave, { chave: r.chave, nbs: r.nbs || '', lc116: String(r.chave || '').startsWith('lc116:') ? String(r.chave).slice(6) : '', descricao: r.descricao || 'Serviço', registros: 0, valor: 0, registrosSemDocumento: 0 });
     });
     const servicos = [...porChave.values()].sort((a, b) => b.valor - a.valor)
       .map((s) => {
@@ -2915,9 +2919,15 @@ router.get('/empresas/:id/referencias-vendas', (req, res) => {
         const referencia = direta || encontrarReferenciaServico(s, mapa);
         const exigeReferencia = s.registrosSemDocumento > 0;
         return { ...s, configurado: Boolean(referencia), exigeReferencia, coberto: Boolean(referencia) || !exigeReferencia, referencia,
-          correspondencia: !referencia ? '' : (direta ? (s.nbs ? 'NBS' : 'descrição') : 'descrição reaproveitada') };
+          correspondencia: !referencia ? '' : (direta ? (s.nbs ? 'NBS' : s.lc116 ? 'LC 116' : 'descrição') : 'descrição reaproveitada') };
       });
-    ok(res, { referencias, servicos, pendentes: servicos.filter((s) => s.exigeReferencia && !s.configurado) });
+    const resumo_identificacao=servicos.reduce((r,s)=>{
+      if (String(s.nbs || '').replace(/\D/g,'')) r.com_nbs++;
+      else if (String(s.lc116 || '').replace(/\D/g,'')) r.com_lc116++;
+      else r.sem_referencia_tecnica++;
+      return r;
+    },{com_nbs:0,com_lc116:0,sem_referencia_tecnica:0});
+    ok(res, { referencias, servicos, resumo_identificacao, pendentes: servicos.filter((s) => s.exigeReferencia && !s.configurado) });
   } catch (e) { erro(res, e); }
 });
 
@@ -2942,7 +2952,7 @@ router.post('/empresas/:id/referencias-vendas', (req, res) => {
     const descricao = String(b.descricao || '').trim();
     if (!descricao) throw new Error('Informe a descrição do serviço.');
     if (!temAliquotaInformada(b.pis_cofins) && !temAliquotaInformada(b.das_efetivo)) throw new Error('Informe PIS/COFINS ou a alíquota efetiva do DAS para este serviço.');
-    const chave = chaveReferenciaServico({ nbs: b.nbs, descricao });
+    const chave = chaveReferenciaServico({ nbs: b.nbs, lc116:b.lc116, descricao });
     db.prepare(`INSERT INTO empresa_servicos_fiscais (empresa_id,chave,nbs,descricao,pis_cofins,das_efetivo,iss_aliquota,ativo,origem,atualizado_em)
       VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
       ON CONFLICT(empresa_id,chave) DO UPDATE SET nbs=excluded.nbs, descricao=excluded.descricao,
@@ -2971,6 +2981,7 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
       for (const linha of linhas) {
         const descricao = String(campo(linha, ['descricao', 'servico', 'item', 'descricaodoservico']) || '').trim();
         const nbs = String(campo(linha, ['nbs', 'codigonbs']) || '').trim();
+        const lc116 = String(campo(linha, ['lc116', 'itemlc116', 'codigolc116']) || '').trim();
         const brutoPis = campo(linha, ['piscofins', 'aliquotapiscofins', 'piscofinsdavenda']);
         const brutoDas = campo(linha, ['das', 'dasefetivo', 'aliquotadas']);
         const brutoIss = campo(linha, ['iss', 'aliquotaiss']);
@@ -2978,7 +2989,7 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
         const temPis = brutoPis !== '' && brutoPis !== null && brutoPis !== undefined;
         const temDas = brutoDas !== '' && brutoDas !== null && brutoDas !== undefined;
         if (!temPis && !temDas) throw new Error(`O serviço “${descricao}” não informa PIS/COFINS nem DAS efetivo.`);
-        const chave = chaveReferenciaServico({ nbs, descricao });
+        const chave = chaveReferenciaServico({ nbs, lc116, descricao });
         gravar.run(req.params.id, chave, nbs, descricao,
           temPis ? normalizarAliquotaPisCofins(brutoPis) : null, temDas ? normalizarAliquotaLegada(brutoDas) : null,
           brutoIss === '' || brutoIss === null || brutoIss === undefined ? null : normalizarAliquotaLegada(brutoIss), 1, 'importacao');
@@ -3018,7 +3029,7 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
       paginaParceiros: req.query.pagina_parceiros,
       limiteParceiros: req.query.limite_parceiros,
     });
-    ok(res, { empresa, analise: resultado, pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', valor: Number(m.valor) || 0 })) });
+    ok(res, { empresa, analise: resultado, pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', lc116:m.lc116 || '', valor: Number(m.valor) || 0 })) });
   } catch (e) { erro(res, e); }
 });
 

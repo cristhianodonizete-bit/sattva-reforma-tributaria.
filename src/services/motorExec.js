@@ -136,9 +136,13 @@ const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const num = (n) => (Number.isFinite(Number(n)) ? Number(n) : 0);
 const chaveReferenciaServico = (m) => {
   const nbs = String(m.nbs || '').replace(/\D/g, '');
-  return nbs ? `nbs:${nbs}` : `descricao:${String(m.descricao || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160)}`;
+  if (nbs) return `nbs:${nbs}`;
+  const lc116Bruta=String(m.lc116 || '').replace(/\D/g, '');
+  if (lc116Bruta) return `lc116:${lc116Bruta.padStart(4,'0')}`;
+  return `descricao:${String(m.descricao || '').trim().toLowerCase().replace(/\s+/g, ' ').slice(0, 160)}`;
 };
 const encontrarReferenciaServico = (m, mapa) => mapa.get(chaveReferenciaServico(m))
+  || (String(m.nbs || '').replace(/\D/g,'') && String(m.lc116 || '').replace(/\D/g,'') ? mapa.get(chaveReferenciaServico({ lc116:m.lc116 })) : null)
   || mapa.get(chaveReferenciaServico({ descricao: m.descricao }))
   || null;
 const ehServicoDeVenda = (m) => Boolean(String(m.nbs || '').replace(/\D/g, ''))

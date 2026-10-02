@@ -509,8 +509,9 @@ Telas.dados = async (el) => {
       <p class="desc">Todo serviço prestado precisa ter a referência da tributação atual no cadastro da empresa. A referência só é usada quando o documento não traz os tributos destacados.</p>
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px"><button class="btn vazio pq" id="addReferenciaServico">Adicionar serviço ao cadastro</button><button class="btn vazio pq" id="importarReferenciasServico">Importar referências</button><button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/referencias_servicos').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button></div>
       ${referenciasVendas.pendentes.length ? `<div class="aviso atencao"><b>${referenciasVendas.pendentes.length} serviço(s) exigem referência fiscal.</b> Defina PIS/COFINS ou DAS efetivo antes de usar uma estimativa para a venda.</div>` : '<div class="aviso bom"><b>Serviços identificados com referência cadastrada.</b></div>'}
+      <div class="grade g3" style="margin:12px 0">${A.kpi('Com NBS',referenciasVendas.resumo_identificacao?.com_nbs || 0,'chave fiscal prioritária')}${A.kpi('Com LC 116, sem NBS',referenciasVendas.resumo_identificacao?.com_lc116 || 0,'usam LC 116 como chave')}${A.kpi('Sem NBS / LC 116',referenciasVendas.resumo_identificacao?.sem_referencia_tecnica || 0,'exigem identificação técnica')}</div>
       ${A.tabela([
-        { t: 'NBS / serviço', r: (s) => `<b class="mono">${A.esc(s.nbs || 'sem NBS')}</b><div class="mini">${A.esc(s.descricao || '')}</div>` },
+        { t: 'NBS / LC 116 / serviço', r: (s) => `<b class="mono">${A.esc(s.nbs ? `NBS ${s.nbs}` : s.lc116 ? `LC 116 ${s.lc116}` : 'sem NBS / LC 116')}</b><div class="mini">${A.esc(s.descricao || '')}</div>` },
         { t: 'Vendas', num: true, r: (s) => A.moeda(s.valor) },
         { t: 'Referência', r: (s) => s.configurado ? '<span class="tag c">configurada</span>' : s.exigeReferencia ? '<span class="tag b">obrigatória</span>' : '<span class="tag n">documento</span>' },
         { t: 'Vínculo', r: (s) => s.configurado ? `<span class="mini">${A.esc(s.correspondencia)}</span>` : s.exigeReferencia ? '—' : '<span class="mini">PIS/COFINS veio no documento</span>' },
@@ -922,21 +923,21 @@ Telas.dados = async (el) => {
       const s = referenciasVendas.servicos.find((x) => x.chave === botao.dataset.refServico);
       const existente = referenciasVendas.referencias.find((x) => x.chave === s.chave) || {};
       A.modal({ titulo: 'Referência fiscal da venda de serviço', descricao: 'Premissa da empresa analisada. Os valores do documento prevalecem quando estiverem informados.',
-        corpo: `<p><b>${A.esc(s.descricao || 'Serviço')}</b><br><span class="mini mono">${A.esc(s.nbs || 'NBS não informado')}</span></p>` +
+          corpo: `<p><b>${A.esc(s.descricao || 'Serviço')}</b><br><span class="mini mono">${A.esc(s.nbs ? `NBS ${s.nbs}` : s.lc116 ? `LC 116 ${s.lc116}` : 'NBS / LC 116 não informado')}</span></p>` +
           `<div class="grade g3">${A.campo('pis_cofins','PIS/COFINS da venda',existente.pis_cofins ?? '', 'number','step="0.0001"')}${A.campo('das_efetivo','DAS efetivo (Simples)',existente.das_efetivo ?? '', 'number','step="0.0001"')}${A.campo('iss_aliquota','ISS',existente.iss_aliquota ?? '', 'number','step="0.0001"')}</div>`,
-        aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/referencias-vendas/${encodeURIComponent(s.chave)}`, { metodo: 'PUT', corpo: { ...d, nbs: s.nbs, descricao: s.descricao } }); A.toast('Referência fiscal salva', 'ok'); A.ir('dados'); },
+          aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/referencias-vendas/${encodeURIComponent(s.chave)}`, { metodo: 'PUT', corpo: { ...d, nbs: s.nbs, lc116:s.lc116, descricao: s.descricao } }); A.toast('Referência fiscal salva', 'ok'); A.ir('dados'); },
       });
     }; });
     document.getElementById('addReferenciaServico')?.addEventListener('click', () => {
       A.modal({ titulo: 'Cadastrar referência fiscal de serviço', descricao: 'Use este cadastro para serviços novos, mesmo antes de haver uma venda importada.',
-        corpo: `<div class="grade g2">${A.campo('descricao', 'Descrição do serviço')}${A.campo('nbs', 'NBS (se houver)')}</div>` +
+        corpo: `<div class="grade g3">${A.campo('descricao', 'Descrição do serviço')}${A.campo('nbs', 'NBS (se houver)')}${A.campo('lc116', 'LC 116 (se não houver NBS)')}</div>` +
           `<div class="grade g3">${A.campo('pis_cofins','PIS/COFINS da venda','', 'number','step="0.0001"')}${A.campo('das_efetivo','DAS efetivo (Simples)','', 'number','step="0.0001"')}${A.campo('iss_aliquota','ISS','', 'number','step="0.0001"')}</div>`,
         aoConfirmar: async (d) => { await A.api(`/empresas/${S.empresaId}/referencias-vendas`, { metodo: 'POST', corpo: d }); A.toast('Referência fiscal cadastrada', 'ok'); A.ir('dados'); },
       });
     });
     document.getElementById('importarReferenciasServico')?.addEventListener('click', () => {
       A.modal({ titulo: 'Importar referências fiscais de serviços', confirmar: null,
-        descricao: 'Colunas aceitas: Descrição do serviço, NBS, PIS/COFINS, DAS efetivo e ISS. Informe alíquotas como 9,25% ou 0,0925. A importação atualiza referências que já existirem com a mesma chave.',
+        descricao: 'Colunas aceitas: Descrição do serviço, NBS, LC 116, PIS/COFINS, DAS efetivo e ISS. A chave usa NBS; sem NBS, usa LC 116; sem ambos, usa descrição. Informe alíquotas como 9,25% ou 0,0925.',
         corpo: `${A.dropzone('zonaImportarReferencias', '<b>Solte a planilha aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>', async (arquivo) => {
           const fd = new FormData(); fd.append('arquivo', arquivo);
           try { const r = await A.api(`/empresas/${S.empresaId}/referencias-vendas/importar`, { metodo: 'POST', corpo: fd }); A.toast(`${r.importados} referência(s) importada(s)${r.ignorados ? ` · ${r.ignorados} ignorada(s)` : ''}`, 'ok'); A.ir('dados'); }

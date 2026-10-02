@@ -335,7 +335,7 @@ function gerarModelo(tipo) {
   } else if (tipo === 'referencias_servicos') {
     nomeAba = 'Referências fiscais';
     dados = [
-      { 'Descrição do serviço': 'CONSULTORIA TRIBUTÁRIA', 'NBS': '111032200', 'PIS/COFINS': '9,25%', 'DAS efetivo': '', 'ISS': '2,00%' },
+      { 'Descrição do serviço': 'CONSULTORIA TRIBUTÁRIA', 'NBS': '111032200', 'LC 116': '', 'PIS/COFINS': '9,25%', 'DAS efetivo': '', 'ISS': '2,00%' },
       { 'Descrição do serviço': 'SUPORTE OPERACIONAL', 'NBS': '', 'PIS/COFINS': '', 'DAS efetivo': '6,50%', 'ISS': '2,00%' },
     ];
   } else if (tipo === 'pgdas') {
@@ -381,7 +381,7 @@ function gerarModelo(tipo) {
     { Campo: 'Valores', 'Valores aceitos': 'Aceita 1.234,56 ou 1234.56' },
     { Campo: 'Colunas', 'Valores aceitos': 'A ordem não importa. O sistema identifica pelo nome do cabeçalho e ignora acentos e maiúsculas.' },
     { Campo: 'Impostos', 'Valores aceitos': 'Se não houver colunas de imposto, o sistema estima pelo regime. Uma coluna única "Impostos" também é aceita.' },
-    ...(tipo === 'referencias_servicos' ? [{ Campo: 'Referências fiscais', 'Valores aceitos': 'Informe Descrição do serviço e ao menos PIS/COFINS ou DAS efetivo. As alíquotas aceitam 9,25% ou 0,0925. NBS é opcional.' }] : []),
+    ...(tipo === 'referencias_servicos' ? [{ Campo: 'Referências fiscais', 'Valores aceitos': 'Informe Descrição do serviço e ao menos PIS/COFINS ou DAS efetivo. A chave usa NBS e, quando ausente, LC 116; sem ambos, usa a descrição. As alíquotas aceitam 9,25% ou 0,0925.' }] : []),
     ...(tipo === 'pgdas' ? [{ Campo: 'PGDAS', 'Valores aceitos': 'Competência e DAS são obrigatórios. Receita Bruta, PIS e COFINS são opcionais; ausência não é transformada em zero.' }] : []),
     ...(tipo === 'folha' ? [{ Campo: 'Folha', 'Valores aceitos': 'Competência e Valor da Folha são obrigatórios. Pró-labore e Referência do arquivo são opcionais.' }] : []),
     ...(tipo === 'receitas_sem_dfe' ? [{ Campo: 'Receita sem DF-e', 'Valores aceitos': 'Preencha Competência, Item de receita, Descrição, Valor e, se houver, Identificador Questor. O item deve ser um catálogo padronizado: Locação de equipamentos / bens móveis, Aluguel de imóveis próprios, Licenciamento / cessão de uso de software próprio ou Receitas financeiras ordinárias. O sistema aplica a regra técnica conforme o regime da empresa; não informe alíquotas, PIS, Cofins, CBS ou IBS.' }] : []),
