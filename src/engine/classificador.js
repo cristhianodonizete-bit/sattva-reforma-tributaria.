@@ -76,6 +76,25 @@ function classificar(item, ctx = {}) {
     ], { natureza, sentido, candidatos: [c] });
   }
 
+  // Entrada criada manualmente não possui XML para confrontar com a matriz.
+  // O tratamento foi informado conscientemente no cadastro técnico e fica
+  // gravado na própria linha como declaração auditável. Ele participa do
+  // cálculo normal de crédito, sem reclassificar qualquer documento existente.
+  if (sentido === 'entrada' && item.entradaManual && item.declarado?.cst && item.declarado?.cclasstrib) {
+    const beneficio=Math.min(Math.max(Number(item.entradaManual.beneficioPercentual || 0),0),1);
+    const reducao=beneficio >= 1 ? 'zero' : beneficio > 0 ? 'reduzida' : 'integral';
+    return montar('CLASSIFICADO', {
+      cst:item.declarado.cst, cclasstrib:item.declarado.cclasstrib,
+      classificacao:'Entrada manual — tratamento declarado', reducao,
+      reducao_ibs:beneficio, reducao_cbs:beneficio,
+      fundamento:'Cadastro técnico de item de entrada manual.',
+    }, 'lançamento manual de entrada', [
+      `Entrada manual: CST ${item.declarado.cst} / cClassTrib ${item.declarado.cclasstrib}.`,
+      `Benefício declarado: ${(beneficio * 100).toLocaleString('pt-BR',{maximumFractionDigits:2})}%.`,
+      item.entradaManual.observacao || 'Sem observação adicional.',
+    ], { natureza, sentido, declarado:item.declarado });
+  }
+
   // --- 1. decisão já tomada pelo consultor para esta empresa tem precedência
   if (ctx.empresa && item.ncm) {
     const d = db.prepare('SELECT * FROM base_decisoes WHERE empresa_id = ? AND chave = ? AND tipo = ?')

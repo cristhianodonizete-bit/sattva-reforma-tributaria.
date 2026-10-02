@@ -402,6 +402,7 @@ function executar(empresaId, opcoes = {}) {
 
 /** Converte a linha do banco no formato que o motor espera */
 function normalizar(m) {
+  let evidencia={}; try { evidencia=typeof m.normalizacao_evidencia === 'string' ? JSON.parse(m.normalizacao_evidencia || '{}') : (m.normalizacao_evidencia || {}); } catch (_) { /* evidência inválida não impede o processamento do documento */ }
   return {
     documento: m.documento || '', item_numero: m.item_numero,
     nome: m.nome_cadastro || m.nome, inscr_federal: m.inscr_federal,
@@ -415,7 +416,8 @@ function normalizar(m) {
     pis: m.pis, cofins: m.cofins, pis_cofins_documentado: Number(m.pis_cofins_documentado) === 1, iss: m.iss,
     pis_cofins_referencia: m.referenciaFiscal?.pis_cofins,
     frete: m.frete, seguro: m.seguro, outras: m.outras, desconto: m.desconto,
-    data_emissao: m.data_emissao,
+    data_emissao: m.data_emissao, origem:m.origem,
+    entradaManual: evidencia.tipo === 'LANCAMENTO_MANUAL_ENTRADA' ? { beneficioPercentual:Number(evidencia.beneficio_percentual || 0), observacao:evidencia.observacao || '' } : null,
     revisaoBeneficio: m.revisaoBeneficio || null,
     declarado: (m.cst_declarado || m.cclasstrib_declarado || m.ibs_declarado || m.cbs_declarado) ? {
       cst: m.cst_declarado, cclasstrib: m.cclasstrib_declarado,

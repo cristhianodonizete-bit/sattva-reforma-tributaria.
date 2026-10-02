@@ -639,13 +639,13 @@ Telas.dados = async (el) => {
         const competencias=[]; for(let c=periodo.competencia_inicio;c<=periodo.competencia_fim;){competencias.push(c); const [ano,mes]=c.split('-').map(Number); c=`${mes===12?ano+1:ano}-${String(mes===12?1:mes+1).padStart(2,'0')}`;}
         const itens=configuracao.itensEntradaManual || [];
         A.modal({ titulo:'Lançar entradas manuais', largura:920, confirmar:'Registrar entradas',
-          descricao:'Cada competência selecionada cria um lançamento de entrada novo e auditável. Não altera XMLs, notas existentes nem executa o motor.',
+          descricao:'Cada competência selecionada cria um lançamento de entrada novo e auditável. Ele entra na fila incremental e será considerado normalmente na próxima execução do motor, sem alterar XMLs ou notas existentes.',
           corpo:`<div class="aviso info">Selecione um item do cadastro técnico. Se ele não existir, informe o item avulso; ele será lançado apenas nesta operação e não altera o cadastro global.</div><div class="grade g2"><label class="campo"><span>Item cadastrado</span><select id="entradaManualItem"><option value="">Item avulso</option>${itens.map(i=>`<option value="${A.esc(i.chave)}">${A.esc(i.nome)} · benefício ${A.pct(i.beneficio || 0)}</option>`).join('')}</select></label>${A.campo('entradaManualAvulso','Item avulso (se não cadastrado)','')}</div><h3 style="margin-top:16px">Competências do Período analisado</h3><p class="mini">Marque as competências que deseja incluir e informe o valor de cada uma.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">${competencias.map(c=>`<label class="campo" style="border:1px solid var(--borda);padding:10px;border-radius:8px"><span><input type="checkbox" data-entrada-manual-competencia="${c}"> ${c}</span><input inputmode="decimal" data-entrada-manual-valor="${c}" placeholder="Valor da entrada"></label>`).join('')}</div>`,
           aoConfirmar: async () => {
             const selecionadas=[...document.querySelectorAll('[data-entrada-manual-competencia]:checked')].map(x=>x.dataset.entradaManualCompetencia);
             const competencias=selecionadas.map(competencia=>({competencia,valor:String(document.querySelector(`[data-entrada-manual-valor="${competencia}"]`)?.value || '').replace(',','.')}));
             const r=await A.api(`/empresas/${S.empresaId}/entradas-manuais`,{metodo:'POST',corpo:{item_chave:document.getElementById('entradaManualItem')?.value || '',item_novo:document.getElementById('entradaManualAvulso')?.value || '',competencias}});
-            A.toast(`${r.inseridos.length} entrada(s) manual(is) registrada(s). O motor não foi executado.`, 'ok'); A.ir('dados');
+            A.toast(`${r.inseridos.length} entrada(s) manual(is) registrada(s) e incluída(s) na fila do motor.`, 'ok'); A.ir('dados');
           },
         });
       } catch(e) { A.toast(e.message,'erro'); }
