@@ -698,7 +698,7 @@ Telas.questor = async (el) => {
   const estadoTarefa = (t) => ({
     PENDENTE: ['Aguardando conector', 'a'], EM_EXECUCAO: ['Processando', ''], CONCLUIDA: ['Concluída', 'c'], ERRO: ['Falhou', 'alto'],
   }[t.status] || [t.status, '']);
-  const tipoTarefa = (t) => ({ APURACAO_PIS_COFINS: 'Apuração PIS/COFINS', PARAMETROS_RELATORIO: 'Leitura dos parâmetros do relatório', DOCUMENTOS_FISCAIS_CANCELADOS: 'Conciliação de documentos fiscais', CONCILIAR_CFOP_SAIDAS: 'Conciliação de CFOPs de saída', CONCILIAR_ENTRADAS_QUESTOR: 'Conciliação de entradas', IMPORTAR_OUTRAS_RECEITAS_LOCACAO: 'Importação de locações para outras receitas', TESTAR_NWEB: 'Teste do nWeb' }[t.tipo] || t.tipo);
+  const tipoTarefa = (t) => { let p={}; try { p=JSON.parse(t.payload_json||'{}'); } catch (_) {} if(p.modo==='CONCILIAR_ENTRADAS') return 'Conciliação de entradas'; return ({ APURACAO_PIS_COFINS: 'Apuração PIS/COFINS', PARAMETROS_RELATORIO: 'Leitura dos parâmetros do relatório', DOCUMENTOS_FISCAIS_CANCELADOS: 'Conciliação de documentos fiscais', CONCILIAR_CFOP_SAIDAS: 'Conciliação de CFOPs de saída', CONCILIAR_ENTRADAS_QUESTOR: 'Conciliação de entradas', IMPORTAR_OUTRAS_RECEITAS_LOCACAO: 'Importação de locações para outras receitas', TESTAR_NWEB: 'Teste do nWeb' }[t.tipo] || t.tipo); };
   const detalheTarefa = (t) => {
     if (t.erro) return `<span class="mini" style="color:#b42318"><b>Erro:</b> ${A.esc(t.erro)}</span>`;
     if (t.status !== 'CONCLUIDA') return '<span class="mini">Aguardando atualização.</span>';

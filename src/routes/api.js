@@ -4656,7 +4656,7 @@ router.get('/questor/conectores/:id/tarefas', async (req,res)=>{ try {
 } catch(e){erro(res,e);} });
 router.get('/questor/tarefas', async (req,res)=>{ try {
   await questorPersistencia.sincronizarUsuario(donoConector(req));
-  const tarefas=db.prepare(`SELECT t.id,t.tipo,t.status,t.erro,t.resultado_json,t.criado_em,t.executado_em,c.nome AS conector_nome,e.razao_social AS empresa_nome
+  const tarefas=db.prepare(`SELECT t.id,t.tipo,t.payload_json,t.status,t.erro,t.resultado_json,t.criado_em,t.executado_em,c.nome AS conector_nome,e.razao_social AS empresa_nome
     FROM questor_conector_tarefas t JOIN questor_conectores c ON c.id=t.conector_id LEFT JOIN empresas e ON e.id=t.empresa_id
     WHERE c.usuario_id=? ORDER BY t.id DESC LIMIT 50`).all(donoConector(req));
   ok(res,{tarefas});
@@ -5435,7 +5435,10 @@ router.post('/empresas/:id/questor/conector/conciliar-entradas', async (req,res)
   if(!/^\d{4}-\d{2}-\d{2}$/.test(inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(fim)||inicio>fim) throw new Error('Informe data inicial e final válidas.');
   const c=db.prepare("SELECT id FROM questor_conectores WHERE status='ATIVO' AND usuario_id=? ORDER BY ultima_conexao_em DESC LIMIT 1").get(donoConector(req));
   if(!c) throw new Error('Inicie um Conector Sattva–Questor antes da conciliação.');
-  const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,empresaId,'CONCILIAR_ENTRADAS_QUESTOR',JSON.stringify({actionName:'nFisRRResumoConfLctoFisEntGrafico',parametros:{PCODIGOEMPRESA:empresa.codigo_questor,PDATAINICIAL:inicio,PDATAFINAL:fim,PTIPOPERIODO:'1',PTIPOIMPOSTO:'1;6',PTOTALIZAR:'0',PLISTAROUTRASINFO:'0',PLISTARTOTALIMPOSTO:'1',PEXIBIRDADOSNATUREZA:'1',PEXIBIRDADOSPESSOA:'1',PEXIBIRDADOSPRODUTO:'1',PLINHAHORIZONTAL:'1',PORDENACAO:'1'}}));
+  // Compatibilidade: conectores já instalados aceitam CONCILIAR_CFOP_SAIDAS.
+  // O modo no payload muda somente a ação nWeb e o tratamento do retorno;
+  // assim não é necessário reinstalar o conector para consultar entradas.
+  const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,empresaId,'CONCILIAR_CFOP_SAIDAS',JSON.stringify({modo:'CONCILIAR_ENTRADAS',actionName:'nFisRRResumoConfLctoFisEntGrafico',parametros:{PCODIGOEMPRESA:empresa.codigo_questor,PDATAINICIAL:inicio,PDATAFINAL:fim,PTIPOPERIODO:'1',PTIPOIMPOSTO:'1;6',PTOTALIZAR:'0',PLISTAROUTRASINFO:'0',PLISTARTOTALIMPOSTO:'1',PEXIBIRDADOSNATUREZA:'1',PEXIBIRDADOSPESSOA:'1',PEXIBIRDADOSPRODUTO:'1',PLINHAHORIZONTAL:'1',PORDENACAO:'1'}}));
   const tarefa=db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(r.lastInsertRowid); await questorPersistencia.publicarTarefa(tarefa);
   ok(res,{tarefa_id:r.lastInsertRowid});
 }catch(e){erro(res,e);}});

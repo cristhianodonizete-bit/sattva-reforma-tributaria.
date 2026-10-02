@@ -348,7 +348,13 @@ router.post('/tarefas/:id/resultado',async(req,res)=>{
     // publicar a fotografia SQLite depois disso: uma instância com cache
     // anterior poderia regravar AUTORIZADO sobre o cancelamento confirmado.
     if(ok&&t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS') { resultado={...resultado,...await conciliarCancelamentosQuestor(t.empresa_id,resultado.relatorio)}; }
-    if(ok&&t.tipo==='CONCILIAR_CFOP_SAIDAS') { resultado={...resultado,...await conciliarCfopSaidasQuestor(t.empresa_id,resultado.relatorio)}; require('../services/operacaoCompartilhada').publicar().catch(()=>{}); }
+    if(ok&&t.tipo==='CONCILIAR_CFOP_SAIDAS') {
+      const payload=JSON.parse(t.payload_json||'{}');
+      resultado={...resultado,...(payload.modo==='CONCILIAR_ENTRADAS'
+        ? conciliarEntradasQuestor(t.empresa_id,resultado.relatorio)
+        : await conciliarCfopSaidasQuestor(t.empresa_id,resultado.relatorio))};
+      if(payload.modo!=='CONCILIAR_ENTRADAS') require('../services/operacaoCompartilhada').publicar().catch(()=>{});
+    }
     if(ok&&t.tipo==='CONCILIAR_ENTRADAS_QUESTOR') { resultado={...resultado,...conciliarEntradasQuestor(t.empresa_id,resultado.relatorio)}; }
     if(ok&&t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO') { resultado={...resultado,...await importarLocacoesQuestor(t.empresa_id,resultado.relatorio)}; }
     if (ok) {
