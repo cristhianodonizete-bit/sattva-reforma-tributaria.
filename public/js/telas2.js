@@ -927,7 +927,7 @@ Telas.questor = async (el) => {
         const escolhidos=linhas.filter((linha)=>selecao.has(linha.identificador));
         if(!escolhidos.length) throw new Error('Marque ao menos um lançamento ausente com item cadastrado.');
         const resposta=await A.api(`/empresas/${S.empresaId}/questor/razao/incluir`,{metodo:'POST',corpo:{lancamentos:escolhidos}});
-        A.toast(`${resposta.incluidos||0} lançamento(s) incluído(s) pelo razão.`, 'ok'); A.ir('questor');
+        A.toast(`${resposta.incluidos||0} lançamento(s) incluído(s) pelo Razão.${resposta.processamento_motor?.job ? ' Atualização do motor solicitada.' : ''}`, 'ok'); A.ir('questor');
       }});
       const vincularCadastro=()=>resultadoModal.fundo.querySelectorAll('[data-cadastrar-item-razao]').forEach((botao)=>botao.onclick=()=>{
         const linha=linhas.find(x=>x.identificador===botao.dataset.cadastrarItemRazao); if(!linha) return;
