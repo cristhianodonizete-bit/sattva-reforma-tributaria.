@@ -698,7 +698,7 @@ Telas.questor = async (el) => {
   const estadoTarefa = (t) => ({
     PENDENTE: ['Aguardando conector', 'a'], EM_EXECUCAO: ['Processando', ''], CONCLUIDA: ['Concluída', 'c'], ERRO: ['Falhou', 'alto'],
   }[t.status] || [t.status, '']);
-  const tipoTarefa = (t) => ({ APURACAO_PIS_COFINS: 'Apuração PIS/COFINS', PARAMETROS_RELATORIO: 'Leitura dos parâmetros do relatório', DOCUMENTOS_FISCAIS_CANCELADOS: 'Conciliação de documentos fiscais', CONCILIAR_CFOP_SAIDAS: 'Conciliação de CFOPs de saída', IMPORTAR_OUTRAS_RECEITAS_LOCACAO: 'Importação de locações para outras receitas', TESTAR_NWEB: 'Teste do nWeb' }[t.tipo] || t.tipo);
+  const tipoTarefa = (t) => ({ APURACAO_PIS_COFINS: 'Apuração PIS/COFINS', PARAMETROS_RELATORIO: 'Leitura dos parâmetros do relatório', DOCUMENTOS_FISCAIS_CANCELADOS: 'Conciliação de documentos fiscais', CONCILIAR_CFOP_SAIDAS: 'Conciliação de CFOPs de saída', CONCILIAR_ENTRADAS_QUESTOR: 'Conciliação de entradas', IMPORTAR_OUTRAS_RECEITAS_LOCACAO: 'Importação de locações para outras receitas', TESTAR_NWEB: 'Teste do nWeb' }[t.tipo] || t.tipo);
   const detalheTarefa = (t) => {
     if (t.erro) return `<span class="mini" style="color:#b42318"><b>Erro:</b> ${A.esc(t.erro)}</span>`;
     if (t.status !== 'CONCLUIDA') return '<span class="mini">Aguardando atualização.</span>';
@@ -732,7 +732,7 @@ Telas.questor = async (el) => {
         <div class="grade g2">${A.campo('inicio', 'Data inicial', '', 'date')}${A.campo('fim', 'Data final', '', 'date')}</div>
         <div style="display:flex;gap:8px;flex-wrap:wrap"><button class="btn" id="importarApuracaoQuestor">Importar apuração PIS/COFINS</button></div>
         <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="buscarCancelamentosQuestor">Buscar cancelamentos no Questor</button><button class="btn vazio" id="conciliarCancelamentosQuestor">Importar relatório exportado</button></div>
-        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="conciliarCfopsSaidasQuestor">Conciliar CFOPs de saída</button></div>
+        <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap"><button class="btn vazio" id="conciliarCfopsSaidasQuestor">Conciliar CFOPs de saída</button><button class="btn vazio" id="conciliarEntradasQuestor">Conciliar notas de entrada</button></div>
         <div style="margin-top:10px"><button class="btn vazio" id="importarLocacoesQuestor">Buscar locações REC para outras receitas</button><p class="mini" style="margin:6px 0 0">Importa somente lançamentos REC cuja descrição indique locação/aluguel. Imóveis e bens móveis são classificados separadamente.</p></div>
         <div class="aviso neutro" style="margin-top:14px"><b>Solicitação em lote</b><br><span class="mini">Selecione várias empresas e uma busca já homologada. O conector processa uma empresa por vez e a fila conserva o resultado individual.</span><br><button class="btn vazio pq" id="solicitarLoteQuestor" style="margin-top:9px">Solicitar informações em lote</button></div>
         <div id="statusImportacaoQuestor" class="mini" role="status" style="margin-top:10px"></div>
@@ -878,6 +878,15 @@ Telas.questor = async (el) => {
       A.toast('Conciliação de CFOPs enviada ao conector.','ok');
     } catch(e) { status.innerHTML=`<span class="tag alto">Não foi possível solicitar</span><div class="mini" style="margin-top:6px">${A.esc(e.message)}</div>`; A.toast(e.message,'erro');
     } finally { botao.disabled=false; botao.textContent='Conciliar CFOPs de saída'; }
+  };
+  document.getElementById('conciliarEntradasQuestor').onclick = async () => {
+    if(!S.empresaId) return A.toast('Selecione uma empresa','erro'); const inicio=val('inicio'), fim=val('fim');
+    if(!inicio||!fim||inicio>fim) return A.toast('Informe data inicial e final válidas.','erro');
+    const botao=document.getElementById('conciliarEntradasQuestor'), status=el.querySelector('#statusImportacaoQuestor'); botao.disabled=true; botao.textContent='Solicitando conciliação…';
+    status.innerHTML='<span class="tag a">Solicitando a Conferência de Entradas ao Questor…</span><div class="mini" style="margin-top:6px">A leitura compara as notas; não inclui nem altera documentos.</div>';
+    try { const r=await A.api(`/empresas/${S.empresaId}/questor/conector/conciliar-entradas`,{metodo:'POST',corpo:{inicio,fim}}); status.innerHTML=`<span class="tag c">Solicitação registrada</span><div class="mini" style="margin-top:6px">Conciliação de entradas enviada ao conector (solicitação ${A.esc(r.tarefa_id)}). Confira o resultado na fila.</div>`; A.toast('Conciliação de entradas enviada ao conector.','ok'); }
+    catch(e){ status.innerHTML=`<span class="tag alto">Não foi possível solicitar</span><div class="mini" style="margin-top:6px">${A.esc(e.message)}</div>`; A.toast(e.message,'erro'); }
+    finally { botao.disabled=false; botao.textContent='Conciliar notas de entrada'; }
   };
   document.getElementById('atualizarTarefasQuestor').onclick = () => A.ir('questor');
   document.getElementById('reconciliarCancelamentosPendentes')?.addEventListener('click', async () => {

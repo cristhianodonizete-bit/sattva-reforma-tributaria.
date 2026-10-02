@@ -5425,6 +5425,21 @@ router.post('/empresas/:id/questor/conector/conciliar-cfop-saidas', async (req,r
   ok(res,{tarefa_id:r.lastInsertRowid});
 }catch(e){erro(res,e);}});
 
+// A Conferência de Entradas é deliberadamente separada da inclusão: esta
+// chamada só lê e compara o relatório do Questor. Nenhum documento é criado
+// até uma confirmação posterior do usuário.
+router.post('/empresas/:id/questor/conector/conciliar-entradas', async (req,res)=>{ try {
+  const empresaId=Number(req.params.id), empresa=db.prepare('SELECT codigo_questor FROM empresas WHERE id=?').get(empresaId);
+  if(!empresa?.codigo_questor) throw new Error('Informe o Código Questor no cadastro da empresa antes da conciliação.');
+  const inicio=String(req.body?.inicio||''), fim=String(req.body?.fim||'');
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(inicio)||!/^\d{4}-\d{2}-\d{2}$/.test(fim)||inicio>fim) throw new Error('Informe data inicial e final válidas.');
+  const c=db.prepare("SELECT id FROM questor_conectores WHERE status='ATIVO' AND usuario_id=? ORDER BY ultima_conexao_em DESC LIMIT 1").get(donoConector(req));
+  if(!c) throw new Error('Inicie um Conector Sattva–Questor antes da conciliação.');
+  const r=db.prepare("INSERT INTO questor_conector_tarefas (conector_id,empresa_id,tipo,payload_json) VALUES (?,?,?,?)").run(c.id,empresaId,'CONCILIAR_ENTRADAS_QUESTOR',JSON.stringify({actionName:'nFisRRResumoConfLctoFisEntGrafico',parametros:{PCODIGOEMPRESA:empresa.codigo_questor,PDATAINICIAL:inicio,PDATAFINAL:fim,PTIPOPERIODO:'1',PTIPOIMPOSTO:'1;6',PTOTALIZAR:'0',PLISTAROUTRASINFO:'0',PLISTARTOTALIMPOSTO:'1',PEXIBIRDADOSNATUREZA:'1',PEXIBIRDADOSPESSOA:'1',PEXIBIRDADOSPRODUTO:'1',PLINHAHORIZONTAL:'1',PORDENACAO:'1'}}));
+  const tarefa=db.prepare('SELECT * FROM questor_conector_tarefas WHERE id=?').get(r.lastInsertRowid); await questorPersistencia.publicarTarefa(tarefa);
+  ok(res,{tarefa_id:r.lastInsertRowid});
+}catch(e){erro(res,e);}});
+
 // Referências que o Questor confirmou como canceladas, mas cujo XML/DF-e ainda
 // não chegou à plataforma. Elas ficam visíveis para conferência e serão
 // aplicadas automaticamente quando o documento for importado.

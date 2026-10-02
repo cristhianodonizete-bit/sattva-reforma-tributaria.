@@ -171,6 +171,38 @@ async function conciliarCfopSaidasQuestor(empresaId, texto) {
   return saida;
 }
 
+// Conferência de Entradas (Gráfico). O Questor imprime uma linha de cabeçalho
+// por nota e, quando "Dados Produtos/Serviços" está ativo, linhas de itens
+// logo abaixo. A conciliação é por documento; os itens ficam como evidência
+// para uma eventual inclusão posterior, sempre confirmada pelo usuário.
+function lerConferenciaEntradasQuestor(texto) {
+  const fonte=extrairRelatorioQuestor(texto); const ano=(fonte.match(/Per[ií]odo:\s*\d{2}\/\d{2}\/(\d{4})/i)||[])[1]||'';
+  const registros=[]; let atual=null;
+  for (const bruta of fonte.replace(/\r/g,'').split('\n')) {
+    const linha=bruta.trim();
+    const cab=linha.match(/^(\d+)\s+(\d{2}\/\d{2})\s+(\d+)\s+(NFE|NFSE|NFCE|CTE)\s+(\d+)\s+\S+\s+(\d{2}\/\d{2})\s+\d+\s+([\d.]+)\s+\S+\s+\S+\s+\d+\s+([\d.]+,\d{2})/i);
+    if (cab && /^\d{4}$/.test(ano)) { atual={lancamento: cab[1], data:`${ano}-${cab[6].slice(3)}-${cab[6].slice(0,2)}`, documento:cab[3], modelo:cab[4].toLowerCase(), serie:cab[5], valor:numeroQuestor(cab[8]), fornecedor:'', cnpj:'', itens:[]}; registros.push(atual); continue; }
+    if (!atual) continue;
+    const forn=linha.match(/^Fornecedor:\s*(.+?)\s*\|\s*([\d.\/-]{11,18})\b/i);
+    if (forn) { atual.fornecedor=forn[1].trim(); atual.cnpj=forn[2].replace(/\D/g,''); continue; }
+    // Sequência, descrição, NCM, quantidade, unitário, total, PIS, Cofins.
+    const item=linha.match(/^(\d+)\s+(.+?)\s+(\d{4}\.\d{2}\.\d{2}|\d{8})\s+([\d.]+,\d+)\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})\s+([\d.]+,\d{2})$/);
+    if (item) atual.itens.push({sequencia:Number(item[1]),descricao:item[2].trim(),ncm:item[3].replace(/\D/g,''),quantidade:numeroQuestor(item[4]),valor_unitario:numeroQuestor(item[5]),valor:numeroQuestor(item[6]),pis:numeroQuestor(item[7]),cofins:numeroQuestor(item[8])});
+  }
+  return registros;
+}
+function conciliarEntradasQuestor(empresaId,texto) {
+  const questor=lerConferenciaEntradasQuestor(texto);
+  const existentes=db.prepare("SELECT documento,modelo_documento_fiscal,data_emissao,inscr_federal,valor FROM movimentos WHERE empresa_id=? AND tipo='fornecedor'").all(empresaId);
+  const dig=v=>String(v||'').replace(/\D/g,'');
+  const existe=(q)=>existentes.some((x)=>dig(String(x.documento).split('/').at(-1))===dig(q.documento)
+    && String(x.modelo_documento_fiscal||'').toLowerCase()===q.modelo
+    && (!q.data || String(x.data_emissao||'').slice(0,10)===q.data || Math.abs(Number(x.valor||0)-Number(q.valor||0))<0.02));
+  const ausentes=questor.filter((x)=>!existe(x));
+  return {linhas_lidas:questor.length,pareados:questor.length-ausentes.length,ausentes:ausentes.length,documentos_ausentes:ausentes,
+    observacao:'Conferência somente leitura. A inclusão dos ausentes exige confirmação explícita.'};
+}
+
 function numeroQuestor(valor) {
   const limpo=String(valor||'').replace(/\./g,'').replace(',','.').replace(/[^0-9.-]/g,'');
   const n=Number(limpo); return Number.isFinite(n) ? n : null;
@@ -317,6 +349,7 @@ router.post('/tarefas/:id/resultado',async(req,res)=>{
     // anterior poderia regravar AUTORIZADO sobre o cancelamento confirmado.
     if(ok&&t.tipo==='DOCUMENTOS_FISCAIS_CANCELADOS') { resultado={...resultado,...await conciliarCancelamentosQuestor(t.empresa_id,resultado.relatorio)}; }
     if(ok&&t.tipo==='CONCILIAR_CFOP_SAIDAS') { resultado={...resultado,...await conciliarCfopSaidasQuestor(t.empresa_id,resultado.relatorio)}; require('../services/operacaoCompartilhada').publicar().catch(()=>{}); }
+    if(ok&&t.tipo==='CONCILIAR_ENTRADAS_QUESTOR') { resultado={...resultado,...conciliarEntradasQuestor(t.empresa_id,resultado.relatorio)}; }
     if(ok&&t.tipo==='IMPORTAR_OUTRAS_RECEITAS_LOCACAO') { resultado={...resultado,...await importarLocacoesQuestor(t.empresa_id,resultado.relatorio)}; }
     if (ok) {
       const recursos = t.tipo === 'IMPORTAR_OUTRAS_RECEITAS_LOCACAO'
@@ -340,3 +373,4 @@ router.post('/tarefas/:id/resultado',async(req,res)=>{
 module.exports=router;
 module.exports.lerCancelamentosQuestor=lerCancelamentosQuestor;
 module.exports.lerLocacoesQuestor=lerLocacoesQuestor;
+module.exports.lerConferenciaEntradasQuestor=lerConferenciaEntradasQuestor;
