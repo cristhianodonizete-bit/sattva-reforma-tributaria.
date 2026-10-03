@@ -533,17 +533,30 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   // O id técnico local pode diferir do id da fonte comum. XML tem identidade
   // fiscal própria; nunca se devolve uma cópia local se a mesma nota já está
   // disponível na fonte canônica.
-  const identidadeFiscal = (linha) => String(linha?.origem || '').toLowerCase() === 'xml' && linha?.chave
-    ? `xml:${linha.chave}:${linha.item_numero}` : null;
+  // XML usa chave fiscal. Inclusões confirmadas pelo Questor usam a chave
+  // estável gerada para a própria inclusão; o id SQLite não é compartilhado
+  // entre Web e Worker e não pode decidir se uma entrada existe remotamente.
+  const identidadeFiscal = (linha) => {
+    const origem=String(linha?.origem || '').toUpperCase();
+    if (origem === 'XML' && linha?.chave) return `xml:${linha.chave}:${linha.item_numero}`;
+    if (['QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO'].includes(origem) && linha?.chave) return `questor:${origem}:${linha.chave}:${linha.item_numero}`;
+    return null;
+  };
   let identidadesRemotas = new Set(normalizadas.map(identidadeFiscal).filter(Boolean));
   const pendentes = locais.filter((linha) => !remotos.has(Number(linha.id))
     && !identidadesRemotas.has(identidadeFiscal(linha))
     && ['xml','sped'].includes(String(linha.origem || '').toLowerCase()));
+  const pendentesQuestor=locais.filter((linha) => !remotos.has(Number(linha.id))
+    && !identidadesRemotas.has(identidadeFiscal(linha))
+    && ['QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO'].includes(String(linha.origem || '').toUpperCase()));
   // A tela não mistura duas fontes. Havendo fatos pendentes, publica primeiro
   // e consulta novamente a fonte canônica. Se isso falhar, interrompe a
   // leitura em vez de exibir totais parciais ou duplicados.
-  if (pendentes.length || (!normalizadas.length && locais.length)) {
-    try { await publicarOperacaoEmpresa(id); }
+  if (pendentes.length || pendentesQuestor.length || (!normalizadas.length && locais.length)) {
+    try {
+      if (pendentes.length || (!normalizadas.length && locais.length)) await publicarOperacaoEmpresa(id);
+      if (pendentesQuestor.length) await publicarEntradasQuestorConciliadas(id, pendentesQuestor.map((x)=>x.id));
+    }
     catch (erroPublicacao) { throw new Error(`Documentos fiscais aguardam publicação segura: ${erroPublicacao.message}`); }
     leitura = await carregarMovimentosCanonicos(empresa, opcoes);
     ({ remota, linhas, origem } = leitura);
@@ -554,7 +567,7 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   }
   const remover = locais.filter((linha) => !remotos.has(Number(linha.id))
     && !identidadesRemotas.has(identidadeFiscal(linha))
-    && !['xml','sped'].includes(String(linha.origem || '').toLowerCase())).map((linha) => Number(linha.id));
+    && !['xml','sped','questor_conciliacao_entrada','questor_razao'].includes(String(linha.origem || '').toLowerCase())).map((linha) => Number(linha.id));
   db.transaction(() => {
     if (remover.length) {
       const marcas = remover.map(() => '?').join(',');
@@ -1235,10 +1248,10 @@ async function publicarCfopsQuestorConciliados(empresaId, movimentoIds = []) {
   return { ativo:true, publicados, nao_localizados:naoLocalizados, pendentes:ids.length-locais.length };
 }
 
-// Entradas incluídas após a conciliação com o Questor não são XMLs. Por isso
-// não podem depender da publicação genérica por id local: esse id é efêmero
-// entre instâncias. A chave Questor já é estável por item e permite publicar
-// somente esses fatos confirmados, sem reenviar a fotografia inteira.
+// Entradas incluídas após a conciliação ou pelo Razão do Questor não são XMLs.
+// Elas não podem depender da publicação genérica por id local: esse id é
+// efêmero entre instâncias. A chave Questor é estável por item e permite
+// publicar somente esses fatos confirmados, sem reenviar a fotografia inteira.
 async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) {
   if (!ativo()) return { ativo:false, publicados:0, pendentes:movimentoIds.length };
   const ids=[...new Set(movimentoIds.map(Number).filter(Number.isInteger))];
@@ -1253,7 +1266,7 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
   const empresas=(candidatas || []).filter((x)=>Number(x.origem_local_id)===Number(empresaId) || String(x.cnpj || '').replace(/\D/g,'')===cnpj);
   if (empresas.length!==1) throw new Error('Empresa compartilhada não localizada de forma única; as entradas locais foram preservadas.');
   const marcas=ids.map(()=>'?').join(',');
-  const locais=db.prepare(`SELECT ${CAMPOS.movimentos.join(',')} FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_CONCILIACAO_ENTRADA' AND id IN (${marcas})`).all(Number(empresaId),...ids);
+  const locais=db.prepare(`SELECT ${CAMPOS.movimentos.join(',')} FROM movimentos WHERE empresa_id=? AND origem IN ('QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO') AND id IN (${marcas})`).all(Number(empresaId),...ids);
   const chaves=locais.map((x)=>String(x.chave || '')).filter(Boolean);
   if (!chaves.length) return { ativo:true, publicados:0, pendentes:0 };
   const { data:existentes, error:erroExistentes }=await remoto.from('movimentos').select('chave').eq('empresa_id',Number(empresas[0].id)).in('chave',chaves);

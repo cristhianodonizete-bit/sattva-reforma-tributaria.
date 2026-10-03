@@ -5686,7 +5686,7 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
     const docs=new Set((leitura.documentos || []).map((x)=>dig(String(x.documento || '').split('/').at(-1))).filter(Boolean));
     const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
       VALUES (?,'fornecedor','entrada',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'razao','QUESTOR_RAZAO','questor_razao','DECLARADO_QUESTOR_RAZAO',?)`);
-    const resultado={incluidos:0, ja_existentes:0, precisam_cadastro:0, ignorados:0, mensagens:[], processamento_motor:null};
+    const resultado={incluidos:0, movimento_ids:[], ja_existentes:0, precisam_cadastro:0, ignorados:0, mensagens:[], processamento_motor:null, publicacao_compartilhada:null};
     db.transaction(()=>{ for(const linha of selecionados) {
       const itemChave=String(linha?.item_sugerido?.chave || '');
       const cadastro=itemChave && db.prepare("SELECT valor,label FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(itemChave);
@@ -5701,12 +5701,15 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       if (db.prepare('SELECT 1 FROM movimentos WHERE empresa_id=? AND chave=?').get(empresaId,chave)) { resultado.ignorados++; continue; }
       const referencia={ tipo:'LANCAMENTO_MANUAL_ENTRADA', gera_credito:regra.gera_credito !== false, ...(regra.regimes?.[empresa.regime] || {}), item_cadastrado:{chave:itemChave,nome:regra.nome || cadastro.label}, beneficio_percentual:beneficio,
         origem:'QUESTOR_RAZAO', conta:linha.conta || '', conta_codigo:linha.conta_codigo || '', sequencia:linha.sequencia || '', historico:linha.historico || '', participante:linha.participante || '', incluido_em:new Date().toISOString() };
-      inserir.run(empresaId,String(linha.participante || '').trim() || 'Razão Questor',regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,
+      const inserido=inserir.run(empresaId,String(linha.participante || '').trim() || 'Razão Questor',regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,
         regra.cst || '',regra.cclasstrib || '',regra.cst || '',regra.cclasstrib || '',itemChave,documento || null,1,chave,JSON.stringify(referencia));
-      resultado.incluidos++;
+      resultado.incluidos++; resultado.movimento_ids.push(Number(inserido.lastInsertRowid));
     }});
     if (resultado.incluidos) {
-      await require('../services/operacaoCompartilhada').publicarOperacaoEmpresa(empresaId);
+      // O Razão é uma inclusão Questor, não XML. Publicá-lo pela rotina
+      // específica preserva a chave estável e a origem na fonte compartilhada.
+      resultado.publicacao_compartilhada=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,resultado.movimento_ids);
+      estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Entrada do Razão publicada com origem Questor');
       // A inclusão confirmada deve entrar na fotografia oficial, que alimenta
       // Cadeia de fornecedores, créditos e indicadores. O cálculo continua
       // assíncrono para não travar a conciliação na tela.
