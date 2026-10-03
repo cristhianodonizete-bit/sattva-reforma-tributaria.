@@ -2487,14 +2487,15 @@ function filtrarDocumentosFiscais(documentos, filtros = {}) {
     && (!busca || `${d.documento || ''} ${d.chave || ''} ${d.parceiro || ''}`.toLowerCase().includes(busca)));
 }
 // A leitura direta do Supabase é a fonte da lista fiscal. Entradas que o
-// usuário acabou de confirmar no Questor podem ainda estar somente no cache
-// operacional enquanto a publicação durável termina. Elas são acrescentadas
-// aqui, com origem explícita, para não desaparecerem da própria aba Entradas.
+// usuário acabou de confirmar no Questor, inclusive as incluídas pelo Razão,
+// podem ainda estar somente no cache operacional enquanto a publicação
+// durável termina. Elas são acrescentadas aqui, com origem explícita, para
+// não desaparecerem da própria aba Entradas.
 // Não há reconciliação, cálculo ou escrita nesta função.
 function entradasQuestorPendentesNaListaFiscal(empresaId, filtros = {}) {
   return filtrarDocumentosFiscais(listarDocumentosFiscais(empresaId, 0, 1, { ...filtros, sentido:'fornecedor' }).documentos, { ...filtros, sentido:'fornecedor' })
-    .filter((d) => String(d.origem || '').toUpperCase() === 'QUESTOR_CONCILIACAO_ENTRADA')
-    .map((d) => ({ ...d, conciliada_questor:true }));
+    .filter((d) => ['QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO'].includes(String(d.origem || '').toUpperCase()))
+    .map((d) => ({ ...d, conciliada_questor:String(d.origem || '').toUpperCase() === 'QUESTOR_CONCILIACAO_ENTRADA', origem_razao:String(d.origem || '').toUpperCase() === 'QUESTOR_RAZAO' }));
 }
 function incorporarEntradasQuestorNaLeituraDireta(leitura, empresaId, filtros = {}) {
   if (String(filtros.sentido || '') !== 'fornecedor') return leitura;
@@ -2668,7 +2669,7 @@ router.get('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
     // Uma inclusão Questor recém-confirmada pode ainda aguardar a publicação
     // na fonte compartilhada. Abrir o documento deve funcionar nesse intervalo
     // sem chamar a reconciliação, que só conhece a fotografia remota.
-    let itens=db.prepare(`${sqlMovimentosFiscaisCanonicos()} SELECT * FROM movimentos_canonicos WHERE linha_canonica=1 AND ${filtro.sql} AND origem='QUESTOR_CONCILIACAO_ENTRADA' ORDER BY item_numero, id`).all(Number(req.params.id), ...filtro.valores);
+    let itens=db.prepare(`${sqlMovimentosFiscaisCanonicos()} SELECT * FROM movimentos_canonicos WHERE linha_canonica=1 AND ${filtro.sql} AND origem IN ('QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO') ORDER BY item_numero, id`).all(Number(req.params.id), ...filtro.valores);
     if (!itens.length) {
       await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
       itens=db.prepare(`${sqlMovimentosFiscaisCanonicos()} SELECT * FROM movimentos_canonicos WHERE linha_canonica=1 AND ${filtro.sql} ORDER BY item_numero, id`).all(Number(req.params.id), ...filtro.valores);

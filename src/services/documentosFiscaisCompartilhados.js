@@ -154,6 +154,7 @@ async function listarRastreabilidadeSaidas(cnpj, filtros = {}, opcoes = {}) {
       SELECT referencia_item referencia,
         COALESCE(NULLIF(MAX(documento),''),NULLIF(MAX(chave),''),'Lançamento #'||MIN(id)::text) documento,
         MIN(competencia) competencia, MIN(data_emissao) data_emissao, MAX(chave) chave, MAX(nome) parceiro,
+        MAX(origem) origem,
         MAX(modelo_documento_fiscal) modelo_documento_fiscal, MAX(situacao_documento) situacao_documento,
         SUM(COALESCE(valor,0)) valor, COUNT(*)::int itens,
         jsonb_agg(jsonb_build_object('id',id,'item_numero',item_numero,'descricao',descricao,'cfop',cfop,

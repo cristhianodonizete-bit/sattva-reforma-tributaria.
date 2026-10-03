@@ -13,6 +13,7 @@ assert.match(leitor,/ROLLBACK/);
 assert.match(leitor,/cfop_xml/);
 assert.match(leitor,/cfop_efetivo/);
 assert.match(leitor,/composicao_cfop/);
+assert.match(leitor,/MAX\(origem\) origem/,'a rastreabilidade precisa devolver a origem documental');
 assert.match(leitor,/module\.exports = \{ listar, listarOpcoesFiltros, listarRastreabilidadeSaidas \}/);
 const rota=api.indexOf("/empresas/:id/documentos-fiscais/saidas/rastreabilidade-cfop");
 const generica=api.indexOf("/empresas/:id/documentos-fiscais/:referencia");
@@ -20,5 +21,6 @@ assert.ok(rota >= 0 && rota < generica,'A rota específica deve vir antes da rot
 assert.match(api,/listarRastreabilidadeSaidas/);
 assert.match(tela,/Rastreabilidade das saídas/);
 assert.match(tela,/Ver rastreabilidade/);
+assert.match(tela,/\{t:'Origem',r:d=>String\(d\.origem/,'a tabela deve exibir a origem da nota');
 assert.match(tela,/não executa o motor tributário/);
 console.log('OK: rastreabilidade de CFOP das saídas é uma leitura isolada e paginada.');
