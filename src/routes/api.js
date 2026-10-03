@@ -5609,9 +5609,16 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
     if (!empresa?.cnpj) throw new Error('Empresa não encontrada para a conciliação do razão.');
     const leituraDocumentos=await require('../services/documentosFiscaisCompartilhados')
       .listar(empresa.cnpj,{sentido:'fornecedor'},{exportacao:true});
-    const existentes=(leituraDocumentos.documentos || []).map((x)=>({
-      id:x.item_id, documento:x.documento, data_emissao:x.data_emissao, valor:x.valor, nome:x.parceiro, origem:x.origem,
-    }));
+    const lerEvidencia=(valor)=>{ try { return typeof valor==='string' ? JSON.parse(valor || '{}') : (valor || {}); } catch (_) { return {}; } };
+    // A inclusão pelo Razão tem identidade própria; data e valor podem se
+    // repetir em vários lançamentos. Mantemos também a cópia local enquanto a
+    // publicação compartilhada se propaga, para que a mesma planilha nunca
+    // volte a disponibilizar uma linha já incluída.
+    const existentes=[...(leituraDocumentos.documentos || []).map((x)=>({
+      id:x.item_id, documento:x.documento, competencia:x.competencia, data_emissao:x.data_emissao, valor:x.valor, nome:x.parceiro, origem:x.origem,
+      evidencia:lerEvidencia(x.normalizacao_evidencia),
+    })), ...db.prepare(`SELECT id,documento,competencia,data_emissao,valor,nome,origem,normalizacao_evidencia FROM movimentos
+      WHERE empresa_id=? AND origem='QUESTOR_RAZAO'`).all(empresaId).map((x)=>({ ...x, evidencia:lerEvidencia(x.normalizacao_evidencia) }))];
     const dig=(v)=>String(v || '').replace(/\D/g,'');
     const linhas=[]; let cabeçalho=null; let cabecalhosValidos=0;
     for (const nomeAba of livro.SheetNames) {
@@ -5629,6 +5636,7 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
         const valorDebito=numero(bruta[mapa.debito]);
         if (valorDebito === null || valorDebito <= 0) continue;
         const emissao=data(bruta[mapa.data]); const documento=documentoNoHistorico(historico);
+        const identificador=`${nomeAba}|${bruta[mapa.sequencia] || ''}|${emissao}|${valorDebito}|${historico}`;
         const porDocumento=existentes.filter((movimento)=>documento && dig(String(movimento.documento || '').split('/').at(-1))===dig(documento));
         const candidatos=documento ? porDocumento : existentes;
         const correspondencias=candidatos.filter((movimento)=>{
@@ -5636,20 +5644,32 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
           const mesmaData=!emissao || !movimento.data_emissao || String(movimento.data_emissao).slice(0,10)===emissao;
           return (mesmoValor && mesmaData) || (!documento && mesmoValor && mesmaData && normalizar(movimento.nome).includes(normalizar(bruta[mapa.descricao] || '').slice(0,18)));
         });
+        const jaIncluidoPeloRazao=existentes.find((movimento)=>{
+          if (String(movimento.origem || '').toUpperCase() !== 'QUESTOR_RAZAO') return false;
+          const evidencia=movimento.evidencia || {};
+          if (evidencia.razao_identificador && evidencia.razao_identificador === identificador) return true;
+          // Compatibilidade com inclusões realizadas antes da identidade
+          // explícita: sequência + conta + data + valor permanecem estáveis.
+          return String(evidencia.sequencia || '')===String(bruta[mapa.sequencia] || '')
+            && String(evidencia.conta_codigo || '')===String(cabeçalho.codigo || '')
+            && String(movimento.data_emissao || movimento.competencia || '').slice(0,7)===String(emissao || '').slice(0,7)
+            && Math.abs(Number(movimento.valor || 0)-valorDebito)<0.02;
+        });
         const item=sugerirItem(cabeçalho.texto,historico,bruta[mapa.descricao]);
         // O XML é a fonte fiscal prevalente. Quando o documento já existe,
         // uma diferença com o razão não autoriza nova inclusão nem troca do
         // valor: fica apenas registrada como evidência para revisão.
-        const situacao=correspondencias.length ? 'ENCONTRADO' : porDocumento.length ? 'ENCONTRADO_XML_PREVALECE' : 'AUSENTE';
+        const situacao=jaIncluidoPeloRazao ? 'INCLUIDO_QUESTOR_RAZAO' : correspondencias.length ? 'ENCONTRADO' : porDocumento.length ? 'ENCONTRADO_XML_PREVALECE' : 'AUSENTE';
         linhas.push({
-          identificador:`${nomeAba}|${bruta[mapa.sequencia] || ''}|${emissao}|${valorDebito}|${historico}`,
+          identificador,
           conta_codigo:cabeçalho.codigo, conta:cabeçalho.texto.replace(/^Conta:\s*/i,''), data:emissao,
           sequencia:String(bruta[mapa.sequencia] || ''), historico, contrapartida:String(bruta[mapa.contrapartida] || ''),
           descricao:String(bruta[mapa.descricao] || ''), participante:String(bruta[mapa.participante] || ''), valor:valorDebito,
           documento, situacao,
-          movimentos_encontrados:(correspondencias.length ? correspondencias : porDocumento).map((x)=>({id:x.id,documento:x.documento,origem:x.origem,valor:x.valor})),
+          movimentos_encontrados:(jaIncluidoPeloRazao ? [jaIncluidoPeloRazao] : (correspondencias.length ? correspondencias : porDocumento)).map((x)=>({id:x.id,documento:x.documento,origem:x.origem,valor:x.valor})),
           item_sugerido:item ? {chave:item.chave,nome:item.nome} : null,
-          observacao:situacao==='ENCONTRADO' ? 'Lançamento já representado em uma entrada do Sattva.'
+          observacao:situacao==='INCLUIDO_QUESTOR_RAZAO' ? 'Lançamento já incluído a partir do Razão; não será disponibilizado novamente para importação.'
+            : situacao==='ENCONTRADO' ? 'Lançamento já representado em uma entrada do Sattva.'
             : situacao==='ENCONTRADO_XML_PREVALECE' ? `Documento localizado. O XML prevalece: razão ${valorDebito.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} · XML ${porDocumento.map((x)=>Number(x.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})).join(', ')}.`
             : 'Lançamento contábil sem entrada equivalente; ainda não foi incluído.',
         });
@@ -5686,7 +5706,7 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
     const docs=new Set((leitura.documentos || []).map((x)=>dig(String(x.documento || '').split('/').at(-1))).filter(Boolean));
     const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
       VALUES (?,'fornecedor','entrada',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'razao','QUESTOR_RAZAO','questor_razao','DECLARADO_QUESTOR_RAZAO',?)`);
-    const resultado={incluidos:0, movimento_ids:[], ja_existentes:0, precisam_cadastro:0, ignorados:0, mensagens:[], processamento_motor:null, publicacao_compartilhada:null};
+    const resultado={incluidos:0, movimento_ids:[], identificadores_incluidos:[], ja_existentes:0, precisam_cadastro:0, ignorados:0, mensagens:[], processamento_motor:null, publicacao_compartilhada:null};
     db.transaction(()=>{ for(const linha of selecionados) {
       const itemChave=String(linha?.item_sugerido?.chave || '');
       const cadastro=itemChave && db.prepare("SELECT valor,label FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(itemChave);
@@ -5699,17 +5719,30 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       const beneficio=Number(regra.beneficio || 0); const idBase=String(linha.identificador || `${competencia}|${linha.sequencia}|${linha.conta_codigo}|${valor}`);
       const chave=`QUESTOR_RAZAO:${crypto.createHash('sha256').update(`${empresaId}|${idBase}`).digest('hex').slice(0,24)}`;
       if (db.prepare('SELECT 1 FROM movimentos WHERE empresa_id=? AND chave=?').get(empresaId,chave)) { resultado.ignorados++; continue; }
-      const referencia={ tipo:'LANCAMENTO_MANUAL_ENTRADA', gera_credito:regra.gera_credito !== false, ...(regra.regimes?.[empresa.regime] || {}), item_cadastrado:{chave:itemChave,nome:regra.nome || cadastro.label}, beneficio_percentual:beneficio,
+      const referencia={ tipo:'LANCAMENTO_MANUAL_ENTRADA', gera_credito:regra.gera_credito !== false, ...(regra.regimes?.[empresa.regime] || {}), item_cadastrado:{chave:itemChave,nome:regra.nome || cadastro.label}, beneficio_percentual:beneficio, razao_identificador:idBase,
         origem:'QUESTOR_RAZAO', conta:linha.conta || '', conta_codigo:linha.conta_codigo || '', sequencia:linha.sequencia || '', historico:linha.historico || '', participante:linha.participante || '', incluido_em:new Date().toISOString() };
       const inserido=inserir.run(empresaId,String(linha.participante || '').trim() || 'Razão Questor',regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,
         regra.cst || '',regra.cclasstrib || '',regra.cst || '',regra.cclasstrib || '',itemChave,documento || null,1,chave,JSON.stringify(referencia));
-      resultado.incluidos++; resultado.movimento_ids.push(Number(inserido.lastInsertRowid));
+      resultado.incluidos++; resultado.movimento_ids.push(Number(inserido.lastInsertRowid)); resultado.identificadores_incluidos.push(idBase);
     }});
     if (resultado.incluidos) {
       // O Razão é uma inclusão Questor, não XML. Publicá-lo pela rotina
       // específica preserva a chave estável e a origem na fonte compartilhada.
       resultado.publicacao_compartilhada=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,resultado.movimento_ids);
       estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Entrada do Razão publicada com origem Questor');
+      const previa=db.prepare('SELECT arquivo,resultado_json FROM questor_razao_previas WHERE empresa_id=?').get(empresaId);
+      if (previa) {
+        let salva={}; try { salva=JSON.parse(previa.resultado_json || '{}'); } catch (_) { salva={}; }
+        const incluidas=new Set(resultado.identificadores_incluidos);
+        salva.linhas=(salva.linhas || []).map((linha)=>incluidas.has(linha.identificador)
+          ? { ...linha, situacao:'INCLUIDO_QUESTOR_RAZAO', observacao:'Incluída a partir do Razão; não disponível para nova importação.' }
+          : linha);
+        const ausentes=salva.linhas.filter((linha)=>linha.situacao==='AUSENTE');
+        salva.ausentes=ausentes.length; salva.encontradas=(salva.linhas || []).length-ausentes.length;
+        salva.com_item_cadastrado=ausentes.filter((linha)=>linha.item_sugerido).length;
+        salva.precisam_cadastro=ausentes.length-salva.com_item_cadastrado;
+        db.prepare(`UPDATE questor_razao_previas SET resultado_json=?,atualizado_em=datetime('now','localtime') WHERE empresa_id=?`).run(JSON.stringify(salva),empresaId);
+      }
       // A inclusão confirmada deve entrar na fotografia oficial, que alimenta
       // Cadeia de fornecedores, créditos e indicadores. O cálculo continua
       // assíncrono para não travar a conciliação na tela.

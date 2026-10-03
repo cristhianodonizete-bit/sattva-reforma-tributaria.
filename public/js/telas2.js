@@ -904,8 +904,8 @@ Telas.questor = async (el) => {
       if(arquivo) { const fd=new FormData(); fd.append('arquivo',arquivo); r=await A.api(`/empresas/${S.empresaId}/questor/razao/testar`,{metodo:'POST',corpo:fd,formData:true}); }
       else { r=await A.api(`/empresas/${S.empresaId}/questor/razao/ultima-conciliacao`); if(!r.disponivel) throw new Error('Ainda não há uma conciliação salva. Selecione o arquivo de Razão para iniciar.'); }
       const linhas=Array.isArray(r.linhas)?r.linhas:[];
-      const situacao=(x)=>x.situacao==='ENCONTRADO'?'<span class="tag c">Encontrado</span>':x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="tag c">Encontrado · XML prevalece</span>':'<span class="tag a">Ausente</span>';
-      const cadastro=(x)=>x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="mini">XML considerado</span>':x.item_sugerido?`<span class="tag c">${A.esc(x.item_sugerido.nome)}</span>`:`<button type="button" class="btn vazio pq" data-cadastrar-item-razao="${A.esc(x.identificador)}">Cadastrar item</button>`;
+      const situacao=(x)=>x.situacao==='ENCONTRADO'?'<span class="tag c">Encontrado</span>':x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="tag c">Encontrado · XML prevalece</span>':x.situacao==='INCLUIDO_QUESTOR_RAZAO'?'<span class="tag c">Incluído · Razão</span>':'<span class="tag a">Ausente</span>';
+      const cadastro=(x)=>x.situacao==='ENCONTRADO_XML_PREVALECE'?'<span class="mini">XML considerado</span>':x.situacao==='INCLUIDO_QUESTOR_RAZAO'?'<span class="mini">Já incluído pelo Razão</span>':x.item_sugerido?`<span class="tag c">${A.esc(x.item_sugerido.nome)}</span>`:`<button type="button" class="btn vazio pq" data-cadastrar-item-razao="${A.esc(x.identificador)}">Cadastrar item</button>`;
       const selecao=new Set();
       const tabela=(lista)=>A.tabela([
         {t:'Incluir',r:x=>x.situacao==='AUSENTE'&&x.item_sugerido?`<input type="checkbox" name="razao_incluir" value="${A.esc(x.identificador)}" ${selecao.has(x.identificador)?'checked':''}>`:''},
@@ -917,7 +917,7 @@ Telas.questor = async (el) => {
       ],lista,{vazio:'Nenhum lançamento corresponde aos filtros aplicados.'});
       const resultadoModal=A.modal({titulo:'Resultado do teste do razão',largura:1280,confirmar:'Incluir selecionados',descricao:`${r.linhas_lidas||0} lançamento(s) elegível(is) · ${r.encontradas||0} já representado(s) · ${r.divergencias||0} com diferença tratada pelo XML · ${r.ausentes||0} ausente(s) · ${r.com_item_cadastrado||0} com item cadastrado · ${r.precisam_cadastro||0} para cadastrar. Somente ausentes com item cadastrado podem ser incluídos.`,corpo:`
         <div class="filtros" style="margin:0 0 12px;display:flex;gap:10px;align-items:end;flex-wrap:wrap">
-          <label>Situação<select id="filtroRazaoSituacao"><option value="todas">Todas</option><option value="ausente">Ausentes</option><option value="encontrado">Encontrados</option><option value="xml">Encontrados · XML prevalece</option></select></label>
+          <label>Situação<select id="filtroRazaoSituacao"><option value="todas">Todas</option><option value="ausente">Ausentes</option><option value="incluido">Incluídos pelo Razão</option><option value="encontrado">Encontrados</option><option value="xml">Encontrados · XML prevalece</option></select></label>
           <label>Cadastro<select id="filtroRazaoCadastro"><option value="todos">Todos</option><option value="pendente">Dependem de cadastro</option><option value="cadastrado">Com item cadastrado</option></select></label>
           <label>Item, conta, NF ou histórico<input id="filtroRazaoTexto" placeholder="Ex.: material aplicado"></label>
           <button type="button" class="btn" id="aplicarFiltroRazao">Aplicar filtros</button><button type="button" class="btn vazio" id="selecionarTodosRazao">Selecionar todos visíveis</button><button type="button" class="btn vazio" id="limparSelecaoRazao">Limpar seleção</button><button type="button" class="btn vazio" id="atualizarCadastroRazao">Atualizar itens cadastrados</button><button type="button" class="btn vazio" id="limparFiltroRazao">Limpar filtros</button>
@@ -954,7 +954,7 @@ Telas.questor = async (el) => {
         const cadastroFiltro=resultadoModal.fundo.querySelector('#filtroRazaoCadastro').value;
         const texto=String(resultadoModal.fundo.querySelector('#filtroRazaoTexto').value || '').trim().toLowerCase();
         const filtradas=linhas.filter((linha)=>{
-          const porSituacao=situacaoFiltro==='todas' || (situacaoFiltro==='ausente'&&linha.situacao==='AUSENTE') || (situacaoFiltro==='encontrado'&&linha.situacao==='ENCONTRADO') || (situacaoFiltro==='xml'&&linha.situacao==='ENCONTRADO_XML_PREVALECE');
+          const porSituacao=situacaoFiltro==='todas' || (situacaoFiltro==='ausente'&&linha.situacao==='AUSENTE') || (situacaoFiltro==='incluido'&&linha.situacao==='INCLUIDO_QUESTOR_RAZAO') || (situacaoFiltro==='encontrado'&&linha.situacao==='ENCONTRADO') || (situacaoFiltro==='xml'&&linha.situacao==='ENCONTRADO_XML_PREVALECE');
           const precisaCadastro=linha.situacao==='AUSENTE'&&!linha.item_sugerido;
           const porCadastro=cadastroFiltro==='todos' || (cadastroFiltro==='pendente'&&precisaCadastro) || (cadastroFiltro==='cadastrado'&&linha.situacao==='AUSENTE'&&Boolean(linha.item_sugerido));
           const base=`${linha.conta_codigo||''} ${linha.conta||''} ${linha.historico||''} ${linha.documento||''} ${linha.item_sugerido?.nome||''}`.toLowerCase();
