@@ -772,17 +772,18 @@ Telas.plano = Telas.gestaoProjetos;
 
 Telas.dashboardOperacao = async (el) => {
   const d = await A.api('/operacao/dashboard');
+  const projetosOrdenados = [...(d.projetos || [])].sort((a, b) => String(a.empresa || '').localeCompare(String(b.empresa || ''), 'pt-BR'));
   const atualizadoEm = d.atualizado_em ? new Date(d.atualizado_em).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : null;
-  const concluidos = d.projetos.filter((p) => p.status === 'concluido').length;
-  const emAndamento = d.projetos.filter((p) => p.status === 'em_execucao').length;
+  const concluidos = projetosOrdenados.filter((p) => p.status === 'concluido').length;
+  const emAndamento = projetosOrdenados.filter((p) => p.status === 'em_execucao').length;
   const agenda = d.agenda || [];
   let agendaCompleta = false;
-  const responsaveis = [...new Set(d.projetos.map((p) => p.responsavelSattva).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+  const responsaveis = [...new Set(projetosOrdenados.map((p) => p.responsavelSattva).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
   const colunasEscopo = [
     ['diagnostico', 'Diagnóstico'], ['precificacao', 'Precificação'], ['contratos', 'Revisão de contratos'],
     ['capacitacao_operacional', 'Capacitação operacional'], ['treinamento_boas_praticas', 'Workshop prático'], ['acompanhamento', 'Acompanhamento'],
   ];
-  const matrizEscopos = d.projetos.map((p) => ({ ...p, porChave: new Map((p.responsaveisPorEntrega || []).map((e) => [e.chave, e])) }));
+  const matrizEscopos = projetosOrdenados.map((p) => ({ ...p, porChave: new Map((p.responsaveisPorEntrega || []).map((e) => [e.chave, e])) }));
   const cartaoProjeto = (p) => `<article class="projeto-operacao-card">
     <div class="projeto-operacao-cabecalho"><div><h3>${A.esc(p.empresa)}</h3><p>${A.esc(p.nome_plano || 'Escopo personalizado')}</p></div><span class="tag ${p.status === 'em_execucao' ? 'b' : p.status === 'concluido' ? 'c' : 'n'}">${A.esc(p.status)}</span></div>
     <div class="projeto-operacao-progresso"><div><span>Evolução das entregas</span><b>${p.entregasConcluidas}/${p.entregas} · ${p.progresso}%</b></div><div class="barra-prog"><i style="width:${p.progresso}%"></i></div></div>
@@ -798,17 +799,7 @@ Telas.dashboardOperacao = async (el) => {
       ${A.kpi('Pendências do cliente', d.resumo.pendenciasCliente || 0, 'interações a acompanhar', d.resumo.pendenciasCliente ? 'destaque' : '')}
       ${A.kpi('Escopos sem responsável', d.resumo.escoposSemResponsavel || 0, 'sem usuário responsável', d.resumo.escoposSemResponsavel ? 'destaque' : '')}
       ${A.kpi('Projetos concluídos', concluidos, 'entregas finalizadas')}</div>
-     <div class="cartao matriz-responsaveis"><div class="cabecalho-lista"><div><h2>Responsáveis por escopo</h2><p class="desc">Uma linha por cliente e uma coluna por escopo, como na visão de operação da carteira.</p></div><span class="tag">${matrizEscopos.length} clientes</span></div>${A.tabela([
-       { t: 'Cliente', r: (r) => `<b>${A.esc(r.empresa)}</b>` },
-       ...colunasEscopo.map(([chave, titulo]) => ({ t: titulo, r: (r) => {
-         const entrega = r.porChave.get(chave);
-         if (!entrega) return '<span class="escopo-nao-contratado">Não contratado</span>';
-         if (entrega.usuario_id === d.usuario_atual_id) return '<span class="tag c">Você é responsável</span>';
-         return entrega.responsavel
-           ? `<button class="responsavel-pill responsavel-acao" data-assumir-entrega="${entrega.id || ''}" data-assumir-empresa="${r.empresa_id || ''}" data-assumir-chave="${A.esc(entrega.chave)}">${A.esc(entrega.responsavel)}</button>`
-           : `<button class="btn pq" data-assumir-entrega="${entrega.id || ''}" data-assumir-empresa="${r.empresa_id || ''}" data-assumir-chave="${A.esc(entrega.chave)}">Atribuir para mim</button>`;
-       }})),
-     ], matrizEscopos, { vazio: 'Nenhuma entrega contratada na carteira.' })}</div>
+     <div class="cartao matriz-responsaveis"><div class="cabecalho-lista"><div><h2>Responsáveis por escopo</h2><p class="desc">Uma linha por cliente e uma coluna por escopo, como na visão de operação da carteira.</p></div><span class="tag" id="totalMatrizResponsaveis">${matrizEscopos.length} clientes</span></div><div id="listaResponsaveisEscopo"></div></div>
      <div class="cartao"><div class="cabecalho-lista"><div><h2>Distribuição da operação</h2><p class="desc">Carga atual por responsável, considerando projetos ativos e pendências operacionais.</p></div><span class="tag">${(d.cargaResponsaveis || []).length} responsável${(d.cargaResponsaveis || []).length === 1 ? '' : 'is'}</span></div>${A.tabela([
        { t: 'Responsável', r: (r) => `<b>${A.esc(r.nome)}</b>` },
        { t: 'Projetos em execução', num: true, r: (r) => r.projetos },
@@ -818,8 +809,8 @@ Telas.dashboardOperacao = async (el) => {
      <div class="cartao agenda-operacao"><div class="cabecalho-lista"><div><h2>Próximos marcos</h2><p class="desc">Agenda da operação ordenada por prazo, para organizar a execução da carteira.</p></div><span class="tag" id="totalAgenda">${agenda.length} previstos</span></div>
        <div id="listaAgenda"></div><div class="agenda-acoes" id="acoesAgenda"></div>
      </div>
-     <div class="cartao carteira-operacao"><div class="cabecalho-lista"><div><h2>Carteira de projetos</h2><p class="desc">Acompanhe o que está em execução e a próxima interação prevista para cada cliente.</p></div><span class="tag" id="totalCarteira">${d.projetos.length} projetos</span></div>
-       <div class="filtros-carteira"><label>Situação<select id="filtroStatus"><option value="">Todos</option><option value="em_execucao">Em execução</option><option value="aguardando_aprovacao">Aguardando aprovação</option><option value="concluido">Concluídos</option></select></label><label>Responsável<select id="filtroResponsavel"><option value="">Todos</option><option value="sem_responsavel">Não definido</option>${responsaveis.map((nome) => `<option value="${A.esc(nome)}">${A.esc(nome)}</option>`).join('')}</select></label><label>Pendências do cliente<select id="filtroPendencia"><option value="">Todos</option><option value="com">Com pendência</option><option value="sem">Sem pendência</option></select></label><label>Prazo<select id="filtroPrazo"><option value="">Todos</option><option value="atrasado">Atrasados</option><option value="proximos_7">Próximos 7 dias</option><option value="sem_data">Sem data definida</option></select></label></div>
+     <div class="cartao carteira-operacao"><div class="cabecalho-lista"><div><h2>Carteira de projetos</h2><p class="desc">Acompanhe o que está em execução e a próxima interação prevista para cada cliente.</p></div><span class="tag" id="totalCarteira">${projetosOrdenados.length} projetos</span></div>
+       <div class="filtros-carteira"><label>Exibição<select id="filtroMeus"><option value="todos">Todos</option><option value="meus">Somente os meus</option></select></label><label>Situação<select id="filtroStatus"><option value="">Todos</option><option value="em_execucao">Em execução</option><option value="aguardando_aprovacao">Aguardando aprovação</option><option value="concluido">Concluídos</option></select></label><label>Responsável<select id="filtroResponsavel"><option value="">Todos</option><option value="sem_responsavel">Não definido</option>${responsaveis.map((nome) => `<option value="${A.esc(nome)}">${A.esc(nome)}</option>`).join('')}</select></label><label>Pendências do cliente<select id="filtroPendencia"><option value="">Todos</option><option value="com">Com pendência</option><option value="sem">Sem pendência</option></select></label><label>Prazo<select id="filtroPrazo"><option value="">Todos</option><option value="atrasado">Atrasados</option><option value="proximos_7">Próximos 7 dias</option><option value="sem_data">Sem data definida</option></select></label></div>
        <div id="listaCarteira"></div>
      </div>`;
   const telaDoModulo = { diagnostico: 'painel', precificacao: 'precificacao', contratos: 'contratos', capacitacao: 'capacitacao' };
@@ -838,9 +829,29 @@ Telas.dashboardOperacao = async (el) => {
     const dataPrazo = new Date(`${dataNormalizada}T00:00:00`);
     return dataPrazo >= hoje && dataPrazo <= limite;
   };
+  const projetoDoUsuario = (p) => (p.responsaveisPorEntrega || []).some((entrega) => Number(entrega.usuario_id) === Number(d.usuario_atual_id));
+  const renderMatrizResponsaveis = () => {
+    const somenteMeus = el.querySelector('#filtroMeus')?.value === 'meus';
+    const projetos = matrizEscopos.filter((p) => !somenteMeus || projetoDoUsuario(p));
+    el.querySelector('#totalMatrizResponsaveis').textContent = `${projetos.length} cliente${projetos.length === 1 ? '' : 's'}`;
+    el.querySelector('#listaResponsaveisEscopo').innerHTML = A.tabela([
+      { t: 'Cliente', r: (r) => `<b>${A.esc(r.empresa)}</b>` },
+      ...colunasEscopo.map(([chave, titulo]) => ({ t: titulo, r: (r) => {
+        const entrega = r.porChave.get(chave);
+        if (!entrega) return '<span class="escopo-nao-contratado">Não contratado</span>';
+        if (Number(entrega.usuario_id) === Number(d.usuario_atual_id)) return '<span class="tag c">Você é responsável</span>';
+        return entrega.responsavel
+          ? `<button class="responsavel-pill responsavel-acao" data-assumir-entrega="${entrega.id || ''}" data-assumir-empresa="${r.empresa_id || ''}" data-assumir-chave="${A.esc(entrega.chave)}">${A.esc(entrega.responsavel)}</button>`
+          : `<button class="btn pq" data-assumir-entrega="${entrega.id || ''}" data-assumir-empresa="${r.empresa_id || ''}" data-assumir-chave="${A.esc(entrega.chave)}">Atribuir para mim</button>`;
+      }})),
+    ], projetos, { vazio: somenteMeus ? 'Você ainda não é responsável por nenhum escopo.' : 'Nenhuma entrega contratada na carteira.' });
+  };
   const renderAgenda = () => {
-    const status = el.querySelector('#filtroStatus').value, responsavel = el.querySelector('#filtroResponsavel').value, pendencia = el.querySelector('#filtroPendencia').value, prazo = el.querySelector('#filtroPrazo').value;
-    const filtrada = agenda.filter((m) => (!status || m.projetoStatus === status) && (!responsavel || (responsavel === 'sem_responsavel' ? !m.responsavelSattva : m.responsavelSattva === responsavel)) && (!pendencia || (pendencia === 'com' ? m.pendenciasCliente : !m.pendenciasCliente)) && prazoSelecionado(m.data, m.atrasado, prazo));
+    const status = el.querySelector('#filtroStatus').value, responsavel = el.querySelector('#filtroResponsavel').value, pendencia = el.querySelector('#filtroPendencia').value, prazo = el.querySelector('#filtroPrazo').value, somenteMeus = el.querySelector('#filtroMeus').value === 'meus';
+    const filtrada = agenda.filter((m) => {
+      const projeto = projetosOrdenados.find((p) => Number(p.empresa_id) === Number(m.empresaId));
+      return (!somenteMeus || projetoDoUsuario(projeto || {})) && (!status || m.projetoStatus === status) && (!responsavel || (responsavel === 'sem_responsavel' ? !m.responsavelSattva : m.responsavelSattva === responsavel)) && (!pendencia || (pendencia === 'com' ? m.pendenciasCliente : !m.pendenciasCliente)) && prazoSelecionado(m.data, m.atrasado, prazo);
+    });
     const visiveis = agendaCompleta ? filtrada : filtrada.slice(0, 6);
     el.querySelector('#totalAgenda').textContent = `${filtrada.length} previsto${filtrada.length === 1 ? '' : 's'}`;
     el.querySelector('#listaAgenda').innerHTML = visiveis.length ? `<div class="agenda-marcos">${visiveis.map((m) => `<div class="agenda-marco${m.atrasado ? ' atrasado' : ''}"><div class="agenda-data"><b>${A.esc(m.data)}</b>${m.atrasado ? '<small>Atrasado</small>' : ''}</div><div class="agenda-conteudo"><b>${A.esc(m.titulo)}${m.envolveCliente ? ' · envolve cliente' : ''}</b><span>${A.esc(m.empresa)}${m.etapa ? ` · ${A.esc(m.etapa)}` : ''}${m.responsavelSattva ? ` · Sattva: ${A.esc(m.responsavelSattva)}` : ''}${m.responsavelCliente ? ` · Cliente: ${A.esc(m.responsavelCliente)}` : ''}</span>${m.pendenciaCliente ? `<small class="agenda-pendencia">Pendência: ${A.esc(m.pendenciaCliente)}</small>` : ''}</div>${m.tipo === 'tarefa' && m.modulo ? `<button class="btn pq vazio" data-ir-modulo="${A.esc(m.modulo)}" data-empresa-modulo="${m.empresaId || ''}">Abrir módulo</button>` : `<button class="btn pq vazio" data-ir-projeto="${m.empresaId || ''}">Abrir</button>`}</div>`).join('')}</div>` : A.vazio('Nenhum marco com data foi registrado.', 'Inclua prazos nas tarefas ou competências de acompanhamento.');
@@ -849,8 +860,8 @@ Telas.dashboardOperacao = async (el) => {
     if (botao) botao.onclick = () => { agendaCompleta = !agendaCompleta; renderAgenda(); renderCarteira(); };
   };
   const renderCarteira = () => {
-    const status = el.querySelector('#filtroStatus').value, responsavel = el.querySelector('#filtroResponsavel').value, pendencia = el.querySelector('#filtroPendencia').value, prazo = el.querySelector('#filtroPrazo').value;
-    const projetos = d.projetos.filter((p) => (!status || p.status === status) && (!responsavel || (responsavel === 'sem_responsavel' ? !p.responsavelSattva : p.responsavelSattva === responsavel)) && (!pendencia || (pendencia === 'com' ? p.pendenciasCliente : !p.pendenciasCliente)) && prazoSelecionado(p.proximoMarco?.data || p.proximoAcompanhamento, p.proximoMarco?.atrasado, prazo));
+    const status = el.querySelector('#filtroStatus').value, responsavel = el.querySelector('#filtroResponsavel').value, pendencia = el.querySelector('#filtroPendencia').value, prazo = el.querySelector('#filtroPrazo').value, somenteMeus = el.querySelector('#filtroMeus').value === 'meus';
+    const projetos = projetosOrdenados.filter((p) => (!somenteMeus || projetoDoUsuario(p)) && (!status || p.status === status) && (!responsavel || (responsavel === 'sem_responsavel' ? !p.responsavelSattva : p.responsavelSattva === responsavel)) && (!pendencia || (pendencia === 'com' ? p.pendenciasCliente : !p.pendenciasCliente)) && prazoSelecionado(p.proximoMarco?.data || p.proximoAcompanhamento, p.proximoMarco?.atrasado, prazo));
     el.querySelector('#totalCarteira').textContent = `${projetos.length} projeto${projetos.length === 1 ? '' : 's'}`;
     el.querySelector('#listaCarteira').innerHTML = projetos.length ? `<div class="projetos-operacao">${projetos.map(cartaoProjeto).join('')}</div>` : A.vazio('Nenhum projeto corresponde aos filtros.', 'Ajuste os filtros para ver a carteira completa.');
     el.querySelectorAll('[data-ir-projeto]').forEach((botao) => { botao.onclick = async () => {
@@ -859,14 +870,17 @@ Telas.dashboardOperacao = async (el) => {
     }; });
     el.querySelectorAll('[data-ir-modulo]').forEach((botao) => { botao.onclick = () => abrirModulo(botao.dataset.empresaModulo, botao.dataset.irModulo); });
   };
-  el.querySelectorAll('#filtroStatus,#filtroResponsavel,#filtroPendencia,#filtroPrazo').forEach((campo) => { campo.onchange = () => { agendaCompleta = false; renderAgenda(); renderCarteira(); }; });
-  el.querySelectorAll('[data-assumir-entrega]').forEach((botao) => { botao.onclick = async () => {
+  el.querySelectorAll('#filtroMeus,#filtroStatus,#filtroResponsavel,#filtroPendencia,#filtroPrazo').forEach((campo) => { campo.onchange = () => { agendaCompleta = false; renderMatrizResponsaveis(); renderAgenda(); renderCarteira(); }; });
+  el.addEventListener('click', async (evento) => {
+    const botao = evento.target.closest('[data-assumir-entrega]');
+    if (!botao || !el.contains(botao)) return;
     botao.disabled = true;
     try {
       await A.api(`/empresas/${botao.dataset.assumirEmpresa}/projeto/responsaveis/${botao.dataset.assumirChave}/atribuir-me`, { metodo: 'POST', corpo: { entrega_id: Number(botao.dataset.assumirEntrega) } });
       A.toast('Entrega atribuída a você.', 'ok'); A.ir('dashboardOperacao');
     } catch (e) { botao.disabled = false; A.toast(e.message || 'Não foi possível atribuir a entrega.', 'erro'); }
-  }; });
+  });
+  renderMatrizResponsaveis();
   renderAgenda();
   renderCarteira();
 };
