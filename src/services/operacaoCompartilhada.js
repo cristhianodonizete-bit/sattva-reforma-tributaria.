@@ -1123,6 +1123,18 @@ async function publicarContratos(remoto, empresaId, empresaRemotaId = empresaId)
 // restrito aos fatos operacionais da empresa importada e preserva os IDs que
 // dão rastreabilidade ao lote, movimento e evidência C175.
 function identidadeMovimentoFiscal(linha) {
+  if (String(linha?.origem || '').toLowerCase() === 'xml' && String(linha?.modelo_documento_fiscal || '').toLowerCase() === 'nfse') {
+    // A mesma NFS-e pode ser exportada pelo município com o código de
+    // verificação curto e pelo padrão nacional com chave longa. A chave muda,
+    // mas prestador, tomador, data, número da nota e item permanecem iguais.
+    const numero = String(linha.documento || '').split('/').pop().replace(/\D/g, '');
+    const emissao = String(linha.data_emissao || '').slice(0, 10);
+    const emitente = String(linha.emitente_cnpj || '').replace(/\D/g, '');
+    const destinatario = String(linha.destinatario_cnpj || '').replace(/\D/g, '');
+    if (numero && emissao && emitente && destinatario) {
+      return `xml:nfse:${emitente}:${destinatario}:${emissao}:${numero}:${linha.item_numero == null ? '__SEM_ITEM__' : String(linha.item_numero)}`;
+    }
+  }
   if (String(linha?.origem || '').toLowerCase() === 'xml' && linha?.chave) {
     return `xml:${linha.chave}:${linha.item_numero == null ? '__SEM_ITEM__' : String(linha.item_numero)}`;
   }

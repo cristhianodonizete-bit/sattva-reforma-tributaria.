@@ -2427,7 +2427,16 @@ function sqlMovimentosFiscaisCanonicos() {
   return `WITH movimentos_canonicos AS (
     SELECT m.*,
       ROW_NUMBER() OVER (
-        PARTITION BY CASE WHEN NULLIF(m.chave,'') IS NOT NULL
+        PARTITION BY CASE
+          -- Uma NFS-e pode chegar com código municipal curto ou chave longa
+          -- nacional. Número final, partes e emissão são a identidade comum.
+          WHEN lower(COALESCE(m.origem,''))='xml' AND lower(COALESCE(m.modelo_documento_fiscal,''))='nfse'
+            AND NULLIF(m.documento,'') IS NOT NULL AND NULLIF(m.data_emissao,'') IS NOT NULL
+            AND NULLIF(m.emitente_cnpj,'') IS NOT NULL AND NULLIF(m.destinatario_cnpj,'') IS NOT NULL
+          THEN 'xml:nfse:' || m.emitente_cnpj || ':' || m.destinatario_cnpj || ':' || substr(m.data_emissao,1,10) || ':' ||
+            CASE WHEN instr(m.documento,'/') > 0 THEN substr(m.documento,instr(m.documento,'/') + 1) ELSE m.documento END || ':' ||
+            COALESCE(CAST(m.item_numero AS TEXT),'__SEM_ITEM__')
+          WHEN NULLIF(m.chave,'') IS NOT NULL
           THEN 'xml:' || m.chave || ':' || COALESCE(CAST(m.item_numero AS TEXT),'__SEM_ITEM__')
           ELSE 'id:' || m.id END
         ORDER BY CASE WHEN NULLIF(TRIM(COALESCE(m.modelo_documento_fiscal,'')),'') IS NOT NULL THEN 1 ELSE 0 END DESC,
@@ -6101,6 +6110,13 @@ router.post('/empresas/:id/importar/xml', uploadXml.array('arquivos', 500), asyn
     // Reenviar a mesma pasta não pode duplicar receita, crédito ou débito.
     const movimentoXmlExistente = db.prepare(`SELECT 1 FROM movimentos
       WHERE empresa_id=? AND origem='xml' AND chave=? AND item_numero=? LIMIT 1`);
+    // NFS-e municipal e NFS-e padrão nacional podem representar o mesmo
+    // documento com chaves diferentes. Quando há identificação completa,
+    // número final + partes + data + item é a identidade fiscal estável.
+    const movimentoNfseEquivalente = db.prepare(`SELECT 1 FROM movimentos
+      WHERE empresa_id=? AND origem='xml' AND lower(modelo_documento_fiscal)='nfse'
+        AND data_emissao=? AND emitente_cnpj=? AND destinatario_cnpj=? AND item_numero=?
+        AND (documento=? OR documento LIKE ?) LIMIT 1`);
     const cancelarPorChave = db.prepare(`UPDATE movimentos SET situacao_documento='CANCELADO', cancelado_em=?, cancelamento_motivo=?, cancelamento_origem='XML_EVENTO_CANCELAMENTO'
       WHERE empresa_id=? AND chave=? AND COALESCE(situacao_documento,'AUTORIZADO') <> 'CANCELADO'`);
     const cancelarPorNumero = db.prepare(`UPDATE movimentos SET situacao_documento='CANCELADO', cancelado_em=?, cancelamento_motivo=?, cancelamento_origem='XML_EVENTO_CANCELAMENTO'
@@ -6181,14 +6197,16 @@ router.post('/empresas/:id/importar/xml', uploadXml.array('arquivos', 500), asyn
             if (reg) relatorio.regimesSugeridos++;
           }
           for (const i of r.itens) {
-            if (i.chave && movimentoXmlExistente.get(req.params.id, i.chave, i.item_numero)) {
+            const partesDocumento=String(i.documento||'').split('/');
+            const numeroDocumento=(partesDocumento[partesDocumento.length-1]||'').replace(/\D/g,'');
+            const nfseEquivalente = r.tipoDocumento === 'nfse' && numeroDocumento && i.data_emissao && i.emitente_cnpj && i.destinatario_cnpj
+              && movimentoNfseEquivalente.get(req.params.id, String(i.data_emissao).slice(0, 10), i.emitente_cnpj, i.destinatario_cnpj, i.item_numero, numeroDocumento, `%/${numeroDocumento}`);
+            if ((i.chave && movimentoXmlExistente.get(req.params.id, i.chave, i.item_numero)) || nfseEquivalente) {
               relatorio.duplicados++;
               continue;
             }
             // O código do XML permanece no movimento como evidência. A identidade
             // canônica só será vinculada por fluxo explícito de validação.
-            const partesDocumento=String(i.documento||'').split('/');
-            const numeroDocumento=(partesDocumento[partesDocumento.length-1]||'').replace(/\D/g,'');
             const serieDocumento=(partesDocumento.length>1?partesDocumento[0]:'').replace(/\D/g,'');
             const dataDocumento=String(i.data_emissao||'').slice(0,10);
             const cancelamentoExato=numeroDocumento ? cancelamentoConhecido.get(req.params.id,dataDocumento,numeroDocumento,r.tipoDocumento,serieDocumento,serieDocumento) : null;
