@@ -1756,7 +1756,7 @@ async function telaCadeia(el, tipo) {
         <p class="desc">${eForn ? 'O regime do fornecedor determina o crédito que a empresa toma' : 'Consolidação da carteira por perfil de cliente, enquadramento CBS e efeito projetado da venda.'}</p>
         ${A.tabela([
           { t: eForn ? 'Regime' : 'Perfil', r: (r) => `${A.esc(r.label)}<div class="mini">${r.clienteDiverso ? `${r.itens} lançamento(s) consolidados` : `${r.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`}</div>` },
-          { t: 'Enquadramento CBS', r: (r) => `<span class="tag ${r.faixaOrdem === 'ALIQUOTA_ZERO' ? 'a' : r.faixaOrdem !== 'INTEGRAL' ? 'c' : 'n'}">${A.esc(r.faixaTributacao || 'Base integral')}</span>` },
+          { t: 'Enquadramento CBS', r: (r) => `<span class="tag ${r.faixaOrdem === 'ALIQUOTA_ZERO' ? 'a' : !['INTEGRAL','SIMPLES_DAS'].includes(r.faixaOrdem) ? 'c' : 'n'}">${A.esc(r.faixaTributacao || 'Base integral')}</span>` },
           { t: eForn ? 'Compras atuais' : 'Vendas atuais', num: true, r: (r) => `<b>${A.moeda(r.valor)}</b><div class="mini">${A.pct(r.representatividade, 1)} da carteira</div>` },
           { t: 'Antes — PIS/Cofins', num: true, r: (r) => pisAntes(r) },
           { t: `Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, num: true, r: (r) => tributosReforma(r) },

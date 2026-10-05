@@ -137,6 +137,10 @@ function grupoDaLinha(linha, lado) {
 // zero pelo valor da CBS: Simples/MEI podem ter CBS zerada por outro motivo.
 function faixaTributacao(linha) {
   const classificacao = linha.detalhe?.classificacao || {};
+  // Quando o emitente permanece no Simples, a CBS é a parcela do DAS. A
+  // eventual redução do catálogo do item não é um benefício de CBS aplicado
+  // nessa operação e não pode separar a carteira como se o fosse.
+  if (linha.detalhe?.emitenteNoDas === true) return { chave:'SIMPLES_DAS', label:'CBS no DAS · sem benefício' };
   const chave = String(classificacao.reducao || linha.tratamento || '').toLowerCase();
   const percentual = Number(classificacao.reducaoCbs ?? classificacao.reducao_cbs ?? null);
   if (chave === 'zero' || chave === 'reducao_100' || chave.includes('alíquota zero') || chave.includes('aliquota zero') || (Number.isFinite(percentual) && percentual >= 1)) {
@@ -159,7 +163,7 @@ function leituraBeneficio(linha) {
   const classificacao = detalhe.classificacao || {};
   const elegibilidade = classificacao.elegibilidadeAnexoXi || {};
   const faixa = faixaTributacao(linha);
-  if (faixa.chave === 'INTEGRAL' || ['REQUER_VALIDACAO', 'SEM_CORRESPONDENCIA'].includes(linha.status_classificacao)) return null;
+  if (['INTEGRAL','SIMPLES_DAS'].includes(faixa.chave) || ['REQUER_VALIDACAO', 'SEM_CORRESPONDENCIA'].includes(linha.status_classificacao)) return null;
 
   const aliquota = detalhe.aliquotas || {};
   // Fotografias anteriores do motor guardam a redução como "reducao_60".

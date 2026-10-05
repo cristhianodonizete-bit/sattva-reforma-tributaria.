@@ -17,5 +17,6 @@ testar('redução de 40%', { detalhe: { classificacao: { reducaoCbs: 0.4 } } }, 
 testar('redução de 60%', { detalhe: { classificacao: { reducao_cbs: 0.6 } } }, { chave: 'REDUCAO_60', label: 'Redução de 60%' });
 testar('alíquota zero', { detalhe: { classificacao: { reducao: 'zero' } } }, { chave: 'ALIQUOTA_ZERO', label: 'Alíquota zero' });
 testar('CBS zero de MEI não equivale a alíquota zero', { tratamento: 'normal', cbs: 0, detalhe: { classificacao: {} } }, { chave: 'INTEGRAL', label: 'Base integral' });
+testar('CBS dentro do DAS não recebe benefício do catálogo', { detalhe: { emitenteNoDas:true, classificacao: { reducaoCbs:0.6 } } }, { chave:'SIMPLES_DAS', label:'CBS no DAS · sem benefício' });
 
 console.log('Faixas de redução na cadeia validadas.');
