@@ -22,6 +22,8 @@ function atividades(empresa) {
 
 function classificar(item, contexto) {
   const regime=String(contexto.regime || '').toLowerCase();
+  const cfop=codigo(item.cfop);
+  if (['5915','6915'].includes(cfop)) return { status:'NAO_ELEGIVEL', rotulo:'Sem crédito — remessa', motivo:`CFOP ${cfop}: remessa para conserto/reparo não representa aquisição para crédito de PIS/Cofins.`, evidencia:'CFOP do documento fiscal.' };
   if (!regime) return { status:'A_VALIDAR_REGIME', rotulo:'Validar regime', motivo:'O regime da empresa não está confirmado; não é possível concluir o aproveitamento histórico de PIS/Cofins.', evidencia:'Cadastro da empresa pendente.' };
   if (regimeBloqueia(regime)) return { status:'BLOQUEADO_REGIME', rotulo:'Não apropriável no regime', motivo:`A empresa está no regime ${regime.replace(/_/g,' ')}; esta tela não trata a carga da entrada como crédito histórico apropriável de PIS/Cofins.`, evidencia:'Regime da empresa.' };
   if (termosVedados.test(item.descricao || '')) return { status:'NAO_ELEGIVEL', rotulo:'Não elegível', motivo:'A descrição sugere despesa sem vínculo operacional direto; requer justificativa excepcional para revisão.', evidencia:'Descrição do documento.' };

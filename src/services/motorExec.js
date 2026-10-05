@@ -496,7 +496,7 @@ function coletarConformidade(lista, proj, m, sentido, regime) {
     if (c.candidatos && c.candidatos.length > 1) add('multiplas_classificacoes', `${c.candidatos.length} enquadramentos possíveis`, 'alta');
     else add('cclasstrib_indefinido', c.fundamentos[c.fundamentos.length - 1] || 'Classificação pendente de validação', 'media');
   }
-  if (!c.cst && c.status !== 'SEM_CORRESPONDENCIA') add('cst_indefinido', 'CST IBS/CBS não determinado', 'media');
+  if (!c.cst && c.status !== 'SEM_CORRESPONDENCIA' && !c.semCreditoPorCfop) add('cst_indefinido', 'CST IBS/CBS não determinado', 'media');
   if (!regime) add(sentido === 'entrada' ? 'regime_fornecedor_desconhecido' : 'regime_cliente_desconhecido',
     'Regime da contraparte não cadastrado — afeta diretamente a projeção de crédito', 'alta');
   if (['simples_nacional', 'mei'].includes(regime) && (!proj.simples || proj.simples.origem !== 'faturamento conhecido')) {

@@ -112,6 +112,16 @@ function classificar(item, ctx = {}) {
     return montar('CLASSIFICADO', { cst: '410', cclasstrib: '410001', classificacao: 'Imunidade — exportação', reducao: 'imune' },
       'CFOP', ['Exportação: imune ao IBS/CBS com manutenção dos créditos das aquisições.'], { natureza, sentido });
   }
+  // Remessa para conserto/reparo (por exemplo CFOP 5.915/6.915) não é
+  // aquisição: não há transferência de titularidade nem insumo comprado.
+  // Em uma entrada importada com esse CFOP, a conclusão é suficiente para
+  // encerrar o crédito sem exigir NCM, NBS ou cClassTrib do bem remetido.
+  if (sentido === 'entrada' && (natureza === 'remessa' || ['5915','6915'].includes(String(item.cfop || '').replace(/\D/g,'')))) {
+    return montar('CLASSIFICADO', null, 'CFOP', [
+      `CFOP ${item.cfop}: remessa para conserto/reparo, sem aquisição tributável.`,
+      'A operação não gera crédito de entrada de PIS/Cofins nem crédito CBS/IBS.',
+    ], { natureza:'remessa', sentido, semCreditoPorCfop:true });
+  }
   if (natureza === 'remessa' || natureza === 'transferencia') {
     return montar('REQUER_VALIDACAO', null, 'CFOP',
       [`Operação de ${natureza} identificada pelo CFOP ${item.cfop}. O tratamento depende da finalidade concreta — confirmar se há incidência.`],
@@ -292,6 +302,7 @@ function montar(status, c, origem, fundamentos, extra = {}) {
     impactoTributarioMaterial: extra.equivalenciaFiscal?.impacto_tributario_material ?? null,
     declarado: extra.declarado || null,
     elegibilidadeAnexoXi: extra.elegibilidadeAnexoXi || null,
+    semCreditoPorCfop: !!extra.semCreditoPorCfop,
   };
 }
 

@@ -171,6 +171,9 @@ function contextoAposEquivalencia(item, cls, decisaoExterna = null) {
 }
 
 function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simplesFornecedorConhecido = false, simplesFornecedorReferencia = null, decisaoClassificatoria = null }) {
+  if (sentido === 'entrada' && cls?.semCreditoPorCfop) {
+    return credito('SEM_DIREITO', 'SEM_CREDITO', 'CFOP_SEM_AQUISICAO', 'DETERMINADO', 'CFOP de remessa para conserto/reparo: não caracteriza aquisição e não gera crédito de entrada.');
+  }
   // Regime do adquirente desconhecido não pode ser tratado como se creditasse:
   // isso superestimaria o crédito entregue ao cliente. O desconhecido tem que
   // continuar desconhecido — e virar apontamento, não número otimista.
