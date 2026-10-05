@@ -2497,7 +2497,10 @@ function entradasQuestorPendentesNaListaFiscal(empresaId, filtros = {}) {
     .filter((d) => ['QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO'].includes(String(d.origem || '').toUpperCase()))
     .map((d) => ({ ...d, conciliada_questor:String(d.origem || '').toUpperCase() === 'QUESTOR_CONCILIACAO_ENTRADA', origem_razao:String(d.origem || '').toUpperCase() === 'QUESTOR_RAZAO' }));
 }
-function incorporarEntradasQuestorNaLeituraDireta(leitura, empresaId, filtros = {}) {
+// Vale tanto para a leitura direta quanto para a leitura canônica normal.
+// A origem de uma entrada confirmada não pode depender da chave de ativação
+// temporária da leitura direta, pois isso a faria desaparecer da mesma tela.
+function incorporarEntradasQuestorNaListaFiscal(leitura, empresaId, filtros = {}) {
   if (String(filtros.sentido || '') !== 'fornecedor') return leitura;
   const pendentes=entradasQuestorPendentesNaListaFiscal(empresaId, filtros);
   const referencias=new Set((leitura.documentos || []).map((d) => String(d.referencia || `chave:${d.chave || ''}`)));
@@ -2552,7 +2555,7 @@ router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
     if (leituraDocumentalDiretaControlada(empresa, req.query.competencia)) {
       await garantirEmpresaPermitida(req, req.params.id);
       const leituraRemota=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { limite:req.query.limite, pagina:req.query.pagina });
-      const leitura=incorporarEntradasQuestorNaLeituraDireta(leituraRemota, Number(req.params.id), req.query);
+      const leitura=incorporarEntradasQuestorNaListaFiscal(leituraRemota, Number(req.params.id), req.query);
       // A fonte compartilhada traz os fatos do documento; a indicação de
       // receita é uma regra de apresentação já usada pela rota histórica.
       // Reaplicá-la aqui evita que a leitura direta trate ausência de campo
@@ -2569,7 +2572,8 @@ router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
     const pagina=Math.max(1, Number(req.query.pagina) || 1);
     const filtros={ competencia:req.query.competencia, modelo:req.query.modelo, sentido:req.query.sentido,
       busca:req.query.busca, valor_minimo:req.query.valor_minimo, valor_maximo:req.query.valor_maximo };
-    ok(res,{ ...listarDocumentosFiscais(req.params.id,limite,pagina,filtros), leitura_estado: estadoLeituraEmpresa.estado(db, Number(req.params.id), ['documentos','cancelamentos']) });
+    const leituraLocal=incorporarEntradasQuestorNaListaFiscal(listarDocumentosFiscais(req.params.id,limite,pagina,filtros),Number(req.params.id),filtros);
+    ok(res,{ ...leituraLocal, leitura_estado: estadoLeituraEmpresa.estado(db, Number(req.params.id), ['documentos','cancelamentos']) });
   } catch (e) { erro(res,e); }
 });
 router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
@@ -2583,7 +2587,7 @@ router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
       // defensivo: acima dele a exportação assíncrona deverá ser usada, nunca
       // uma planilha parcial ou uma sobrecarga silenciosa do Web Service.
       const leituraRemota=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { exportacao:true });
-      const leitura=incorporarEntradasQuestorNaLeituraDireta(leituraRemota, Number(req.params.id), req.query);
+      const leitura=incorporarEntradasQuestorNaListaFiscal(leituraRemota, Number(req.params.id), req.query);
       if (leitura.exportacao_limitada) throw new Error(`Exportação direta excede ${leitura.documentos.length} documentos; gere-a pelo fluxo assíncrono para preservar a navegação.`);
       resultado={ documentos:leitura.documentos.map((d)=>({
         ...d,

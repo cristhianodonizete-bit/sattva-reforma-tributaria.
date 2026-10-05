@@ -23,5 +23,7 @@ assert.match(tela,/Rastreabilidade das saídas/);
 assert.match(tela,/Ver rastreabilidade/);
 assert.match(tela,/\{t:'Origem',r:d=>String\(d\.origem/,'a tabela deve exibir a origem da nota');
 assert.match(api,/\['QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO'\]/,'as duas inclusões do Questor devem ser preservadas na lista fiscal');
+assert.match(api,/function incorporarEntradasQuestorNaListaFiscal/,'a composição da lista deve valer para qualquer fonte de leitura');
+assert.match(api,/const leituraLocal=incorporarEntradasQuestorNaListaFiscal/,'a rota normal também precisa exibir as entradas Questor');
 assert.match(tela,/não executa o motor tributário/);
 console.log('OK: rastreabilidade de CFOP das saídas é uma leitura isolada e paginada.');
