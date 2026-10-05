@@ -344,6 +344,12 @@ function lerNfseMunicipal(xml) {
   const inf = tag(xml, 'InfNfse') || tag(xml, 'InfDPS') || xml;
   const prest = tag(inf, 'PrestadorServico') || tag(inf, 'Prestador') || tag(inf, 'prest');
   const tom = tag(inf, 'TomadorServico') || tag(inf, 'Tomador') || tag(inf, 'toma');
+  // No leiaute GISS o bloco PrestadorServico traz nome/endereço, enquanto a
+  // identificação fiscal fica dentro de DeclaracaoPrestacaoServico/Prestador.
+  // Os dois blocos descrevem a mesma parte e precisam ser combinados antes de
+  // determinar se a NFS-e é entrada ou saída da empresa analisada.
+  const declaracao = tag(inf, 'DeclaracaoPrestacaoServico');
+  const prestadorIdentificacao = tag(declaracao, 'Prestador') || tag(inf, 'Prestador');
   const serv = tag(inf, 'Servico') || tag(inf, 'serv');
   const val = tag(serv, 'Valores') || tag(serv, 'valores') || serv;
   const vServ = numero(primeiro(val, ['ValorServicos', 'vServ', 'vServPrest']));
@@ -355,8 +361,8 @@ function lerNfseMunicipal(xml) {
     numero: primeiro(inf, ['Numero', 'nNFSe']),
     data_emissao: (primeiro(inf, ['DataEmissao', 'dhEmi', 'dhProc']) || '').slice(0, 10),
     natureza_operacao: 'Prestação de serviço',
-    emitente_cnpj: soDigitos(primeiro(prest, ['Cnpj', 'CNPJ', 'CpfCnpj', 'CPF'])),
-    emitente_nome: primeiro(prest, ['RazaoSocial', 'xNome', 'NomeFantasia']),
+    emitente_cnpj: soDigitos(primeiro(prest, ['Cnpj', 'CNPJ', 'CpfCnpj', 'CPF']) || primeiro(prestadorIdentificacao, ['Cnpj', 'CNPJ', 'CpfCnpj', 'CPF'])),
+    emitente_nome: primeiro(prest, ['RazaoSocial', 'xNome', 'NomeFantasia']) || primeiro(prestadorIdentificacao, ['RazaoSocial', 'xNome', 'NomeFantasia']),
     destinatario_cnpj: soDigitos(primeiro(tom, ['Cnpj', 'CNPJ', 'CpfCnpj', 'CPF'])),
     destinatario_nome: primeiro(tom, ['RazaoSocial', 'xNome']),
     valor_total: vServ,
