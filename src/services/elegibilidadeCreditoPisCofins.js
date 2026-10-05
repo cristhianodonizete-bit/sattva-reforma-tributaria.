@@ -14,6 +14,7 @@ const palavras = (v) => new Set(texto(v).split(/[^a-z0-9]+/).filter((x) => x.len
 const intersecao = (a,b) => [...a].filter((x) => b.has(x));
 const regimeBloqueia = (regime) => ['simples_nacional','mei','lucro_presumido'].includes(String(regime || '').toLowerCase());
 const termosVedados = /\b(brinde|doacao|doaçao|multa|juros|presente|confraternizacao|confraternização|socio|sócio|uso pessoal|pessoal)\b/i;
+const remessaSemAquisicao = (cfop) => /^[56]9(?:0[1-9]|1\d|2[0-5])$/.test(codigo(cfop));
 
 function atividades(empresa) {
   let secundarios=[]; try { secundarios=JSON.parse(empresa.cnaes_secundarios || '[]'); } catch (_) { secundarios=[]; }
@@ -23,7 +24,7 @@ function atividades(empresa) {
 function classificar(item, contexto) {
   const regime=String(contexto.regime || '').toLowerCase();
   const cfop=codigo(item.cfop);
-  if (['5915','6915'].includes(cfop)) return { status:'NAO_ELEGIVEL', rotulo:'Sem crédito — remessa', motivo:`CFOP ${cfop}: remessa para conserto/reparo não representa aquisição para crédito de PIS/Cofins.`, evidencia:'CFOP do documento fiscal.' };
+  if (remessaSemAquisicao(cfop)) return { status:'NAO_ELEGIVEL', rotulo:'Sem crédito — remessa', motivo:`CFOP ${cfop}: remessa não representa aquisição para crédito de PIS/Cofins.`, evidencia:'CFOP do documento fiscal.' };
   if (!regime) return { status:'A_VALIDAR_REGIME', rotulo:'Validar regime', motivo:'O regime da empresa não está confirmado; não é possível concluir o aproveitamento histórico de PIS/Cofins.', evidencia:'Cadastro da empresa pendente.' };
   if (regimeBloqueia(regime)) return { status:'BLOQUEADO_REGIME', rotulo:'Não apropriável no regime', motivo:`A empresa está no regime ${regime.replace(/_/g,' ')}; esta tela não trata a carga da entrada como crédito histórico apropriável de PIS/Cofins.`, evidencia:'Regime da empresa.' };
   if (termosVedados.test(item.descricao || '')) return { status:'NAO_ELEGIVEL', rotulo:'Não elegível', motivo:'A descrição sugere despesa sem vínculo operacional direto; requer justificativa excepcional para revisão.', evidencia:'Descrição do documento.' };

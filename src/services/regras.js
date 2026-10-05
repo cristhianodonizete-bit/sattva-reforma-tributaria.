@@ -42,6 +42,7 @@ function assegurarCatalogoReceitaCfop() {
     '351','352','353','354','355','356','357','359','360',
     '401','402','403','405','651','652','653','654','655','656',
   ];
+  const gruposRemessa = Array.from({ length:25 },(_,i)=>String(901+i));
   const existe = db.prepare('SELECT id FROM param_cfop WHERE grupo=? AND prefixo IS NULL AND natureza=? LIMIT 1');
   const existeExato = db.prepare('SELECT id FROM param_cfop WHERE grupo=? AND prefixo=? AND natureza=? LIMIT 1');
   const inserir = db.prepare('INSERT INTO param_cfop (grupo,prefixo,natureza,prioridade,descricao,compoe_receita,fonte,versao,vigencia_inicio) VALUES (?,?,?,?,?,?,?,?,?)');
@@ -59,6 +60,7 @@ function assegurarCatalogoReceitaCfop() {
     for (const prefixo of ['1', '2']) if (!existeExato.get('202', prefixo, 'devolucao_venda')) inserir.run('202', prefixo, 'devolucao_venda', 1, 'Devolução de venda — reduz faturamento', 0, fonte, versao, '2023-04-24');
     for (const prefixo of ['5', '6']) if (!existeExato.get('202', prefixo, 'devolucao_fornecedor')) inserir.run('202', prefixo, 'devolucao_fornecedor', 1, 'Devolução a fornecedor — reduz compras', 0, fonte, versao, '2023-04-24');
     for (const grupo of gruposVenda) if (!existe.get(grupo, 'venda')) inserir.run(grupo, null, 'venda', 2, 'Venda / prestação — catálogo positivo', 1, fonte, versao, '2023-04-24');
+    for (const grupo of gruposRemessa) if (!existe.get(grupo, 'remessa')) inserir.run(grupo, null, 'remessa', 1, 'Remessa — circulação sem aquisição para crédito', 0, fonte, versao, '2023-04-24');
     for (const grupo of ['101','102','105','106','127','251','301','358','651','654']) if (!existeExato.get(grupo, '7', 'exportacao')) inserir.run(grupo, '7', 'exportacao', 2, 'Exportação / prestação ao exterior — catálogo positivo', 1, fonte, versao, '2023-04-24');
   })();
   CATALOGO_CFOP_SINCRONIZADO = true;

@@ -23,6 +23,9 @@ const { avaliarEquivalenciaClassificatoria } = require('../services/equivalencia
 const { filtrarCandidatos } = require('../services/elegibilidadeAnexoXi');
 
 const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
+// Famílias de remessa do emitente (5.901–5.925 e 6.901–6.925). Elas
+// registram circulação física sem caracterizar aquisição do destinatário.
+const remessaSemAquisicao = (cfop) => /^[56]9(?:0[1-9]|1\d|2[0-5])$/.test(soDigitos(cfop));
 // A base de serviços traz cClassTrib. Para o motor, o grupo do código define
 // o CST recomendado quando a planilha não o informa explicitamente.
 function cstDaBase(c) {
@@ -116,9 +119,9 @@ function classificar(item, ctx = {}) {
   // aquisição: não há transferência de titularidade nem insumo comprado.
   // Em uma entrada importada com esse CFOP, a conclusão é suficiente para
   // encerrar o crédito sem exigir NCM, NBS ou cClassTrib do bem remetido.
-  if (sentido === 'entrada' && (natureza === 'remessa' || ['5915','6915'].includes(String(item.cfop || '').replace(/\D/g,'')))) {
+  if (sentido === 'entrada' && (natureza === 'remessa' || remessaSemAquisicao(item.cfop))) {
     return montar('CLASSIFICADO', null, 'CFOP', [
-      `CFOP ${item.cfop}: remessa para conserto/reparo, sem aquisição tributável.`,
+      `CFOP ${item.cfop}: remessa sem aquisição tributável.`,
       'A operação não gera crédito de entrada de PIS/Cofins nem crédito CBS/IBS.',
     ], { natureza:'remessa', sentido, semCreditoPorCfop:true });
   }
