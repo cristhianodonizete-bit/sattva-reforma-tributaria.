@@ -20,18 +20,29 @@ async function comCliente(acao) {
   try { return await acao(client); } finally { await client.end(); }
 }
 async function empresaRemota(client, empresaLocalId) {
-  const r = await client.query('SELECT id FROM public.empresas WHERE origem_local_id=$1 OR id=$1 ORDER BY id LIMIT 2', [empresaLocalId]);
-  if (r.rows.length !== 1) throw new Error('Empresa remota não localizada de forma única para persistir PGDAS.');
-  return r.rows[0].id;
+  // origem_local_id é o vínculo canônico. Consultar junto com id remoto torna
+  // uma empresa ambígua quando duas instâncias têm sequências de IDs iguais.
+  const porOrigem = await client.query('SELECT id FROM public.empresas WHERE origem_local_id=$1 ORDER BY id LIMIT 2', [empresaLocalId]);
+  if (porOrigem.rows.length === 1) return porOrigem.rows[0].id;
+  if (porOrigem.rows.length > 1) throw new Error('Empresa remota duplicada para a origem local ao persistir PGDAS.');
+  const porIdLegado = await client.query('SELECT id FROM public.empresas WHERE id=$1 ORDER BY id LIMIT 2', [empresaLocalId]);
+  if (porIdLegado.rows.length !== 1) throw new Error('Empresa remota não localizada de forma única para persistir PGDAS.');
+  return porIdLegado.rows[0].id;
 }
 async function empresaRemotaApi(empresaLocalId) {
-  const { data, error } = await supabase.admin().from('empresas')
-    .select('id,origem_local_id')
-    .or(`origem_local_id.eq.${Number(empresaLocalId)},id.eq.${Number(empresaLocalId)}`)
-    .limit(2);
-  if (error) throw new Error(`Empresa compartilhada indisponível para PGDAS: ${error.message}`);
-  if ((data || []).length !== 1) throw new Error('Empresa remota não localizada de forma única para restaurar PGDAS.');
-  return data[0].id;
+  const remoto = supabase.admin();
+  const { data: porOrigem, error: erroOrigem } = await remoto.from('empresas')
+    .select('id,origem_local_id').eq('origem_local_id', Number(empresaLocalId)).limit(2);
+  if (erroOrigem) throw new Error(`Empresa compartilhada indisponível para PGDAS: ${erroOrigem.message}`);
+  if ((porOrigem || []).length === 1) return porOrigem[0].id;
+  if ((porOrigem || []).length > 1) throw new Error('Empresa compartilhada duplicada para a origem local ao restaurar PGDAS.');
+  // Instalações antigas podem não ter origem_local_id. Mantemos o fallback,
+  // mas somente quando não há vínculo explícito para a empresa local.
+  const { data: porIdLegado, error: erroId } = await remoto.from('empresas')
+    .select('id,origem_local_id').eq('id', Number(empresaLocalId)).limit(2);
+  if (erroId) throw new Error(`Empresa compartilhada indisponível para PGDAS: ${erroId.message}`);
+  if ((porIdLegado || []).length !== 1) throw new Error('Empresa remota não localizada de forma única para restaurar PGDAS.');
+  return porIdLegado[0].id;
 }
 async function publicar(empresaLocalId, documentoLocalId) {
   const documento = db.prepare('SELECT * FROM pgdas_documentos WHERE id=? AND empresa_id=?').get(documentoLocalId, empresaLocalId);
