@@ -2477,7 +2477,7 @@ function listarDocumentosFiscais(empresaId, limite = 100, pagina = 1, filtros = 
         COALESCE(NULLIF(MAX(documento),''), NULLIF(MAX(chave),''), 'Lançamento #' || MIN(id)) documento,
         MIN(competencia) competencia, MIN(data_emissao) data_emissao, MAX(chave) chave, MAX(tipo) tipo, MAX(origem) origem,
         MAX(cfop) cfop, MAX(nbs) nbs, MAX(lc116) lc116, MAX(iss) iss, MAX(modelo_documento_fiscal) modelo_documento_fiscal,
-        MAX(situacao_documento) situacao_documento, MAX(cancelamento_origem) cancelamento_origem,
+        MAX(situacao_documento) situacao_documento, MAX(cancelamento_origem) cancelamento_origem, MAX(cancelamento_motivo) cancelamento_motivo,
         MAX(normalizacao_status) normalizacao_status, MAX(normalizacao_evidencia) normalizacao_evidencia,
         MAX(nome) parceiro, MAX(inscr_federal) inscr_federal, MIN(id) item_id, COUNT(*) itens, SUM(COALESCE(valor,0)) valor,
         SUM(CASE WHEN NULLIF(ncm,'') IS NOT NULL THEN 1 ELSE 0 END) itens_produto,
@@ -2733,6 +2733,67 @@ router.get('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
     }
     if (!itens.length) throw new Error('Documento fiscal não encontrado para a empresa selecionada.');
     ok(res,{ documento:{ referencia:req.params.referencia, numero:itens[0].documento || itens[0].chave || `Lançamento #${itens[0].id}`, competencia:itens[0].competencia, data_emissao:itens[0].data_emissao, origem:itens[0].origem, chave:itens[0].chave, itens } });
+  } catch (e) { erro(res,e); }
+});
+router.post('/empresas/:id/documentos-fiscais/:referencia/cancelar', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId=Number(req.params.id);
+    const motivo=String(req.body?.motivo || '').trim();
+    if (!motivo) throw new Error('Informe o motivo do cancelamento manual.');
+    const filtro=whereDocumentoFiscal(empresaId,req.params.referencia);
+    const antes=db.prepare(`SELECT id,documento,chave,modelo_documento_fiscal,data_emissao,emitente_cnpj,destinatario_cnpj,valor FROM movimentos WHERE ${filtro.sql}`).all(...filtro.valores);
+    if (!antes.length) throw new Error('Documento fiscal não encontrado para a empresa selecionada.');
+    const ids=antes.map((x)=>Number(x.id));
+    const primeiro=antes[0];
+    const partes=String(primeiro.documento || '').split('/');
+    const numero=(partes.at(-1) || '').replace(/\D/g,'');
+    const serie=partes.length > 1 ? partes[0].replace(/\D/g,'') : '';
+    if (!numero || !primeiro.data_emissao || !primeiro.modelo_documento_fiscal) throw new Error('O documento não possui número, data e modelo suficientes para registrar um cancelamento seguro.');
+    const atualizadoEm=new Date().toISOString();
+    db.transaction(()=>{
+      db.prepare(`UPDATE movimentos SET situacao_documento='CANCELADO',cancelado_em=?,cancelamento_motivo=?,cancelamento_origem='MANUAL_USUARIO'
+        WHERE empresa_id=? AND id IN (${ids.map(()=>'?').join(',')})`).run(atualizadoEm,motivo,empresaId,...ids);
+      db.prepare(`DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN (${ids.map(()=>'?').join(',')})`).run(empresaId,...ids);
+      db.prepare(`INSERT INTO documentos_fiscais_cancelamentos (empresa_id,data_emissao,numero,modelo_documento_fiscal,serie,situacao,origem,evidencia,atualizado_em)
+        VALUES (?,?,?,?,?,'CANCELADO','MANUAL_USUARIO',?,?)
+        ON CONFLICT(empresa_id,data_emissao,numero,modelo_documento_fiscal,serie) DO UPDATE SET situacao='CANCELADO',origem='MANUAL_USUARIO',evidencia=excluded.evidencia,atualizado_em=excluded.atualizado_em`)
+        .run(empresaId,String(primeiro.data_emissao).slice(0,10),numero,String(primeiro.modelo_documento_fiscal).toLowerCase(),serie,JSON.stringify({ motivo, usuario_id:req.usuario?.id || null }),atualizadoEm);
+    })();
+    let compartilhado={ ativo:false };
+    if (supabase.configurado()) {
+      const empresaLocal=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId) || {};
+      const cnpj=String(empresaLocal.cnpj || '').replace(/\D/g,'');
+      const remoto=supabase.admin();
+      const { data: porOrigem, error: erroOrigem }=await remoto.from('empresas').select('id,origem_local_id').eq('origem_local_id',empresaId).limit(2);
+      if (erroOrigem) throw erroOrigem;
+      let empresaRemota=(porOrigem || []).length === 1 ? porOrigem[0] : null;
+      if (!empresaRemota && !(porOrigem || []).length) {
+        const { data: porCnpj, error: erroCnpj }=await remoto.from('empresas').select('id,cnpj').eq('cnpj',cnpj).limit(2);
+        if (erroCnpj) throw erroCnpj;
+        if ((porCnpj || []).length === 1) empresaRemota=porCnpj[0];
+      }
+      if (!empresaRemota) throw new Error('Empresa não localizada de forma única na fonte compartilhada; o cancelamento foi preservado localmente.');
+      const cancelamento={ empresa_id:empresaRemota.id,data_emissao:String(primeiro.data_emissao).slice(0,10),numero,modelo_documento_fiscal:String(primeiro.modelo_documento_fiscal).toLowerCase(),serie,situacao:'CANCELADO',origem:'MANUAL_USUARIO',evidencia:JSON.stringify({ motivo, usuario_id:req.usuario?.id || null }),atualizado_em:atualizadoEm };
+      const { error: erroCancelamento }=await remoto.from('documentos_fiscais_cancelamentos').upsert(cancelamento,{onConflict:'empresa_id,data_emissao,numero,modelo_documento_fiscal,serie'});
+      if (erroCancelamento) throw new Error(`Não foi possível registrar o cancelamento compartilhado: ${erroCancelamento.message}`);
+      const chaves=[...new Set(antes.map((x)=>String(x.chave || '')).filter(Boolean))];
+      let consulta=remoto.from('movimentos').select('id').eq('empresa_id',empresaRemota.id);
+      consulta=chaves.length ? consulta.in('chave',chaves) : consulta.eq('documento',primeiro.documento).eq('modelo_documento_fiscal',primeiro.modelo_documento_fiscal).eq('data_emissao',primeiro.data_emissao);
+      const { data: movimentosRemotos, error: erroMovimentos }=await consulta;
+      if (erroMovimentos) throw new Error(`Não foi possível localizar o documento compartilhado: ${erroMovimentos.message}`);
+      const idsRemotos=(movimentosRemotos || []).map((x)=>Number(x.id)).filter(Number.isInteger);
+      if (idsRemotos.length) {
+        const { error: erroAtualizar }=await remoto.from('movimentos').update({ situacao_documento:'CANCELADO',cancelado_em:atualizadoEm,cancelamento_motivo:motivo,cancelamento_origem:'MANUAL_USUARIO' }).in('id',idsRemotos);
+        if (erroAtualizar) throw new Error(`Não foi possível atualizar o documento compartilhado: ${erroAtualizar.message}`);
+        const { error: erroMotor }=await remoto.from('motor_resultados_operacionais').update({ ativo:false }).eq('empresa_id',empresaRemota.id).in('movimento_id',idsRemotos);
+        if (erroMotor) throw new Error(`Não foi possível invalidar o cálculo do documento cancelado: ${erroMotor.message}`);
+      }
+      compartilhado={ ativo:true,movimentos:idsRemotos.length };
+    }
+    estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','cancelamentos','perfil','motor','cadeias','cenarios','precificacao'],'Cancelamento manual registrado');
+    auditar(req,{empresaId,acao:'DOCUMENTO_FISCAL_CANCELADO_MANUALMENTE',entidade:'movimentos',entidadeId:req.params.referencia,antes:{ itens:antes.length,documento:primeiro.documento || primeiro.chave,valor:antes.reduce((s,x)=>s+(Number(x.valor)||0),0) },depois:{ motivo,origem:'MANUAL_USUARIO',compartilhado }});
+    ok(res,{ cancelados:ids.length,motivo,compartilhado });
   } catch (e) { erro(res,e); }
 });
 router.delete('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {

@@ -566,13 +566,13 @@ Telas.dados = async (el) => {
       </section>
       ${A.tabela([
         { t:'Competência', r:d=>A.esc(d.competencia || 'Não identificada') },
-        { t:'Série / nº documento', r:d=>`<b>${A.esc(d.documento)}</b><div class="mini">${A.esc(d.modelo_documento_fiscal || 'modelo não identificado')}</div>${['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(d.situacao_documento || '').toUpperCase()) ? `<span class="tag a">${A.esc(d.situacao_documento)}</span><div class="mini">${A.esc(d.cancelamento_origem === 'QUESTOR_RELATORIO_CANCELADOS' ? 'Confirmado pelo Questor' : d.cancelamento_origem || '')}</div>` : ''}` },
+        { t:'Série / nº documento', r:d=>`<b>${A.esc(d.documento)}</b><div class="mini">${A.esc(d.modelo_documento_fiscal || 'modelo não identificado')}</div>${['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(d.situacao_documento || '').toUpperCase()) ? `<span class="tag a">${A.esc(d.situacao_documento)}</span><div class="mini">${A.esc(d.cancelamento_origem === 'QUESTOR_RELATORIO_CANCELADOS' ? 'Confirmado pelo Questor' : d.cancelamento_origem === 'MANUAL_USUARIO' ? 'Cancelamento manual' : d.cancelamento_origem || '')}${d.cancelamento_motivo ? ` · ${A.esc(d.cancelamento_motivo)}` : ''}</div>` : ''}` },
         { t:'Natureza / modelo', r:d=>{ const n=naturezaDocumento(d); return `<span class="tag ${n[1]}">${n[0]}</span>`; } },
         { t:'Operação', r:d=>d.operacao_receita ? '<span class="tag c">Compõe receita</span>' : `<span class="tag a">Não compõe receita</span><div class="mini">${A.esc(d.motivo_operacao || '')}</div>` },
         { t:'Itens / classificação', num:true, r:d=>String(d.origem || '').toUpperCase()==='QUESTOR_RAZAO' ? `<b>Sem item fiscal</b><div class="mini">${A.esc(d.classificacao_questor || 'Classificação do Razão')}</div>${d.conta_questor ? `<div class="mini mono">Conta ${A.esc(d.conta_questor)}</div>` : ''}` : d.itens },
         { t:'Valor', num:true, r:d=>A.moeda(d.valor) },
         { t:'Origem', r:d=>String(d.origem || '').toUpperCase()==='QUESTOR_CONCILIACAO_ENTRADA' ? '<span class="tag c">Questor · conciliada</span><div class="mini">Entrada incluída após confirmação</div>' : String(d.origem || '').toUpperCase()==='QUESTOR_RAZAO' ? '<span class="tag c">Questor · Razão</span><div class="mini">Entrada incluída a partir do Razão</div>' : A.esc(d.origem || '—') },
-        { t:'Ações', r:d=>d.razao_confirmacao_persistida ? '<span class="mini">Confirmação do Razão preservada</span>' : `<button class="btn pq vazio" data-abrir-documento="${A.esc(d.referencia)}">Abrir</button> <button class="btn pq perigo" data-excluir-documento="${A.esc(d.referencia)}">Excluir</button>` },
+        { t:'Ações', r:d=>d.razao_confirmacao_persistida ? '<span class="mini">Confirmação do Razão preservada</span>' : `<button class="btn pq vazio" data-abrir-documento="${A.esc(d.referencia)}">Abrir</button>${['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(d.situacao_documento || '').toUpperCase()) ? '' : ` <button class="btn pq vazio" data-cancelar-documento="${A.esc(d.referencia)}">Cancelar</button>`} <button class="btn pq perigo" data-excluir-documento="${A.esc(d.referencia)}">Excluir</button>` },
       ], documentosFiscaisFiltrados, { vazio:'Nenhum documento atende aos filtros selecionados.' })}
       ${documentosFiscaisResposta.paginacao?.limite === 100 && (documentosFiscaisResposta.paginacao?.temAnterior || documentosFiscaisResposta.paginacao?.temProxima) ? `<div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;margin-top:12px"><button class="btn pq vazio" data-documentos-pagina="${documentosFiscaisResposta.paginacao.pagina - 1}" ${documentosFiscaisResposta.paginacao.temAnterior ? '' : 'disabled'}>Anterior</button><span class="mini">Página ${documentosFiscaisResposta.paginacao.pagina} de ${documentosFiscaisResposta.paginacao.totalPaginas}</span><button class="btn pq vazio" data-documentos-pagina="${documentosFiscaisResposta.paginacao.pagina + 1}" ${documentosFiscaisResposta.paginacao.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''}
     </div>
@@ -734,6 +734,19 @@ Telas.dados = async (el) => {
             {t:'CFOP / CST',r:m=>`${cfopExibicao(m)}<div class="mono mini">CST ${A.esc(m.cst || '—')}</div>`},
           ],d.itens || [],{vazio:'Nenhum item encontrado.'}), aoConfirmar:async()=>{} });
       } catch(e) { A.toast(e.message,'erro'); }
+    }));
+    el.querySelectorAll('[data-cancelar-documento]').forEach((botao) => botao.addEventListener('click', () => {
+      const doc=documentosFiscais.find((d)=>d.referencia===botao.dataset.cancelarDocumento);
+      if (!doc) return;
+      A.modal({ titulo:`Cancelar documento — ${doc.documento}`, confirmar:'Confirmar cancelamento', largura:620,
+        descricao:'O XML será preservado para auditoria. Esta nota deixará de compor receita, entrada e cálculos até eventual regularização.',
+        corpo:`${A.area('motivo','Motivo do cancelamento manual','',3)}<p class="mini">Informe o motivo que justifica a baixa deste documento.</p>`,
+        aoConfirmar:async(form)=>{
+          const motivo=String(form.motivo || '').trim();
+          if (!motivo) throw new Error('Informe o motivo do cancelamento.');
+          const r=await A.api(`/empresas/${S.empresaId}/documentos-fiscais/${encodeURIComponent(doc.referencia)}/cancelar`,{metodo:'POST',corpo:{motivo}});
+          A.toast(`${r.cancelados} item(ns) marcado(s) como cancelado(s).`, 'ok'); A.ir('dados');
+        } });
     }));
     el.querySelectorAll('[data-excluir-documento]').forEach((botao) => botao.addEventListener('click', () => {
       const doc=documentosFiscais.find((d)=>d.referencia===botao.dataset.excluirDocumento);
