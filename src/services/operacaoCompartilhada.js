@@ -552,9 +552,14 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   // A tela não mistura duas fontes. Havendo fatos pendentes, publica primeiro
   // e consulta novamente a fonte canônica. Se isso falhar, interrompe a
   // leitura em vez de exibir totais parciais ou duplicados.
-  if (pendentes.length || pendentesQuestor.length || (!normalizadas.length && locais.length)) {
+  // Publicação genérica não conhece a identidade contábil do Razão e pode
+  // tratar o id local como se fosse id remoto. Razão/Conciliação Questor só
+  // seguem pela rotina com chave estável abaixo; isso impede que uma leitura
+  // vazia da fonte compartilhada faça a inclusão confirmada desaparecer.
+  const haLocaisGenericos=locais.some((linha)=>!['QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO'].includes(String(linha.origem || '').toUpperCase()));
+  if (pendentes.length || pendentesQuestor.length || (!normalizadas.length && haLocaisGenericos)) {
     try {
-      if (pendentes.length || (!normalizadas.length && locais.length)) await publicarOperacaoEmpresa(id);
+      if (pendentes.length || (!normalizadas.length && haLocaisGenericos)) await publicarOperacaoEmpresa(id);
       if (pendentesQuestor.length) await publicarEntradasQuestorConciliadas(id, pendentesQuestor.map((x)=>x.id));
     }
     catch (erroPublicacao) { throw new Error(`Documentos fiscais aguardam publicação segura: ${erroPublicacao.message}`); }

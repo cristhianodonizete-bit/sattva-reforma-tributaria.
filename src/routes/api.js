@@ -2495,14 +2495,45 @@ function filtrarDocumentosFiscais(documentos, filtros = {}) {
 function entradasQuestorPendentesNaListaFiscal(empresaId, filtros = {}) {
   return filtrarDocumentosFiscais(listarDocumentosFiscais(empresaId, 0, 1, { ...filtros, sentido:'fornecedor' }).documentos, { ...filtros, sentido:'fornecedor' })
     .filter((d) => ['QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO'].includes(String(d.origem || '').toUpperCase()))
-    .map((d) => ({ ...d, conciliada_questor:String(d.origem || '').toUpperCase() === 'QUESTOR_CONCILIACAO_ENTRADA', origem_razao:String(d.origem || '').toUpperCase() === 'QUESTOR_RAZAO' }));
+    .map((d) => {
+      let evidencia={}; try { evidencia=JSON.parse(d.normalizacao_evidencia || '{}'); } catch (_) { /* leitura tolerante */ }
+      return { ...d, classificacao_questor:evidencia.item_cadastrado?.nome || evidencia.item_cadastrado || null,
+        conta_questor:evidencia.conta_codigo || null,
+        conciliada_questor:String(d.origem || '').toUpperCase() === 'QUESTOR_CONCILIACAO_ENTRADA',
+        origem_razao:String(d.origem || '').toUpperCase() === 'QUESTOR_RAZAO' };
+    });
+}
+
+// O Razão não fornece itens fiscais. A confirmação do usuário fica gravada na
+// prévia para impedir reimportação; se uma sincronização antiga tiver perdido
+// o movimento materializado, essa confirmação continua visível como lançamento
+// contábil (nota, valor e classificação), sem fingir que há item de XML.
+function confirmacoesRazaoDaPrevia(empresaId, filtros = {}) {
+  const previa=db.prepare('SELECT resultado_json FROM questor_razao_previas WHERE empresa_id=?').get(Number(empresaId));
+  if (!previa) return [];
+  let resultado={}; try { resultado=JSON.parse(previa.resultado_json || '{}'); } catch (_) { return []; }
+  const presentes=new Set(db.prepare("SELECT normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO'").all(Number(empresaId)).map((x)=>{
+    try { return String(JSON.parse(x.normalizacao_evidencia || '{}').razao_identificador || ''); } catch (_) { return ''; }
+  }).filter(Boolean));
+  const linhas=(resultado.linhas || []).filter((x)=>x?.situacao==='INCLUIDO_QUESTOR_RAZAO' && x.identificador && !presentes.has(String(x.identificador)))
+    .map((x)=>({
+      referencia:`razao-previa:${x.identificador}`,
+      documento:String(x.documento || '').trim() || `Lançamento ${x.sequencia || 'do Razão'}`,
+      competencia:String(x.data || '').slice(0,7), data_emissao:String(x.data || '').slice(0,10) || null,
+      chave:null, tipo:'fornecedor', origem:'QUESTOR_RAZAO', modelo_documento_fiscal:'RAZAO_QUESTOR',
+      parceiro:String(x.participante || '').trim() || 'Razão Questor', valor:Number(x.valor || 0), itens:0,
+      classificacao_questor:x.item_sugerido?.nome || 'Classificação cadastrada', conta_questor:x.conta_codigo || null,
+      lancamento_questor:x.sequencia || null, razao_confirmacao_persistida:true,
+      operacao_receita:false, motivo_operacao:'Lançamento contábil de entrada; não compõe receita.',
+    }));
+  return filtrarDocumentosFiscais(linhas,{ ...filtros, sentido:'fornecedor' });
 }
 // Vale tanto para a leitura direta quanto para a leitura canônica normal.
 // A origem de uma entrada confirmada não pode depender da chave de ativação
 // temporária da leitura direta, pois isso a faria desaparecer da mesma tela.
 function incorporarEntradasQuestorNaListaFiscal(leitura, empresaId, filtros = {}) {
   if (String(filtros.sentido || '') !== 'fornecedor') return leitura;
-  const pendentes=entradasQuestorPendentesNaListaFiscal(empresaId, filtros);
+  const pendentes=[...entradasQuestorPendentesNaListaFiscal(empresaId, filtros),...confirmacoesRazaoDaPrevia(empresaId, filtros)];
   const referencias=new Set((leitura.documentos || []).map((d) => String(d.referencia || `chave:${d.chave || ''}`)));
   const adicionais=pendentes.filter((d) => !referencias.has(String(d.referencia || `chave:${d.chave || ''}`)));
   if (!adicionais.length) return leitura;
@@ -6820,13 +6851,25 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
 router.get('/empresas/:id/entradas-manuais', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);
-    const entradas=db.prepare(`SELECT id,competencia,nome,descricao,valor,cst_declarado,cclasstrib_declarado,normalizacao_evidencia,criado_em
+    const entradas=db.prepare(`SELECT id,competencia,nome,descricao,valor,origem,cst_declarado,cclasstrib_declarado,normalizacao_evidencia,criado_em
       FROM movimentos WHERE empresa_id=? AND origem IN ('MANUAL_ENTRADA','QUESTOR_RAZAO') ORDER BY competencia DESC,id DESC`).all(Number(req.params.id)).map((x)=>{
       let evidencia={}; try { evidencia=JSON.parse(x.normalizacao_evidencia || '{}'); } catch (_) { /* preserva a listagem mesmo com evidência legada */ }
       return { ...x, normalizacao_evidencia:undefined, origem:x.origem, item_cadastrado:evidencia.item_cadastrado || null,
         beneficio_percentual:evidencia.beneficio_percentual ?? null, referencia_pis_cofins:evidencia.referencia_pis_cofins || null };
     });
-    ok(res,{ entradas, total:entradas.length, leitura:'Lançamentos manuais já registrados. Esta consulta não executa o motor nem altera documentos.' });
+    // Recupera também confirmações históricas do Razão que ficaram gravadas
+    // na prévia, mas cuja materialização local foi perdida por uma versão
+    // anterior da sincronização. Elas são exibidas como lançamento contábil,
+    // sem inventar item fiscal nem escondê-las da tela de entradas manuais.
+    const confirmadas=confirmacoesRazaoDaPrevia(Number(req.params.id)).map((x)=>({
+      id:null, competencia:x.competencia, nome:x.parceiro, descricao:x.classificacao_questor,
+      valor:x.valor, cst_declarado:null, cclasstrib_declarado:null, origem:'QUESTOR_RAZAO',
+      documento:x.documento, conta_questor:x.conta_questor, lancamento_questor:x.lancamento_questor,
+      item_cadastrado:{ nome:x.classificacao_questor }, razao_confirmacao_persistida:true,
+      criado_em:null,
+    }));
+    const todas=[...entradas,...confirmadas].sort((a,b)=>String(b.competencia || '').localeCompare(String(a.competencia || '')));
+    ok(res,{ entradas:todas, total:todas.length, leitura:'Lançamentos manuais e confirmações do Razão já registradas. Esta consulta não executa o motor nem altera documentos.' });
   } catch(e) { erro(res,e); }
 });
 
