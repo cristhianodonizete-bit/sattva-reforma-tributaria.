@@ -101,6 +101,21 @@ function salvarMargem(db, empresaId, dados) {
   return { id: r.lastInsertRowid };
 }
 
+function editarMargem(db, empresaId, margemId, dados) {
+  validarEmpresa(db, empresaId);
+  const atual=db.prepare('SELECT * FROM margens_operacionais_premissas WHERE id=? AND empresa_id=?').get(Number(margemId), empresaId);
+  if (!atual) throw new Error('Margem operacional não localizada.');
+  const inicio=texto(dados.periodo_inicio), fim=texto(dados.periodo_fim);
+  if (!competenciaValida(inicio) || !competenciaValida(fim) || inicio > fim) throw new Error('Período da margem inválido.');
+  const margem=numeroObrigatorio(dados.margem_operacional_percentual,'Margem operacional');
+  if (margem > 100) throw new Error('Margem operacional deve ser informada em percentual entre 0 e 100.');
+  const duplicada=db.prepare('SELECT id FROM margens_operacionais_premissas WHERE empresa_id=? AND periodo_inicio=? AND periodo_fim=? AND id<>?').get(empresaId,inicio,fim,Number(margemId));
+  if (duplicada) throw new Error('Já existe margem operacional para este período.');
+  db.prepare(`UPDATE margens_operacionais_premissas SET periodo_inicio=?,periodo_fim=?,margem_operacional_percentual=?,origem=?,status_validacao=?,atualizado_em=datetime('now','localtime') WHERE id=? AND empresa_id=?`)
+    .run(inicio,fim,margem,texto(dados.origem || atual.origem || 'MANUAL'),status(dados.status_validacao || atual.status_validacao),Number(margemId),empresaId);
+  return { id:Number(margemId), periodo_inicio:inicio, periodo_fim:fim, periodo_inicio_anterior:atual.periodo_inicio, periodo_fim_anterior:atual.periodo_fim, margem_operacional_percentual:margem };
+}
+
 function candidatosDocumento(db, empresaId, competencia, valor) {
   const linhas = db.prepare(`SELECT id,descricao,documento,chave FROM movimentos
     WHERE empresa_id=? AND competencia=? AND tipo='cliente' AND ABS(COALESCE(valor,0)-?) < 0.005`).all(empresaId, competencia, valor);
@@ -159,4 +174,4 @@ function listar(db, empresaId) {
   };
 }
 
-module.exports = { salvarFolha, editarFolha, salvarMargem, salvarReceitaSemDfe, listar, STATUS_VALIDACAO, CLASSIFICACOES_RECEITA, classificacaoAutomatica };
+module.exports = { salvarFolha, editarFolha, salvarMargem, editarMargem, salvarReceitaSemDfe, listar, STATUS_VALIDACAO, CLASSIFICACOES_RECEITA, classificacaoAutomatica };

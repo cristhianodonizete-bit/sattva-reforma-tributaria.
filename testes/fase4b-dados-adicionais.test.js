@@ -33,6 +33,9 @@ assert.strictEqual(db.prepare('SELECT COUNT(*) AS total FROM folhas_pagamento_co
 assert.doesNotThrow(() => dados.salvarMargem(db, 1, { periodo_inicio: '2026-01', periodo_fim: '2026-06', margem_operacional_percentual: 18.5 }));
 assert.throws(() => dados.salvarMargem(db, 1, { periodo_inicio: '2026-01', periodo_fim: '2026-06', margem_operacional_percentual: 20 }), /Já existe margem/);
 assert.strictEqual(db.prepare('SELECT natureza FROM margens_operacionais_premissas WHERE empresa_id=1').get().natureza, 'PREMISSA_INFORMADA');
+const margemEditada=dados.editarMargem(db,1,1,{ periodo_inicio:'2026-02', periodo_fim:'2026-07', margem_operacional_percentual:21.75 });
+assert.strictEqual(margemEditada.periodo_inicio_anterior,'2026-01');
+assert.strictEqual(db.prepare('SELECT periodo_inicio,periodo_fim,margem_operacional_percentual FROM margens_operacionais_premissas WHERE id=1').get().margem_operacional_percentual,21.75);
 
 const receita = dados.salvarReceitaSemDfe(db, 1, { competencia: '2026-08', tipo_receita: 'ALUGUEL', descricao: 'Aluguel de imóvel', valor: 5000, evidencia: 'Contrato 1' });
 assert.strictEqual(receita.possivel_duplicidade, false);

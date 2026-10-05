@@ -42,6 +42,16 @@ async function removerFolhaPorCompetencia(empresaLocalId, competencia) {
   return { ativo:true, removidas:count || 0 };
 }
 
+async function removerMargemPorPeriodo(empresaLocalId, periodoInicio, periodoFim) {
+  if (!supabase.configurado() || !periodoInicio || !periodoFim) return { ativo:false, removidas:0 };
+  const remoto= supabase.admin();
+  const empresaIdRemota=await empresaRemota(remoto,empresaLocalId);
+  const { error,count }=await remoto.from('margens_operacionais_premissas').delete({ count:'exact' })
+    .eq('empresa_id',empresaIdRemota).eq('periodo_inicio',periodoInicio).eq('periodo_fim',periodoFim);
+  if (error) throw new Error(`margens_operacionais_premissas: ${error.message}`);
+  return { ativo:true, removidas:count || 0 };
+}
+
 // A exclusão precisa atingir a fonte compartilhada antes do cache local.
 // Assim, um registro removido pelo usuário não reaparece numa restauração.
 async function removerReceita(db, empresaLocalId, receitaId) {
@@ -93,4 +103,4 @@ async function restaurar(db, empresaLocalId) {
   return { ativo:true, ...resultado };
 }
 
-module.exports = { publicar, restaurar, removerFolhaPorCompetencia, removerReceita };
+module.exports = { publicar, restaurar, removerFolhaPorCompetencia, removerMargemPorPeriodo, removerReceita };

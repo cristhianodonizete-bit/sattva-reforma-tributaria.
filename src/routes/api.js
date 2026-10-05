@@ -1333,6 +1333,19 @@ router.post('/empresas/:id/margens-operacionais', async (req, res) => {
   }
   catch (e) { erro(res, e); }
 });
+router.put('/empresas/:id/margens-operacionais/:margemId', async (req, res) => {
+  try {
+    const empresaId=Number(req.params.id);
+    await dadosAdicionaisCompartilhados.restaurar(db, empresaId);
+    const resultado=dadosAdicionaisAnalise.editarMargem(db,empresaId,Number(req.params.margemId),req.body || {});
+    await publicarDadosAdicionais(empresaId);
+    if (resultado.periodo_inicio_anterior!==resultado.periodo_inicio || resultado.periodo_fim_anterior!==resultado.periodo_fim) {
+      await dadosAdicionaisCompartilhados.removerMargemPorPeriodo(empresaId,resultado.periodo_inicio_anterior,resultado.periodo_fim_anterior);
+    }
+    ok(res,resultado);
+  }
+  catch (e) { erro(res,e); }
+});
 router.post('/empresas/:id/receitas-sem-dfe', async (req, res) => {
   try {
     const resultado = dadosAdicionaisAnalise.salvarReceitaSemDfe(db, Number(req.params.id), req.body || {});
