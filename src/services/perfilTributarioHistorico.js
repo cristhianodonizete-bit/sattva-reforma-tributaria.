@@ -86,6 +86,7 @@ function montarComposicaoPisCofinsPgdas(db, empresaId, perfis, noExercicio, opco
         rpa_competencia: bruto.rpa_competencia == null ? null : numero(bruto.rpa_competencia),
         rpa_caixa: bruto.rpa_caixa == null ? null : numero(bruto.rpa_caixa),
         descricao_bloco: blocoDeclarado.description_raw, receita_pgdas: numero(blocoDeclarado.revenue_amount), receita_competencia: (calculoCompetencia?.memoria || []).find((x) => x.anexo === blocoDeclarado.anexo)?.receita_competencia ?? null,
+        receita_bruta_declarada_pgdas: perfil.receita_bruta == null ? null : numero(perfil.receita_bruta),
         receita_competencia_total: calculoCompetencia?.receita_competencia_total ?? null,
         receita_competencia_vinculada: calculoCompetencia?.receita_competencia_vinculada ?? null,
         receita_competencia_sem_anexo: calculoCompetencia?.receita_competencia_sem_anexo ?? null,
