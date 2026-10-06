@@ -1604,13 +1604,18 @@ router.post('/empresas/:id/perfil-tributario-historico/auditoria/:competencia/co
     const justificativa = String(req.body?.justificativa || '').trim();
     if (!/^\d{4}-\d{2}$/.test(competencia)) throw new Error('Informe uma competência válida.');
     if (justificativa.length < 10) throw new Error('Explique a divergência em pelo menos 10 caracteres.');
-    // A página de Perfil já reconcilia os documentos antes de exibir a
-    // auditoria. Repetir toda a leitura remota no clique de confirmação pode
-    // exceder o prazo do proxy e devolver uma página HTML em vez de JSON.
-    // A confirmação é uma anotação sobre a memória que o usuário acabou de
-    // conferir; se PGDAS, XML ou lançamentos mudarem, a assinatura abaixo
-    // deixa de coincidir e a divergência volta a ficar aberta.
-    const perfil = perfilTributarioHistorico.consolidar(db, empresaId);
+    // A tela de Perfil monta a auditoria com a fotografia canônica retornada
+    // pela reconciliação documental. Recalcular aqui só a partir do cache
+    // SQLite podia fazer a divergência exibida desaparecer no clique, pois as
+    // duas fontes ainda não tinham a mesma composição. Reutilizamos a mesma
+    // reconciliação (normalmente já cacheada, sem nova leitura remota) para
+    // que a competência confirmada seja exatamente a que o usuário viu.
+    const periodo=db.prepare('SELECT competencia_inicio,competencia_fim FROM empresa_periodo_analisado WHERE empresa_id=?').get(empresaId);
+    const reconciliacao=await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(empresaId,{
+      competenciaInicio:periodo?.competencia_inicio,
+      competenciaFim:periodo?.competencia_fim,
+    });
+    const perfil = perfilTributarioHistorico.consolidar(db, empresaId, { movimentos:reconciliacao.movimentos });
     const linha = (perfil.auditoria_mensal || []).find((x) => x.competencia === competencia);
     if (!linha || linha.situacao !== 'DIVERGENCIA_A_CONFERIR') throw new Error('Esta competência não possui uma divergência aberta para confirmar.');
     const assinatura = perfilTributarioHistorico.assinarAuditoriaMensal(linha);
