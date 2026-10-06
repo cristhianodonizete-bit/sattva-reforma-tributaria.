@@ -2712,6 +2712,23 @@ db.prepare(`UPDATE param_regimes
       obs = 'Premissa versionada de 2,5% para reconstrução econômica de PIS/COFINS quando não houver regra específica; não é alíquota legal fixa do DAS.'
   WHERE chave = 'simples_nacional' AND (pis_cofins IS NULL OR ABS(pis_cofins) < 0.0000001)`).run();
 
+// A premissa de PIS/Cofins não preenche, por si só, o crédito CBS do
+// fornecedor do Simples. Quando o cadastro ainda não definiu esse campo,
+// adotamos a referência técnica de 2,5% (0,025) para que a operação fique
+// simulada e auditável, em vez de indevidamente indeterminada. Valor já
+// informado pelo usuário nunca é substituído.
+const ajusteCreditoCbsSimples=db.prepare(`UPDATE param_regimes
+  SET credito_cbs_simples_referencia = 0.025
+  WHERE chave = 'simples_nacional' AND credito_cbs_simples_referencia IS NULL`).run();
+if (ajusteCreditoCbsSimples.changes) {
+  db.prepare(`INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+    SELECT m.empresa_id,m.id,'PREMISSA_CREDITO_CBS_SIMPLES_025',datetime('now','localtime')
+    FROM movimentos m
+    LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo AND p.cnpj=m.inscr_federal
+    WHERE m.tipo='fornecedor' AND COALESCE(p.regime,m.regime)='simples_nacional'
+    ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em`).run();
+}
+
 if (db.prepare('SELECT COUNT(*) c FROM param_reducoes').get().c === 0) {
   const P = require('./config/parametros');
   const ins = db.prepare('INSERT INTO param_reducoes (chave, label, reducao, especifico, descricao, ordem) VALUES (?,?,?,?,?,?)');

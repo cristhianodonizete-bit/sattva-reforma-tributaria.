@@ -7,6 +7,8 @@ const db = require('../src/db');
 const regras = require('../src/services/regras');
 const { avaliarCredito, projetarItem } = require('../src/engine/motor');
 const cls = { status: 'CLASSIFICADO' };
+assert.equal(regras.regime('simples_nacional').creditoCbsSimplesReferencia, 0.025,
+  'cadastro padrão do Simples usa referência CBS de 2,5% quando não houve definição manual');
 const regular = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeFornecedor: 'lucro_real', cls });
 assert.deepEqual([regular.tipoCredito, regular.statusDeterminacao], ['NORMAL', 'DETERMINADO']);
 const simplesConhecido = avaliarCredito({ regimeAdquirente: 'lucro_real', regimeFornecedor: 'simples_nacional', cls, simplesFornecedorConhecido: true });
