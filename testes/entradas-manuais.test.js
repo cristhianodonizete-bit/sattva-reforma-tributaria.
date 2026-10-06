@@ -38,6 +38,7 @@ assert.match(api,/publicarEntradasQuestorConciliadas\(empresaId,resultado\.movim
 assert.match(api,/listarEntradasQuestor/,'entradas manuais também devem ler inclusões Questor já publicadas na fonte compartilhada');
 assert.match(api,/QUESTOR_CONCILIACAO_ENTRADA/,'a consulta manual preserva tanto o Razão quanto a conciliação direta do Questor');
 assert.match(api,/entradasCompartilhadas/,'a cópia local não pode ser a única origem da listagem');
+assert.match(api,/typeof x\.normalizacao_evidencia === 'object'/,'a evidência e a classificação sobrevivem à leitura JSON do PostgreSQL');
 assert.match(tela,/referenciaPisCofinsEntradaManual/);
 assert.match(tela,/Entradas manuais/);
 assert.match(tela,/Lançamentos manuais de entrada/);

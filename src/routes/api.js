@@ -7020,7 +7020,12 @@ router.get('/empresas/:id/entradas-manuais', async (req, res) => {
     const empresaId=Number(req.params.id);
     const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId);
     const normalizarEntrada=(x)=>{
-      let evidencia={}; try { evidencia=JSON.parse(x.normalizacao_evidencia || '{}'); } catch (_) { /* preserva a listagem mesmo com evidência legada */ }
+      // SQLite conserva JSON como texto; PostgreSQL o entrega como objeto.
+      // Aceitar ambos evita perder justamente a classificação exibida quando
+      // a linha vem da fonte compartilhada.
+      let evidencia={};
+      if (x.normalizacao_evidencia && typeof x.normalizacao_evidencia === 'object') evidencia=x.normalizacao_evidencia;
+      else try { evidencia=JSON.parse(x.normalizacao_evidencia || '{}'); } catch (_) { /* preserva a listagem mesmo com evidência legada */ }
       return { ...x, normalizacao_evidencia:undefined, origem:x.origem, item_cadastrado:evidencia.item_cadastrado || null,
         beneficio_percentual:evidencia.beneficio_percentual ?? null, referencia_pis_cofins:evidencia.referencia_pis_cofins || null };
     };
