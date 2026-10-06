@@ -103,6 +103,39 @@ function regimeCbs(regime) {
 function credito(legado, tipoCredito, modalidadeCredito, statusDeterminacao, motivo) {
   return { status: legado, tipoCredito, modalidadeCredito, statusDeterminacao, motivo };
 }
+function somenteDigitos(valor) { return String(valor || '').replace(/\D/g, ''); }
+
+// LC 214/2025, arts. 276 e 283: a vedação é do adquirente. Ela não impede
+// que o próprio hotel/parque aproveite créditos das suas aquisições (art. 282).
+// A alimentação contratada por PJ ficou deliberadamente fora do bloqueio: ela
+// não integra o regime específico de bares e restaurantes (art. 273, §2º).
+function vedacaoCreditoAdquirenteRegimeEspecifico(item = {}, cls = {}) {
+  const cclasstrib = somenteDigitos(cls.cclasstrib);
+  const cst = somenteDigitos(cls.cst);
+  const lc116 = somenteDigitos(item.lc116);
+  const nbs = somenteDigitos(item.nbs);
+  if (cst.startsWith('4') || ['zero', 'imune'].includes(String(cls.reducao || '').toLowerCase())) {
+    return { status: 'SEM_DIREITO', modalidade: 'OPERACAO_SEM_CREDITO_ADQUIRENTE',
+      motivo: 'Operação imune, isenta ou com alíquota zero: não permite apropriação de crédito pelo adquirente (LC 214/2025, art. 49).' };
+  }
+  if (cclasstrib === '200048' || (lc116 === '0901' && /^1030[34]/.test(nbs))) {
+    return { status: 'SEM_DIREITO', modalidade: 'REGIME_ESPECIFICO_SEM_CREDITO_ADQUIRENTE',
+      motivo: 'Serviços de hotelaria, parques de diversão ou parques temáticos: o adquirente não pode apropriar crédito de CBS/IBS (LC 214/2025, art. 283).' };
+  }
+  if (nbs === '103011000' && item.fornecimento_alimentacao_contrato_pj !== true) {
+    return { status: 'SEM_DIREITO', modalidade: 'REGIME_ESPECIFICO_SEM_CREDITO_ADQUIRENTE',
+      motivo: 'Alimentação fornecida por bar ou restaurante: o adquirente não pode apropriar crédito de CBS/IBS (LC 214/2025, art. 276).' };
+  }
+  if (cclasstrib === '200021') {
+    return { status: 'SEM_DIREITO', modalidade: 'REGIME_ESPECIFICO_SEM_CREDITO_ADQUIRENTE',
+      motivo: 'Serviço de transporte coletivo de passageiros no regime específico: o adquirente não pode apropriar crédito de CBS/IBS (LC 214/2025, art. 285, III).' };
+  }
+  if (cclasstrib === '010002' && item.credito_servico_financeiro_permitido !== true) {
+    return { status: 'SUJEITO_VALIDACAO', modalidade: 'SERVICO_FINANCEIRO_CREDITO_CONDICIONAL',
+      motivo: 'Serviço financeiro: crédito somente é admitido nas hipóteses expressas da LC 214/2025, arts. 194 a 198. A operação não traz a evidência dessa hipótese.' };
+  }
+  return null;
+}
 function memoriaElegibilidadeSimples({ sentido, regimeEmitente, regimeAdquirente, cls, item, ano }) {
   if (sentido !== 'entrada' || regimeEmitente !== 'simples_nacional' || !['lucro_real', 'lucro_presumido', 'regime_regular'].includes(regimeAdquirente)) return null;
   const resposta = resolvedorRegra.resolver({
@@ -170,9 +203,14 @@ function contextoAposEquivalencia(item, cls, decisaoExterna = null) {
   };
 }
 
-function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, simplesFornecedorConhecido = false, simplesFornecedorReferencia = null, decisaoClassificatoria = null }) {
+function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, item = {}, simplesFornecedorConhecido = false, simplesFornecedorReferencia = null, decisaoClassificatoria = null }) {
   if (sentido === 'entrada' && cls?.semCreditoPorCfop) {
     return credito('SEM_DIREITO', 'SEM_CREDITO', 'CFOP_SEM_AQUISICAO', 'DETERMINADO', 'CFOP de remessa para conserto/reparo: não caracteriza aquisição e não gera crédito de entrada.');
+  }
+  if (sentido === 'entrada') {
+    const vedacaoRegimeEspecifico = vedacaoCreditoAdquirenteRegimeEspecifico(item, cls);
+    if (vedacaoRegimeEspecifico) return credito(vedacaoRegimeEspecifico.status, vedacaoRegimeEspecifico.status === 'SEM_DIREITO' ? 'SEM_CREDITO' : null,
+      vedacaoRegimeEspecifico.modalidade, vedacaoRegimeEspecifico.status === 'SEM_DIREITO' ? 'DETERMINADO' : 'SUJEITO_VALIDACAO', vedacaoRegimeEspecifico.motivo);
   }
   // Regime do adquirente desconhecido não pode ser tratado como se creditasse:
   // isso superestimaria o crédito entregue ao cliente. O desconhecido tem que
@@ -331,6 +369,7 @@ function projetarItem(item, ctx) {
     ? credito('SEM_DIREITO', 'SEM_CREDITO', null, 'DETERMINADO', 'Cadastro do item de entrada: não gera crédito CBS/IBS nesta projeção.')
     : avaliarCredito({
       regimeAdquirente: regimeAdquirenteProjetado, regimeFornecedor: regimeEmitente, cls, sentido,
+      item,
       decisaoClassificatoria: contextoClassificatorio.decisao,
       simplesFornecedorConhecido: percentualEfetivoSimples,
       // O status de crédito deve registrar DETERMINADO quando a operação traz o
@@ -613,5 +652,5 @@ function cargaAtual(itens) {
 module.exports = {
   naturezaItem, projetarItem, cenariosSimples, classificarDestinatario, sensibilidadeCredito, regimeCbs,
   compararPerfis, apurar, cargaAtual, aliquotasEfetivas, aliquotasDoAno, anosDisponiveis, classificacaoBloqueiaCredito,
-  anexosSimples, avaliarCredito, contextoAposEquivalencia,
+  anexosSimples, avaliarCredito, contextoAposEquivalencia, vedacaoCreditoAdquirenteRegimeEspecifico,
 };

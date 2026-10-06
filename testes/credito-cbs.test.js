@@ -104,4 +104,34 @@ const vendaPf = projetarItem({ valor: 1000, valor_total: 1000, cfop: '5102', des
 assert.equal(vendaPf.cbs > 0, true);
 const creditoPf = avaliarCredito({ regimeAdquirente: 'pessoa_fisica', regimeFornecedor: 'lucro_real', cls });
 assert.equal(creditoPf.tipoCredito, 'SEM_CREDITO');
+
+const hotel = avaliarCredito({
+  regimeAdquirente: 'lucro_real', regimeFornecedor: 'lucro_real', sentido: 'entrada',
+  item: { lc116: '09.01', nbs: '103031100' }, cls: { ...cls, cclasstrib: '200048' },
+});
+assert.deepEqual([hotel.status, hotel.modalidadeCredito], ['SEM_DIREITO', 'REGIME_ESPECIFICO_SEM_CREDITO_ADQUIRENTE']);
+
+const restaurante = avaliarCredito({
+  regimeAdquirente: 'lucro_real', regimeFornecedor: 'lucro_real', sentido: 'entrada',
+  item: { lc116: '17.11', nbs: '103011000' }, cls,
+});
+assert.equal(restaurante.status, 'SEM_DIREITO');
+
+const transporteColetivo = avaliarCredito({
+  regimeAdquirente: 'lucro_real', regimeFornecedor: 'lucro_real', sentido: 'entrada',
+  item: { lc116: '16.01', nbs: '104011610' }, cls: { ...cls, cclasstrib: '200021' },
+});
+assert.equal(transporteColetivo.status, 'SEM_DIREITO');
+
+const servicoFinanceiro = avaliarCredito({
+  regimeAdquirente: 'lucro_real', regimeFornecedor: 'lucro_real', sentido: 'entrada',
+  item: { lc116: '15.01', nbs: '109014000' }, cls: { ...cls, cclasstrib: '010002' },
+});
+assert.equal(servicoFinanceiro.status, 'SUJEITO_VALIDACAO');
+
+const alimentacaoContratada = avaliarCredito({
+  regimeAdquirente: 'lucro_real', regimeFornecedor: 'lucro_real', sentido: 'entrada',
+  item: { lc116: '17.11', nbs: '103013900', fornecimento_alimentacao_contrato_pj: true }, cls,
+});
+assert.equal(alimentacaoContratada.status, 'PROJETADO');
 console.log('credito-cbs.test: cenários de crédito e premissa CBS do Simples validados');
