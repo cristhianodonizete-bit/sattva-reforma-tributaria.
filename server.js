@@ -176,7 +176,10 @@ function iniciar() {
   const monitoramentoAtualizacoes = require('./src/services/monitoramentoAtualizacoesReforma');
   const executarMonitoramentoNormativo = () => monitoramentoAtualizacoes.executar()
     .catch((e) => console.error('  monitoramento normativo:', e.message));
-  setTimeout(executarMonitoramentoNormativo, 30_000).unref?.();
+  // Em produção, a primeira execução não pode competir com a retomada da
+  // sessão de quem acabou de entrar. O intervalo recorrente permanece igual;
+  // apenas a execução pós-reinício aguarda a instância estabilizar.
+  setTimeout(executarMonitoramentoNormativo, 10 * 60 * 1000).unref?.();
   setInterval(() => monitoramentoAtualizacoes.executar()
     .catch((e) => console.error('  monitoramento normativo:', e.message)), 60 * 60 * 1000).unref();
   // NCM e NBS são referências de consulta: a sincronização diária só inclui
@@ -185,7 +188,7 @@ function iniciar() {
   const referenciasFiscais = require('./src/services/referenciasFiscaisOficiais');
   const sincronizarReferenciasFiscais = () => referenciasFiscais.sincronizarReferenciasOficiaisVigentes()
     .catch((e) => console.error('  referências fiscais oficiais:', e.message));
-  setTimeout(sincronizarReferenciasFiscais, 45_000).unref?.();
+  setTimeout(sincronizarReferenciasFiscais, 15 * 60 * 1000).unref?.();
   setInterval(() => referenciasFiscais.sincronizarReferenciasOficiaisVigentes()
     .catch((e) => console.error('  referências fiscais oficiais:', e.message)), 24 * 60 * 60 * 1000).unref();
   // Não aguardar: Render pode considerar a instância indisponível enquanto a
