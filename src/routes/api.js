@@ -5741,6 +5741,10 @@ function atualizarCadastroDaPreviaRazao(linhas) {
 router.get('/empresas/:id/questor/razao/ultima-conciliacao', async (req,res)=>{
   try {
     await garantirEmpresaPermitida(req, req.params.id);
+    // A prévia não pode depender do disco efêmero da instância que recebeu o
+    // arquivo. Antes de informar que não há importação, restaura a última
+    // conciliação durável da empresa.
+    await questorPersistencia.recuperarPreviaRazao(Number(req.params.id));
     // O cadastro de item é publicado na configuração compartilhada. Baixá-lo
     // antes da reaplicação impede que uma instância com cache antigo mantenha
     // a conta como "dependente de cadastro".
@@ -5877,6 +5881,7 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
     db.prepare(`INSERT INTO questor_razao_previas (empresa_id,arquivo,resultado_json,atualizado_em) VALUES (?,?,?,datetime('now','localtime'))
       ON CONFLICT(empresa_id) DO UPDATE SET arquivo=excluded.arquivo,resultado_json=excluded.resultado_json,atualizado_em=datetime('now','localtime')`)
       .run(empresaId,req.file.originalname,JSON.stringify(resultado));
+    await questorPersistencia.publicarPreviaRazao(empresaId);
     ok(res,{ ...resultado, disponivel:true });
   } catch(e) { erro(res,e); }
 });
@@ -5934,6 +5939,7 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
         salva.com_item_cadastrado=ausentes.filter((linha)=>linha.item_sugerido).length;
         salva.precisam_cadastro=ausentes.length-salva.com_item_cadastrado;
         db.prepare(`UPDATE questor_razao_previas SET resultado_json=?,atualizado_em=datetime('now','localtime') WHERE empresa_id=?`).run(JSON.stringify(salva),empresaId);
+        await questorPersistencia.publicarPreviaRazao(empresaId);
       }
       // A inclusão confirmada deve entrar na fotografia oficial, que alimenta
       // Cadeia de fornecedores, créditos e indicadores. O cálculo continua
