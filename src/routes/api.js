@@ -5895,27 +5895,45 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
     assegurarItensEntradaManualPadrao();
     const empresaId=Number(req.params.id), selecionados=Array.isArray(req.body?.lancamentos) ? req.body.lancamentos : [];
     if (!selecionados.length) throw new Error('Selecione ao menos um lançamento ausente com item cadastrado.');
+    // O item pode ter acabado de ser cadastrado em outra instância. A inclusão
+    // não pode descartá-lo por estar olhando um cache local anterior.
+    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_regras']);
     const periodo=await exigirPeriodoParaImportacao(req);
     const empresa=db.prepare('SELECT cnpj,regime FROM empresas WHERE id=?').get(empresaId);
     if (!empresa?.cnpj) throw new Error('Empresa não encontrada para a inclusão pelo razão.');
     const leitura=await require('../services/documentosFiscaisCompartilhados').listar(empresa.cnpj,{sentido:'fornecedor'},{exportacao:true});
     const dig=(v)=>String(v || '').replace(/\D/g,'');
-    const docs=new Set((leitura.documentos || []).map((x)=>dig(String(x.documento || '').split('/').at(-1))).filter(Boolean));
+    // Número de NF isolado não identifica documento: a mesma numeração pode
+    // existir em fornecedores, séries ou competências diferentes. A prévia
+    // usa documento + valor + data; a confirmação precisa usar a mesma chave,
+    // ou ela transforma um "Ausente" legítimo em descarte silencioso.
+    const docs=(leitura.documentos || []).map((x)=>({
+      documento:dig(String(x.documento || '').split('/').at(-1)),
+      competencia:String(x.data_emissao || x.competencia || '').slice(0,7),
+      valor:Number(x.valor || 0),
+    })).filter((x)=>x.documento);
     const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
       VALUES (?,'fornecedor','entrada',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'razao','QUESTOR_RAZAO','questor_razao','DECLARADO_QUESTOR_RAZAO',?)`);
-    const resultado={incluidos:0, movimento_ids:[], identificadores_incluidos:[], ja_existentes:0, precisam_cadastro:0, ignorados:0, mensagens:[], processamento_motor:null, publicacao_compartilhada:null};
+    const resultado={incluidos:0, movimento_ids:[], identificadores_incluidos:[], ja_existentes:0, precisam_cadastro:0, ignorados:0, mensagens:[], motivos:{}, processamento_motor:null, publicacao_compartilhada:null};
+    const recusar=(motivo,linha)=>{
+      resultado.motivos[motivo]=(resultado.motivos[motivo] || 0)+1;
+      if (resultado.mensagens.length < 20) resultado.mensagens.push({ identificador:linha?.identificador || null, documento:linha?.documento || null, motivo });
+    };
     db.transaction(()=>{ for(const linha of selecionados) {
       const itemChave=String(linha?.item_sugerido?.chave || '');
       const cadastro=itemChave && db.prepare("SELECT valor,label FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(itemChave);
-      if (!cadastro) { resultado.precisam_cadastro++; continue; }
+      if (!cadastro) { resultado.precisam_cadastro++; recusar('ITEM_NAO_ENCONTRADO_NO_CADASTRO',linha); continue; }
       const documento=String(linha.documento || '').replace(/\D/g,'');
-      if (documento && docs.has(documento)) { resultado.ja_existentes++; continue; }
       const competencia=String(linha.data || '').slice(0,7), valor=Number(linha.valor);
-      if (!periodoAnalisado.noPeriodo(competencia,periodo) || !Number.isFinite(valor) || valor<=0) { resultado.ignorados++; continue; }
+      if (!periodoAnalisado.noPeriodo(competencia,periodo)) { resultado.ignorados++; recusar('FORA_DO_PERIODO_ANALISADO',linha); continue; }
+      if (!Number.isFinite(valor) || valor<=0) { resultado.ignorados++; recusar('VALOR_INVALIDO',linha); continue; }
+      const documentoJaRepresentado=documento && docs.some((d)=>d.documento===documento
+        && d.competencia===competencia && Math.abs(d.valor-valor)<0.02);
+      if (documentoJaRepresentado) { resultado.ja_existentes++; recusar('DOCUMENTO_JA_REPRESENTADO_COM_MESMO_VALOR_E_COMPETENCIA',linha); continue; }
       let regra={}; try { regra=JSON.parse(cadastro.valor || '{}'); } catch (_) { regra={}; }
       const beneficio=Number(regra.beneficio || 0); const idBase=String(linha.identificador || `${competencia}|${linha.sequencia}|${linha.conta_codigo}|${valor}`);
       const chave=`QUESTOR_RAZAO:${crypto.createHash('sha256').update(`${empresaId}|${idBase}`).digest('hex').slice(0,24)}`;
-      if (db.prepare('SELECT 1 FROM movimentos WHERE empresa_id=? AND chave=?').get(empresaId,chave)) { resultado.ignorados++; continue; }
+      if (db.prepare('SELECT 1 FROM movimentos WHERE empresa_id=? AND chave=?').get(empresaId,chave)) { resultado.ignorados++; recusar('LANCAMENTO_JA_INCLUIDO_PELO_RAZAO',linha); continue; }
       const referencia={ tipo:'LANCAMENTO_MANUAL_ENTRADA', gera_credito:regra.gera_credito !== false, ...(regra.regimes?.[empresa.regime] || {}), item_cadastrado:{chave:itemChave,nome:regra.nome || cadastro.label}, beneficio_percentual:beneficio, razao_identificador:idBase,
         origem:'QUESTOR_RAZAO', conta:linha.conta || '', conta_codigo:linha.conta_codigo || '', sequencia:linha.sequencia || '', historico:linha.historico || '', participante:linha.participante || '', incluido_em:new Date().toISOString() };
       const inserido=inserir.run(empresaId,String(linha.participante || '').trim() || 'Razão Questor',regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,

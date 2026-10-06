@@ -42,6 +42,9 @@ assert.match(persistencia,/async function publicarPreviaRazao/,'a persistência 
 assert.match(persistencia,/async function recuperarPreviaRazao/,'a prévia pode ser restaurada após reinício da instância');
 assert.match(migration,/create table if not exists public\.questor_razao_previas/,'a prévia possui armazenamento compartilhado próprio');
 assert.match(api,/publicarEntradasQuestorConciliadas\(empresaId,resultado\.movimento_ids\)/,'o Razão deve publicar pela rotina de chave estável');
+assert.match(api,/DOCUMENTO_JA_REPRESENTADO_COM_MESMO_VALOR_E_COMPETENCIA/,'a inclusão não pode descartar NF apenas por coincidência de número');
+assert.match(api,/baixarConfiguracao\(\['param_regras'\]\)/,'o item recém-cadastrado é restaurado antes da inclusão pelo Razão');
+assert.match(api,/motivos:\{\}/,'a rota devolve o motivo de cada descarte em vez de informar zero silenciosamente');
 assert.match(api,/listarEntradasQuestor/,'entradas manuais também devem ler inclusões Questor já publicadas na fonte compartilhada');
 assert.match(api,/QUESTOR_CONCILIACAO_ENTRADA/,'a consulta manual preserva tanto o Razão quanto a conciliação direta do Questor');
 assert.match(api,/entradasCompartilhadas/,'a cópia local não pode ser a única origem da listagem');
@@ -50,6 +53,8 @@ assert.match(tela,/referenciaPisCofinsEntradaManual/);
 assert.match(tela,/Entradas manuais/);
 assert.match(tela,/Lançamentos manuais de entrada/);
 assert.match(tela,/Questor · conciliada/,'a tela identifica a origem da conciliação direta do Questor');
+const telasQuestor=fs.readFileSync(path.join(raiz,'public/js/telas2.js'),'utf8');
+assert.match(telasQuestor,/Nenhum lançamento foi incluído/,'a interface não confirma sucesso quando a rota incluiu zero linhas');
 assert.match(tela,/data-aba-cadeia/);
 assert.match(tela,/NCM \$\{d\.ncm/);
 assert.match(tela,/deixam o total de PIS\/Cofins/);

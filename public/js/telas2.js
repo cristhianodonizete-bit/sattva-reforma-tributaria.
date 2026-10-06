@@ -927,7 +927,13 @@ Telas.questor = async (el) => {
         const escolhidos=linhas.filter((linha)=>selecao.has(linha.identificador));
         if(!escolhidos.length) throw new Error('Marque ao menos um lançamento ausente com item cadastrado.');
         const resposta=await A.api(`/empresas/${S.empresaId}/questor/razao/incluir`,{metodo:'POST',corpo:{lancamentos:escolhidos}});
-        A.toast(`${resposta.incluidos||0} lançamento(s) incluído(s) pelo Razão.${resposta.processamento_motor?.job ? ' Atualização do motor solicitada.' : ''}`, 'ok'); A.ir('questor');
+        if(!resposta.incluidos) {
+          const motivos=Object.entries(resposta.motivos||{}).map(([motivo,quantidade])=>`${quantidade} ${motivo.toLowerCase().replaceAll('_',' ')}`).join(' · ');
+          A.toast(`Nenhum lançamento foi incluído. ${motivos || 'A rota devolveu os lançamentos sem motivo; tente novamente e reporte este retorno.'}`, 'erro');
+          return;
+        }
+        const recusados=(resposta.ja_existentes||0)+(resposta.precisam_cadastro||0)+(resposta.ignorados||0);
+        A.toast(`${resposta.incluidos} lançamento(s) incluído(s) pelo Razão.${recusados ? ` ${recusados} não incluído(s): consulte os motivos.` : ''}${resposta.processamento_motor?.job ? ' Atualização do motor solicitada.' : ''}`, 'ok'); A.ir('questor');
       }});
       const vincularCadastro=()=>resultadoModal.fundo.querySelectorAll('[data-cadastrar-item-razao]').forEach((botao)=>botao.onclick=()=>{
         const linha=linhas.find(x=>x.identificador===botao.dataset.cadastrarItemRazao); if(!linha) return;
