@@ -2515,6 +2515,13 @@ function filtrarDocumentosFiscais(documentos, filtros = {}) {
 // não desaparecerem da própria aba Entradas.
 // Não há reconciliação, cálculo ou escrita nesta função.
 function entradasQuestorPendentesNaListaFiscal(empresaId, filtros = {}) {
+  // Na maioria das empresas não há entrada complementar do Questor. Evita
+  // construir toda a lista documental (e sua contagem) somente para concluir
+  // que não existe nada a acrescentar à leitura direta da tela.
+  const possuiEntradasQuestor=db.prepare(`SELECT 1 FROM movimentos
+    WHERE empresa_id=? AND tipo='fornecedor' AND origem IN ('QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO') LIMIT 1`)
+    .get(Number(empresaId));
+  if (!possuiEntradasQuestor) return [];
   return filtrarDocumentosFiscais(listarDocumentosFiscais(empresaId, 0, 1, { ...filtros, sentido:'fornecedor' }).documentos, { ...filtros, sentido:'fornecedor' })
     .filter((d) => ['QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO'].includes(String(d.origem || '').toUpperCase()))
     .map((d) => {

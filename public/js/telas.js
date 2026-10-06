@@ -304,11 +304,12 @@ Telas.dados = async (el) => {
   const consultaDadosAdicionais = ['folha', 'receitas', 'margem'].includes(grupoCentral);
   const consultaEntradasManuais = grupoCentral === 'entradas_manuais';
   const consultaApuracoes = grupoCentral === 'apuracoes';
-  // O selo do cabeçalho também abre as pendências. Portanto, sempre que a
-  // Central de Dados estiver aberta, a prontidão da etapa precisa existir;
-  // antes as abas de documentos exibiam o selo sem carregar seu conteúdo e o
-  // clique era silenciosamente ignorado.
-  const consultaProntidao = consultaDocumentos || consultaDadosAdicionais || consultaApuracoes || grupoCentral === 'dashboard';
+  // A lista de documentos não depende da apuração, do PGDAS nem do período.
+  // Consultar toda a prontidão ao abrir Entradas fazia a tela aguardar três
+  // restaurações compartilhadas que ela nem exibe. A prontidão continua
+  // sendo lida onde é efetivamente usada (dashboard, dados adicionais e
+  // apurações).
+  const consultaProntidao = consultaDadosAdicionais || consultaApuracoes || grupoCentral === 'dashboard';
   const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, periodoResposta, prontidao, documentosFiscaisResposta, opcoesFiltrosDocumentosResposta, rastreabilidadeCfopResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta, entradasManuaisResposta] = await Promise.all([
     (consultaImportacoes || consultaFornecedores) ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${consultaFornecedores ? 'fornecedor' : aba}`) : Promise.resolve({ parceiros: [] }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/lotes`) : Promise.resolve({ lotes: [] }),
@@ -426,7 +427,7 @@ Telas.dados = async (el) => {
     dashboard: { titulo:'Prontidão das entregas', descricao:'Veja o que ainda falta para o sistema concluir as entregas.' },
   };
   const etapaCentral = etapasCentrais[grupoCentral] || etapasCentrais.documentos;
-  const topoEtapa = `<header class="central-etapa-topo" data-central-topo><div><div class="olho">CENTRAL DE DADOS</div><h1>${etapaCentral.titulo}</h1><p>${etapaCentral.descricao}</p></div>${etapaCentral.prontidao ? luzProntidao(etapaCentral.prontidao, etapaCentral.prontidao) : ''}</header>`;
+  const topoEtapa = `<header class="central-etapa-topo" data-central-topo><div><div class="olho">CENTRAL DE DADOS</div><h1>${etapaCentral.titulo}</h1><p>${etapaCentral.descricao}</p></div>${etapaCentral.prontidao && consultaProntidao ? luzProntidao(etapaCentral.prontidao, etapaCentral.prontidao) : ''}</header>`;
 
   el.innerHTML = topoEtapa +
     `${grupoCentral === 'dashboard' ? painelProntidao : ''}` +

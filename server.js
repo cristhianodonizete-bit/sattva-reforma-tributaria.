@@ -165,19 +165,27 @@ function iniciar() {
   setInterval(() => {
     if (supabase.configurado()) performanceTelemetry.persistir(supabase.admin()).catch((e) => console.error('  telemetria de performance:', e.message));
   }, 60_000).unref();
+  // As verificações abaixo não são necessárias para atender a primeira tela
+  // do usuário. Em reinícios, dispará-las junto com a sincronização
+  // operacional concorria por rede/CPU e deixava o primeiro acesso lento.
+  // Elas continuam automáticas, apenas começam depois de a instância aceitar
+  // tráfego normalmente.
   // Fontes oficiais são conferidas no máximo uma vez ao dia. Uma mudança
   // somente abre uma atualização para revisão: jamais muda RAG, catálogo ou
   // motor sem decisão humana registrada.
   const monitoramentoAtualizacoes = require('./src/services/monitoramentoAtualizacoesReforma');
-  monitoramentoAtualizacoes.executar().catch((e) => console.error('  monitoramento normativo:', e.message));
+  const executarMonitoramentoNormativo = () => monitoramentoAtualizacoes.executar()
+    .catch((e) => console.error('  monitoramento normativo:', e.message));
+  setTimeout(executarMonitoramentoNormativo, 30_000).unref?.();
   setInterval(() => monitoramentoAtualizacoes.executar()
     .catch((e) => console.error('  monitoramento normativo:', e.message)), 60 * 60 * 1000).unref();
   // NCM e NBS são referências de consulta: a sincronização diária só inclui
   // novas versões oficiais e não altera regras, cálculos ou resultados já
   // fechados para qualquer empresa.
   const referenciasFiscais = require('./src/services/referenciasFiscaisOficiais');
-  referenciasFiscais.sincronizarReferenciasOficiaisVigentes()
+  const sincronizarReferenciasFiscais = () => referenciasFiscais.sincronizarReferenciasOficiaisVigentes()
     .catch((e) => console.error('  referências fiscais oficiais:', e.message));
+  setTimeout(sincronizarReferenciasFiscais, 45_000).unref?.();
   setInterval(() => referenciasFiscais.sincronizarReferenciasOficiaisVigentes()
     .catch((e) => console.error('  referências fiscais oficiais:', e.message)), 24 * 60 * 60 * 1000).unref();
   // Não aguardar: Render pode considerar a instância indisponível enquanto a
