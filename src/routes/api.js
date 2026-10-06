@@ -5738,6 +5738,38 @@ function atualizarCadastroDaPreviaRazao(linhas) {
   });
 }
 
+// O Razão normalmente não traz o CNPJ do fornecedor. Por isso o vínculo só é
+// automático quando a evidência é inequívoca: CNPJ presente no histórico ou
+// nome cadastrado completo, único, presente no participante/histórico. Nunca
+// usamos similaridade frouxa para definir o regime de uma contraparte.
+function normalizarTextoRazao(valor) {
+  return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+}
+function fornecedorSugeridoPeloRazao(fornecedores, linha = {}) {
+  const lista=(fornecedores || []).map((x)=>({ ...x, cnpj:String(x.cnpj || '').replace(/\D/g,''), nome:normalizarTextoRazao(x.descricao) }))
+    .filter((x)=>x.nome || x.cnpj);
+  const textoBruto=[linha.participante,linha.historico,linha.descricao].filter(Boolean).join(' ');
+  const texto=normalizarTextoRazao(textoBruto);
+  const participante=normalizarTextoRazao(linha.participante);
+  const documentos=[...String(textoBruto).matchAll(/\b\d{11,14}\b/g)].map((x)=>x[0]);
+  const porCnpj=lista.filter((x)=>x.cnpj && documentos.includes(x.cnpj));
+  const resumo=(x,confianca,origem)=>({ id:x.id, cnpj:x.cnpj || null, descricao:x.descricao || '', regime:x.regime || null, confianca, origem });
+  if (porCnpj.length===1) return { sugestao:resumo(porCnpj[0],'CONFIRMADA','CNPJ_NO_HISTORICO'), candidatos:[resumo(porCnpj[0],'CONFIRMADA','CNPJ_NO_HISTORICO')] };
+  const exatos=lista.filter((x)=>x.nome.length>=5 && participante && x.nome===participante);
+  if (exatos.length===1) return { sugestao:resumo(exatos[0],'ALTA','PARTICIPANTE_EXATO'), candidatos:[resumo(exatos[0],'ALTA','PARTICIPANTE_EXATO')] };
+  const porNome=lista.filter((x)=>x.nome.length>=8 && texto.includes(x.nome));
+  if (porNome.length===1) return { sugestao:resumo(porNome[0],'ALTA','NOME_NO_HISTORICO'), candidatos:[resumo(porNome[0],'ALTA','NOME_NO_HISTORICO')] };
+  // Exibir alternativas serve para a correção humana, mas não cria vínculo.
+  return { sugestao:{ id:null, cnpj:null, descricao:'Fornecedor genérico — Simples Nacional', regime:'simples_nacional', confianca:'PADRAO', origem:'FORNECEDOR_GENERICO_SIMPLES' }, candidatos:porNome.slice(0,5).map((x)=>resumo(x,'PENDENTE','CANDIDATO_POR_NOME')) };
+}
+function obterFornecedorGenericoSimples(empresaId) {
+  const existente=db.prepare("SELECT id,cnpj,descricao,regime FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' AND origem='QUESTOR_RAZAO_GENERICO' LIMIT 1").get(Number(empresaId));
+  if (existente) return existente;
+  const inserido=db.prepare("INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime,origem) VALUES (?,'fornecedor',NULL,?,'simples_nacional','QUESTOR_RAZAO_GENERICO')")
+    .run(Number(empresaId),'Fornecedor genérico — Simples Nacional');
+  return db.prepare('SELECT id,cnpj,descricao,regime FROM parceiros WHERE id=?').get(Number(inserido.lastInsertRowid));
+}
+
 router.get('/empresas/:id/questor/razao/ultima-conciliacao', async (req,res)=>{
   try {
     await garantirEmpresaPermitida(req, req.params.id);
@@ -5787,6 +5819,7 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
       return { chave:x.chave, nome:regra.nome || x.label || x.chave,
         contas_questor:Array.isArray(regra.contas_questor) ? regra.contas_questor.map(String) : [] };
     });
+    const fornecedoresRazao=db.prepare("SELECT id,cnpj,descricao,regime FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' ORDER BY descricao").all(empresaId);
     const sugerirItem=(conta,historico,descricao)=>{
       const texto=normalizar(`${conta} ${historico} ${descricao}`);
       const codigo=codigoConta(conta);
@@ -5852,6 +5885,7 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
             && Math.abs(Number(movimento.valor || 0)-valorDebito)<0.02;
         });
         const item=sugerirItem(cabeçalho.texto,historico,bruta[mapa.descricao]);
+        const fornecedor=fornecedorSugeridoPeloRazao(fornecedoresRazao,{ historico, descricao:bruta[mapa.descricao], participante:bruta[mapa.participante] });
         // O XML é a fonte fiscal prevalente. Quando o documento já existe,
         // uma diferença com o razão não autoriza nova inclusão nem troca do
         // valor: fica apenas registrada como evidência para revisão.
@@ -5864,6 +5898,8 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
           documento, situacao,
           movimentos_encontrados:(jaIncluidoPeloRazao ? [jaIncluidoPeloRazao] : (correspondencias.length ? correspondencias : porDocumento)).map((x)=>({id:x.id,documento:x.documento,origem:x.origem,valor:x.valor})),
           item_sugerido:item ? {chave:item.chave,nome:item.nome} : null,
+          fornecedor_sugerido:fornecedor.sugestao,
+          fornecedores_candidatos:fornecedor.candidatos,
           observacao:situacao==='INCLUIDO_QUESTOR_RAZAO' ? 'Lançamento já incluído a partir do Razão; não será disponibilizado novamente para importação.'
             : situacao==='ENCONTRADO' ? 'Lançamento já representado em uma entrada do Sattva.'
             : situacao==='ENCONTRADO_XML_PREVALECE' ? `Documento localizado. O XML prevalece: razão ${valorDebito.toLocaleString('pt-BR',{style:'currency',currency:'BRL'})} · XML ${porDocumento.map((x)=>Number(x.valor||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'})).join(', ')}.`
@@ -5912,8 +5948,8 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       competencia:String(x.data_emissao || x.competencia || '').slice(0,7),
       valor:Number(x.valor || 0),
     })).filter((x)=>x.documento);
-    const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
-      VALUES (?,'fornecedor','entrada',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'razao','QUESTOR_RAZAO','questor_razao','DECLARADO_QUESTOR_RAZAO',?)`);
+    const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,inscr_federal,regime,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
+      VALUES (?,'fornecedor','entrada',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'razao','QUESTOR_RAZAO','questor_razao','DECLARADO_QUESTOR_RAZAO',?)`);
     const resultado={incluidos:0, movimento_ids:[], identificadores_incluidos:[], ja_existentes:0, precisam_cadastro:0, ignorados:0, mensagens:[], motivos:{}, processamento_motor:null, publicacao_compartilhada:null};
     const recusar=(motivo,linha)=>{
       resultado.motivos[motivo]=(resultado.motivos[motivo] || 0)+1;
@@ -5937,9 +5973,13 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       const beneficio=Number(regra.beneficio || 0); const idBase=String(linha.identificador || `${competencia}|${linha.sequencia}|${linha.conta_codigo}|${valor}`);
       const chave=`QUESTOR_RAZAO:${crypto.createHash('sha256').update(`${empresaId}|${idBase}`).digest('hex').slice(0,24)}`;
       if (db.prepare('SELECT 1 FROM movimentos WHERE empresa_id=? AND chave=?').get(empresaId,chave)) { resultado.ignorados++; recusar('LANCAMENTO_JA_INCLUIDO_PELO_RAZAO',linha); continue; }
+      const fornecedorId=Number(linha?.fornecedor_sugerido?.id || linha?.fornecedor_id || 0);
+      let fornecedor=fornecedorId ? db.prepare("SELECT id,cnpj,descricao,regime FROM parceiros WHERE id=? AND empresa_id=? AND tipo='fornecedor'").get(fornecedorId,empresaId) : null;
+      if (!fornecedor) fornecedor=obterFornecedorGenericoSimples(empresaId);
       const referencia={ tipo:'LANCAMENTO_MANUAL_ENTRADA', gera_credito:regra.gera_credito !== false, ...(regra.regimes?.[empresa.regime] || {}), item_cadastrado:{chave:itemChave,nome:regra.nome || cadastro.label}, beneficio_percentual:beneficio, razao_identificador:idBase,
-        origem:'QUESTOR_RAZAO', conta:linha.conta || '', conta_codigo:linha.conta_codigo || '', sequencia:linha.sequencia || '', historico:linha.historico || '', participante:linha.participante || '', incluido_em:new Date().toISOString() };
-      const inserido=inserir.run(empresaId,String(linha.participante || '').trim() || 'Razão Questor',regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,
+        origem:'QUESTOR_RAZAO', conta:linha.conta || '', conta_codigo:linha.conta_codigo || '', sequencia:linha.sequencia || '', historico:linha.historico || '', participante:linha.participante || '',
+        fornecedor_vinculado:{ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem:fornecedor.origem==='QUESTOR_RAZAO_GENERICO'?'FORNECEDOR_GENERICO_SIMPLES':'HISTORICO_RAZAO' }, incluido_em:new Date().toISOString() };
+      const inserido=inserir.run(empresaId,fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,
         regra.cst || '',regra.cclasstrib || '',regra.cst || '',regra.cclasstrib || '',itemChave,documento || null,1,chave,JSON.stringify(referencia));
       resultado.incluidos++; resultado.movimento_ids.push(Number(inserido.lastInsertRowid)); resultado.identificadores_incluidos.push(idBase);
     }})();
@@ -5968,6 +6008,43 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       resultado.processamento_motor=await motorExecucaoFila.solicitar(empresaId,{});
     }
     ok(res,resultado);
+  } catch(e) { erro(res,e); }
+});
+
+// Correção posterior para lançamentos que já entraram pelo Razão. A escolha
+// é explícita e fica gravada tanto no movimento quanto na evidência usada pelo
+// motor; não é uma alteração do XML nem cria uma nota nova.
+router.get('/empresas/:id/questor/razao/fornecedores', async (req,res)=>{
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId=Number(req.params.id), chave=String(req.query?.chave || '');
+    const fornecedores=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' ORDER BY descricao").all(empresaId);
+    const movimento=chave ? db.prepare("SELECT nome,descricao,normalizacao_evidencia,inscr_federal,regime FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' AND chave=?").get(empresaId,chave) : null;
+    let evidencia={}; try { evidencia=JSON.parse(movimento?.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
+    const sugestao=movimento ? fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante, descricao:movimento.descricao }) : null;
+    ok(res,{ fornecedores, sugestao:sugestao?.sugestao || null, candidatos:sugestao?.candidatos || [], vinculado:evidencia.fornecedor_vinculado || null });
+  } catch(e) { erro(res,e); }
+});
+
+router.post('/empresas/:id/questor/razao/vincular-fornecedor', async (req,res)=>{
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId=Number(req.params.id), chave=String(req.body?.chave || ''), parceiroId=Number(req.body?.parceiro_id || 0);
+    if (!chave) throw new Error('Informe o lançamento do Razão que será ajustado.');
+    const movimento=db.prepare("SELECT id,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' AND chave=?").get(empresaId,chave);
+    if (!movimento) throw new Error('Lançamento do Razão não localizado nesta empresa.');
+    let fornecedor=parceiroId ? db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE id=? AND empresa_id=? AND tipo='fornecedor'").get(parceiroId,empresaId) : null;
+    if (!fornecedor) fornecedor=obterFornecedorGenericoSimples(empresaId);
+    let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
+    evidencia.fornecedor_vinculado={ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem:fornecedor.origem==='QUESTOR_RAZAO_GENERICO'?'FORNECEDOR_GENERICO_SIMPLES':'AJUSTE_USUARIO' };
+    evidencia.fornecedor_ajustado_em=new Date().toISOString();
+    db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?')
+      .run(fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,JSON.stringify(evidencia),movimento.id,empresaId);
+    const publicacao=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,[movimento.id]);
+    estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Fornecedor de lançamento do Razão ajustado');
+    const processamento_motor=await motorExecucaoFila.solicitar(empresaId,{});
+    auditar(req,{ empresaId,acao:'AJUSTE_FORNECEDOR_RAZAO',entidade:'movimentos',entidadeId:String(movimento.id),depois:{ chave,fornecedor:{id:fornecedor.id,descricao:fornecedor.descricao,regime:fornecedor.regime} } });
+    ok(res,{ fornecedor, publicacao, processamento_motor });
   } catch(e) { erro(res,e); }
 });
 
@@ -7054,7 +7131,8 @@ router.get('/empresas/:id/entradas-manuais', async (req, res) => {
       if (x.normalizacao_evidencia && typeof x.normalizacao_evidencia === 'object') evidencia=x.normalizacao_evidencia;
       else try { evidencia=JSON.parse(x.normalizacao_evidencia || '{}'); } catch (_) { /* preserva a listagem mesmo com evidência legada */ }
       return { ...x, normalizacao_evidencia:undefined, origem:x.origem, item_cadastrado:evidencia.item_cadastrado || null,
-        beneficio_percentual:evidencia.beneficio_percentual ?? null, referencia_pis_cofins:evidencia.referencia_pis_cofins || null };
+        beneficio_percentual:evidencia.beneficio_percentual ?? null, referencia_pis_cofins:evidencia.referencia_pis_cofins || null,
+        fornecedor_vinculado:evidencia.fornecedor_vinculado || null };
     };
     // A cópia local é uma conveniência. A referência é a base compartilhada:
     // sem esta leitura, inclusões do Razão/Questor desapareciam da tela após
@@ -7085,7 +7163,9 @@ router.get('/empresas/:id/entradas-manuais', async (req, res) => {
     const porIdentidade=new Map();
     // A versão compartilhada prevalece porque é durável; a local e a prévia
     // permanecem apenas como contingência para lançamentos legados.
-    [...entradas,...confirmadas,...entradasCompartilhadas].forEach((x)=>porIdentidade.set(identidade(x),x));
+    // A cópia local contém o id estável para ações de ajuste; a remota é
+    // complementar e não pode sobrescrevê-la ao desduplicar pela chave.
+    [...confirmadas,...entradasCompartilhadas,...entradas].forEach((x)=>porIdentidade.set(identidade(x),x));
     const todas=[...porIdentidade.values()].sort((a,b)=>String(b.competencia || '').localeCompare(String(a.competencia || '')));
     ok(res,{ entradas:todas, total:todas.length, leitura:'Lançamentos manuais e inclusões Questor/Razão lidos da fonte compartilhada. Esta consulta não executa o motor nem altera documentos.' });
   } catch(e) { erro(res,e); }

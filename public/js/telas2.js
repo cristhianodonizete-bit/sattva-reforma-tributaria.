@@ -911,6 +911,7 @@ Telas.questor = async (el) => {
         {t:'Incluir',r:x=>x.situacao==='AUSENTE'&&x.item_sugerido?`<input type="checkbox" name="razao_incluir" value="${A.esc(x.identificador)}" ${selecao.has(x.identificador)?'checked':''}>`:''},
         {t:'Data / lançamento',r:x=>`${A.esc(x.data||'—')}<div class="mini">Seq. ${A.esc(x.sequencia||'—')}${x.documento?` · NF ${A.esc(x.documento)}`:''}</div>`},
         {t:'Conta / histórico',r:x=>`<b>${A.esc(x.conta_codigo||'—')}</b><div class="mini">${A.esc(x.conta||'')}</div><div class="mini">${A.esc(x.historico||'')}</div>`},
+        {t:'Fornecedor / regime',r:x=>{const f=x.fornecedor_sugerido; return f ? `<b>${A.esc(f.descricao)}</b><div class="mini">${A.esc(A.regimeLabel(f.regime || ''))}${f.origem==='FORNECEDOR_GENERICO_SIMPLES'?' · padrão quando não identificado':''}</div>` : '—';}},
         {t:'Valor',num:true,r:x=>A.moeda(Number(x.valor||0))},
         {t:'Conciliação',r:situacao},
         {t:'Cadastro de entrada',r:cadastro},

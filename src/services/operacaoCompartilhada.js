@@ -1338,12 +1338,22 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
   const { data:existentes, error:erroExistentes }=await remoto.from('movimentos').select('chave').eq('empresa_id',Number(empresas[0].id)).in('chave',chaves);
   if (erroExistentes) throw new Error(`Entradas conciliadas compartilhadas: ${erroExistentes.message}`);
   const jaPublicadas=new Set((existentes || []).map((x)=>String(x.chave)));
-  const novas=locais.filter((x)=>!jaPublicadas.has(String(x.chave))).map(({ id, ...linha })=>({ ...linha, empresa_id:Number(empresas[0].id) }));
+  const linhas=locais.map(({ id, ...linha })=>({ ...linha, empresa_id:Number(empresas[0].id) }));
+  const novas=linhas.filter((x)=>!jaPublicadas.has(String(x.chave)));
   if (novas.length) {
     const { error }=await remoto.from('movimentos').insert(novas);
     if (error) throw new Error(`Entradas conciliadas compartilhadas: ${error.message}`);
   }
-  return { ativo:true, publicados:novas.length, ja_publicados:locais.length-novas.length, pendentes:0 };
+  // Uma correção de fornecedor/regime em um lançamento já publicado precisa
+  // alcançar a fonte canônica. Antes deste update, a existência da chave
+  // fazia a publicação pular a linha e o motor remoto continuava sem regime.
+  const existentesLocais=linhas.filter((x)=>jaPublicadas.has(String(x.chave)));
+  for (const linha of existentesLocais) {
+    const { error }=await remoto.from('movimentos').update(linha)
+      .eq('empresa_id',Number(empresas[0].id)).eq('chave',String(linha.chave));
+    if (error) throw new Error(`Atualização de entrada conciliada compartilhada: ${error.message}`);
+  }
+  return { ativo:true, publicados:novas.length, atualizados:existentesLocais.length, ja_publicados:locais.length-novas.length, pendentes:0 };
 }
 // Exclusão de documento fiscal precisa ocorrer na fonte canônica antes de
 // atingir o cache. Caso contrário, a próxima reconciliação restaura o XML e
