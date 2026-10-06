@@ -4,6 +4,8 @@ const receita=require('../src/services/receitaOperacional');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5102'}),true,'venda CFOP deve compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5901'}),false,'remessa não pode compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5202'}),false,'devolução não pode compor receita');
+assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'1202'}),false,'CFOP de entrada não pode compor receita mesmo com sentido importado incorreto');
+assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'2202'}),false,'CFOP interestadual de entrada não pode compor receita mesmo com sentido importado incorreto');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5152'}),false,'transferência não pode compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'5949'}),false,'outras saídas 5.949 não podem compor receita');
 assert.equal(receita.compoeReceita({tipo:'cliente',sentido:'saida',cfop:'6949'}),false,'outras saídas 6.949 não podem compor receita');

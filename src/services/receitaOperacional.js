@@ -61,6 +61,11 @@ function efeitoBase(movimento = {}) {
 function compoeReceita(movimento = {}) {
   if (['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(movimento.situacao_documento || '').toUpperCase())) return false;
   if (!ehSaida(movimento)) return false;
+  const cfop=cfopEfetivo(movimento);
+  // CFOP iniciado por 1, 2 ou 3 representa entrada. Alguns XMLs legados
+  // podem chegar com sentido/tipo invertidos pela identificação do CNPJ, mas
+  // esse código fiscal prevalece: devolução/compra jamais é faturamento.
+  if (/^[123]/.test(cfop)) return false;
   // Registros de massa/validação podem permanecer visíveis para auditoria,
   // mas jamais representam faturamento da empresa na visão operacional.
   if (String(movimento.origem || '').trim().toLowerCase() === 'teste') return false;
@@ -88,6 +93,7 @@ function compoeReceitaComEvidencia(movimento = {}) {
   if (!['SPED_C175', 'EFD_C175'].includes(String(movimento.origem_evidencia_pis_cofins || movimento.evidencia_sped_c175 || '').toUpperCase())) return false;
   if (['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(movimento.situacao_documento || '').toUpperCase())) return false;
   const cfop=cfopEfetivo(movimento);
+  if (/^[123]/.test(cfop)) return false;
   if (['5916','6916'].includes(cfop)) return false;
   return !natureza(movimento);
 }
