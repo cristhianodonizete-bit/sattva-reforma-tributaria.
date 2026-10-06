@@ -5750,19 +5750,28 @@ function atualizarCadastroDaPreviaRazao(linhas) {
 function normalizarTextoRazao(valor) {
   return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
 }
+function nomeFornecedorComparavel(valor) {
+  // Razão e cadastro costumam divergir apenas por sufixo societário:
+  // "ALGAR TELECOM" x "ALGAR TELECOM S.A.". Removemos somente termos
+  // jurídicos, preservando a denominação que precisa ser única na empresa.
+  const ignorar=new Set(['SA','S','A','LTDA','LIMITADA','EIRELI','ME','EPP','EI','SLU']);
+  return normalizarTextoRazao(valor).split(' ').filter((x)=>x && !ignorar.has(x)).join(' ');
+}
 function fornecedorSugeridoPeloRazao(fornecedores, linha = {}) {
-  const lista=(fornecedores || []).map((x)=>({ ...x, cnpj:String(x.cnpj || '').replace(/\D/g,''), nome:normalizarTextoRazao(x.descricao) }))
+  const lista=(fornecedores || []).map((x)=>({ ...x, cnpj:String(x.cnpj || '').replace(/\D/g,''), nome:normalizarTextoRazao(x.descricao), nome_comparavel:nomeFornecedorComparavel(x.descricao) }))
     .filter((x)=>x.nome || x.cnpj);
   const textoBruto=[linha.participante,linha.historico,linha.descricao].filter(Boolean).join(' ');
   const texto=normalizarTextoRazao(textoBruto);
   const participante=normalizarTextoRazao(linha.participante);
+  const participanteComparavel=nomeFornecedorComparavel(linha.participante);
+  const textoComparavel=nomeFornecedorComparavel(textoBruto);
   const documentos=[...String(textoBruto).matchAll(/\b\d{11,14}\b/g)].map((x)=>x[0]);
   const porCnpj=lista.filter((x)=>x.cnpj && documentos.includes(x.cnpj));
   const resumo=(x,confianca,origem)=>({ id:x.id, cnpj:x.cnpj || null, descricao:x.descricao || '', regime:x.regime || null, confianca, origem });
   if (porCnpj.length===1) return { sugestao:resumo(porCnpj[0],'CONFIRMADA','CNPJ_NO_HISTORICO'), candidatos:[resumo(porCnpj[0],'CONFIRMADA','CNPJ_NO_HISTORICO')] };
-  const exatos=lista.filter((x)=>x.nome.length>=5 && participante && x.nome===participante);
+  const exatos=lista.filter((x)=>x.nome_comparavel.length>=5 && participanteComparavel && x.nome_comparavel===participanteComparavel);
   if (exatos.length===1) return { sugestao:resumo(exatos[0],'ALTA','PARTICIPANTE_EXATO'), candidatos:[resumo(exatos[0],'ALTA','PARTICIPANTE_EXATO')] };
-  const porNome=lista.filter((x)=>x.nome.length>=8 && texto.includes(x.nome));
+  const porNome=lista.filter((x)=>x.nome_comparavel.length>=8 && textoComparavel.includes(x.nome_comparavel));
   if (porNome.length===1) return { sugestao:resumo(porNome[0],'ALTA','NOME_NO_HISTORICO'), candidatos:[resumo(porNome[0],'ALTA','NOME_NO_HISTORICO')] };
   // Exibir alternativas serve para a correção humana, mas não cria vínculo.
   return { sugestao:{ id:null, cnpj:null, descricao:'Fornecedor genérico — Simples Nacional', regime:'simples_nacional', confianca:'PADRAO', origem:'FORNECEDOR_GENERICO_SIMPLES' }, candidatos:porNome.slice(0,5).map((x)=>resumo(x,'PENDENTE','CANDIDATO_POR_NOME')) };
