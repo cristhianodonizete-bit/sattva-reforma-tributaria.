@@ -5914,6 +5914,10 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
     })), ...db.prepare(`SELECT id,documento,competencia,data_emissao,valor,nome,origem,normalizacao_evidencia FROM movimentos
       WHERE empresa_id=? AND origem='QUESTOR_RAZAO'`).all(empresaId).map((x)=>({ ...x, evidencia:lerEvidencia(x.normalizacao_evidencia) }))];
     const dig=(v)=>String(v || '').replace(/\D/g,'');
+    const mesmoNumeroFiscal=(a,b)=>{
+      const na=dig(a), nb=dig(b);
+      return Math.min(na.length,nb.length)>=5 && (na===nb || na.endsWith(nb) || nb.endsWith(na));
+    };
     const linhas=[]; let cabeçalho=null; let cabecalhosValidos=0;
     for (const nomeAba of livro.SheetNames) {
       // `raw:true` preserva 9.885,79 como 9885.79. A leitura formatada do
@@ -5931,7 +5935,7 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
         if (valorDebito === null || valorDebito <= 0) continue;
         const emissao=data(bruta[mapa.data]); const documento=documentoNoHistorico(historico);
         const identificador=`${nomeAba}|${bruta[mapa.sequencia] || ''}|${emissao}|${valorDebito}|${historico}`;
-        const porDocumento=existentes.filter((movimento)=>documento && dig(String(movimento.documento || '').split('/').at(-1))===dig(documento));
+        const porDocumento=existentes.filter((movimento)=>documento && mesmoNumeroFiscal(movimento.documento,documento));
         const candidatos=documento ? porDocumento : existentes;
         const correspondencias=candidatos.filter((movimento)=>{
           const mesmoValor=Math.abs(Number(movimento.valor || 0)-valorDebito)<0.02;
@@ -6009,10 +6013,9 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
     // usa documento + valor + data; a confirmação precisa usar a mesma chave,
     // ou ela transforma um "Ausente" legítimo em descarte silencioso.
     const docs=(leitura.documentos || []).map((x)=>({
-      documento:dig(String(x.documento || '').split('/').at(-1)),
-      competencia:String(x.data_emissao || x.competencia || '').slice(0,7),
-      valor:Number(x.valor || 0),
-    })).filter((x)=>x.documento);
+      documento:String(x.documento || ''), data_emissao:x.data_emissao || null,
+      competencia:String(x.data_emissao || x.competencia || '').slice(0,7), valor:Number(x.valor || 0),
+    })).filter((x)=>dig(x.documento));
     const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,inscr_federal,regime,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
       VALUES (?,'fornecedor','entrada',?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'razao','QUESTOR_RAZAO','questor_razao','DECLARADO_QUESTOR_RAZAO',?)`);
     const resultado={incluidos:0, movimento_ids:[], identificadores_incluidos:[], ja_existentes:0, precisam_cadastro:0, ignorados:0, mensagens:[], motivos:{}, processamento_motor:null, publicacao_compartilhada:null};
@@ -6031,8 +6034,8 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       const competencia=String(linha.data || '').slice(0,7), valor=Number(linha.valor);
       if (!periodoAnalisado.noPeriodo(competencia,periodo)) { resultado.ignorados++; recusar('FORA_DO_PERIODO_ANALISADO',linha); continue; }
       if (!Number.isFinite(valor) || valor<=0) { resultado.ignorados++; recusar('VALOR_INVALIDO',linha); continue; }
-      const documentoJaRepresentado=documento && docs.some((d)=>d.documento===documento
-        && d.competencia===competencia && Math.abs(d.valor-valor)<0.02);
+      const documentoJaRepresentado=documento && docs.some((d)=>motorExec.documentosEquivalentesRazao(
+        { documento, competencia, valor }, d));
       if (documentoJaRepresentado) { resultado.ja_existentes++; recusar('DOCUMENTO_JA_REPRESENTADO_COM_MESMO_VALOR_E_COMPETENCIA',linha); continue; }
       let regra={}; try { regra=JSON.parse(cadastro.valor || '{}'); } catch (_) { regra={}; }
       const beneficio=Number(regra.beneficio || 0); const idBase=String(linha.identificador || `${competencia}|${linha.sequencia}|${linha.conta_codigo}|${valor}`);

@@ -165,7 +165,8 @@ function carregar(empresaId, sentido, movimentoIds = null) {
     sql += ` AND m.id IN (${movimentoIds.map(() => '?').join(',')})`;
     p.push(...movimentoIds);
   }
-  return db.prepare(sql).all(...p);
+  const duplicadosRazao=sentido === 'entrada' ? idsRazaoDuplicadosPorDocumento(empresaId) : new Set();
+  return db.prepare(sql).all(...p).filter((m)=>!duplicadosRazao.has(Number(m.id)));
 }
 
 /**
@@ -718,6 +719,29 @@ function resultados(empresaId, filtros = {}) {
   return db.prepare(sql).all(...p).map((r) => ({ ...r, detalhe: JSON.parse(r.detalhe || '{}') }));
 }
 
+const digitosDocumento = (v) => String(v || '').replace(/\D/g, '');
+function documentosEquivalentesRazao(a, b) {
+  const na=digitosDocumento(a?.documento), nb=digitosDocumento(b?.documento);
+  // O XML pode trazer série/identificador municipal antes do número que o
+  // Razão registra isoladamente. Exigimos valor e competência iguais para
+  // não conciliar números curtos por acaso.
+  if (Math.min(na.length,nb.length)<5 || !(na===nb || na.endsWith(nb) || nb.endsWith(na))) return false;
+  if (Math.abs(num(a?.valor)-num(b?.valor))>=0.02) return false;
+  const dataA=String(a?.data_emissao || a?.competencia || '').slice(0,10);
+  const dataB=String(b?.data_emissao || b?.competencia || '').slice(0,10);
+  return Boolean(dataA && dataB && (dataA===dataB || dataA.slice(0,7)===dataB.slice(0,7)));
+}
+
+// O Razão preserva a evidência contábil, mas não é uma segunda aquisição
+// quando o XML da mesma nota já existe na empresa.
+function idsRazaoDuplicadosPorDocumento(empresaId) {
+  const movimentos=db.prepare(`SELECT id,origem,documento,valor,data_emissao,competencia
+    FROM movimentos WHERE empresa_id=? AND tipo='fornecedor'`).all(empresaId);
+  const fiscais=movimentos.filter((m)=>String(m.origem || '').toUpperCase()!=='QUESTOR_RAZAO');
+  return new Set(movimentos.filter((m)=>String(m.origem || '').toUpperCase()==='QUESTOR_RAZAO'
+    && fiscais.some((f)=>documentosEquivalentesRazao(m,f))).map((m)=>Number(m.id)));
+}
+
 // Fotografias anteriores podem ter sido gravadas antes de a família de
 // remessas ser bloqueada na entrada. A leitura não pode manter crédito ou
 // compra nessas linhas enquanto o reprocessamento incremental é agendado.
@@ -739,12 +763,14 @@ function resultadoMaterializado(empresa, ano) {
   // Defesa de leitura para fotografias antigas: enquanto a nova execução não
   // substitui a fotografia persistida, uma transferência/remessa jamais pode
   // reaparecer em faturamento por meio de um resumo anteriormente gravado.
+  const duplicadosRazao=idsRazaoDuplicadosPorDocumento(empresa.id);
   const registros = db.prepare(`SELECT r.*, m.tipo AS tipo_movimento,
       m.origem AS origem_movimento, m.cfop, m.nbs, m.lc116,
       m.modelo_documento_fiscal, m.iss,
       CASE WHEN EXISTS(SELECT 1 FROM enriquecimento_pis_cofins_evidencias e WHERE e.empresa_id=m.empresa_id AND e.movimento_id=m.id AND e.origem_evidencia='SPED_C175') THEN 'SPED_C175' ELSE '' END AS origem_evidencia_pis_cofins
     FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
     WHERE r.empresa_id=?`).all(empresa.id)
+    .filter((r) => !duplicadosRazao.has(Number(r.movimento_id)))
     .filter((r) => !entradaRemessaSemAquisicao(r))
     .filter((r) => r.sentido !== 'saida' || receitaOperacional.compoeReceitaComEvidencia({ ...r, tipo:r.tipo_movimento, origem:r.origem_movimento }));
   const linhas = registros.map((r) => { try { return JSON.parse(r.detalhe || '{}'); } catch (_) { return null; } }).filter(Boolean);
@@ -790,4 +816,4 @@ function reprocessarIncremental(empresaId, opcoes = {}) {
   return { empresa_id: empresaId, reprocessados: movimentoIds.length, removidos, status: 'CONCLUIDO', resultado };
 }
 
-module.exports = { executar, reprocessarIncremental, pendentesIncrementais, porFornecedor, porCliente, ultimaExecucao, resultados, resultadoMaterializado, normalizar, hashMovimento, versoesAtuais, versoesDaOperacao };
+module.exports = { executar, reprocessarIncremental, pendentesIncrementais, porFornecedor, porCliente, ultimaExecucao, resultados, resultadoMaterializado, normalizar, hashMovimento, versoesAtuais, versoesDaOperacao, idsRazaoDuplicadosPorDocumento, documentosEquivalentesRazao };

@@ -61,6 +61,7 @@ function linhas(empresaId, opcoes = {}) {
   const chave = `${empresaId}:${execucao.id}`;
   const emMemoria = linhasPorExecucao.get(chave);
   if (emMemoria) return aplicarEscopo(emMemoria);
+  const duplicadosRazao=motorExec.idsRazaoDuplicadosPorDocumento(empresaId);
   const dados = db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.modelo_documento_fiscal,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento, m.origem AS origem_movimento,
       CASE WHEN EXISTS(SELECT 1 FROM enriquecimento_pis_cofins_evidencias e WHERE e.empresa_id=m.empresa_id AND e.movimento_id=m.id AND e.origem_evidencia='SPED_C175') THEN 'SPED_C175' ELSE '' END AS origem_evidencia_pis_cofins,
@@ -73,7 +74,7 @@ function linhas(empresaId, opcoes = {}) {
   ORDER BY r.preco_atual DESC, r.id`).all(empresaId).map((x) => {
     let detalhe = {}; try { detalhe = JSON.parse(x.detalhe || '{}'); } catch (_) { /* detalhe inválido vira pendência */ }
     return { ...x, detalhe };
-  });
+  }).filter((x)=>!duplicadosRazao.has(Number(x.movimento_id)));
   return aplicarEscopo(guardarLinhas(empresaId, execucao.id, dados));
 }
 

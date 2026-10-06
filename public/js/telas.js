@@ -365,7 +365,27 @@ Telas.dados = async (el) => {
   const modelosDocumento=[...new Set([...(opcoesFiltrosDocumentosResposta.modelos || []), filtroDocumentos.modelo].filter(Boolean).map((v)=>String(v).toUpperCase()))].sort();
   const textoFiltroDocumento = String(filtroDocumentos.busca || '').trim().toLowerCase();
   const sentidoDocumentoAba = abaDocumentosFiscais === 'entradas' ? 'fornecedor' : abaDocumentosFiscais === 'saidas' ? 'cliente' : '';
-  const documentosFiscaisFiltrados = documentosFiscais.filter((d) =>
+  const digDocumento=(v)=>String(v || '').replace(/\D/g,'');
+  const mesmaNotaRazao=(razao,fiscal)=>{
+    const a=digDocumento(razao.documento), b=digDocumento(fiscal.documento);
+    if(Math.min(a.length,b.length)<5 || !(a===b || a.endsWith(b) || b.endsWith(a))) return false;
+    if(Math.abs(Number(razao.valor || 0)-Number(fiscal.valor || 0))>=0.02) return false;
+    const da=String(razao.data_emissao || razao.competencia || '').slice(0,10), db=String(fiscal.data_emissao || fiscal.competencia || '').slice(0,10);
+    return Boolean(da && db && (da===db || da.slice(0,7)===db.slice(0,7)));
+  };
+  // Razão e XML são duas evidências da mesma entrada. A nota fiscal prevalece
+  // visualmente; o vínculo abaixo mantém a origem do Razão rastreável sem
+  // somar ou exibir uma segunda nota.
+  const documentosComRastreioRazao=documentosFiscais.map((d)=>({...d}));
+  for(const razao of documentosComRastreioRazao.filter((d)=>String(d.origem || '').toUpperCase()==='QUESTOR_RAZAO')){
+    const fiscal=documentosComRastreioRazao.find((d)=>String(d.origem || '').toUpperCase()!=='QUESTOR_RAZAO' && mesmaNotaRazao(razao,d));
+    if(fiscal){
+      razao.duplicado_por_xml=true; razao.xml_referencia=fiscal.referencia || fiscal.documento;
+      fiscal.razoes_conciliados=[...(fiscal.razoes_conciliados || []),{documento:razao.documento,referencia:razao.referencia || ''}];
+    }
+  }
+  const documentosFiscaisFiltrados = documentosComRastreioRazao.filter((d) =>
+    !d.duplicado_por_xml &&
     (!sentidoDocumentoAba || d.tipo === sentidoDocumentoAba) &&
     (!filtroDocumentos.competencia || d.competencia === filtroDocumentos.competencia) &&
     (!filtroDocumentos.modelo || String(d.modelo_documento_fiscal || 'NAO_IDENTIFICADO').toUpperCase() === filtroDocumentos.modelo) &&
@@ -574,7 +594,7 @@ Telas.dados = async (el) => {
         { t:'Operação', r:d=>d.operacao_receita ? '<span class="tag c">Compõe receita</span>' : `<span class="tag a">Não compõe receita</span><div class="mini">${A.esc(d.motivo_operacao || '')}</div>` },
         { t:'Itens / classificação', num:true, r:d=>String(d.origem || '').toUpperCase()==='QUESTOR_RAZAO' ? `<b>Sem item fiscal</b><div class="mini">${A.esc(d.classificacao_questor || 'Classificação do Razão')}</div>${d.conta_questor ? `<div class="mini mono">Conta ${A.esc(d.conta_questor)}</div>` : ''}` : d.itens },
         { t:'Valor', num:true, r:d=>A.moeda(d.valor) },
-        { t:'Origem', r:d=>String(d.origem || '').toUpperCase()==='QUESTOR_CONCILIACAO_ENTRADA' ? '<span class="tag c">Questor · conciliada</span><div class="mini">Entrada incluída após confirmação</div>' : String(d.origem || '').toUpperCase()==='QUESTOR_RAZAO' ? '<span class="tag c">Questor · Razão</span><div class="mini">Entrada incluída a partir do Razão</div>' : A.esc(d.origem || '—') },
+        { t:'Origem', r:d=>String(d.origem || '').toUpperCase()==='QUESTOR_CONCILIACAO_ENTRADA' ? '<span class="tag c">Questor · conciliada</span><div class="mini">Entrada incluída após confirmação</div>' : String(d.origem || '').toUpperCase()==='QUESTOR_RAZAO' ? '<span class="tag c">Questor · Razão</span><div class="mini">Entrada incluída a partir do Razão</div>' : `${A.esc(d.origem || '—')}${(d.razoes_conciliados || []).length ? `<div class="mini">Razão ${d.razoes_conciliados.map((x)=>`#${A.esc(x.documento || 'sem número')}`).join(', ')} conciliado ao XML · não compõe novamente</div>` : ''}` },
         { t:'Ações', r:d=>d.razao_confirmacao_persistida ? '<span class="mini">Confirmação do Razão preservada</span>' : `${String(d.origem || '').toUpperCase()==='QUESTOR_RAZAO' && d.chave ? `<button class="btn pq vazio" data-ajustar-fornecedor-razao="${A.esc(d.chave)}">Ajustar fornecedor</button> ` : ''}<button class="btn pq vazio" data-abrir-documento="${A.esc(d.referencia)}">Abrir</button>${['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(d.situacao_documento || '').toUpperCase()) ? '' : ` <button class="btn pq vazio" data-cancelar-documento="${A.esc(d.referencia)}">Cancelar</button>`} <button class="btn pq perigo" data-excluir-documento="${A.esc(d.referencia)}">Excluir</button>` },
       ], documentosFiscaisFiltrados, { vazio:'Nenhum documento atende aos filtros selecionados.' })}
       ${documentosFiscaisResposta.paginacao?.limite === 100 && (documentosFiscaisResposta.paginacao?.temAnterior || documentosFiscaisResposta.paginacao?.temProxima) ? `<div style="display:flex;justify-content:flex-end;gap:8px;align-items:center;margin-top:12px"><button class="btn pq vazio" data-documentos-pagina="${documentosFiscaisResposta.paginacao.pagina - 1}" ${documentosFiscaisResposta.paginacao.temAnterior ? '' : 'disabled'}>Anterior</button><span class="mini">Página ${documentosFiscaisResposta.paginacao.pagina} de ${documentosFiscaisResposta.paginacao.totalPaginas}</span><button class="btn pq vazio" data-documentos-pagina="${documentosFiscaisResposta.paginacao.pagina + 1}" ${documentosFiscaisResposta.paginacao.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''}
