@@ -6042,7 +6042,7 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       let fornecedor=fornecedorId ? db.prepare("SELECT id,cnpj,descricao,regime FROM parceiros WHERE id=? AND empresa_id=? AND tipo='fornecedor'").get(fornecedorId,empresaId) : null;
       if (!fornecedor) fornecedor=obterFornecedorGenericoSimples(empresaId);
       const referencia={ tipo:'LANCAMENTO_MANUAL_ENTRADA', gera_credito:regra.gera_credito !== false, ...(regra.regimes?.[empresa.regime] || {}), item_cadastrado:{chave:itemChave,nome:regra.nome || cadastro.label}, beneficio_percentual:beneficio, razao_identificador:idBase,
-        origem:'QUESTOR_RAZAO', conta:linha.conta || '', conta_codigo:linha.conta_codigo || '', sequencia:linha.sequencia || '', historico:linha.historico || '', participante:linha.participante || '',
+        origem:'QUESTOR_RAZAO', conta:linha.conta || '', conta_codigo:linha.conta_codigo || '', sequencia:linha.sequencia || '', historico:linha.historico || '', contrapartida:linha.contrapartida || '', participante:linha.participante || '',
         fornecedor_vinculado:{ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem:fornecedor.origem==='QUESTOR_RAZAO_GENERICO'?'FORNECEDOR_GENERICO_SIMPLES':'HISTORICO_RAZAO' }, incluido_em:new Date().toISOString() };
       const inserido=inserir.run(empresaId,fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,
         regra.cst || '',regra.cclasstrib || '',regra.cst || '',regra.cclasstrib || '',itemChave,documento || null,1,chave,JSON.stringify(referencia));
@@ -6127,13 +6127,25 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
     // histórico contábil omitiu. Número do documento + fornecedor cadastrado
     // é evidência suficiente; valor ou descrição isolados não são usados.
     const documentosFornecedor=db.prepare("SELECT documento,nome,inscr_federal FROM movimentos WHERE empresa_id=? AND tipo='fornecedor' AND origem<>'QUESTOR_RAZAO' AND COALESCE(documento,'')<>''").all(empresaId);
-    const contrapartidas=movimentos.map((movimento)=>{ try { return JSON.parse(movimento.normalizacao_evidencia || '{}').contrapartida; } catch (_) { return ''; } });
+    // As primeiras inclusões do Razão ainda não gravavam a contrapartida no
+    // movimento. A prévia durável conserva a linha original do arquivo,
+    // portanto recuperamos esse dado pela mesma identidade usada na inclusão.
+    const previa=db.prepare('SELECT resultado_json FROM questor_razao_previas WHERE empresa_id=?').get(empresaId);
+    let linhasDaPrevia=[]; try { linhasDaPrevia=JSON.parse(previa?.resultado_json || '{}').linhas || []; } catch (_) { linhasDaPrevia=[]; }
+    const contrapartidaPorIdentificador=new Map(linhasDaPrevia.map((linha)=>[String(linha?.identificador || ''),String(linha?.contrapartida || '')]).filter(([id,codigo])=>id && codigo));
+    const evidenciaDosMovimentos=movimentos.map((movimento)=>{
+      let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { /* compatibilidade com evidência legada */ }
+      if (!evidencia.contrapartida) evidencia.contrapartida=contrapartidaPorIdentificador.get(String(evidencia.razao_identificador || '')) || '';
+      return evidencia;
+    });
+    const contrapartidas=evidenciaDosMovimentos.map((evidencia)=>evidencia.contrapartida);
     const pessoasPorCodigo=await pessoasQuestorPorCodigos(contrapartidas);
     const atualizar=db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?');
     const resultado={ lidos:movimentos.length, identificados:0, identificados_por_contrapartida:0, genericos_simples:0, preservados_manualmente:0, atualizados:0, movimento_ids:[] };
     db.transaction(()=>{
-      for (const movimento of movimentos) {
-        let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
+      for (let indice=0; indice<movimentos.length; indice++) {
+        const movimento=movimentos[indice];
+        const evidencia=evidenciaDosMovimentos[indice];
         if (evidencia.fornecedor_vinculado?.origem === 'AJUSTE_USUARIO') { resultado.preservados_manualmente++; continue; }
         if (!evidencia.fornecedor_entrada_original && movimento.nome && movimento.nome !== 'Fornecedor genérico — Simples Nacional') evidencia.fornecedor_entrada_original=movimento.nome;
         // Lançamentos antigos podem ter chegado antes de a evidência do Razão
