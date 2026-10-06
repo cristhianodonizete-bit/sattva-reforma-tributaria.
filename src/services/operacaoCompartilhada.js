@@ -142,6 +142,25 @@ function gravar(tabela, linhas, dentroDaTransacao = false) {
   return linhas.length;
 }
 
+// A carga-base roda no mesmo processo HTTP. Uma coleção grande (sobretudo
+// movimentos) não pode monopolizar o event loop por minutos e impedir até a
+// entrega da página inicial após um deploy. Mantemos exatamente a mesma
+// escrita e as mesmas chaves de conflito, mas liberamos o processo entre
+// lotes pequenos. Isto não publica nem calcula dado algum.
+const cederAoServidor = () => new Promise((resolver) => setImmediate(resolver));
+async function gravarEmLotes(tabela, linhas, { tamanho = 250, qsa = false } = {}) {
+  if (!linhas.length) return 0;
+  let gravadas = 0;
+  for (let inicio = 0; inicio < linhas.length; inicio += tamanho) {
+    const lote = linhas.slice(inicio, inicio + tamanho);
+    gravadas += qsa ? gravarEmpresaQsa(lote) : gravar(tabela, lote);
+    // Permite que saúde, login e as telas já disponíveis sejam atendidos
+    // enquanto a fotografia restante continua chegando da fonte compartilhada.
+    await cederAoServidor();
+  }
+  return gravadas;
+}
+
 function gravarEmpresas(linhas, dentroDaTransacao = false) {
   // PostgREST devolve colunas json/jsonb como objetos. O cache local usa
   // TEXT para os campos do cadastro; sem esta conversão a próxima tela que
@@ -296,6 +315,7 @@ async function baixar() {
     empresaLocalPorRemota = mapaEmpresasLocais(origemEmpresas);
     origemEmpresas.forEach((x) => empresasValidas.add(empresaLocalPorRemota.get(String(x.id))));
     resultado.empresas = gravarEmpresas(origemEmpresas);
+    await cederAoServidor();
   } catch (e) { falhas.empresas = e.message; }
   const colecoes = await buscarColecoes(remoto, tabelas);
   for (const tabela of tabelas) {
@@ -316,7 +336,7 @@ async function baixar() {
     // tanto id técnico quanto unicidade funcional; limpar o espelho evita que
     // um ID local legado colida com uma regra remota de chave diferente.
       if (tabela === 'regras_governo') db.prepare('DELETE FROM regras_governo').run();
-      resultado[tabela] = tabela === 'empresa_qsa' ? gravarEmpresaQsa(linhas) : gravar(tabela, linhas);
+      resultado[tabela] = await gravarEmLotes(tabela, linhas, { qsa:tabela === 'empresa_qsa' });
     } catch (e) {
       falhas[tabela] = e.message;
     }
