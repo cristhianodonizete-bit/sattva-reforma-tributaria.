@@ -492,7 +492,12 @@ const App = (() => {
       catch (_) { S.cache.prontidaoMotor = false; }
       desenharMenu();
     };
-    await atualizarProntidaoMenu();
+    // A prontidão reconcilia período, apurações e PGDAS. Ela serve apenas
+    // para o indicador do menu e não pode atrasar a entrada no sistema nem
+    // impedir que o usuário abra Documentos fiscais. Atualiza em segundo
+    // plano depois de a empresa já estar disponível.
+    desenharMenu();
+    atualizarProntidaoMenu().catch(() => {});
     const selecionarEmpresa = (valor) => {
       S.empresaId = Number(valor) || null;
       S.empresa = S.empresas.find((e) => e.id === S.empresaId) || null;
