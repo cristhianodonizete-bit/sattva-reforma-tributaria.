@@ -5919,6 +5919,9 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       resultado.motivos[motivo]=(resultado.motivos[motivo] || 0)+1;
       if (resultado.mensagens.length < 20) resultado.mensagens.push({ identificador:linha?.identificador || null, documento:linha?.documento || null, motivo });
     };
+    // better-sqlite3 devolve uma função transacional: ela precisa ser
+    // invocada. Sem o `()`, a rota respondia 200 com zero incluídos, mas o
+    // corpo jamais era executado.
     db.transaction(()=>{ for(const linha of selecionados) {
       const itemChave=String(linha?.item_sugerido?.chave || '');
       const cadastro=itemChave && db.prepare("SELECT valor,label FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(itemChave);
@@ -5939,7 +5942,7 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       const inserido=inserir.run(empresaId,String(linha.participante || '').trim() || 'Razão Questor',regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,
         regra.cst || '',regra.cclasstrib || '',regra.cst || '',regra.cclasstrib || '',itemChave,documento || null,1,chave,JSON.stringify(referencia));
       resultado.incluidos++; resultado.movimento_ids.push(Number(inserido.lastInsertRowid)); resultado.identificadores_incluidos.push(idBase);
-    }});
+    }})();
     if (resultado.incluidos) {
       // O Razão é uma inclusão Questor, não XML. Publicá-lo pela rotina
       // específica preserva a chave estável e a origem na fonte compartilhada.
