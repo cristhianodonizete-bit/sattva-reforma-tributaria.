@@ -718,6 +718,21 @@ function resultados(empresaId, filtros = {}) {
   return db.prepare(sql).all(...p).map((r) => ({ ...r, detalhe: JSON.parse(r.detalhe || '{}') }));
 }
 
+// Fotografias anteriores podem ter sido gravadas antes de a família de
+// remessas ser bloqueada na entrada. A leitura não pode manter crédito ou
+// compra nessas linhas enquanto o reprocessamento incremental é agendado.
+// O documento permanece disponível na rastreabilidade; apenas não participa
+// de qualquer cálculo econômico.
+function entradaRemessaSemAquisicao(registro = {}) {
+  if (registro.sentido !== 'entrada') return false;
+  const natureza=receitaOperacional.natureza({
+    ...registro,
+    tipo:registro.tipo_movimento || registro.tipo,
+    origem:registro.origem_movimento || registro.origem,
+  });
+  return natureza === 'remessa' || natureza === 'retorno_remessa';
+}
+
 function resultadoMaterializado(empresa, ano) {
   const execucao = ultimaExecucao(empresa.id);
   if (!execucao) return null;
@@ -730,6 +745,7 @@ function resultadoMaterializado(empresa, ano) {
       CASE WHEN EXISTS(SELECT 1 FROM enriquecimento_pis_cofins_evidencias e WHERE e.empresa_id=m.empresa_id AND e.movimento_id=m.id AND e.origem_evidencia='SPED_C175') THEN 'SPED_C175' ELSE '' END AS origem_evidencia_pis_cofins
     FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
     WHERE r.empresa_id=?`).all(empresa.id)
+    .filter((r) => !entradaRemessaSemAquisicao(r))
     .filter((r) => r.sentido !== 'saida' || receitaOperacional.compoeReceitaComEvidencia({ ...r, tipo:r.tipo_movimento, origem:r.origem_movimento }));
   const linhas = registros.map((r) => { try { return JSON.parse(r.detalhe || '{}'); } catch (_) { return null; } }).filter(Boolean);
   const entradas = linhas.filter((x) => x.sentido === 'entrada');

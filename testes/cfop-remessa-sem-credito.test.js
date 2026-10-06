@@ -4,7 +4,9 @@ process.env.SATTVA_DADOS=fs.mkdtempSync(path.join(os.tmpdir(),'sattva-cfop-remes
 const { classificar }=require('../src/engine/classificador');
 const { avaliarCredito }=require('../src/engine/motor');
 
-for (const cfop of ['5901','5915','5925','6901','6915','6925']) {
+// A mesma família não pode virar aquisição quando aparece como entrada
+// (1/2.xxx). O primeiro dígito indica a origem/destino, não uma compra.
+for (const cfop of ['1901','1915','1925','2901','2915','2925','5901','5915','5925','6901','6915','6925']) {
   const classificacao=classificar({ cfop, ncm:'84798999', descricao:'Bem remetido' },{ sentido:'entrada' });
   assert.equal(classificacao.status,'CLASSIFICADO',cfop);
   assert.equal(classificacao.semCreditoPorCfop,true,cfop);

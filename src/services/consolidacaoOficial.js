@@ -83,6 +83,12 @@ function filtrarLinhasDoEscopo(linhas, tipo, periodo) {
     if (periodo && !periodoAnalisado.noPeriodo(linha.competencia, periodo)) return false;
     if (lado === 'cliente' && linha.sentido !== 'saida') return false;
     if (lado === 'fornecedor' && linha.sentido !== 'entrada') return false;
+    // Compatibilidade de fotografia: uma remessa fica rastreável no
+    // documento, mas nunca pode reaparecer como compra ou crédito por ter
+    // sido materializada antes da regra de CFOP atual.
+    if (lado === 'fornecedor' && ['remessa','retorno_remessa'].includes(receitaOperacional.natureza({
+      ...linha, tipo:linha.tipo_movimento || linha.tipo, origem:linha.origem_movimento || linha.origem,
+    }))) return false;
     if (lado === 'fornecedor' || linha.sentido !== 'saida') return true;
     return receitaOperacional.compoeReceitaComEvidencia({
       ...linha, tipo: linha.tipo_movimento || linha.tipo, origem: linha.origem_movimento || linha.origem,
