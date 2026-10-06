@@ -2754,8 +2754,21 @@ function candidatosMedicamentosImportados(empresaId) {
       classificavel:Boolean(matriz.encontrado && matriz.unico), tratamento_sugerido:matriz.reducao||null };
   });
 }
+function resumoReclassificacaoMedicamentos(itens) {
+  const grupos=new Map();
+  for (const item of itens) {
+    const regra=item.classificavel ? item._matriz.candidatos[0] : null;
+    const situacao=item.classificavel ? 'PRONTO_PARA_APLICAR' : item.matriz_encontrada ? 'EXIGE_VALIDACAO' : 'SEM_REGRA';
+    const chave=[item.ncm || 'SEM_NCM',situacao,regra?.cclasstrib || '',item._matriz?.reducao || ''].join('|');
+    const grupo=grupos.get(chave) || { ncm:item.ncm || 'Sem NCM', descricao:item.descricao || '—', situacao,
+      cclasstrib:regra?.cclasstrib || '', reducao:item._matriz?.reducao || '', itens:0, valor:0 };
+    grupo.itens+=1; grupo.valor+=Number(item.valor || 0); grupos.set(chave,grupo);
+  }
+  const ordem={ PRONTO_PARA_APLICAR:0, EXIGE_VALIDACAO:1, SEM_REGRA:2 };
+  return [...grupos.values()].sort((a,b)=>(ordem[a.situacao]-ordem[b.situacao]) || Number(b.valor)-Number(a.valor));
+}
 router.get('/empresas/:id/documentos-fiscais/medicamentos/reclassificacao', (req,res)=>{
-  try { const itens=candidatosMedicamentosImportados(req.params.id); ok(res,{total:itens.length,classificaveis:itens.filter(x=>x.classificavel).length,requer_validacao:itens.filter(x=>x.matriz_encontrada&&!x.classificavel).length,sem_matriz:itens.filter(x=>!x.matriz_encontrada).length,valor:itens.reduce((s,x)=>s+Number(x.valor||0),0),itens:itens.slice(0,100).map(({_matriz,...item})=>item),aviso:'Usa os documentos já importados e a matriz homologada. Itens sem regra única não recebem benefício presumido.'}); }
+  try { const itens=candidatosMedicamentosImportados(req.params.id), resumo=resumoReclassificacaoMedicamentos(itens); ok(res,{total:itens.length,classificaveis:itens.filter(x=>x.classificavel).length,requer_validacao:itens.filter(x=>x.matriz_encontrada&&!x.classificavel).length,sem_matriz:itens.filter(x=>!x.matriz_encontrada).length,valor:itens.reduce((s,x)=>s+Number(x.valor||0),0),itens:itens.slice(0,100).map(({_matriz,...item})=>item),resumo:resumo.slice(0,50),resumo_total:resumo.length,aviso:'Usa os documentos já importados e a matriz homologada. Itens sem regra única não recebem benefício presumido.'}); }
   catch(e){ erro(res,e); }
 });
 router.post('/empresas/:id/documentos-fiscais/medicamentos/reclassificacao', (req,res)=>{
