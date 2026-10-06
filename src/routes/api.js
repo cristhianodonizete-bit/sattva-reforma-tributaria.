@@ -5774,6 +5774,24 @@ function obterFornecedorGenericoSimples(empresaId) {
     .run(Number(empresaId),'Fornecedor genérico — Simples Nacional');
   return db.prepare('SELECT id,cnpj,descricao,regime FROM parceiros WHERE id=?').get(Number(inserido.lastInsertRowid));
 }
+function fornecedorPeloDocumentoRazao(fornecedores, documentos, documento) {
+  const numero=String(documento || '').split('/').at(-1).replace(/\D/g,'');
+  if (!numero) return null;
+  const candidatos=(documentos || []).filter((x)=>String(x.documento || '').split('/').at(-1).replace(/\D/g,'')===numero);
+  const porCnpj=new Map((fornecedores || []).filter((x)=>x.cnpj).map((x)=>[String(x.cnpj).replace(/\D/g,''),x]));
+  const encontrados=[];
+  for (const candidato of candidatos) {
+    const cnpj=String(candidato.inscr_federal || '').replace(/\D/g,'');
+    let fornecedor=cnpj ? porCnpj.get(cnpj) : null;
+    if (!fornecedor && candidato.nome) {
+      const leitura=fornecedorSugeridoPeloRazao(fornecedores,{ participante:candidato.nome });
+      fornecedor=leitura.sugestao?.id ? (fornecedores || []).find((x)=>Number(x.id)===Number(leitura.sugestao.id)) : null;
+    }
+    if (fornecedor) encontrados.push(fornecedor);
+  }
+  const unicos=[...new Map(encontrados.map((x)=>[Number(x.id),x])).values()];
+  return unicos.length===1 ? unicos[0] : null;
+}
 
 router.get('/empresas/:id/questor/razao/ultima-conciliacao', async (req,res)=>{
   try {
@@ -6062,22 +6080,28 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
     await garantirEmpresaPermitida(req, req.params.id);
     const empresaId=Number(req.params.id);
     const fornecedores=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' ORDER BY descricao").all(empresaId);
-    const movimentos=db.prepare("SELECT id,chave,nome,descricao,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' ORDER BY id").all(empresaId);
+    const movimentos=db.prepare("SELECT id,chave,nome,descricao,documento,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' ORDER BY id").all(empresaId);
+    // Uma nota já registrada por outra origem pode trazer o fornecedor que o
+    // histórico contábil omitiu. Número do documento + fornecedor cadastrado
+    // é evidência suficiente; valor ou descrição isolados não são usados.
+    const documentosFornecedor=db.prepare("SELECT documento,nome,inscr_federal FROM movimentos WHERE empresa_id=? AND tipo='fornecedor' AND origem<>'QUESTOR_RAZAO' AND COALESCE(documento,'')<>''").all(empresaId);
     const atualizar=db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?');
     const resultado={ lidos:movimentos.length, identificados:0, genericos_simples:0, preservados_manualmente:0, atualizados:0, movimento_ids:[] };
     db.transaction(()=>{
       for (const movimento of movimentos) {
         let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
         if (evidencia.fornecedor_vinculado?.origem === 'AJUSTE_USUARIO') { resultado.preservados_manualmente++; continue; }
+        if (!evidencia.fornecedor_entrada_original && movimento.nome && movimento.nome !== 'Fornecedor genérico — Simples Nacional') evidencia.fornecedor_entrada_original=movimento.nome;
         // Lançamentos antigos podem ter chegado antes de a evidência do Razão
         // ser completa. Neles, o fornecedor já informado foi preservado em
         // `nome`; ele é uma fonte válida e prioritária para a releitura.
-        const leitura=fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante || movimento.nome, descricao:movimento.descricao });
-        let fornecedor=leitura.sugestao?.id
+        const peloDocumento=fornecedorPeloDocumentoRazao(fornecedores,documentosFornecedor,movimento.documento || evidencia.documento);
+        const leitura=fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante || evidencia.fornecedor_entrada_original || movimento.nome, descricao:movimento.descricao });
+        let fornecedor=peloDocumento || (leitura.sugestao?.id
           ? fornecedores.find((x)=>Number(x.id)===Number(leitura.sugestao.id))
-          : null;
+          : null);
         if (!fornecedor) fornecedor=obterFornecedorGenericoSimples(empresaId);
-        const origem=fornecedor.origem==='QUESTOR_RAZAO_GENERICO' ? 'FORNECEDOR_GENERICO_SIMPLES' : leitura.sugestao?.origem || 'HISTORICO_RAZAO';
+        const origem=fornecedor.origem==='QUESTOR_RAZAO_GENERICO' ? 'FORNECEDOR_GENERICO_SIMPLES' : peloDocumento ? 'DOCUMENTO_EXISTENTE' : leitura.sugestao?.origem || 'HISTORICO_RAZAO';
         evidencia.fornecedor_vinculado={ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem };
         evidencia.fornecedor_relido_em=new Date().toISOString();
         atualizar.run(fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,JSON.stringify(evidencia),movimento.id,empresaId);
