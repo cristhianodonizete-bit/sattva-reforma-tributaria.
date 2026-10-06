@@ -2739,21 +2739,40 @@ function candidatosMedicamentosImportados(empresaId) {
     FROM movimentos WHERE empresa_id=? AND COALESCE(situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')
     ORDER BY competencia,documento,item_numero`).all(Number(empresaId));
   const ehMedicamento=(m)=>/^30/.test(String(m.ncm||'').replace(/\D/g,'')) || /\b(medicamento|comprimido|capsula|cápsula|xarope|solu[cç][aã]o|inje[cç][aã]o|insulina|vacina)\b/i.test(String(m.descricao||''));
-  return itens.filter(ehMedicamento).map((m)=>{
-    const matriz=m.ncm ? bases.consultarNcm(m.ncm) : {encontrado:false,candidatos:[]};
-    return { ...m, matriz_encontrada:Boolean(matriz.encontrado), candidatos:(matriz.candidatos||[]).length,
+  const medicamentos=itens.filter(ehMedicamento);
+  // Uma mesma farmácia costuma ter milhares de movimentos para o mesmo NCM.
+  // Consultar a matriz por item transformava uma reclassificação em milhares
+  // de leituras idênticas. A decisão continua sendo a mesma, mas é resolvida
+  // uma única vez por NCM distinto.
+  const matrizesPorNcm=new Map();
+  for (const ncm of new Set(medicamentos.map((m)=>String(m.ncm||'')).filter(Boolean))) {
+    matrizesPorNcm.set(ncm,bases.consultarNcm(ncm));
+  }
+  return medicamentos.map((m)=>{
+    const matriz=matrizesPorNcm.get(String(m.ncm||'')) || {encontrado:false,candidatos:[]};
+    return { ...m, _matriz:matriz, matriz_encontrada:Boolean(matriz.encontrado), candidatos:(matriz.candidatos||[]).length,
       classificavel:Boolean(matriz.encontrado && matriz.unico), tratamento_sugerido:matriz.reducao||null };
   });
 }
 router.get('/empresas/:id/documentos-fiscais/medicamentos/reclassificacao', (req,res)=>{
-  try { const itens=candidatosMedicamentosImportados(req.params.id); ok(res,{total:itens.length,classificaveis:itens.filter(x=>x.classificavel).length,requer_validacao:itens.filter(x=>x.matriz_encontrada&&!x.classificavel).length,sem_matriz:itens.filter(x=>!x.matriz_encontrada).length,valor:itens.reduce((s,x)=>s+Number(x.valor||0),0),itens:itens.slice(0,100),aviso:'Usa os documentos já importados e a matriz homologada. Itens sem regra única não recebem benefício presumido.'}); }
+  try { const itens=candidatosMedicamentosImportados(req.params.id); ok(res,{total:itens.length,classificaveis:itens.filter(x=>x.classificavel).length,requer_validacao:itens.filter(x=>x.matriz_encontrada&&!x.classificavel).length,sem_matriz:itens.filter(x=>!x.matriz_encontrada).length,valor:itens.reduce((s,x)=>s+Number(x.valor||0),0),itens:itens.slice(0,100).map(({_matriz,...item})=>item),aviso:'Usa os documentos já importados e a matriz homologada. Itens sem regra única não recebem benefício presumido.'}); }
   catch(e){ erro(res,e); }
 });
 router.post('/empresas/:id/documentos-fiscais/medicamentos/reclassificacao', (req,res)=>{
   try {
     if(req.body?.confirmar!==true) throw new Error('Confirme a reclassificação após revisar a prévia.');
     const itens=candidatosMedicamentosImportados(req.params.id); let atualizados=0; let inalterados=0;
-    db.transaction(()=>{ for(const item of itens.filter(x=>x.classificavel)) { const antes=`${item.reducao||''}|${item.cclasstrib||''}`; const r=bases.classificarMovimento(Number(req.params.id),item.id); const depois=`${r.reducao||''}|${r.cclasstrib||''}`; if(antes===depois) inalterados++; else { atualizados++; db.prepare(`INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em) VALUES (?,?,?,datetime('now','localtime')) ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em`).run(Number(req.params.id),item.id,'RECLASSIFICACAO_MEDICAMENTOS'); } } })();
+    const empresaId=Number(req.params.id);
+    const atualizar=db.prepare('UPDATE movimentos SET reducao=?,cclasstrib=?,classificacao_origem=? WHERE empresa_id=? AND id=?');
+    const registrarPendencia=db.prepare(`INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em) VALUES (?,?,?,datetime('now','localtime')) ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em`);
+    db.transaction(()=>{ for(const item of itens.filter(x=>x.classificavel)) {
+      const regra=item._matriz.candidatos[0];
+      const reducao=item._matriz.reducao || 'integral'; const cclasstrib=regra.cclasstrib || '';
+      const antes=`${item.reducao||''}|${item.cclasstrib||''}`; const depois=`${reducao}|${cclasstrib}`;
+      atualizar.run(reducao,cclasstrib,`revisao:ncm:${item._matriz.nivel}`,empresaId,item.id);
+      if(antes===depois) { inalterados++; continue; }
+      registrarPendencia.run(empresaId,item.id,'RECLASSIFICACAO_MEDICAMENTOS'); atualizados++;
+    } })();
     ok(res,{total:itens.length,atualizados,inalterados,requer_validacao:itens.filter(x=>x.matriz_encontrada&&!x.classificavel).length,sem_matriz:itens.filter(x=>!x.matriz_encontrada).length,aviso:'Itens alterados foram incluídos na fila do motor. Execute o motor para materializar os novos cálculos.'});
   } catch(e){ erro(res,e); }
 });
