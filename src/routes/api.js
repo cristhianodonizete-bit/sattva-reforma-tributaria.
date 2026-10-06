@@ -6053,6 +6053,46 @@ router.post('/empresas/:id/questor/razao/vincular-fornecedor', async (req,res)=>
   } catch(e) { erro(res,e); }
 });
 
+// Releitura em lote dos históricos já materializados pelo Razão. Não exige
+// que o usuário informe fornecedor linha a linha: usa apenas CNPJ/nome
+// inequívoco do cadastro e, na ausência disso, o fornecedor genérico do
+// Simples. Ajustes manuais explícitos são preservados.
+router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId=Number(req.params.id);
+    const fornecedores=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' ORDER BY descricao").all(empresaId);
+    const movimentos=db.prepare("SELECT id,chave,descricao,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' ORDER BY id").all(empresaId);
+    const atualizar=db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?');
+    const resultado={ lidos:movimentos.length, identificados:0, genericos_simples:0, preservados_manualmente:0, atualizados:0, movimento_ids:[] };
+    db.transaction(()=>{
+      for (const movimento of movimentos) {
+        let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
+        if (evidencia.fornecedor_vinculado?.origem === 'AJUSTE_USUARIO') { resultado.preservados_manualmente++; continue; }
+        const leitura=fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante, descricao:movimento.descricao });
+        let fornecedor=leitura.sugestao?.id
+          ? fornecedores.find((x)=>Number(x.id)===Number(leitura.sugestao.id))
+          : null;
+        if (!fornecedor) fornecedor=obterFornecedorGenericoSimples(empresaId);
+        const origem=fornecedor.origem==='QUESTOR_RAZAO_GENERICO' ? 'FORNECEDOR_GENERICO_SIMPLES' : leitura.sugestao?.origem || 'HISTORICO_RAZAO';
+        evidencia.fornecedor_vinculado={ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem };
+        evidencia.fornecedor_relido_em=new Date().toISOString();
+        atualizar.run(fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,JSON.stringify(evidencia),movimento.id,empresaId);
+        resultado.movimento_ids.push(movimento.id); resultado.atualizados++;
+        if (origem==='FORNECEDOR_GENERICO_SIMPLES') resultado.genericos_simples++; else resultado.identificados++;
+      }
+    })();
+    const publicacao=resultado.movimento_ids.length ? await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,resultado.movimento_ids) : null;
+    let processamento_motor=null;
+    if (resultado.movimento_ids.length) {
+      estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Fornecedores do Razão relidos');
+      processamento_motor=await motorExecucaoFila.solicitar(empresaId,{});
+    }
+    auditar(req,{ empresaId,acao:'RELEITURA_FORNECEDORES_RAZAO',entidade:'movimentos',entidadeId:resultado.movimento_ids.join(','),depois:{...resultado, movimento_ids:undefined} });
+    ok(res,{ ...resultado, publicacao, processamento_motor });
+  } catch(e) { erro(res,e); }
+});
+
 router.post('/empresas/:id/questor/conector/documentos-fiscais-cancelados', async (req,res)=>{ try {
   const empresaId=Number(req.params.id), empresa=db.prepare('SELECT codigo_questor FROM empresas WHERE id=?').get(empresaId);
   if(!empresa?.codigo_questor) throw new Error('Informe o Código Questor no cadastro da empresa antes da busca.');
