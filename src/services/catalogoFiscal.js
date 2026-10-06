@@ -76,14 +76,25 @@ function resolver(item, opcoes = {}) {
   if (texto(c.cumulatividade_obrigatoria).toUpperCase() === 'SIM') {
     const p = num(c.total_cumulativo_percentual) || (num(c.pis_cumulativo_percentual) + num(c.cofins_cumulativo_percentual));
     if (condicional) {
-      // A mera condição do catálogo não equivale a alíquota zero. Somente uma
-      // evidência explícita de que a condição pendente impede o fallback pode
-      // encerrar a precedência. Nos demais casos a empresa/regime ainda pode
-      // resolver a operação residual.
+      // A condição jurídica continua registrada para a auditoria, mas, na
+      // reconstrução econômica, esta carga só é usada para retirar PIS/Cofins
+      // do preço antes da comparação com CBS. Não devemos criar volumetria
+      // manual por uma condição que não muda essa retirada. A premissa é
+      // explicitamente simulada, nunca apresentada como tributo destacado ou
+      // como apuração do fornecedor.
       const condicao = texto(c.condicao_cumulatividade || c.regra_precedencia).toUpperCase();
       const condicaoMaterial = item.condicao_material_pendente === true || /IMPEDIMENTO\s+MATERIAL|BLOQUEIA[_ ]FALLBACK/.test(condicao);
-      return { percentual: null, valor: null, origem: 'INDETERMINADO', natureza: 'INDETERMINADO', metodo: 'CUMULATIVIDADE_CONDICIONADA', motivoIndeterminacao: condicaoMaterial ? 'REGRA_INCONCLUSIVA' : 'SEM_REGRA_APLICAVEL', catalogo: c, continuar: !condicaoMaterial, condicaoMaterial,
-        justificativa: condicaoMaterial ? `Condição material pendente: ${c.condicao_cumulatividade || c.regra_precedencia || 'não informada'}.` : 'Catálogo condicional sem impedimento material explícito; seguir para a regra validada da empresa/regime.' };
+      const percentualPremissa = 3.65;
+      return {
+        percentual: percentualPremissa,
+        valor: aplicarPercentual(num(item.valor), percentualPremissa),
+        origem: 'PREMISSA_CUMULATIVIDADE_CONDICIONAL',
+        natureza: 'SIMULADO',
+        metodo: 'PREMISSA_CUMULATIVIDADE_CONDICIONAL_365',
+        catalogo: c,
+        condicaoMaterial,
+        justificativa: `Premissa econômica de 3,65% para retirar PIS/Cofins da base; a condição jurídica permanece auditável: ${c.condicao_cumulatividade || c.regra_precedencia || 'não informada'}.`,
+      };
     }
     return { percentual: p, valor: aplicarPercentual(num(item.valor), p), origem: 'CATALOGO_REGRA_ESPECIFICA', natureza: 'CALCULADO', metodo: 'CUMULATIVIDADE_OBRIGATORIA', catalogo: c };
   }
