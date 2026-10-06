@@ -2720,6 +2720,36 @@ router.get('/empresas/:id/documentos-fiscais/saidas/rastreabilidade-cfop', async
     ok(res, leitura);
   } catch(e) { erro(res,e); }
 });
+// Prévia e aplicação retrospectiva sobre documentos já importados. Não há
+// nova importação: somente a matriz fiscal homologada é reaplicada aos itens
+// de medicamento identificados pela NCM ou descrição. Benefícios ambíguos
+// permanecem em validação; a rotina não os presume.
+function candidatosMedicamentosImportados(empresaId) {
+  const empresa=db.prepare('SELECT cnae,atividade,setor FROM empresas WHERE id=?').get(Number(empresaId));
+  const cnae=String(empresa?.cnae||'').replace(/\D/g,''); const atividade=String([empresa?.atividade,empresa?.setor].filter(Boolean).join(' '));
+  if(!/477170[123]/.test(cnae) && !/farm[aá]ci|drogaria|farmac[eê]utic/i.test(atividade)) throw new Error('A reclassificação assistida de medicamentos está disponível somente para farmácias e drogarias.');
+  const itens=db.prepare(`SELECT id,documento,item_numero,descricao,ncm,valor,competencia,cfop,cclasstrib,reducao,classificacao_origem
+    FROM movimentos WHERE empresa_id=? AND COALESCE(situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')
+    ORDER BY competencia,documento,item_numero`).all(Number(empresaId));
+  const ehMedicamento=(m)=>/^30/.test(String(m.ncm||'').replace(/\D/g,'')) || /\b(medicamento|comprimido|capsula|cápsula|xarope|solu[cç][aã]o|inje[cç][aã]o|insulina|vacina)\b/i.test(String(m.descricao||''));
+  return itens.filter(ehMedicamento).map((m)=>{
+    const matriz=m.ncm ? bases.consultarNcm(m.ncm) : {encontrado:false,candidatos:[]};
+    return { ...m, matriz_encontrada:Boolean(matriz.encontrado), candidatos:(matriz.candidatos||[]).length,
+      classificavel:Boolean(matriz.encontrado && matriz.unico), tratamento_sugerido:matriz.reducao||null };
+  });
+}
+router.get('/empresas/:id/documentos-fiscais/medicamentos/reclassificacao', (req,res)=>{
+  try { const itens=candidatosMedicamentosImportados(req.params.id); ok(res,{total:itens.length,classificaveis:itens.filter(x=>x.classificavel).length,requer_validacao:itens.filter(x=>x.matriz_encontrada&&!x.classificavel).length,sem_matriz:itens.filter(x=>!x.matriz_encontrada).length,valor:itens.reduce((s,x)=>s+Number(x.valor||0),0),itens:itens.slice(0,100),aviso:'Usa os documentos já importados e a matriz homologada. Itens sem regra única não recebem benefício presumido.'}); }
+  catch(e){ erro(res,e); }
+});
+router.post('/empresas/:id/documentos-fiscais/medicamentos/reclassificacao', (req,res)=>{
+  try {
+    if(req.body?.confirmar!==true) throw new Error('Confirme a reclassificação após revisar a prévia.');
+    const itens=candidatosMedicamentosImportados(req.params.id); let atualizados=0; let inalterados=0;
+    db.transaction(()=>{ for(const item of itens.filter(x=>x.classificavel)) { const antes=`${item.reducao||''}|${item.cclasstrib||''}`; const r=bases.classificarMovimento(Number(req.params.id),item.id); const depois=`${r.reducao||''}|${r.cclasstrib||''}`; if(antes===depois) inalterados++; else { atualizados++; db.prepare(`INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em) VALUES (?,?,?,datetime('now','localtime')) ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em`).run(Number(req.params.id),item.id,'RECLASSIFICACAO_MEDICAMENTOS'); } } })();
+    ok(res,{total:itens.length,atualizados,inalterados,requer_validacao:itens.filter(x=>x.matriz_encontrada&&!x.classificavel).length,sem_matriz:itens.filter(x=>!x.matriz_encontrada).length,aviso:'Itens alterados foram incluídos na fila do motor. Execute o motor para materializar os novos cálculos.'});
+  } catch(e){ erro(res,e); }
+});
 router.get('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
   try {
     const filtro=whereDocumentoFiscal(req.params.id,req.params.referencia);
