@@ -632,6 +632,17 @@ CREATE TABLE IF NOT EXISTS parceiros (
 CREATE INDEX IF NOT EXISTS ix_parceiros ON parceiros(empresa_id, tipo);
 CREATE INDEX IF NOT EXISTS ix_parceiros_empresa_tipo_descricao ON parceiros(empresa_id, tipo, descricao);
 
+-- Cadastro mestre do Questor: a contrapartida do Razão aponta para este
+-- código de pessoa. A tabela é global à base Questor e não pertence a uma
+-- empresa analisada específica.
+CREATE TABLE IF NOT EXISTS questor_pessoas (
+  codigo_pessoa TEXT PRIMARY KEY,
+  nome TEXT NOT NULL DEFAULT '',
+  inscr_federal TEXT,
+  atualizado_em TEXT DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS ix_questor_pessoas_inscr_federal ON questor_pessoas(inscr_federal);
+
 -- Quadro societário é evidência cadastral da empresa analisada. Percentual
 -- nunca recebe valor por inferência: NULL significa que a API/documento não o informou.
 CREATE TABLE IF NOT EXISTS empresa_qsa (
