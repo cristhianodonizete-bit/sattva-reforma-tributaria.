@@ -6026,7 +6026,7 @@ router.get('/empresas/:id/questor/razao/fornecedores', async (req,res)=>{
     const fornecedores=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' ORDER BY descricao").all(empresaId);
     const movimento=chave ? db.prepare("SELECT nome,descricao,normalizacao_evidencia,inscr_federal,regime FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' AND chave=?").get(empresaId,chave) : null;
     let evidencia={}; try { evidencia=JSON.parse(movimento?.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
-    const sugestao=movimento ? fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante, descricao:movimento.descricao }) : null;
+    const sugestao=movimento ? fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante || movimento.nome, descricao:movimento.descricao }) : null;
     ok(res,{ fornecedores, sugestao:sugestao?.sugestao || null, candidatos:sugestao?.candidatos || [], vinculado:evidencia.fornecedor_vinculado || null });
   } catch(e) { erro(res,e); }
 });
@@ -6062,14 +6062,17 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
     await garantirEmpresaPermitida(req, req.params.id);
     const empresaId=Number(req.params.id);
     const fornecedores=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' ORDER BY descricao").all(empresaId);
-    const movimentos=db.prepare("SELECT id,chave,descricao,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' ORDER BY id").all(empresaId);
+    const movimentos=db.prepare("SELECT id,chave,nome,descricao,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' ORDER BY id").all(empresaId);
     const atualizar=db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?');
     const resultado={ lidos:movimentos.length, identificados:0, genericos_simples:0, preservados_manualmente:0, atualizados:0, movimento_ids:[] };
     db.transaction(()=>{
       for (const movimento of movimentos) {
         let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
         if (evidencia.fornecedor_vinculado?.origem === 'AJUSTE_USUARIO') { resultado.preservados_manualmente++; continue; }
-        const leitura=fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante, descricao:movimento.descricao });
+        // Lançamentos antigos podem ter chegado antes de a evidência do Razão
+        // ser completa. Neles, o fornecedor já informado foi preservado em
+        // `nome`; ele é uma fonte válida e prioritária para a releitura.
+        const leitura=fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante || movimento.nome, descricao:movimento.descricao });
         let fornecedor=leitura.sugestao?.id
           ? fornecedores.find((x)=>Number(x.id)===Number(leitura.sugestao.id))
           : null;
