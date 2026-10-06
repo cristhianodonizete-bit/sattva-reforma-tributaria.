@@ -1428,15 +1428,21 @@ Telas.perfil = async (el) => {
   const resumoSegregacaoSimples = (linhas) => {
     const porCompetencia = new Map();
     linhas.filter((x) => x.status_confirmacao === 'CONFIRMADO_PGDAS').forEach((x) => {
-      const atual = porCompetencia.get(x.competencia) || { declarada:null, blocos:0 };
-      if (x.receita_bruta_declarada_pgdas !== null && x.receita_bruta_declarada_pgdas !== undefined) atual.declarada=Number(x.receita_bruta_declarada_pgdas);
+      const atual = porCompetencia.get(x.competencia) || { auferida:null, recebida:null, declarada:null, regime:x.regime_apuracao || 'NAO_IDENTIFICADO', blocos:0 };
+      if (x.receita_bruta_declarada_pgdas !== null && x.receita_bruta_declarada_pgdas !== undefined) atual.auferida=Number(x.receita_bruta_declarada_pgdas);
+      if (x.receita_recebida_declarada_pgdas !== null && x.receita_recebida_declarada_pgdas !== undefined) atual.recebida=Number(x.receita_recebida_declarada_pgdas);
+      atual.regime=x.regime_apuracao || atual.regime;
+      atual.declarada=String(atual.regime).toUpperCase()==='CAIXA' ? atual.recebida : atual.auferida;
       atual.blocos += Number(x.receita_pgdas) || 0;
       porCompetencia.set(x.competencia, atual);
     });
     const competencias=[...porCompetencia.entries()].map(([competencia, x]) => ({ competencia, ...x, diferenca:x.declarada === null ? null : x.blocos-x.declarada }));
     return {
       declarada:competencias.reduce((s,x)=>s+(x.declarada || 0),0),
+      auferida:competencias.reduce((s,x)=>s+(x.auferida || 0),0),
+      recebida:competencias.reduce((s,x)=>s+(x.recebida || 0),0),
       blocos:competencias.reduce((s,x)=>s+x.blocos,0),
+      caixa:competencias.some((x)=>String(x.regime).toUpperCase()==='CAIXA'),
       divergencias:competencias.filter((x)=>x.diferenca !== null && Math.abs(x.diferenca)>0.02),
     };
   };
@@ -1554,12 +1560,13 @@ Telas.perfil = async (el) => {
       ${chaveRegime === 'simples_nacional' && resumoPgdasHistorico.competencias.size ? `<div class="cartao" style="margin-top:16px;box-shadow:none;background:var(--fundo-suave,#f6f9fb)"><div class="cabecalho-lista"><div><h3>Resumo histórico do PGDAS</h3><p class="mini">Competências fora da janela atual. Os valores vêm dos blocos PGDAS confirmados e não são somados à apuração atual.</p></div><span class="tag n">${resumoPgdasHistorico.competencias.size} competência(s)</span></div><div class="grade g3">${A.kpi('Receita PGDAS histórica', A.moeda(resumoPgdasHistorico.receita), [...resumoPgdasHistorico.competencias].sort().join(', '))}${A.kpi('PIS PGDAS histórico', A.moeda(resumoPgdasHistorico.pis), 'somente blocos confirmados')}${A.kpi('Cofins PGDAS histórico', A.moeda(resumoPgdasHistorico.cofins), 'somente blocos confirmados')}</div></div>` : ''}
     </div>
     <div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>${chaveRegime === 'simples_nacional' ? 'Segregação da receita no Simples Nacional' : 'Tratamentos na apuração atual'}</h2><p class="desc">${chaveRegime === 'simples_nacional' ? 'Receita e PIS/Cofins conforme os blocos extraídos da declaração PGDAS. Esta tabela não faz rateio nem presume tratamento a partir do XML.' : 'A fonte atual registra totais de apuração. Tratamentos só são apresentados como identificados quando vierem discriminados no documento.'}</p></div></div>
-      ${chaveRegime === 'simples_nacional' && resumoSegregacaoAtual.divergencias.length ? `<div class="aviso atencao" style="margin:12px 0"><b>Os blocos de segregação não fecham com a receita declarada do PGDAS.</b><br><span class="mini">PGDAS declarado: ${A.moeda(resumoSegregacaoAtual.declarada)} · blocos extraídos: ${A.moeda(resumoSegregacaoAtual.blocos)} · diferença: ${A.moeda(resumoSegregacaoAtual.blocos-resumoSegregacaoAtual.declarada)}. Competências para revisão: ${A.esc(resumoSegregacaoAtual.divergencias.map((x)=>x.competencia).join(', '))}.</span></div>` : ''}
+      ${chaveRegime === 'simples_nacional' && resumoSegregacaoAtual.caixa ? `<div class="aviso info" style="margin:12px 0"><b>PGDAS apurado pelo regime de caixa.</b><br><span class="mini">Receita auferida por competência: ${A.moeda(resumoSegregacaoAtual.auferida)} · receita recebida no caixa: ${A.moeda(resumoSegregacaoAtual.recebida)} · blocos de segregação: ${A.moeda(resumoSegregacaoAtual.blocos)}. Os blocos representam recebimentos e não devem ser comparados à receita auferida.</span></div>` : ''}
+      ${chaveRegime === 'simples_nacional' && resumoSegregacaoAtual.divergencias.length ? `<div class="aviso atencao" style="margin:12px 0"><b>Os blocos de segregação não fecham com a base aplicável do PGDAS.</b><br><span class="mini">Base aplicável: ${A.moeda(resumoSegregacaoAtual.declarada)} · blocos extraídos: ${A.moeda(resumoSegregacaoAtual.blocos)} · diferença: ${A.moeda(resumoSegregacaoAtual.blocos-resumoSegregacaoAtual.declarada)}. Competências para revisão: ${A.esc(resumoSegregacaoAtual.divergencias.map((x)=>x.competencia).join(', '))}.</span></div>` : ''}
       ${chaveRegime === 'simples_nacional' && diagnosticoPgdas.em_revisao.length ? `<div class="aviso atencao" style="margin:12px 0"><b>${diagnosticoPgdas.em_revisao.length} competência(s) PGDAS baixada(s) ainda não aparece(m) na segregação.</b><br><span class="mini">Elas estão em revisão: ${A.esc(diagnosticoPgdas.em_revisao.map((x) => x.competencia).join(', '))}. A confirmação mantém a segregação auditável e então a inclui nesta tabela.</span></div>` : ''}
       ${chaveRegime === 'simples_nacional' && diagnosticoPgdas.fora_do_periodo.length ? `<div class="aviso info" style="margin:12px 0"><b>${diagnosticoPgdas.fora_do_periodo.length} competência(s) PGDAS está(ão) fora do período analisado.</b><br><span class="mini">Elas aparecem no histórico abaixo, mas não entram no Perfil atual: ${A.esc(diagnosticoPgdas.fora_do_periodo.map((x) => x.competencia).join(', '))}.</span></div>` : ''}
       ${chaveRegime === 'simples_nacional' ? A.tabela([
         { t:'Segregação declarada', r:x=>`<b>${A.esc(x.descricao)}</b><div class="mini">Anexo ${A.esc(x.anexo || 'não identificado')}</div>` },
-        { t:'Receita PGDAS', num:true, r:x=>A.moeda(x.receita) },
+        { t:resumoSegregacaoAtual.caixa ? 'Receita recebida (caixa)' : 'Receita PGDAS', num:true, r:x=>A.moeda(x.receita) },
         { t:'PIS/Cofins no PGDAS', num:true, r:x=>A.moeda(x.pis_cofins) },
         { t:'Competências', r:x=>`${x.competencias.length} competência(s)<div class="mini">${A.esc(x.competencias.join(', '))}</div>` },
         { t:'Situação', r:x=>x.competencias_requerem_revisao.length
