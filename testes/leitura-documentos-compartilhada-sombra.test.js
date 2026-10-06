@@ -31,10 +31,10 @@ assert.match(leitor, /SELECT DISTINCT UPPER\(COALESCE\(NULLIF\(modelo_documento_
 assert.match(rotaSombra, /garantirEmpresaPermitida/, 'rota sombra exige sessão autorizada');
 assert.match(rotaSombra, /documentosFiscaisCompartilhados/, 'rota sombra usa leitor isolado');
 assert.match(rotaNormal, /reconciliarDocumentosFiscaisParaLeitura/, 'rota normal permanece inalterada durante a comparação');
-assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_ATIVA === 'true'/, 'leitura direta exige ativação explícita');
-assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_ID/, 'ativação é limitada a uma empresa');
-assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_CNPJ/, 'a trava aceita CNPJ estável entre instâncias');
-assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_COMPETENCIA/, 'ativação é limitada a uma competência');
+assert.match(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_ATIVA !== 'false'/, 'a fonte compartilhada é a referência por padrão e só desliga por contingência explícita');
+assert.doesNotMatch(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_ID/, 'a leitura não pode ocultar empresas por uma lista experimental');
+assert.doesNotMatch(api, /LEITURA_DOCUMENTOS_COMPARTILHADA_COMPETENCIA/, 'a leitura não pode ocultar competências por uma trava experimental');
+assert.match(rotaNormal, /usando contingência local/, 'falha transitória da fonte compartilhada preserva a consulta local');
 assert.match(rotaNormal, /receitaOperacional\.compoeReceita\(d\)/, 'a operação usa a mesma regra da leitura histórica');
 assert.match(rotaExportacao, /leituraDocumentalDiretaControlada/, 'exportação direta respeita o mesmo escopo controlado da tela');
 assert.match(rotaExportacao, /exportacao_limitada/, 'exportação acima do limite é bloqueada em vez de truncada');

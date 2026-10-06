@@ -2589,19 +2589,17 @@ async function reconciliarDocumentosFiscaisParaLeitura(empresaId) {
     { motivo:'Documentos conferidos na fonte compartilhada' },
   );
 }
-// Ativação deliberadamente estreita. Sem as três variáveis, a rota histórica
-// permanece a única rota de tela. Isso permite reversão imediata no Render
-// sem tocar em dados nem em cálculo.
 function leituraDocumentalDiretaControlada(empresa, competencia) {
-  return leituraDocumentalDiretaHabilitadaParaEmpresa(empresa)
-    && String(process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_COMPETENCIA || '') === String(competencia || '');
+  // A fonte compartilhada é a referência dos documentos. Restringir a
+  // leitura a uma competência experimental fazia a mesma inclusão Questor
+  // aparecer ou desaparecer conforme o filtro aplicado na tela.
+  return leituraDocumentalDiretaHabilitadaParaEmpresa(empresa);
 }
 function leituraDocumentalDiretaHabilitadaParaEmpresa(empresa) {
-  const cnpjAlvo=String(process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_CNPJ || '').replace(/\D/g,'');
-  const empresaAlvoPorCnpj=cnpjAlvo && String(empresa?.cnpj || '').replace(/\D/g,'') === cnpjAlvo;
-  const empresaAlvoPorId=!cnpjAlvo && Number(process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_EMPRESA_ID) === Number(empresa?.id);
-  return process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_ATIVA === 'true'
-    && (empresaAlvoPorCnpj || empresaAlvoPorId);
+  if (!empresa?.cnpj || !process.env.SUPABASE_DB_URL) return false;
+  // Mantém uma reversão explícita para contingência, sem ocultar uma empresa
+  // inteira ou um mês por uma configuração experimental antiga.
+  return process.env.LEITURA_DOCUMENTOS_COMPARTILHADA_ATIVA !== 'false';
 }
 router.get('/empresas/:id/estado-dados', (req, res) => {
   try {
@@ -2613,19 +2611,25 @@ router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
   try {
     const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(req.params.id));
     if (leituraDocumentalDiretaControlada(empresa, req.query.competencia)) {
-      await garantirEmpresaPermitida(req, req.params.id);
-      const leituraRemota=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { limite:req.query.limite, pagina:req.query.pagina });
-      const leitura=incorporarEntradasQuestorNaListaFiscal(leituraRemota, Number(req.params.id), req.query);
-      // A fonte compartilhada traz os fatos do documento; a indicação de
-      // receita é uma regra de apresentação já usada pela rota histórica.
-      // Reaplicá-la aqui evita que a leitura direta trate ausência de campo
-      // derivado como "não compõe receita". Não há escrita, cálculo ou motor.
-      const documentos=leitura.documentos.map((d)=>({
-        ...d,
-        operacao_receita:receitaOperacional.compoeReceita(d),
-        motivo_operacao:receitaOperacional.motivo(d),
-      }));
-      return ok(res,{ ...leitura, documentos, fonte:'SUPABASE_COMPARTILHADO_CONTROLADO', leitura_estado:[] });
+      try {
+        await garantirEmpresaPermitida(req, req.params.id);
+        const leituraRemota=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { limite:req.query.limite, pagina:req.query.pagina });
+        const leitura=incorporarEntradasQuestorNaListaFiscal(leituraRemota, Number(req.params.id), req.query);
+        // A fonte compartilhada traz os fatos do documento; a indicação de
+        // receita é uma regra de apresentação já usada pela rota histórica.
+        // Reaplicá-la aqui evita que a leitura direta trate ausência de campo
+        // derivado como "não compõe receita". Não há escrita, cálculo ou motor.
+        const documentos=leitura.documentos.map((d)=>({
+          ...d,
+          operacao_receita:receitaOperacional.compoeReceita(d),
+          motivo_operacao:receitaOperacional.motivo(d),
+        }));
+        return ok(res,{ ...leitura, documentos, fonte:'SUPABASE_COMPARTILHADO_CONTROLADO', leitura_estado:[] });
+      } catch (e) {
+        // A fonte compartilhada é preferencial, mas uma indisponibilidade
+        // transitória não pode apagar a tela nem impedir a conferência local.
+        console.warn(`[documentos-fiscais] leitura compartilhada indisponível; usando contingência local: ${e.message}`);
+      }
     }
     await reconciliarDocumentosFiscaisParaLeitura(req.params.id);
     const limite=Math.min(Math.max(Number(req.query.limite) || 100, 1), 2000);
@@ -7013,25 +7017,45 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
 router.get('/empresas/:id/entradas-manuais', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);
-    const entradas=db.prepare(`SELECT id,competencia,nome,descricao,valor,origem,cst_declarado,cclasstrib_declarado,normalizacao_evidencia,criado_em
-      FROM movimentos WHERE empresa_id=? AND origem IN ('MANUAL_ENTRADA','QUESTOR_RAZAO') ORDER BY competencia DESC,id DESC`).all(Number(req.params.id)).map((x)=>{
+    const empresaId=Number(req.params.id);
+    const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId);
+    const normalizarEntrada=(x)=>{
       let evidencia={}; try { evidencia=JSON.parse(x.normalizacao_evidencia || '{}'); } catch (_) { /* preserva a listagem mesmo com evidência legada */ }
       return { ...x, normalizacao_evidencia:undefined, origem:x.origem, item_cadastrado:evidencia.item_cadastrado || null,
         beneficio_percentual:evidencia.beneficio_percentual ?? null, referencia_pis_cofins:evidencia.referencia_pis_cofins || null };
-    });
+    };
+    // A cópia local é uma conveniência. A referência é a base compartilhada:
+    // sem esta leitura, inclusões do Razão/Questor desapareciam da tela após
+    // reinício ou em outra instância, embora já estivessem lançadas.
+    const entradas=db.prepare(`SELECT id,competencia,nome,descricao,valor,origem,cst_declarado,cclasstrib_declarado,normalizacao_evidencia,chave,documento,criado_em
+      FROM movimentos WHERE empresa_id=? AND origem IN ('MANUAL_ENTRADA','QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA') ORDER BY competencia DESC,id DESC`).all(empresaId).map(normalizarEntrada);
+    let entradasCompartilhadas=[];
+    try {
+      const remotas=await require('../services/documentosFiscaisCompartilhados').listarEntradasQuestor(empresa?.cnpj);
+      entradasCompartilhadas=remotas.map(normalizarEntrada);
+    } catch (e) {
+      // Não esconde os fatos locais quando a fonte compartilhada estiver em
+      // contingência; a consulta continua sendo estritamente de leitura.
+      console.warn(`[entradas-manuais] fonte compartilhada indisponível: ${e.message}`);
+    }
     // Recupera também confirmações históricas do Razão que ficaram gravadas
     // na prévia, mas cuja materialização local foi perdida por uma versão
     // anterior da sincronização. Elas são exibidas como lançamento contábil,
     // sem inventar item fiscal nem escondê-las da tela de entradas manuais.
-    const confirmadas=confirmacoesRazaoDaPrevia(Number(req.params.id)).map((x)=>({
+    const confirmadas=confirmacoesRazaoDaPrevia(empresaId).map((x)=>({
       id:null, competencia:x.competencia, nome:x.parceiro, descricao:x.classificacao_questor,
       valor:x.valor, cst_declarado:null, cclasstrib_declarado:null, origem:'QUESTOR_RAZAO',
       documento:x.documento, conta_questor:x.conta_questor, lancamento_questor:x.lancamento_questor,
       item_cadastrado:{ nome:x.classificacao_questor }, razao_confirmacao_persistida:true,
       criado_em:null,
     }));
-    const todas=[...entradas,...confirmadas].sort((a,b)=>String(b.competencia || '').localeCompare(String(a.competencia || '')));
-    ok(res,{ entradas:todas, total:todas.length, leitura:'Lançamentos manuais e confirmações do Razão já registradas. Esta consulta não executa o motor nem altera documentos.' });
+    const identidade=(x)=>String(x.chave || `${x.origem || ''}|${x.competencia || ''}|${x.documento || ''}|${x.valor || ''}|${x.descricao || ''}`);
+    const porIdentidade=new Map();
+    // A versão compartilhada prevalece porque é durável; a local e a prévia
+    // permanecem apenas como contingência para lançamentos legados.
+    [...entradas,...confirmadas,...entradasCompartilhadas].forEach((x)=>porIdentidade.set(identidade(x),x));
+    const todas=[...porIdentidade.values()].sort((a,b)=>String(b.competencia || '').localeCompare(String(a.competencia || '')));
+    ok(res,{ entradas:todas, total:todas.length, leitura:'Lançamentos manuais e inclusões Questor/Razão lidos da fonte compartilhada. Esta consulta não executa o motor nem altera documentos.' });
   } catch(e) { erro(res,e); }
 });
 

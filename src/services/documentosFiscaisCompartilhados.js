@@ -124,6 +124,26 @@ async function listarOpcoesFiltros(cnpj, sentido) {
   finally { db.release(); }
 }
 
+// As inclusões do Razão/Questor são lançamentos contábeis, por isso também
+// precisam ser lidas diretamente pela tela de Entradas manuais quando a
+// instância ainda não recompôs a cópia local.
+async function listarEntradasQuestor(cnpj) {
+  if (!process.env.SUPABASE_DB_URL) throw new Error('Fonte compartilhada indisponível para as entradas do Questor.');
+  const db = await obterPool().connect();
+  try {
+    await db.query('BEGIN READ ONLY');
+    const empresa=await db.query("SELECT id FROM public.empresas WHERE regexp_replace(cnpj,'[^0-9]','','g')=$1 LIMIT 2",[String(cnpj).replace(/\D/g,'')]);
+    if (empresa.rows.length !== 1) throw new Error('Empresa compartilhada não identificada unicamente para as entradas do Questor.');
+    const dados=await db.query(`SELECT id,competencia,nome,descricao,valor,origem,cst_declarado,cclasstrib_declarado,
+      normalizacao_evidencia,chave,documento,criado_em
+      FROM public.movimentos WHERE empresa_id=$1 AND origem IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
+      ORDER BY competencia DESC,id DESC`,[empresa.rows[0].id]);
+    await db.query('ROLLBACK');
+    return dados.rows;
+  } catch (e) { try { await db.query('ROLLBACK'); } catch (_) {} throw e; }
+  finally { db.release(); }
+}
+
 // Rastreabilidade não reutiliza a projeção SQLite nem reconcilia a empresa:
 // é uma leitura paginada das notas de saída e de seus itens canônicos na
 // fonte durável. Assim, uma nota com CFOPs distintos continua auditável sem
@@ -190,4 +210,4 @@ async function listarRastreabilidadeSaidas(cnpj, filtros = {}, opcoes = {}) {
   } catch(e) { try { await db.query('ROLLBACK'); } catch (_) {} throw e; }
   finally { db.release(); }
 }
-module.exports = { listar, listarOpcoesFiltros, listarRastreabilidadeSaidas };
+module.exports = { listar, listarOpcoesFiltros, listarEntradasQuestor, listarRastreabilidadeSaidas };
