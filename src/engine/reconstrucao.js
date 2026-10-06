@@ -186,6 +186,16 @@ function reconstruir(item, contexto = {}) {
       const p = regras.estimativaPisCofins(regime);
       if (p !== null && p !== undefined) resolucao = { percentual: p, valor: aplicarPercentual(valor, p), origem: 'REGRA_REGIME', natureza: 'CALCULADO', metodo: 'REGRA_GERAL_REGIME', catalogo: resolucao.catalogo, justificativa: 'Fallback parametrizado em Regimes e crédito; aplicado após ausência de documento e regra específica conclusiva.' };
     }
+    // Premissa econômica de última precedência para fornecedor do regime
+    // regular sem carga atual determinada. Ela existe somente para recompor
+    // a base econômica comparável à CBS: não afirma a apuração real de
+    // PIS/Cofins do fornecedor e permanece identificada como SIMULADA.
+    if (resolucao.percentual === null && ['lucro_real', 'lucro_presumido', 'regime_regular'].includes(String(item.regime || ''))) {
+      const p = 3.65;
+      resolucao = { percentual: p, valor: aplicarPercentual(valor, p), origem: 'PREMISSA_FORNECEDOR_REGULAR', natureza: 'SIMULADO',
+        metodo: 'PREMISSA_FORNECEDOR_REGULAR_365', catalogo: resolucao.catalogo,
+        justificativa: 'Premissa econômica de 3,65% para retirar PIS/Cofins da base de comparação da CBS; não substitui a apuração efetiva do fornecedor.' };
+    }
     if (resolucao.percentual !== null) {
       registrarCargaResolvida(resolucao);
       // Regra versionada conclusiva é um tratamento calculado, não uma

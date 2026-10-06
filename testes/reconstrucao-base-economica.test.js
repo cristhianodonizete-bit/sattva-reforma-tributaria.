@@ -32,6 +32,13 @@ assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 9.25);
 assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_origem, 'REGRA_REGIME');
 assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_natureza, 'CALCULADO');
 
+// Fornecedor regular sem carga atual documental, catálogo conclusivo ou
+// regra de regime confirmada recebe 3,65% apenas como premissa econômica.
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_real' });
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 3.65);
+assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'PREMISSA_FORNECEDOR_REGULAR_365');
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_natureza, 'SIMULADO');
+
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', pis: 1.65, cofins: 7.6,
   pis_cofins_documentado: true, regra_geral_regime_confirmada: true });
 assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 3.65);
@@ -70,7 +77,7 @@ r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', catalo
 }, regra_geral_regime_confirmada: true });
 assert.equal(r.tributosAtuais.pis, 0.65);
 assert.equal(r.tributosAtuais.cofins, 3);
-assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'REGRA_GERAL_REGIME');
+assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'PREMISSA_CUMULATIVIDADE_CONDICIONAL_365');
 
 // Regra específica conclusiva prevalece sobre o fallback de 3,65%.
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', catalogo_fiscal: { tratamento_pis_cofins: 'ALÍQUOTA ZERO' } });
@@ -96,9 +103,8 @@ assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'MONOFASICO_PREMISSA')
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', catalogo_fiscal: {
   cumulatividade_obrigatoria: 'SIM', grau_determinacao: 'CONDICIONADO', condicao_cumulatividade: 'BLOQUEIA_FALLBACK: papel na cadeia ausente',
 } });
-assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 0);
-assert.equal(r.status, 'parcialmente_determinada');
-assert.equal(r.memoriaTributos.pis.status, 'INDETERMINADO');
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 3.65);
+assert.equal(r.memoriaTributos.pis.natureza, 'SIMULADO');
 
 // Serviço sem ISS documental não recebe 2% por default silencioso.
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', regra_geral_regime_confirmada: true });
