@@ -23,6 +23,7 @@ const motorCondicionalPisCofins = require('./motorCondicionalPisCofins');
 const receitaOperacional = require('./receitaOperacional');
 const motorReceitasSemDfe = require('./motorReceitasSemDfe');
 const telemetriaReusoClassificacao = require('./telemetriaReusoClassificacao');
+const fechamentoModulos = require('./fechamentoModulos');
 // Exceções conhecidas à premissa operacional de participação brasileira.
 // A lista é deliberadamente conservadora: uma correspondência não afirma a
 // composição societária, apenas preserva a validação antes de aplicar 200044.
@@ -206,6 +207,13 @@ function carregar(empresaId, sentido, movimentoIds = null) {
  * @param {object} opcoes { ano, anexoSimples, gravar }
  */
 function executar(empresaId, opcoes = {}) {
+  // O motor é consumidor de fatos e produtor de fotografia. Um diagnóstico
+  // fechado não pode receber uma nova fotografia por atalho interno (QSA,
+  // reprocessamento incremental, entrada manual ou fila); a reabertura
+  // formal é a única autorização para novo cálculo.
+  const fechados = fechamentoModulos.listar(empresaId).modulos
+    .filter((m) => m.modulo === 'diagnostico' && m.status === 'FECHADO');
+  if (fechados.length) throw new Error(`Motor bloqueado: reabra o(s) submódulo(s) fechado(s) antes de recalcular (${fechados.map((m) => m.titulo).join(', ')}).`);
   const empresaPersistida = db.prepare('SELECT * FROM empresas WHERE id = ?').get(empresaId);
   if (!empresaPersistida) throw new Error('Empresa não encontrada.');
   // Cenários podem alterar somente o contexto do regime durante uma execução
@@ -224,7 +232,10 @@ function executar(empresaId, opcoes = {}) {
   };
   // Receitas sem DF-e não são movimentos fiscais, mas recebem a mesma
   // resolução versionada CBS/IBS antes das projeções e comparações de regime.
-  const processamentoReceitasSemDfe = motorReceitasSemDfe.reprocessarEmpresa(db, empresaId);
+  // A execução não atualiza receitas_sem_dfe; avalia a cobertura em leitura
+  // pura. Valores, pertencimento à base e sinalizações são responsabilidade
+  // exclusiva das rotinas de importação/revisão e do usuário.
+  const processamentoReceitasSemDfe = motorReceitasSemDfe.avaliarEmpresa(db, empresaId);
   const tabelas = motor.anexosSimples();
   const referenciasVenda = new Map(db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresaId)
     .map((r) => [r.chave, r]));

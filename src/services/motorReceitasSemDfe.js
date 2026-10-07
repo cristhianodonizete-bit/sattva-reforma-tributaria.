@@ -74,4 +74,13 @@ function reprocessarEmpresa(db, empresaId) {
   const resultados = linhas.map((x) => aplicar(db, x, regime));
   return { processadas: resultados.length, pendentes: resultados.filter((x) => x.status !== 'DETERMINADO').length };
 }
-module.exports = { resolver, aplicar, reprocessarEmpresa, dentroVigencia };
+// Leitura pura para o motor: avalia cobertura sem tocar no fato econômico nem
+// nos campos de status/classificação materializados da base de receitas.
+function avaliarEmpresa(db, empresaId) {
+  if (!temTabela(db, 'receitas_sem_dfe')) return { processadas: 0, pendentes: 0 };
+  const regime = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime;
+  const linhas = db.prepare("SELECT * FROM receitas_sem_dfe WHERE empresa_id=? AND COALESCE(status_validacao,'PENDENTE')<>'POSSIVEL_DUPLICIDADE'").all(empresaId);
+  const resultados = linhas.map((x) => resolver(db, x, regime));
+  return { processadas: resultados.length, pendentes: resultados.filter((x) => x.status !== 'DETERMINADO').length };
+}
+module.exports = { resolver, aplicar, reprocessarEmpresa, avaliarEmpresa, dentroVigencia };
