@@ -5869,7 +5869,7 @@ function sugerirItemEntradaPeloRazao(itens, linha = {}) {
 function itensEntradaManualConfigurados() {
   return db.prepare("SELECT chave,label,valor FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((registro)=>{
     let regra={}; try { regra=JSON.parse(registro.valor || '{}'); } catch (_) { /* registro inválido não decide natureza */ }
-    return { chave:registro.chave, nome:regra.nome || registro.label || registro.chave, beneficio:Number(regra.beneficio || 0), cst:regra.cst || '', cclasstrib:regra.cclasstrib || '', gera_credito:regra.gera_credito !== false,
+    return { chave:registro.chave, nome:regra.nome || registro.label || registro.chave, beneficio:Number(regra.beneficio || 0), cst:regra.cst || '', cclasstrib:regra.cclasstrib || '', nbs:regra.nbs || '', lc116:regra.lc116 || '', gera_credito:regra.gera_credito !== false,
       contas_questor:Array.isArray(regra.contas_questor) ? regra.contas_questor : [] };
   });
 }
@@ -6527,7 +6527,7 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
       descricao:movimento.descricao, participante:evidencias[indice]?.participante || evidencias[indice]?.fornecedor_entrada_original || movimento.nome,
       conta:evidencias[indice]?.conta_codigo || evidencias[indice]?.conta || '',
     })));
-    const atualizar=db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,descricao=?,cst=?,cclasstrib=?,cst_declarado=?,cclasstrib_declarado=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?');
+    const atualizar=db.prepare("UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,descricao=?,cst=?,cclasstrib=?,cst_declarado=?,cclasstrib_declarado=?,nbs=COALESCE(NULLIF(nbs,''),?),lc116=COALESCE(NULLIF(lc116,''),?),normalizacao_evidencia=? WHERE id=? AND empresa_id=?");
     const resultado={ lidos:movimentos.length, reclassificados:0, veiculos:0, imoveis:0, fornecedor_padrao_ajustado:0, fornecedor_historico_ajustado:0, movimento_ids:[] };
     db.transaction(()=>{
       for (let indice=0; indice<movimentos.length; indice++) {
@@ -6568,7 +6568,8 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
             resultado.fornecedor_historico_ajustado++;
           }
         }
-        if (anterior===item.chave && !fornecedorHistoricoAjustado) continue;
+        const referenciaFiscalJaAplicada=(!item.nbs || movimento.nbs) && (!item.lc116 || movimento.lc116);
+        if (anterior===item.chave && referenciaFiscalJaAplicada && !fornecedorHistoricoAjustado) continue;
         if (!cnpj && /^Fornecedor genérico\s+—/i.test(String(nome || fornecedorAtual.descricao || ''))) {
           const padrao=fornecedorPadraoDaNaturezaEntrada(empresaId,item.chave);
           nome=padrao.descricao; cnpj=padrao.cnpj || null; regime=padrao.regime;
@@ -6581,7 +6582,7 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
         evidencia.natureza_reaplicada_em=new Date().toISOString();
         evidencia.natureza_reaplicada_de=anterior || null;
         evidencia.natureza_reaplicada_motivo='CONTA_E_HISTORICO_RAZAO';
-        atualizar.run(nome,cnpj,regime,item.nome,item.cst || null,item.cclasstrib || null,item.cst || null,item.cclasstrib || null,JSON.stringify(evidencia),movimento.id,empresaId);
+        atualizar.run(nome,cnpj,regime,item.nome,item.cst || null,item.cclasstrib || null,item.cst || null,item.cclasstrib || null,item.nbs || null,item.lc116 || null,JSON.stringify(evidencia),movimento.id,empresaId);
         resultado.reclassificados++; resultado.movimento_ids.push(movimento.id);
         if (item.chave==='LOCACAO_VEICULOS') resultado.veiculos++;
         if (item.chave==='ALUGUEL_IMOVEL_COMERCIAL') resultado.imoveis++;
@@ -7564,7 +7565,7 @@ function regimesPadraoEntrada() {
 function assegurarItensEntradaManualPadrao() {
   let alterou=false;
   const itens=[
-    ['LICENCA_USO_SISTEMAS_SOFTWARE','Licença de uso de sistemas/software',0,'000001','000','Salvo tratamento específico da operação',1,'lucro_presumido',[]],
+    ['LICENCA_USO_SISTEMAS_SOFTWARE','Licença de uso de sistemas/software',0,'000001','000','Salvo tratamento específico da operação',1,'lucro_presumido',[], '111032200','0105'],
     ['MATERIAL_ESCRITORIO','Material de escritório',0,'000001','000','Validar produto/NCM se houver tratamento específico',2,'simples_nacional',[]],
     ['ALUGUEL_IMOVEL_COMERCIAL','Aluguel de imóvel comercial',.70,'200027','200','Aplicável somente à locação, cessão onerosa e arrendamento de imóvel tributados',3,'lucro_presumido',[]],
     ['LOCACAO_VEICULOS','Locação de veículos',0,'000001','000','Locação de veículo é bem móvel e não recebe o benefício imobiliário',4,'simples_nacional',['3.7.03.013.005']],
@@ -7574,15 +7575,16 @@ function assegurarItensEntradaManualPadrao() {
   const inserir=db.prepare("INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)");
   const existente=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?");
   const atualizar=db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?");
-  db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor]) => {
+  db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor,nbs='',lc116='']) => {
     inserir.run(chave,nome,observacao,ordem);
     let anterior={}; try { anterior=JSON.parse(existente.get(chave)?.valor || '{}'); } catch (_) { /* será reparado sem apagar campos conhecidos */ }
     const contasConfiguradas=Array.isArray(anterior.contas_questor) ? anterior.contas_questor : [];
     const contasMescladas=[...new Set([...contas_questor,...contasConfiguradas])];
     const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior,
+      nbs:anterior.nbs || nbs, lc116:anterior.lc116 || lc116,
       contas_questor:contasMescladas,
       regimes:anterior.regimes || regimesPadraoEntrada(), fornecedor_padrao_regime:anterior.fornecedor_padrao_regime || fornecedor_padrao_regime };
-    if (!Object.keys(anterior).length || !anterior.regimes || !anterior.fornecedor_padrao_regime || !Array.isArray(anterior.contas_questor) || contasMescladas.length!==contasConfiguradas.length) { atualizar.run(JSON.stringify(proxima),chave); alterou=true; }
+    if (!Object.keys(anterior).length || !anterior.regimes || !anterior.fornecedor_padrao_regime || !Array.isArray(anterior.contas_questor) || contasMescladas.length!==contasConfiguradas.length || (nbs && !anterior.nbs) || (lc116 && !anterior.lc116)) { atualizar.run(JSON.stringify(proxima),chave); alterou=true; }
   }))();
   return alterou;
 }
@@ -7620,7 +7622,7 @@ router.get('/config/regras', async (_req, res) => {
     const padraoRegimesEntrada=regimesPadraoEntrada();
     const itensEntradaManual = db.prepare("SELECT chave,valor,label,descricao,ordem FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((x) => {
       let dados={}; try { dados=JSON.parse(x.valor || '{}'); } catch (_) { /* cadastro antigo inválido fica visível sem travar a tela */ }
-      return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), gera_credito:dados.gera_credito !== false, cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', observacao:dados.observacao || x.descricao || '', fornecedor_padrao_regime:regimeFornecedorPadrao(dados.fornecedor_padrao_regime),
+      return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), gera_credito:dados.gera_credito !== false, cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', nbs:dados.nbs || '', lc116:dados.lc116 || '', contas_questor:Array.isArray(dados.contas_questor) ? dados.contas_questor : [], observacao:dados.observacao || x.descricao || '', fornecedor_padrao_regime:regimeFornecedorPadrao(dados.fornecedor_padrao_regime),
         regimes:{ ...padraoRegimesEntrada, ...(dados.regimes || {}), simples_nacional:{ ...padraoRegimesEntrada.simples_nacional, ...(dados.regimes?.simples_nacional || {}) } } };
     });
     ok(res, { ...regras.tudo(), auditoria, auditoriaRegimeSimples, itensReceita, regrasItensReceita, itensEntradaManual });
@@ -7650,8 +7652,11 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
     let chave=chaveBase, sequencia=2;
     while (db.prepare("SELECT 1 FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(chave)) chave=`${chaveBase}_${sequencia++}`;
     const cst=String(b.cst || '').replace(/\D/g,''); const cclasstrib=String(b.cclasstrib || '').replace(/\D/g,'');
+    const nbs=String(b.nbs || '').replace(/\D/g,''); const lc116=String(b.lc116 || '').replace(/\D/g,'').padStart(String(b.lc116 || '').replace(/\D/g,'') ? 4 : 0,'0');
     if (cst && cst.length !== 3) throw new Error('CST deve ter 3 dígitos, quando informado.');
     if (cclasstrib && cclasstrib.length !== 6) throw new Error('cClassTrib deve ter 6 dígitos, quando informado.');
+    if (nbs && nbs.length !== 9) throw new Error('NBS deve ter 9 dígitos, quando informado.');
+    if (lc116 && lc116.length !== 4) throw new Error('LC 116 deve ter 4 dígitos, quando informada.');
     const ordem=Number(db.prepare("SELECT COALESCE(MAX(ordem),0)+1 ordem FROM param_regras WHERE grupo='itens_entrada_manual'").get().ordem);
     const percentualObrigatorio=(campo,rotulo) => {
       const informado=String(b[campo] ?? '').trim();
@@ -7661,7 +7666,7 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
       return n / 100;
     };
     const contasQuestor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
-    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, observacao:String(b.observacao || '').trim(), contas_questor, fornecedor_padrao_regime:fornecedorPadraoRegime, regimes:{
+    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, nbs, lc116, observacao:String(b.observacao || '').trim(), contas_questor, fornecedor_padrao_regime:fornecedorPadraoRegime, regimes:{
       lucro_real:{ pis:percentualObrigatorio('pis_lucro_real','PIS — Lucro Real'),cofins:percentualObrigatorio('cofins_lucro_real','Cofins — Lucro Real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ pis:percentualObrigatorio('pis_lucro_presumido','PIS — Lucro Presumido'),cofins:percentualObrigatorio('cofins_lucro_presumido','Cofins — Lucro Presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
       simples_nacional:regimesPadraoEntrada().simples_nacional,
@@ -7669,6 +7674,37 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
     db.prepare("INSERT INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)")
       .run(chave,nome,regra.observacao,ordem);
     db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?").run(JSON.stringify(regra),chave);
+    await confirmarParametrosCompartilhados();
+    ok(res,{ chave,...regra });
+  } catch(e) { erro(res,e); }
+});
+
+router.put('/config/itens-entrada-manual/:chave', async (req,res)=>{
+  try {
+    assegurarItensEntradaManualPadrao();
+    const chave=String(req.params.chave || '');
+    const cadastro=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(chave);
+    if (!cadastro) throw new Error('Item de entrada manual não encontrado.');
+    let atual={}; try { atual=JSON.parse(cadastro.valor || '{}'); } catch (_) { throw new Error('Cadastro do item inválido.'); }
+    const b=req.body || {}, nome=String(b.nome || '').trim();
+    if (!nome) throw new Error('Informe o nome do item.');
+    const beneficioInformado=Number(String(b.beneficio ?? '').replace(',','.'));
+    if (!Number.isFinite(beneficioInformado) || beneficioInformado < 0 || beneficioInformado > 100) throw new Error('O benefício deve estar entre 0% e 100%.');
+    const cst=String(b.cst || '').replace(/\D/g,''), cclasstrib=String(b.cclasstrib || '').replace(/\D/g,'');
+    const nbs=String(b.nbs || '').replace(/\D/g,''), lcEntrada=String(b.lc116 || '').replace(/\D/g,''), lc116=lcEntrada ? lcEntrada.padStart(4,'0') : '';
+    if (cst && cst.length!==3) throw new Error('CST deve ter 3 dígitos, quando informado.');
+    if (cclasstrib && cclasstrib.length!==6) throw new Error('cClassTrib deve ter 6 dígitos, quando informado.');
+    if (nbs && nbs.length!==9) throw new Error('NBS deve ter 9 dígitos, quando informado.');
+    if (lc116 && lc116.length!==4) throw new Error('LC 116 deve ter 4 dígitos, quando informada.');
+    const percentual=(campo,rotulo)=>{ const valor=String(b[campo] ?? '').trim(), n=Number(valor.replace(',','.')); if (!valor || !Number.isFinite(n) || n<0 || n>100) throw new Error(`${rotulo} deve estar entre 0% e 100%.`); return n/100; };
+    const contas_questor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
+    const regra={ ...atual, nome, beneficio:beneficioInformado/100, gera_credito:!(b.gera_credito===false || String(b.gera_credito || '').toLowerCase()==='false' || String(b.gera_credito || '')==='0'), cst, cclasstrib, nbs, lc116, contas_questor, observacao:String(b.observacao || '').trim(), fornecedor_padrao_regime:regimeFornecedorPadrao(b.fornecedor_padrao_regime), regimes:{
+      ...(atual.regimes || {}),
+      lucro_real:{ ...(atual.regimes?.lucro_real || {}), pis:percentual('pis_lucro_real','PIS — Lucro Real'), cofins:percentual('cofins_lucro_real','Cofins — Lucro Real'), tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
+      lucro_presumido:{ ...(atual.regimes?.lucro_presumido || {}), pis:percentual('pis_lucro_presumido','PIS — Lucro Presumido'), cofins:percentual('cofins_lucro_presumido','Cofins — Lucro Presumido'), tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
+      simples_nacional:{ ...regimesPadraoEntrada().simples_nacional, ...(atual.regimes?.simples_nacional || {}) },
+    }};
+    db.prepare("UPDATE param_regras SET valor=?,label=?,descricao=? WHERE grupo='itens_entrada_manual' AND chave=?").run(JSON.stringify(regra),nome,regra.observacao,chave);
     await confirmarParametrosCompartilhados();
     ok(res,{ chave,...regra });
   } catch(e) { erro(res,e); }
