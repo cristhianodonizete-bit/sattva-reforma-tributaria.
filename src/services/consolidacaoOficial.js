@@ -74,7 +74,13 @@ function linhas(empresaId, opcoes = {}) {
   const emMemoria = linhasPorExecucao.get(chave);
   if (emMemoria) return aplicarEscopo(emMemoria);
   const duplicadosRazao=motorExec.idsRazaoDuplicadosPorDocumento(empresaId);
-  const dados = db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.modelo_documento_fiscal,
+  const dados = db.prepare(`WITH regime_base AS (
+      SELECT mb.id,br.regime,
+        ROW_NUMBER() OVER (PARTITION BY mb.id ORDER BY CASE WHEN br.cnpj=mb.inscr_federal THEN 0 ELSE 1 END,br.ano DESC) AS posicao
+      FROM movimentos mb
+      JOIN base_regime br ON br.cnpj=mb.inscr_federal OR br.raiz=SUBSTR(mb.inscr_federal,1,8)
+    )
+    SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.modelo_documento_fiscal,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento, m.origem AS origem_movimento,
       CASE WHEN EXISTS(SELECT 1 FROM enriquecimento_pis_cofins_evidencias e WHERE e.empresa_id=m.empresa_id AND e.movimento_id=m.id AND e.origem_evidencia='SPED_C175') THEN 'SPED_C175' ELSE '' END AS origem_evidencia_pis_cofins,
       -- O motor registra REGULAR quando só pode afirmar que o emitente está
@@ -87,18 +93,14 @@ function linhas(empresaId, opcoes = {}) {
       COALESCE(NULLIF(CASE
         WHEN UPPER(COALESCE(m.origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
           OR UPPER(COALESCE(p.origem,'')) IN ('QUESTOR_PESSOA_CONTRAPARTIDA','QUESTOR_PESSOA_HISTORICO')
-          OR LOWER(COALESCE(p.regime,'')) IN ('','regular','regime_regular','indeterminado') THEN (
-          SELECT br.regime FROM base_regime br
-          WHERE br.cnpj=m.inscr_federal OR br.raiz=SUBSTR(m.inscr_federal,1,8)
-          ORDER BY CASE WHEN br.cnpj=m.inscr_federal THEN 0 ELSE 1 END, br.ano DESC
-          LIMIT 1
-        )
+          OR LOWER(COALESCE(p.regime,'')) IN ('','regular','regime_regular','indeterminado') THEN rb.regime
         ELSE p.regime
       END,''), NULLIF(p.regime,''), r.regime_cbs_emitente, 'indeterminado') AS regime_parceiro,
       p.descricao AS parceiro_cadastrado
     FROM motor_resultados r
     JOIN movimentos m ON m.id=r.movimento_id
     LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo AND p.cnpj=m.inscr_federal
+    LEFT JOIN regime_base rb ON rb.id=m.id AND rb.posicao=1
     WHERE r.empresa_id=?
   ORDER BY r.preco_atual DESC, r.id`).all(empresaId).map((x) => {
     let detalhe = {}; try { detalhe = JSON.parse(x.detalhe || '{}'); } catch (_) { /* detalhe inválido vira pendência */ }
