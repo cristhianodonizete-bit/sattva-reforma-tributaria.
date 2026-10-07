@@ -1736,15 +1736,20 @@ async function telaCadeia(el, tipo) {
   const abaCadeia = eForn && ['creditos_cbs','notas_credito_cbs'].includes(abaCadeiaSalva)
     ? 'rastreabilidade' : abaCadeiaSalva;
   const mostrarRastreabilidade = abaCadeia === 'rastreabilidade';
+  // As três leituras não respondem à mesma pergunta. Mantemos a seleção na
+  // própria cadeia para que a pessoa não precise percorrer relatórios longos
+  // até chegar ao recorte que está analisando.
+  const abaRastreabilidade=eForn ? (S.aba.rastreabilidadeFornecedor || 'itens') : 'itens';
+  const mostrarRastreabilidadeItens=mostrarRastreabilidade && (!eForn || abaRastreabilidade==='itens');
   const mostrarBeneficios = !eForn && abaCadeia === 'beneficios';
-  const mostrarCreditosCbs = eForn && mostrarRastreabilidade;
-  const mostrarNotasCreditoCbs = eForn && mostrarRastreabilidade;
+  const mostrarCreditosCbs = eForn && mostrarRastreabilidade && abaRastreabilidade==='creditos';
+  const mostrarNotasCreditoCbs = eForn && mostrarRastreabilidade && abaRastreabilidade==='notas';
   const paginaRastreabilidade = Math.max(1, Number(S.cache[`cadeia_pagina_${tipo}`]) || 1);
   const paginaParceiros = Math.max(1, Number(S.cache[`cadeia_parceiros_${tipo}`]) || 1);
   const paginaCreditosCbs=Math.max(1, Number(S.cache.creditosCbsEntradasPagina) || 1);
   const paginaDocumentosCreditoCbs=Math.max(1, Number(S.cache.documentosCreditoCbsPagina) || 1);
   const [cadeiaResposta, creditosCbsResposta, documentosCreditoCbsResposta, entradasQuestorResposta, entradasRastreabilidadeResposta, elegibilidadePisCofinsResposta] = await Promise.all([
-    A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidade ? 1 : 0}&beneficios=${mostrarBeneficios ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100&pagina_parceiros=${paginaParceiros}&limite_parceiros=100`),
+    A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidadeItens ? 1 : 0}&beneficios=${mostrarBeneficios ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100&pagina_parceiros=${paginaParceiros}&limite_parceiros=100`),
     // A cadeia consolidada continua disponível mesmo se a visão auxiliar de
     // rastreabilidade não puder ser lida em uma fotografia antiga.
     mostrarCreditosCbs ? A.api(`/empresas/${S.empresaId}/creditos-cbs/entradas?pagina=${paginaCreditosCbs}&limite=100`).catch(() => ({ operacoes:[], paginacao:{}, leitura:'Rastreabilidade de crédito indisponível nesta fotografia.' })) : Promise.resolve({ operacoes:[], paginacao:{} }),
@@ -1908,6 +1913,19 @@ async function telaCadeia(el, tipo) {
       <button class="${abaCadeia === 'rastreabilidade' ? 'ativo' : ''}" data-aba-cadeia="rastreabilidade">Rastreabilidade</button>
       ${!eForn ? `<button class="${abaCadeia === 'beneficios' ? 'ativo' : ''}" data-aba-cadeia="beneficios">Benefícios fiscais aplicados</button>` : ''}
     </div>
+    ${eForn && mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade das entradas</h2>
+      <p class="desc">Escolha a leitura conforme a pergunta: o item explica o cálculo; o crédito mostra somente valores creditáveis; a nota confere o documento fiscal completo.</p>
+      <div class="abas" style="margin-top:14px" role="tablist">
+        <button class="${abaRastreabilidade === 'itens' ? 'ativo' : ''}" data-aba-rastreabilidade="itens">Por item</button>
+        <button class="${abaRastreabilidade === 'creditos' ? 'ativo' : ''}" data-aba-rastreabilidade="creditos">Créditos CBS</button>
+        <button class="${abaRastreabilidade === 'notas' ? 'ativo' : ''}" data-aba-rastreabilidade="notas">Notas de entrada</button>
+      </div>
+      <div class="aviso neutro" style="margin-top:14px">${abaRastreabilidade === 'itens'
+        ? '<b>Por item:</b> detalha produto ou serviço, referência fiscal, regime, PIS/Cofins histórico, base de cálculo CBS, CBS e impacto. Use para entender a regra aplicada a um lançamento específico.'
+        : abaRastreabilidade === 'creditos'
+          ? '<b>Créditos CBS:</b> recorte apenas dos itens de entrada com crédito CBS maior que zero. Use para revisar valor, modalidade, situação e fundamento do crédito.'
+          : '<b>Notas de entrada:</b> visão documental consolidada de todas as entradas, inclusive XML, conciliação Questor e Razão. Use para conferir origem, fornecedor, valor, itens e cobertura do motor.'}</div>
+    </div>` : ''}
     ${mostrarCreditosCbs ? `<div class="cartao" style="margin-top:16px"><h2>Itens com crédito CBS</h2>
       <p class="desc">Recorte da rastreabilidade: somente itens de entrada com crédito CBS maior que zero. A tela lê a fotografia materializada; não importa, não recalcula e não altera documentos.</p>
       <div class="grade g3" style="margin-top:12px">${A.kpi('Entradas com crédito', creditosCbsResposta.total || 0, 'itens com crédito CBS maior que zero')}${A.kpi('Crédito CBS identificado', A.moeda(creditosCbsResposta.total_credito_cbs || 0), 'soma da fotografia atual')}${A.kpi('Execução do motor', creditosCbsResposta.execucao_id ? `#${creditosCbsResposta.execucao_id}` : 'Não disponível', 'origem da leitura')}</div>
@@ -2005,7 +2023,7 @@ async function telaCadeia(el, tipo) {
       ], analise.operacoesBeneficios, { vazio: 'Nenhum benefício foi aplicado pelo motor nesta execução.' })}`
       : `<div class="aviso neutro" style="margin-top:14px"><b>Nenhuma venda com benefício fiscal aplicado nesta execução.</b><br>Quando o motor aplicar redução de CBS ou alíquota zero a uma operação, ela aparecerá nesta lista com o respectivo fundamento.</div>`}
     </div>` : ''}
-    ${mostrarRastreabilidade ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade por item</h2>
+    ${mostrarRastreabilidadeItens ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade por item</h2>
       <p class="desc">Mostra, item a item, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. As notas e os itens com crédito CBS acima são recortes desta mesma fotografia; nada é recalculado nesta tela.</p>
       ${pendenciasPisCofins.length ? `<div class="aviso atencao" style="margin-top:14px"><b>${pendenciasPisCofins.length} item(ns) deixam o total de PIS/Cofins “A validar”.</b><br><span class="mini">A lista abaixo traz exatamente os lançamentos sem carga histórica determinada; CBS e crédito CBS continuam apresentados a partir da fotografia do motor.</span></div><div style="margin-top:12px">${A.tabela([
         {t:'Documento / competência',r:d=>`<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '—')}</div>`},
@@ -2023,6 +2041,9 @@ async function telaCadeia(el, tipo) {
 
   el.querySelectorAll('[data-aba-cadeia]').forEach((botao) => {
     botao.onclick = () => { if (eForn) S.aba.fornecedoresCadeia = botao.dataset.abaCadeia; else S.aba.clientesCadeia = botao.dataset.abaCadeia; S.cache[`cadeia_pagina_${tipo}`] = 1; A.ir(eForn ? 'fornecedores' : 'clientes'); };
+  });
+  el.querySelectorAll('[data-aba-rastreabilidade]').forEach((botao) => {
+    botao.onclick = () => { S.aba.rastreabilidadeFornecedor=botao.dataset.abaRastreabilidade; S.cache[`cadeia_pagina_${tipo}`]=1; A.ir('fornecedores'); };
   });
   el.querySelectorAll('[data-cadeia-pagina]').forEach((botao) => {
     botao.onclick = () => { S.cache[`cadeia_pagina_${tipo}`] = Number(botao.dataset.cadeiaPagina) || 1; A.ir(eForn ? 'fornecedores' : 'clientes'); };
