@@ -936,6 +936,50 @@ async function baixarResultadosMotor(remotoInformado = null) {
     resultados: quantidadeResultados,
   };
 }
+
+// A cadeia é uma leitura executiva: nunca pode trocar a fotografia canônica
+// por uma parcela que tenha sobrevivido no disco efêmero do Render. Esta
+// restauração é restrita à empresa aberta (não recarrega a carteira inteira)
+// e é chamada depois de os movimentos canônicos já estarem no cache local.
+async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null) {
+  if (!ativo()) return { ativo:false, resultados:0, execucoes:0 };
+  const id=Number(empresaId);
+  const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(id);
+  if (!empresa?.cnpj) throw new Error('Empresa não encontrada para restaurar a fotografia do motor.');
+  const remoto=remotoInformado || supabase.admin();
+  const cnpj=String(empresa.cnpj).replace(/\D/g,'');
+  const { data:candidatas, error:erroEmpresa }=await remoto.from('empresas').select('id,cnpj,origem_local_id')
+    .or(`origem_local_id.eq.${id},cnpj.eq.${cnpj}`).limit(3);
+  if (erroEmpresa) throw new Error(`Empresa compartilhada: ${erroEmpresa.message}`);
+  const remota=(candidatas || []).find((x)=>Number(x.origem_local_id || x.id)===id || String(x.cnpj || '').replace(/\D/g,'')===cnpj);
+  if (!remota) throw new Error('Empresa compartilhada não localizada para restaurar a fotografia.');
+  const resultados=[];
+  for (let de=0;;de+=1000) {
+    const { data,error }=await remoto.from('motor_resultados_operacionais').select('*')
+      .eq('empresa_id',Number(remota.id)).eq('ativo',true).range(de,de+999);
+    if (error) throw new Error(`Fotografia compartilhada da empresa: ${error.message}`);
+    resultados.push(...(data || []));
+    if (!data || data.length<1000) break;
+  }
+  const movimentoIds=[...new Set(resultados.map((x)=>Number(x.movimento_id)).filter(Number.isInteger))];
+  const locais=new Set(db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(id).map((x)=>Number(x.id)));
+  const ausentes=movimentoIds.filter((movimentoId)=>!locais.has(movimentoId));
+  if (ausentes.length) throw new Error(`Fotografia canônica possui ${ausentes.length} documento(s) ainda ausente(s) no cache; a cadeia não será exibida parcialmente.`);
+  const execucaoIds=[...new Set(resultados.map((x)=>Number(x.execucao_id)).filter(Number.isInteger))];
+  const execucoes=[];
+  for(let inicio=0;inicio<execucaoIds.length;inicio+=500) {
+    const {data,error}=await remoto.from('motor_execucoes_operacionais').select('*').in('id',execucaoIds.slice(inicio,inicio+500));
+    if (error) throw new Error(`Execuções da fotografia compartilhada: ${error.message}`);
+    execucoes.push(...(data || []));
+  }
+  db.transaction(()=>{
+    db.prepare('DELETE FROM motor_resultados WHERE empresa_id=?').run(id);
+    db.prepare('DELETE FROM motor_execucoes WHERE empresa_id=?').run(id);
+    gravarLinhasComColunas('motor_execucoes',execucoes.map((x)=>x.dados || x),true);
+    gravarLinhasComColunas('motor_resultados',resultados.map((x)=>x.dados || x),true);
+  })();
+  return { ativo:true, resultados:resultados.length, execucoes:execucoes.length, empresa_remota_id:Number(remota.id) };
+}
 async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   if (!ativo()) return { ativo: false };
   const remoto = supabase.admin();
@@ -1500,5 +1544,5 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
 }
 
 module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
-  baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, prepararContextoMotorEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
+  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, prepararContextoMotorEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };

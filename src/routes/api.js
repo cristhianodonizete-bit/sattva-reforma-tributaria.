@@ -3290,12 +3290,19 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido para a cadeia' });
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(empresaId);
     if (!empresa) throw new Error('Empresa não encontrada');
+    // A cadeia lê a fotografia do motor; após reinício, o cache efêmero pode
+    // conter só uma fração dos resultados. Reconcilie primeiro os documentos
+    // e então restaure somente a fotografia ativa desta empresa. Falhar aqui
+    // é preferível a apresentar um total parcial como se fosse a carteira.
+    const operacaoCompartilhada=require('../services/operacaoCompartilhada');
+    await operacaoCompartilhada.reconciliarMovimentosEmpresa(empresaId, { forcar:true, maxAgeMs:0 });
+    await operacaoCompartilhada.restaurarFotografiaMotorEmpresa(empresaId);
     // Regime de parceiro é cadastro, não resultado do motor. Revalidamos o
     // espelho pequeno da empresa antes de consolidar compras ou receitas para
     // que um Lucro Real/Presumido já identificado na fonte canônica não seja
     // apresentado como apenas "Regular" após reinício do Render.
     try {
-      await require('../services/operacaoCompartilhada').restaurarParceirosEmpresa(empresaId);
+      await operacaoCompartilhada.restaurarParceirosEmpresa(empresaId);
       consolidacaoOficial.invalidarCacheEmpresa(empresaId);
     } catch (erroParceiros) {
       console.warn(`  cadeia: parceiros compartilhados indisponíveis para empresa ${empresaId}; usando cache local: ${erroParceiros.message}`);
