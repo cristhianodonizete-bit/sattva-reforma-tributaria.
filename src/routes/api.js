@@ -5776,13 +5776,25 @@ function fornecedorSugeridoPeloRazao(fornecedores, linha = {}) {
   // Exibir alternativas serve para a correção humana, mas não cria vínculo.
   return { sugestao:{ id:null, cnpj:null, descricao:'Fornecedor genérico — Simples Nacional', regime:'simples_nacional', confianca:'PADRAO', origem:'FORNECEDOR_GENERICO_SIMPLES' }, candidatos:porNome.slice(0,5).map((x)=>resumo(x,'PENDENTE','CANDIDATO_POR_NOME')) };
 }
-function obterFornecedorGenericoSimples(empresaId) {
-  const existente=db.prepare("SELECT id,cnpj,descricao,regime FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' AND origem='QUESTOR_RAZAO_GENERICO' LIMIT 1").get(Number(empresaId));
-  if (existente) return existente;
-  const inserido=db.prepare("INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime,origem) VALUES (?,'fornecedor',NULL,?,'simples_nacional','QUESTOR_RAZAO_GENERICO')")
-    .run(Number(empresaId),'Fornecedor genérico — Simples Nacional');
-  return db.prepare('SELECT id,cnpj,descricao,regime FROM parceiros WHERE id=?').get(Number(inserido.lastInsertRowid));
+function regimeFornecedorPadrao(valor) {
+  const regime=String(valor || 'simples_nacional').trim().toLowerCase();
+  if (!['lucro_real','lucro_presumido','simples_nacional'].includes(regime)) throw new Error('Regime padrão do fornecedor inválido.');
+  return regime;
 }
+function nomeFornecedorGenerico(regime) {
+  return ({ lucro_real:'Fornecedor genérico — Lucro Real', lucro_presumido:'Fornecedor genérico — Lucro Presumido', simples_nacional:'Fornecedor genérico — Simples Nacional' })[regimeFornecedorPadrao(regime)];
+}
+function obterFornecedorGenericoPorRegime(empresaId, regime='simples_nacional') {
+  const regimePadrao=regimeFornecedorPadrao(regime);
+  // Mantém compatibilidade com o genérico Simples já criado nas empresas.
+  const origem=regimePadrao==='simples_nacional' ? 'QUESTOR_RAZAO_GENERICO' : `ENTRADA_MANUAL_GENERICO_${regimePadrao.toUpperCase()}`;
+  const existente=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' AND origem=? LIMIT 1").get(Number(empresaId),origem);
+  if (existente) return existente;
+  const inserido=db.prepare("INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime,origem) VALUES (?,'fornecedor',NULL,?,?,?)")
+    .run(Number(empresaId),nomeFornecedorGenerico(regimePadrao),regimePadrao,origem);
+  return db.prepare('SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE id=?').get(Number(inserido.lastInsertRowid));
+}
+function obterFornecedorGenericoSimples(empresaId) { return obterFornecedorGenericoPorRegime(empresaId,'simples_nacional'); }
 function fornecedorPeloDocumentoRazao(fornecedores, documentos, documento) {
   const numero=String(documento || '').split('/').at(-1).replace(/\D/g,'');
   if (!numero) return null;
@@ -6091,7 +6103,7 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       if (!fornecedor && linha?.fornecedor_sugerido?.origem==='CONTRAPARTIDA_QUESTOR') {
         fornecedor=materializarFornecedorDaContrapartida(empresaId,linha.fornecedor_sugerido);
       }
-      if (!fornecedor) fornecedor=obterFornecedorGenericoSimples(empresaId);
+      if (!fornecedor) fornecedor=obterFornecedorGenericoPorRegime(empresaId,regra.fornecedor_padrao_regime);
       const referencia={ tipo:'LANCAMENTO_MANUAL_ENTRADA', gera_credito:regra.gera_credito !== false, ...(regra.regimes?.[empresa.regime] || {}), item_cadastrado:{chave:itemChave,nome:regra.nome || cadastro.label}, beneficio_percentual:beneficio, razao_identificador:idBase,
         origem:'QUESTOR_RAZAO', conta:linha.conta || '', conta_codigo:linha.conta_codigo || '', sequencia:linha.sequencia || '', historico:linha.historico || '', contrapartida:linha.contrapartida || '', participante:linha.participante || '',
         fornecedor_vinculado:{ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem:fornecedor.origem==='QUESTOR_RAZAO_GENERICO'?'FORNECEDOR_GENERICO_SIMPLES':linha?.fornecedor_sugerido?.origem==='CONTRAPARTIDA_QUESTOR'?'CONTRAPARTIDA_QUESTOR':'HISTORICO_RAZAO' }, incluido_em:new Date().toISOString() };
@@ -7199,27 +7211,32 @@ function regimesPadraoEntrada() {
   };
 }
 function assegurarItensEntradaManualPadrao() {
+  let alterou=false;
   const itens=[
-    ['LICENCA_USO_SISTEMAS_SOFTWARE','Licença de uso de sistemas/software',0,'000001','000','Salvo tratamento específico da operação',1],
-    ['MATERIAL_ESCRITORIO','Material de escritório',0,'000001','000','Validar produto/NCM se houver tratamento específico',2],
-    ['ALUGUEL_IMOVEL_COMERCIAL','Aluguel de imóvel comercial',.70,'200027','200','Aplicável à locação, cessão onerosa e arrendamento de imóvel tributados',3],
-    ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',4],
+    ['LICENCA_USO_SISTEMAS_SOFTWARE','Licença de uso de sistemas/software',0,'000001','000','Salvo tratamento específico da operação',1,'lucro_presumido'],
+    ['MATERIAL_ESCRITORIO','Material de escritório',0,'000001','000','Validar produto/NCM se houver tratamento específico',2,'simples_nacional'],
+    ['ALUGUEL_IMOVEL_COMERCIAL','Aluguel de imóvel comercial',.70,'200027','200','Aplicável à locação, cessão onerosa e arrendamento de imóvel tributados',3,'lucro_presumido'],
+    ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',4,'simples_nacional'],
   ];
   const inserir=db.prepare("INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)");
   const existente=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?");
   const atualizar=db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?");
-  db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem]) => {
+  db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime]) => {
     inserir.run(chave,nome,observacao,ordem);
     let anterior={}; try { anterior=JSON.parse(existente.get(chave)?.valor || '{}'); } catch (_) { /* será reparado sem apagar campos conhecidos */ }
-    if (!Object.keys(anterior).length || !anterior.regimes) atualizar.run(JSON.stringify({ nome,beneficio,cclasstrib,cst,observacao,...anterior,regimes:anterior.regimes || regimesPadraoEntrada() }),chave);
+    const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior,
+      regimes:anterior.regimes || regimesPadraoEntrada(), fornecedor_padrao_regime:anterior.fornecedor_padrao_regime || fornecedor_padrao_regime };
+    if (!Object.keys(anterior).length || !anterior.regimes || !anterior.fornecedor_padrao_regime) { atualizar.run(JSON.stringify(proxima),chave); alterou=true; }
   }))();
+  return alterou;
 }
 router.get('/config/regras', async (_req, res) => {
   try {
     // Esta é a rota que alimenta a tela de Configurações. Ela consulta a
     // fonte compartilhada antes de montar o formulário, nunca um cache antigo.
     if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas','param_regimes','param_cfop','catalogo_itens_receita','regras_itens_receita_regime']);
-    assegurarItensEntradaManualPadrao();
+    const padroesEntradaAtualizados=assegurarItensEntradaManualPadrao();
+    if (padroesEntradaAtualizados) await confirmarParametrosCompartilhados();
     regras.invalidar();
     const local = db.prepare('SELECT ano,cbs,ibs,calcular_ibs,atualizado_em FROM param_aliquotas WHERE ano=2027').get() || null;
     const auditoria = { cache_render: local, supabase_configurado: supabase.configurado(),
@@ -7247,7 +7264,7 @@ router.get('/config/regras', async (_req, res) => {
     const padraoRegimesEntrada=regimesPadraoEntrada();
     const itensEntradaManual = db.prepare("SELECT chave,valor,label,descricao,ordem FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((x) => {
       let dados={}; try { dados=JSON.parse(x.valor || '{}'); } catch (_) { /* cadastro antigo inválido fica visível sem travar a tela */ }
-      return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), gera_credito:dados.gera_credito !== false, cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', observacao:dados.observacao || x.descricao || '',
+      return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), gera_credito:dados.gera_credito !== false, cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', observacao:dados.observacao || x.descricao || '', fornecedor_padrao_regime:regimeFornecedorPadrao(dados.fornecedor_padrao_regime),
         regimes:{ ...padraoRegimesEntrada, ...(dados.regimes || {}), simples_nacional:{ ...padraoRegimesEntrada.simples_nacional, ...(dados.regimes?.simples_nacional || {}) } } };
     });
     ok(res, { ...regras.tudo(), auditoria, auditoriaRegimeSimples, itensReceita, regrasItensReceita, itensEntradaManual });
@@ -7271,6 +7288,7 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
     const beneficioInformado=Number(String(b.beneficio ?? '').replace(',','.'));
     if (!Number.isFinite(beneficioInformado) || beneficioInformado < 0 || beneficioInformado > 100) throw new Error('O benefício deve estar entre 0% e 100%.');
     const geraCredito=!(b.gera_credito === false || String(b.gera_credito || '').toLowerCase() === 'false' || String(b.gera_credito || '') === '0');
+    const fornecedorPadraoRegime=regimeFornecedorPadrao(b.fornecedor_padrao_regime);
     const chaveBase=nome.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toUpperCase().replace(/[^A-Z0-9]+/g,'_').replace(/^_|_$/g,'').slice(0,70);
     if (!chaveBase) throw new Error('Não foi possível gerar a chave do item.');
     let chave=chaveBase, sequencia=2;
@@ -7287,7 +7305,7 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
       return n / 100;
     };
     const contasQuestor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
-    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, observacao:String(b.observacao || '').trim(), contas_questor:contasQuestor, regimes:{
+    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, observacao:String(b.observacao || '').trim(), contas_questor, fornecedor_padrao_regime:fornecedorPadraoRegime, regimes:{
       lucro_real:{ pis:percentualObrigatorio('pis_lucro_real','PIS — Lucro Real'),cofins:percentualObrigatorio('cofins_lucro_real','Cofins — Lucro Real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ pis:percentualObrigatorio('pis_lucro_presumido','PIS — Lucro Presumido'),cofins:percentualObrigatorio('cofins_lucro_presumido','Cofins — Lucro Presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
       simples_nacional:regimesPadraoEntrada().simples_nacional,
@@ -7297,6 +7315,19 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
     db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?").run(JSON.stringify(regra),chave);
     await confirmarParametrosCompartilhados();
     ok(res,{ chave,...regra });
+  } catch(e) { erro(res,e); }
+});
+
+router.put('/config/itens-entrada-manual/:chave/fornecedor-padrao', async (req,res)=>{
+  try {
+    assegurarItensEntradaManualPadrao();
+    const chave=String(req.params.chave || ''), cadastro=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(chave);
+    if (!cadastro) throw new Error('Item de entrada manual não encontrado.');
+    let regra={}; try { regra=JSON.parse(cadastro.valor || '{}'); } catch (_) { throw new Error('Cadastro do item inválido.'); }
+    regra.fornecedor_padrao_regime=regimeFornecedorPadrao(req.body?.fornecedor_padrao_regime);
+    db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?").run(JSON.stringify(regra),chave);
+    await confirmarParametrosCompartilhados();
+    ok(res,{ chave, fornecedor_padrao_regime:regra.fornecedor_padrao_regime });
   } catch(e) { erro(res,e); }
 });
 
@@ -7380,8 +7411,12 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
     const beneficio=regra.beneficio === undefined ? 0 : Number(regra.beneficio);
     if (!Number.isFinite(beneficio) || beneficio < 0 || beneficio > 1) throw new Error('O benefício do item deve estar entre 0% e 100%.');
     const itemHash=crypto.createHash('sha256').update(`${empresaId}|${chave || 'AVULSO'}|${descricao}`).digest('hex').slice(0,16);
-    const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
-      VALUES (?,'fornecedor','entrada','Lançamento manual',?,?,?,?,?,?,?,?,?,?,?,?,?,?,'MANUAL_ENTRADA','manual_entrada','DECLARADO_MANUAL',?)`);
+    const fornecedorPadrao=obterFornecedorGenericoPorRegime(empresaId,regra.fornecedor_padrao_regime);
+    const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,inscr_federal,regime,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
+      VALUES (
+        ?,'fornecedor','entrada', ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+        'MANUAL_ENTRADA','manual_entrada','DECLARADO_MANUAL',?
+      )`);
     const inseridos=[];
     db.transaction(() => { for (const linha of competencias) {
       const competencia=String(linha.competencia || '').trim(), valor=Number(linha.valor);
@@ -7393,8 +7428,9 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
       // uma segunda entrada. Mantemos o fato original e evitamos duplicá-lo.
       if (existente) { inseridos.push({ id:existente.id, competencia, valor:existente.valor, existente:true }); continue; }
       const evidencia=JSON.stringify({ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, gera_credito:regra.gera_credito !== false, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null,
+        fornecedor_vinculado:{ parceiro_id:fornecedorPadrao.id, cnpj:null, descricao:fornecedorPadrao.descricao, regime:fornecedorPadrao.regime, origem:'FORNECEDOR_PADRAO_NATUREZA' },
         referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, pis_cofins_percentual:referenciaPisCofins.pis_cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null });
-      const r=inserir.run(empresaId,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,chaveMovimento,evidencia);
+      const r=inserir.run(empresaId,fornecedorPadrao.descricao,null,fornecedorPadrao.regime,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,chaveMovimento,evidencia);
       inseridos.push({ id:r.lastInsertRowid, competencia, valor });
     } })();
     let publicacao=null;
