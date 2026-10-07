@@ -1799,7 +1799,11 @@ async function telaCadeia(el, tipo) {
   const documentosEntradaExibidos=[...documentosEntradaBase,...pendentesQuestor]
     .map((x)=>({...x,elegibilidade_pis_cofins:elegibilidadePorNota.get(chaveElegibilidade(x)) || null}));
   const t = analise.totais;
-  const rotuloRegimeFornecedor=(regime)=>({ lucro_real:'Lucro Real', lucro_presumido:'Lucro Presumido', simples_nacional:'Simples Nacional', mei:'MEI', regime_regular:'Regime regular', indeterminado:'A validar' }[String(regime || '').toLowerCase()] || (regime ? String(regime).replace(/_/g,' ') : 'A validar'));
+  const rotuloRegimeFornecedor=(regime)=>({
+    lucro_real:'Lucro Real', lucro_presumido:'Lucro Presumido', simples_nacional:'Simples Nacional', simples_das:'Simples Nacional',
+    simples_regime_regular:'Simples Nacional (regime regular IBS/CBS)', mei:'MEI', regime_regular:'Regime regular', regular:'Regime regular',
+    nao_contribuinte:'Não contribuinte', indeterminado:'A validar',
+  }[String(regime || '').toLowerCase()] || (regime ? String(regime).replace(/_/g,' ') : 'A validar'));
   // O código técnico segue preservado na memória; no cartão, ele deve
   // comunicar a premissa fiscal de maneira compreensível.
   const rotuloCatalogoPisCofins=(origem)=>{

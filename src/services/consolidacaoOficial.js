@@ -124,7 +124,11 @@ function leituraCliente(linha) {
 }
 
 function grupoDaLinha(linha, lado) {
-  const regime = linha.regime_parceiro || 'indeterminado';
+  // A fotografia histórica pode trazer códigos do motor (REGULAR,
+  // SIMPLES_DAS) e o cadastro usa os códigos canônicos da aplicação. A
+  // cadeia não pode transformar uma identidade conhecida em “desconhecida”
+  // apenas por essa diferença de representação.
+  const regime=normalizarRegimeFornecedor(linha.regime_parceiro);
   if (lado === 'cliente') {
     if (linha.cliente_diverso) return 'Clientes diversos (regime regular)';
     if (linha.perfil_destinatario === 'governo') return 'Governo';
@@ -136,8 +140,17 @@ function grupoDaLinha(linha, lado) {
     lucro_real: 'Lucro Real', lucro_presumido: 'Lucro Presumido', regime_regular: 'Regime regular (não optante pelo Simples)',
     simples_nacional: 'Simples Nacional', simples_regime_regular: 'Simples Nacional (regime regular IBS/CBS)',
     mei: 'MEI',
-    pessoa_fisica: 'Pessoa Física (consumidor final)', orgao_publico: 'Governo', imune_isento: 'Imune / Isento',
+    pessoa_fisica: 'Pessoa Física (consumidor final)', nao_contribuinte: 'Não contribuinte', orgao_publico: 'Governo', imune_isento: 'Imune / Isento',
   }[regime] || 'Perfil desconhecido';
+}
+
+function normalizarRegimeFornecedor(valor) {
+  const codigo=String(valor || '').trim().toUpperCase();
+  return {
+    REGULAR:'regime_regular', REGIME_REGULAR:'regime_regular', LUCRO_REAL:'lucro_real', LUCRO_PRESUMIDO:'lucro_presumido',
+    SIMPLES_DAS:'simples_nacional', SIMPLES_NACIONAL:'simples_nacional', SIMPLES_REGIME_REGULAR:'simples_regime_regular',
+    MEI:'mei', NAO_CONTRIBUINTE:'nao_contribuinte', NÃO_CONTRIBUINTE:'nao_contribuinte',
+  }[codigo] || String(valor || '').trim().toLowerCase() || 'indeterminado';
 }
 
 // A faixa vem da classificação já decidida pelo motor. Não inferimos alíquota
