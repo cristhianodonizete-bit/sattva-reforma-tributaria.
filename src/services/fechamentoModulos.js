@@ -105,7 +105,7 @@ function registrarEvento(empresaId, modulo, acao, usuarioId, dados) {
   return db.prepare('INSERT INTO empresa_submodulos_entrega_eventos (empresa_id,submodulo,acao,usuario_id,dados_json,criado_em) VALUES (?,?,?,?,?,?)')
     .run(empresaId, modulo, acao, usuarioId || null, JSON.stringify(dados || {}), agora());
 }
-function fechar({ empresaId, modulo, usuarioId, observacao }) {
+function fechar({ empresaId, modulo, usuarioId, observacao, dadosFechamento = {} }) {
   empresaExiste(empresaId); moduloValido(modulo);
   const anterior = db.prepare('SELECT * FROM empresa_submodulos_entrega WHERE empresa_id=? AND submodulo=?').get(empresaId, modulo);
   if (anterior?.status === 'FECHADO') return { ...listar(empresaId), alterado:false };
@@ -114,9 +114,39 @@ function fechar({ empresaId, modulo, usuarioId, observacao }) {
     db.prepare(`INSERT INTO empresa_submodulos_entrega (empresa_id,submodulo,status,fechado_em,fechado_por,observacao,reaberto_em,reaberto_por,motivo_reabertura,atualizado_em)
       VALUES (?,?, 'FECHADO', ?,?,?,NULL,NULL,NULL,?)
       ON CONFLICT(empresa_id,submodulo) DO UPDATE SET status='FECHADO',fechado_em=excluded.fechado_em,fechado_por=excluded.fechado_por,observacao=excluded.observacao,atualizado_em=excluded.atualizado_em`).run(empresaId, modulo, quando, usuarioId || null, String(observacao || '').trim() || null, quando);
-    return registrarEvento(empresaId, modulo, 'FECHADO', usuarioId, { observacao:String(observacao || '').trim() || null, anterior_status:anterior?.status || 'ABERTO' });
+    return registrarEvento(empresaId, modulo, 'FECHADO', usuarioId, {
+      observacao:String(observacao || '').trim() || null,
+      anterior_status:anterior?.status || 'ABERTO',
+      ...dadosFechamento,
+    });
   })();
   return { ...listar(empresaId), alterado:true, evento_id:Number(evento.lastInsertRowid), estado_anterior:anterior || null };
+}
+// Uma tela fechada é uma entrega aprovada, não uma consulta dinâmica. A
+// fotografia fica no próprio evento de fechamento, que já é replicado para a
+// fonte compartilhada e preserva a evidência sem criar uma segunda verdade.
+async function fotografiaPerfilFechado(empresaId) {
+  empresaExiste(empresaId);
+  const local = db.prepare(`SELECT dados_json,criado_em FROM empresa_submodulos_entrega_eventos
+    WHERE empresa_id=? AND submodulo='perfil' AND acao='FECHADO' ORDER BY id DESC LIMIT 1`).get(empresaId);
+  const ler = (linha) => {
+    try {
+      const dados = JSON.parse(linha?.dados_json || '{}');
+      return dados.perfil_fotografia ? { ...dados.perfil_fotografia, fechado_em:linha.criado_em } : null;
+    } catch (_) { return null; }
+  };
+  const presente = ler(local);
+  if (presente || !compartilhadoAtivo()) return presente;
+  const { remoto, empresaRemotaId } = await empresaRemota(empresaId);
+  const { data, error } = await remoto.from('empresa_submodulos_entrega_eventos').select('dados_json,criado_em')
+    .eq('empresa_id', empresaRemotaId).eq('submodulo','perfil').eq('acao','FECHADO')
+    .order('criado_em', { ascending:false }).limit(1);
+  if (error) throw new Error(`Fotografia compartilhada do Perfil: ${error.message}`);
+  const remotoEvento = data?.[0] || null;
+  try {
+    const dados = remotoEvento?.dados_json || {};
+    return dados.perfil_fotografia ? { ...dados.perfil_fotografia, fechado_em:remotoEvento.criado_em } : null;
+  } catch (_) { return null; }
 }
 // Se a confirmação compartilhada falhar, o fechamento não pode permanecer
 // apenas nesta instalação: ele seria visualmente fechado agora e aberto na
@@ -164,4 +194,4 @@ function exigirAberto(empresaId, modulo, acao = 'executar um novo cálculo') {
   return estado;
 }
 
-module.exports = { MODULOS, listar, fechar, reabrir, reverterFechamentoNaoConfirmado, sincronizarCompartilhado, publicarCompartilhado, exigirProntoParaEntrega, exigirAberto };
+module.exports = { MODULOS, listar, fechar, reabrir, reverterFechamentoNaoConfirmado, sincronizarCompartilhado, publicarCompartilhado, fotografiaPerfilFechado, exigirProntoParaEntrega, exigirAberto };

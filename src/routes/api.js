@@ -591,12 +591,22 @@ router.get('/empresas/:id/auditoria-decisao-fiscal', async (req, res) => {
 router.post('/empresas/:id/modulos-entrega/:modulo/fechar', async (req, res) => {
   try {
     const empresaId = Number(req.params.id); await garantirEmpresaPermitida(req, empresaId);
+    let dadosFechamento = {};
     if (req.params.modulo === 'perfil') {
       // Antes do gate, traz a última conferência durável. Isso impede que um
       // reinício transforme uma justificativa já gravada em bloqueio falso.
       await restaurarConfirmacoesAuditoriaCompartilhadas(empresaId);
       const pendentes = divergenciasAbertasDoPerfil(empresaId);
       if (pendentes.length) throw new Error(`O Perfil tributário não pode ser fechado: há ${pendentes.length} divergência(s) de receita sem justificativa (${pendentes.map((x) => x.competencia).join(', ')}).`);
+      // A composição que passou pelo gate é a evidência aprovada. Sem esta
+      // fotografia, uma leitura futura poderia trocar uma auditoria fechada
+      // por uma nova soma da base operacional corrente.
+      dadosFechamento = {
+        perfil_fotografia: {
+          versao: 1,
+          dados: perfilTributarioHistorico.consolidar(db, empresaId),
+        },
+      };
     }
     if (fechamentoModulos.MODULOS.find((m) => m.chave === req.params.modulo)?.modulo === 'diagnostico') {
       const job = motorExecucaoFila.status(empresaId);
@@ -604,11 +614,11 @@ router.post('/empresas/:id/modulos-entrega/:modulo/fechar', async (req, res) => 
         throw new Error('Aguarde a conclusão do processamento do motor antes de fechar o Diagnóstico.');
       }
     }
-    const resultado = fechamentoModulos.fechar({ empresaId, modulo:req.params.modulo, usuarioId:req.usuario?.id || null, observacao:req.body?.observacao });
+    const resultado = fechamentoModulos.fechar({ empresaId, modulo:req.params.modulo, usuarioId:req.usuario?.id || null, observacao:req.body?.observacao, dadosFechamento });
     try {
       await fechamentoModulos.publicarCompartilhado(empresaId, resultado.alterado ? {
         modulo:req.params.modulo, acao:'FECHADO', usuarioId:req.usuario?.id || null,
-        dados:{ observacao:req.body?.observacao || null },
+        dados:{ observacao:req.body?.observacao || null, ...dadosFechamento },
       } : null);
     } catch (erroPublicacao) {
       if (resultado.alterado) fechamentoModulos.reverterFechamentoNaoConfirmado({
@@ -1555,11 +1565,19 @@ router.get('/empresas/:id/perfil/analise', async (req, res) => {
 router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
   try {
     res.set('Cache-Control', 'no-store, no-cache, must-revalidate, private');
+    const empresaId = Number(req.params.id);
+    // Perfil fechado é uma entrega aprovada. Se houver fotografia, ela é a
+    // única fonte desta rota; a base viva volta a ser considerada somente
+    // depois de reabrir formalmente o submódulo.
+    await fechamentoModulos.sincronizarCompartilhado(empresaId);
+    const fotografia = await fechamentoModulos.fotografiaPerfilFechado(empresaId);
+    if (fotografia?.dados) {
+      return ok(res, { ...fotografia.dados, fotografia_fechada:true, fechado_em:fotografia.fechado_em });
+    }
     // O período é configurado por empresa no Supabase. Restaurá-lo antes da
     // leitura impede que uma instância nova consolide todo o histórico local
     // em vez de somente o exercício selecionado.
     await estadoLeituraEmpresa.atualizarComSeguranca(db, Number(req.params.id), ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(Number(req.params.id)), { motivo:'Período conferido para o Perfil Tributário' });
-    const empresaId = Number(req.params.id);
     const periodoPerfil = db.prepare('SELECT competencia_inicio,competencia_fim FROM empresa_periodo_analisado WHERE empresa_id=?').get(empresaId);
     // A composição usa movimentos fiscais por modelo. A fonte canônica é
     // reconciliada somente na janela do Perfil: meses fora do exercício não
