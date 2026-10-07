@@ -61,12 +61,16 @@ function grupoCredito(linha, detalhe) {
   return 'compras_credito_indeterminado';
 }
 
-function dadosPorCompetencia(empresaId, _execucaoId, periodo) {
+function dadosPorCompetencia(empresaId, execucaoId, periodo) {
+  // Uma competência só pode ser consolidada a partir da fotografia ativa. Sem
+  // este recorte, execuções históricas seriam somadas à execução vigente e a
+  // auditoria passaria a divergir do Perfil Tributário confirmado.
+  if (!Number.isInteger(Number(execucaoId)) || Number(execucaoId) <= 0) return [];
   return db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.modelo_documento_fiscal, m.origem,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento
     FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
-    WHERE r.empresa_id=? AND COALESCE(m.competencia,'')<>''
-    ORDER BY m.competencia, r.id`).all(empresaId)
+    WHERE r.empresa_id=? AND r.execucao_id=? AND COALESCE(m.competencia,'')<>''
+    ORDER BY m.competencia, r.id`).all(empresaId, Number(execucaoId))
     .filter((x) => !periodo || periodoAnalisado.noPeriodo(x.competencia, periodo))
     .filter((x) => x.sentido !== 'saida'
       || receitaOperacional.compoeReceita({ ...x, tipo:x.tipo_movimento })
