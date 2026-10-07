@@ -5978,18 +5978,35 @@ async function pessoasQuestorPelosHistoricos(linhas = []) {
   const termos=[...new Set(pendentes.flatMap((linha)=>termosParaBuscaPessoaQuestor(linha.texto)))];
   const candidatos=new Map();
   if (!termos.length) return new Map();
+  // Primeiro aproveita o espelho local. Antes, mesmo depois de a pessoa já ter
+  // sido encontrada, toda releitura voltava a consultar a tabela remota de
+  // pessoas. Com centenas de milhares de cadastros, os ILIKEs repetidos eram
+  // uma fonte desnecessária de I/O no Supabase.
+  const termosSemCache=[];
   for(let inicio=0;inicio<termos.length;inicio+=20) {
     const lote=termos.slice(inicio,inicio+20);
     const clausulas=lote.map(()=>"UPPER(nome) LIKE ?").join(' OR ');
     const locais=db.prepare(`SELECT codigo_pessoa,nome,inscr_federal FROM questor_pessoas WHERE COALESCE(inscr_federal,'')<>'' AND (${clausulas}) LIMIT 5000`)
       .all(...lote.map((termo)=>`%${termo}%`));
     locais.forEach((pessoa)=>candidatos.set(String(pessoa.codigo_pessoa),pessoa));
-    if (!supabase.configurado()) continue;
+    // Um termo já conhecido localmente não precisa provocar a mesma varredura
+    // textual no cadastro remoto. Para termos sem candidato, preservamos a
+    // busca no Supabase: é ela que descobre fornecedores ainda não espelhados.
+    const encontradosPorTermo=new Set(locais.flatMap((pessoa)=>{
+      const nome=String(pessoa?.nome || '').toUpperCase();
+      return lote.filter((termo)=>nome.includes(termo));
+    }));
+    termosSemCache.push(...lote.filter((termo)=>!encontradosPorTermo.has(termo)));
+  }
+  if (supabase.configurado()) {
+    for(let inicio=0;inicio<termosSemCache.length;inicio+=20) {
+      const lote=termosSemCache.slice(inicio,inicio+20);
     const filtro=lote.map((termo)=>`nome.ilike.%${termo.replace(/[%_,()]/g,'')}%`).join(',');
     const {data,error}=await supabase.admin().from('questor_pessoas').select('codigo_pessoa,nome,inscr_federal')
       .not('inscr_federal','is',null).or(filtro).limit(5000);
     if (error) throw new Error(`Cadastro de pessoas do Questor: ${error.message}`);
     (data || []).forEach((pessoa)=>candidatos.set(String(pessoa.codigo_pessoa),pessoa));
+    }
   }
   const pessoas=pessoaQuestorPorCnpj([...candidatos.values()]);
   // Reaproveita os candidatos remotos no cache local; uma releitura posterior
