@@ -5795,6 +5795,32 @@ function obterFornecedorGenericoPorRegime(empresaId, regime='simples_nacional') 
   return db.prepare('SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE id=?').get(Number(inserido.lastInsertRowid));
 }
 function obterFornecedorGenericoSimples(empresaId) { return obterFornecedorGenericoPorRegime(empresaId,'simples_nacional'); }
+// A consulta de CNPJ no lançamento manual é uma prévia: ela não cria uma
+// empresa e tampouco traz QSA/endereço completo. Para o fornecedor, bastam a
+// identidade, localização básica e o regime que a fonte pública conseguiu
+// demonstrar. A materialização só acontece na confirmação do lançamento.
+async function fornecedorPorCnpjConsultado(empresaId, valor, opcoes = {}) {
+  const cnpj=String(valor || '').replace(/\D/g,'');
+  if (cnpj.length !== 14) throw new Error('Informe um CNPJ válido, com 14 dígitos.');
+  const existente=db.prepare("SELECT id,cnpj,descricao,regime,uf,municipio,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' AND cnpj=? ORDER BY id LIMIT 1")
+    .get(Number(empresaId),cnpj);
+  const resultado=await cnpjReceita.consultar(cnpj, { forcar: !!opcoes.forcar, finalidade:'fornecedor_entrada_manual' });
+  const descricao=String(resultado?.razao_social || existente?.descricao || '').trim();
+  if (!descricao) throw new Error('O CNPJ foi localizado, mas a fonte não retornou a razão social do fornecedor.');
+  // A fonte pública só distingue Simples/MEI de regime regular. Quando ela
+  // não prova o enquadramento, preservamos eventual cadastro existente ou
+  // deixamos o fornecedor como "a validar" — nunca presumimos Lucro Real.
+  const regime=String(resultado?.regime_derivado || existente?.regime || 'indeterminado');
+  const previa={ cnpj, descricao, regime, uf:String(resultado?.uf || existente?.uf || ''), municipio:String(resultado?.municipio || existente?.municipio || ''),
+    fonte:resultado?.fonte || null, justificativa:resultado?.justificativa || null, ja_cadastrado:Boolean(existente) };
+  if (!opcoes.materializar) return { ...previa, fornecedor:existente || null };
+  if (existente) return { ...previa, fornecedor:existente };
+  const inserido=db.prepare(`INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime,uf,municipio,origem)
+    VALUES (?,'fornecedor',?,?,?,?,?,'CONSULTA_CNPJ_ENTRADA_MANUAL')`)
+    .run(Number(empresaId),cnpj,descricao,regime,previa.uf,previa.municipio);
+  const fornecedor=db.prepare('SELECT id,cnpj,descricao,regime,uf,municipio,origem FROM parceiros WHERE id=?').get(Number(inserido.lastInsertRowid));
+  return { ...previa, fornecedor };
+}
 function fornecedorPadraoDaNaturezaEntrada(empresaId, itemCadastrado) {
   const chave=typeof itemCadastrado==='object' ? String(itemCadastrado?.chave || '') : String(itemCadastrado || '');
   if (!chave) return obterFornecedorGenericoSimples(empresaId);
@@ -6149,6 +6175,19 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
 // Correção posterior para lançamentos que já entraram pelo Razão. A escolha
 // é explícita e fica gravada tanto no movimento quanto na evidência usada pelo
 // motor; não é uma alteração do XML nem cria uma nota nova.
+router.post('/empresas/:id/fornecedores/consultar-cnpj', async (req,res)=>{
+  try {
+    const empresaId=Number(req.params.id);
+    await garantirEmpresaPermitida(req, empresaId);
+    const consulta=await fornecedorPorCnpjConsultado(empresaId,req.body?.cnpj);
+    // Devolve apenas os campos úteis para a decisão do fornecedor. A consulta
+    // não grava parceiro, nem altera qualquer lançamento antes do "Salvar".
+    ok(res,{ fornecedor:{ cnpj:consulta.cnpj, descricao:consulta.descricao, regime:consulta.regime,
+      uf:consulta.uf, municipio:consulta.municipio, ja_cadastrado:consulta.ja_cadastrado },
+      fonte:consulta.fonte, justificativa:consulta.justificativa });
+  } catch(e) { erro(res,e); }
+});
+
 router.get('/empresas/:id/questor/razao/fornecedores', async (req,res)=>{
   try {
     await garantirEmpresaPermitida(req, req.params.id);
@@ -6165,10 +6204,12 @@ router.post('/empresas/:id/questor/razao/vincular-fornecedor', async (req,res)=>
   try {
     await garantirEmpresaPermitida(req, req.params.id);
     const empresaId=Number(req.params.id), chave=String(req.body?.chave || ''), parceiroId=Number(req.body?.parceiro_id || 0);
+    const cnpjConsultado=String(req.body?.fornecedor_cnpj || '').replace(/\D/g,'');
     if (!chave) throw new Error('Informe o lançamento do Razão que será ajustado.');
     const movimento=db.prepare("SELECT id,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' AND chave=?").get(empresaId,chave);
     if (!movimento) throw new Error('Lançamento do Razão não localizado nesta empresa.');
     let fornecedor=parceiroId ? db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE id=? AND empresa_id=? AND tipo='fornecedor'").get(parceiroId,empresaId) : null;
+    if (cnpjConsultado) fornecedor=(await fornecedorPorCnpjConsultado(empresaId,cnpjConsultado,{ materializar:true })).fornecedor;
     if (!fornecedor) fornecedor=obterFornecedorGenericoSimples(empresaId);
     let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
     evidencia.fornecedor_vinculado={ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem:fornecedor.origem==='QUESTOR_RAZAO_GENERICO'?'FORNECEDOR_GENERICO_SIMPLES':'AJUSTE_USUARIO' };
@@ -7418,7 +7459,10 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
     const beneficio=regra.beneficio === undefined ? 0 : Number(regra.beneficio);
     if (!Number.isFinite(beneficio) || beneficio < 0 || beneficio > 1) throw new Error('O benefício do item deve estar entre 0% e 100%.');
     const itemHash=crypto.createHash('sha256').update(`${empresaId}|${chave || 'AVULSO'}|${descricao}`).digest('hex').slice(0,16);
-    const fornecedorPadrao=obterFornecedorGenericoPorRegime(empresaId,regra.fornecedor_padrao_regime);
+    const cnpjFornecedor=String(corpo.fornecedor_cnpj || '').replace(/\D/g,'');
+    const fornecedor=cnpjFornecedor
+      ? (await fornecedorPorCnpjConsultado(empresaId,cnpjFornecedor,{ materializar:true })).fornecedor
+      : obterFornecedorGenericoPorRegime(empresaId,regra.fornecedor_padrao_regime);
     const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,inscr_federal,regime,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
       VALUES (
         ?,'fornecedor','entrada', ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -7431,17 +7475,28 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
       if (!Number.isFinite(valor) || valor < 0) throw new Error(`Valor inválido para ${competencia}.`);
       const chaveMovimento=`MANUAL_ENTRADA:${itemHash}:${competencia}`;
       const existente=db.prepare("SELECT id,valor FROM movimentos WHERE empresa_id=? AND origem='MANUAL_ENTRADA' AND chave=?").get(empresaId,chaveMovimento);
-      // Uma repetição após falha de rede é uma retomada de publicação, não
-      // uma segunda entrada. Mantemos o fato original e evitamos duplicá-lo.
-      if (existente) { inseridos.push({ id:existente.id, competencia, valor:existente.valor, existente:true }); continue; }
-      const evidencia=JSON.stringify({ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, gera_credito:regra.gera_credito !== false, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null,
-        fornecedor_vinculado:{ parceiro_id:fornecedorPadrao.id, cnpj:null, descricao:fornecedorPadrao.descricao, regime:fornecedorPadrao.regime, origem:'FORNECEDOR_PADRAO_NATUREZA' },
-        referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, pis_cofins_percentual:referenciaPisCofins.pis_cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null });
-      const r=inserir.run(empresaId,fornecedorPadrao.descricao,null,fornecedorPadrao.regime,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,chaveMovimento,evidencia);
+      const evidenciaObjeto={ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, gera_credito:regra.gera_credito !== false, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null,
+        fornecedor_vinculado:{ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem:cnpjFornecedor?'CONSULTA_CNPJ_ENTRADA_MANUAL':'FORNECEDOR_PADRAO_NATUREZA' },
+        referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, pis_cofins_percentual:referenciaPisCofins.pis_cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null };
+      const evidencia=JSON.stringify(evidenciaObjeto);
+      if (existente) {
+        // A chave protege contra duplicidade por reenvio. Se o usuário voltou
+        // para informar um CNPJ, trata-se de correção do mesmo lançamento,
+        // não de uma segunda entrada para a mesma competência.
+        if (cnpjFornecedor) db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?')
+          .run(fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,evidencia,existente.id,empresaId);
+        inseridos.push({ id:existente.id, competencia, valor:existente.valor, existente:true }); continue;
+      }
+      const r=inserir.run(empresaId,fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,chaveMovimento,evidencia);
       inseridos.push({ id:r.lastInsertRowid, competencia, valor });
     } })();
     let publicacao=null;
-    if (require('../services/operacaoCompartilhada').ativo()) publicacao=await require('../services/operacaoCompartilhada').publicarOperacaoEmpresa(empresaId);
+    if (require('../services/operacaoCompartilhada').ativo()) {
+      // A chave da entrada manual é estável. Publicá-la pelo mesmo caminho
+      // seguro das entradas Questor evita que o id SQLite do novo fornecedor
+      // seja confundido com um id remoto em outra instância.
+      publicacao=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,inseridos.map((x)=>x.id));
+    }
     auditar(req,{ empresaId,acao:'incluiu_entradas_manuais',entidade:'movimentos',entidadeId:inseridos.map(x=>x.id).join(','),depois:{ item:descricao, competencias:inseridos, beneficio, origem:'MANUAL_ENTRADA', referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, pis_cofins_percentual:referenciaPisCofins.pis_cofins ?? null } : null } });
     ok(res,{ inseridos, publicacao, referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, pis_cofins_percentual:referenciaPisCofins.pis_cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null });
   } catch(e) { erro(res,e); }

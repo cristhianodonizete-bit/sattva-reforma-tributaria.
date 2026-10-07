@@ -1314,10 +1314,10 @@ async function publicarCfopsQuestorConciliados(empresaId, movimentoIds = []) {
   return { ativo:true, publicados, nao_localizados:naoLocalizados, pendentes:ids.length-locais.length };
 }
 
-// Entradas incluídas após a conciliação ou pelo Razão do Questor não são XMLs.
-// Elas não podem depender da publicação genérica por id local: esse id é
-// efêmero entre instâncias. A chave Questor é estável por item e permite
-// publicar somente esses fatos confirmados, sem reenviar a fotografia inteira.
+// Entradas incluídas após a conciliação, pelo Razão ou manualmente não são
+// XMLs. Elas não podem depender da publicação genérica por id local: esse id
+// é efêmero entre instâncias. A chave estável do lançamento permite publicar
+// somente esses fatos confirmados, sem reenviar a fotografia inteira.
 async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) {
   if (!ativo()) return { ativo:false, publicados:0, pendentes:movimentoIds.length };
   const ids=[...new Set(movimentoIds.map(Number).filter(Number.isInteger))];
@@ -1332,7 +1332,7 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
   const empresas=(candidatas || []).filter((x)=>Number(x.origem_local_id)===Number(empresaId) || String(x.cnpj || '').replace(/\D/g,'')===cnpj);
   if (empresas.length!==1) throw new Error('Empresa compartilhada não localizada de forma única; as entradas locais foram preservadas.');
   const marcas=ids.map(()=>'?').join(',');
-  const locais=db.prepare(`SELECT ${CAMPOS.movimentos.join(',')} FROM movimentos WHERE empresa_id=? AND origem IN ('QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO') AND id IN (${marcas})`).all(Number(empresaId),...ids);
+  const locais=db.prepare(`SELECT ${CAMPOS.movimentos.join(',')} FROM movimentos WHERE empresa_id=? AND origem IN ('QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO','MANUAL_ENTRADA') AND id IN (${marcas})`).all(Number(empresaId),...ids);
   const chaves=locais.map((x)=>String(x.chave || '')).filter(Boolean);
   if (!chaves.length) return { ativo:true, publicados:0, pendentes:0 };
   // A entrada do Razão pode ter acabado de criar o fornecedor a partir do
