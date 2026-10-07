@@ -1800,6 +1800,16 @@ async function telaCadeia(el, tipo) {
     .map((x)=>({...x,elegibilidade_pis_cofins:elegibilidadePorNota.get(chaveElegibilidade(x)) || null}));
   const t = analise.totais;
   const rotuloRegimeFornecedor=(regime)=>({ lucro_real:'Lucro Real', lucro_presumido:'Lucro Presumido', simples_nacional:'Simples Nacional', mei:'MEI', regime_regular:'Regime regular', indeterminado:'A validar' }[String(regime || '').toLowerCase()] || (regime ? String(regime).replace(/_/g,' ') : 'A validar'));
+  // O código técnico segue preservado na memória; no cartão, ele deve
+  // comunicar a premissa fiscal de maneira compreensível.
+  const rotuloCatalogoPisCofins=(origem)=>{
+    const codigo=String(origem || '').toUpperCase();
+    if (codigo.includes('PREMISSA_CUMULATIVIDADE_CONDICIONAL')) return 'Cumulatividade condicional 3,65%';
+    if (codigo==='INDETERMINADO' || !codigo) return '';
+    if (codigo==='DOCUMENTO') return 'Carga informada no documento';
+    if (codigo.includes('CATALOGO')) return 'Catálogo PIS/Cofins';
+    return String(origem).replace(/_/g,' ').toLowerCase().replace(/^./,(letra)=>letra.toUpperCase());
+  };
   const pisCofinsDaFotografia=(valor, origem, motivo)=>valor === null || valor === undefined
     ? `<span class="tag a">A validar</span><div class="mini">${A.esc(motivo || origem || 'Sem carga histórica determinada')}</div>`
     : `<b>${A.moeda(valor)}</b><div class="mini">${A.esc(origem || 'Fotografia do motor')}</div>`;
@@ -1831,12 +1841,13 @@ async function telaCadeia(el, tipo) {
       <div class="rastreabilidade-item-topo">
         <div><span class="olho">DOCUMENTO</span><b class="mono">${A.esc(d.documento || 'sem número')}</b><small>${A.esc(d.competencia || '—')}</small></div>
         <div><span class="olho">${eForn ? 'FORNECEDOR' : 'CLIENTE'}</span><b>${A.esc(d.parceiro || 'Não identificado')}</b><small class="mono">${A.cnpjFmt(d.cnpj || '')}</small></div>
-        ${eForn ? `<div><span class="olho">REGIME</span><span class="tag ${String(d.regimeEmitente || '').toLowerCase()==='indeterminado' ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(d.regimeEmitente))}</span></div>` : ''}
+        ${eForn ? `<div><span class="olho">REGIME | CATÁLOGO PIS/COFINS</span><span class="tag ${String(d.regimeEmitente || '').toLowerCase()==='indeterminado' ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(d.regimeEmitente))}</span>${rotuloCatalogoPisCofins(d.origemPisCofins) ? `<small>${A.esc(rotuloCatalogoPisCofins(d.origemPisCofins))}</small>` : ''}</div>` : ''}
         <div class="rastreabilidade-item-produto"><span class="olho">ITEM / REFERÊNCIA</span><b>${A.esc(d.produto || 'Sem descrição')}</b><small><span class="tag ${produto ? 'c' : servico ? 'a' : 'n'}">${produto ? 'Produto' : servico ? 'Serviço' : 'A classificar'}</span> <span class="mono">${A.esc(referencia)}</span></small></div>
       </div>
       <div class="rastreabilidade-valores">
         <div><span>${eForn ? 'Compra atual' : 'Venda atual'}</span><b>${A.moeda(d.valor)}</b></div>
         <div><span>Antes · PIS/Cofins</span>${pisCofinsDaFotografia(d.pisCofinsAtual,d.origemPisCofins,d.motivoBaseEconomica)}</div>
+        <div><span>Base de cálculo CBS</span><b>${A.moeda(d.valorSemImposto)}</b></div>
         ${eForn ? `<div><span>Crédito CBS</span><b>${A.moeda(d.creditoCbs)}</b></div>` : ''}
         <div><span>CBS</span><b>${A.moeda(d.cbs)}</b></div>
         <div><span>Impacto</span><b>${A.setaR$(d.impactoOperacao)}</b><small>${A.setaPct(d.impactoOperacaoPerc)}</small></div>
