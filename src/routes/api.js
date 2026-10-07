@@ -5802,7 +5802,10 @@ function fornecedorPeloDocumentoRazao(fornecedores, documentos, documento) {
   return unicos.length===1 ? unicos[0] : null;
 }
 function codigoPessoaQuestor(valor) {
-  return String(valor || '').match(/\d+/)?.[0] || '';
+  // A contrapartida vem frequentemente formatada pelo Excel: "5.434.049".
+  // A leitura anterior capturava só o primeiro bloco ("5"), impedindo o
+  // cruzamento com CONTACTBFOR/CODIGOPESSOA 5434049 do cadastro Questor.
+  return String(valor || '').replace(/\D/g,'');
 }
 async function pessoasQuestorPorCodigos(codigos) {
   const chaves=[...new Set((codigos || []).map(codigoPessoaQuestor).filter(Boolean))];
@@ -5833,6 +5836,35 @@ function fornecedorPelaPessoaQuestor(fornecedores, pessoa) {
   if (porCnpj.length===1) return porCnpj[0];
   const leitura=fornecedorSugeridoPeloRazao(fornecedores,{ participante:pessoa.nome });
   return leitura.sugestao?.id ? (fornecedores || []).find((x)=>Number(x.id)===Number(leitura.sugestao.id)) || null : null;
+}
+// O cadastro mestre do Questor é evidência suficiente para identificar a
+// contraparte pelo CNPJ. Não exigimos que a pessoa já exista na carteira de
+// fornecedores: ela é materializada ao confirmar a inclusão ou na releitura.
+function sugestaoFornecedorPelaPessoaQuestor(fornecedores, pessoa) {
+  const existente=fornecedorPelaPessoaQuestor(fornecedores,pessoa);
+  if (existente) return { ...existente, confianca:'CONFIRMADA', origem:'CONTRAPARTIDA_QUESTOR' };
+  const cnpj=String(pessoa?.inscr_federal || '').replace(/\D/g,'');
+  if (!pessoa || !cnpj || !String(pessoa.nome || '').trim()) return null;
+  return {
+    id:null, cnpj, descricao:String(pessoa.nome).trim(),
+    // O cadastro de pessoas prova a identidade, não o regime tributário.
+    // Conservamos a premissa já adotada para contrapartes sem regime apurado.
+    regime:'simples_nacional', confianca:'CONFIRMADA', origem:'CONTRAPARTIDA_QUESTOR',
+  };
+}
+function materializarFornecedorDaContrapartida(empresaId, sugestao, fornecedores = []) {
+  const cnpj=String(sugestao?.cnpj || '').replace(/\D/g,'');
+  if (!cnpj) return null;
+  const existente=(fornecedores || []).find((x)=>String(x.cnpj || '').replace(/\D/g,'')===cnpj)
+    || db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' AND cnpj=? LIMIT 1").get(Number(empresaId),cnpj);
+  if (existente) return existente;
+  const descricao=String(sugestao?.descricao || '').trim();
+  if (!descricao) return null;
+  const inserido=db.prepare(`INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime,origem)
+    VALUES (?,'fornecedor',?,?,?,'QUESTOR_PESSOA_CONTRAPARTIDA')`).run(Number(empresaId),cnpj,descricao,sugestao.regime || 'simples_nacional');
+  const fornecedor=db.prepare('SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE id=?').get(Number(inserido.lastInsertRowid));
+  fornecedores.push(fornecedor);
+  return fornecedor;
 }
 
 router.get('/empresas/:id/questor/razao/ultima-conciliacao', async (req,res)=>{
@@ -5977,6 +6009,19 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
       }
     }
     if (!cabecalhosValidos) throw new Error('Não identificamos o cabeçalho do Razão. Esperado: Data, Sequência, Histórico, Contrapartida, Descrição, Valor, Débito e Crédito.');
+    // Faz o cruzamento de TODAS as contrapartidas depois da leitura do arquivo.
+    // A prévia continua sem escrita, mas já entrega à confirmação o CNPJ e a
+    // identidade do fornecedor que serão materializados na inclusão.
+    const pessoasPorCodigo=await pessoasQuestorPorCodigos(linhas.map((linha)=>linha.contrapartida));
+    for (const linha of linhas) {
+      const pessoa=pessoasPorCodigo.get(codigoPessoaQuestor(linha.contrapartida));
+      const pelaContrapartida=sugestaoFornecedorPelaPessoaQuestor(fornecedoresRazao,pessoa);
+      if (!pelaContrapartida) continue;
+      linha.fornecedor_sugerido=pelaContrapartida;
+      linha.fornecedores_candidatos=[pelaContrapartida];
+      linha.fornecedor_origem='CONTRAPARTIDA_QUESTOR';
+      linha.fornecedor_observacao=`Fornecedor identificado pela contrapartida ${codigoPessoaQuestor(linha.contrapartida)} no cadastro Questor.`;
+    }
     const ausentes=linhas.filter((x)=>x.situacao==='AUSENTE');
     const divergencias=linhas.filter((x)=>x.situacao==='ENCONTRADO_XML_PREVALECE');
     const comCadastro=ausentes.filter((x)=>x.item_sugerido).length;
@@ -6043,10 +6088,13 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       if (db.prepare('SELECT 1 FROM movimentos WHERE empresa_id=? AND chave=?').get(empresaId,chave)) { resultado.ignorados++; recusar('LANCAMENTO_JA_INCLUIDO_PELO_RAZAO',linha); continue; }
       const fornecedorId=Number(linha?.fornecedor_sugerido?.id || linha?.fornecedor_id || 0);
       let fornecedor=fornecedorId ? db.prepare("SELECT id,cnpj,descricao,regime FROM parceiros WHERE id=? AND empresa_id=? AND tipo='fornecedor'").get(fornecedorId,empresaId) : null;
+      if (!fornecedor && linha?.fornecedor_sugerido?.origem==='CONTRAPARTIDA_QUESTOR') {
+        fornecedor=materializarFornecedorDaContrapartida(empresaId,linha.fornecedor_sugerido);
+      }
       if (!fornecedor) fornecedor=obterFornecedorGenericoSimples(empresaId);
       const referencia={ tipo:'LANCAMENTO_MANUAL_ENTRADA', gera_credito:regra.gera_credito !== false, ...(regra.regimes?.[empresa.regime] || {}), item_cadastrado:{chave:itemChave,nome:regra.nome || cadastro.label}, beneficio_percentual:beneficio, razao_identificador:idBase,
         origem:'QUESTOR_RAZAO', conta:linha.conta || '', conta_codigo:linha.conta_codigo || '', sequencia:linha.sequencia || '', historico:linha.historico || '', contrapartida:linha.contrapartida || '', participante:linha.participante || '',
-        fornecedor_vinculado:{ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem:fornecedor.origem==='QUESTOR_RAZAO_GENERICO'?'FORNECEDOR_GENERICO_SIMPLES':'HISTORICO_RAZAO' }, incluido_em:new Date().toISOString() };
+        fornecedor_vinculado:{ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem:fornecedor.origem==='QUESTOR_RAZAO_GENERICO'?'FORNECEDOR_GENERICO_SIMPLES':linha?.fornecedor_sugerido?.origem==='CONTRAPARTIDA_QUESTOR'?'CONTRAPARTIDA_QUESTOR':'HISTORICO_RAZAO' }, incluido_em:new Date().toISOString() };
       const inserido=inserir.run(empresaId,fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,
         regra.cst || '',regra.cclasstrib || '',regra.cst || '',regra.cclasstrib || '',itemChave,documento || null,1,chave,JSON.stringify(referencia));
       resultado.incluidos++; resultado.movimento_ids.push(Number(inserido.lastInsertRowid)); resultado.identificadores_incluidos.push(idBase);
@@ -6155,7 +6203,10 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
         // ser completa. Neles, o fornecedor já informado foi preservado em
         // `nome`; ele é uma fonte válida e prioritária para a releitura.
         const pessoa=pessoasPorCodigo.get(codigoPessoaQuestor(evidencia.contrapartida));
-        const pelaContrapartida=fornecedorPelaPessoaQuestor(fornecedores,pessoa);
+        const sugestaoContrapartida=sugestaoFornecedorPelaPessoaQuestor(fornecedores,pessoa);
+        const pelaContrapartida=sugestaoContrapartida?.id
+          ? fornecedores.find((x)=>Number(x.id)===Number(sugestaoContrapartida.id))
+          : materializarFornecedorDaContrapartida(empresaId,sugestaoContrapartida,fornecedores);
         const peloDocumento=fornecedorPeloDocumentoRazao(fornecedores,documentosFornecedor,movimento.documento || evidencia.documento);
         const leitura=fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante || evidencia.fornecedor_entrada_original || movimento.nome, descricao:movimento.descricao });
         let fornecedor=pelaContrapartida || peloDocumento || (leitura.sugestao?.id

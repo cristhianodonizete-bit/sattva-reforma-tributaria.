@@ -1335,6 +1335,21 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
   const locais=db.prepare(`SELECT ${CAMPOS.movimentos.join(',')} FROM movimentos WHERE empresa_id=? AND origem IN ('QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO') AND id IN (${marcas})`).all(Number(empresaId),...ids);
   const chaves=locais.map((x)=>String(x.chave || '')).filter(Boolean);
   if (!chaves.length) return { ativo:true, publicados:0, pendentes:0 };
+  // A entrada do Razão pode ter acabado de criar o fornecedor a partir do
+  // cadastro de pessoas Questor. Publique-o antes do movimento: o worker
+  // remoto então encontra o mesmo CNPJ ao recompor a cadeia e o regime, em
+  // vez de voltar a exibir "Fornecedor genérico" após uma nova instância.
+  const cnpjs=[...new Set(locais.map((x)=>String(x.inscr_federal || '').replace(/\D/g,'')).filter(Boolean))];
+  if (cnpjs.length) {
+    const marcasCnpj=cnpjs.map(()=>'?').join(',');
+    const parceiros=db.prepare(`SELECT ${CAMPOS.parceiros.join(',')} FROM parceiros
+      WHERE empresa_id=? AND tipo='fornecedor' AND cnpj IN (${marcasCnpj})`).all(Number(empresaId),...cnpjs);
+    const publicaveis=parceiros.map(({ id, empresa_id, ...parceiro })=>({ ...parceiro, empresa_id:Number(empresas[0].id) }));
+    if (publicaveis.length) {
+      const { error }=await remoto.from('parceiros').upsert(publicaveis,{onConflict:'empresa_id,tipo,cnpj'});
+      if (error) throw new Error(`Fornecedores das entradas conciliadas: ${error.message}`);
+    }
+  }
   const { data:existentes, error:erroExistentes }=await remoto.from('movimentos').select('chave').eq('empresa_id',Number(empresas[0].id)).in('chave',chaves);
   if (erroExistentes) throw new Error(`Entradas conciliadas compartilhadas: ${erroExistentes.message}`);
   const jaPublicadas=new Set((existentes || []).map((x)=>String(x.chave)));
