@@ -5946,17 +5946,21 @@ function criterioPessoaQuestorNoHistorico(pessoa, texto, textoOriginal='') {
 function pessoaQuestorPorAliasSeguro(pessoas, linha) {
   const texto=nomeFornecedorComparavel(linha?.texto);
   const contexto=normalizarTextoRazao(`${linha?.descricao || ''} ${linha?.conta || ''}`);
-  const telecom=/TELECOMUNIC|TELEFON|CELULAR|INTERNET/.test(contexto);
-  if (!telecom) return null;
+  const contextoCompleto=`${texto} ${contexto}`;
   const regras=[
-    { alias:/\bTIM\b/, nome:/^TIM CELULAR\b/, criterio:'ALIAS_TELECOM_TIM_QUESTOR' },
-    { alias:/\bVIVO\b/, nome:/^VIVO\b/, criterio:'ALIAS_TELECOM_VIVO_QUESTOR' },
+    { alias:/\bTIM\b/, nome:/^TIM CELULAR\b/, criterio:'ALIAS_TELECOM_TIM_QUESTOR', exige:/TELECOMUNIC|TELEFON|CELULAR|INTERNET/ },
+    // Evita confundir a operadora com empresas que apenas contêm "Vivo" no
+    // nome (supermercado, restaurante, corretora etc.).
+    { alias:/\bVIVO(?:\s+MG)?\b/, nome:/^VIVO S\.? A\.?$/, criterio:'ALIAS_TELECOM_VIVO_QUESTOR', exige:/TELECOMUNIC|TELEFON|CELULAR|INTERNET/ },
     // "Algar Telecom" é a denominação comercial; no cadastro fornecido ela
     // aparece como Algar Multimídia. A regra só vale na natureza de telecom.
-    { alias:/\bALGAR TELECOM\b/, nome:/^ALGAR MULTIMIDIA\b/, criterio:'ALIAS_TELECOM_ALGAR_QUESTOR' },
+    { alias:/\bALGAR TELECOM\b/, nome:/^ALGAR MULTIMIDIA\b/, criterio:'ALIAS_TELECOM_ALGAR_QUESTOR', exige:/TELECOMUNIC|TELEFON|CELULAR|INTERNET/ },
+    { alias:/\bCEMIG\b/, nome:/^CEMIG DISTRIB\b/, criterio:'ALIAS_ENERGIA_CEMIG_QUESTOR', exige:/LUZ|ENERGIA|ELETRIC/ },
+    { alias:/\bDMAE\b/, nome:/^DMAE AGUA E ESGOTO\b/, criterio:'ALIAS_AGUA_DMAE_QUESTOR', exige:/AGUA|ESGOTO/ },
+    { alias:/\bALSOL\b/, nome:/^ALSOL ENERGIAS RENOVAVEIS\b/, criterio:'ALIAS_ENERGIA_ALSOL_QUESTOR', exige:/ENERGIA|BOLETO/ },
   ];
   for (const regra of regras) {
-    if (!regra.alias.test(texto)) continue;
+    if (!regra.alias.test(texto) || (regra.exige && !regra.exige.test(contextoCompleto))) continue;
     const encontrados=pessoaQuestorPorCnpj((pessoas || []).filter((pessoa)=>regra.nome.test(nomeFornecedorComparavel(pessoa.nome))));
     if (encontrados.length===1) return { ...encontrados[0], criterio:regra.criterio };
   }
@@ -5965,7 +5969,11 @@ function pessoaQuestorPorAliasSeguro(pessoas, linha) {
 async function pessoasQuestorPelosHistoricos(linhas = []) {
   const pendentes=(linhas || []).map((linha)=>({ chave:String(linha?.chave || ''), conta:linha?.conta || linha?.conta_codigo || '', descricao:linha?.descricao || '', texto:[linha?.historico,linha?.descricao,linha?.participante].filter(Boolean).join(' ') }))
     .filter((linha)=>linha.chave && linha.texto.trim());
-  const termos=[...new Set(pendentes.flatMap((linha)=>termosParaBuscaPessoaQuestor(linha.texto)))].slice(0,120);
+  // Não limite a amostra global. Em uma importação grande, o corte em 120
+  // termos deixava de consultar justamente os fornecedores das últimas
+  // linhas do Razão. A paginação abaixo continua protegendo cada consulta;
+  // todos os históricos elegíveis passam pela mesma validação de identidade.
+  const termos=[...new Set(pendentes.flatMap((linha)=>termosParaBuscaPessoaQuestor(linha.texto)))];
   const candidatos=new Map();
   if (!termos.length) return new Map();
   for(let inicio=0;inicio<termos.length;inicio+=20) {
@@ -5993,8 +6001,15 @@ async function pessoasQuestorPelosHistoricos(linhas = []) {
   for (const linha of pendentes) {
     const texto=nomeFornecedorComparavel(linha.texto);
     const encontrados=pessoas.map((pessoa)=>({ pessoa, criterio:criterioPessoaQuestorNoHistorico(pessoa,texto,linha.texto) })).filter((x)=>x.criterio);
-    if (encontrados.length===1) resultado.set(linha.chave,{ ...encontrados[0].pessoa, criterio:encontrados[0].criterio });
-    else if (!encontrados.length) {
+    // Evidência literal/completa é mais forte que coincidência abreviada.
+    // Não deixe uma abreviação de outra empresa impedir um vínculo exato.
+    let escolhido=null;
+    for (const nivel of ['NOME_LITERAL_QUESTOR','NOME_COMPLETO_QUESTOR','NOME_ABREVIADO_QUESTOR']) {
+      const unicos=pessoaQuestorPorCnpj(encontrados.filter((x)=>x.criterio===nivel).map((x)=>x.pessoa));
+      if (unicos.length===1) { escolhido={ ...unicos[0], criterio:nivel }; break; }
+    }
+    if (escolhido) resultado.set(linha.chave,escolhido);
+    else {
       const porAlias=pessoaQuestorPorAliasSeguro(pessoas,{ ...linha, texto });
       if (porAlias) resultado.set(linha.chave,porAlias);
     }

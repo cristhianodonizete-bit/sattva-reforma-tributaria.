@@ -64,6 +64,7 @@ assert.match(api,/ALIAS_TELECOM_VIVO_QUESTOR/,'Vivo no histórico deve ser recon
 assert.match(api,/ALIAS_TELECOM_ALGAR_QUESTOR/,'Algar Telecom deve ser vinculada somente pelo alias de telecom controlado');
 assert.match(api,/HISTORICO_ALIAS_QUESTOR/,'o vínculo por denominação comercial deve ficar rastreável e distinto do nome literal');
 assert.match(api,/identificados_por_historico/,'a releitura deve informar quantos fornecedores foram identificados pelo histórico');
+assert.doesNotMatch(api,/flatMap\(\(linha\)=>termosParaBuscaPessoaQuestor\(linha\.texto\)\)\)\]\.slice\(0,120\)/,'a leitura do histórico não pode ignorar fornecedores por ordem no lote');
 assert.match(api,/reclassificar-naturezas/,'lançamentos já incluídos pelo Razão precisam poder reaplicar sua natureza');
 assert.match(api,/LOCACAO_VEICULOS/,'locação de veículos deve ser separada de aluguel de imóvel');
 assert.match(api,/Imóvel não é inferido por palavras do histórico/,'a regra não pode tratar qualquer locação como imóvel');
