@@ -6543,8 +6543,20 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
         let nome=movimento.nome, cnpj=movimento.inscr_federal, regime=movimento.regime;
         const fornecedorAtual=evidencia.fornecedor_vinculado || {};
         let fornecedorHistoricoAjustado=false;
-        if (!cnpj && /^Fornecedor genérico\s+—/i.test(String(nome || fornecedorAtual.descricao || ''))) {
-          const pessoaHistorico=pessoasPorHistorico.get(String(movimento.id));
+        const pessoaHistorico=pessoasPorHistorico.get(String(movimento.id));
+        // Uma contrapartida pré-preenchida no arquivo não é prova de que ela
+        // seja o fornecedor. Em pagamentos bancários, por exemplo, ela pode
+        // apontar a intermediadora. Quando o histórico traz um alias seguro
+        // (CEMIG, TIM, VIVO, Algar, DMAE ou AlsOl) e este leva a outro CNPJ
+        // cadastrado no Questor, a evidência textual específica prevalece.
+        // A regra é propositalmente restrita a aliases seguros: uma mera
+        // semelhança de nome nunca substitui um fornecedor já identificado.
+        const aliasSeguroConflitante=Boolean(
+          pessoaHistorico?.criterio && /^ALIAS_/.test(String(pessoaHistorico.criterio))
+          && String(pessoaHistorico.inscr_federal || '').replace(/\D/g,'')
+          && String(pessoaHistorico.inscr_federal || '').replace(/\D/g,'') !== String(cnpj || '').replace(/\D/g,'')
+        );
+        if ((!cnpj && /^Fornecedor genérico\s+—/i.test(String(nome || fornecedorAtual.descricao || ''))) || aliasSeguroConflitante) {
           const sugestaoHistorico=sugestaoFornecedorPelaPessoaQuestor(fornecedores,pessoaHistorico,'HISTORICO_NOME_QUESTOR');
           const fornecedorHistorico=sugestaoHistorico?.id
             ? fornecedores.find((x)=>Number(x.id)===Number(sugestaoHistorico.id))
