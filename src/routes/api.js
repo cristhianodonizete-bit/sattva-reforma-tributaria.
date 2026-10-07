@@ -5838,9 +5838,10 @@ function sugerirItemEntradaPeloRazao(itens, linha = {}) {
     :/SOFTWARE|PROCESSAMENTO DE DADOS/.test(texto) ? 'LICENCA_USO_SISTEMAS_SOFTWARE'
     :/ESCRITORIO/.test(texto) ? 'MATERIAL_ESCRITORIO'
     :/LIMPEZA|CONSERVACAO/.test(texto) ? 'MATERIAL_LIMPEZA'
-    // Não classificar “locação” isolada como imóvel: a natureza imobiliária
-    // exige evidência explícita no Razão.
-    :/IMOVEL|PREDIAL|SALA COMERCIAL|ARRENDAMENTO IMOBILIARIO/.test(texto) ? 'ALUGUEL_IMOVEL_COMERCIAL' : '';
+    // Imóvel não é inferido por palavras do histórico. Essa natureza só pode
+    // vir de uma conta Questor previamente configurada ou de escolha manual,
+    // pois um "aluguel" pode ser veículo, equipamento ou outro bem móvel.
+    :'';
   return chave ? (itens || []).find((item)=>item.chave===chave) || null : null;
 }
 function itensEntradaManualConfigurados() {
@@ -6445,9 +6446,13 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
     db.transaction(()=>{
       for (const movimento of movimentos) {
         let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { /* fato legado sem evidência completa */ }
-        const item=sugerirItemEntradaPeloRazao(itens,{ conta:evidencia.conta, conta_codigo:evidencia.conta_codigo, historico:evidencia.historico, descricao:movimento.descricao, participante:evidencia.participante });
-        if (!item) continue;
         const anterior=String(evidencia.item_cadastrado?.chave || evidencia.item_cadastrado || '');
+        let item=sugerirItemEntradaPeloRazao(itens,{ conta:evidencia.conta, conta_codigo:evidencia.conta_codigo, historico:evidencia.historico, descricao:movimento.descricao, participante:evidencia.participante });
+        // Corrige a regra histórica: se um fato antigo estava como imóvel sem
+        // uma prova atual para essa natureza, ele deixa de carregar benefício
+        // imobiliário. Quando não há outra identificação, fica neutro.
+        if (!item && anterior==='ALUGUEL_IMOVEL_COMERCIAL') item=itens.find((x)=>x.chave==='OUTRAS_DESPESAS_SEM_BENEFICIO') || null;
+        if (!item) continue;
         if (anterior===item.chave) continue;
         let nome=movimento.nome, cnpj=movimento.inscr_federal, regime=movimento.regime;
         const fornecedorAtual=evidencia.fornecedor_vinculado || {};
@@ -7450,7 +7455,8 @@ function assegurarItensEntradaManualPadrao() {
     ['MATERIAL_ESCRITORIO','Material de escritório',0,'000001','000','Validar produto/NCM se houver tratamento específico',2,'simples_nacional',[]],
     ['ALUGUEL_IMOVEL_COMERCIAL','Aluguel de imóvel comercial',.70,'200027','200','Aplicável somente à locação, cessão onerosa e arrendamento de imóvel tributados',3,'lucro_presumido',[]],
     ['LOCACAO_VEICULOS','Locação de veículos',0,'000001','000','Locação de veículo é bem móvel e não recebe o benefício imobiliário',4,'simples_nacional',['3.7.03.013.005']],
-    ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',5,'simples_nacional',[]],
+    ['OUTRAS_DESPESAS_SEM_BENEFICIO','Outras despesas sem benefício específico',0,'000001','000','Usado quando o Razão não comprova uma natureza especial; não atribui benefício imobiliário por presunção.',5,'simples_nacional',[]],
+    ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',6,'simples_nacional',[]],
   ];
   const inserir=db.prepare("INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)");
   const existente=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?");
@@ -7458,10 +7464,12 @@ function assegurarItensEntradaManualPadrao() {
   db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor]) => {
     inserir.run(chave,nome,observacao,ordem);
     let anterior={}; try { anterior=JSON.parse(existente.get(chave)?.valor || '{}'); } catch (_) { /* será reparado sem apagar campos conhecidos */ }
+    const contasConfiguradas=Array.isArray(anterior.contas_questor) ? anterior.contas_questor : [];
+    const contasMescladas=[...new Set([...contas_questor,...contasConfiguradas])];
     const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior,
-      contas_questor:Array.isArray(anterior.contas_questor) ? anterior.contas_questor : contas_questor,
+      contas_questor:contasMescladas,
       regimes:anterior.regimes || regimesPadraoEntrada(), fornecedor_padrao_regime:anterior.fornecedor_padrao_regime || fornecedor_padrao_regime };
-    if (!Object.keys(anterior).length || !anterior.regimes || !anterior.fornecedor_padrao_regime || !Array.isArray(anterior.contas_questor)) { atualizar.run(JSON.stringify(proxima),chave); alterou=true; }
+    if (!Object.keys(anterior).length || !anterior.regimes || !anterior.fornecedor_padrao_regime || !Array.isArray(anterior.contas_questor) || contasMescladas.length!==contasConfiguradas.length) { atualizar.run(JSON.stringify(proxima),chave); alterou=true; }
   }))();
   return alterou;
 }
