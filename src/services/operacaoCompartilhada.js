@@ -155,25 +155,39 @@ function normalizarIdsParceirosDoCache(linhas) {
 // a base oficial por CNPJ — ou pela raiz da filial — trouxer um regime, ela
 // deve prevalecer tanto na leitura quanto antes de o motor calcular.
 function aplicarRegimeBaseNosVinculosQuestor(empresaId) {
-  const parceiros=db.prepare(`UPDATE parceiros
-    SET regime=(SELECT br.regime FROM base_regime br
-      WHERE br.cnpj=parceiros.cnpj OR br.raiz=SUBSTR(parceiros.cnpj,1,8)
-      ORDER BY CASE WHEN br.cnpj=parceiros.cnpj THEN 0 ELSE 1 END, br.ano DESC LIMIT 1)
-    WHERE empresa_id=? AND tipo='fornecedor' AND COALESCE(cnpj,'')<>''
-      AND UPPER(COALESCE(origem,'')) IN ('QUESTOR_PESSOA_CONTRAPARTIDA','QUESTOR_PESSOA_HISTORICO')
-      AND EXISTS(SELECT 1 FROM base_regime br WHERE br.cnpj=parceiros.cnpj OR br.raiz=SUBSTR(parceiros.cnpj,1,8))`).run(Number(empresaId)).changes;
+  // SQLite não permite referenciar a tabela-alvo dentro da subconsulta
+  // correlacionada de UPDATE. Resolvemos primeiro por id no CTE e somente
+  // então atualizamos o parceiro; assim o worker não aborta antes de
+  // publicar a fotografia.
+  const parceiros=db.prepare(`WITH candidatos AS (
+      SELECT p.id, br.regime,
+        ROW_NUMBER() OVER (PARTITION BY p.id ORDER BY CASE WHEN br.cnpj=p.cnpj THEN 0 ELSE 1 END, br.ano DESC) AS posicao
+      FROM parceiros p
+      JOIN base_regime br ON br.cnpj=p.cnpj OR br.raiz=SUBSTR(p.cnpj,1,8)
+      WHERE p.empresa_id=? AND p.tipo='fornecedor' AND COALESCE(p.cnpj,'')<>''
+        AND UPPER(COALESCE(p.origem,'')) IN ('QUESTOR_PESSOA_CONTRAPARTIDA','QUESTOR_PESSOA_HISTORICO')
+    ), resolvidos AS (
+      SELECT id,regime FROM candidatos WHERE posicao=1
+    )
+    UPDATE parceiros SET regime=(SELECT r.regime FROM resolvidos r WHERE r.id=parceiros.id)
+    WHERE id IN (SELECT id FROM resolvidos WHERE regime IS NOT NULL)`).run(Number(empresaId)).changes;
   // O Razão também pode trazer o CNPJ já identificado no próprio lançamento,
   // sem que o parceiro tenha sido materializado pela rotina de pessoas. A
   // premissa inicial de Simples é apenas um fallback de importação; nunca
   // pode prevalecer sobre a base de regimes por CNPJ/raiz nessa situação.
-  const movimentos=db.prepare(`UPDATE movimentos
-    SET regime=(SELECT br.regime FROM base_regime br
-      WHERE br.cnpj=movimentos.inscr_federal OR br.raiz=SUBSTR(movimentos.inscr_federal,1,8)
-      ORDER BY CASE WHEN br.cnpj=movimentos.inscr_federal THEN 0 ELSE 1 END, br.ano DESC LIMIT 1)
-    WHERE empresa_id=? AND tipo='fornecedor'
-      AND UPPER(COALESCE(origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
-      AND LENGTH(REPLACE(REPLACE(REPLACE(COALESCE(inscr_federal,''),'.',''),'/',''),'-',''))=14
-      AND EXISTS(SELECT 1 FROM base_regime br WHERE br.cnpj=movimentos.inscr_federal OR br.raiz=SUBSTR(movimentos.inscr_federal,1,8))`).run(Number(empresaId)).changes;
+  const movimentos=db.prepare(`WITH candidatos AS (
+      SELECT m.id, br.regime,
+        ROW_NUMBER() OVER (PARTITION BY m.id ORDER BY CASE WHEN br.cnpj=m.inscr_federal THEN 0 ELSE 1 END, br.ano DESC) AS posicao
+      FROM movimentos m
+      JOIN base_regime br ON br.cnpj=m.inscr_federal OR br.raiz=SUBSTR(m.inscr_federal,1,8)
+      WHERE m.empresa_id=? AND m.tipo='fornecedor'
+        AND UPPER(COALESCE(m.origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
+        AND LENGTH(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''))=14
+    ), resolvidos AS (
+      SELECT id,regime FROM candidatos WHERE posicao=1
+    )
+    UPDATE movimentos SET regime=(SELECT r.regime FROM resolvidos r WHERE r.id=movimentos.id)
+    WHERE id IN (SELECT id FROM resolvidos)`).run(Number(empresaId)).changes;
   return parceiros+movimentos;
 }
 
