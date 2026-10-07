@@ -609,6 +609,26 @@ function lerMovimentosLocais(empresaId, opcoes = {}) {
     : db.prepare('SELECT * FROM movimentos WHERE empresa_id=?').all(Number(empresaId));
 }
 
+// A auditoria é a trilha durável das exclusões feitas pelo usuário. Algumas
+// exclusões antigas ocorreram antes de a remoção canônica existir; portanto,
+// mesmo que um registro residual ainda exista no compartilhado, ele jamais
+// pode voltar a materializar-se no cache ou compor uma tela financeira.
+async function chavesDocumentosExcluidosAuditados(remoto, empresaId) {
+  const chaves = new Set();
+  for (let de = 0;; de += 1000) {
+    const { data, error } = await remoto.from('auditoria').select('entidade_id')
+      .eq('empresa_id', Number(empresaId)).eq('acao', 'DOCUMENTO_FISCAL_EXCLUIDO')
+      .eq('entidade', 'movimentos').range(de, de + 999);
+    if (error) throw new Error(`Trilha de exclusões fiscais: ${error.message}`);
+    for (const evento of (data || [])) {
+      const chave = String(evento.entidade_id || '').replace(/^chave:/, '').trim();
+      if (chave) chaves.add(chave);
+    }
+    if (!data || data.length < 1000) break;
+  }
+  return chaves;
+}
+
 async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   const id = Number(empresaId);
   const escopo = escopoCompetencias(opcoes);
@@ -652,6 +672,8 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   let { remota, linhas, origem } = leitura;
   linhas = deduplicarMovimentosFiscais(linhas);
   let normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
+  const chavesExcluidas = await chavesDocumentosExcluidosAuditados(supabase.admin(), id);
+  normalizadas = normalizadas.filter((linha) => !chavesExcluidas.has(String(linha.chave || '').trim()));
   let remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
   // Em leitura por competência, a reconciliação nunca toma decisões sobre
   // documentos de outros meses. Isso reduz volume e protege o histórico fora
@@ -694,12 +716,19 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
     ({ remota, linhas, origem } = leitura);
     linhas = deduplicarMovimentosFiscais(linhas);
     normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
+    normalizadas = normalizadas.filter((linha) => !chavesExcluidas.has(String(linha.chave || '').trim()));
     remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
     identidadesRemotas = new Set(normalizadas.map(identidadeFiscal).filter(Boolean));
   }
-  const remover = locais.filter((linha) => !remotos.has(Number(linha.id))
+  const removerNormais = locais.filter((linha) => !remotos.has(Number(linha.id))
     && !identidadesRemotas.has(identidadeFiscal(linha))
     && !['xml','sped','questor_conciliacao_entrada','questor_razao'].includes(String(linha.origem || '').toLowerCase())).map((linha) => Number(linha.id));
+  // Exclusão expressa sempre prevalece sobre a proteção normal de XML/SPED:
+  // esta proteção existe para evitar perda acidental por falta de publicação,
+  // não para desfazer uma remoção confirmada pelo usuário.
+  const removerPorExclusao = locais.filter((linha) => chavesExcluidas.has(String(linha.chave || '').trim()))
+    .map((linha) => Number(linha.id));
+  const remover = [...new Set([...removerNormais, ...removerPorExclusao])];
   db.transaction(() => {
     if (remover.length) {
       const marcas = remover.map(() => '?').join(',');
