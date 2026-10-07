@@ -129,14 +129,18 @@ function normalizarIdsParceirosDoCache(linhas) {
   // com outro parceiro local. A coluna id nula faz o SQLite gerar um novo id.
   const empresas=[...new Set((linhas || []).map((x)=>Number(x.empresa_id)).filter(Number.isInteger))];
   if (!empresas.length) return linhas;
-  const marcas=empresas.map(()=>'?').join(',');
-  const locais=db.prepare(`SELECT id,empresa_id,tipo,cnpj FROM parceiros WHERE empresa_id IN (${marcas})`).all(...empresas);
+  // `parceiros.id` é chave primária global no cache SQLite. Um id remoto de
+  // outra empresa não pode ser reaproveitado, mesmo que a empresa sendo
+  // restaurada ainda não tenha esse parceiro. A correspondência funcional
+  // continua restrita à empresa, mas a reserva de ids precisa ver a tabela
+  // inteira para evitar UNIQUE parceiros.id durante a preparação do worker.
+  const locais=db.prepare('SELECT id,empresa_id,tipo,cnpj FROM parceiros').all();
   const porChave=new Map();
   const idsOcupados=new Set();
   for (const parceiro of locais) {
     idsOcupados.add(Number(parceiro.id));
     const cnpj=String(parceiro.cnpj || '').replace(/\D/g,'');
-    if (cnpj) porChave.set(`${parceiro.empresa_id}|${parceiro.tipo}|${cnpj}`,Number(parceiro.id));
+    if (empresas.includes(Number(parceiro.empresa_id)) && cnpj) porChave.set(`${parceiro.empresa_id}|${parceiro.tipo}|${cnpj}`,Number(parceiro.id));
   }
   return linhas.map((linha)=>{
     const cnpj=String(linha.cnpj || '').replace(/\D/g,'');
