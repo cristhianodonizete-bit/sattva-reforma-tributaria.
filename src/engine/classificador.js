@@ -26,6 +26,19 @@ const soDigitos = (v) => String(v == null ? '' : v).replace(/\D/g, '');
 // Famílias de remessa do emitente (5.901–5.925 e 6.901–6.925). Elas
 // registram circulação física sem caracterizar aquisição do destinatário.
 const remessaSemAquisicao = (cfop) => /^[56]9(?:0[1-9]|1\d|2[0-5])$/.test(soDigitos(cfop));
+// O valor de carga de vale-alimentação não se confunde com a tarifa do
+// arranjo. A descrição documental, combinada ao NBS de cartão de crédito,
+// é suficiente para identificar a natureza do fato, ainda que a LC 116 tenha
+// vindo genérica. A apuração do crédito continua dependente do débito que o
+// fornecedor/arranjo informar, mas essa evidência não é classificatória.
+function cargaValeAlimentacao(item = {}) {
+  const texto = String(item.descricao || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const nbs = soDigitos(item.nbs);
+  return nbs === '109014000'
+    && /\b(CARGA|REPASSE)\b/.test(texto)
+    && /\b(CARTAO|VALE)\b/.test(texto)
+    && /\b(ALIMENTACAO|REFEICAO)\b/.test(texto);
+}
 // A base de serviços traz cClassTrib. Para o motor, o grupo do código define
 // o CST recomendado quando a planilha não o informa explicitamente.
 function cstDaBase(c) {
@@ -96,6 +109,24 @@ function classificar(item, ctx = {}) {
       `Benefício declarado: ${(beneficio * 100).toLocaleString('pt-BR',{maximumFractionDigits:2})}%.`,
       item.entradaManual.observacao || 'Sem observação adicional.',
     ], { natureza, sentido, declarado:item.declarado });
+  }
+
+  // Vale-alimentação carregado em cartão: a descrição demonstra a operação
+  // concreta e prevalece sobre LC 116 genérica. Não presume crédito integral:
+  // somente elimina a ambiguidade de classificação entre serviço financeiro e
+  // regra ordinária; o motor de crédito exigirá o débito do fornecedor.
+  if (sentido === 'entrada' && cargaValeAlimentacao(item)) {
+    return montar('CLASSIFICADO', {
+      cst: '010', cclasstrib: '010002',
+      classificacao: 'Vale-alimentação — carga em cartão / arranjo de pagamento',
+      reducao: 'integral',
+      fundamento: 'LC 214/2025, arts. 57, 182 e 214 a 218.',
+    }, 'descrição documental + NBS', [
+      'Descrição identifica carga ou repasse de vale-alimentação em cartão.',
+      'NBS 1.0901.40.00: serviços de cartão de crédito.',
+      'LC 116 genérica não impede a classificação da natureza da operação.',
+      'O crédito CBS fica limitado ao débito apurado e extinto pelo fornecedor/arranjo.',
+    ], { natureza, sentido, candidatos: [] });
   }
 
   // --- 1. decisão já tomada pelo consultor para esta empresa tem precedência

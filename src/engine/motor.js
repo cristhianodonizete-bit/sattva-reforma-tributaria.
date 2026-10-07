@@ -104,6 +104,13 @@ function credito(legado, tipoCredito, modalidadeCredito, statusDeterminacao, mot
   return { status: legado, tipoCredito, modalidadeCredito, statusDeterminacao, motivo };
 }
 function somenteDigitos(valor) { return String(valor || '').replace(/\D/g, ''); }
+function cargaValeAlimentacao(item = {}) {
+  const texto = String(item.descricao || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  return somenteDigitos(item.nbs) === '109014000'
+    && /\b(CARGA|REPASSE)\b/.test(texto)
+    && /\b(CARTAO|VALE)\b/.test(texto)
+    && /\b(ALIMENTACAO|REFEICAO)\b/.test(texto);
+}
 
 // LC 214/2025, arts. 276 e 283: a vedação é do adquirente. Ela não impede
 // que o próprio hotel/parque aproveite créditos das suas aquisições (art. 282).
@@ -129,6 +136,10 @@ function vedacaoCreditoAdquirenteRegimeEspecifico(item = {}, cls = {}) {
   if (cclasstrib === '200021') {
     return { status: 'SEM_DIREITO', modalidade: 'REGIME_ESPECIFICO_SEM_CREDITO_ADQUIRENTE',
       motivo: 'Serviço de transporte coletivo de passageiros no regime específico: o adquirente não pode apropriar crédito de CBS/IBS (LC 214/2025, art. 285, III).' };
+  }
+  if (cclasstrib === '010002' && cargaValeAlimentacao(item)) {
+    return { status: 'DADOS_INSUFICIENTES', statusDeterminacao: 'INDETERMINADO', modalidade: 'VALE_ALIMENTACAO_ARRANJO_PAGAMENTO',
+      motivo: 'Carga de vale-alimentação identificada. A classificação está concluída; o crédito CBS será limitado ao débito apurado e extinto pelo fornecedor ou participante do arranjo.' };
   }
   if (cclasstrib === '010002' && item.credito_servico_financeiro_permitido !== true) {
     return { status: 'SUJEITO_VALIDACAO', modalidade: 'SERVICO_FINANCEIRO_CREDITO_CONDICIONAL',
@@ -210,7 +221,7 @@ function avaliarCredito({ regimeAdquirente, regimeFornecedor, cls, sentido, item
   if (sentido === 'entrada') {
     const vedacaoRegimeEspecifico = vedacaoCreditoAdquirenteRegimeEspecifico(item, cls);
     if (vedacaoRegimeEspecifico) return credito(vedacaoRegimeEspecifico.status, vedacaoRegimeEspecifico.status === 'SEM_DIREITO' ? 'SEM_CREDITO' : null,
-      vedacaoRegimeEspecifico.modalidade, vedacaoRegimeEspecifico.status === 'SEM_DIREITO' ? 'DETERMINADO' : 'SUJEITO_VALIDACAO', vedacaoRegimeEspecifico.motivo);
+      vedacaoRegimeEspecifico.modalidade, vedacaoRegimeEspecifico.statusDeterminacao || (vedacaoRegimeEspecifico.status === 'SEM_DIREITO' ? 'DETERMINADO' : 'SUJEITO_VALIDACAO'), vedacaoRegimeEspecifico.motivo);
   }
   // Regime do adquirente desconhecido não pode ser tratado como se creditasse:
   // isso superestimaria o crédito entregue ao cliente. O desconhecido tem que

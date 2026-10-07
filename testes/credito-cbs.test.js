@@ -6,6 +6,7 @@ process.env.SATTVA_DADOS = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-credito
 const db = require('../src/db');
 const regras = require('../src/services/regras');
 const { avaliarCredito, projetarItem } = require('../src/engine/motor');
+const { classificar } = require('../src/engine/classificador');
 const cls = { status: 'CLASSIFICADO' };
 assert.equal(regras.regime('simples_nacional').creditoCbsSimplesReferencia, 0.025,
   'cadastro padrão do Simples usa referência CBS de 2,5% quando não houve definição manual');
@@ -132,6 +133,19 @@ const servicoFinanceiro = avaliarCredito({
   item: { lc116: '15.01', nbs: '109014000' }, cls: { ...cls, cclasstrib: '010002' },
 });
 assert.equal(servicoFinanceiro.status, 'SUJEITO_VALIDACAO');
+
+const valeAlimentacao = avaliarCredito({
+  regimeAdquirente: 'lucro_real', regimeFornecedor: 'lucro_real', sentido: 'entrada',
+  item: { lc116: '99.01', nbs: '109014000', descricao: 'VALOR REPASSE CARGA CARTAO ALIMENTACAO' },
+  cls: { ...cls, cclasstrib: '010002' },
+});
+assert.deepEqual([valeAlimentacao.status, valeAlimentacao.modalidadeCredito, valeAlimentacao.statusDeterminacao],
+  ['DADOS_INSUFICIENTES', 'VALE_ALIMENTACAO_ARRANJO_PAGAMENTO', 'INDETERMINADO']);
+
+const classificacaoValeAlimentacao = classificar({
+  nbs: '109014000', lc116: '99.01', descricao: 'VALOR REPASSE CARGA CARTAO ALIMENTACAO',
+}, { sentido: 'entrada' });
+assert.deepEqual([classificacaoValeAlimentacao.status, classificacaoValeAlimentacao.cclasstrib], ['CLASSIFICADO', '010002']);
 
 const alimentacaoContratada = avaliarCredito({
   regimeAdquirente: 'lucro_real', regimeFornecedor: 'lucro_real', sentido: 'entrada',
