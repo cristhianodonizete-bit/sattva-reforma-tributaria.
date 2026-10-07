@@ -694,16 +694,9 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
       .run(CHAVE_CONTROLE_PENDENCIAS, versaoFilaIncremental());
     db.prepare('DELETE FROM motor_pendencias WHERE empresa_id=?').run(empresaId);
   }
-  // Importações podem publicar em segundo plano. Fluxos que confirmam uma
-  // condição determinante ou são acionados pelo operador desabilitam este
-  // caminho e aguardam uma publicação explícita antes de responder.
-  if (opcoes.publicarAssincrona !== false) {
-    try {
-      const operacao = require('./operacaoCompartilhada');
-      if (operacao.ativo()) operacao.publicarResultadosMotor(empresaId)
-        .catch((e) => console.error('[supabase] resultados do motor:', e.message));
-    } catch (_) { /* ambiente sem operação compartilhada */ }
-  }
+  // A publicação é exclusiva do worker: ele transporta a execução completa
+  // como inativa, valida a quantidade e só então promove a nova fotografia.
+  // O motor local jamais pode substituir a análise vigente em segundo plano.
   return id;
 }
 

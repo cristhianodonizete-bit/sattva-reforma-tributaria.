@@ -1096,6 +1096,13 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   const remoto = supabase.admin();
   const execucaoId = Number(opcoes.execucao_id);
   const publicacaoPorExecucao = Number.isInteger(execucaoId) && execucaoId > 0;
+  // Uma fotografia só pode ser transportada como lote fechado de uma
+  // execução identificada. Publicar "a empresa inteira" misturava linhas
+  // antigas com a execução nova e, pior, desativava a fotografia vigente
+  // antes de haver substituta validada.
+  if (!publicacaoPorExecucao) {
+    throw new Error('Publicação da fotografia rejeitada: informe a execução completa e a quantidade esperada.');
+  }
   const empresasRemotas = await buscarTudo(remoto, 'empresas');
   const empresaRemotaPorOrigem = new Map((empresasRemotas || []).map((empresa) => [
     Number(empresa.origem_local_id || empresa.id), Number(empresa.id),
@@ -1119,10 +1126,9 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   const filtroResultados = clausulasResultados.length ? ` WHERE ${clausulasResultados.join(' AND ')}` : '';
   const resultados = db.prepare(`SELECT * FROM motor_resultados${filtroResultados}`).all(...parametrosResultados)
     .map((x) => ({ id: x.id, empresa_id: empresaRemota(x.empresa_id), movimento_id: x.movimento_id, dados: x,
-      // A tabela compartilhada usa "ativo=false" como padrão. Sem marcar a
-      // nova fotografia explicitamente, o cálculo correto ficava gravado no
-      // histórico, mas as telas continuavam lendo a fotografia antiga.
-      ativo: opcoes.ativar !== false, execucao_id: x.execucao_id,
+      // A nova foto sempre chega inativa. Só a RPC de promoção, depois de
+      // conferir a quantidade completa, troca a fotografia visível.
+      ativo: false, execucao_id: x.execucao_id,
       tipo_credito: x.tipo_credito, modalidade_credito: x.modalidade_credito,
       status_credito_determinacao: x.status_credito_determinacao,
       regime_cbs_emitente: x.regime_cbs_emitente, regime_cbs_adquirente: x.regime_cbs_adquirente,
@@ -1133,16 +1139,6 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
       origem_resolucao: x.origem_resolucao, requer_intervencao_humana: x.requer_intervencao_humana }));
   if (publicacaoPorExecucao && resultados.length !== Number(opcoes.quantidade_esperada)) {
     throw new Error(`Fotografia local incompleta para execução ${execucaoId}: esperado ${opcoes.quantidade_esperada}, encontrado ${resultados.length}.`);
-  }
-  // A restrição remota garante um único resultado ativo por movimento. A
-  // publicação sempre envia a fotografia local completa da empresa, portanto
-  // a fotografia anterior precisa ser encerrada antes de ativar a substituta.
-  const empresasDaFotografia = [...new Set(resultados.map((r) => Number(r.empresa_id)).filter(Boolean))];
-  for (const idEmpresa of empresasDaFotografia) {
-    if (opcoes.ativar === false) continue;
-    const { error } = await remoto.from('motor_resultados_operacionais')
-      .update({ ativo: false }).eq('empresa_id', idEmpresa).eq('ativo', true);
-    if (error) throw new Error(`motor_resultados_operacionais preparação: ${error.message}`);
   }
   // 100 linhas evita que uma foto grande gere uma requisição PostgREST lenta
   // ou ultrapasse a memória do worker. É transporte de resultado derivado;

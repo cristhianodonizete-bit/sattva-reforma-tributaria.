@@ -1171,8 +1171,7 @@ async function reprocessarSaidasPorQsa(empresaId) {
   const reprocessamento = motorExec.reprocessarIncremental(empresaId, {
     movimentoIds: saidas, ano: 2027, publicarAssincrona: false,
   });
-  const publicacao = await require('../services/operacaoCompartilhada').publicarResultadosMotor(empresaId);
-  return { ...reprocessamento, publicacao };
+  return { ...reprocessamento, publicacao: { pendente: true, motivo: 'A fotografia será publicada somente pelo worker, após validação atômica.' } };
 }
 
 router.get('/empresas/:id/qsa', async (req, res) => {
@@ -8421,7 +8420,6 @@ router.post('/empresas/:id/elegibilidade-anexo-xi/sanear', async (req, res) => {
     const qsa = { status: 'NAO_CONSULTADO_AUTOMATICAMENTE', mensagem: 'Use “Consultar cadastro” no Quadro societário caso queira buscar dados externos.' };
     const parceiros = await cnpjReceita.enriquecerParceiros(empresaId, { sobrescrever: true, forcar: true, limite: 500 });
     const execucao = motorExec.executar(empresaId, { ano: Number(req.body.ano) || 2027 });
-    await require('../services/operacaoCompartilhada').publicarResultadosMotor(empresaId);
     const depois = contarRequerValidacao();
     const distribuicao = db.prepare(`SELECT cclasstrib,COUNT(*) quantidade FROM motor_resultados
       WHERE empresa_id=? AND cclasstrib IN ('000001','200043','200044') GROUP BY cclasstrib`).all(empresaId);
