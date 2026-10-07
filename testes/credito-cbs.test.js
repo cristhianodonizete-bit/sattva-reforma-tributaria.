@@ -38,6 +38,8 @@ const compraSimples = projetarItem({
   sentido: 'entrada', ano: 2027, empresa: { regime: 'lucro_real' }, regimeContraparte: 'simples_nacional',
 });
 assert.equal(compraSimples.cbs, Math.round(compraSimples.baseEconomica * 0.025 * 100) / 100);
+assert.equal(compraSimples.creditoCbs, compraSimples.cbs,
+  'a referência CBS do Simples também deve gerar crédito limitado para a adquirente regular');
 assert.equal(compraSimples.natureza, 'SIMULADO');
 
 // O percentual efetivo/documental, quando informado, prevalece à premissa.

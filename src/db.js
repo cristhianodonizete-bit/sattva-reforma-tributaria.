@@ -2718,10 +2718,13 @@ db.prepare(`UPDATE param_regimes
 // fornecedor do Simples. Quando o cadastro ainda não definiu esse campo,
 // adotamos a referência técnica de 2,5% (0,025) para que a operação fique
 // simulada e auditável, em vez de indevidamente indeterminada. Valor já
-// informado pelo usuário nunca é substituído.
+// informado pelo usuário nunca é substituído. Bases antigas gravaram zero
+// como valor-padrão antes deste parâmetro existir; zero técnico não representa
+// uma decisão fiscal de não gerar crédito e também deve receber a premissa.
 const ajusteCreditoCbsSimples=db.prepare(`UPDATE param_regimes
   SET credito_cbs_simples_referencia = 0.025
-  WHERE chave = 'simples_nacional' AND credito_cbs_simples_referencia IS NULL`).run();
+  WHERE chave = 'simples_nacional'
+    AND (credito_cbs_simples_referencia IS NULL OR credito_cbs_simples_referencia <= 0)`).run();
 if (ajusteCreditoCbsSimples.changes) {
   db.prepare(`INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
     SELECT m.empresa_id,m.id,'PREMISSA_CREDITO_CBS_SIMPLES_025',datetime('now','localtime')

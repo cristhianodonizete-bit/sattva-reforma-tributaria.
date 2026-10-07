@@ -51,7 +51,7 @@ const crypto = require('crypto');
 // A classificação passa a preservar a evidência complementar do NBS quando
 // não houver chave LC116+NBS exata. A versão invalida resultados anteriores,
 // que poderiam ter descartado indevidamente a exceção 200044 antes do QSA.
-const MOTOR_VERSION = 'motor-cbs-2026-10-06-qsa-fornecedor-c176';
+const MOTOR_VERSION = 'motor-cbs-2026-10-06-credito-simples-c177';
 const hash = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 24);
 const versoesAtuais = () => {
   const params = regras.tudo();
