@@ -1871,6 +1871,52 @@ async function telaCadeia(el, tipo) {
       </div></details>
     </article>`;
   }).join('')}</div>` : A.vazio(eForn ? 'Não há entradas para rastrear.' : 'Não há vendas para rastrear.');
+  // Os três recortes de rastreabilidade respondem perguntas diferentes, mas
+  // têm a mesma unidade de leitura: uma operação. Mantemos a identidade na
+  // parte superior e os valores na faixa inferior para não exigir rolagem
+  // lateral nas listas de crédito e de notas.
+  const cartoesCreditosCbs=(creditosCbsResposta.operacoes || []).length ? `<div class="rastreabilidade-lista">${(creditosCbsResposta.operacoes || []).map((x)=>{
+    const premissa=String(x.status_credito || '').includes('PREMISSA');
+    return `<article class="rastreabilidade-item">
+      <div class="rastreabilidade-item-topo">
+        <div><span class="olho">DOCUMENTO</span><b class="mono">${A.esc(x.documento || x.chave || 'Sem número')}</b><small>${A.esc(x.competencia || '—')}</small></div>
+        <div><span class="olho">FORNECEDOR</span><b>${A.esc(x.fornecedor || 'Não identificado')}</b><small class="mono">${A.cnpjFmt(x.fornecedor_cnpj || '')}</small></div>
+        <div><span class="olho">REGIME</span><span class="tag ${['indeterminado',''].includes(String(x.regime_fornecedor || '').toLowerCase()) ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(x.regime_fornecedor))}</span><small>${A.esc(x.modalidade_credito || x.tratamento || '')}</small></div>
+        <div class="rastreabilidade-item-produto"><span class="olho">ITEM / REFERÊNCIA</span><b>${A.esc(x.descricao || 'Item sem descrição')}</b><small class="mono">${A.esc(x.codigo_produto || x.ncm || x.nbs || 'Sem código')}</small></div>
+      </div>
+      <div class="rastreabilidade-valores">
+        <div><span>Entrada atual</span><b>${A.moeda(x.valor_entrada)}</b></div>
+        <div><span>Base de cálculo CBS</span><b>${A.moeda(x.base_economica)}</b></div>
+        <div><span>Antes · PIS/Cofins</span>${pisCofinsDaFotografia(x.pis_cofins_atual,x.origem_pis_cofins,x.motivo_pis_cofins)}</div>
+        <div><span>Crédito CBS</span><b>${A.moeda(x.credito_cbs)}</b><small>${A.esc(x.tipo_credito || 'Regra geral')}</small></div>
+        <div><span>Situação</span><span class="tag ${premissa ? 'a' : 'c'}">${A.esc(x.status_credito || 'A validar')}</span></div>
+      </div>
+      <details class="rastreabilidade-memoria"><summary>Ver memória tributária e regra aplicada</summary><div class="rastreabilidade-memoria-grade"><div><span>Motivo / regra</span><b>${A.esc(x.motivo_credito || 'Não informado')}</b></div><div><span>Tratamento do crédito</span><b>${A.esc(x.modalidade_credito || x.tratamento || 'Regra geral')}</b></div></div></details>
+    </article>`;
+  }).join('')}</div>` : A.vazio('Nenhuma entrada com crédito CBS maior que zero na fotografia atual.');
+  const cartoesNotasEntrada=documentosEntradaExibidos.length ? `<div class="rastreabilidade-lista">${documentosEntradaExibidos.map((x)=>{
+    const elegibilidade=x.elegibilidade_pis_cofins;
+    const classeElegibilidade={ELEGIVEL_COM_EVIDENCIA:'c',CANDIDATO_VALIDAR:'a',NAO_ELEGIVEL:'n',BLOQUEADO_REGIME:'n',A_VALIDAR_REGIME:'a'}[elegibilidade?.status] || 'a';
+    const situacao={POSSUI_CREDITO:['Possui crédito','c'],CREDITO_PARCIAL:['Crédito parcial','a'],A_VALIDAR:['A validar','a'],NAO_POSSUI_CREDITO:['Não possui crédito','n'],AGUARDANDO_MOTOR:['Aguardando motor','a']}[x.situacao_credito] || [x.situacao_credito || 'A validar','a'];
+    const origem=x.origem_razao ? `Questor · Razão${x.conta_questor ? ` · conta ${x.conta_questor}` : ''}` : x.origem_questor ? `Conciliada · Questor${x.lancamento_questor ? ` · lançamento ${x.lancamento_questor}` : ''}` : `${String(x.origem || 'XML').replace(/_/g,' ')} · Documento fiscal importado`;
+    const regimes=x.regimes_fornecedor || [];
+    return `<article class="rastreabilidade-item">
+      <div class="rastreabilidade-item-topo">
+        <div><span class="olho">DOCUMENTO</span><b class="mono">${A.esc(x.documento || x.chave || 'Sem número')}</b><small>${A.esc(x.competencia || '—')}</small></div>
+        <div><span class="olho">FORNECEDOR</span><b>${A.esc(x.fornecedor || 'Não identificado')}</b><small class="mono">${A.cnpjFmt(x.fornecedor_cnpj || '')}</small></div>
+        <div><span class="olho">REGIME</span>${regimes.length ? regimes.map((r)=>`<span class="tag ${String(r).toLowerCase()==='indeterminado'?'a':'c'}">${A.esc(rotuloRegimeFornecedor(r))}</span>`).join(' ') : '<span class="tag a">A validar</span>'}</div>
+        <div class="rastreabilidade-item-produto"><span class="olho">ORIGEM / CONCILIAÇÃO</span><b>${A.esc(origem)}</b><small>${x.itens} item(ns) na nota</small></div>
+      </div>
+      <div class="rastreabilidade-valores">
+        <div><span>Entrada atual</span><b>${A.moeda(x.valor_entrada)}</b></div>
+        <div><span>Antes · PIS/Cofins</span>${pisCofinsDaFotografia(x.pis_cofins_atual,(x.origens_pis_cofins || []).join(' · '),(x.motivos_pis_cofins || []).join(' · '))}</div>
+        <div><span>Crédito CBS</span><b>${A.moeda(x.credito_cbs)}</b><small>${x.itens_com_credito || 0} com crédito · ${x.itens_pendentes || 0} a validar</small></div>
+        <div><span>Situação do crédito</span><span class="tag ${situacao[1]}">${A.esc(situacao[0])}</span></div>
+        <div><span>Elegibilidade PIS/Cofins</span>${elegibilidade ? `<span class="tag ${classeElegibilidade}">${A.esc(elegibilidade.rotulo || elegibilidade.status)}</span>` : '<span class="tag a">A validar</span>'}</div>
+      </div>
+      <details class="rastreabilidade-memoria"><summary>Ver evidências, origem e regra aplicada</summary><div class="rastreabilidade-memoria-grade"><div><span>Elegibilidade PIS/Cofins</span><b>${A.esc(elegibilidade?.motivo || 'Sem triagem disponível.')}</b><small>${A.esc(elegibilidade?.evidencia || '')}</small></div><div><span>Conciliação / origem</span><b>${A.esc(origem)}</b>${x.tarefa_questor ? `<small class="mono">Tarefa #${A.esc(x.tarefa_questor)}</small>` : ''}</div></div></details>
+    </article>`;
+  }).join('')}</div>` : A.vazio('Nenhuma nota de entrada disponível.');
 
   el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
     eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
@@ -1930,33 +1976,14 @@ async function telaCadeia(el, tipo) {
       <p class="desc">Recorte da rastreabilidade: somente itens de entrada com crédito CBS maior que zero. A tela lê a fotografia materializada; não importa, não recalcula e não altera documentos.</p>
       <div class="grade g3" style="margin-top:12px">${A.kpi('Entradas com crédito', creditosCbsResposta.total || 0, 'itens com crédito CBS maior que zero')}${A.kpi('Crédito CBS identificado', A.moeda(creditosCbsResposta.total_credito_cbs || 0), 'soma da fotografia atual')}${A.kpi('Execução do motor', creditosCbsResposta.execucao_id ? `#${creditosCbsResposta.execucao_id}` : 'Não disponível', 'origem da leitura')}</div>
       <p class="mini" style="margin-top:12px">${A.esc(creditosCbsResposta.leitura || '')}</p>
-      ${A.tabela([
-        { t:'Competência / documento', r:x=>`<b class="mono">${A.esc(x.documento || x.chave || 'Sem número')}</b><div class="mini">${A.esc(x.competencia || '—')}</div>` },
-        { t:'Fornecedor / item', r:x=>`${A.esc(x.fornecedor || 'Não identificado')}<div class="mini">${A.esc(x.descricao || 'Item sem descrição')}</div><div class="mini mono">${A.esc(x.codigo_produto || x.ncm || x.nbs || 'Sem código')}</div>` },
-        { t:'Regime do fornecedor', r:x=>`<span class="tag ${['indeterminado',''].includes(String(x.regime_fornecedor || '').toLowerCase()) ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(x.regime_fornecedor))}</span>` },
-        { t:'Entrada / base', num:true, r:x=>`${A.moeda(x.valor_entrada)}<div class="mini">Base: ${A.moeda(x.base_economica)}</div>` },
-        { t:'Antes — PIS/Cofins', num:true, r:x=>pisCofinsDaFotografia(x.pis_cofins_atual,x.origem_pis_cofins,x.motivo_pis_cofins) },
-        { t:'Crédito CBS', num:true, r:x=>`<b>${A.moeda(x.credito_cbs)}</b><div class="mini">${A.esc(x.tipo_credito || 'Regra geral')}</div>` },
-        { t:'Situação', r:x=>`<span class="tag ${String(x.status_credito).includes('PREMISSA') ? 'a' : 'c'}">${A.esc(x.status_credito)}</span><div class="mini">${A.esc(x.modalidade_credito || x.tratamento || '')}</div>` },
-        { t:'Motivo / regra', r:x=>`<span class="mini">${A.esc(x.motivo_credito || '—')}</span>` },
-      ], creditosCbsResposta.operacoes || [], { vazio:'Nenhuma entrada com crédito CBS maior que zero na fotografia atual.' })}
+      ${cartoesCreditosCbs}
       ${(() => { const p=creditosCbsResposta.paginacao || {}; return p.totalPaginas>1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">Página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-creditos-cbs-pagina="${p.pagina-1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-creditos-cbs-pagina="${p.pagina+1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
     ${mostrarNotasCreditoCbs ? `<div class="cartao" style="margin-top:16px"><h2>Notas de entrada</h2>
       <p class="desc">Conferência por nota dentro da mesma rastreabilidade. A lista sempre contém todas as entradas de Documentos fiscais; a fotografia do motor apenas complementa crédito e PIS/Cofins quando já processada. A coluna final identifica a origem, inclusive XML, Razão e conciliação Questor.</p>
       <div class="grade g4" style="margin-top:12px">${A.kpi('Notas de entrada', entradasRastreabilidadeResposta.total || documentosEntradaExibidos.length, 'fonte canônica de Documentos fiscais')}${A.kpi('Elegíveis com evidência', elegibilidadePisCofinsResposta.resumo?.ELEGIVEL_COM_EVIDENCIA || 0, 'itens PIS/Cofins; requer revisão fiscal')}${A.kpi('Crédito CBS nas notas', A.moeda(documentosCreditoCbsResposta.total_credito_cbs || 0), 'soma dos itens já analisados pelo motor')}${A.kpi('Execução do motor', documentosCreditoCbsResposta.execucao_id ? `#${documentosCreditoCbsResposta.execucao_id}` : 'Ainda não processada', 'crédito e PIS/Cofins são complementares')}</div>
       <p class="mini" style="margin-top:12px">${A.esc(entradasRastreabilidadeResposta.leitura || 'Leitura das entradas fiscais disponíveis.')}</p>
-      ${A.tabela([
-        { t:'Competência / nota', r:x=>`<b class="mono">${A.esc(x.documento || x.chave || 'Sem número')}</b><div class="mini">${A.esc(x.competencia || '—')}</div>` },
-        { t:'Fornecedor', r:x=>`${A.esc(x.fornecedor || 'Não identificado')}<div class="mini mono">${A.cnpjFmt(x.fornecedor_cnpj || '')}</div>` },
-        { t:'Regime do fornecedor', r:x=>{const regimes=x.regimes_fornecedor || []; return regimes.length ? regimes.map((r)=>`<span class="tag ${String(r).toLowerCase()==='indeterminado'?'a':'c'}">${A.esc(rotuloRegimeFornecedor(r))}</span>`).join(' ') : '<span class="tag a">A validar</span>';} },
-        { t:'Valor / itens', num:true, r:x=>`${A.moeda(x.valor_entrada)}<div class="mini">${x.itens} item(ns)</div>` },
-        { t:'Elegibilidade PIS/Cofins', r:x=>{const e=x.elegibilidade_pis_cofins;if(!e)return '<span class="tag a">A validar</span><div class="mini">Sem triagem disponível.</div>';const classe={ELEGIVEL_COM_EVIDENCIA:'c',CANDIDATO_VALIDAR:'a',NAO_ELEGIVEL:'n',BLOQUEADO_REGIME:'n',A_VALIDAR_REGIME:'a'}[e.status]||'a';return `<span class="tag ${classe}">${A.esc(e.rotulo || e.status)}</span><div class="mini">${A.esc(e.motivo || '')}</div><div class="mini">${A.esc(e.evidencia || '')}</div>`;} },
-        { t:'Antes — PIS/Cofins', num:true, r:x=>pisCofinsDaFotografia(x.pis_cofins_atual,(x.origens_pis_cofins || []).join(' · '),(x.motivos_pis_cofins || []).join(' · ')) },
-        { t:'Crédito CBS', num:true, r:x=>`${A.moeda(x.credito_cbs)}<div class="mini">${x.itens_com_credito} com crédito · ${x.itens_pendentes} a validar</div>` },
-        { t:'Situação', r:x=>{ const r={POSSUI_CREDITO:['Possui crédito','c'],CREDITO_PARCIAL:['Crédito parcial','a'],A_VALIDAR:['A validar','a'],NAO_POSSUI_CREDITO:['Não possui crédito','n'],AGUARDANDO_MOTOR:['Aguardando motor','a']}[x.situacao_credito] || [x.situacao_credito,'n']; return `<span class="tag ${r[1]}">${r[0]}</span>`; } },
-        { t:'Conciliação / origem', r:x=>x.origem_razao ? `<span class="tag c">Questor · Razão</span><div class="mini">Incluída a partir do Razão${x.conta_questor ? ` · conta ${A.esc(x.conta_questor)}` : ''}</div>` : x.origem_questor ? `<span class="tag c">Conciliada · Questor</span><div class="mini">Incluída pela conciliação${x.lancamento_questor ? ` · lançamento ${A.esc(x.lancamento_questor)}` : ''}</div>${x.tarefa_questor ? `<div class="mini mono">Tarefa #${A.esc(x.tarefa_questor)}</div>` : ''}` : `<span class="tag n">${A.esc(String(x.origem || 'XML').replace(/_/g,' '))}</span><div class="mini">Documento fiscal importado</div>` },
-      ], documentosEntradaExibidos, { vazio:'Nenhuma nota de entrada disponível.' })}
+      ${cartoesNotasEntrada}
       ${(() => { const p=entradasRastreabilidadeResposta.paginacao || {}; return p.totalPaginas>1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">Página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-documentos-credito-cbs-pagina="${p.pagina-1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-documentos-credito-cbs-pagina="${p.pagina+1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}
     ${mostrarRiscos ? `<div class="cartao" style="margin-top:16px"><h2>Riscos e oportunidades</h2><p class="desc">Leitura da carteira sob a ótica da empresa vendedora.</p>${A.avisos(analise.riscos)}
