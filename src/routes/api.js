@@ -1822,7 +1822,17 @@ router.put('/atualizacoes-reforma/:id/status', async (req, res) => {
 router.get('/empresas/:id/perfil-cbs', (req, res) => {
   try {
     const detectadas = db.prepare("SELECT COUNT(DISTINCT competencia) c FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''").get(req.params.id).c;
-    ok(res, { competencias: perfilCbs.listar(req.params.id), competencias_detectadas: detectadas, ultima_execucao: motorExec.ultimaExecucao(req.params.id) });
+    let competencias=perfilCbs.listar(req.params.id);
+    // `perfil_cbs_competencias` é apenas a apresentação agregada da
+    // fotografia ativa do motor. Em worker efêmero ela pode não acompanhar
+    // os resultados restaurados, embora o Perfil Tributário/PGDAS confirmado
+    // continue íntegro. A recomposição não executa motor, não altera
+    // movimentos e não substitui nenhuma apuração confirmada.
+    if (!competencias.length && motorExec.ultimaExecucao(req.params.id)) {
+      perfilCbs.materializar(req.params.id);
+      competencias=perfilCbs.listar(req.params.id);
+    }
+    ok(res, { competencias, competencias_detectadas: detectadas, ultima_execucao: motorExec.ultimaExecucao(req.params.id) });
   }
   catch (e) { erro(res, e); }
 });
