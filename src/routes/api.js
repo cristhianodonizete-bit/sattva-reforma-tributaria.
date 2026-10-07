@@ -6320,8 +6320,8 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
       const competencia=String(linha.data || '').slice(0,7), valor=Number(linha.valor);
       if (!periodoAnalisado.noPeriodo(competencia,periodo)) { resultado.ignorados++; recusar('FORA_DO_PERIODO_ANALISADO',linha); continue; }
       if (!Number.isFinite(valor) || valor<=0) { resultado.ignorados++; recusar('VALOR_INVALIDO',linha); continue; }
-      const documentoJaRepresentado=documento && docs.some((d)=>motorExec.documentosEquivalentesRazao(
-        { documento, competencia, valor }, d));
+      const documentoJaRepresentado=docs.some((d)=>motorExec.documentosEquivalentesRazao(
+        { documento, competencia, valor, historico:linha.historico || '', inscr_federal:linha?.fornecedor_sugerido?.cnpj || linha?.fornecedor_cnpj || '' }, d));
       if (documentoJaRepresentado) { resultado.ja_existentes++; recusar('DOCUMENTO_JA_REPRESENTADO_COM_MESMO_VALOR_E_COMPETENCIA',linha); continue; }
       let regra={}; try { regra=JSON.parse(cadastro.valor || '{}'); } catch (_) { regra={}; }
       const beneficio=Number(regra.beneficio || 0); const idBase=String(linha.identificador || `${competencia}|${linha.sequencia}|${linha.conta_codigo}|${valor}`);

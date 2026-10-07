@@ -766,12 +766,36 @@ function resultados(empresaId, filtros = {}) {
 }
 
 const digitosDocumento = (v) => String(v || '').replace(/\D/g, '');
+const numeroNotaNormalizado = (v) => String(v || '').replace(/\D/g, '').replace(/^0+/, '') || '0';
+function evidenciaRazao(linha = {}) {
+  if (linha?.normalizacao_evidencia && typeof linha.normalizacao_evidencia === 'object') return linha.normalizacao_evidencia;
+  try { return JSON.parse(linha?.normalizacao_evidencia || '{}'); } catch (_) { return {}; }
+}
+function numerosDaNota(linha = {}) {
+  const numeros=[];
+  const documento=String(linha?.documento || '');
+  // Série e número podem vir juntos (70000/9). Conservamos cada trecho para
+  // confrontar o número da NFS que o Razão informa no histórico.
+  documento.match(/\d+/g)?.forEach((numero)=>numeros.push(numeroNotaNormalizado(numero)));
+  const evidencia=evidenciaRazao(linha);
+  const historico=[linha?.historico,evidencia?.historico].filter(Boolean).join(' ');
+  // Só aceita número curto quando ele estiver explicitamente identificado
+  // como NF/NFS. Assim "NFS 9" pode equivaler a "70000/9", mas um número
+  // aleatório no histórico jamais elimina uma aquisição fiscal.
+  for (const achado of historico.matchAll(/\bNF(?:S|E)?\s*(?:N[º°O.]?\s*)?(\d{1,12})\b/gi)) numeros.push(numeroNotaNormalizado(achado[1]));
+  return [...new Set(numeros.filter(Boolean))];
+}
 function documentosEquivalentesRazao(a, b) {
-  const na=digitosDocumento(a?.documento), nb=digitosDocumento(b?.documento);
+  const cnpjA=digitosDocumento(a?.inscr_federal), cnpjB=digitosDocumento(b?.inscr_federal);
+  if (cnpjA && cnpjB && cnpjA!==cnpjB) return false;
+  const na=numerosDaNota(a), nb=numerosDaNota(b);
   // O XML pode trazer série/identificador municipal antes do número que o
-  // Razão registra isoladamente. Exigimos valor e competência iguais para
-  // não conciliar números curtos por acaso.
-  if (Math.min(na.length,nb.length)<5 || !(na===nb || na.endsWith(nb) || nb.endsWith(na))) return false;
+  // Razão registra isoladamente. Além do campo documento, o Razão pode
+  // trazer "NFS 9" apenas no histórico: nesse caso o CNPJ, valor e
+  // competência abaixo continuam obrigatórios.
+  const numerosCompativeis=na.some((aNumero)=>nb.some((bNumero)=>aNumero===bNumero
+    || (aNumero.length>=5 && aNumero.endsWith(bNumero)) || (bNumero.length>=5 && bNumero.endsWith(aNumero))));
+  if (!numerosCompativeis) return false;
   if (Math.abs(num(a?.valor)-num(b?.valor))>=0.02) return false;
   const dataA=String(a?.data_emissao || a?.competencia || '').slice(0,10);
   const dataB=String(b?.data_emissao || b?.competencia || '').slice(0,10);
@@ -781,7 +805,7 @@ function documentosEquivalentesRazao(a, b) {
 // O Razão preserva a evidência contábil, mas não é uma segunda aquisição
 // quando o XML da mesma nota já existe na empresa.
 function idsRazaoDuplicadosPorDocumento(empresaId) {
-  const movimentos=db.prepare(`SELECT id,origem,documento,valor,data_emissao,competencia
+  const movimentos=db.prepare(`SELECT id,origem,documento,valor,data_emissao,competencia,inscr_federal,normalizacao_evidencia
     FROM movimentos WHERE empresa_id=? AND tipo='fornecedor'`).all(empresaId);
   const fiscais=movimentos.filter((m)=>String(m.origem || '').toUpperCase()!=='QUESTOR_RAZAO');
   return new Set(movimentos.filter((m)=>String(m.origem || '').toUpperCase()==='QUESTOR_RAZAO'
