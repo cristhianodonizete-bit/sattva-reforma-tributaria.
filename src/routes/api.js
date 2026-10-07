@@ -5795,6 +5795,13 @@ function obterFornecedorGenericoPorRegime(empresaId, regime='simples_nacional') 
   return db.prepare('SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE id=?').get(Number(inserido.lastInsertRowid));
 }
 function obterFornecedorGenericoSimples(empresaId) { return obterFornecedorGenericoPorRegime(empresaId,'simples_nacional'); }
+function fornecedorPadraoDaNaturezaEntrada(empresaId, itemCadastrado) {
+  const chave=typeof itemCadastrado==='object' ? String(itemCadastrado?.chave || '') : String(itemCadastrado || '');
+  if (!chave) return obterFornecedorGenericoSimples(empresaId);
+  const cadastro=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(chave);
+  let regra={}; try { regra=JSON.parse(cadastro?.valor || '{}'); } catch (_) { /* padrão do Simples preserva a compatibilidade */ }
+  return obterFornecedorGenericoPorRegime(empresaId,regra.fornecedor_padrao_regime);
+}
 function fornecedorPeloDocumentoRazao(fornecedores, documentos, documento) {
   const numero=String(documento || '').split('/').at(-1).replace(/\D/g,'');
   if (!numero) return null;
@@ -6224,7 +6231,7 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
         let fornecedor=pelaContrapartida || peloDocumento || (leitura.sugestao?.id
           ? fornecedores.find((x)=>Number(x.id)===Number(leitura.sugestao.id))
           : null);
-        if (!fornecedor) fornecedor=obterFornecedorGenericoSimples(empresaId);
+        if (!fornecedor) fornecedor=fornecedorPadraoDaNaturezaEntrada(empresaId,evidencia.item_cadastrado);
         const origem=fornecedor.origem==='QUESTOR_RAZAO_GENERICO' ? 'FORNECEDOR_GENERICO_SIMPLES' : pelaContrapartida ? 'CONTRAPARTIDA_QUESTOR' : peloDocumento ? 'DOCUMENTO_EXISTENTE' : leitura.sugestao?.origem || 'HISTORICO_RAZAO';
         evidencia.fornecedor_vinculado={ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem };
         evidencia.fornecedor_relido_em=new Date().toISOString();
