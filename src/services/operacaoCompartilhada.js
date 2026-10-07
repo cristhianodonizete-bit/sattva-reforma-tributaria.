@@ -1355,11 +1355,15 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
         .eq('empresa_id',Number(empresas[0].id)).eq('tipo','fornecedor').in('cnpj',cnpjs);
       if (erroBusca) throw new Error(`Fornecedores das entradas conciliadas: ${erroBusca.message}`);
       const porCnpj=new Map((remotos || []).map((x)=>[String(x.cnpj || '').replace(/\D/g,''),x]));
-      for (const parceiro of publicaveis) {
+      for (let indice=0; indice<publicaveis.length; indice++) {
+        const parceiro=publicaveis[indice];
         const existente=porCnpj.get(String(parceiro.cnpj || '').replace(/\D/g,''));
         const operacao=existente
           ? remoto.from('parceiros').update(parceiro).eq('id',existente.id)
-          : remoto.from('parceiros').insert(parceiro);
+          // A tabela remota legada foi criada sem DEFAULT/identity na coluna
+          // id. Um identificador temporal evita o NOT NULL sem reutilizar o
+          // id local efêmero e permanece seguro no intervalo do bigint.
+          : remoto.from('parceiros').insert({ ...parceiro, id:Date.now()+indice });
         const { error }=await operacao;
         if (error) throw new Error(`Fornecedores das entradas conciliadas: ${error.message}`);
       }
