@@ -5825,10 +5825,15 @@ async function fornecedorPorCnpjConsultado(empresaId, valor, opcoes = {}) {
     fonte:resultado?.fonte || null, justificativa:resultado?.justificativa || null, ja_cadastrado:Boolean(existente) };
   if (!opcoes.materializar) return { ...previa, fornecedor:existente || null };
   if (existente) return { ...previa, fornecedor:existente };
-  const inserido=db.prepare(`INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime,uf,municipio,origem)
-    VALUES (?,'fornecedor',?,?,?,?,?,'CONSULTA_CNPJ_ENTRADA_MANUAL')`)
+  // A consulta pode ser aberta em duas requisições quase simultâneas (por
+  // exemplo, prévia e confirmação). O CNPJ continua sendo único; a segunda
+  // gravação apenas reaproveita o mesmo fornecedor, sem abortar o motor.
+  db.prepare(`INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime,uf,municipio,origem)
+    VALUES (?,'fornecedor',?,?,?,?,?,'CONSULTA_CNPJ_ENTRADA_MANUAL')
+    ON CONFLICT(empresa_id,tipo,cnpj) DO NOTHING`)
     .run(Number(empresaId),cnpj,descricao,regime,previa.uf,previa.municipio);
-  const fornecedor=db.prepare('SELECT id,cnpj,descricao,regime,uf,municipio,origem FROM parceiros WHERE id=?').get(Number(inserido.lastInsertRowid));
+  const fornecedor=db.prepare("SELECT id,cnpj,descricao,regime,uf,municipio,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' AND cnpj=? ORDER BY id LIMIT 1")
+    .get(Number(empresaId),cnpj);
   return { ...previa, fornecedor };
 }
 function fornecedorPadraoDaNaturezaEntrada(empresaId, itemCadastrado) {
@@ -6082,9 +6087,14 @@ function materializarFornecedorDaContrapartida(empresaId, sugestao, fornecedores
   const descricao=String(sugestao?.descricao || '').trim();
   if (!descricao) return null;
   const origem=String(sugestao?.origem || '').startsWith('HISTORICO_') ? 'QUESTOR_PESSOA_HISTORICO' : 'QUESTOR_PESSOA_CONTRAPARTIDA';
-  const inserido=db.prepare(`INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime,origem)
-    VALUES (?,'fornecedor',?,?,?,?)`).run(Number(empresaId),cnpj,descricao,sugestao.regime || 'simples_nacional',origem);
-  const fornecedor=db.prepare('SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE id=?').get(Number(inserido.lastInsertRowid));
+  // A releitura do Razão pode chegar ao mesmo fornecedor por contrapartida e
+  // por histórico no mesmo ciclo. Trate a materialização como idempotente:
+  // conserva o cadastro já confirmado e devolve a única linha existente.
+  db.prepare(`INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime,origem)
+    VALUES (?,'fornecedor',?,?,?,?)
+    ON CONFLICT(empresa_id,tipo,cnpj) DO NOTHING`).run(Number(empresaId),cnpj,descricao,sugestao.regime || 'simples_nacional',origem);
+  const fornecedor=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' AND cnpj=? ORDER BY id LIMIT 1")
+    .get(Number(empresaId),cnpj);
   fornecedores.push(fornecedor);
   return fornecedor;
 }
