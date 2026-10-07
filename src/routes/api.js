@@ -5982,22 +5982,26 @@ async function pessoasQuestorPelosHistoricos(linhas = []) {
   // sido encontrada, toda releitura voltava a consultar a tabela remota de
   // pessoas. Com centenas de milhares de cadastros, os ILIKEs repetidos eram
   // uma fonte desnecessária de I/O no Supabase.
-  const termosSemCache=[];
   for(let inicio=0;inicio<termos.length;inicio+=20) {
     const lote=termos.slice(inicio,inicio+20);
     const clausulas=lote.map(()=>"UPPER(nome) LIKE ?").join(' OR ');
     const locais=db.prepare(`SELECT codigo_pessoa,nome,inscr_federal FROM questor_pessoas WHERE COALESCE(inscr_federal,'')<>'' AND (${clausulas}) LIMIT 5000`)
       .all(...lote.map((termo)=>`%${termo}%`));
     locais.forEach((pessoa)=>candidatos.set(String(pessoa.codigo_pessoa),pessoa));
-    // Um termo já conhecido localmente não precisa provocar a mesma varredura
-    // textual no cadastro remoto. Para termos sem candidato, preservamos a
-    // busca no Supabase: é ela que descobre fornecedores ainda não espelhados.
-    const encontradosPorTermo=new Set(locais.flatMap((pessoa)=>{
-      const nome=String(pessoa?.nome || '').toUpperCase();
-      return lote.filter((termo)=>nome.includes(termo));
-    }));
-    termosSemCache.push(...lote.filter((termo)=>!encontradosPorTermo.has(termo)));
   }
+  const pessoasLocais=pessoaQuestorPorCnpj([...candidatos.values()]);
+  // Só poupe a fonte remota quando o cache local já provar uma identidade
+  // única. A mera presença de um termo (por exemplo, "COMERCIO") não basta:
+  // ela poderia ocultar justamente o fornecedor correto ainda não espelhado.
+  const semIdentidadeLocal=pendentes.filter((linha)=>{
+    const texto=nomeFornecedorComparavel(linha.texto);
+    for (const nivel of ['NOME_LITERAL_QUESTOR','NOME_COMPLETO_QUESTOR']) {
+      const unicos=pessoaQuestorPorCnpj(pessoasLocais.filter((pessoa)=>criterioPessoaQuestorNoHistorico(pessoa,texto,linha.texto)===nivel));
+      if (unicos.length===1) return false;
+    }
+    return true;
+  });
+  const termosSemCache=[...new Set(semIdentidadeLocal.flatMap((linha)=>termosParaBuscaPessoaQuestor(linha.texto)))];
   if (supabase.configurado()) {
     for(let inicio=0;inicio<termosSemCache.length;inicio+=20) {
       const lote=termosSemCache.slice(inicio,inicio+20);
