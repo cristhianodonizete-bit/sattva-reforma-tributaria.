@@ -12,7 +12,7 @@ function normalizar(valor) {
 }
 function palavras(valor) {
   const ignorar = new Set(['PAGAMENTO','COMPRA','CONFORME','REFERENTE','VALOR','NOTA','NUMERO','BOLETO','SERVICO','PRESTACAO','SISTEMA','SISTEMAS','MATERIAL','MERCADORIA','DESPESA','LANCAMENTO','DOCUMENTO','FATURA','PARCELA','DUPLICATA','TRIBUTOS','IMPOSTOS','COMERCIO','COMERCIAL','EMPRESA','EMPRESAS','BRASIL','DO','DA','DE','DOS','DAS','E','EM','PARA','POR','COMPANHIA','SERVICOS','TECNOLOGIA','TECNOLOGIAS']);
-  return [...new Set(normalizar(valor).split(' ').filter((x) => x.length >= 4 && !ignorar.has(x)))];
+  return [...new Set(normalizar(valor).split(' ').filter((x) => (x.length >= 4 || x === 'TIM') && !ignorar.has(x)))];
 }
 function chaveNome(valor) { return normalizar(valor).replace(/ /g, ''); }
 function criterio(pessoa, historico) {
@@ -76,7 +76,11 @@ function aliasTelecom(pessoas, historico, descricao) {
         const unicas = [...new Map(encontradas.filter((x) => x.criterio === nivel).map((x) => [x.pessoa.inscr_federal, x.pessoa])).values()];
         if (unicas.length === 1) { decisao = { pessoa: unicas[0], criterio: nivel }; break; }
       }
-      if (!decisao) decisao = aliasTelecom(candidatas, historico, movimento.descricao);
+      // O nome comercial pode não existir como token da razão social (por
+      // exemplo, "Algar Telecom" x "Algar Multimídia"). Os aliases seguros
+      // precisam consultar a base deduplicada inteira, não só candidatos por
+      // palavra literal.
+      if (!decisao) decisao = aliasTelecom(pessoas, historico, movimento.descricao);
       if (!decisao) { (encontradas.length ? ambiguos : semCandidato).push(movimento.id); continue; }
       atualizacoes.push({ movimento, evidencia, pessoa: decisao.pessoa, criterio: decisao.criterio });
     }

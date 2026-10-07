@@ -5903,8 +5903,10 @@ async function pessoasQuestorPorCodigos(codigos) {
 // longos; por isso a identidade final é sempre o CNPJ, nunca o código isolado.
 function termosParaBuscaPessoaQuestor(texto) {
   const ignorar=new Set(['PAGAMENTO','COMPRA','CONFORME','REFERENTE','VALOR','NOTA','NUMERO','BOLETO','SERVICO','PRESTACAO','SISTEMA','SISTEMAS','MATERIAL','MERCADORIA','DESPESA','LANCAMENTO','DOCUMENTO','FATURA','PARCELA','DUPLICATA','TRIBUTOS','IMPOSTOS']);
-  return [...new Set(String(texto || '').toUpperCase().match(/[A-ZÀ-Ý0-9]{4,}/g) || [])]
-    .filter((termo)=>!ignorar.has(termo)).sort((a,b)=>b.length-a.length).slice(0,4);
+  // TIM é uma exceção intencional ao mínimo de quatro caracteres: é uma
+  // denominação comercial curta, mas inequívoca quando o contexto é telecom.
+  return [...new Set(String(texto || '').toUpperCase().match(/[A-ZÀ-Ý0-9]{3,}/g) || [])]
+    .filter((termo)=>(termo.length>=4 || termo==='TIM') && !ignorar.has(termo)).sort((a,b)=>b.length-a.length).slice(0,4);
 }
 function pessoaQuestorPorCnpj(pessoas = []) {
   const porCnpj=new Map();
