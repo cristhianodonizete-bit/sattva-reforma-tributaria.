@@ -135,6 +135,34 @@ async function iniciarOperacao() {
       const intervaloRegras = setInterval(() => atualizarRegras()
         .catch((e) => console.error('  atualização de regras condicionais falhou:', e.message)), Math.max(60_000, Number(process.env.SUPABASE_BACKGROUND_INTERVAL_MS || 5 * 60_000)));
       intervaloRegras.unref?.();
+      // Alterações publicadas por outra instância (ou por uma correção
+      // operacional) entram na trilha incremental. Sem esta leitura, o
+      // processo que já estava no ar mantinha o SQLite antigo até um novo
+      // deploy, embora a fonte compartilhada já estivesse correta.
+      const intervaloOperacionalMs = Math.max(60_000, Number(process.env.SUPABASE_BACKGROUND_INTERVAL_MS || 5 * 60_000));
+      const atualizarOperacaoIncremental = async () => {
+        if (estadoOperacao.sincronizando) return;
+        estadoOperacao.sincronizando = true;
+        try {
+          const atualizado = await operacao.sincronizarIncremental({
+            remoto: supabase.admin({ prazoMs: prazoSegundoPlano }),
+          });
+          if (Number(atualizado?.eventos || 0) > 0 || atualizado?.modo === 'fallback_completo') {
+            console.log(`  operação compartilhada atualizada: ${JSON.stringify(atualizado)}`);
+          }
+        } catch (e) {
+          // A fotografia local segue utilizável. A falha é registrada e será
+          // tentada de novo no próximo ciclo sem interromper a plataforma.
+          estadoOperacao.erro = e.message;
+          console.error('  atualização operacional incremental falhou:', e.message);
+        } finally {
+          estadoOperacao.sincronizando = false;
+        }
+      };
+      // Defasa a leitura de eventos das regras/telemetria para não recriar a
+      // concorrência de rede que já causou indisponibilidade no boot.
+      setTimeout(atualizarOperacaoIncremental, Math.min(90_000, Math.floor(intervaloOperacionalMs / 2))).unref?.();
+      setInterval(atualizarOperacaoIncremental, intervaloOperacionalMs).unref?.();
       // Na primeira instalação há uma carga-base completa; nos reinícios
       // seguintes, somente eventos posteriores ao marco local são aplicados.
       console.log(`  operação compartilhada carregada: ${JSON.stringify(dados)}`);
