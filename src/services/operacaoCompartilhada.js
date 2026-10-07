@@ -960,12 +960,12 @@ function execucaoCompartilhadaLocal(linha, empresaId = null) {
   };
 }
 
-function resultadoCompartilhadoLocal(linha, empresaId = null) {
+function resultadoCompartilhadoLocal(linha, empresaId = null, execucaoId = null) {
   return {
     ...(linha?.dados || linha || {}),
     id: Number(linha?.id),
     movimento_id:Number(linha?.movimento_id),
-    execucao_id:Number(linha?.execucao_id),
+    execucao_id:Number(execucaoId == null ? linha?.execucao_id : execucaoId),
     ...(empresaId == null ? {} : { empresa_id:Number(empresaId) }),
   };
 }
@@ -1037,20 +1037,24 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   const locais=new Set(db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(id).map((x)=>Number(x.id)));
   const ausentes=movimentoIds.filter((movimentoId)=>!locais.has(movimentoId));
   if (ausentes.length) throw new Error(`Fotografia canônica possui ${ausentes.length} documento(s) ainda ausente(s) no cache; a cadeia não será exibida parcialmente.`);
-  const execucaoIds=[...new Set(resultados.map((x)=>Number(x.execucao_id)).filter(Number.isInteger))];
-  const execucoes=[];
-  for(let inicio=0;inicio<execucaoIds.length;inicio+=500) {
-    const {data,error}=await remoto.from('motor_execucoes_operacionais').select('*').in('id',execucaoIds.slice(inicio,inicio+500));
-    if (error) throw new Error(`Execuções da fotografia compartilhada: ${error.message}`);
-    execucoes.push(...(data || []));
-  }
+  // A fotografia ativa é a autoridade do resultado. Em instalações legadas,
+  // o id da execução produzido pelo SQLite podia reiniciar em 1 e ser
+  // publicado nos resultados, embora a execução compartilhada recebesse um
+  // novo id. Restaurar pelo campo legado voltava a acoplar a análise a uma
+  // execução antiga. A execução mais recente da própria empresa dá a chave
+  // local coerente para a fotografia ativa que acabamos de baixar.
+  const {data:execucoes,error:erroExecucao}=await remoto.from('motor_execucoes_operacionais').select('*')
+    .eq('empresa_id',Number(remota.id)).order('id',{ascending:false}).limit(1);
+  if (erroExecucao) throw new Error(`Execução da fotografia compartilhada: ${erroExecucao.message}`);
+  if (!execucoes?.length) throw new Error('Fotografia canônica sem execução compartilhada para a empresa.');
+  const execucaoAtiva=execucoes[0];
   db.transaction(()=>{
     db.prepare('DELETE FROM motor_resultados WHERE empresa_id=?').run(id);
     db.prepare('DELETE FROM motor_execucoes WHERE empresa_id=?').run(id);
-    gravarLinhasComColunas('motor_execucoes',execucoes.map((x)=>execucaoCompartilhadaLocal(x,id)),true);
-    gravarLinhasComColunas('motor_resultados',resultados.map((x)=>resultadoCompartilhadoLocal(x,id)),true);
+    gravarLinhasComColunas('motor_execucoes',[execucaoCompartilhadaLocal(execucaoAtiva,id)],true);
+    gravarLinhasComColunas('motor_resultados',resultados.map((x)=>resultadoCompartilhadoLocal(x,id,execucaoAtiva.id)),true);
   })();
-  return { ativo:true, resultados:resultados.length, execucoes:execucoes.length, empresa_remota_id:Number(remota.id) };
+  return { ativo:true, resultados:resultados.length, execucoes:1, empresa_remota_id:Number(remota.id), execucao_remota_id:Number(execucaoAtiva.id) };
 }
 async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   if (!ativo()) return { ativo: false };
