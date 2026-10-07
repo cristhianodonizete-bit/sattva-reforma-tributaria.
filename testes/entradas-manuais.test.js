@@ -58,6 +58,7 @@ assert.match(api,/pessoasQuestorPelosHistoricos/,'quando a contrapartida não re
 assert.match(api,/HISTORICO_NOME_QUESTOR/,'o vínculo pelo nome do histórico deve preservar origem e evidência própria');
 assert.match(api,/pessoaQuestorPorCnpj/,'códigos repetidos no cadastro Questor devem ser deduplicados pelo CNPJ antes da decisão');
 assert.match(api,/NOME_ABREVIADO_QUESTOR/,'históricos que abreviam a razão social devem manter a evidência do critério usado');
+assert.match(api,/NOME_LITERAL_QUESTOR/,'nomes idênticos com filiais de CNPJ diferentes devem usar a grafia literal antes do nome normalizado');
 assert.match(api,/ALIAS_TELECOM_TIM_QUESTOR/,'TIM no histórico deve ser reconhecida pelo alias de telecom controlado');
 assert.match(api,/ALIAS_TELECOM_VIVO_QUESTOR/,'Vivo no histórico deve ser reconhecida pelo alias de telecom controlado');
 assert.match(api,/ALIAS_TELECOM_ALGAR_QUESTOR/,'Algar Telecom deve ser vinculada somente pelo alias de telecom controlado');

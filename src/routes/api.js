@@ -5922,7 +5922,14 @@ function termosRelevantesFornecedor(valor) {
   const ignorar=new Set(['COMERCIO','COMERCIAL','EMPRESA','EMPRESAS','BRASIL','DO','DA','DE','DOS','DAS','E','EM','PARA','POR','COMPANHIA','SERVICOS','SERVICO','TECNOLOGIA','TECNOLOGIAS']);
   return [...new Set(nomeFornecedorComparavel(valor).split(' ').filter((termo)=>termo.length>=4 && !ignorar.has(termo)))];
 }
-function criterioPessoaQuestorNoHistorico(pessoa, texto) {
+function nomeFornecedorLiteral(valor) {
+  // Conserva a pontuação societária para diferenciar cadastros realmente
+  // distintos, como "LOCALIZA RENT A CAR S/A" e "... SA".
+  return String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/\s+/g,' ').trim();
+}
+function criterioPessoaQuestorNoHistorico(pessoa, texto, textoOriginal='') {
+  const literal=nomeFornecedorLiteral(pessoa?.nome);
+  if (literal.length>=8 && nomeFornecedorLiteral(textoOriginal).includes(literal)) return 'NOME_LITERAL_QUESTOR';
   const nome=nomeFornecedorComparavel(pessoa?.nome);
   if (nome.length>=8 && texto.includes(nome)) return 'NOME_COMPLETO_QUESTOR';
   const doHistorico=termosRelevantesFornecedor(texto);
@@ -5985,7 +5992,7 @@ async function pessoasQuestorPelosHistoricos(linhas = []) {
   const resultado=new Map();
   for (const linha of pendentes) {
     const texto=nomeFornecedorComparavel(linha.texto);
-    const encontrados=pessoas.map((pessoa)=>({ pessoa, criterio:criterioPessoaQuestorNoHistorico(pessoa,texto) })).filter((x)=>x.criterio);
+    const encontrados=pessoas.map((pessoa)=>({ pessoa, criterio:criterioPessoaQuestorNoHistorico(pessoa,texto,linha.texto) })).filter((x)=>x.criterio);
     if (encontrados.length===1) resultado.set(linha.chave,{ ...encontrados[0].pessoa, criterio:encontrados[0].criterio });
     else if (!encontrados.length) {
       const porAlias=pessoaQuestorPorAliasSeguro(pessoas,{ ...linha, texto });
