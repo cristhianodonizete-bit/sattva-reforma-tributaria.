@@ -717,7 +717,7 @@ Telas.dados = async (el) => {
     document.getElementById('reclassificarNaturezasRazao')?.addEventListener('click',()=>A.confirmar('Reaplicar a natureza usando conta e histórico do Razão? Corrige, entre outros casos, locação de veículos que foi tratada como imóvel. A ação atualiza os fatos já lançados e agenda o motor.',async()=>{
       try {
         const r=await A.api(`/empresas/${S.empresaId}/questor/razao/reclassificar-naturezas`,{metodo:'POST',corpo:{}});
-        A.toast(`${r.reclassificados} lançamento(s) reclassificado(s): ${r.veiculos} como locação de veículos e ${r.imoveis} como aluguel de imóvel.`, 'ok');
+        A.toast(`${r.reclassificados} lançamento(s) atualizado(s): ${r.veiculos} como locação de veículos, ${r.imoveis} como aluguel de imóvel e ${r.fornecedor_historico_ajustado || 0} fornecedor(es) identificado(s) pelo histórico.`, 'ok');
         A.ir('dados');
       } catch(e) { A.toast(e.message,'erro'); }
     }));

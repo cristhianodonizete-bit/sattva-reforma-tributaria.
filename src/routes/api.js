@@ -6448,11 +6448,26 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
     if (configuracaoAlterada) await confirmarParametrosCompartilhados();
     const itens=itensEntradaManualConfigurados();
     const movimentos=db.prepare("SELECT id,nome,inscr_federal,regime,descricao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' ORDER BY id").all(empresaId);
+    const fornecedores=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' ORDER BY descricao").all(empresaId);
+    // A natureza e o fornecedor são leituras independentes do Razão. Antes,
+    // a reaplicação corrigia "locação de veículos" mas preservava o fornecedor
+    // genérico de fatos já importados. Reutilizamos o histórico para reparar
+    // também essa identidade, sem depender de nova importação do arquivo.
+    const evidencias=movimentos.map((movimento)=>{
+      try { return JSON.parse(movimento.normalizacao_evidencia || '{}'); }
+      catch (_) { return {}; }
+    });
+    const pessoasPorHistorico=await pessoasQuestorPelosHistoricos(movimentos.map((movimento,indice)=>({
+      chave:String(movimento.id), historico:evidencias[indice]?.historico,
+      descricao:movimento.descricao, participante:evidencias[indice]?.participante || evidencias[indice]?.fornecedor_entrada_original || movimento.nome,
+      conta:evidencias[indice]?.conta_codigo || evidencias[indice]?.conta || '',
+    })));
     const atualizar=db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,descricao=?,cst=?,cclasstrib=?,cst_declarado=?,cclasstrib_declarado=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?');
-    const resultado={ lidos:movimentos.length, reclassificados:0, veiculos:0, imoveis:0, fornecedor_padrao_ajustado:0, movimento_ids:[] };
+    const resultado={ lidos:movimentos.length, reclassificados:0, veiculos:0, imoveis:0, fornecedor_padrao_ajustado:0, fornecedor_historico_ajustado:0, movimento_ids:[] };
     db.transaction(()=>{
-      for (const movimento of movimentos) {
-        let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { /* fato legado sem evidência completa */ }
+      for (let indice=0; indice<movimentos.length; indice++) {
+        const movimento=movimentos[indice];
+        const evidencia=evidencias[indice];
         const anterior=String(evidencia.item_cadastrado?.chave || evidencia.item_cadastrado || '');
         let item=sugerirItemEntradaPeloRazao(itens,{ conta:evidencia.conta, conta_codigo:evidencia.conta_codigo, historico:evidencia.historico, descricao:movimento.descricao, participante:evidencia.participante });
         // Corrige a regra histórica: se um fato antigo estava como imóvel sem
@@ -6460,9 +6475,23 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
         // imobiliário. Quando não há outra identificação, fica neutro.
         if (!item && anterior==='ALUGUEL_IMOVEL_COMERCIAL') item=itens.find((x)=>x.chave==='OUTRAS_DESPESAS_SEM_BENEFICIO') || null;
         if (!item) continue;
-        if (anterior===item.chave) continue;
         let nome=movimento.nome, cnpj=movimento.inscr_federal, regime=movimento.regime;
         const fornecedorAtual=evidencia.fornecedor_vinculado || {};
+        let fornecedorHistoricoAjustado=false;
+        if (!cnpj && /^Fornecedor genérico\s+—/i.test(String(nome || fornecedorAtual.descricao || ''))) {
+          const pessoaHistorico=pessoasPorHistorico.get(String(movimento.id));
+          const sugestaoHistorico=sugestaoFornecedorPelaPessoaQuestor(fornecedores,pessoaHistorico,'HISTORICO_NOME_QUESTOR');
+          const fornecedorHistorico=sugestaoHistorico?.id
+            ? fornecedores.find((x)=>Number(x.id)===Number(sugestaoHistorico.id))
+            : materializarFornecedorDaContrapartida(empresaId,sugestaoHistorico,fornecedores);
+          if (fornecedorHistorico) {
+            nome=fornecedorHistorico.descricao; cnpj=fornecedorHistorico.cnpj || null; regime=fornecedorHistorico.regime;
+            evidencia.fornecedor_vinculado={ parceiro_id:fornecedorHistorico.id, cnpj, descricao:nome, regime, origem:'HISTORICO_NOME_QUESTOR', evidencia_pessoa:sugestaoHistorico?.evidencia_pessoa || null };
+            fornecedorHistoricoAjustado=true;
+            resultado.fornecedor_historico_ajustado++;
+          }
+        }
+        if (anterior===item.chave && !fornecedorHistoricoAjustado) continue;
         if (!cnpj && /^Fornecedor genérico\s+—/i.test(String(nome || fornecedorAtual.descricao || ''))) {
           const padrao=fornecedorPadraoDaNaturezaEntrada(empresaId,item.chave);
           nome=padrao.descricao; cnpj=padrao.cnpj || null; regime=padrao.regime;
