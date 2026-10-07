@@ -38,11 +38,9 @@ function guardarLinhas(empresaId, execucaoId, dados) {
   return dados;
 }
 
-// O resultado fiscal permanece imutável, mas nome/regime do parceiro é um
-// dado cadastral que pode ser enriquecido sem nova execução do motor. Ao
-// atualizar o espelho de parceiros, descartamos somente a fotografia de
-// apresentação da empresa para que compras e receitas não exibam o regime
-// anterior até o próximo deploy.
+// Uma tela analítica não pode combinar o cadastro vivo com o cálculo de uma
+// execução anterior. Nome e regime apresentados nesta camada pertencem à
+// própria fotografia do motor; a alteração do cadastro exige nova execução.
 function invalidarCacheEmpresa(empresaId) {
   const prefixo = `${Number(empresaId)}:`;
   for (const chave of [...linhasPorExecucao.keys()]) if (chave.startsWith(prefixo)) linhasPorExecucao.delete(chave);
@@ -104,7 +102,15 @@ function linhas(empresaId, opcoes = {}) {
     WHERE r.empresa_id=?
   ORDER BY r.preco_atual DESC, r.id`).all(empresaId).map((x) => {
     let detalhe = {}; try { detalhe = JSON.parse(x.detalhe || '{}'); } catch (_) { /* detalhe inválido vira pendência */ }
-    return { ...x, detalhe };
+    // `parceiros` e `movimentos` entram no join apenas para localizar a linha
+    // física. A apresentação tributária vem exclusivamente do snapshot que
+    // gerou CBS/crédito, nunca do cadastro vivo atualizado depois do cálculo.
+    return {
+      ...x,
+      detalhe,
+      parceiro_cadastrado: detalhe.contraparte || x.parceiro_cadastrado || x.nome || '',
+      regime_parceiro: detalhe.regimeEmitente || x.regime_cbs_emitente || x.regime_parceiro || 'indeterminado',
+    };
   }).filter((x)=>!duplicadosRazao.has(Number(x.movimento_id)));
   return aplicarEscopo(guardarLinhas(empresaId, execucao.id, dados));
 }
