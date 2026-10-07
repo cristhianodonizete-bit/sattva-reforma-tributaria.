@@ -3290,6 +3290,16 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido para a cadeia' });
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(empresaId);
     if (!empresa) throw new Error('Empresa não encontrada');
+    // Regime de parceiro é cadastro, não resultado do motor. Revalidamos o
+    // espelho pequeno da empresa antes de consolidar compras ou receitas para
+    // que um Lucro Real/Presumido já identificado na fonte canônica não seja
+    // apresentado como apenas "Regular" após reinício do Render.
+    try {
+      await require('../services/operacaoCompartilhada').restaurarParceirosEmpresa(empresaId);
+      consolidacaoOficial.invalidarCacheEmpresa(empresaId);
+    } catch (erroParceiros) {
+      console.warn(`  cadeia: parceiros compartilhados indisponíveis para empresa ${empresaId}; usando cache local: ${erroParceiros.message}`);
+    }
     // PGDAS é evidência fiscal durável. A cadeia precisa restaurar a memória
     // antes de consolidar outras receitas do Simples; sem isso, um reinício
     // da instância fazia o DAS aparecer como “A validar” mesmo já extraído.

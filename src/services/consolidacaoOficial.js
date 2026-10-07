@@ -38,6 +38,18 @@ function guardarLinhas(empresaId, execucaoId, dados) {
   return dados;
 }
 
+// O resultado fiscal permanece imutável, mas nome/regime do parceiro é um
+// dado cadastral que pode ser enriquecido sem nova execução do motor. Ao
+// atualizar o espelho de parceiros, descartamos somente a fotografia de
+// apresentação da empresa para que compras e receitas não exibam o regime
+// anterior até o próximo deploy.
+function invalidarCacheEmpresa(empresaId) {
+  const prefixo = `${Number(empresaId)}:`;
+  for (const chave of [...linhasPorExecucao.keys()]) if (chave.startsWith(prefixo)) linhasPorExecucao.delete(chave);
+  for (const chave of [...linhasPorEscopo.keys()]) if (chave.startsWith(prefixo)) linhasPorEscopo.delete(chave);
+  for (const chave of [...cadeiasPorExecucao.keys()]) if (chave.startsWith(prefixo)) cadeiasPorExecucao.delete(chave);
+}
+
 function ultimaExecucao(empresaId, opcoes = {}) {
   let execucao = motorExec.ultimaExecucao(empresaId);
   if (!execucao && opcoes.executarSeAusente !== false) {
@@ -653,4 +665,4 @@ function impactoFinal(empresaId, opcoes = {}) {
     drill_down: { clientes: 'clientes', fornecedores: 'fornecedores', memoria_atual: 'perfil' } };
 }
 
-module.exports = { linhas, cadeia, impactoFinal, ultimaExecucao, faixaTributacao, leituraBeneficio, leitura200044, filtrarLinhasDoEscopo };
+module.exports = { linhas, cadeia, impactoFinal, ultimaExecucao, invalidarCacheEmpresa, faixaTributacao, leituraBeneficio, leitura200044, filtrarLinhasDoEscopo };

@@ -294,6 +294,30 @@ function filtrarOrfaosOperacionais(tabela, linhas, empresasValidas, lotesValidos
   if (CAMPOS[tabela]?.includes('empresa_id')) return linhas.filter((x) => empresasValidas.has(Number(x.empresa_id)));
   return linhas;
 }
+
+// A tela de cadeia é sensível ao regime do parceiro. A fotografia do motor
+// pode continuar válida por meses, enquanto o cadastro de parceiros é
+// enriquecido depois (por exemplo, quando a base RFB identifica Lucro Real ou
+// Presumido). Restauramos somente os parceiros da empresa consultada: é uma
+// leitura pequena, não recalcula tributos e impede que o cache efêmero exiba
+// o antigo "REGULAR" no lugar do regime já comprovado na fonte canônica.
+async function restaurarParceirosEmpresa(empresaId, remotoInformado = null) {
+  if (!ativo()) return { ativo:false, parceiros:0 };
+  const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!empresa?.id) return { ativo:true, parceiros:0, motivo:'empresa_local_ausente' };
+  const remoto = remotoInformado || supabase.admin();
+  const cnpj = String(empresa.cnpj || '').replace(/\D/g, '');
+  const { data: candidatas, error: erroEmpresa } = await remoto.from('empresas').select('id,origem_local_id,cnpj')
+    .or(`origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`).limit(3);
+  if (erroEmpresa) throw new Error(`Empresa compartilhada: ${erroEmpresa.message}`);
+  const empresaRemota = (candidatas || []).find((x) => Number(x.origem_local_id || x.id) === Number(empresaId)
+    || String(x.cnpj || '').replace(/\D/g, '') === cnpj);
+  if (!empresaRemota) return { ativo:true, parceiros:0, motivo:'empresa_remota_ausente' };
+  const { data, error } = await remoto.from('parceiros').select('*').eq('empresa_id', empresaRemota.id);
+  if (error) throw new Error(`Parceiros compartilhados: ${error.message}`);
+  const linhas = normalizarEmpresaIdDoCache('parceiros', data || [], new Map([[String(empresaRemota.id), Number(empresaId)]]));
+  return { ativo:true, parceiros:gravar('parceiros', linhas), empresa_remota_id:empresaRemota.id };
+}
 async function baixar(remotoInformado = null) {
   if (!ativo()) return { ativo: false };
   const remoto = remotoInformado || supabase.admin(), resultado = {}, falhas = {};
@@ -1440,6 +1464,6 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
   return { empresa_remota_id: empresaRemotaId, excluidos: ids.length, movimento_ids: ids };
 }
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
   baixarResultadosMotor, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, prepararContextoMotorEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };
