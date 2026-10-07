@@ -1820,6 +1820,37 @@ async function telaCadeia(el, tipo) {
   const pisAntes = (x) => x.pisIndeterminado ? 'a validar' : x.pisCofinsNoDas ? `no DAS · ${A.moeda(x.pisCofinsAtual)}` : A.moeda(x.pisCofinsAtual);
   const tributosReforma = (x) => `${ibsAtivo ? `IBS ${A.moeda(x.ibs)} · ` : ''}CBS ${A.moeda(x.cbs)}`;
   const valorDasHibrido = (x, campo) => x.dasHibridoPendente && !Number(x.dasAtual) ? 'A validar' : A.moeda(x[campo]);
+  // A memória completa tem muitos campos tributários e, em forma de tabela,
+  // obrigava a leitura lateral. A lista deixa a decisão principal visível e
+  // mantém a auditoria detalhada no próprio item, sem ocultar informação.
+  const rastreabilidadeCompacta=(analise.detalhes || []).length ? `<div class="rastreabilidade-lista">${(analise.detalhes || []).map((d)=>{
+    const produto=d.tipoFiscal==='PRODUTO', servico=d.tipoFiscal==='SERVICO';
+    const referencia=produto ? `NCM ${d.ncm || 'não identificado'}` : servico ? `NBS ${d.nbs || 'não identificado'}${d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : 'Referência fiscal pendente';
+    const memoria=['pis','cofins','iss','icms'].map((k)=>{ const m=d.memoriaTributos?.[k]; return m ? `<div><b>${k.toUpperCase()}</b><span>${A.esc(m.origem || 'INDETERMINADO')} · ${A.esc(m.regra || m.status || '')}</span></div>` : ''; }).filter(Boolean).join('');
+    return `<article class="rastreabilidade-item">
+      <div class="rastreabilidade-item-topo">
+        <div><span class="olho">DOCUMENTO</span><b class="mono">${A.esc(d.documento || 'sem número')}</b><small>${A.esc(d.competencia || '—')}</small></div>
+        <div><span class="olho">${eForn ? 'FORNECEDOR' : 'CLIENTE'}</span><b>${A.esc(d.parceiro || 'Não identificado')}</b><small class="mono">${A.cnpjFmt(d.cnpj || '')}</small></div>
+        ${eForn ? `<div><span class="olho">REGIME</span><span class="tag ${String(d.regimeEmitente || '').toLowerCase()==='indeterminado' ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(d.regimeEmitente))}</span></div>` : ''}
+        <div class="rastreabilidade-item-produto"><span class="olho">ITEM / REFERÊNCIA</span><b>${A.esc(d.produto || 'Sem descrição')}</b><small><span class="tag ${produto ? 'c' : servico ? 'a' : 'n'}">${produto ? 'Produto' : servico ? 'Serviço' : 'A classificar'}</span> <span class="mono">${A.esc(referencia)}</span></small></div>
+      </div>
+      <div class="rastreabilidade-valores">
+        <div><span>${eForn ? 'Compra atual' : 'Venda atual'}</span><b>${A.moeda(d.valor)}</b></div>
+        <div><span>Antes · PIS/Cofins</span>${pisCofinsDaFotografia(d.pisCofinsAtual,d.origemPisCofins,d.motivoBaseEconomica)}</div>
+        ${eForn ? `<div><span>Crédito CBS</span><b>${A.moeda(d.creditoCbs)}</b></div>` : ''}
+        <div><span>CBS</span><b>${A.moeda(d.cbs)}</b></div>
+        <div><span>Impacto</span><b>${A.setaR$(d.impactoOperacao)}</b><small>${A.setaPct(d.impactoOperacaoPerc)}</small></div>
+      </div>
+      <details class="rastreabilidade-memoria"><summary>Ver memória tributária e regra aplicada</summary><div class="rastreabilidade-memoria-grade">
+        <div><span>Classificação</span><b>${A.esc(d.cclasstrib ? `CST ${d.cst || '—'} · cClassTrib ${d.cclasstrib}` : `A validar · ${d.statusClassificacao || 'sem classificação'}`)}</b></div>
+        <div><span>Origem da base</span><b>${A.esc(d.origemBaseEconomica || 'A validar')}</b><small>${A.esc(d.motivoBaseEconomica || d.formulaBaseEconomica || '')}</small></div>
+        <div><span>Tributos retirados</span><b>ICMS ${A.moeda(d.tributosRetirados?.icms)} · ISS ${A.moeda(d.tributosRetirados?.iss)}</b><small>PIS ${A.moeda(d.tributosRetirados?.pis)} · Cofins ${A.moeda(d.tributosRetirados?.cofins)} · total ${A.moeda(d.tributosRetirados?.total)}</small></div>
+        <div><span>${rotuloBase}</span><b>${A.moeda(d.valorSemImposto)}</b><small>${ibsAtivo ? `IBS ${A.moeda(d.ibs)} · ` : ''}CBS ${A.moeda(d.cbs)}${simplesHibrido ? ` · CBS no DAS ${A.moeda(d.cbsDentroDoDas)}` : ''}</small></div>
+        <div><span>Natureza</span><b>${A.esc(d.natureza || 'INDETERMINADO')}</b></div>
+        <div><span>Memória por tributo</span>${memoria || '<small>Sem memória complementar.</small>'}</div>
+      </div></details>
+    </article>`;
+  }).join('')}</div>` : A.vazio(eForn ? 'Não há entradas para rastrear.' : 'Não há vendas para rastrear.');
 
   el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
     eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
@@ -1969,44 +2000,7 @@ async function telaCadeia(el, tipo) {
         {t:'CBS',num:true,r:d=>A.moeda(d.cbs)},
         ...(eForn ? [{t:'Crédito CBS',num:true,r:d=>A.moeda(d.creditoCbs)}] : []),
       ],pendenciasPisCofins,{vazio:'Nenhum item pendente.'})}</div>` : '<div class="aviso bom" style="margin-top:14px"><b>Todos os itens desta página têm carga histórica de PIS/Cofins determinada.</b></div>'}
-      ${A.tabela([
-        { t: 'Documento', r: (d) => `<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '')}</div>` },
-        { t: eForn ? 'Fornecedor' : 'Cliente', r: (d) => `${A.esc(d.parceiro)}<div class="mini mono">${A.cnpjFmt(d.cnpj)}</div>` },
-        ...(eForn ? [{ t:'Regime do fornecedor', r:d=>`<span class="tag ${String(d.regimeEmitente || '').toLowerCase()==='indeterminado' ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(d.regimeEmitente))}</span>` }] : []),
-        { t: 'Item / referência fiscal', r: (d) => {
-          const produto = d.tipoFiscal === 'PRODUTO';
-          const servico = d.tipoFiscal === 'SERVICO';
-          const referencia = produto ? `NCM ${d.ncm || 'não identificado'}` : servico ? `NBS ${d.nbs || 'não identificado'}${d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : 'Sem NCM/NBS/LC 116';
-          const decisao = d.cclasstrib ? `CST ${d.cst || '—'} · cClassTrib ${d.cclasstrib}` : `Classificação ${d.statusClassificacao || 'a validar'}`;
-          return `<b>${A.esc(d.produto || 'Sem descrição')}</b><div class="mini"><span class="tag ${produto ? 'c' : servico ? 'a' : 'n'}">${produto ? 'Produto' : servico ? 'Serviço' : 'A classificar'}</span> <span class="mono">${A.esc(referencia)}</span></div><div class="mini">${A.esc(decisao)}</div>`;
-        } },
-        { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: (d) => A.moeda(d.valor) },
-        { t: 'ICMS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.icms) },
-        { t: 'ISS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.iss) },
-        ...(!ibsAtivo ? [
-          { t: 'ICMS identificado (preservado)', num: true, r: (d) => A.moeda(d.tributosIdentificados?.icms) },
-          { t: 'ISS identificado (preservado)', num: true, r: (d) => A.moeda(d.tributosIdentificados?.iss) },
-        ] : []),
-        { t: 'PIS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.pis) },
-        { t: 'COFINS retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.cofins) },
-        { t: 'Antes — PIS/Cofins', num: true, r: (d) => pisCofinsDaFotografia(d.pisCofinsAtual,d.origemPisCofins,d.motivoBaseEconomica) },
-        { t: 'Total retirado', num: true, r: (d) => A.moeda(d.tributosRetirados?.total) },
-        { t: rotuloBase, num: true, r: (d) => A.moeda(d.valorSemImposto) },
-        { t: 'Origem', r: (d) => `<span class="tag ${String(d.origemBaseEconomica).toUpperCase() === 'DOCUMENTO' ? 'c' : 'a'}">${A.esc(d.origemBaseEconomica || 'a validar')}</span>` },
-        ...(eForn ? [{ t:'Conciliação / fonte', r:d=>String(d.origemMovimento || '').toUpperCase()==='QUESTOR_CONCILIACAO_ENTRADA' ? '<span class="tag c">Conciliada · Questor</span><div class="mini">Incluída pelo Questor após confirmação</div>' : '<span class="mini">Não incluída por conciliação Questor</span>' }] : []),
-        { t: 'Memória por tributo', r: (d) => ['pis', 'cofins', 'iss', 'icms'].map((k) => {
-          const m = d.memoriaTributos?.[k];
-          return m ? `${k.toUpperCase()}: ${A.esc(m.origem || 'INDETERMINADO')} · ${A.esc(m.regra || m.status || '')}` : '';
-        }).filter(Boolean).join('<br>') },
-        { t: 'Motivo / regra usada', r: (d) => `<span class="mini">${A.esc(d.motivoBaseEconomica || d.formulaBaseEconomica)}</span>` },
-        { t: 'Natureza', r: (d) => `<span class="tag ${String(d.natureza).toUpperCase() === 'REAL' ? 'c' : String(d.natureza).toUpperCase() === 'SIMULADO' ? 'a' : 'n'}">${A.esc(d.natureza || 'INDETERMINADO')}</span>` },
-        ...(ibsAtivo ? [{ t: 'IBS', num: true, r: (d) => A.moeda(d.ibs) }] : []),
-        { t: 'CBS', num: true, r: (d) => A.moeda(d.cbs) },
-        ...(simplesHibrido ? [{ t: '(-) CBS no DAS', num: true, r: (d) => A.moeda(d.cbsDentroDoDas) }] : []),
-        { t: eForn ? 'Compra projetada' : 'Venda projetada', num: true, r: (d) => A.moeda(d.precoFinal) },
-        { t: 'Impacto', num: true, r: (d) => A.setaR$(d.impactoOperacao) },
-        { t: 'Impacto %', num: true, r: (d) => A.setaPct(d.impactoOperacaoPerc) },
-      ], analise.detalhes, { vazio: eForn ? 'Não há entradas para rastrear.' : 'Não há vendas para rastrear.' })}
+      ${rastreabilidadeCompacta}
       ${(() => { const p = analise.paginacaoDetalhes || {}; return p.totalPaginas > 1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">${p.total} operações · página ${p.pagina} de ${p.totalPaginas}</span><button class="btn pq vazio" data-cadeia-pagina="${p.pagina - 1}" ${p.temAnterior ? '' : 'disabled'}>Anterior</button><button class="btn pq vazio" data-cadeia-pagina="${p.pagina + 1}" ${p.temProxima ? '' : 'disabled'}>Próxima</button></div>` : ''; })()}
     </div>` : ''}` : A.vazio('Sem movimentação importada',
       `Importe a movimentação de ${eForn ? 'fornecedores' : 'clientes'} para gerar esta análise.`,
