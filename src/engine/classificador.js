@@ -39,6 +39,17 @@ function cargaValeAlimentacao(item = {}) {
     && /\b(CARTAO|VALE)\b/.test(texto)
     && /\b(ALIMENTACAO|REFEICAO)\b/.test(texto);
 }
+// A hipótese de reabilitação urbana não pode ser inferida de um serviço
+// ordinário de limpeza/conservação. Quando a nota identifica somente essa
+// prestação, a descrição resolve a ambiguidade do catálogo para a regra
+// geral. Termos que comprovem a exceção preservam a revisão humana.
+function limpezaConservacaoOrdinaria(item = {}) {
+  const texto = String(item.descricao || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  const nbs = soDigitos(item.nbs);
+  const manutencao = /\b(LIMPEZA|CONSERVACAO)\b/.test(texto);
+  const excecaoUrbana = /\b(REABILITACAO|RECONVERSAO|ZONA\s+HISTORICA|AREA\s+CRITICA)\b/.test(texto);
+  return nbs === '118031000' && manutencao && !excecaoUrbana;
+}
 // A base de serviços traz cClassTrib. Para o motor, o grupo do código define
 // o CST recomendado quando a planilha não o informa explicitamente.
 function cstDaBase(c) {
@@ -126,6 +137,19 @@ function classificar(item, ctx = {}) {
       'NBS 1.0901.40.00: serviços de cartão de crédito.',
       'LC 116 genérica não impede a classificação da natureza da operação.',
       'O crédito CBS fica limitado ao débito apurado e extinto pelo fornecedor/arranjo.',
+    ], { natureza, sentido, candidatos: [] });
+  }
+
+  if (limpezaConservacaoOrdinaria(item)) {
+    return montar('CLASSIFICADO', {
+      cst: '000', cclasstrib: '000001',
+      classificacao: 'Serviço ordinário de limpeza e conservação',
+      reducao: 'integral',
+      fundamento: 'Descrição documental da prestação; a hipótese de reabilitação urbana não foi evidenciada.',
+    }, 'descrição documental + NBS', [
+      'Descrição identifica exclusivamente serviço de limpeza e conservação.',
+      'A hipótese de reabilitação urbana não é presumida sem evidência específica da operação.',
+      'Aplicada a tributação integral de serviço (CST 000 / cClassTrib 000001).',
     ], { natureza, sentido, candidatos: [] });
   }
 

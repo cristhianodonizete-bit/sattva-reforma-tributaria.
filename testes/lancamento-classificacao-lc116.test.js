@@ -134,6 +134,16 @@ const lc0106SemNbs = classificar({ lc116: '0106', cst: '010601', iss: 1 }, {
 assert.equal(lc0106SemNbs.status, 'REQUER_VALIDACAO');
 assert.equal(lc0106SemNbs.candidatos.length, 3);
 
+// Limpeza e conservação não se confundem com a exceção de reabilitação
+// urbana que pode compartilhar a mesma referência de serviço no catálogo.
+const limpezaOrdinaria = classificar({
+  nbs: '118031000', lc116: '0710', cst: '071002',
+  descricao: 'Prestação de serviço de limpeza e conservação nas instalações do tomador.',
+}, { sentido: 'entrada' });
+assert.equal(limpezaOrdinaria.status, 'CLASSIFICADO');
+assert.equal(limpezaOrdinaria.cst, '000');
+assert.equal(limpezaOrdinaria.cclasstrib, '000001');
+
 console.log('lancamento-classificacao-lc116: item LC116 separado, editável e classificável: OK');
 try { db.close?.(); } catch (_) { /* noop */ }
 fs.rmSync(dir, { recursive: true, force: true });
