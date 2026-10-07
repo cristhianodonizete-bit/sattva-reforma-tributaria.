@@ -65,7 +65,20 @@ function linhas(empresaId, opcoes = {}) {
   const dados = db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.modelo_documento_fiscal,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento, m.origem AS origem_movimento,
       CASE WHEN EXISTS(SELECT 1 FROM enriquecimento_pis_cofins_evidencias e WHERE e.empresa_id=m.empresa_id AND e.movimento_id=m.id AND e.origem_evidencia='SPED_C175') THEN 'SPED_C175' ELSE '' END AS origem_evidencia_pis_cofins,
-      COALESCE(NULLIF(p.regime,''), r.regime_cbs_emitente, 'indeterminado') AS regime_parceiro,
+      -- O motor registra REGULAR quando só pode afirmar que o emitente está
+      -- fora do Simples. Isso é suficiente para o cálculo CBS, mas não deve
+      -- apagar Lucro Real ou Presumido já comprovado na base RFB. A base é
+      -- consultada somente para completar um parceiro ainda "regular"; um
+      -- cadastro manual/específico continua tendo precedência.
+      COALESCE(NULLIF(CASE
+        WHEN LOWER(COALESCE(p.regime,'')) IN ('','regular','regime_regular','indeterminado') THEN (
+          SELECT br.regime FROM base_regime br
+          WHERE br.cnpj=m.inscr_federal OR br.raiz=SUBSTR(m.inscr_federal,1,8)
+          ORDER BY CASE WHEN br.cnpj=m.inscr_federal THEN 0 ELSE 1 END, br.ano DESC
+          LIMIT 1
+        )
+        ELSE p.regime
+      END,''), NULLIF(p.regime,''), r.regime_cbs_emitente, 'indeterminado') AS regime_parceiro,
       p.descricao AS parceiro_cadastrado
     FROM motor_resultados r
     JOIN movimentos m ON m.id=r.movimento_id
@@ -137,9 +150,11 @@ function grupoDaLinha(linha, lado) {
     if (regime === 'mei') return 'MEI';
   }
   return {
-    lucro_real: 'Lucro Real', lucro_presumido: 'Lucro Presumido', regime_regular: 'Regime regular (não optante pelo Simples)',
+    lucro_real: 'Lucro Real', lucro_presumido: 'Lucro Presumido', regime_regular: 'Regular',
     simples_nacional: 'Simples Nacional', simples_regime_regular: 'Simples Nacional (regime regular IBS/CBS)',
-    mei: 'MEI',
+    // MEI integra a leitura do Simples na carteira. O detalhe do fornecedor
+    // continua mostrando MEI, sem criar um quinto agrupador concorrente.
+    mei: 'Simples Nacional',
     pessoa_fisica: 'Pessoa Física (consumidor final)', orgao_publico: 'Governo', imune_isento: 'Imune / Isento',
   }[regime] || 'Perfil desconhecido';
 }

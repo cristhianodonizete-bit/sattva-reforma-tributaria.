@@ -1806,7 +1806,7 @@ async function telaCadeia(el, tipo) {
   const t = analise.totais;
   const rotuloRegimeFornecedor=(regime)=>({
     lucro_real:'Lucro Real', lucro_presumido:'Lucro Presumido', simples_nacional:'Simples Nacional', simples_das:'Simples Nacional',
-    simples_regime_regular:'Simples Nacional (regime regular IBS/CBS)', mei:'MEI', regime_regular:'Regime regular', regular:'Regime regular',
+    simples_regime_regular:'Simples Nacional (regime regular IBS/CBS)', mei:'MEI', regime_regular:'Regular', regular:'Regular',
     nao_contribuinte:'Não contribuinte', indeterminado:'A validar',
   }[String(regime || '').toLowerCase()] || (regime ? String(regime).replace(/_/g,' ') : 'A validar'));
   // O código técnico segue preservado na memória; no cartão, ele deve
