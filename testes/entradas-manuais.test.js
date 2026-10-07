@@ -56,6 +56,12 @@ assert.match(api,/CONTRAPARTIDA_QUESTOR/,'o vínculo pelo código de pessoa do Q
 assert.match(api,/materializarFornecedorDaContrapartida/,'pessoa identificada no cadastro Questor deve virar fornecedor com CNPJ na inclusão ou releitura');
 assert.match(api,/pessoasQuestorPelosHistoricos/,'quando a contrapartida não resolver, o histórico deve ser confrontado com nomepessoa');
 assert.match(api,/HISTORICO_NOME_QUESTOR/,'o vínculo pelo nome do histórico deve preservar origem e evidência própria');
+assert.match(api,/pessoaQuestorPorCnpj/,'códigos repetidos no cadastro Questor devem ser deduplicados pelo CNPJ antes da decisão');
+assert.match(api,/NOME_ABREVIADO_QUESTOR/,'históricos que abreviam a razão social devem manter a evidência do critério usado');
+assert.match(api,/ALIAS_TELECOM_TIM_QUESTOR/,'TIM no histórico deve ser reconhecida pelo alias de telecom controlado');
+assert.match(api,/ALIAS_TELECOM_VIVO_QUESTOR/,'Vivo no histórico deve ser reconhecida pelo alias de telecom controlado');
+assert.match(api,/ALIAS_TELECOM_ALGAR_QUESTOR/,'Algar Telecom deve ser vinculada somente pelo alias de telecom controlado');
+assert.match(api,/HISTORICO_ALIAS_QUESTOR/,'o vínculo por denominação comercial deve ficar rastreável e distinto do nome literal');
 assert.match(api,/identificados_por_historico/,'a releitura deve informar quantos fornecedores foram identificados pelo histórico');
 assert.match(api,/reclassificar-naturezas/,'lançamentos já incluídos pelo Razão precisam poder reaplicar sua natureza');
 assert.match(api,/LOCACAO_VEICULOS/,'locação de veículos deve ser separada de aluguel de imóvel');
