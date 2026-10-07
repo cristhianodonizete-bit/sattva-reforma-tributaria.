@@ -122,8 +122,37 @@ function chaveConflitoTabela(tabela) {
 function chaveConflitoPublicacao(tabela) {
   return tabela === 'catalogo_itens_receita' ? 'chave' : 'id';
 }
+function normalizarIdsParceirosDoCache(linhas) {
+  // IDs de parceiro pertencem ao banco que os gerou; não são identidade
+  // compartilhável. Antes de restaurar, reaproveitamos o id local quando o
+  // mesmo (empresa,tipo,CNPJ) já existe e soltamos um id remoto que colida
+  // com outro parceiro local. A coluna id nula faz o SQLite gerar um novo id.
+  const empresas=[...new Set((linhas || []).map((x)=>Number(x.empresa_id)).filter(Number.isInteger))];
+  if (!empresas.length) return linhas;
+  const marcas=empresas.map(()=>'?').join(',');
+  const locais=db.prepare(`SELECT id,empresa_id,tipo,cnpj FROM parceiros WHERE empresa_id IN (${marcas})`).all(...empresas);
+  const porChave=new Map();
+  const idsOcupados=new Set();
+  for (const parceiro of locais) {
+    idsOcupados.add(Number(parceiro.id));
+    const cnpj=String(parceiro.cnpj || '').replace(/\D/g,'');
+    if (cnpj) porChave.set(`${parceiro.empresa_id}|${parceiro.tipo}|${cnpj}`,Number(parceiro.id));
+  }
+  return linhas.map((linha)=>{
+    const cnpj=String(linha.cnpj || '').replace(/\D/g,'');
+    const chave=cnpj ? `${linha.empresa_id}|${linha.tipo}|${cnpj}` : '';
+    const idExistente=chave ? porChave.get(chave) : null;
+    if (idExistente) return { ...linha, id:idExistente };
+    const idRemoto=Number(linha.id);
+    if (Number.isInteger(idRemoto) && idsOcupados.has(idRemoto)) return { ...linha, id:null };
+    if (Number.isInteger(idRemoto)) idsOcupados.add(idRemoto);
+    return linha;
+  });
+}
+
 function gravar(tabela, linhas, dentroDaTransacao = false) {
   if (!linhas.length) return 0;
+  if (tabela === 'parceiros') linhas=normalizarIdsParceirosDoCache(linhas);
   const campos = CAMPOS[tabela];
   // Exceções têm unicidade funcional por empresa + movimento + código; o ID
   // pode divergir entre cache e Supabase. Usar a chave errada interrompia uma
