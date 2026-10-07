@@ -140,7 +140,7 @@ function grupoDaLinha(linha, lado) {
     lucro_real: 'Lucro Real', lucro_presumido: 'Lucro Presumido', regime_regular: 'Regime regular (não optante pelo Simples)',
     simples_nacional: 'Simples Nacional', simples_regime_regular: 'Simples Nacional (regime regular IBS/CBS)',
     mei: 'MEI',
-    pessoa_fisica: 'Pessoa Física (consumidor final)', nao_contribuinte: 'Não contribuinte', orgao_publico: 'Governo', imune_isento: 'Imune / Isento',
+    pessoa_fisica: 'Pessoa Física (consumidor final)', orgao_publico: 'Governo', imune_isento: 'Imune / Isento',
   }[regime] || 'Perfil desconhecido';
 }
 
@@ -148,8 +148,8 @@ function normalizarRegimeFornecedor(valor) {
   const codigo=String(valor || '').trim().toUpperCase();
   return {
     REGULAR:'regime_regular', REGIME_REGULAR:'regime_regular', LUCRO_REAL:'lucro_real', LUCRO_PRESUMIDO:'lucro_presumido',
-    SIMPLES_DAS:'simples_nacional', SIMPLES_NACIONAL:'simples_nacional', SIMPLES_REGIME_REGULAR:'simples_regime_regular',
-    MEI:'mei', NAO_CONTRIBUINTE:'nao_contribuinte', NÃO_CONTRIBUINTE:'nao_contribuinte',
+    SIMPLES_DAS:'simples_nacional', SIMPLES_NACIONAL:'simples_nacional', SIMPLES_REGIME_REGULAR:'simples_nacional',
+    MEI:'mei', NAO_CONTRIBUINTE:'regime_regular', NÃO_CONTRIBUINTE:'regime_regular',
   }[codigo] || String(valor || '').trim().toLowerCase() || 'indeterminado';
 }
 
@@ -442,12 +442,12 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     const clienteDiverso = Boolean(x.cliente_diverso);
     const chave = clienteDiverso ? 'clientes-diversos' : (x.inscr_federal || x.nome || `movimento:${x.movimento_id}`);
     const nome = x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || 'Sem identificação';
-    if (!porParceiro.has(chave)) porParceiro.set(chave, { chave, cnpj: x.inscr_federal || '', nome, regime: x.regime_parceiro || 'indeterminado', regimeLabel: grupoDaLinha(x, lado), parceiros: 1, clienteDiverso });
+    if (!porParceiro.has(chave)) porParceiro.set(chave, { chave, cnpj: x.inscr_federal || '', nome, regime: normalizarRegimeFornecedor(x.regime_parceiro), regimeLabel: grupoDaLinha(x, lado), parceiros: 1, clienteDiverso });
     acumular(porParceiro.get(chave), x);
     const grupo = grupoDaLinha(x, lado);
     const faixa = faixaTributacao(x);
     const chaveGrupo = `${grupo}::${faixa.chave}`;
-    if (!porGrupo.has(chaveGrupo)) porGrupo.set(chaveGrupo, { label: grupo, faixaTributacao: faixa.label, faixaOrdem: faixa.chave, regime: x.regime_parceiro || 'indeterminado', parceirosSet: new Set(), clienteDiverso });
+    if (!porGrupo.has(chaveGrupo)) porGrupo.set(chaveGrupo, { label: grupo, faixaTributacao: faixa.label, faixaOrdem: faixa.chave, regime: normalizarRegimeFornecedor(x.regime_parceiro), parceirosSet: new Set(), clienteDiverso });
     const g = porGrupo.get(chaveGrupo); g.parceirosSet.add(chave); g.clienteDiverso = Boolean(g.clienteDiverso || clienteDiverso); acumular(g, x);
     acumular(total, x);
   }
