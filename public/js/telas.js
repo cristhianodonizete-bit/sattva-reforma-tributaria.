@@ -717,7 +717,7 @@ Telas.dados = async (el) => {
     document.getElementById('relerFornecedoresRazao')?.addEventListener('click',()=>A.confirmar('Reler os históricos de todos os lançamentos já incluídos pelo Razão? O sistema vincula somente fornecedores identificados com segurança; os demais ficam no fornecedor genérico do Simples Nacional.',async()=>{
       try {
         const r=await A.api(`/empresas/${S.empresaId}/questor/razao/reler-fornecedores`,{metodo:'POST',corpo:{}});
-        A.toast(`${r.atualizados} lançamento(s) relido(s): ${r.identificados} fornecedor(es) identificado(s) e ${r.genericos_simples} no genérico do Simples.`, 'ok');
+        A.toast(`${r.atualizados} lançamento(s) relido(s): ${r.identificados} fornecedor(es) identificado(s), ${r.identificados_por_historico || 0} pelo histórico e ${r.genericos_simples} no genérico do Simples.`, 'ok');
         A.ir('dados');
       } catch(e) { A.toast(e.message,'erro'); }
     }));
