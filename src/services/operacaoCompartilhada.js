@@ -150,6 +150,20 @@ function normalizarIdsParceirosDoCache(linhas) {
   });
 }
 
+// A pessoa do Questor comprova identidade (nome/CNPJ), mas não o regime.
+// Esses vínculos nascem com Simples apenas como premissa operacional. Quando
+// a base oficial por CNPJ — ou pela raiz da filial — trouxer um regime, ela
+// deve prevalecer tanto na leitura quanto antes de o motor calcular.
+function aplicarRegimeBaseNosVinculosQuestor(empresaId) {
+  return db.prepare(`UPDATE parceiros
+    SET regime=(SELECT br.regime FROM base_regime br
+      WHERE br.cnpj=parceiros.cnpj OR br.raiz=SUBSTR(parceiros.cnpj,1,8)
+      ORDER BY CASE WHEN br.cnpj=parceiros.cnpj THEN 0 ELSE 1 END, br.ano DESC LIMIT 1)
+    WHERE empresa_id=? AND tipo='fornecedor' AND COALESCE(cnpj,'')<>''
+      AND UPPER(COALESCE(origem,'')) IN ('QUESTOR_PESSOA_CONTRAPARTIDA','QUESTOR_PESSOA_HISTORICO')
+      AND EXISTS(SELECT 1 FROM base_regime br WHERE br.cnpj=parceiros.cnpj OR br.raiz=SUBSTR(parceiros.cnpj,1,8))`).run(Number(empresaId)).changes;
+}
+
 function gravar(tabela, linhas, dentroDaTransacao = false) {
   if (!linhas.length) return 0;
   if (tabela === 'parceiros') linhas=normalizarIdsParceirosDoCache(linhas);
@@ -351,7 +365,9 @@ async function restaurarParceirosEmpresa(empresaId, remotoInformado = null) {
   const { data, error } = await remoto.from('parceiros').select('*').eq('empresa_id', empresaRemota.id);
   if (error) throw new Error(`Parceiros compartilhados: ${error.message}`);
   const linhas = normalizarEmpresaIdDoCache('parceiros', data || [], new Map([[String(empresaRemota.id), Number(empresaId)]]));
-  return { ativo:true, parceiros:gravar('parceiros', linhas), empresa_remota_id:empresaRemota.id };
+  const parceiros=gravar('parceiros', linhas);
+  const regimes_atualizados=aplicarRegimeBaseNosVinculosQuestor(empresaId);
+  return { ativo:true, parceiros, regimes_atualizados, empresa_remota_id:empresaRemota.id };
 }
 async function baixar(remotoInformado = null) {
   if (!ativo()) return { ativo: false };
@@ -470,6 +486,7 @@ async function prepararContextoMotorEmpresa(empresaId) {
     const linhas = normalizarEmpresaIdDoCache(tabela, data || [], mapaEmpresa);
     resultado.dados_empresa[tabela] = tabela === 'empresa_qsa' ? gravarEmpresaQsa(linhas) : gravar(tabela, linhas);
   }
+  resultado.dados_empresa.regimes_base_questor=aplicarRegimeBaseNosVinculosQuestor(id);
   try { require('./regras').invalidar(); } catch (_) { /* somente cache */ }
   return resultado;
 }

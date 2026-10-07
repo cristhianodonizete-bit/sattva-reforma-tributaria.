@@ -80,10 +80,13 @@ function linhas(empresaId, opcoes = {}) {
       -- O motor registra REGULAR quando só pode afirmar que o emitente está
       -- fora do Simples. Isso é suficiente para o cálculo CBS, mas não deve
       -- apagar Lucro Real ou Presumido já comprovado na base RFB. A base é
-      -- consultada somente para completar um parceiro ainda "regular"; um
-      -- cadastro manual/específico continua tendo precedência.
+      -- consultada somente para completar um parceiro ainda "regular". A
+      -- exceção é a pessoa vinda do Questor: ela prova o CNPJ, mas nasce com
+      -- Simples como premissa, portanto a base por CNPJ/raiz tem precedência.
+      -- Cadastro manual/específico continua tendo precedência.
       COALESCE(NULLIF(CASE
-        WHEN LOWER(COALESCE(p.regime,'')) IN ('','regular','regime_regular','indeterminado') THEN (
+        WHEN UPPER(COALESCE(p.origem,'')) IN ('QUESTOR_PESSOA_CONTRAPARTIDA','QUESTOR_PESSOA_HISTORICO')
+          OR LOWER(COALESCE(p.regime,'')) IN ('','regular','regime_regular','indeterminado') THEN (
           SELECT br.regime FROM base_regime br
           WHERE br.cnpj=m.inscr_federal OR br.raiz=SUBSTR(m.inscr_federal,1,8)
           ORDER BY CASE WHEN br.cnpj=m.inscr_federal THEN 0 ELSE 1 END, br.ano DESC
