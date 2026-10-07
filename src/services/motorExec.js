@@ -175,7 +175,12 @@ const requerReferenciaFiscalServico = (m) => ehServicoDeVenda(m) && (Number(m.pi
 /** Carrega os movimentos já com o regime resolvido pelo cadastro de parceiros */
 function carregar(empresaId, sentido, movimentoIds = null) {
   const tipo = sentido === 'saida' ? 'cliente' : 'fornecedor';
-  let sql = `SELECT m.*, p.regime AS regime_cadastro, p.perfil_economico AS perfil_cadastro, p.descricao AS nome_cadastro,
+  let sql = `SELECT m.*, CASE
+      WHEN UPPER(COALESCE(m.origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA') THEN COALESCE((
+        SELECT br.regime FROM base_regime br WHERE br.cnpj=m.inscr_federal OR br.raiz=SUBSTR(m.inscr_federal,1,8)
+        ORDER BY CASE WHEN br.cnpj=m.inscr_federal THEN 0 ELSE 1 END, br.ano DESC LIMIT 1
+      ),p.regime,m.regime)
+      ELSE p.regime END AS regime_cadastro, p.perfil_economico AS perfil_cadastro, p.descricao AS nome_cadastro,
       p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro, p.multinacional AS multinacional_cadastro
       ,CASE WHEN EXISTS(SELECT 1 FROM enriquecimento_pis_cofins_evidencias e WHERE e.empresa_id=m.empresa_id AND e.movimento_id=m.id AND e.origem_evidencia='SPED_C175') THEN 'SPED_C175' ELSE '' END AS origem_evidencia_pis_cofins
     FROM movimentos m

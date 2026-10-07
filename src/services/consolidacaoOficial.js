@@ -85,7 +85,8 @@ function linhas(empresaId, opcoes = {}) {
       -- Simples como premissa, portanto a base por CNPJ/raiz tem precedência.
       -- Cadastro manual/específico continua tendo precedência.
       COALESCE(NULLIF(CASE
-        WHEN UPPER(COALESCE(p.origem,'')) IN ('QUESTOR_PESSOA_CONTRAPARTIDA','QUESTOR_PESSOA_HISTORICO')
+        WHEN UPPER(COALESCE(m.origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
+          OR UPPER(COALESCE(p.origem,'')) IN ('QUESTOR_PESSOA_CONTRAPARTIDA','QUESTOR_PESSOA_HISTORICO')
           OR LOWER(COALESCE(p.regime,'')) IN ('','regular','regime_regular','indeterminado') THEN (
           SELECT br.regime FROM base_regime br
           WHERE br.cnpj=m.inscr_federal OR br.raiz=SUBSTR(m.inscr_federal,1,8)

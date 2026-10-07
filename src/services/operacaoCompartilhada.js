@@ -155,13 +155,26 @@ function normalizarIdsParceirosDoCache(linhas) {
 // a base oficial por CNPJ — ou pela raiz da filial — trouxer um regime, ela
 // deve prevalecer tanto na leitura quanto antes de o motor calcular.
 function aplicarRegimeBaseNosVinculosQuestor(empresaId) {
-  return db.prepare(`UPDATE parceiros
+  const parceiros=db.prepare(`UPDATE parceiros
     SET regime=(SELECT br.regime FROM base_regime br
       WHERE br.cnpj=parceiros.cnpj OR br.raiz=SUBSTR(parceiros.cnpj,1,8)
       ORDER BY CASE WHEN br.cnpj=parceiros.cnpj THEN 0 ELSE 1 END, br.ano DESC LIMIT 1)
     WHERE empresa_id=? AND tipo='fornecedor' AND COALESCE(cnpj,'')<>''
       AND UPPER(COALESCE(origem,'')) IN ('QUESTOR_PESSOA_CONTRAPARTIDA','QUESTOR_PESSOA_HISTORICO')
       AND EXISTS(SELECT 1 FROM base_regime br WHERE br.cnpj=parceiros.cnpj OR br.raiz=SUBSTR(parceiros.cnpj,1,8))`).run(Number(empresaId)).changes;
+  // O Razão também pode trazer o CNPJ já identificado no próprio lançamento,
+  // sem que o parceiro tenha sido materializado pela rotina de pessoas. A
+  // premissa inicial de Simples é apenas um fallback de importação; nunca
+  // pode prevalecer sobre a base de regimes por CNPJ/raiz nessa situação.
+  const movimentos=db.prepare(`UPDATE movimentos
+    SET regime=(SELECT br.regime FROM base_regime br
+      WHERE br.cnpj=movimentos.inscr_federal OR br.raiz=SUBSTR(movimentos.inscr_federal,1,8)
+      ORDER BY CASE WHEN br.cnpj=movimentos.inscr_federal THEN 0 ELSE 1 END, br.ano DESC LIMIT 1)
+    WHERE empresa_id=? AND tipo='fornecedor'
+      AND UPPER(COALESCE(origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
+      AND LENGTH(REPLACE(REPLACE(REPLACE(COALESCE(inscr_federal,''),'.',''),'/',''),'-',''))=14
+      AND EXISTS(SELECT 1 FROM base_regime br WHERE br.cnpj=movimentos.inscr_federal OR br.raiz=SUBSTR(movimentos.inscr_federal,1,8))`).run(Number(empresaId)).changes;
+  return parceiros+movimentos;
 }
 
 function gravar(tabela, linhas, dentroDaTransacao = false) {
