@@ -45,6 +45,9 @@ assert.match(api,/publicarEntradasQuestorConciliadas\(empresaId,resultado\.movim
 assert.match(api,/DOCUMENTO_JA_REPRESENTADO_COM_MESMO_VALOR_E_COMPETENCIA/,'a inclusão não pode descartar NF apenas por coincidência de número');
 assert.match(api,/baixarConfiguracao\(\['param_regras'\]\)/,'o item recém-cadastrado é restaurado antes da inclusão pelo Razão');
 assert.match(api,/motivos:\{\}/,'a rota devolve o motivo de cada descarte em vez de informar zero silenciosamente');
+assert.match(api,/replace\(\/\\D\/g,''\)/,'a contrapartida formatada deve ser normalizada integralmente, sem perder os dígitos após pontos');
+assert.match(api,/CONTRAPARTIDA_QUESTOR/,'o vínculo pelo código de pessoa do Questor deve permanecer rastreável');
+assert.match(api,/materializarFornecedorDaContrapartida/,'pessoa identificada no cadastro Questor deve virar fornecedor com CNPJ na inclusão ou releitura');
 assert.match(api,/db\.transaction\(\(\)=>\{ for\(const linha of selecionados\)/,'a inclusão é executada dentro de transação');
 assert.match(api,/\}\}\)\(\);/,'a função transacional é invocada e não apenas criada');
 assert.match(api,/listarEntradasQuestor/,'entradas manuais também devem ler inclusões Questor já publicadas na fonte compartilhada');
