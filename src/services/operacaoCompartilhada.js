@@ -614,19 +614,55 @@ function lerMovimentosLocais(empresaId, opcoes = {}) {
 // mesmo que um registro residual ainda exista no compartilhado, ele jamais
 // pode voltar a materializar-se no cache ou compor uma tela financeira.
 async function chavesDocumentosExcluidosAuditados(remoto, empresaId) {
-  const chaves = new Set();
+  // A chave fiscal, isoladamente, não é evidência suficiente para suprimir
+  // uma versão posterior do documento. Em bases antigas havia cópias
+  // duplicadas com a mesma chave; a exclusão da cópia de quatro itens não
+  // pode eliminar uma versão canônica posterior com dois itens.
+  const chaves = new Map();
   for (let de = 0;; de += 1000) {
-    const { data, error } = await remoto.from('auditoria').select('entidade_id')
+    const { data, error } = await remoto.from('auditoria').select('entidade_id,antes')
       .eq('empresa_id', Number(empresaId)).eq('acao', 'DOCUMENTO_FISCAL_EXCLUIDO')
       .eq('entidade', 'movimentos').range(de, de + 999);
     if (error) throw new Error(`Trilha de exclusões fiscais: ${error.message}`);
     for (const evento of (data || [])) {
       const chave = String(evento.entidade_id || '').replace(/^chave:/, '').trim();
-      if (chave) chaves.add(chave);
+      if (!chave) continue;
+      const antes = evento.antes && typeof evento.antes === 'object' ? evento.antes : {};
+      const itens = Number(antes.itens);
+      const valor = Number(antes.valor);
+      // Eventos sem a composição antiga permanecem conservadores: bloqueiam
+      // pela chave, porque não existe evidência bastante para diferenciá-los.
+      chaves.set(chave, {
+        itens: Number.isFinite(itens) && itens > 0 ? itens : null,
+        valor: Number.isFinite(valor) ? valor : null,
+      });
     }
     if (!data || data.length < 1000) break;
   }
   return chaves;
+}
+
+function chavesQueDevemPermanecerExcluidas(linhas, exclusoes) {
+  const porChave = new Map();
+  for (const linha of linhas) {
+    const chave = String(linha?.chave || '').trim();
+    if (!chave || !exclusoes.has(chave)) continue;
+    const atual = porChave.get(chave) || { itens: 0, valor: 0 };
+    atual.itens += 1;
+    atual.valor += Number(linha?.valor || 0);
+    porChave.set(chave, atual);
+  }
+  const manter = new Set();
+  for (const [chave, excluido] of exclusoes) {
+    const atual = porChave.get(chave);
+    // Sem memória quantitativa no evento, mantém a proteção legado. Quando
+    // há quantidade e valor, a exclusão só vale para a mesma fotografia.
+    if (!excluido?.itens || excluido?.valor == null
+      || (atual && atual.itens === excluido.itens && Math.abs(atual.valor - excluido.valor) < 0.01)) {
+      manter.add(chave);
+    }
+  }
+  return manter;
 }
 
 async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
@@ -673,7 +709,8 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   linhas = deduplicarMovimentosFiscais(linhas);
   let normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
   const chavesExcluidas = await chavesDocumentosExcluidosAuditados(supabase.admin(), id);
-  normalizadas = normalizadas.filter((linha) => !chavesExcluidas.has(String(linha.chave || '').trim()));
+  let chavesBloqueadas = chavesQueDevemPermanecerExcluidas(normalizadas, chavesExcluidas);
+  normalizadas = normalizadas.filter((linha) => !chavesBloqueadas.has(String(linha.chave || '').trim()));
   let remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
   // Em leitura por competência, a reconciliação nunca toma decisões sobre
   // documentos de outros meses. Isso reduz volume e protege o histórico fora
@@ -716,7 +753,8 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
     ({ remota, linhas, origem } = leitura);
     linhas = deduplicarMovimentosFiscais(linhas);
     normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
-    normalizadas = normalizadas.filter((linha) => !chavesExcluidas.has(String(linha.chave || '').trim()));
+    chavesBloqueadas = chavesQueDevemPermanecerExcluidas(normalizadas, chavesExcluidas);
+    normalizadas = normalizadas.filter((linha) => !chavesBloqueadas.has(String(linha.chave || '').trim()));
     remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
     identidadesRemotas = new Set(normalizadas.map(identidadeFiscal).filter(Boolean));
   }
@@ -726,7 +764,7 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   // Exclusão expressa sempre prevalece sobre a proteção normal de XML/SPED:
   // esta proteção existe para evitar perda acidental por falta de publicação,
   // não para desfazer uma remoção confirmada pelo usuário.
-  const removerPorExclusao = locais.filter((linha) => chavesExcluidas.has(String(linha.chave || '').trim()))
+  const removerPorExclusao = locais.filter((linha) => chavesBloqueadas.has(String(linha.chave || '').trim()))
     .map((linha) => Number(linha.id));
   const remover = [...new Set([...removerNormais, ...removerPorExclusao])];
   db.transaction(() => {
@@ -1652,4 +1690,5 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
 
 module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
   baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, prepararContextoMotorEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
-  reduzirEventosIncrementais, chaveEvento, validarEventoIncremental };
+  reduzirEventosIncrementais, chaveEvento, validarEventoIncremental,
+  chavesQueDevemPermanecerExcluidas };
