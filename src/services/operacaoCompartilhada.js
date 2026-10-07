@@ -294,9 +294,9 @@ function filtrarOrfaosOperacionais(tabela, linhas, empresasValidas, lotesValidos
   if (CAMPOS[tabela]?.includes('empresa_id')) return linhas.filter((x) => empresasValidas.has(Number(x.empresa_id)));
   return linhas;
 }
-async function baixar() {
+async function baixar(remotoInformado = null) {
   if (!ativo()) return { ativo: false };
-  const remoto = supabase.admin(), resultado = {}, falhas = {};
+  const remoto = remotoInformado || supabase.admin(), resultado = {}, falhas = {};
   // A carteira é a âncora do cache efêmero. Ela precisa ser carregada antes
   // das bases auxiliares: uma falha isolada nunca pode fazer a interface
   // parecer que todas as empresas foram excluídas.
@@ -766,22 +766,22 @@ async function aplicarEventosIncrementais(remoto, eventos) {
   return { fallback: false, eventos: reduzidos.length, aplicadas, removidas };
 }
 
-async function sincronizarIncremental() {
+async function sincronizarIncremental(opcoes = {}) {
   if (!ativo()) return { ativo: false };
-  const remoto = supabase.admin();
+  const remoto = opcoes.remoto || supabase.admin({ prazoMs: opcoes.prazoMs });
   const sequencia = lerSequenciaIncremental();
   // A primeira instalação cria uma base íntegra e somente depois habilita o
   // delta. Eventos ocorridos durante a carga são reaplicados idempotentemente.
   if (!temSequenciaIncremental()) {
     const inicio = await maiorSequenciaIncremental(remoto);
-    const completo = await baixar();
+    const completo = await baixar(remoto);
     validarCargaBase(completo, 'Carga-base incremental');
     const pendentes = await buscarEventosIncrementais(remoto, inicio);
     const aplicado = pendentes.length ? await aplicarEventosIncrementais(remoto, pendentes) : { fallback: false, eventos: 0, aplicadas: 0, removidas: 0 };
     let marcoAplicado = pendentes.at(-1)?.sequencia || inicio;
     if (aplicado.fallback) {
       const marcoCobertoPeloFallback = await maiorSequenciaIncremental(remoto);
-      const recuperacao = await baixar();
+      const recuperacao = await baixar(remoto);
       validarCargaBase(recuperacao, 'Recuperação incremental');
       marcoAplicado = marcoCobertoPeloFallback;
     }
@@ -797,7 +797,7 @@ async function sincronizarIncremental() {
   // Fallback intencional: a tabela ainda não possui semântica incremental ou
   // o evento é sensível. Nada do lote foi aplicado antes desta decisão.
   const marcoCobertoPeloFallback = await maiorSequenciaIncremental(remoto);
-  const completo = await baixar();
+  const completo = await baixar(remoto);
   validarCargaBase(completo, 'Fallback incremental');
   db.transaction(() => salvarSequenciaIncremental(marcoCobertoPeloFallback))();
   return { modo: 'fallback_completo', sequencia: Number(marcoCobertoPeloFallback), eventos: eventos.length, ...aplicado };

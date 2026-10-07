@@ -26,11 +26,14 @@ function fetchComPrazo(input, init = {}, prazoMs = Number(process.env.SUPABASE_T
     .finally(() => clearTimeout(relogio));
 }
 
-function admin() {
+function admin(opcoes = {}) {
   if (!configurado()) throw new Error('Supabase não configurado no .env.');
+  // Cargas e sincronizações podem percorrer tabelas grandes. Elas não devem
+  // herdar o prazo curto que protege as interações HTTP do usuário.
+  const prazoMs = Number(opcoes.prazoMs || process.env.SUPABASE_TIMEOUT_MS || 12_000);
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
     auth: { persistSession: false, autoRefreshToken: false },
-    global: { fetch: fetchComPrazo },
+    global: { fetch: (input, init) => fetchComPrazo(input, init, prazoMs) },
   });
 }
 

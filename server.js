@@ -104,22 +104,36 @@ async function iniciarOperacao() {
   try {
     const operacao = require('./src/services/operacaoCompartilhada');
     if (operacao.ativo()) {
+      // A fonte compartilhada pode estar fria logo após um deploy. Este prazo
+      // vale apenas para o trabalho em segundo plano; requisições HTTP seguem
+      // protegidas pelo limite normal de 12 segundos.
+      const prazoSegundoPlano = Math.max(12_000, Number(process.env.SUPABASE_BACKGROUND_TIMEOUT_MS || 45_000));
+      const remotoSegundoPlano = supabase.admin({ prazoMs: prazoSegundoPlano });
       estadoOperacao.ativa = true;
       estadoOperacao.possuiBaseLocal = possuiBaseOperacionalLocal();
       estadoOperacao.sincronizando = true;
       let dados = {};
       try {
-        dados = await operacao.sincronizarIncremental();
+        dados = await operacao.sincronizarIncremental({ remoto: remotoSegundoPlano });
         sincronizacaoConcluida = true;
       }
       catch (e) {
         estadoOperacao.erro = e.message;
         console.error('  sincronização operacional incremental falhou:', e.message);
       }
-      try { await operacao.baixarRegrasEnquadramento(); }
-      catch (e) { console.error('  sincronização de regras condicionais falhou:', e.message); }
-      const intervaloRegras = setInterval(() => operacao.baixarRegrasEnquadramento()
-        .catch((e) => console.error('  atualização de regras condicionais falhou:', e.message)), 60_000);
+      // A carga-base já inclui regras_enquadramento. Baixá-la novamente, em
+      // seguida, duplicava uma leitura grande e concorria com o login.
+      const atualizarRegras = () => operacao.baixarRegrasEnquadramento(
+        supabase.admin({ prazoMs: prazoSegundoPlano }),
+      );
+      if (sincronizacaoConcluida && dados.modo !== 'carga_base') {
+        try { await atualizarRegras(); }
+        catch (e) { console.error('  sincronização de regras condicionais falhou:', e.message); }
+      }
+      // Regras são publicadas por evento; cinco minutos evita rajadas de
+      // consultas concorrentes a cada boot sem perder atualização operacional.
+      const intervaloRegras = setInterval(() => atualizarRegras()
+        .catch((e) => console.error('  atualização de regras condicionais falhou:', e.message)), Math.max(60_000, Number(process.env.SUPABASE_BACKGROUND_INTERVAL_MS || 5 * 60_000)));
       intervaloRegras.unref?.();
       // Na primeira instalação há uma carga-base completa; nos reinícios
       // seguintes, somente eventos posteriores ao marco local são aplicados.
@@ -162,9 +176,17 @@ function iniciar() {
     console.log('  sincronização operacional iniciada em segundo plano');
     console.log('');
   });
-  setInterval(() => {
-    if (supabase.configurado()) performanceTelemetry.persistir(supabase.admin()).catch((e) => console.error('  telemetria de performance:', e.message));
-  }, 60_000).unref();
+  // Telemetria não pode competir com a fotografia operacional no primeiro
+  // minuto da instância. Ela é auxiliar e pode aguardar a estabilização.
+  const intervaloTelemetria = Math.max(60_000, Number(process.env.SUPABASE_BACKGROUND_INTERVAL_MS || 5 * 60_000));
+  const persistirTelemetria = () => {
+    if (supabase.configurado()) {
+      performanceTelemetry.persistir(supabase.admin({ prazoMs: 45_000 }))
+        .catch((e) => console.error('  telemetria de performance:', e.message));
+    }
+  };
+  setTimeout(persistirTelemetria, intervaloTelemetria).unref?.();
+  setInterval(persistirTelemetria, intervaloTelemetria).unref();
   // As verificações abaixo não são necessárias para atender a primeira tela
   // do usuário. Em reinícios, dispará-las junto com a sincronização
   // operacional concorria por rede/CPU e deixava o primeiro acesso lento.
