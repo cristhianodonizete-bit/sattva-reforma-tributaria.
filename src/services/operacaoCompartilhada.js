@@ -977,7 +977,8 @@ async function baixarResultadosMotor(remotoInformado = null) {
   // desnecessário para qualquer tela operacional.
   const resultados = [];
   for (let de = 0;; de += 1000) {
-    const { data, error } = await remoto.from('motor_resultados_operacionais').select('*').eq('ativo', true).range(de, de + 999);
+    const { data, error } = await remoto.from('motor_resultados_operacionais').select('*').eq('ativo', true)
+      .order('id', { ascending:true }).range(de, de + 999);
     if (error) throw new Error(`motor_resultados_operacionais: ${error.message}`);
     resultados.push(...(data || []));
     if (!data || data.length < 1000) break;
@@ -1028,7 +1029,7 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   const resultados=[];
   for (let de=0;;de+=1000) {
     const { data,error }=await remoto.from('motor_resultados_operacionais').select('*')
-      .eq('empresa_id',Number(remota.id)).eq('ativo',true).range(de,de+999);
+      .eq('empresa_id',Number(remota.id)).eq('ativo',true).order('id',{ascending:true}).range(de,de+999);
     if (error) throw new Error(`Fotografia compartilhada da empresa: ${error.message}`);
     resultados.push(...(data || []));
     if (!data || data.length<1000) break;
@@ -1054,6 +1055,11 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     gravarLinhasComColunas('motor_execucoes',[execucaoCompartilhadaLocal(execucaoAtiva,id)],true);
     gravarLinhasComColunas('motor_resultados',resultados.map((x)=>resultadoCompartilhadoLocal(x,id,execucaoAtiva.id)),true);
   })();
+  const gravados=Number(db.prepare('SELECT COUNT(*) quantidade FROM motor_resultados WHERE empresa_id=? AND execucao_id=?')
+    .get(id,Number(execucaoAtiva.id))?.quantidade || 0);
+  if (gravados !== resultados.length) {
+    throw new Error(`Fotografia canônica gravada parcialmente: esperado ${resultados.length}, encontrado ${gravados}. A cadeia não será exibida.`);
+  }
   return { ativo:true, resultados:resultados.length, execucoes:1, empresa_remota_id:Number(remota.id), execucao_remota_id:Number(execucaoAtiva.id) };
 }
 async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
