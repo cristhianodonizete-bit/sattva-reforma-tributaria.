@@ -5918,7 +5918,7 @@ function pessoaQuestorPorCnpj(pessoas = []) {
   return [...porCnpj.values()];
 }
 function termosRelevantesFornecedor(valor) {
-  const ignorar=new Set(['COMERCIO','COMERCIAL','EMPRESA','EMPRESAS','BRASIL','DO','DA','DE','DOS','DAS','E','EM','PARA','POR','COMPANHIA','ENERGIA','ENERGIAS','SERVICOS','SERVICO','TECNOLOGIA','TECNOLOGIAS']);
+  const ignorar=new Set(['COMERCIO','COMERCIAL','EMPRESA','EMPRESAS','BRASIL','DO','DA','DE','DOS','DAS','E','EM','PARA','POR','COMPANHIA','SERVICOS','SERVICO','TECNOLOGIA','TECNOLOGIAS']);
   return [...new Set(nomeFornecedorComparavel(valor).split(' ').filter((termo)=>termo.length>=4 && !ignorar.has(termo)))];
 }
 function criterioPessoaQuestorNoHistorico(pessoa, texto) {
