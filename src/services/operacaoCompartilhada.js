@@ -1369,9 +1369,10 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
       }
     }
   }
-  const { data:existentes, error:erroExistentes }=await remoto.from('movimentos').select('chave').eq('empresa_id',Number(empresas[0].id)).in('chave',chaves);
+  const { data:existentes, error:erroExistentes }=await remoto.from('movimentos').select('chave,nome,inscr_federal,normalizacao_evidencia').eq('empresa_id',Number(empresas[0].id)).in('chave',chaves);
   if (erroExistentes) throw new Error(`Entradas conciliadas compartilhadas: ${erroExistentes.message}`);
-  const jaPublicadas=new Set((existentes || []).map((x)=>String(x.chave)));
+  const porChaveRemota=new Map((existentes || []).map((x)=>[String(x.chave),x]));
+  const jaPublicadas=new Set(porChaveRemota.keys());
   const linhas=locais.map(({ id, ...linha })=>({ ...linha, empresa_id:Number(empresas[0].id) }));
   const novas=linhas.filter((x)=>!jaPublicadas.has(String(x.chave)));
   if (novas.length) {
@@ -1382,12 +1383,30 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
   // alcançar a fonte canônica. Antes deste update, a existência da chave
   // fazia a publicação pular a linha e o motor remoto continuava sem regime.
   const existentesLocais=linhas.filter((x)=>jaPublicadas.has(String(x.chave)));
+  const evidenciasFornecedor=(linha)=>{
+    try { return JSON.parse(linha?.normalizacao_evidencia || '{}').fornecedor_vinculado || {}; }
+    catch (_) { return {}; }
+  };
+  const cnpjValido=(linha)=>String(linha?.inscr_federal || '').replace(/\D/g,'').length===14;
+  const fornecedorGenerico=(linha)=>!cnpjValido(linha) && (/^Fornecedor genérico\s+—/i.test(String(linha?.nome || '')) || evidenciasFornecedor(linha).origem==='FORNECEDOR_GENERICO_SIMPLES');
+  const fornecedorConfirmado=(linha)=>cnpjValido(linha) && !fornecedorGenerico(linha)
+    && ['CONTRAPARTIDA_QUESTOR','HISTORICO_NOME_QUESTOR','HISTORICO_ALIAS_QUESTOR','AJUSTE_USUARIO'].includes(String(evidenciasFornecedor(linha).origem || ''));
+  let preservadosRemotamente=0;
   for (const linha of existentesLocais) {
+    const remotoExistente=porChaveRemota.get(String(linha.chave));
+    // Uma instância com cache antigo pode ainda carregar o fornecedor padrão.
+    // Ela jamais deve apagar uma identificação já confirmada por outra
+    // instância na fonte canônica. A atualização incremental trará o vínculo
+    // confirmado de volta para o cache local no próximo ciclo.
+    if (fornecedorGenerico(linha) && fornecedorConfirmado(remotoExistente)) {
+      preservadosRemotamente++;
+      continue;
+    }
     const { error }=await remoto.from('movimentos').update(linha)
       .eq('empresa_id',Number(empresas[0].id)).eq('chave',String(linha.chave));
     if (error) throw new Error(`Atualização de entrada conciliada compartilhada: ${error.message}`);
   }
-  return { ativo:true, publicados:novas.length, atualizados:existentesLocais.length, ja_publicados:locais.length-novas.length, pendentes:0 };
+  return { ativo:true, publicados:novas.length, atualizados:existentesLocais.length-preservadosRemotamente, preservados_remotamente:preservadosRemotamente, ja_publicados:locais.length-novas.length, pendentes:0 };
 }
 // Exclusão de documento fiscal precisa ocorrer na fonte canônica antes de
 // atingir o cache. Caso contrário, a próxima reconciliação restaura o XML e

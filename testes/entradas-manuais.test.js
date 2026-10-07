@@ -9,6 +9,7 @@ const config=fs.readFileSync(path.join(raiz,'public/js/telas6.js'),'utf8');
 const motor=fs.readFileSync(path.join(raiz,'src/services/motorExec.js'),'utf8');
 const classificador=fs.readFileSync(path.join(raiz,'src/engine/classificador.js'),'utf8');
 const persistencia=fs.readFileSync(path.join(raiz,'src/services/questorPersistencia.js'),'utf8');
+const operacaoCompartilhada=fs.readFileSync(path.join(raiz,'src/services/operacaoCompartilhada.js'),'utf8');
 const migration=fs.readFileSync(path.join(raiz,'supabase/migrations/20261014_questor_razao_previas_duraveis.sql'),'utf8');
 
 for (const chave of ['LICENCA_USO_SISTEMAS_SOFTWARE','MATERIAL_ESCRITORIO','ALUGUEL_IMOVEL_COMERCIAL','LOCACAO_VEICULOS','OUTRAS_DESPESAS_SEM_BENEFICIO','MATERIAL_LIMPEZA']) assert.match(db,new RegExp(chave));
@@ -66,6 +67,7 @@ assert.match(api,/HISTORICO_ALIAS_QUESTOR/,'o vínculo por denominação comerci
 assert.match(api,/identificados_por_historico/,'a releitura deve informar quantos fornecedores foram identificados pelo histórico');
 assert.doesNotMatch(api,/flatMap\(\(linha\)=>termosParaBuscaPessoaQuestor\(linha\.texto\)\)\)\]\.slice\(0,120\)/,'a leitura do histórico não pode ignorar fornecedores por ordem no lote');
 assert.match(api,/termo==='TIM'/,'operadoras com nome curto devem entrar na busca do histórico');
+assert.match(operacaoCompartilhada,/preservadosRemotamente/,'uma cópia local genérica não pode sobrescrever fornecedor confirmado na fonte compartilhada');
 assert.match(api,/reclassificar-naturezas/,'lançamentos já incluídos pelo Razão precisam poder reaplicar sua natureza');
 assert.match(api,/LOCACAO_VEICULOS/,'locação de veículos deve ser separada de aluguel de imóvel');
 assert.match(api,/Imóvel não é inferido por palavras do histórico/,'a regra não pode tratar qualquer locação como imóvel');
