@@ -104,6 +104,12 @@ async function buscarColecoes(remoto, tabelas, concorrencia = 4) {
   return resultados;
 }
 function chaveConflitoTabela(tabela) {
+  // Parceiro não é identificado pelo id técnico entre o cache efêmero e a
+  // fonte compartilhada. O mesmo CNPJ pode ter IDs diferentes em cada lado,
+  // mas só pode existir uma vez por empresa e tipo. Usar o id aqui fazia a
+  // restauração tentar inserir uma segunda linha e abortar o motor pela
+  // restrição UNIQUE(empresa_id,tipo,cnpj).
+  if (tabela === 'parceiros') return { conflito:'(empresa_id,tipo,cnpj)', imutaveis:['id','empresa_id','tipo','cnpj'] };
   if (tabela === 'catalogo_itens_receita') return { conflito:'(chave)', imutaveis:['chave'] };
   if (tabela === 'excecoes_motor') return { conflito:'(empresa_id,movimento_id,codigo)', imutaveis:['id','empresa_id','movimento_id','codigo'] };
   if (tabela === 'telemetria_autonomia_execucoes') return { conflito:'(execucao_id)', imutaveis:['execucao_id'] };
