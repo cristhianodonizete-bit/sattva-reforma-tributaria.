@@ -320,6 +320,13 @@ function consolidar(db, empresaId, opcoes = {}) {
     .filter((x) => receitaOperacional.efeitoBase(x) === 'REDUZ_FATURAMENTO')
     .filter((x) => !['CANCELADO', 'DENEGADO', 'INUTILIZADO'].includes(String(x.situacao_documento || '').toUpperCase()))
     .forEach((x) => deducoesDevolucoes.push({ ...x, cfop:receitaOperacional.cfopEfetivo(x), valor:valorDocumental(x) }));
+  // A mesma devolução que a auditoria expõe como dedução precisa reduzir a
+  // receita do resumo. Antes, o resumo usava somente as vendas positivas,
+  // enquanto a auditoria e o recálculo por competência já subtraíam estes
+  // documentos — duas bases diferentes para o mesmo período.
+  const devolucoesPorCompetencia = new Map();
+  deducoesDevolucoes.forEach((x) => devolucoesPorCompetencia.set(x.competencia,
+    numero(devolucoesPorCompetencia.get(x.competencia)) + numero(x.valor)));
   const documentos=[...documentosPorCompetencia.values()];
   const apuracoes = tabelaExiste(db, 'pis_cofins_apuracoes_historicas')
     ? db.prepare(`SELECT a.*, d.nome_original, d.hash_sha256 FROM pis_cofins_apuracoes_historicas a
@@ -345,7 +352,9 @@ function consolidar(db, empresaId, opcoes = {}) {
   const historico = [...porCompetencia.values()].sort((a, b) => String(a.competencia).localeCompare(String(b.competencia))).map((linha) => {
     const p = linha.perfil;
     const receitaPerfil = p ? numero(p.receita_bruta) : null;
-    const receitaDocumentada = linha.documentos ? numero(linha.documentos.receita_documentada) : null;
+    const receitaDocumentadaBruta = linha.documentos ? numero(linha.documentos.receita_documentada) : null;
+    const devolucoesVendas = numero(devolucoesPorCompetencia.get(linha.competencia));
+    const receitaDocumentada = receitaDocumentadaBruta === null ? null : receitaDocumentadaBruta - devolucoesVendas;
     // Outras receitas confirmadas são fatos econômicos fora do XML/DF-e e
     // integram a base do Perfil. Possíveis duplicidades continuam fora até a
     // revisão para não inflar a receita analisada.
@@ -384,6 +393,7 @@ function consolidar(db, empresaId, opcoes = {}) {
       regime: empresa.regime || 'INDETERMINADO',
       receita: valor(receitaAtual, receitaDocumentada !== null ? 'DOCUMENTO_FISCAL_IMPORTADO' : receitasComplementaresValidas.length ? 'OUTRA_RECEITA_CONFIRMADA' : 'INDETERMINADO'),
       receita_documentada: valor(receitaDocumentada, receitaDocumentada !== null ? 'EXTRAIDO' : 'INDETERMINADO'),
+      devolucoes_vendas: valor(devolucoesVendas, devolucoesVendas ? 'MAPA_CFOP' : 'NAO_HA_DEVOLUCOES'),
       receita_recebida: valor(receitaRecebida, receitaRecebida !== null ? 'PGDAS_CAIXA' : simplesCaixa ? 'INDETERMINADO' : 'NAO_APLICAVEL'),
       folha: valor(linha.folha?.valor_folha, linha.folha ? 'REAL' : 'INDETERMINADO'),
       margem_operacional: valor(margem?.margem_operacional_percentual, margem ? 'PREMISSA_INFORMADA' : 'INDETERMINADO'),

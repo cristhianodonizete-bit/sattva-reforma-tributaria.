@@ -17,6 +17,9 @@ inserir.run(100, '5102', 'nfe', 'AUTORIZADO', null);
 inserir.run(5800, '5102', 'nfe', 'CANCELADO', null);
 inserir.run(5000, '5916', 'nfe', 'AUTORIZADO', null);
 inserir.run(50, '6102', 'nfe', 'AUTORIZADO', null);
+// A devolução de venda não compõe a receita positiva, mas precisa reduzir o
+// mesmo total exibido no Resumo da apuração.
+inserir.run(20, '1202', 'nfe', 'AUTORIZADO', null);
 // O XML da 21627 contém 5102, mas a Conferência de Saídas do Questor aponta
 // 5916. O XML fica preservado e a classificação fiscal efetiva a exclui.
 inserir.run(3950.45, '5102', 'nfe', 'AUTORIZADO', JSON.stringify({ cfop_xml:'5102', cfop_questor:'5916', cfop_efetivo:'5916' }));
@@ -27,7 +30,8 @@ const receita = fevereiro.filter((x) => x.compoe_receita).reduce((s, x) => s + x
 const excluida = fevereiro.filter((x) => !x.compoe_receita).reduce((s, x) => s + x.valor, 0);
 
 assert.equal(receita, 150, 'somente NF-e autorizadas de venda podem compor receita');
-assert.equal(excluida, 14750.45, 'cancelamento, retorno e divergência conciliada devem permanecer fora da receita');
+assert.equal(excluida, 14770.45, 'cancelamento, retorno, devolução e divergência conciliada devem permanecer fora da receita positiva');
 assert.ok(fevereiro.some((x) => x.cfop === '5102' && !x.compoe_receita && x.valor === 5800), 'cancelada deve aparecer separada do grupo de vendas');
 assert.ok(fevereiro.some((x) => x.cfop === '5916' && !x.compoe_receita && x.valor === 8950.45), 'CFOP efetivo do Questor deve prevalecer na classificação, sem alterar o XML');
+assert.equal(resultado.historico.find((x) => x.competencia === '2026-02').receita.valor, 130, 'resumo da apuração deve descontar a devolução de venda');
 console.log('perfil-receita-cancelada.test: cancelamento e CFOP efetivo conciliado preservam a receita.');
