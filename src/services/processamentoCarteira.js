@@ -6,6 +6,7 @@ const bases = require('./basesReforma');
 const motorExec = require('./motorExec');
 const excecoesMotor = require('./excecoesMotor');
 const motorStaging = require('./motorStaging');
+const integridadeMotor = require('./integridadeMotor');
 
 const workerId = `${process.env.RENDER_INSTANCE_ID || process.env.HOSTNAME || 'local'}-${process.pid}`;
 const id = () => crypto.randomUUID();
@@ -140,18 +141,34 @@ async function processarUm() {
         motorStaging.criar(job.id, job.empresa_id);
         motorStaging.atualizar(job.id, 'SINCRONIZANDO_CADASTRO');
         await cnpj.sincronizarConfirmacoesManuaisQsa(Number(job.empresa_id));
+        // A fotografia candidata fica vinculada à entrada exata do cálculo.
+        // Nada é promovido se qualquer fato, cadastro ou parâmetro mudar entre
+        // este ponto e a publicação.
+        const entradaMotor = integridadeMotor.assinarEntrada(job.empresa_id);
         motorStaging.atualizar(job.id, 'CALCULANDO');
         const resultado = motorExec.executar(job.empresa_id, { ano: Number(payload.ano) || Number(job.competencia) || 2027, anexoSimples: payload.anexo, publicarAssincrona: false });
         const execucao = motorExec.ultimaExecucao(job.empresa_id);
         const quantidade = resultado.resumo.itens;
+        const resultadoMotor = integridadeMotor.assinarResultado(job.empresa_id, execucao.id);
+        if (resultadoMotor.itens !== quantidade) throw new Error(`Integridade do motor: esperado ${quantidade} resultado(s), encontrado ${resultadoMotor.itens}.`);
+        const entradaAntesDePublicar = integridadeMotor.assinarEntrada(job.empresa_id);
+        integridadeMotor.exigirMesmaEntrada(entradaMotor, entradaAntesDePublicar);
+        const integridadeAtiva = await operacao.integridadeFotografiaAtivaMotor(job.empresa_id);
+        if (integridadeAtiva?.entrada?.assinatura === entradaMotor.assinatura
+          && integridadeAtiva?.resultado?.assinatura !== resultadoMotor.assinatura) {
+          throw new Error('Não determinismo detectado: a mesma fonte e as mesmas regras produziram uma saída diferente. A fotografia anterior foi preservada; a execução requer investigação.');
+        }
         motorStaging.atualizar(job.id, 'PUBLICANDO', { execucao_id: execucao.id, quantidade_esperada: quantidade, resumo: resultado.resumo });
         const publicacao = await operacao.publicarResultadosMotor(job.empresa_id, {
           ativar: false, execucao_id: execucao.id, quantidade_esperada: quantidade,
+          integridade: { entrada:entradaMotor, resultado:resultadoMotor },
         });
         // O resultado é publicado com o id da empresa compartilhada. Em
         // instalações em que este difere do id local, promover com o id local
         // encontrava zero itens e descartava uma fotografia já gravada.
         const empresaFotografia = Number(publicacao.empresa_remota_id || job.empresa_id);
+        const entradaAntesDePromover = integridadeMotor.assinarEntrada(job.empresa_id);
+        integridadeMotor.exigirMesmaEntrada(entradaMotor, entradaAntesDePromover);
         await operacao.promoverFotografiaMotor(empresaFotografia, execucao.id, quantidade);
         await operacao.validarFotografiaAtivaMotor(empresaFotografia, execucao.id, quantidade);
         motorStaging.atualizar(job.id, 'CONCLUIDO');

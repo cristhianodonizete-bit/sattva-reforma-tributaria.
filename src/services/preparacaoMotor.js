@@ -21,7 +21,12 @@ async function preparar(empresaId) {
   await estadoLeituraEmpresa.atualizarComSeguranca(db, id, ['receitas'], () => dadosAdicionaisCompartilhados.restaurar(db, id), { motivo:'Receitas complementares conferidas pelo worker' });
   const reconciliacao = await estadoLeituraEmpresa.atualizarComSeguranca(
     db, id, ['documentos', 'cancelamentos'],
-    () => operacaoCompartilhada.reconciliarMovimentosEmpresa(id, { competenciaInicio: periodo.competencia_inicio, competenciaFim: periodo.competencia_fim }),
+    () => operacaoCompartilhada.reconciliarMovimentosEmpresa(id, {
+      competenciaInicio: periodo.competencia_inicio,
+      competenciaFim: periodo.competencia_fim,
+      // Execução do motor é estritamente leitora quanto à base fiscal.
+      permitirPublicacao:false,
+    }),
     { motivo:'Documentos canônicos conferidos pelo worker' },
   );
   await operacaoCompartilhada.restaurarEvidenciasMotorAposDocumentos(id);

@@ -744,6 +744,13 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   // vazia da fonte compartilhada faça a inclusão confirmada desaparecer.
   const haLocaisGenericos=locais.some((linha)=>!['QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO'].includes(String(linha.origem || '').toUpperCase()));
   if (pendentes.length || pendentesQuestor.length || (!normalizadas.length && haLocaisGenericos)) {
+    // O motor nunca é um canal de publicação de fatos fiscais. Se uma
+    // importação ainda não chegou à fonte canônica, o job para aqui e mantém
+    // tanto a base quanto a fotografia ativa intactas. A publicação ocorre
+    // somente nos fluxos explícitos de importação/conciliação.
+    if (opcoes.permitirPublicacao === false) {
+      throw new Error('Há documentos locais aguardando publicação segura na fonte canônica. O motor não publica nem altera bases fiscais; conclua a importação/conciliação e execute novamente.');
+    }
     try {
       if (pendentes.length || (!normalizadas.length && haLocaisGenericos)) await publicarOperacaoEmpresa(id);
       if (pendentesQuestor.length) await publicarEntradasQuestorConciliadas(id, pendentesQuestor.map((x)=>x.id));
@@ -1105,14 +1112,13 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   const locais=new Set(db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(id).map((x)=>Number(x.id)));
   const ausentes=movimentoIds.filter((movimentoId)=>!locais.has(movimentoId));
   if (ausentes.length) throw new Error(`Fotografia canônica possui ${ausentes.length} documento(s) ainda ausente(s) no cache; a cadeia não será exibida parcialmente.`);
-  // A fotografia ativa é a autoridade do resultado. Em instalações legadas,
-  // o id da execução produzido pelo SQLite podia reiniciar em 1 e ser
-  // publicado nos resultados, embora a execução compartilhada recebesse um
-  // novo id. Restaurar pelo campo legado voltava a acoplar a análise a uma
-  // execução antiga. A execução mais recente da própria empresa dá a chave
-  // local coerente para a fotografia ativa que acabamos de baixar.
+  // A execução é a indicada pelas linhas ativas, nunca a última execução da
+  // empresa. Usar a mais recente misturava uma foto histórica com metadados
+  // de outro cálculo e permitia que uma reexecução falha parecesse publicada.
+  const execucaoIdsAtivos=[...new Set(resultados.map((x)=>Number(x.execucao_id)).filter(Number.isInteger))];
+  if (execucaoIdsAtivos.length !== 1) throw new Error('Fotografia canônica inconsistente: resultados ativos pertencem a mais de uma execução. A cópia local foi preservada.');
   const {data:execucoes,error:erroExecucao}=await remoto.from('motor_execucoes_operacionais').select('*')
-    .eq('empresa_id',Number(remota.id)).order('id',{ascending:false}).limit(1);
+    .eq('empresa_id',Number(remota.id)).in('id',execucaoIdsAtivos).limit(2);
   if (erroExecucao) throw new Error(`Execução da fotografia compartilhada: ${erroExecucao.message}`);
   if (!execucoes?.length) throw new Error('Fotografia canônica sem execução compartilhada para a empresa.');
   const execucaoAtiva=execucoes[0];
@@ -1154,7 +1160,10 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   if (publicacaoPorExecucao) { clausulas.push('id=?'); parametros.push(execucaoId); }
   const filtroExecucoes = clausulas.length ? ` WHERE ${clausulas.join(' AND ')}` : '';
   const execucoes = db.prepare(`SELECT * FROM motor_execucoes${filtroExecucoes}`).all(...parametros)
-    .map((x) => ({ id: x.id, empresa_id: empresaRemota(x.empresa_id), dados: x }));
+    .map((x) => ({ id: x.id, empresa_id: empresaRemota(x.empresa_id), dados: {
+      ...x,
+      integridade: opcoes.integridade || null,
+    } }));
   if (publicacaoPorExecucao && execucoes.length !== 1) {
     throw new Error(`Fotografia do motor não localizada para empresa ${empresaId} e execução ${execucaoId}.`);
   }
@@ -1224,6 +1233,21 @@ async function validarFotografiaAtivaMotor(empresaId, execucaoId, quantidadeEspe
     .select('id', { count: 'exact', head: true }).eq('empresa_id', Number(empresaId)).eq('execucao_id', Number(execucaoId)).eq('ativo', true);
   if (error || Number(count) !== Number(quantidadeEsperada)) throw new Error(`Validação da fotografia ativa: ${error?.message || `esperado ${quantidadeEsperada}, encontrado ${count || 0}`}`);
   return { confirmada: true, execucao_id: Number(execucaoId), quantidade: Number(count) };
+}
+async function integridadeFotografiaAtivaMotor(empresaId) {
+  if (!ativo()) return null;
+  const remoto=supabase.admin();
+  const empresaIdRemota=empresaRemota(Number(empresaId));
+  const { data:linhas, error:erroLinhas }=await remoto.from('motor_resultados_operacionais')
+    .select('execucao_id').eq('empresa_id',empresaIdRemota).eq('ativo',true).limit(2);
+  if (erroLinhas) throw new Error(`Integridade da fotografia ativa: ${erroLinhas.message}`);
+  const execucoes=[...new Set((linhas || []).map((x)=>Number(x.execucao_id)).filter(Number.isInteger))];
+  if (!execucoes.length) return null;
+  if (execucoes.length !== 1) throw new Error('Integridade da fotografia ativa: há mais de uma execução ativa para a empresa.');
+  const { data:execucao, error:erroExecucao }=await remoto.from('motor_execucoes_operacionais')
+    .select('id,dados').eq('empresa_id',empresaIdRemota).eq('id',execucoes[0]).limit(1);
+  if (erroExecucao) throw new Error(`Integridade da execução ativa: ${erroExecucao.message}`);
+  return execucao?.[0]?.dados?.integridade || null;
 }
 // Parâmetros fiscais e de cálculo podem ser restaurados isoladamente do resto
 // do cache. É usado antes de a aplicação entregar qualquer alíquota à tela ou
@@ -1689,6 +1713,6 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
 }
 
 module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
-  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, prepararContextoMotorEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
+  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental,
   chavesQueDevemPermanecerExcluidas };
