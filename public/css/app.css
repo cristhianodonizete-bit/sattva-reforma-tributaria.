@@ -114,6 +114,7 @@ input[type=range]{width:100%;accent-color:var(--ouro)}
 
 table{width:100%;border-collapse:collapse;font-size:13px}
 th{text-align:left;font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--tinta-3);font-weight:700;padding:8px 10px;border-bottom:2px solid var(--linha);white-space:nowrap}
+.ordenar-coluna{appearance:none;border:0;background:transparent;color:inherit;font:inherit;letter-spacing:inherit;text-transform:inherit;font-weight:inherit;padding:0;cursor:pointer}.ordenar-coluna:hover{color:var(--azul)}.ordenar-coluna span{font-size:12px;letter-spacing:0}
 td{padding:8px 10px;border-bottom:1px solid #eef1f3;vertical-align:middle}
 tbody tr:hover{background:#f7fafb}
 tbody tr{transition:background .12s ease}td:first-child{font-weight:500}

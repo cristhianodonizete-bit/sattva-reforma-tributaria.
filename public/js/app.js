@@ -225,11 +225,26 @@ const App = (() => {
   // ---------- TABELA ----------
   function tabela(colunas, linhas, opcoes = {}) {
     if (!linhas.length) return `<div class="vazio-estado"><p>${esc(opcoes.vazio || 'Nenhum registro.')}</p></div>`;
-    return `<div class="tabela-rolagem ${esc(opcoes.classe || '')}"><table><thead><tr>${colunas.map((c) =>
-      `<th class="${c.num ? 'num' : ''}">${c.t}</th>`).join('')}</tr></thead><tbody>
+    const id=opcoes.id || (opcoes.ordenavel ? `tabela-${Math.random().toString(36).slice(2)}` : '');
+    const ordenar=!!opcoes.ordenavel;
+    const valor=(coluna,linha)=>String(coluna.ord ? coluna.ord(linha) : '').trim();
+    const html=`<div ${id?`id="${esc(id)}"`:''} class="tabela-rolagem ${esc(opcoes.classe || '')}"><table><thead><tr>${colunas.map((c,i) =>
+      `<th class="${c.num ? 'num' : ''}">${ordenar && c.ord ? `<button type="button" class="ordenar-coluna" data-ord-col="${i}" title="Ordenar por ${esc(c.t)}">${c.t}<span aria-hidden="true"> ↕</span></button>` : c.t}</th>`).join('')}</tr></thead><tbody>
       ${linhas.map((l) => `<tr>${colunas.map((c) =>
-        `<td class="${c.num ? 'num' : ''}">${c.r(l)}</td>`).join('')}</tr>`).join('')}
+        `<td class="${c.num ? 'num' : ''}"${ordenar && c.ord ? ` data-ord="${esc(valor(c,l))}"` : ''}>${c.r(l)}</td>`).join('')}</tr>`).join('')}
       </tbody></table></div>`;
+    if (ordenar) setTimeout(()=>{
+      const raiz=document.getElementById(id); if (!raiz) return;
+      raiz.querySelectorAll('[data-ord-col]').forEach((botao)=>botao.addEventListener('click',()=>{
+        const indice=Number(botao.dataset.ordCol), anterior=Number(raiz.dataset.ordCol), direcao=anterior===indice && raiz.dataset.ordDir==='asc' ? 'desc' : 'asc';
+        raiz.dataset.ordCol=String(indice); raiz.dataset.ordDir=direcao;
+        const linhasTabela=[...raiz.querySelector('tbody').rows];
+        linhasTabela.sort((a,b)=>{const va=a.cells[indice]?.dataset.ord || '', vb=b.cells[indice]?.dataset.ord || ''; const na=Number(va), nb=Number(vb); const base=Number.isFinite(na)&&Number.isFinite(nb)&&va!==''&&vb!=='' ? na-nb : va.localeCompare(vb,'pt-BR',{numeric:true,sensitivity:'base'}); return direcao==='asc'?base:-base;});
+        linhasTabela.forEach((linha)=>raiz.querySelector('tbody').appendChild(linha));
+        raiz.querySelectorAll('[data-ord-col] span').forEach((s)=>{s.textContent=' ↕';}); botao.querySelector('span').textContent=direcao==='asc'?' ↑':' ↓';
+      }));
+    },0);
+    return html;
   }
 
   // ---------- NAVEGAÇÃO ----------
