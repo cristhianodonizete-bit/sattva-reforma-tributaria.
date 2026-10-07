@@ -2853,15 +2853,16 @@ db.prepare(`INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,des
 // altera nenhum XML existente: somente preenche campos declarados no novo
 // lançamento manual, que permanece identificável por sua própria origem.
 const ITENS_ENTRADA_MANUAL_PADRAO = [
-  ['LICENCA_USO_SISTEMAS_SOFTWARE','Licença de uso de sistemas/software',0,'000001','000','Salvo tratamento específico da operação',1,'lucro_presumido'],
-  ['MATERIAL_ESCRITORIO','Material de escritório',0,'000001','000','Validar produto/NCM se houver tratamento específico',2,'simples_nacional'],
-  ['ALUGUEL_IMOVEL_COMERCIAL','Aluguel de imóvel comercial',.70,'200027','200','Aplicável à locação, cessão onerosa e arrendamento de imóvel tributados',3,'lucro_presumido'],
-  ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',4,'simples_nacional'],
+  ['LICENCA_USO_SISTEMAS_SOFTWARE','Licença de uso de sistemas/software',0,'000001','000','Salvo tratamento específico da operação',1,'lucro_presumido',[]],
+  ['MATERIAL_ESCRITORIO','Material de escritório',0,'000001','000','Validar produto/NCM se houver tratamento específico',2,'simples_nacional',[]],
+  ['ALUGUEL_IMOVEL_COMERCIAL','Aluguel de imóvel comercial',.70,'200027','200','Aplicável somente à locação, cessão onerosa e arrendamento de imóvel tributados',3,'lucro_presumido',[]],
+  ['LOCACAO_VEICULOS','Locação de veículos',0,'000001','000','Locação de veículo é bem móvel e não recebe o benefício imobiliário',4,'simples_nacional',['3.7.03.013.005']],
+  ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',5,'simples_nacional',[]],
 ];
-db.transaction(() => ITENS_ENTRADA_MANUAL_PADRAO.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime]) => db.prepare(`INSERT OR IGNORE INTO param_regras
+db.transaction(() => ITENS_ENTRADA_MANUAL_PADRAO.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor]) => db.prepare(`INSERT OR IGNORE INTO param_regras
   (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)`)
   .run(chave,nome,observacao,ordem) && db.prepare(`UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=? AND valor='{}'`)
-  .run(JSON.stringify({ nome,beneficio,cclasstrib,cst,observacao,fornecedor_padrao_regime }),chave)))();
+  .run(JSON.stringify({ nome,beneficio,cclasstrib,cst,observacao,fornecedor_padrao_regime,contas_questor }),chave)))();
 
 // Catálogo técnico de receitas complementares. O lançamento só escolhe um
 // item daqui; a tributação é resolvida pelo regime da própria empresa.

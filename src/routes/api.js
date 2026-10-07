@@ -5828,6 +5828,28 @@ function fornecedorPadraoDaNaturezaEntrada(empresaId, itemCadastrado) {
   let regra={}; try { regra=JSON.parse(cadastro?.valor || '{}'); } catch (_) { /* padrão do Simples preserva a compatibilidade */ }
   return obterFornecedorGenericoPorRegime(empresaId,regra.fornecedor_padrao_regime);
 }
+function sugerirItemEntradaPeloRazao(itens, linha = {}) {
+  const normalizarConta=(valor)=>String(valor || '').replace(/\D/g,'');
+  const conta=normalizarConta(linha.conta_codigo || linha.conta);
+  const porConta=(itens || []).find((item)=>(item.contas_questor || []).map(normalizarConta).includes(conta));
+  if (porConta) return porConta;
+  const texto=normalizarTextoRazao([linha.conta,linha.historico,linha.descricao,linha.participante].filter(Boolean).join(' '));
+  const chave=/LOCACAO\s+DE\s+VEICUL|ALUGUEL\s+DE\s+VEICUL|RENT\s+A\s+CAR|LOCALIZA/.test(texto) ? 'LOCACAO_VEICULOS'
+    :/SOFTWARE|PROCESSAMENTO DE DADOS/.test(texto) ? 'LICENCA_USO_SISTEMAS_SOFTWARE'
+    :/ESCRITORIO/.test(texto) ? 'MATERIAL_ESCRITORIO'
+    :/LIMPEZA|CONSERVACAO/.test(texto) ? 'MATERIAL_LIMPEZA'
+    // Não classificar “locação” isolada como imóvel: a natureza imobiliária
+    // exige evidência explícita no Razão.
+    :/IMOVEL|PREDIAL|SALA COMERCIAL|ARRENDAMENTO IMOBILIARIO/.test(texto) ? 'ALUGUEL_IMOVEL_COMERCIAL' : '';
+  return chave ? (itens || []).find((item)=>item.chave===chave) || null : null;
+}
+function itensEntradaManualConfigurados() {
+  return db.prepare("SELECT chave,label,valor FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((registro)=>{
+    let regra={}; try { regra=JSON.parse(registro.valor || '{}'); } catch (_) { /* registro inválido não decide natureza */ }
+    return { chave:registro.chave, nome:regra.nome || registro.label || registro.chave, beneficio:Number(regra.beneficio || 0), cst:regra.cst || '', cclasstrib:regra.cclasstrib || '', gera_credito:regra.gera_credito !== false,
+      contas_questor:Array.isArray(regra.contas_questor) ? regra.contas_questor : [] };
+  });
+}
 function fornecedorPeloDocumentoRazao(fornecedores, documentos, documento) {
   const numero=String(documento || '').split('/').at(-1).replace(/\D/g,'');
   if (!numero) return null;
@@ -6014,15 +6036,8 @@ router.post('/empresas/:id/questor/razao/testar', upload.single('arquivo'), asyn
     });
     const fornecedoresRazao=db.prepare("SELECT id,cnpj,descricao,regime FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' ORDER BY descricao").all(empresaId);
     const sugerirItem=(conta,historico,descricao)=>{
-      const texto=normalizar(`${conta} ${historico} ${descricao}`);
       const codigo=codigoConta(conta);
-      const porConta=itensCadastro.find((item)=>item.contas_questor.includes(codigo));
-      if (porConta) return porConta;
-      const termos=/software|processamento de dados/.test(texto)?['licenca','software']
-        :/escritorio/.test(texto)?['escritorio']
-        :/limpeza|conservacao/.test(texto)?['limpeza']
-        :/locacao|aluguel/.test(texto)?['aluguel','imovel'] : [];
-      return itensCadastro.find((item)=>termos.some((termo)=>normalizar(item.nome).includes(termo))) || null;
+      return sugerirItemEntradaPeloRazao(itensCadastro,{ conta, conta_codigo:codigo, historico, descricao });
     };
     // A prévia precisa conciliar contra a mesma fonte canônica usada em
     // Documentos fiscais. O cache SQLite pode estar atrasado e fazia uma NFe
@@ -6357,6 +6372,56 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
       processamento_motor=await motorExecucaoFila.solicitar(empresaId,{});
     }
     auditar(req,{ empresaId,acao:'RELEITURA_FORNECEDORES_RAZAO',entidade:'movimentos',entidadeId:resultado.movimento_ids.join(','),depois:{...resultado, movimento_ids:undefined} });
+    ok(res,{ ...resultado, publicacao, processamento_motor });
+  } catch(e) { erro(res,e); }
+});
+
+// Corrige a natureza técnica de fatos já incluídos pelo Razão. É uma releitura
+// da conta/histórico, não uma alteração de XML nem a criação de uma nova nota.
+// Serve especialmente para eliminar a antiga regra que confundia locação de
+// veículos com aluguel de imóvel.
+router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,res)=>{
+  try {
+    const empresaId=Number(req.params.id);
+    await garantirEmpresaPermitida(req, empresaId);
+    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_regras']);
+    const configuracaoAlterada=assegurarItensEntradaManualPadrao();
+    if (configuracaoAlterada) await confirmarParametrosCompartilhados();
+    const itens=itensEntradaManualConfigurados();
+    const movimentos=db.prepare("SELECT id,nome,inscr_federal,regime,descricao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' ORDER BY id").all(empresaId);
+    const atualizar=db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,descricao=?,cst=?,cclasstrib=?,cst_declarado=?,cclasstrib_declarado=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?');
+    const resultado={ lidos:movimentos.length, reclassificados:0, veiculos:0, imoveis:0, fornecedor_padrao_ajustado:0, movimento_ids:[] };
+    db.transaction(()=>{
+      for (const movimento of movimentos) {
+        let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { /* fato legado sem evidência completa */ }
+        const item=sugerirItemEntradaPeloRazao(itens,{ conta:evidencia.conta, conta_codigo:evidencia.conta_codigo, historico:evidencia.historico, descricao:movimento.descricao, participante:evidencia.participante });
+        if (!item) continue;
+        const anterior=String(evidencia.item_cadastrado?.chave || evidencia.item_cadastrado || '');
+        if (anterior===item.chave) continue;
+        let nome=movimento.nome, cnpj=movimento.inscr_federal, regime=movimento.regime;
+        const fornecedorAtual=evidencia.fornecedor_vinculado || {};
+        if (!cnpj && /^Fornecedor genérico\s+—/i.test(String(nome || fornecedorAtual.descricao || ''))) {
+          const padrao=fornecedorPadraoDaNaturezaEntrada(empresaId,item.chave);
+          nome=padrao.descricao; cnpj=padrao.cnpj || null; regime=padrao.regime;
+          evidencia.fornecedor_vinculado={ parceiro_id:padrao.id, cnpj:padrao.cnpj || null, descricao:padrao.descricao, regime:padrao.regime, origem:'FORNECEDOR_PADRAO_NATUREZA_REAPLICADO' };
+          resultado.fornecedor_padrao_ajustado++;
+        }
+        evidencia.item_cadastrado={ chave:item.chave, nome:item.nome };
+        evidencia.beneficio_percentual=item.beneficio;
+        evidencia.gera_credito=item.gera_credito;
+        evidencia.natureza_reaplicada_em=new Date().toISOString();
+        evidencia.natureza_reaplicada_de=anterior || null;
+        evidencia.natureza_reaplicada_motivo='CONTA_E_HISTORICO_RAZAO';
+        atualizar.run(nome,cnpj,regime,item.nome,item.cst || null,item.cclasstrib || null,item.cst || null,item.cclasstrib || null,JSON.stringify(evidencia),movimento.id,empresaId);
+        resultado.reclassificados++; resultado.movimento_ids.push(movimento.id);
+        if (item.chave==='LOCACAO_VEICULOS') resultado.veiculos++;
+        if (item.chave==='ALUGUEL_IMOVEL_COMERCIAL') resultado.imoveis++;
+      }
+    })();
+    const publicacao=resultado.movimento_ids.length ? await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,resultado.movimento_ids) : null;
+    const processamento_motor=resultado.movimento_ids.length ? await motorExecucaoFila.solicitar(empresaId,{}) : null;
+    if (resultado.movimento_ids.length) estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Naturezas das entradas do Razão reaplicadas');
+    auditar(req,{ empresaId,acao:'RECLASSIFICAR_NATUREZAS_RAZAO',entidade:'movimentos',entidadeId:resultado.movimento_ids.join(','),depois:{ ...resultado, movimento_ids:undefined } });
     ok(res,{ ...resultado, publicacao, processamento_motor });
   } catch(e) { erro(res,e); }
 });
@@ -7330,20 +7395,22 @@ function regimesPadraoEntrada() {
 function assegurarItensEntradaManualPadrao() {
   let alterou=false;
   const itens=[
-    ['LICENCA_USO_SISTEMAS_SOFTWARE','Licença de uso de sistemas/software',0,'000001','000','Salvo tratamento específico da operação',1,'lucro_presumido'],
-    ['MATERIAL_ESCRITORIO','Material de escritório',0,'000001','000','Validar produto/NCM se houver tratamento específico',2,'simples_nacional'],
-    ['ALUGUEL_IMOVEL_COMERCIAL','Aluguel de imóvel comercial',.70,'200027','200','Aplicável à locação, cessão onerosa e arrendamento de imóvel tributados',3,'lucro_presumido'],
-    ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',4,'simples_nacional'],
+    ['LICENCA_USO_SISTEMAS_SOFTWARE','Licença de uso de sistemas/software',0,'000001','000','Salvo tratamento específico da operação',1,'lucro_presumido',[]],
+    ['MATERIAL_ESCRITORIO','Material de escritório',0,'000001','000','Validar produto/NCM se houver tratamento específico',2,'simples_nacional',[]],
+    ['ALUGUEL_IMOVEL_COMERCIAL','Aluguel de imóvel comercial',.70,'200027','200','Aplicável somente à locação, cessão onerosa e arrendamento de imóvel tributados',3,'lucro_presumido',[]],
+    ['LOCACAO_VEICULOS','Locação de veículos',0,'000001','000','Locação de veículo é bem móvel e não recebe o benefício imobiliário',4,'simples_nacional',['3.7.03.013.005']],
+    ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',5,'simples_nacional',[]],
   ];
   const inserir=db.prepare("INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)");
   const existente=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?");
   const atualizar=db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?");
-  db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime]) => {
+  db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor]) => {
     inserir.run(chave,nome,observacao,ordem);
     let anterior={}; try { anterior=JSON.parse(existente.get(chave)?.valor || '{}'); } catch (_) { /* será reparado sem apagar campos conhecidos */ }
     const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior,
+      contas_questor:Array.isArray(anterior.contas_questor) ? anterior.contas_questor : contas_questor,
       regimes:anterior.regimes || regimesPadraoEntrada(), fornecedor_padrao_regime:anterior.fornecedor_padrao_regime || fornecedor_padrao_regime };
-    if (!Object.keys(anterior).length || !anterior.regimes || !anterior.fornecedor_padrao_regime) { atualizar.run(JSON.stringify(proxima),chave); alterou=true; }
+    if (!Object.keys(anterior).length || !anterior.regimes || !anterior.fornecedor_padrao_regime || !Array.isArray(anterior.contas_questor)) { atualizar.run(JSON.stringify(proxima),chave); alterou=true; }
   }))();
   return alterou;
 }

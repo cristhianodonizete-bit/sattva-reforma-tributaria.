@@ -11,7 +11,7 @@ const classificador=fs.readFileSync(path.join(raiz,'src/engine/classificador.js'
 const persistencia=fs.readFileSync(path.join(raiz,'src/services/questorPersistencia.js'),'utf8');
 const migration=fs.readFileSync(path.join(raiz,'supabase/migrations/20261014_questor_razao_previas_duraveis.sql'),'utf8');
 
-for (const chave of ['LICENCA_USO_SISTEMAS_SOFTWARE','MATERIAL_ESCRITORIO','ALUGUEL_IMOVEL_COMERCIAL','MATERIAL_LIMPEZA']) assert.match(db,new RegExp(chave));
+for (const chave of ['LICENCA_USO_SISTEMAS_SOFTWARE','MATERIAL_ESCRITORIO','ALUGUEL_IMOVEL_COMERCIAL','LOCACAO_VEICULOS','MATERIAL_LIMPEZA']) assert.match(db,new RegExp(chave));
 assert.match(api,/router\.post\('\/empresas\/:id\/entradas-manuais'/);
 assert.match(api,/router\.get\('\/empresas\/:id\/entradas-manuais'/);
 assert.match(api,/fornecedores\/consultar-cnpj/,'entradas manuais precisam permitir prévia de fornecedor por CNPJ');
@@ -57,6 +57,9 @@ assert.match(api,/materializarFornecedorDaContrapartida/,'pessoa identificada no
 assert.match(api,/pessoasQuestorPelosHistoricos/,'quando a contrapartida não resolver, o histórico deve ser confrontado com nomepessoa');
 assert.match(api,/HISTORICO_NOME_QUESTOR/,'o vínculo pelo nome do histórico deve preservar origem e evidência própria');
 assert.match(api,/identificados_por_historico/,'a releitura deve informar quantos fornecedores foram identificados pelo histórico');
+assert.match(api,/reclassificar-naturezas/,'lançamentos já incluídos pelo Razão precisam poder reaplicar sua natureza');
+assert.match(api,/LOCACAO_VEICULOS/,'locação de veículos deve ser separada de aluguel de imóvel');
+assert.match(api,/Não classificar.*isolada.*imóvel/i,'a regra não pode tratar qualquer locação como imóvel');
 assert.match(api,/db\.transaction\(\(\)=>\{ for\(const linha of selecionados\)/,'a inclusão é executada dentro de transação');
 assert.match(api,/\}\}\)\(\);/,'a função transacional é invocada e não apenas criada');
 assert.match(api,/listarEntradasQuestor/,'entradas manuais também devem ler inclusões Questor já publicadas na fonte compartilhada');
@@ -66,6 +69,7 @@ assert.match(api,/typeof x\.normalizacao_evidencia === 'object'/,'a evidência e
 assert.match(tela,/referenciaPisCofinsEntradaManual/);
 assert.match(tela,/Entradas manuais/);
 assert.match(tela,/identificados_por_historico/,'a tela deve informar a identificação feita pelo histórico do Razão');
+assert.match(tela,/Reaplicar natureza das entradas do Razão/,'a tela deve permitir corrigir as classificações já materializadas');
 assert.match(tela,/Lançamentos manuais de entrada/);
 assert.match(tela,/Questor · conciliada/,'a tela identifica a origem da conciliação direta do Questor');
 const telasQuestor=fs.readFileSync(path.join(raiz,'public/js/telas2.js'),'utf8');
