@@ -945,6 +945,30 @@ function gravarLinhasComColunas(tabela, linhas, dentroDaTransacao = false) {
   if (dentroDaTransacao) gravar(); else db.transaction(gravar)();
   return linhas.length;
 }
+
+// A fotografia compartilhada carrega dois identificadores: o id físico da
+// linha no Supabase (único globalmente) e o id que existia no SQLite do
+// worker que calculou o resultado. Este último reinicia em 1 a cada worker e
+// nunca pode ser usado como chave no cache de outra instância. Conservamos os
+// dados de cálculo do payload, mas usamos as chaves canônicas da operação
+// compartilhada ao restaurar o espelho local.
+function execucaoCompartilhadaLocal(linha, empresaId = null) {
+  return {
+    ...(linha?.dados || linha || {}),
+    id: Number(linha?.id),
+    ...(empresaId == null ? {} : { empresa_id:Number(empresaId) }),
+  };
+}
+
+function resultadoCompartilhadoLocal(linha, empresaId = null) {
+  return {
+    ...(linha?.dados || linha || {}),
+    id: Number(linha?.id),
+    movimento_id:Number(linha?.movimento_id),
+    execucao_id:Number(linha?.execucao_id),
+    ...(empresaId == null ? {} : { empresa_id:Number(empresaId) }),
+  };
+}
 async function baixarResultadosMotor(remotoInformado = null) {
   const remoto = remotoInformado || supabase.admin();
   // O histórico permanece no Supabase, mas o SQLite que atende as telas deve
@@ -972,8 +996,8 @@ async function baixarResultadosMotor(remotoInformado = null) {
   const locais = new Set(db.prepare('SELECT id FROM movimentos').all().map((x) => Number(x.id)));
   const ausentes = resultados.map((x) => Number(x.movimento_id)).filter((id) => !locais.has(id));
   if (ausentes.length) throw new Error(`Fotografia compartilhada referencia ${ausentes.length} movimento(s) ausente(s) no cache local: ${ausentes.slice(0, 20).join(', ')}. Sincronize a operação antes de substituir a fotografia.`);
-  const gravarExecucoes = (execs) => gravarLinhasComColunas('motor_execucoes', execs.map((x) => x.dados || x), true);
-  const gravarResultados = (itens) => gravarLinhasComColunas('motor_resultados', itens.map((x) => x.dados || x), true);
+  const gravarExecucoes = (execs) => gravarLinhasComColunas('motor_execucoes', execs.map((x) => execucaoCompartilhadaLocal(x)), true);
+  const gravarResultados = (itens) => gravarLinhasComColunas('motor_resultados', itens.map((x) => resultadoCompartilhadoLocal(x)), true);
   let quantidadeExecucoes = 0, quantidadeResultados = 0;
   db.transaction(() => {
     db.prepare('DELETE FROM motor_resultados').run(); db.prepare('DELETE FROM motor_execucoes').run();
@@ -1023,8 +1047,8 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   db.transaction(()=>{
     db.prepare('DELETE FROM motor_resultados WHERE empresa_id=?').run(id);
     db.prepare('DELETE FROM motor_execucoes WHERE empresa_id=?').run(id);
-    gravarLinhasComColunas('motor_execucoes',execucoes.map((x)=>x.dados || x),true);
-    gravarLinhasComColunas('motor_resultados',resultados.map((x)=>x.dados || x),true);
+    gravarLinhasComColunas('motor_execucoes',execucoes.map((x)=>execucaoCompartilhadaLocal(x,id)),true);
+    gravarLinhasComColunas('motor_resultados',resultados.map((x)=>resultadoCompartilhadoLocal(x,id)),true);
   })();
   return { ativo:true, resultados:resultados.length, execucoes:execucoes.length, empresa_remota_id:Number(remota.id) };
 }
