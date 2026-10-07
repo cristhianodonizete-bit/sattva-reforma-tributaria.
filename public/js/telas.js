@@ -1844,14 +1844,19 @@ async function telaCadeia(el, tipo) {
   // mantém a auditoria detalhada no próprio item, sem ocultar informação.
   const rastreabilidadeCompacta=(analise.detalhes || []).length ? `<div class="rastreabilidade-lista">${(analise.detalhes || []).map((d)=>{
     const produto=d.tipoFiscal==='PRODUTO', servico=d.tipoFiscal==='SERVICO';
-    const referencia=produto ? `NCM ${d.ncm || 'não identificado'}` : servico ? `NBS ${d.nbs || 'não identificado'}${d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : 'Referência fiscal pendente';
+    // Entradas do Razão e lançamentos manuais são classificadas pelo catálogo
+    // técnico cadastrado. NBS/LC 116 é informação complementar quando existe;
+    // sua ausência não transforma uma regra CBS/PIS-Cofins já aplicada em
+    // pendência nem induz o usuário a classificar cada lançamento novamente.
+    const cadastroManual=String(d.classificacaoOrigem || '').toLowerCase()==='lançamento manual de entrada';
+    const referencia=cadastroManual ? `Cadastro de entrada manual${d.nbs ? ` · NBS ${d.nbs}` : d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : produto ? `NCM ${d.ncm || 'não identificado'}` : servico ? `NBS ${d.nbs || 'não identificado'}${d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : 'Referência fiscal pendente';
     const memoria=['pis','cofins','iss','icms'].map((k)=>{ const m=d.memoriaTributos?.[k]; return m ? `<div><b>${k.toUpperCase()}</b><span>${A.esc(m.origem || 'INDETERMINADO')} · ${A.esc(m.regra || m.status || '')}</span></div>` : ''; }).filter(Boolean).join('');
     return `<article class="rastreabilidade-item">
       <div class="rastreabilidade-item-topo">
         <div><span class="olho">DOCUMENTO</span><b class="mono">${A.esc(d.documento || 'sem número')}</b><small>${A.esc(d.competencia || '—')}</small></div>
         <div><span class="olho">${eForn ? 'FORNECEDOR' : 'CLIENTE'}</span><b>${A.esc(d.parceiro || 'Não identificado')}</b><small class="mono">${A.cnpjFmt(d.cnpj || '')}</small></div>
         ${eForn ? `<div><span class="olho">REGIME | CATÁLOGO PIS/COFINS</span><span class="tag ${String(d.regimeEmitente || '').toLowerCase()==='indeterminado' ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(d.regimeEmitente))}</span>${rotuloCatalogoPisCofins(d.origemPisCofins) ? `<small>${A.esc(rotuloCatalogoPisCofins(d.origemPisCofins))}</small>` : ''}</div>` : ''}
-        <div class="rastreabilidade-item-produto"><span class="olho">ITEM / REFERÊNCIA</span><b>${A.esc(d.produto || 'Sem descrição')}</b><small><span class="tag ${produto ? 'c' : servico ? 'a' : 'n'}">${produto ? 'Produto' : servico ? 'Serviço' : 'A classificar'}</span> <span class="mono">${A.esc(referencia)}</span></small></div>
+        <div class="rastreabilidade-item-produto"><span class="olho">ITEM / REFERÊNCIA</span><b>${A.esc(d.produto || 'Sem descrição')}</b><small><span class="tag ${produto ? 'c' : servico ? 'a' : cadastroManual ? 'c' : 'n'}">${produto ? 'Produto' : servico ? 'Serviço' : cadastroManual ? 'Cadastro manual' : 'A classificar'}</span> <span class="mono">${A.esc(referencia)}</span></small></div>
       </div>
       <div class="rastreabilidade-valores">
         <div><span>${eForn ? 'Compra atual' : 'Venda atual'}</span><b>${A.moeda(d.valor)}</b></div>

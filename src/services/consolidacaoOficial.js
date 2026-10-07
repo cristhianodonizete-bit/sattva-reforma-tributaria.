@@ -522,7 +522,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     // A origem do fato é distinta da origem da base econômica: identifica a
     // entrada que nasceu de uma inclusão confirmada na conciliação Questor.
     origemMovimento: x.origem_movimento || x.origem || null,
-    statusClassificacao: x.status_classificacao || x.detalhe?.classificacao?.status || 'INDETERMINADO', cclasstrib: x.cclasstrib || x.detalhe?.classificacao?.cclasstrib || '', cst: x.cst || x.detalhe?.classificacao?.cst || '',
+    statusClassificacao: x.status_classificacao || x.detalhe?.classificacao?.status || 'INDETERMINADO', classificacaoOrigem:x.detalhe?.classificacao?.origemRegra || '', cclasstrib: x.cclasstrib || x.detalhe?.classificacao?.cclasstrib || '', cst: x.cst || x.detalhe?.classificacao?.cst || '',
     valor: r2(x.preco_atual), valorSemImposto: r2(x.base_economica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.detalhe?.cbsDentroDoDas), origemCbsDentroDoDas: x.detalhe?.origemCbsDentroDoDas || 'NAO_APLICAVEL', ibsDentroDoDas: r2(x.detalhe?.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.detalhe?.tributosSubstituidosDoDas), precoFinal: r2(x.preco_projetado),
     creditoCbs: r2(x.credito_cbs), creditoIbs: r2(x.credito_ibs), creditoPotencial: r2(n(x.credito_cbs) + n(x.credito_ibs)),
     pisCofinsAtual: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor ?? null,
