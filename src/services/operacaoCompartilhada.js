@@ -1346,8 +1346,23 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
       WHERE empresa_id=? AND tipo='fornecedor' AND cnpj IN (${marcasCnpj})`).all(Number(empresaId),...cnpjs);
     const publicaveis=parceiros.map(({ id, empresa_id, ...parceiro })=>({ ...parceiro, empresa_id:Number(empresas[0].id) }));
     if (publicaveis.length) {
-      const { error }=await remoto.from('parceiros').upsert(publicaveis,{onConflict:'empresa_id,tipo,cnpj'});
-      if (error) throw new Error(`Fornecedores das entradas conciliadas: ${error.message}`);
+      // A tabela remota legada não possui uma constraint única para
+      // (empresa_id,tipo,cnpj); por isso `upsert(... onConflict)` falha.
+      // Fazemos o mesmo merge de maneira explícita e compatível com todas as
+      // versões do schema: localiza pelo CNPJ e atualiza, ou insere se ainda
+      // não houver o fornecedor.
+      const { data:remotos, error:erroBusca }=await remoto.from('parceiros').select('id,cnpj')
+        .eq('empresa_id',Number(empresas[0].id)).eq('tipo','fornecedor').in('cnpj',cnpjs);
+      if (erroBusca) throw new Error(`Fornecedores das entradas conciliadas: ${erroBusca.message}`);
+      const porCnpj=new Map((remotos || []).map((x)=>[String(x.cnpj || '').replace(/\D/g,''),x]));
+      for (const parceiro of publicaveis) {
+        const existente=porCnpj.get(String(parceiro.cnpj || '').replace(/\D/g,''));
+        const operacao=existente
+          ? remoto.from('parceiros').update(parceiro).eq('id',existente.id)
+          : remoto.from('parceiros').insert(parceiro);
+        const { error }=await operacao;
+        if (error) throw new Error(`Fornecedores das entradas conciliadas: ${error.message}`);
+      }
     }
   }
   const { data:existentes, error:erroExistentes }=await remoto.from('movimentos').select('chave').eq('empresa_id',Number(empresas[0].id)).in('chave',chaves);
