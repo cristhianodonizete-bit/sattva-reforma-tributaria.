@@ -23,6 +23,23 @@ const motorCondicionalPisCofins = require('./motorCondicionalPisCofins');
 const receitaOperacional = require('./receitaOperacional');
 const motorReceitasSemDfe = require('./motorReceitasSemDfe');
 const telemetriaReusoClassificacao = require('./telemetriaReusoClassificacao');
+// Exceções conhecidas à premissa operacional de participação brasileira.
+// A lista é deliberadamente conservadora: uma correspondência não afirma a
+// composição societária, apenas preserva a validação antes de aplicar 200044.
+const MULTINACIONAIS_CONHECIDAS = [
+  /\bAMAZON\b/i, /\bGOOGLE\b/i, /\bAWS\b/i, /AMAZON WEB SERVICES/i,
+  /\bMICROSOFT\b/i, /\bAPPLE\b/i, /\bMETA\b/i, /\bFACEBOOK\b/i,
+  /\bORACLE\b/i, /\bIBM\b/i, /\bSAP\b/i, /\bADOBE\b/i,
+  /\bSALESFORCE\b/i, /\bCISCO\b/i, /\bDELL\b/i, /\bHP\b/i,
+  /\bLENOVO\b/i, /\bSAMSUNG\b/i, /\bSONY\b/i, /\bSIEMENS\b/i,
+  /\bSCHNEIDER ELECTRIC\b/i, /\bHUAWEI\b/i, /\bINTEL\b/i,
+  /\bNVIDIA\b/i, /\bUBER\b/i, /\bNETFLIX\b/i, /\bSPOTIFY\b/i,
+];
+const fornecedorMultinacionalConhecido = (movimento = {}) => {
+  if (Number(movimento.multinacional_cadastro ?? movimento.multinacional) === 1) return true;
+  const nome = String(movimento.nome_cadastro || movimento.nome || movimento.descricao || '');
+  return MULTINACIONAIS_CONHECIDAS.some((padrao) => padrao.test(nome));
+};
 const registrarErroSombra = (m, oficial, erro) => {
   try { db.prepare(`INSERT INTO motor_condicional_sombra (movimento_id,empresa_id,produto_empresa_id,ncm,status_avaliacao,resultado_oficial,resultado_sombra,motivo) VALUES (?,?,?,?,?,?,?,?)`)
     .run(m.id || null,m.empresa_id,m.produto_empresa_id || null,m.ncm || null,'ERRO',JSON.stringify(oficial),null,`SOMBRA:${String(erro?.message || 'erro').slice(0,300)}`); } catch (_) { /* auditoria não interrompe o oficial */ }
@@ -34,7 +51,7 @@ const crypto = require('crypto');
 // A classificação passa a preservar a evidência complementar do NBS quando
 // não houver chave LC116+NBS exata. A versão invalida resultados anteriores,
 // que poderiam ter descartado indevidamente a exceção 200044 antes do QSA.
-const MOTOR_VERSION = 'motor-cbs-2026-09-21-receita-efd-c175';
+const MOTOR_VERSION = 'motor-cbs-2026-10-06-qsa-fornecedor-c176';
 const hash = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 24);
 const versoesAtuais = () => {
   const params = regras.tudo();
@@ -81,6 +98,7 @@ const hashParceiro = (p) => hash({
   descricao: p?.nome_cadastro ?? p?.descricao ?? null,
   cnpj: p?.cnpj_cadastro ?? p?.cnpj ?? null,
   uf: p?.uf_parceiro ?? p?.uf ?? null,
+  multinacional: Number(p?.multinacional_cadastro ?? p?.multinacional) === 1,
 });
 
 // Assinatura das dependências realmente usadas por uma operação. A versão
@@ -115,7 +133,11 @@ function versoesDaOperacao(movimento, parceiro) {
   // permaneça fora do reprocessamento incremental.
   const qsa = movimento.tipo === 'cliente'
     ? elegibilidadeAnexoXi.qsaEmpresa(movimento.empresa_id)
-    : null;
+    : movimento.tipo === 'fornecedor'
+      ? { status: fornecedorMultinacionalConhecido({ ...movimento, ...parceiro }) ? 'PENDENTE' : 'SIM',
+        premissa_operacional: true,
+        multinacional: fornecedorMultinacionalConhecido({ ...movimento, ...parceiro }) }
+      : null;
   const qsaVersion = qsa ? {
     status: qsa.status,
     socios: (qsa.socios || []).map((s) => ({ id: s.id, brasileiro: s.brasileiro, participacao: s.percentual_participacao, atualizado_em: s.atualizado_em })),
@@ -154,7 +176,7 @@ const requerReferenciaFiscalServico = (m) => ehServicoDeVenda(m) && (Number(m.pi
 function carregar(empresaId, sentido, movimentoIds = null) {
   const tipo = sentido === 'saida' ? 'cliente' : 'fornecedor';
   let sql = `SELECT m.*, p.regime AS regime_cadastro, p.perfil_economico AS perfil_cadastro, p.descricao AS nome_cadastro,
-      p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro
+      p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro, p.multinacional AS multinacional_cadastro
       ,CASE WHEN EXISTS(SELECT 1 FROM enriquecimento_pis_cofins_evidencias e WHERE e.empresa_id=m.empresa_id AND e.movimento_id=m.id AND e.origem_evidencia='SPED_C175') THEN 'SPED_C175' ELSE '' END AS origem_evidencia_pis_cofins
     FROM movimentos m
     LEFT JOIN parceiros p ON p.empresa_id = m.empresa_id AND p.tipo = m.tipo AND p.cnpj = m.inscr_federal
@@ -198,7 +220,31 @@ function executar(empresaId, opcoes = {}) {
     .map((r) => [r.chave, r]));
   const qsaEmitente = elegibilidadeAnexoXi.qsaEmpresa(empresaId);
   const cadastroCnpj = db.prepare('SELECT * FROM cnpj_cache WHERE cnpj=?');
-  const elegibilidadeParaAdquirente = (cnpj) => elegibilidadeAnexoXi.naturezaAdquirente(cadastroCnpj.get(String(cnpj || '').replace(/\D/g, '')) || {});
+  const cnpjEmpresa = String(empresa.cnpj || '').replace(/\D/g, '');
+  const elegibilidadeParaAdquirente = (cnpj) => {
+    const documento = String(cnpj || '').replace(/\D/g, '');
+    const cadastro = cadastroCnpj.get(documento);
+    const resultado = elegibilidadeAnexoXi.naturezaAdquirente(cadastro || {});
+    // Um optante do Simples/MEI não é administração direta, autarquia ou
+    // fundação pública. Isso afasta objetivamente o 200043 mesmo que o cache
+    // cadastral compartilhado ainda não esteja disponível nesta instância.
+    if (!cadastro && documento && documento === cnpjEmpresa
+      && ['simples_nacional', 'mei'].includes(String(empresa.regime || '').toLowerCase())) {
+      return { status: 'NAO', codigo: null,
+        motivo: 'Empresa analisada optante do Simples/MEI: não se enquadra como administração pública, autarquia ou fundação pública para o cClassTrib 200043.',
+        fonte: 'cadastro_da_empresa' };
+    }
+    return resultado;
+  };
+  const qsaFornecedor = (movimento) => {
+    if (fornecedorMultinacionalConhecido(movimento)) {
+      return { status: 'PENDENTE', multinacional: true,
+        motivo: 'Fornecedor identificado como multinacional conhecida: a participação brasileira mínima de 20% exige evidência cadastral específica.' };
+    }
+    return { status: 'SIM', premissa_operacional: true,
+      socio: { nome: 'Participação brasileira presumida', brasileiro: 1, percentual_participacao: 20, origem: 'premissa_operacional' },
+      motivo: 'Premissa operacional: fornecedor não marcado como multinacional; considerada participação brasileira mínima de 20%.' };
+  };
   let movimentoIds = Array.isArray(opcoes.movimentoIds) ? opcoes.movimentoIds.map(Number).filter(Boolean) : null;
   const saidasOriginais = carregar(empresaId, 'saida', movimentoIds);
   // Saída física não é faturamento. Transferências, remessas, devoluções e
@@ -239,7 +285,7 @@ function executar(empresaId, opcoes = {}) {
     else if (condicionalPis.status === 'INDETERMINADA') item.condicao_material_pendente = true;
     let proj = projetarOficial(item, {
       empresa, sentido: 'entrada', ano, regimeContraparte: regime, simplesEmitente,
-      elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(empresa.cnpj), qsa: { status: 'PENDENTE', motivo: 'QSA do emitente fornecedor não disponível nesta versão.' } },
+      elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(empresa.cnpj), qsa: qsaFornecedor(m) },
     });
 
     if (['simples_nacional', 'mei'].includes(regime) && !simplesEmitente) {
@@ -260,7 +306,7 @@ function executar(empresaId, opcoes = {}) {
       const tradicional = proj;
       const hibrido = motor.projetarItem(item, {
         empresa, sentido: 'entrada', ano, regimeContraparte: regime, simplesEmitente, hibrido: true,
-        elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(empresa.cnpj), qsa: { status: 'PENDENTE', motivo: 'QSA do emitente fornecedor não disponível nesta versão.' } },
+        elegibilidadeAnexoXi: { adquirente: elegibilidadeParaAdquirente(empresa.cnpj), qsa: qsaFornecedor(m) },
       });
       hibrido.cenariosSimples = cenarios;
       hibrido.comparativoRegime = {

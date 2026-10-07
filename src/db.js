@@ -81,6 +81,7 @@ const COLUNAS_NOVAS = {
   param_aliquotas: { calcular_ibs: 'INTEGER DEFAULT 0' },
   parceiros: {
     faturamento_anual: 'REAL',
+    multinacional: 'INTEGER DEFAULT 0',
     regime_resolvido: "TEXT DEFAULT 'indeterminado'",
     perfil_economico: "TEXT DEFAULT 'indeterminado'",
     perfil_origem: "TEXT DEFAULT 'nao_definido'",
@@ -624,6 +625,7 @@ CREATE TABLE IF NOT EXISTS parceiros (
   descricao TEXT,
   regime TEXT NOT NULL DEFAULT 'lucro_real',
   faturamento_anual REAL,               -- RBT12, quando conhecido (faixa do Simples)
+  multinacional INTEGER DEFAULT 0,      -- exceção à premissa de participação brasileira
   uf TEXT, municipio TEXT,
   origem TEXT DEFAULT 'manual',
   criado_em TEXT DEFAULT (datetime('now','localtime')),

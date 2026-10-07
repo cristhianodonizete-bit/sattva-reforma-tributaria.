@@ -238,6 +238,15 @@ function classificar(item, ctx = {}) {
 
   // --- 5. único candidato, mas a operação pode afastá-lo
   let c = candidatos[0];
+  // O catálogo pode trazer somente a hipótese 200044 para determinado
+  // NCM/NBS. Ainda assim, ela é condicional: sem confirmação societária (ou
+  // premissa operacional expressa) não se pode aplicar a redução apenas por
+  // ter restado um único candidato após os demais filtros.
+  if (c.cclasstrib === '200044' && qsa.status !== 'SIM') {
+    return montar('REQUER_VALIDACAO', c, origem,
+      fundamentos.concat(['A redução do cClassTrib 200044 depende da participação brasileira mínima de 20%, ainda não confirmada para o fornecedor.']),
+      { natureza, sentido, candidatos, elegibilidadeAnexoXi: { codigo: '200044', status_qsa: qsa.status || 'PENDENTE', socio: qsa.socio || null, motivo: qsa.motivo || null } });
+  }
   if (sentido === 'entrada' && natureza === 'ativo_consumo') {
     return montar('REQUER_VALIDACAO', c, origem,
       fundamentos.concat(['Aquisição para uso e consumo ou ativo: confirmar se há vedação ao crédito nesta hipótese.']),
