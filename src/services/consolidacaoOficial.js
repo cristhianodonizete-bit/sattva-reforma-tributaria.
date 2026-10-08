@@ -145,6 +145,7 @@ function natureza(linha) {
 
 function leituraCreditoFornecedor(linha) {
   if (linha.status_credito_determinacao === 'INDETERMINADO' || linha.status_credito === 'DADOS_INSUFICIENTES') return 'Crédito indeterminado — requer evidência';
+  if (linha.modalidade_credito === 'CONTRIBUICAO_ASSOCIATIVA_PRESUMIDA') return 'Sem crédito — contribuição associativa presumida';
   if (linha.status_credito === 'SEM_DIREITO') return 'Sem crédito — conclusão do motor';
   if (linha.status_credito_determinacao === 'DETERMINADO_POR_PREMISSA') return 'Crédito CBS estimado — premissa cadastrada';
   if (linha.tipo_credito === 'SIMPLES') return 'Crédito limitado CBS Simples';
@@ -534,6 +535,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     // Campo separado: a projeção de plano de saúde é exibida na memória, mas
     // não compõe crédito potencial/apurável até confirmação legal e do débito.
     projecaoPlanoSaude: x.detalhe?.projecaoPlanoSaude || null,
+    projecaoContribuicaoAssociativa: x.detalhe?.projecaoContribuicaoAssociativa || null,
     pisCofinsAtual: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor ?? null,
     origemPisCofins: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_origem || 'INDETERMINADO',
     tributosRetirados: {

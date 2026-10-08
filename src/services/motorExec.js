@@ -489,7 +489,11 @@ function normalizar(m) {
     pis_cofins_referencia: m.referenciaFiscal?.pis_cofins,
     frete: m.frete, seguro: m.seguro, outras: m.outras, desconto: m.desconto,
     data_emissao: m.data_emissao, origem:m.origem,
-    entradaManual: evidencia.tipo === 'LANCAMENTO_MANUAL_ENTRADA' ? { beneficioPercentual:Number(evidencia.beneficio_percentual || 0), geraCredito:evidencia.gera_credito !== false, observacao:evidencia.observacao || '' } : null,
+    entradaManual: evidencia.tipo === 'LANCAMENTO_MANUAL_ENTRADA' ? {
+      beneficioPercentual:Number(evidencia.beneficio_percentual || 0), geraCredito:evidencia.gera_credito !== false,
+      observacao:evidencia.observacao || '',
+      itemChave:typeof evidencia.item_cadastrado === 'object' ? String(evidencia.item_cadastrado?.chave || '') : String(evidencia.item_cadastrado || ''),
+    } : null,
     // A evidência é somente leitura para o motor: a simulação de plano de
     // saúde não regrava o lançamento, não altera o valor do documento e não
     // transforma a estimativa em crédito habilitado.

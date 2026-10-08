@@ -110,6 +110,28 @@ function ehPlanoAssistenciaSaude(item = {}, cls = {}) {
     || item.planoSaude === true;
 }
 
+function ehContribuicaoAssociativaPresumida(item = {}) {
+  const chave = String(item.entradaManual?.itemChave || item.itemChave || '');
+  const semDocumentoFiscal = !String(item.documento || '').trim();
+  const semServicoIdentificado = !somenteDigitos(item.nbs) && !somenteDigitos(item.lc116);
+  return chave === '3_7_03_015_022_ENTIDADES_E_ASSOCIACOES'
+    && semDocumentoFiscal && semServicoIdentificado;
+}
+
+function memoriaContribuicaoAssociativa(item = {}) {
+  if (!ehContribuicaoAssociativaPresumida(item)) return null;
+  return {
+    status: 'Projeção concluída — contribuição associativa presumida; classificação fiscal pendente.',
+    premissa: 'Mensalidade ou contribuição associativa sem contraprestação individualizada, adotada exclusivamente para a projeção.',
+    valor_despesa: r2(num(item.valor)),
+    credito_pis_cofins: 0,
+    credito_cbs: 0,
+    impacto_diferenca_creditos: 0,
+    fundamento: 'Leis 10.637/2002 e 10.833/2003, art. 3º; LC 214/2025, arts. 4º, 47 e 49.',
+    reclassificar_quando_servico_identificado: true,
+  };
+}
+
 // Arts. 237/238 da LC 214 e art. 337 do Decreto 12.955/2026: o crédito do
 // adquirente de plano de saúde não nasce da alíquota CBS geral da fatura. Ele
 // é limitado ao débito da operadora e depende da condição trabalhista. Quando
@@ -353,10 +375,19 @@ function projetarItem(item, ctx) {
   // A execução oficial não fornece classificação prévia. O campo opcional é
   // exclusivo da comparação em sombra e permite provar que o reuso em memória
   // produz o mesmo resultado antes de qualquer otimização persistente.
-  const cls = ctx.classificacaoPrecalculada
+  let cls = ctx.classificacaoPrecalculada
     ? structuredClone(ctx.classificacaoPrecalculada)
     : classificar(item, { empresa: ctx.empresa, sentido, regimeContraparte: ctx.regimeContraparte,
       perfilDestinatario: ctx.perfilDestinatario, elegibilidadeAnexoXi: ctx.elegibilidadeAnexoXi });
+  const contribuicaoAssociativa = sentido === 'entrada' ? memoriaContribuicaoAssociativa(item) : null;
+  if (contribuicaoAssociativa) {
+    // Sem documento fiscal ou serviço individualizado, não existe base para
+    // declarar uma operação tributada. A classificação fica explicitamente
+    // pendente, sem inventar CST/cClassTrib para a contribuição associativa.
+    cls = { ...cls, cst: '', cclasstrib: '', status: 'CLASSIFICACAO_FISCAL_PENDENTE', reducao: null, reducaoIbs: 0, reducaoCbs: 0,
+      origemRegra: 'CONTRIBUICAO_ASSOCIATIVA_PRESUMIDA',
+      tratamento: contribuicaoAssociativa.status };
+  }
   const contextoClassificatorio = contextoAposEquivalencia(item, cls, ctx.decisaoClassificatoria || null);
 
   // ---------- 2. BASE ECONÔMICA ----------
@@ -427,6 +458,11 @@ function projetarItem(item, ctx) {
       aliquotaEstimada: planoAssistenciaSaude.aliquota_estimada,
       cbs: r6(cbs), origem: planoAssistenciaSaude.rotulo });
   }
+  if (contribuicaoAssociativa) {
+    ibs = 0; cbs = 0; natureza = 'SEM_OPERACAO_TRIBUTADA_IDENTIFICADA';
+    aliq.trilha.push({ etapa: 'contribuição associativa presumida', ibs: 0, cbs: 0,
+      origem: contribuicaoAssociativa.premissa });
+  }
   // Fase CBS: mesmo no Simples, a parcela de IBS não integra a simulação até
   // ser habilitada expressamente na parametrização do ano.
   if (Number(aliq.parametros.calcular_ibs) !== 1) ibs = 0;
@@ -452,6 +488,10 @@ function projetarItem(item, ctx) {
       rotulo: planoAssistenciaSaude.elegibilidade_legal,
     };
     cred.projecaoPlanoSaude = planoAssistenciaSaude;
+  }
+  if (contribuicaoAssociativa) {
+    cred = credito('PROJECAO_CONCLUIDA', 'SEM_CREDITO', 'CONTRIBUICAO_ASSOCIATIVA_PRESUMIDA', 'DETERMINADO_POR_PREMISSA', contribuicaoAssociativa.status);
+    cred.projecaoContribuicaoAssociativa = contribuicaoAssociativa;
   }
   if (!classificacaoBloqueiaCredito(cls, contextoClassificatorio.decisao)
     && contextoClassificatorio.equivalente) {
@@ -487,6 +527,13 @@ function projetarItem(item, ctx) {
       valor: 0, status: 'DETERMINADO', classificacao: 'CREDITO_HISTORICO_ZERO_PLANO_SAUDE',
       motivo: 'Plano privado de assistência à saúde: sem hipótese legal histórica específica validada, PIS/Cofins de entrada permanece R$ 0,00.',
       origem: 'REGRA_ESPECIFICA_PLANOS_SAUDE', natureza: 'CALCULADO', ausencia_regra_especifica_superior: false,
+    };
+  }
+  if (contribuicaoAssociativa) {
+    creditoPisCofinsAdquirente = {
+      valor: 0, status: 'DETERMINADO', classificacao: 'CREDITO_HISTORICO_ZERO_CONTRIBUICAO_ASSOCIATIVA',
+      motivo: 'Contribuição associativa presumida sem contraprestação individualizada: não há crédito histórico de PIS/Cofins.',
+      origem: 'CONTRIBUICAO_ASSOCIATIVA_PRESUMIDA', natureza: 'CALCULADO', ausencia_regra_especifica_superior: false,
     };
   }
   // CREDITO_PRESUMIDO fica em zero até que a hipótese seja informada como
@@ -553,6 +600,7 @@ function projetarItem(item, ctx) {
     credito: cred,
     creditoPisCofinsAdquirente,
     projecaoPlanoSaude: planoAssistenciaSaude,
+    projecaoContribuicaoAssociativa: contribuicaoAssociativa,
     regimeCbsEmitente: regimeCbs(regimeEmitenteProjetado), regimeCbsAdquirente: regimeCbs(regimeAdquirenteProjetado),
     precoProjetado: r2(precoProjetado),
     custoLiquido: r2(custoLiquido),
