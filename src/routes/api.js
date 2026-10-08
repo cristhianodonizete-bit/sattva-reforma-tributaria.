@@ -7606,20 +7606,21 @@ function assegurarItensEntradaManualPadrao() {
     ['OUTRAS_DESPESAS_SEM_BENEFICIO','Outras despesas sem benefício específico',0,'000001','000','Usado quando o Razão não comprova uma natureza especial; não atribui benefício imobiliário por presunção.',5,'simples_nacional',[]],
     ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',6,'simples_nacional',[]],
     ['HONORARIOS_ADVOCATICIOS_ART_127','Honorários advocatícios — art. 127 LC 214/2025',.30,'200052','200','Use somente para serviço efetivamente prestado por escritório de advocacia elegível ao art. 127. Não usar para custas, taxas públicas, depósitos judiciais ou reembolsos.',8,'lucro_real',[], '', '', { lucro_real:{pis:0,cofins:0,tratamento_atual:'Honorários advocatícios: não presumir crédito histórico de PIS/Cofins sem hipótese legal específica validada.'}, lucro_presumido:{pis:0,cofins:0,tratamento_atual:'Honorários advocatícios: não presumir crédito histórico de PIS/Cofins sem hipótese legal específica validada.'}, simples_nacional:{pis:0,cofins:0,pis_cofins:0,tratamento_atual:'Honorários advocatícios: crédito histórico não presumido.'} }],
+    ['CUSTAS_TAXAS_DEPOSITOS_JUDICIAIS','Custas, taxas e depósitos judiciais',0,'','','Use para custas judiciais, taxas públicas, depósitos judiciais e reembolsos sem serviço individualizado. Não gera CBS nem crédito presumido.',9,'simples_nacional',[], '', '', { lucro_real:{pis:0,cofins:0,tratamento_atual:'Taxa, custa ou depósito judicial: sem crédito histórico presumido.'}, lucro_presumido:{pis:0,cofins:0,tratamento_atual:'Taxa, custa ou depósito judicial: sem crédito histórico presumido.'}, simples_nacional:{pis:0,cofins:0,pis_cofins:0,tratamento_atual:'Taxa, custa ou depósito judicial: sem crédito histórico presumido.'} }, false],
   ];
   const inserir=db.prepare("INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)");
   const existente=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?");
   const atualizar=db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?");
-  db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor,nbs='',lc116='',regimesPadrao=null]) => {
+  db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor,nbs='',lc116='',regimesPadrao=null,geraCreditoPadrao=true]) => {
     inserir.run(chave,nome,observacao,ordem);
     let anterior={}; try { anterior=JSON.parse(existente.get(chave)?.valor || '{}'); } catch (_) { /* será reparado sem apagar campos conhecidos */ }
     const contasConfiguradas=Array.isArray(anterior.contas_questor) ? anterior.contas_questor : [];
     const contasMescladas=[...new Set([...contas_questor,...contasConfiguradas])];
     const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior,
       nbs:anterior.nbs || nbs, lc116:anterior.lc116 || lc116,
-      contas_questor:contasMescladas,
+      contas_questor:contasMescladas, gera_credito:anterior.gera_credito === undefined ? geraCreditoPadrao : anterior.gera_credito,
       regimes:anterior.regimes || regimesPadrao || regimesPadraoEntrada(), fornecedor_padrao_regime:anterior.fornecedor_padrao_regime || fornecedor_padrao_regime };
-    if (!Object.keys(anterior).length || !anterior.regimes || !anterior.fornecedor_padrao_regime || !Array.isArray(anterior.contas_questor) || contasMescladas.length!==contasConfiguradas.length || (nbs && !anterior.nbs) || (lc116 && !anterior.lc116)) { atualizar.run(JSON.stringify(proxima),chave); alterou=true; }
+    if (!Object.keys(anterior).length || anterior.gera_credito === undefined || !anterior.regimes || !anterior.fornecedor_padrao_regime || !Array.isArray(anterior.contas_questor) || contasMescladas.length!==contasConfiguradas.length || (nbs && !anterior.nbs) || (lc116 && !anterior.lc116)) { atualizar.run(JSON.stringify(proxima),chave); alterou=true; }
   }))();
   return alterou;
 }

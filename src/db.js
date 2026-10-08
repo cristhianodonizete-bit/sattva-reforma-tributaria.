@@ -2866,11 +2866,12 @@ const ITENS_ENTRADA_MANUAL_PADRAO = [
   ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',6,'simples_nacional',[]],
   ['PLANOS_ASSISTENCIA_SAUDE','Plano privado de assistência à saúde',0,'011002','011','Regime específico de planos de saúde. Projeção com participação integral da empresa; crédito somente estimado até confirmação da elegibilidade legal e do débito da operadora.',7,'lucro_real',[],'109101000','0422'],
   ['HONORARIOS_ADVOCATICIOS_ART_127','Honorários advocatícios — art. 127 LC 214/2025',.30,'200052','200','Use somente para serviço efetivamente prestado por escritório de advocacia elegível ao art. 127. Não usar para custas, taxas públicas, depósitos judiciais ou reembolsos.',8,'lucro_real',[]],
+  ['CUSTAS_TAXAS_DEPOSITOS_JUDICIAIS','Custas, taxas e depósitos judiciais',0,'','','Use para custas judiciais, taxas públicas, depósitos judiciais e reembolsos sem serviço individualizado. Não gera CBS nem crédito presumido.',9,'simples_nacional',[], '', '', false],
 ];
-db.transaction(() => ITENS_ENTRADA_MANUAL_PADRAO.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor,nbs='',lc116='']) => db.prepare(`INSERT OR IGNORE INTO param_regras
+db.transaction(() => ITENS_ENTRADA_MANUAL_PADRAO.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor,nbs='',lc116='',gera_credito=true]) => db.prepare(`INSERT OR IGNORE INTO param_regras
   (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)`)
   .run(chave,nome,observacao,ordem) && db.prepare(`UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=? AND valor='{}'`)
-  .run(JSON.stringify({ nome,beneficio,cclasstrib,cst,nbs,lc116,observacao,fornecedor_padrao_regime,contas_questor }),chave)))();
+  .run(JSON.stringify({ nome,beneficio,gera_credito,cclasstrib,cst,nbs,lc116,observacao,fornecedor_padrao_regime,contas_questor }),chave)))();
 
 // Catálogo técnico de receitas complementares. O lançamento só escolhe um
 // item daqui; a tributação é resolvida pelo regime da própria empresa.

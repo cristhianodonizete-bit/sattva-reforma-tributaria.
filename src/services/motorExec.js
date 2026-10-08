@@ -489,6 +489,7 @@ function normalizar(m) {
     pis_cofins_referencia: m.referenciaFiscal?.pis_cofins,
     frete: m.frete, seguro: m.seguro, outras: m.outras, desconto: m.desconto,
     data_emissao: m.data_emissao, origem:m.origem,
+    historico: evidencia.historico || evidencia.descricao_original || '', conta: evidencia.conta || evidencia.conta_codigo || '',
     entradaManual: evidencia.tipo === 'LANCAMENTO_MANUAL_ENTRADA' ? {
       beneficioPercentual:Number(evidencia.beneficio_percentual || 0), geraCredito:evidencia.gera_credito !== false,
       observacao:evidencia.observacao || '',

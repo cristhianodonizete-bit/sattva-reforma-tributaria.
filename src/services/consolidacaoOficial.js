@@ -537,6 +537,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     projecaoPlanoSaude: x.detalhe?.projecaoPlanoSaude || null,
     projecaoContribuicaoAssociativa: x.detalhe?.projecaoContribuicaoAssociativa || null,
     projecaoHonorarioAdvocaticio: x.detalhe?.projecaoHonorarioAdvocaticio || null,
+    projecaoCustaTaxaJudicial: x.detalhe?.projecaoCustaTaxaJudicial || null,
     pisCofinsAtual: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor ?? null,
     origemPisCofins: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_origem || 'INDETERMINADO',
     tributosRetirados: {

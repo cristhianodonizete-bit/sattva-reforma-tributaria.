@@ -140,6 +140,35 @@ function memoriaHonorarioAdvocaticio(item = {}) {
   };
 }
 
+function textoFiscalNormalizado(...valores) {
+  return valores.join(' ').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+}
+
+// Taxas, custas e depósitos judiciais são desembolsos perante o Judiciário,
+// não remuneração de advocacia. A regra também reconhece o lançamento legado
+// somente quando a evidência original do Razão traz termos judiciais claros.
+function ehCustaTaxaOuDepositoJudicial(item = {}) {
+  const chave = String(item.entradaManual?.itemChave || item.itemChave || '');
+  if (chave === 'CUSTAS_TAXAS_DEPOSITOS_JUDICIAIS') return true;
+  if (chave !== '3_7_03_015_005_LEGAIS_E_JUDICIAIS') return false;
+  const texto = textoFiscalNormalizado(item.historico, item.descricao, item.conta);
+  return /\b(CUSTAS?|TAXAS?\s+JUDICIAIS?|DEPOSITO\s+JUDICIAL|TRIBUNAL\s+DA\s+JUSTICA|RECURSAL)\b/.test(texto);
+}
+
+function memoriaCustaTaxaOuDepositoJudicial(item = {}) {
+  if (!ehCustaTaxaOuDepositoJudicial(item)) return null;
+  return {
+    status: 'Projeção concluída — taxa, custa ou depósito judicial sem operação tributada identificada.',
+    premissa: 'O histórico do Razão identifica desembolso judicial/taxa pública, sem serviço individualizado do fornecedor.',
+    valor_despesa: r2(num(item.valor)),
+    credito_pis_cofins: 0,
+    credito_cbs: 0,
+    cbs: 0,
+    fundamento: 'A despesa permanece na análise financeira, mas não é tratada como honorário advocatício ou prestação de serviço tributada sem documento fiscal correspondente.',
+    reclassificar_quando_servico_identificado: true,
+  };
+}
+
 function memoriaContribuicaoAssociativa(item = {}) {
   if (!ehContribuicaoAssociativaPresumida(item)) return null;
   return {
@@ -403,6 +432,7 @@ function projetarItem(item, ctx) {
       perfilDestinatario: ctx.perfilDestinatario, elegibilidadeAnexoXi: ctx.elegibilidadeAnexoXi });
   const contribuicaoAssociativa = sentido === 'entrada' ? memoriaContribuicaoAssociativa(item) : null;
   const honorarioAdvocaticio = sentido === 'entrada' ? memoriaHonorarioAdvocaticio(item) : null;
+  const custaTaxaJudicial = sentido === 'entrada' ? memoriaCustaTaxaOuDepositoJudicial(item) : null;
   if (contribuicaoAssociativa) {
     // Sem documento fiscal ou serviço individualizado, não existe base para
     // declarar uma operação tributada. A classificação fica explicitamente
@@ -419,6 +449,10 @@ function projetarItem(item, ctx) {
       status: 'CLASSIFICADO', reducao: 'reduzida', reducaoIbs: honorarioAdvocaticio.reducao_aliquota,
       reducaoCbs: honorarioAdvocaticio.reducao_aliquota, origemRegra: 'HONORARIOS_ADVOCATICIOS_ART_127',
       tratamento: honorarioAdvocaticio.rotulo, fundamento: honorarioAdvocaticio.fundamento };
+  }
+  if (custaTaxaJudicial) {
+    cls = { ...cls, cst: '', cclasstrib: '', status: 'CLASSIFICACAO_FISCAL_PENDENTE', reducao: null, reducaoIbs: 0, reducaoCbs: 0,
+      origemRegra: 'CUSTA_TAXA_DEPOSITO_JUDICIAL', tratamento: custaTaxaJudicial.status };
   }
   const contextoClassificatorio = contextoAposEquivalencia(item, cls, ctx.decisaoClassificatoria || null);
 
@@ -437,7 +471,7 @@ function projetarItem(item, ctx) {
     ibsHabilitado: Number(aliq.parametros.calcular_ibs) === 1,
   });
   const planoAssistenciaSaude = memoriaPlanoAssistenciaSaude(contextoClassificatorio.item, cls, aliq, rec);
-  if (honorarioAdvocaticio) {
+  if (honorarioAdvocaticio || custaTaxaJudicial) {
     // A alíquota/carga do prestador não demonstra crédito histórico do
     // adquirente. Sem hipótese validada, não retirar 3,65% ou 9,25% da
     // despesa nem formar a base CBS a partir dessa presunção.
@@ -448,7 +482,9 @@ function projetarItem(item, ctx) {
         ...(rec.memoriaPisCofins || {}),
         carga_atual_pis_cofins_valor: 0,
         carga_atual_pis_cofins_origem: 'REGRA_ESPECIFICA_HONORARIOS_ADVOCATICIOS',
-        base_reconstrucao_metodo: 'Valor integral da despesa; crédito histórico de PIS/Cofins não presumido para honorários advocatícios.',
+        base_reconstrucao_metodo: honorarioAdvocaticio
+          ? 'Valor integral da despesa; crédito histórico de PIS/Cofins não presumido para honorários advocatícios.'
+          : 'Valor integral da despesa; taxa, custa ou depósito judicial não possui crédito histórico presumido.',
       },
     };
   }
@@ -510,6 +546,10 @@ function projetarItem(item, ctx) {
     aliq.trilha.push({ etapa: 'contribuição associativa presumida', ibs: 0, cbs: 0,
       origem: contribuicaoAssociativa.premissa });
   }
+  if (custaTaxaJudicial) {
+    ibs = 0; cbs = 0; natureza = 'SEM_OPERACAO_TRIBUTADA_IDENTIFICADA';
+    aliq.trilha.push({ etapa: 'taxa, custa ou depósito judicial', ibs: 0, cbs: 0, origem: custaTaxaJudicial.premissa });
+  }
   // Fase CBS: mesmo no Simples, a parcela de IBS não integra a simulação até
   // ser habilitada expressamente na parametrização do ano.
   if (Number(aliq.parametros.calcular_ibs) !== 1) ibs = 0;
@@ -539,6 +579,10 @@ function projetarItem(item, ctx) {
   if (contribuicaoAssociativa) {
     cred = credito('PROJECAO_CONCLUIDA', 'SEM_CREDITO', 'CONTRIBUICAO_ASSOCIATIVA_PRESUMIDA', 'DETERMINADO_POR_PREMISSA', contribuicaoAssociativa.status);
     cred.projecaoContribuicaoAssociativa = contribuicaoAssociativa;
+  }
+  if (custaTaxaJudicial) {
+    cred = credito('PROJECAO_CONCLUIDA', 'SEM_CREDITO', 'CUSTA_TAXA_DEPOSITO_JUDICIAL', 'DETERMINADO_POR_EVIDENCIA', custaTaxaJudicial.status);
+    cred.projecaoCustaTaxaJudicial = custaTaxaJudicial;
   }
   if (honorarioAdvocaticio && sentido === 'entrada') {
     cred.elegibilidadeLegal = {
@@ -589,6 +633,13 @@ function projetarItem(item, ctx) {
       valor: 0, status: 'DETERMINADO', classificacao: 'CREDITO_HISTORICO_ZERO_CONTRIBUICAO_ASSOCIATIVA',
       motivo: 'Contribuição associativa presumida sem contraprestação individualizada: não há crédito histórico de PIS/Cofins.',
       origem: 'CONTRIBUICAO_ASSOCIATIVA_PRESUMIDA', natureza: 'CALCULADO', ausencia_regra_especifica_superior: false,
+    };
+  }
+  if (custaTaxaJudicial) {
+    creditoPisCofinsAdquirente = {
+      valor: 0, status: 'DETERMINADO', classificacao: 'CREDITO_HISTORICO_ZERO_CUSTA_TAXA_DEPOSITO_JUDICIAL',
+      motivo: 'Taxa, custa ou depósito judicial: não há crédito histórico presumido de PIS/Cofins.',
+      origem: 'CUSTA_TAXA_DEPOSITO_JUDICIAL', natureza: 'CALCULADO', ausencia_regra_especifica_superior: false,
     };
   }
   if (honorarioAdvocaticio && sentido === 'entrada') {
@@ -664,6 +715,7 @@ function projetarItem(item, ctx) {
     projecaoPlanoSaude: planoAssistenciaSaude,
     projecaoContribuicaoAssociativa: contribuicaoAssociativa,
     projecaoHonorarioAdvocaticio: honorarioAdvocaticio,
+    projecaoCustaTaxaJudicial: custaTaxaJudicial,
     regimeCbsEmitente: regimeCbs(regimeEmitenteProjetado), regimeCbsAdquirente: regimeCbs(regimeAdquirenteProjetado),
     precoProjetado: r2(precoProjetado),
     custoLiquido: r2(custoLiquido),

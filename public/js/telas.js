@@ -1857,6 +1857,8 @@ async function telaCadeia(el, tipo) {
     const memoriaContribuicaoAssociativa=contribuicaoAssociativa ? `<div><span>Premissa de contribuição associativa</span><b>${A.esc(contribuicaoAssociativa.status)}</b><small>${A.esc(contribuicaoAssociativa.premissa || '')}</small><small>Despesa considerada: ${A.moeda(contribuicaoAssociativa.valor_despesa)} · PIS/Cofins: ${A.moeda(contribuicaoAssociativa.credito_pis_cofins)} · crédito CBS: ${A.moeda(contribuicaoAssociativa.credito_cbs)}</small><small>${A.esc(contribuicaoAssociativa.fundamento || '')}</small></div>` : '';
     const honorarioAdvocaticio=d.projecaoHonorarioAdvocaticio || null;
     const memoriaHonorarioAdvocaticio=honorarioAdvocaticio ? `<div><span>Premissa de honorários advocatícios</span><b>${A.esc(honorarioAdvocaticio.rotulo)}</b><small>CST ${A.esc(honorarioAdvocaticio.cst)} · cClassTrib ${A.esc(honorarioAdvocaticio.cclasstrib)} · redução de ${A.pct(honorarioAdvocaticio.reducao_aliquota)} da alíquota CBS/IBS.</small><small>${A.esc(honorarioAdvocaticio.premissa || '')}</small><small>${A.esc(honorarioAdvocaticio.aviso || '')}</small></div>` : '';
+    const custaTaxaJudicial=d.projecaoCustaTaxaJudicial || null;
+    const memoriaCustaTaxaJudicial=custaTaxaJudicial ? `<div><span>Premissa de taxa ou depósito judicial</span><b>${A.esc(custaTaxaJudicial.status)}</b><small>${A.esc(custaTaxaJudicial.premissa || '')}</small><small>Despesa considerada: ${A.moeda(custaTaxaJudicial.valor_despesa)} · PIS/Cofins: ${A.moeda(custaTaxaJudicial.credito_pis_cofins)} · CBS: ${A.moeda(custaTaxaJudicial.cbs)}</small><small>${A.esc(custaTaxaJudicial.fundamento || '')}</small></div>` : '';
     return `<article class="rastreabilidade-item">
       <div class="rastreabilidade-item-topo">
         <div><span class="olho">DOCUMENTO</span><b class="mono">${A.esc(d.documento || 'sem número')}</b><small>${A.esc(d.competencia || '—')}</small></div>
@@ -1878,7 +1880,7 @@ async function telaCadeia(el, tipo) {
         <div><span>Tributos retirados</span><b>ICMS ${A.moeda(d.tributosRetirados?.icms)} · ISS ${A.moeda(d.tributosRetirados?.iss)}</b><small>PIS ${A.moeda(d.tributosRetirados?.pis)} · Cofins ${A.moeda(d.tributosRetirados?.cofins)} · total ${A.moeda(d.tributosRetirados?.total)}</small></div>
         <div><span>${rotuloBase}</span><b>${A.moeda(d.valorSemImposto)}</b><small>${ibsAtivo ? `IBS ${A.moeda(d.ibs)} · ` : ''}CBS ${A.moeda(d.cbs)}${simplesHibrido ? ` · CBS no DAS ${A.moeda(d.cbsDentroDoDas)}` : ''}</small></div>
         <div><span>Natureza</span><b>${A.esc(d.natureza || 'INDETERMINADO')}</b></div>
-        <div><span>Memória por tributo</span>${memoria || '<small>Sem memória complementar.</small>'}</div>${memoriaPlanoSaude}${memoriaContribuicaoAssociativa}${memoriaHonorarioAdvocaticio}
+        <div><span>Memória por tributo</span>${memoria || '<small>Sem memória complementar.</small>'}</div>${memoriaPlanoSaude}${memoriaContribuicaoAssociativa}${memoriaHonorarioAdvocaticio}${memoriaCustaTaxaJudicial}
       </div></details>
     </article>`;
   }).join('')}</div>` : A.vazio(eForn ? 'Não há entradas para rastrear.' : 'Não há vendas para rastrear.');
