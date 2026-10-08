@@ -15,6 +15,8 @@ assert.match(bloco, /sentido:'cliente'/, 'a resolução do lote força exclusiva
 assert.match(bloco, /excluirDocumentoFiscalCanonico/, 'a fonte canônica é removida antes da cópia local');
 assert.match(bloco, /chaves, movimentoIds:idsCanonicos/, 'IDs canônicos não são substituídos por IDs do cache local');
 assert.match(compartilhada, /\{ chave = null, chaves = \[\], movimentoIds = \[\] \}/, 'a exclusão canônica aceita um conjunto de chaves fiscais');
+assert.match(compartilhada, /erroExcluir[\s\S]*invalidarReconciliacaoMovimentosEmpresa\(empresaId\)/, 'excluir documento derruba a reconciliação em memória');
+assert.match(api, /Perfil Tributário[\s\S]*maxAgeMs:0/, 'a auditoria mensal sempre confere os documentos na fonte atual');
 assert.match(bloco, /DOCUMENTOS_FISCAIS_SAIDA_EXCLUIDOS_EM_LOTE/, 'a operação em lote fica auditável');
 assert.match(bloco, /estadoLeituraEmpresa\.invalidar/, 'a leitura e as análises afetadas são invalidadas');
 assert.match(telas, /excluirDocumentosSaidaFiltrados/, 'a aba de saídas oferece a ação em lote');

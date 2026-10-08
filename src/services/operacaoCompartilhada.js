@@ -847,6 +847,13 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   finally { reconciliacoesEmAndamento.delete(chaveCache); }
 }
 
+// A reconciliação recente existe apenas para desempenho. Depois de qualquer
+// exclusão canônica ela não pode continuar abastecendo auditorias ou perfis.
+function invalidarReconciliacaoMovimentosEmpresa(empresaId) {
+  const prefixo=`${Number(empresaId)}:`;
+  for (const chave of reconciliacoesRecentes.keys()) if (chave.startsWith(prefixo)) reconciliacoesRecentes.delete(chave);
+}
+
 // A trilha remota é a fonte de verdade para o delta. O marco só é avançado
 // dentro da mesma transação SQLite que aplica todas as linhas do lote.
 const CHAVE_SEQUENCIA_INCREMENTAL = 'operacao_compartilhada_sequencia';
@@ -1794,10 +1801,11 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, chaves 
   if (erroResultados) throw new Error(`Resultados do motor vinculados ao documento: ${erroResultados.message}`);
   const { error: erroExcluir } = await remoto.from('movimentos').delete().in('id', ids);
   if (erroExcluir) throw new Error(`Documento fiscal compartilhado: ${erroExcluir.message}`);
+  invalidarReconciliacaoMovimentosEmpresa(empresaId);
   return { empresa_remota_id: empresaRemotaId, excluidos: ids.length, movimento_ids: ids };
 }
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
   baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
   chavesQueDevemPermanecerExcluidas };

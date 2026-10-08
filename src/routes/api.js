@@ -1588,6 +1588,9 @@ router.get('/empresas/:id/perfil-tributario-historico', async (req, res) => {
     const reconciliacaoDocumental = await require('../services/operacaoCompartilhada').reconciliarMovimentosEmpresa(empresaId, {
       competenciaInicio: periodoPerfil?.competencia_inicio,
       competenciaFim: periodoPerfil?.competencia_fim,
+      // Auditoria mensal é um relatório de conferência: não pode reutilizar
+      // uma fotografia em memória depois de exclusão/alteração documental.
+      maxAgeMs:0,
     });
     // A restauração só complementa o cache com os PDFs/evidências duráveis;
     // uma indisponibilidade transitória não pode derrubar toda a leitura do
