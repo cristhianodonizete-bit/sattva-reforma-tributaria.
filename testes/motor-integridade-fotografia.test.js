@@ -6,6 +6,7 @@ const fila = fs.readFileSync(path.join(__dirname, '../src/services/processamento
 const preparo = fs.readFileSync(path.join(__dirname, '../src/services/preparacaoMotor.js'), 'utf8');
 const operacao = fs.readFileSync(path.join(__dirname, '../src/services/operacaoCompartilhada.js'), 'utf8');
 const migration = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261007_integridade_fotografia_motor.sql'), 'utf8');
+const bloqueioBanco = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261008_bloqueio_fotografia_ativa_mista.sql'), 'utf8');
 
 assert.match(preparo, /permitirPublicacao:false/, 'o motor deve ser somente-leitura para fatos fiscais pendentes');
 assert.match(operacao, /O motor nunca é um canal de publicação de fatos fiscais/, 'reconciliação deve bloquear publicação implícita pelo motor');
@@ -15,5 +16,8 @@ assert.match(fila, /integridadeMotor\.exigirMesmaEntrada\(entradaMotor, entradaA
 assert.match(fila, /Não determinismo detectado/, 'mesma entrada com saída diferente deve preservar a fotografia anterior');
 assert.match(migration, /dados->'integridade'->'entrada'->>'assinatura'/, 'RPC deve exigir assinatura da entrada');
 assert.match(migration, /count\(distinct movimento_id\)/, 'RPC deve rejeitar item duplicado');
+assert.match(bloqueioBanco, /trg_bloquear_fotografia_ativa_mista/, 'o banco deve bloquear duas execuções ativas para a mesma empresa');
+assert.match(bloqueioBanco, /atual\.execucao_id <> new\.execucao_id/, 'o bloqueio deve detectar execução ativa divergente');
 assert.match(operacao, /execucaoIdsAtivos/, 'restauração deve usar a execução dos resultados ativos, não a mais recente');
+assert.match(operacao, /Não há fotografia do motor para esta empresa/, 'ausência de execução não pode ser reportada como conflito entre execuções');
 console.log('motor-integridade-fotografia: motor somente-leitura, assinatura e promoção atômica validados.');

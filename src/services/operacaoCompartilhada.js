@@ -1134,7 +1134,10 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   // empresa. Usar a mais recente misturava uma foto histórica com metadados
   // de outro cálculo e permitia que uma reexecução falha parecesse publicada.
   const execucaoIdsAtivos=[...new Set(resultados.map((x)=>Number(x.execucao_id)).filter(Number.isInteger))];
-  if (execucaoIdsAtivos.length !== 1) throw new Error('Fotografia canônica inconsistente: resultados ativos pertencem a mais de uma execução. A cópia local foi preservada.');
+  if (!execucaoIdsAtivos.length) {
+    throw new Error('Não há fotografia do motor para esta empresa. Nenhuma execução ativa foi encontrada na fonte compartilhada; importe a movimentação e execute o motor somente quando desejar gerar a análise.');
+  }
+  if (execucaoIdsAtivos.length > 1) throw new Error('Fotografia canônica inconsistente: resultados ativos pertencem a mais de uma execução. A cópia local foi preservada.');
   const {data:execucoes,error:erroExecucao}=await remoto.from('motor_execucoes_operacionais').select('*')
     .eq('empresa_id',Number(remota.id)).in('id',execucaoIdsAtivos).limit(2);
   if (erroExecucao) throw new Error(`Execução da fotografia compartilhada: ${erroExecucao.message}`);
