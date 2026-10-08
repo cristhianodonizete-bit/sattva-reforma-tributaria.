@@ -55,7 +55,10 @@ function limpezaConservacaoOrdinaria(item = {}) {
 function cstDaBase(c) {
   if (c.cst) return c.cst;
   const grupo = String(c.cclasstrib || '').slice(0, 3);
-  return ['000', '200', '400', '410'].includes(grupo) ? grupo : '';
+  // cClassTrib 011002 identifica plano privado de assistência à saúde. A
+  // base de serviços nem sempre replica o CST, mas a classificação não pode
+  // chegar ao motor sem o CST 011 exigido para esse regime específico.
+  return ['000', '011', '200', '400', '410'].includes(grupo) ? grupo : '';
 }
 
 /**
@@ -120,6 +123,21 @@ function classificar(item, ctx = {}) {
       `Benefício declarado: ${(beneficio * 100).toLocaleString('pt-BR',{maximumFractionDigits:2})}%.`,
       item.entradaManual.observacao || 'Sem observação adicional.',
     ], { natureza, sentido, declarado:item.declarado });
+  }
+
+  // Plano privado de assistência à saúde: a NBS identifica objetivamente o
+  // regime específico. Não aplicar a regra ordinária quando a referência já
+  // é suficiente para CST 011 / cClassTrib 011002.
+  if (soDigitos(item.nbs) === '109101000') {
+    return montar('CLASSIFICADO', {
+      cst: '011', cclasstrib: '011002',
+      classificacao: 'Planos de assistência à saúde', reducao: 'especifico',
+      fundamento: 'LC 214/2025, arts. 237 e 238; Decreto 12.955/2026, art. 337.',
+    }, 'NBS — plano privado de assistência à saúde', [
+      'NBS 1.0910.10.00: serviços de planos privados de assistência à saúde.',
+      'CST 011 / cClassTrib 011002: regime específico de planos de assistência à saúde.',
+      'O crédito do adquirente é tratado em projeção separada e depende do débito da operadora e dos requisitos legais.',
+    ], { natureza, sentido, candidatos: [] });
   }
 
   // Vale-alimentação carregado em cartão: a descrição demonstra a operação

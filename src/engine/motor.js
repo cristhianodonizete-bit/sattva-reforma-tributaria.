@@ -104,6 +104,49 @@ function credito(legado, tipoCredito, modalidadeCredito, statusDeterminacao, mot
   return { status: legado, tipoCredito, modalidadeCredito, statusDeterminacao, motivo };
 }
 function somenteDigitos(valor) { return String(valor || '').replace(/\D/g, ''); }
+function ehPlanoAssistenciaSaude(item = {}, cls = {}) {
+  return somenteDigitos(cls.cclasstrib) === '011002'
+    || somenteDigitos(item.nbs) === '109101000'
+    || item.planoSaude === true;
+}
+
+// Arts. 237/238 da LC 214 e art. 337 do Decreto 12.955/2026: o crédito do
+// adquirente de plano de saúde não nasce da alíquota CBS geral da fatura. Ele
+// é limitado ao débito da operadora e depende da condição trabalhista. Quando
+// esse débito não foi informado, mantemos uma estimativa parametrizada apenas
+// para projeção, sem lançá-la na apuração como crédito habilitado.
+function memoriaPlanoAssistenciaSaude(item, cls, aliq, rec) {
+  if (!ehPlanoAssistenciaSaude(item, cls)) return null;
+  const plano = item.planoSaude && typeof item.planoSaude === 'object' ? item.planoSaude : {};
+  const percentualEmpresaInformado = plano.participacao_empresa ?? item.participacao_financeira_empresa;
+  const percentualEmpregadosInformado = plano.participacao_empregados ?? item.participacao_financeira_empregados;
+  const coparticipacaoInformada = plano.coparticipacao_empregados ?? item.coparticipacao_empregados;
+  const participacaoEmpresa = percentualEmpresaInformado === null || percentualEmpresaInformado === undefined || percentualEmpresaInformado === ''
+    ? 1 : Math.max(0, Math.min(1, num(percentualEmpresaInformado)));
+  const participacaoEmpregados = percentualEmpregadosInformado === null || percentualEmpregadosInformado === undefined || percentualEmpregadosInformado === ''
+    ? 0 : Math.max(0, Math.min(1, num(percentualEmpregadosInformado)));
+  const coparticipacao = coparticipacaoInformada === null || coparticipacaoInformada === undefined || coparticipacaoInformada === '' ? 0 : Math.max(0, num(coparticipacaoInformada));
+  const debitoInformado = plano.debito_cbs_operadora ?? item.debito_cbs_operadora;
+  const temDebitoOperadora = debitoInformado !== null && debitoInformado !== undefined && debitoInformado !== '' && Number.isFinite(Number(debitoInformado));
+  const fatorEstimativa = Math.max(0, Math.min(1, num(regras.padrao('fator_cbs_estimado_planos_saude', 0.4))));
+  const baseFinanceira = Math.max(0, num(item.valor) || num(rec.precoAtual));
+  const aliquotaEstimada = num(aliq.aliquotaReferencia?.cbs) * fatorEstimativa;
+  const debitoOperadora = temDebitoOperadora ? Math.max(0, num(debitoInformado)) : baseFinanceira * aliquotaEstimada;
+  return {
+    rotulo: 'Crédito CBS estimado — regime específico de planos de saúde',
+    base_financeira: r2(baseFinanceira),
+    participacao_empresa: participacaoEmpresa,
+    participacao_empregados: participacaoEmpregados,
+    coparticipacao_empregados: r2(coparticipacao),
+    debito_cbs_operadora: r2(debitoOperadora),
+    debito_operadora_informado: temDebitoOperadora,
+    aliquota_estimada: temDebitoOperadora ? null : r6(aliquotaEstimada),
+    fator_estimativa_regime_especifico: temDebitoOperadora ? null : r6(fatorEstimativa),
+    credito_cbs_estimado: r2(debitoOperadora * participacaoEmpresa),
+    elegibilidade_legal: plano.elegibilidade_legal_confirmada === true ? 'CONFIRMADA' : 'Elegibilidade legal presumida exclusivamente para fins de projeção.',
+    aviso: 'Projeção realizada com participação financeira integral da empresa e elegibilidade legal hipotética. Crédito sujeito à confirmação dos requisitos legais e dos dados da operadora.',
+  };
+}
 function cargaValeAlimentacao(item = {}) {
   const texto = String(item.descricao || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
   return somenteDigitos(item.nbs) === '109014000'
@@ -330,6 +373,7 @@ function projetarItem(item, ctx) {
     regra_geral_regime_confirmada: regraGeralRegimeConfirmada }, {
     ibsHabilitado: Number(aliq.parametros.calcular_ibs) === 1,
   });
+  const planoAssistenciaSaude = memoriaPlanoAssistenciaSaude(contextoClassificatorio.item, cls, aliq, rec);
   if (contextoClassificatorio.equivalente) {
     rec.equivalenciaClassificatoria = {
       regra: contextoClassificatorio.equivalencia.regra,
@@ -370,13 +414,26 @@ function projetarItem(item, ctx) {
     cbs = rec.baseEconomica * aliq.cbs;
     if (aliq.simulacao || rec.status === 'estimada') natureza = 'SIMULADO';
   }
+  if (planoAssistenciaSaude) {
+    // A base da projeção é a fatura suportada pela empresa, não a base
+    // reconstruída por PIS/Cofins. A CBS segue o débito efetivo da operadora
+    // ou a estimativa específica configurada, jamais a CBS geral da fatura.
+    ibs = 0;
+    cbs = planoAssistenciaSaude.debito_cbs_operadora;
+    natureza = planoAssistenciaSaude.debito_operadora_informado ? 'CALCULADO' : 'SIMULADO';
+    aliq.trilha.push({ etapa: 'regime específico — planos de assistência à saúde',
+      baseFinanceira: planoAssistenciaSaude.base_financeira,
+      debitoOperadoraInformado: planoAssistenciaSaude.debito_operadora_informado,
+      aliquotaEstimada: planoAssistenciaSaude.aliquota_estimada,
+      cbs: r6(cbs), origem: planoAssistenciaSaude.rotulo });
+  }
   // Fase CBS: mesmo no Simples, a parcela de IBS não integra a simulação até
   // ser habilitada expressamente na parametrização do ano.
   if (Number(aliq.parametros.calcular_ibs) !== 1) ibs = 0;
 
   // ---------- 5. CRÉDITO ----------
   const percentualEfetivoSimples = !!(simplesInfo && simplesInfo.aliquotaEfetiva);
-  const cred = sentido === 'entrada' && item.entradaManual?.geraCredito === false
+  let cred = sentido === 'entrada' && item.entradaManual?.geraCredito === false
     ? credito('SEM_DIREITO', 'SEM_CREDITO', null, 'DETERMINADO', 'Cadastro do item de entrada: não gera crédito CBS/IBS nesta projeção.')
     : avaliarCredito({
       regimeAdquirente: regimeAdquirenteProjetado, regimeFornecedor: regimeEmitente, cls, sentido,
@@ -387,6 +444,15 @@ function projetarItem(item, ctx) {
       // percentual efetivo. A premissa só é enviada quando foi realmente usada.
       simplesFornecedorReferencia: percentualEfetivoSimples ? null : referenciaCreditoSimples,
     });
+  if (planoAssistenciaSaude && sentido === 'entrada') {
+    cred = credito('PROJECAO_ESTIMADA', 'PROJECAO_ESTIMADA_NAO_HABILITADA', 'REGIME_ESPECIFICO_PLANOS_SAUDE', 'DETERMINADO_POR_PREMISSA', planoAssistenciaSaude.aviso);
+    cred.elegibilidadeLegal = {
+      status: planoAssistenciaSaude.elegibilidade_legal.startsWith('CONFIRMADA') ? 'CONFIRMADA' : 'HIPOTESE_PROJECAO',
+      fundamento: 'LC 214/2025, art. 57, §3º, IV, f; arts. 237 e 238; Decreto 12.955/2026, art. 337.',
+      rotulo: planoAssistenciaSaude.elegibilidade_legal,
+    };
+    cred.projecaoPlanoSaude = planoAssistenciaSaude;
+  }
   if (!classificacaoBloqueiaCredito(cls, contextoClassificatorio.decisao)
     && contextoClassificatorio.equivalente) {
     cred.decisaoClassificatoria = {
@@ -406,15 +472,23 @@ function projetarItem(item, ctx) {
     cred.natureza = percentualEfetivoSimples ? 'CALCULADO'
       : referenciaCreditoSimples > 0 ? 'SIMULADO' : 'INDETERMINADO';
   }
-  let creditoIbs = 0, creditoCbs = 0;
+  let creditoIbs = 0, creditoCbs = 0, creditoCbsEstimado = 0;
   if (['PROJETADO', 'PROJETADO_LIMITADO'].includes(cred.status)) { creditoIbs = ibs; creditoCbs = cbs; }
-  const creditoPisCofinsAdquirente = sentido === 'entrada'
+  if (planoAssistenciaSaude && sentido === 'entrada') creditoCbsEstimado = planoAssistenciaSaude.credito_cbs_estimado;
+  let creditoPisCofinsAdquirente = sentido === 'entrada'
     ? resolverCreditoPisCofinsAdquirente({
       regimeAdquirente,
       regraEspecificaCredito: item.regra_credito_pis_cofins || null,
       referenciaFiscal: item.referencia_credito_pis_cofins || null,
     })
     : null;
+  if (planoAssistenciaSaude && sentido === 'entrada') {
+    creditoPisCofinsAdquirente = {
+      valor: 0, status: 'DETERMINADO', classificacao: 'CREDITO_HISTORICO_ZERO_PLANO_SAUDE',
+      motivo: 'Plano privado de assistência à saúde: sem hipótese legal histórica específica validada, PIS/Cofins de entrada permanece R$ 0,00.',
+      origem: 'REGRA_ESPECIFICA_PLANOS_SAUDE', natureza: 'CALCULADO', ausencia_regra_especifica_superior: false,
+    };
+  }
   // CREDITO_PRESUMIDO fica em zero até que a hipótese seja informada como
   // premissa — o sistema sinaliza a possibilidade, não a arbitra.
 
@@ -446,12 +520,15 @@ function projetarItem(item, ctx) {
   const tributosSubstituidosDoDas = cbsDentroDoDasArredondada + ibsDentroDoDasArredondada;
   const dasResidualHibrido = hibridoEmSaida ? Math.max(0, r2(dasAtualDaVenda) - tributosSubstituidosDoDas) : null;
   const impactoHibridoLiquido = hibridoEmSaida ? r2(r2(ibs) + r2(cbs) - tributosSubstituidosDoDas) : null;
-  const precoProjetado = hibridoEmSaida
+  const precoProjetado = planoAssistenciaSaude && sentido === 'entrada'
+    ? rec.precoAtual + cbs
+    : hibridoEmSaida
     ? rec.precoAtual + impactoHibridoLiquido
     : emitenteNoDas
       ? rec.precoMercadoria                    // no DAS o preço não recebe IVA por fora
       : rec.baseEconomica + ibs + cbs;
   const custoLiquido = precoProjetado - creditoIbs - creditoCbs;
+  const custoLiquidoComCreditoEstimado = precoProjetado - creditoIbs - creditoCbs - creditoCbsEstimado;
 
   return {
     // rastreabilidade (item 40)
@@ -472,12 +549,14 @@ function projetarItem(item, ctx) {
     aliquotas: aliq,
 
     ibs: r2(ibs), cbs: r2(cbs), totalIvA: r2(ibs + cbs),
-    creditoIbs: r2(creditoIbs), creditoCbs: r2(creditoCbs), creditoTotal: r2(creditoIbs + creditoCbs),
+    creditoIbs: r2(creditoIbs), creditoCbs: r2(creditoCbs), creditoCbsEstimado: r2(creditoCbsEstimado), creditoTotal: r2(creditoIbs + creditoCbs),
     credito: cred,
     creditoPisCofinsAdquirente,
+    projecaoPlanoSaude: planoAssistenciaSaude,
     regimeCbsEmitente: regimeCbs(regimeEmitenteProjetado), regimeCbsAdquirente: regimeCbs(regimeAdquirenteProjetado),
     precoProjetado: r2(precoProjetado),
     custoLiquido: r2(custoLiquido),
+    custoLiquidoComCreditoEstimado: r2(custoLiquidoComCreditoEstimado),
     cbsDentroDoDas: cbsDentroDoDasArredondada,
     origemCbsDentroDoDas: hibridoEmSaida
       ? (cbsDoDasInformada ? (ctx.origemCbsDentroDoDas || 'PGDAS_IMPORTADO') : 'FAIXA_SIMPLES_ESTIMADA')

@@ -530,7 +530,10 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     origemMovimento: x.origem_movimento || x.origem || null,
     statusClassificacao: x.status_classificacao || x.detalhe?.classificacao?.status || 'INDETERMINADO', classificacaoOrigem:x.detalhe?.classificacao?.origemRegra || '', cclasstrib: x.cclasstrib || x.detalhe?.classificacao?.cclasstrib || '', cst: x.cst || x.detalhe?.classificacao?.cst || '',
     valor: r2(x.preco_atual), valorSemImposto: r2(x.base_economica), ibs: r2(x.ibs), cbs: r2(x.cbs), cbsDentroDoDas: r2(x.detalhe?.cbsDentroDoDas), origemCbsDentroDoDas: x.detalhe?.origemCbsDentroDoDas || 'NAO_APLICAVEL', ibsDentroDoDas: r2(x.detalhe?.ibsDentroDoDas), tributosSubstituidosDoDas: r2(x.detalhe?.tributosSubstituidosDoDas), precoFinal: r2(x.preco_projetado),
-    creditoCbs: r2(x.credito_cbs), creditoIbs: r2(x.credito_ibs), creditoPotencial: r2(n(x.credito_cbs) + n(x.credito_ibs)),
+    creditoCbs: r2(x.credito_cbs), creditoIbs: r2(x.credito_ibs), creditoCbsEstimado: r2(x.detalhe?.creditoCbsEstimado), creditoPotencial: r2(n(x.credito_cbs) + n(x.credito_ibs)),
+    // Campo separado: a projeção de plano de saúde é exibida na memória, mas
+    // não compõe crédito potencial/apurável até confirmação legal e do débito.
+    projecaoPlanoSaude: x.detalhe?.projecaoPlanoSaude || null,
     pisCofinsAtual: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor ?? null,
     origemPisCofins: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_origem || 'INDETERMINADO',
     tributosRetirados: {

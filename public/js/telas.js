@@ -1851,6 +1851,8 @@ async function telaCadeia(el, tipo) {
     const cadastroManual=String(d.classificacaoOrigem || '').toLowerCase()==='lançamento manual de entrada';
     const referencia=cadastroManual ? `Cadastro de entrada manual${d.nbs ? ` · NBS ${d.nbs}` : d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : produto ? `NCM ${d.ncm || 'não identificado'}` : servico ? `NBS ${d.nbs || 'não identificado'}${d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : 'Referência fiscal pendente';
     const memoria=['pis','cofins','iss','icms'].map((k)=>{ const m=d.memoriaTributos?.[k]; return m ? `<div><b>${k.toUpperCase()}</b><span>${A.esc(m.origem || 'INDETERMINADO')} · ${A.esc(m.regra || m.status || '')}</span></div>` : ''; }).filter(Boolean).join('');
+    const planoSaude=d.projecaoPlanoSaude || null;
+    const memoriaPlanoSaude=planoSaude ? `<div><span>Projeção de plano de saúde</span><b>${A.esc(planoSaude.rotulo)}</b><small>Fatura considerada: ${A.moeda(planoSaude.base_financeira)} · empresa ${A.pct(planoSaude.participacao_empresa)} · empregados ${A.pct(planoSaude.participacao_empregados)} · coparticipação ${A.moeda(planoSaude.coparticipacao_empregados)}</small><small>Crédito habilitado: ${A.moeda(d.creditoCbs)} · crédito estimado: ${A.moeda(d.creditoCbsEstimado)}. ${A.esc(planoSaude.elegibilidade_legal || '')}</small><small>${A.esc(planoSaude.aviso || '')}</small></div>` : '';
     return `<article class="rastreabilidade-item">
       <div class="rastreabilidade-item-topo">
         <div><span class="olho">DOCUMENTO</span><b class="mono">${A.esc(d.documento || 'sem número')}</b><small>${A.esc(d.competencia || '—')}</small></div>
@@ -1862,7 +1864,7 @@ async function telaCadeia(el, tipo) {
         <div><span>${eForn ? 'Compra atual' : 'Venda atual'}</span><b>${A.moeda(d.valor)}</b></div>
         <div><span>Antes · PIS/Cofins</span>${pisCofinsDaFotografia(d.pisCofinsAtual,d.origemPisCofins,d.motivoBaseEconomica)}</div>
         <div><span>Base de cálculo CBS</span><b>${A.moeda(d.valorSemImposto)}</b></div>
-        ${eForn ? `<div><span>Crédito CBS</span><b>${A.moeda(d.creditoCbs)}</b></div>` : ''}
+        ${eForn ? `<div><span>${planoSaude ? 'Crédito CBS habilitado' : 'Crédito CBS'}</span><b>${A.moeda(d.creditoCbs)}</b>${planoSaude ? `<small>Estimado: ${A.moeda(d.creditoCbsEstimado)}</small>` : ''}</div>` : ''}
         <div><span>CBS</span><b>${A.moeda(d.cbs)}</b></div>
         <div><span>Impacto</span><b>${A.setaR$(d.impactoOperacao)}</b><small>${A.setaPct(d.impactoOperacaoPerc)}</small></div>
       </div>
@@ -1872,7 +1874,7 @@ async function telaCadeia(el, tipo) {
         <div><span>Tributos retirados</span><b>ICMS ${A.moeda(d.tributosRetirados?.icms)} · ISS ${A.moeda(d.tributosRetirados?.iss)}</b><small>PIS ${A.moeda(d.tributosRetirados?.pis)} · Cofins ${A.moeda(d.tributosRetirados?.cofins)} · total ${A.moeda(d.tributosRetirados?.total)}</small></div>
         <div><span>${rotuloBase}</span><b>${A.moeda(d.valorSemImposto)}</b><small>${ibsAtivo ? `IBS ${A.moeda(d.ibs)} · ` : ''}CBS ${A.moeda(d.cbs)}${simplesHibrido ? ` · CBS no DAS ${A.moeda(d.cbsDentroDoDas)}` : ''}</small></div>
         <div><span>Natureza</span><b>${A.esc(d.natureza || 'INDETERMINADO')}</b></div>
-        <div><span>Memória por tributo</span>${memoria || '<small>Sem memória complementar.</small>'}</div>
+        <div><span>Memória por tributo</span>${memoria || '<small>Sem memória complementar.</small>'}</div>${memoriaPlanoSaude}
       </div></details>
     </article>`;
   }).join('')}</div>` : A.vazio(eForn ? 'Não há entradas para rastrear.' : 'Não há vendas para rastrear.');

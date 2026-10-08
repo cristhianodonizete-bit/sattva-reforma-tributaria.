@@ -2848,6 +2848,11 @@ if (db.prepare('SELECT COUNT(*) c FROM param_regras').get().c === 0) {
 }
 db.prepare(`INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem)
   VALUES ('capacitacao','limite_padrao_turma','30','numero','Limite padrão de participantes','Sugestão aplicada ao programar uma nova turma; cada turma pode ter seu próprio limite.','pessoas',1)`).run();
+// Plano de saúde: parâmetro de projeção, nunca autorização de apropriação.
+// Na falta do débito efetivo da operadora, estima-se a CBS do regime específico
+// pela fração da CBS de referência compatível com a redução de 60% do regime.
+db.prepare(`INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem)
+  VALUES ('padroes','fator_cbs_estimado_planos_saude','0.4','percentual','Fator estimado CBS — planos de saúde','Usado somente na projeção quando o débito de CBS da operadora não foi informado. Aplica 40% da CBS de referência sobre a fatura suportada pela empresa; não habilita crédito fiscal.','% da CBS de referência',9)`).run();
 
 // Catálogo técnico para entradas manuais. Ele não é uma nota fiscal e não
 // altera nenhum XML existente: somente preenche campos declarados no novo
@@ -2859,6 +2864,7 @@ const ITENS_ENTRADA_MANUAL_PADRAO = [
   ['LOCACAO_VEICULOS','Locação de veículos',0,'000001','000','Locação de veículo é bem móvel e não recebe o benefício imobiliário',4,'simples_nacional',['3.7.03.013.005']],
   ['OUTRAS_DESPESAS_SEM_BENEFICIO','Outras despesas sem benefício específico',0,'000001','000','Usado quando o Razão não comprova uma natureza especial; não atribui benefício imobiliário por presunção.',5,'simples_nacional',[]],
   ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',6,'simples_nacional',[]],
+  ['PLANOS_ASSISTENCIA_SAUDE','Plano privado de assistência à saúde',0,'011002','011','Regime específico de planos de saúde. Projeção com participação integral da empresa; crédito somente estimado até confirmação da elegibilidade legal e do débito da operadora.',7,'lucro_real',[],'109101000','0422'],
 ];
 db.transaction(() => ITENS_ENTRADA_MANUAL_PADRAO.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor,nbs='',lc116='']) => db.prepare(`INSERT OR IGNORE INTO param_regras
   (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)`)
