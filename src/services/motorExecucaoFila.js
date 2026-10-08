@@ -4,6 +4,7 @@ const staging = require('./motorStaging');
 const supabase = require('./supabase');
 
 const TIPO = 'MOTOR_COMPLETO';
+const TIPO_INCREMENTAL = 'MOTOR_INCREMENTAL';
 const json = (valor, padrao = null) => {
   if (valor === null || valor === undefined || valor === '') return padrao;
   return typeof valor === 'string' ? JSON.parse(valor) : valor;
@@ -20,9 +21,32 @@ async function solicitar(empresaId, opcoes = {}) {
   return { processamento_id: processamento.id, deduplicado: Boolean(processamento.deduplicado), job };
 }
 
+// Não reutiliza MOTOR_COMPLETO: uma alteração pontual do Razão não pode
+// disparar preparação, reconciliação ou releitura da empresa inteira.
+async function solicitarIncremental(empresaId, opcoes = {}) {
+  const empresa = db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId);
+  if (!empresa) throw new Error('Empresa não encontrada.');
+  const movimentoIds = [...new Set((opcoes.movimentoIds || []).map(Number).filter(Number.isInteger))];
+  if (!movimentoIds.length) throw new Error('Informe ao menos um lançamento para o reprocessamento incremental.');
+  const ano = String(Number(opcoes.ano) || 2027);
+  const processamento = await fila.iniciar({ empresas:[Number(empresaId)], competencia:ano, tipo:TIPO_INCREMENTAL, prioridade:10,
+    payload:{ ano:Number(ano), movimento_ids:movimentoIds, modo:'INCREMENTAL_IDS_EXPLICITOS' }, iniciarWorker:false });
+  const job = (processamento.jobs || []).find((x) => Number(x.empresa_id) === Number(empresaId) && x.tipo_job === TIPO_INCREMENTAL) || null;
+  return { processamento_id:processamento.id, deduplicado:Boolean(processamento.deduplicado), job, movimento_ids:movimentoIds };
+}
+
 function etapas(job, foto) {
   if (!job) return [];
   const payload = json(job.payload, {});
+  if (job.tipo_job === TIPO_INCREMENTAL) {
+    const ids = [...new Set((payload.movimento_ids || []).map(Number).filter(Number.isInteger))];
+    const concluido = job.status === 'CONCLUIDO';
+    const falhou = job.status === 'FALHOU';
+    return [
+      { chave:'escopo', titulo:'Escopo autorizado', estado: falhou ? 'FALHOU' : concluido ? 'CONCLUIDO' : 'PROCESSANDO', detalhe:`${ids.length} lançamento(s) identificado(s) explicitamente; documentos, fontes e demais movimentos ficam fora desta execução.` },
+      { chave:'calculo', titulo:'Cálculo incremental', estado: falhou ? 'FALHOU' : concluido ? 'CONCLUIDO' : 'PROCESSANDO', detalhe: concluido ? 'Resultados derivados dos IDs autorizados foram recalculados.' : 'Recalcula somente os resultados derivados do escopo autorizado.' },
+    ];
+  }
   const resultado = json(job.resultado);
   const fase = String(foto?.status || job.status || 'PENDENTE');
   const concluido = fase === 'CONCLUIDO' || job.status === 'CONCLUIDO';
@@ -44,7 +68,7 @@ function etapas(job, foto) {
 
 function statusLocal(empresaId) {
   return db.prepare(`SELECT id,empresa_id,competencia,tipo_job,status,tentativas,max_tentativas,erro,resultado,criado_em,iniciado_em,finalizado_em
-    FROM jobs_carteira WHERE empresa_id=? AND tipo_job=? ORDER BY criado_em DESC LIMIT 1`).get(empresaId, TIPO);
+    FROM jobs_carteira WHERE empresa_id=? AND tipo_job IN (?,?) ORDER BY criado_em DESC LIMIT 1`).get(empresaId, TIPO, TIPO_INCREMENTAL);
 }
 
 async function status(empresaId) {
@@ -56,7 +80,7 @@ async function status(empresaId) {
   if (supabase.configurado()) {
     const { data, error } = await supabase.admin().from('jobs_carteira')
       .select('id,empresa_id,competencia,tipo_job,status,tentativas,max_tentativas,erro,resultado,criado_em,iniciado_em,finalizado_em')
-      .eq('empresa_id', Number(empresaId)).eq('tipo_job', TIPO)
+      .eq('empresa_id', Number(empresaId)).in('tipo_job', [TIPO, TIPO_INCREMENTAL])
       .order('criado_em', { ascending: false }).limit(1);
     if (error) throw new Error(`Status compartilhado do motor: ${error.message}`);
     job = data?.[0] || null;
@@ -69,4 +93,4 @@ async function status(empresaId) {
     estado: job.status, etapas: etapas(job, null) };
 }
 
-module.exports = { TIPO, solicitar, status, etapas };
+module.exports = { TIPO, TIPO_INCREMENTAL, solicitar, solicitarIncremental, status, etapas };

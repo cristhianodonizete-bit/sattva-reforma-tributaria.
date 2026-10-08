@@ -182,6 +182,20 @@ async function processarUm() {
         telemetria_reuso_classificacao: resultado.resumo.telemetria_reuso_classificacao });
         continue;
       }
+      if (job.tipo_job === 'MOTOR_INCREMENTAL') {
+        const payload = JSON.parse(job.payload || '{}');
+        const solicitados = [...new Set((payload.movimento_ids || []).map(Number).filter(Number.isInteger))];
+        if (!solicitados.length) throw new Error('Job incremental sem lançamentos explícitos.');
+        const marcadores = solicitados.map(() => '?').join(',');
+        const encontrados = db.prepare(`SELECT id FROM movimentos WHERE empresa_id=? AND id IN (${marcadores})`).all(job.empresa_id, ...solicitados).map((x) => Number(x.id));
+        if (encontrados.length !== solicitados.length) throw new Error('Job incremental contém lançamento inexistente ou de outra empresa.');
+        // Não chama preparação nem classificação global: esta fila só recalcula
+        // resultados derivados dos IDs explicitamente autorizados.
+        const resultado = motorExec.reprocessarIncremental(job.empresa_id, { ano:Number(payload.ano) || Number(job.competencia) || 2027, movimentoIds:solicitados });
+        const excecoes = excecoesMotor.resumo(job.empresa_id);
+        await finalizar(job, 'CONCLUIDO', null, { itens:resultado.reprocessados, movimento_ids:solicitados, modo:'INCREMENTAL_IDS_EXPLICITOS', excecoes });
+        continue;
+      }
       bases.classificarMovimentos(job.empresa_id);
       const resultado = motorExec.reprocessarIncremental(job.empresa_id, { ano: Number(job.competencia) || 2027 });
       const excecoes = excecoesMotor.resumo(job.empresa_id);

@@ -6632,7 +6632,9 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
       }
     })();
     const publicacao=resultado.movimento_ids.length ? await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,resultado.movimento_ids) : null;
-    const processamento_motor=resultado.movimento_ids.length ? await motorExecucaoFila.solicitar(empresaId,{}) : null;
+    // A reaplicação do Razão só pode recalcular os fatos que ela própria
+    // alterou. Nunca agenda MOTOR_COMPLETO, que prepara a empresa inteira.
+    const processamento_motor=resultado.movimento_ids.length ? await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:resultado.movimento_ids }) : null;
     if (resultado.movimento_ids.length) estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Naturezas das entradas do Razão reaplicadas');
     auditar(req,{ empresaId,acao:'RECLASSIFICAR_NATUREZAS_RAZAO',entidade:'movimentos',entidadeId:resultado.movimento_ids.join(','),depois:{ ...resultado, movimento_ids:undefined } });
     ok(res,{ ...resultado, publicacao, processamento_motor });
