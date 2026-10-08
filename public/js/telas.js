@@ -358,6 +358,8 @@ Telas.dados = async (el) => {
       ? '<span class="mini">Há atualização em processamento; esta lista será renovada ao concluir.</span>'
       : '<span class="mini">Exibindo a última fotografia válida; a atualização da fonte falhou.</span>';
   const filtroDocumentos = S.aba.documentosFiscais || {};
+  const filtrosDocumentosAtivos=['competencia','modelo','receita','valor_minimo','valor_maximo','busca']
+    .some((campo)=>String(filtroDocumentos[campo] ?? '').trim() !== '');
   // As opções vêm de uma leitura distinta de toda a aba. A página atual é
   // apenas o resultado, portanto não pode determinar o que o usuário pode
   // filtrar. Mantemos também a seleção atual caso uma fonte fique defasada.
@@ -574,7 +576,7 @@ Telas.dados = async (el) => {
       ], referenciasVendas.servicos, { vazio: 'Nenhuma exceção tributária por serviço. As vendas identificadas seguem a regra geral do regime ou o documento fiscal.' })}
     </div>` : ''}
     ${consultaDocumentos && abaDocumentosCentral === 'documentos' ? `<div class="abas" style="margin:16px 0" role="tablist"><button class="aba ${abaDocumentosFiscais === 'entradas' ? 'ativa' : ''}" data-documentos-fiscais-aba="entradas">Entradas</button><button class="aba ${abaDocumentosFiscais === 'saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="saidas">Saídas</button><button class="aba ${abaDocumentosFiscais === 'rastreabilidade-saidas' ? 'ativa' : ''}" data-documentos-fiscais-aba="rastreabilidade-saidas">Rastreabilidade das saídas</button><button class="aba ${abaDocumentosFiscais === 'fornecedores' ? 'ativa' : ''}" data-documentos-fiscais-aba="fornecedores">Fornecedores</button></div><div class="cartao" id="documentosFiscais" data-documentos-fiscais-painel="documentos">
-      <div class="cabecalho-lista"><div><h2>${abaDocumentosFiscais === 'entradas' ? 'Documentos fiscais de entrada' : 'Documentos fiscais de saída'}</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Entradas confirmadas na conciliação com o Questor aparecem aqui identificadas pela origem. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p>${leituraDocumentos}</div><div style="display:flex;gap:8px;align-items:center"><button class="btn pq vazio" id="reclassificarMedicamentos">Reclassificar medicamentos</button><button class="btn pq vazio" id="exportarDocumentosFiscais">Exportar Excel</button><span class="tag ${situacaoDocumentos === 'ATUALIZADO' ? 'c' : 'a'}">${situacaoDocumentos === 'ATUALIZADO' ? 'Atualizado' : situacaoDocumentos === 'ATUALIZACAO_PENDENTE' ? 'Atualizando' : 'Última fotografia válida'}</span><span class="tag">${documentosFiscaisFiltrados.length} documento(s) único(s)${razoesConciliadosNaPagina ? ` · ${razoesConciliadosNaPagina} Razão conciliado(s)` : ''}</span></div></div>
+      <div class="cabecalho-lista"><div><h2>${abaDocumentosFiscais === 'entradas' ? 'Documentos fiscais de entrada' : 'Documentos fiscais de saída'}</h2><p class="desc">Notas e documentos agrupados pela chave fiscal. Entradas confirmadas na conciliação com o Questor aparecem aqui identificadas pela origem. Abra para conferir todos os itens; a exclusão remove o documento e seus itens desta empresa.</p>${leituraDocumentos}</div><div style="display:flex;gap:8px;align-items:center"><button class="btn pq vazio" id="reclassificarMedicamentos">Reclassificar medicamentos</button>${abaDocumentosFiscais === 'saidas' && filtrosDocumentosAtivos ? '<button class="btn pq perigo" id="excluirDocumentosSaidaFiltrados">Excluir saídas filtradas</button>' : ''}<button class="btn pq vazio" id="exportarDocumentosFiscais">Exportar Excel</button><span class="tag ${situacaoDocumentos === 'ATUALIZADO' ? 'c' : 'a'}">${situacaoDocumentos === 'ATUALIZADO' ? 'Atualizado' : situacaoDocumentos === 'ATUALIZACAO_PENDENTE' ? 'Atualizando' : 'Última fotografia válida'}</span><span class="tag">${documentosFiscaisFiltrados.length} documento(s) único(s)${razoesConciliadosNaPagina ? ` · ${razoesConciliadosNaPagina} Razão conciliado(s)` : ''}</span></div></div>
       ${documentosFiscaisResposta.limitado ? `<div class="aviso info">${documentosFiscaisResposta.paginacao?.limite === 100 ? 'Lista paginada: os filtros de competência, modelo, documento e valor foram aplicados antes da paginação.' : 'A regra “Compõe receita” usa o Mapa de CFOP e mantém uma janela de até 2.000 documentos. Refine os demais filtros para localizar documentos fora desta janela.'}</div>` : ''}
       <section class="documentos-filtros" aria-label="Filtros dos documentos fiscais">
         <div class="documentos-filtros-topo"><div><span class="olho">LOCALIZAR DOCUMENTOS</span><p>Combine os filtros e aplique quando terminar.</p></div><button class="btn vazio pq" id="limparFiltrosDocumentos">Limpar filtros</button></div>
@@ -791,6 +793,12 @@ Telas.dados = async (el) => {
       filtros.set('sentido', abaDocumentosFiscais === 'entradas' ? 'fornecedor' : 'cliente');
       try { await A.baixarArquivo(`/empresas/${S.empresaId}/documentos-fiscais/exportar${filtros.toString() ? `?${filtros}` : ''}`, 'documentos-fiscais.xlsx'); }
       catch(e) { A.toast(e.message,'erro'); }
+    });
+    document.getElementById('excluirDocumentosSaidaFiltrados')?.addEventListener('click', () => {
+      A.confirmar('Excluir definitivamente todos os documentos de saída alcançados pelos filtros atuais? A ação considera também as demais páginas, remove os documentos e seus itens da fonte canônica e das análises desta empresa. Para excluir outro conjunto, cancele e ajuste os filtros antes de confirmar.', async () => {
+        const r=await A.api(`/empresas/${S.empresaId}/documentos-fiscais/excluir-lote`,{metodo:'POST',corpo:{confirmar:true,filtros:S.aba.documentosFiscais || {}}});
+        A.toast(`${r.documentos} documento(s) de saída e ${r.excluidos} item(ns) removido(s).`, 'ok'); A.ir('dados');
+      });
     });
     el.querySelectorAll('[data-abrir-documento]').forEach((botao) => botao.addEventListener('click', async () => {
       try {

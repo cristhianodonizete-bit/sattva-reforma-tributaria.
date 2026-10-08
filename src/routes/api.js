@@ -2544,6 +2544,27 @@ function filtrarDocumentosFiscais(documentos, filtros = {}) {
     && (!Number.isFinite(maximo) || Number(d.valor) <= maximo)
     && (!busca || `${d.documento || ''} ${d.chave || ''} ${d.parceiro || ''}`.toLowerCase().includes(busca)));
 }
+function filtrosDocumentosFiscaisAtivos(filtros = {}) {
+  return ['competencia','modelo','receita','valor_minimo','valor_maximo','busca']
+    .some((campo) => String(filtros[campo] ?? '').trim() !== '');
+}
+function documentosFiscaisDeSaidaPorFiltro(empresaId, filtros = {}) {
+  // A aba de saídas é sempre soberana: não aceitar o sentido enviado pelo
+  // navegador evita que uma chamada indevida alcance entradas da empresa.
+  const filtrosSaida={
+    competencia:filtros.competencia,
+    modelo:filtros.modelo,
+    receita:filtros.receita,
+    valor_minimo:filtros.valor_minimo,
+    valor_maximo:filtros.valor_maximo,
+    busca:filtros.busca,
+    sentido:'cliente',
+  };
+  return filtrarDocumentosFiscais(
+    listarDocumentosFiscais(empresaId, 0, 1, filtrosSaida).documentos,
+    filtrosSaida,
+  );
+}
 // A leitura direta do Supabase é a fonte da lista fiscal. Entradas que o
 // usuário acabou de confirmar no Questor, inclusive as incluídas pelo Razão,
 // podem ainda estar somente no cache operacional enquanto a publicação
@@ -2829,6 +2850,43 @@ router.post('/empresas/:id/documentos-fiscais/medicamentos/reclassificacao', asy
     const publicacao=await require('../services/operacaoCompartilhada').publicarClassificacoesMovimentos(empresaId,idsAlterados);
     ok(res,{total:itens.length,atualizados,inalterados,requer_validacao:itens.filter(x=>x.matriz_encontrada&&!x.classificavel).length,sem_matriz:itens.filter(x=>!x.matriz_encontrada).length,publicacao,aviso:'Itens alterados foram publicados na fonte compartilhada e incluídos na fila do motor. Execute o motor para materializar os novos cálculos.'});
   } catch(e){ erro(res,e); }
+});
+router.post('/empresas/:id/documentos-fiscais/excluir-lote', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId=Number(req.params.id);
+    const filtros=req.body?.filtros && typeof req.body.filtros==='object' ? req.body.filtros : {};
+    if (req.body?.confirmar !== true) throw new Error('Confirme a exclusão dos documentos filtrados.');
+    if (!filtrosDocumentosFiscaisAtivos(filtros)) throw new Error('Aplique ao menos um filtro antes de excluir documentos de saída em lote.');
+    const documentos=documentosFiscaisDeSaidaPorFiltro(empresaId, filtros);
+    if (!documentos.length) throw new Error('Nenhum documento de saída atende aos filtros atuais.');
+    // Mantemos o lote deliberadamente limitado. Além de proteger contra um
+    // clique em um filtro amplo demais, isto preserva uma exclusão rastreável
+    // na fonte compartilhada, que é a condição para o documento não voltar.
+    if (documentos.length > 500) throw new Error(`O filtro encontrou ${documentos.length} documentos. Refine-o para excluir até 500 documentos por vez.`);
+    const chaves=[...new Set(documentos.map((d)=>String(d.chave || '').trim()).filter(Boolean))];
+    const idsSemChave=[...new Set(documentos.filter((d)=>!d.chave).map((d)=>Number(d.item_id)).filter(Number.isInteger))];
+    const grupos=[], valores=[empresaId];
+    if (chaves.length) { grupos.push(`chave IN (${chaves.map(()=>'?').join(',')})`); valores.push(...chaves); }
+    if (idsSemChave.length) { grupos.push(`id IN (${idsSemChave.map(()=>'?').join(',')})`); valores.push(...idsSemChave); }
+    if (!grupos.length) throw new Error('Não foi possível determinar a identidade dos documentos filtrados. Nenhum dado foi removido.');
+    const antes=db.prepare(`SELECT id,documento,chave,valor FROM movimentos WHERE empresa_id=? AND tipo='cliente' AND (${grupos.join(' OR ')})`).all(...valores);
+    if (!antes.length) throw new Error('Os documentos filtrados já não estão disponíveis para exclusão. Atualize a lista.');
+    if (antes.length > 500) throw new Error(`O filtro alcança ${antes.length} itens fiscais. Refine-o para excluir até 500 itens por vez.`);
+    const operacaoCompartilhada=require('../services/operacaoCompartilhada');
+    let compartilhado={ ativo:false, excluidos:0 };
+    if (operacaoCompartilhada.ativo()) {
+      // Sem chave: usar a lista completa de IDs preserva exatamente as linhas
+      // resolvidas pelo filtro, inclusive documentos com mais de um item.
+      compartilhado=await operacaoCompartilhada.excluirDocumentoFiscalCanonico(empresaId, { movimentoIds:antes.map((x)=>x.id) });
+    }
+    const ids=antes.map((x)=>Number(x.id));
+    db.prepare(`DELETE FROM movimentos WHERE empresa_id=? AND id IN (${ids.map(()=>'?').join(',')})`).run(empresaId,...ids);
+    const valor=antes.reduce((s,x)=>s+(Number(x.valor)||0),0);
+    estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','cancelamentos','perfil','motor','cadeias','cenarios','precificacao'],'Documentos de saída excluídos em lote');
+    auditar(req,{ empresaId, acao:'DOCUMENTOS_FISCAIS_SAIDA_EXCLUIDOS_EM_LOTE', entidade:'movimentos', entidadeId:`filtro:${JSON.stringify(filtros)}`, antes:{ documentos:documentos.length,itens:antes.length,valor,filtros }, depois:{ compartilhado } });
+    ok(res,{ documentos:documentos.length, excluidos:antes.length, valor, compartilhado });
+  } catch (e) { erro(res,e); }
 });
 router.get('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
   try {
