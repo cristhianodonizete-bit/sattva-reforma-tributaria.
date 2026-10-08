@@ -29,6 +29,25 @@ async function solicitarIncremental(empresaId, opcoes = {}) {
   const movimentoIds = [...new Set((opcoes.movimentoIds || []).map(Number).filter(Number.isInteger))];
   if (!movimentoIds.length) throw new Error('Informe ao menos um lançamento para o reprocessamento incremental.');
   const ano = String(Number(opcoes.ano) || 2027);
+  // Não descarte uma segunda alteração enquanto há um job incremental
+  // pendente. Unimos o novo recorte ao job existente, mantendo ambos os
+  // conjuntos explicitamente autorizados e evitando que a última alteração
+  // fique aguardando uma intervenção manual.
+  const ativo=db.prepare(`SELECT * FROM jobs_carteira WHERE empresa_id=? AND competencia=? AND tipo_job=? AND status IN ('PENDENTE','PROCESSANDO') ORDER BY criado_em DESC LIMIT 1`)
+    .get(Number(empresaId),ano,TIPO_INCREMENTAL);
+  if (ativo) {
+    let payload={}; try { payload=json(ativo.payload,{}) || {}; } catch (_) { payload={}; }
+    const unidos=[...new Set([...(payload.movimento_ids || []),...movimentoIds].map(Number).filter(Number.isInteger))];
+    if (unidos.length !== (payload.movimento_ids || []).length) {
+      payload.movimento_ids=unidos;
+      db.prepare('UPDATE jobs_carteira SET payload=? WHERE id=?').run(JSON.stringify(payload),ativo.id);
+      if (supabase.configurado()) {
+        const { error }=await supabase.admin().from('jobs_carteira').update({ payload }).eq('id',ativo.id).eq('status','PENDENTE');
+        if (error) throw new Error(`Atualização da fila incremental: ${error.message}`);
+      }
+    }
+    return { processamento_id:ativo.processamento_id, deduplicado:true, job:{ ...ativo, payload:JSON.stringify(payload) }, movimento_ids:unidos };
+  }
   const processamento = await fila.iniciar({ empresas:[Number(empresaId)], competencia:ano, tipo:TIPO_INCREMENTAL, prioridade:10,
     payload:{ ano:Number(ano), movimento_ids:movimentoIds, modo:'INCREMENTAL_IDS_EXPLICITOS' }, iniciarWorker:false });
   const job = (processamento.jobs || []).find((x) => Number(x.empresa_id) === Number(empresaId) && x.tipo_job === TIPO_INCREMENTAL) || null;

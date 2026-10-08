@@ -153,6 +153,8 @@ async function iniciarOperacao() {
           const atualizado = await operacao.sincronizarIncremental({
             remoto: supabase.admin({ prazoMs: prazoSegundoPlano }),
           });
+          const reprocessamentos=await require('./src/services/reprocessamentoAutomatico').agendarPendencias();
+          if (reprocessamentos.length) console.log(`  reprocessamentos incrementais automáticos: ${JSON.stringify(reprocessamentos)}`);
           if (Number(atualizado?.eventos || 0) > 0 || atualizado?.modo === 'fallback_completo') {
             console.log(`  operação compartilhada atualizada: ${JSON.stringify(atualizado)}`);
           }
@@ -177,7 +179,9 @@ async function iniciarOperacao() {
       // dados e esgotava a memória da instância antes do primeiro acesso.
       const fila = require('./src/services/processamentoCarteira');
       await fila.recuperarAbandonados();
-      console.log('  motor e fila pesada aguardando acionamento explícito');
+      const reprocessamentos=await require('./src/services/reprocessamentoAutomatico').agendarPendencias();
+      if (reprocessamentos.length) console.log(`  reprocessamentos incrementais automáticos: ${JSON.stringify(reprocessamentos)}`);
+      console.log('  motor geral aguarda acionamento explícito; alterações pontuais seguem para a fila incremental automaticamente');
     }
   } catch (e) {
     estadoOperacao.erro = e.message;

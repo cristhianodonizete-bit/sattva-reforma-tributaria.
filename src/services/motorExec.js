@@ -59,6 +59,17 @@ const versoesAtuais = () => {
   return { regra_version: hash(params), parametro_version: hash(params.regimes || params), catalogo_version: 'catalogo-local-v1', motor_version: MOTOR_VERSION };
 };
 const CHAVE_CONTROLE_PENDENCIAS = 'motor_pendencias_versao';
+// Cada mudança de regra que afeta fatos já materializados declara o seu
+// recorte aqui. Isso impede que uma correção pontual exija motor completo e
+// torna a invalidação auditável: regra, versão, motivo e universo atingido.
+// Novas alterações fiscais devem entrar nesta lista com critério objetivo.
+const INVALIDACOES_FISCAIS = [
+  {
+    chave: 'NCM_85437099_ACESSIBILIDADE_V1',
+    motivo: 'NCM_85437099_EXIGE_AGENDA_BRAILLE',
+    selecionar: () => db.prepare("SELECT id,empresa_id FROM movimentos WHERE REPLACE(COALESCE(ncm,''),'.','')='85437099'").all(),
+  },
+];
 // Alterações de parâmetros são rastreadas por gatilhos com a dependência da
 // operação (regime, redução, CFOP etc.). A sentinela global fica reservada à
 // troca explícita da implementação do motor; incluir regras.tudo() aqui
@@ -71,13 +82,25 @@ const versaoFilaIncremental = () => hash({ motor: MOTOR_VERSION });
 function prepararFilaIncremental() {
   const versao = versaoFilaIncremental();
   const anterior = db.prepare('SELECT valor FROM motor_pendencias_controle WHERE chave=?').get(CHAVE_CONTROLE_PENDENCIAS)?.valor;
-  if (anterior === versao) return;
-  db.transaction(() => {
+  if (anterior !== versao) db.transaction(() => {
     db.prepare(`INSERT OR REPLACE INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
       SELECT empresa_id,id,'VERSAO_CALCULO_ALTERADA',datetime('now','localtime') FROM movimentos`).run();
     db.prepare(`INSERT INTO motor_pendencias_controle(chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))
       ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor,atualizado_em=excluded.atualizado_em`).run(CHAVE_CONTROLE_PENDENCIAS, versao);
   })();
+  // A troca de implementação pode não alterar nenhum dado de entrada. As
+  // invalidações declaradas acima preservam o recorte: somente os documentos
+  // alcançados por cada nova regra entram na fila incremental.
+  for (const invalida of INVALIDACOES_FISCAIS) {
+    const chave=`motor_invalida_${invalida.chave}`;
+    if (db.prepare('SELECT 1 FROM motor_pendencias_controle WHERE chave=?').get(chave)) continue;
+    const atingidos=invalida.selecionar();
+    db.transaction(()=>{
+      const inserir=db.prepare("INSERT OR REPLACE INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em) VALUES (?,?,?,datetime('now','localtime'))");
+      atingidos.forEach((m)=>inserir.run(m.empresa_id,m.id,invalida.motivo));
+      db.prepare("INSERT INTO motor_pendencias_controle(chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))").run(chave,String(atingidos.length));
+    })();
+  }
 }
 const hashMovimento = (m) => hash({
   id: m.id, valor: m.valor, base_calculo: m.base_calculo, icms: m.icms, icms_st: m.icms_st, ipi: m.ipi,
