@@ -39,7 +39,8 @@ const rotaRazao = api.slice(api.indexOf("router.post('/empresas/:id/questor/raza
 assert.match(rotaRazao, /motorExecucaoFila\.solicitarIncremental/);
 assert.doesNotMatch(rotaRazao, /motorExecucaoFila\.solicitar\(empresaId,\{\}\)/, 'reaplicação do Razão não pode enfileirar MOTOR_COMPLETO');
 assert.match(preparacao, /permitirPublicacao:false/);
-assert.match(preparacao, /somenteLeitura:true/);
+assert.match(preparacao, /somenteLeitura:false/);
+assert.match(preparacao, /reidratar o SQLite efêmero do\n\s+\/\/ worker a partir da fonte canônica/);
 assert.match(preparacao, /forcar:true/);
 assert.match(operacao, /if \(opcoes\.somenteLeitura && divergencia\.bloqueia\)/);
 assert.match(operacao, /O motor foi bloqueado/);

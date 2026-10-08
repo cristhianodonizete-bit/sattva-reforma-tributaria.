@@ -24,11 +24,13 @@ async function preparar(empresaId) {
     () => operacaoCompartilhada.reconciliarMovimentosEmpresa(id, {
       competenciaInicio: periodo.competencia_inicio,
       competenciaFim: periodo.competencia_fim,
-      // Execução do motor é estritamente leitora quanto à base fiscal.
+      // O motor continua estritamente leitor da base fiscal compartilhada.
+      // Aqui "sincronizar" significa somente reidratar o SQLite efêmero do
+      // worker a partir da fonte canônica; não publica, não exclui e não
+      // altera nenhum fato remoto. Bloquear por cache vazio fazia o operador
+      // precisar voltar e disparar a mesma execução após a sincronização.
       permitirPublicacao:false,
-      // Divergência deixa de ser corrigida pelo worker. O motor só aceita uma
-      // base já sincronizada e preserva a fotografia ativa se houver diferença.
-      somenteLeitura:true,
+      somenteLeitura:false,
       forcar:true,
     }),
     { motivo:'Documentos canônicos conferidos pelo worker' },

@@ -17,6 +17,7 @@ const remoto = {
     if (tabela === 'movimentos') return { select: () => ({ eq: () => ({ range: async () => ({ data:[{
       id:10, empresa_id:'empresa-remota', tipo:'cliente', sentido:'saida', documento:'1/21668', chave:'chave-21668', competencia:'2026-04', valor:2379.07, cfop:'5102', modelo_documento_fiscal:'nfe', situacao_documento:'CANCELADO', cancelamento_origem:'QUESTOR_RELATORIO_CANCELADOS', origem:'xml',
     }], error:null }) }) }) };
+    if (tabela === 'auditoria') return { select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ range: async () => ({ data:[], error:null }) }) }) }) }) };
     throw new Error(`Tabela inesperada: ${tabela}`);
   },
 };

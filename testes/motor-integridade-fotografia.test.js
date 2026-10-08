@@ -9,6 +9,7 @@ const migration = fs.readFileSync(path.join(__dirname, '../supabase/migrations/2
 const bloqueioBanco = fs.readFileSync(path.join(__dirname, '../supabase/migrations/20261008_bloqueio_fotografia_ativa_mista.sql'), 'utf8');
 
 assert.match(preparo, /permitirPublicacao:false/, 'o motor deve ser somente-leitura para fatos fiscais pendentes');
+assert.match(preparo, /somenteLeitura:false/, 'a cópia efêmera do worker deve ser reidratada da fonte canônica, sem publicar fatos fiscais');
 assert.match(operacao, /O motor nunca é um canal de publicação de fatos fiscais/, 'reconciliação deve bloquear publicação implícita pelo motor');
 assert.match(fila, /integridadeMotor\.assinarEntrada/, 'worker deve assinar a entrada antes de calcular');
 assert.match(fila, /integridadeMotor\.exigirMesmaEntrada\(entradaMotor, entradaAntesDePublicar\)/, 'mudança durante cálculo deve impedir publicação');
