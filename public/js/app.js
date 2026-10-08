@@ -24,6 +24,7 @@ const App = (() => {
   // Guarda somente a leitura enquanto ela está em andamento para que dois
   // componentes abertos ao mesmo tempo não façam a mesma chamada ao servidor.
   const leiturasEmAndamento = new Map();
+  const esperar = (ms) => new Promise((resolver) => setTimeout(resolver, ms));
   function api(caminho, opcoes = {}) {
     const metodo = opcoes.metodo || 'GET';
     const chaveLeitura = `${metodo}:${caminho}`;
@@ -32,6 +33,11 @@ const App = (() => {
     const token = localStorage.getItem('sattva_token');
     const headers = opcoes.corpo instanceof FormData ? {} : { 'Content-Type': 'application/json' };
     if (token) headers.Authorization = `Bearer ${token}`;
+    // Após reinício, o SQLite efêmero é recomposto da fonte canônica. Esse
+    // 503 é transitório e específico da primeira carga; repetir somente GET
+    // impede que o usuário veja uma indisponibilidade normal do boot, sem
+    // jamais repetir uma ação que possa alterar dados.
+    for (let tentativa = 0; tentativa < 24; tentativa++) {
     const r = await fetch('/api' + caminho, {
       method: metodo,
       headers,
@@ -59,8 +65,14 @@ const App = (() => {
       }
       throw new Error('Sua sessão expirou. Entre novamente para continuar.');
     }
-    if (!j.ok) throw new Error(j.erro || 'Falha na requisição.');
-    return j;
+    if (j.ok) return j;
+    if (metodo === 'GET' && r.status === 503 && j.codigo === 'BASE_OPERACIONAL_INDISPONIVEL' && tentativa < 23) {
+      await esperar(Math.min(1500, 300 + tentativa * 100));
+      continue;
+    }
+    throw new Error(j.erro || 'Falha na requisição.');
+    }
+    throw new Error('A base operacional continua em preparação. Aguarde alguns instantes e atualize a página.');
     };
     const promessa = executar();
     if (metodo === 'GET') {
@@ -591,7 +603,7 @@ const App = (() => {
       // Leituras independentes: não altera contexto da empresa, parâmetros ou
       // motor; somente elimina uma espera de rede antes da primeira tela.
       await Promise.all([carregarParametros(), carregarEmpresas(), atualizarNotificacoesReforma()]);
-    } catch (e) { document.getElementById('tela').innerHTML = `<div class="aviso alto">Servidor indisponível: ${esc(e.message)}</div>`; return; }
+    } catch (e) { document.getElementById('tela').innerHTML = `<div class="aviso neutro"><b>Preparando a base operacional</b><br>${esc(e.message)}</div>`; return; }
     // A navegação começa recolhida a cada acesso; cada pessoa abre apenas a
     // área necessária para não transformar a lateral numa lista extensa.
     MENU.forEach((grupo) => localStorage.removeItem(`sattva_menu_grupo_${grupo.id}`));
