@@ -482,7 +482,13 @@ const App = (() => {
       if (S.tela === tela) await anexarFechamentoModulo(alvo, tela);
       registrarNavegacao(false);
     } catch (e) {
-      alvo.innerHTML = `<div class="aviso alto"><b>Não foi possível carregar</b>${esc(e.message)}</div>`;
+      const mensagem = String(e?.message || '');
+      // Empresa sem uma execução é um estado inicial legítimo, não uma falha
+      // de carregamento. Mantê-lo neutro evita sugerir ao usuário que dados
+      // foram perdidos ou que uma fotografia existente está inconsistente.
+      if (mensagem.startsWith('Não há fotografia do motor para esta empresa.')) {
+        alvo.innerHTML = `<div class="aviso neutro"><b>Análise ainda não gerada</b><br>Esta empresa ainda não possui uma fotografia do motor. Importe a movimentação e execute o motor quando desejar gerar a análise.</div>`;
+      } else alvo.innerHTML = `<div class="aviso alto"><b>Não foi possível carregar</b>${esc(mensagem)}</div>`;
       registrarNavegacao(true);
     }
   }
