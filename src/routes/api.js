@@ -7825,8 +7825,8 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
     const chave=String(corpo.item_chave || '').trim();
     const cadastro=chave ? db.prepare("SELECT valor,label,descricao FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(chave) : null;
     let regra={}; if (cadastro) try { regra=JSON.parse(cadastro.valor || '{}'); } catch (_) { regra={}; }
-    const descricao=String(cadastro ? (regra.nome || cadastro.label) : corpo.item_novo || '').trim();
-    if (!descricao) throw new Error('Selecione um item cadastrado ou informe o item avulso.');
+    if (!cadastro) throw new Error('Selecione um item do cadastro de itens de entrada manual. Cadastre a nova classificação antes de lançar a entrada.');
+    const descricao=String(regra.nome || cadastro.label).trim();
     const empresa=db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId);
     const regimeEmpresa=String(empresa?.regime || '');
     // PIS/Cofins é referência histórica do cadastro para o regime da empresa.
