@@ -5904,6 +5904,54 @@ function itensEntradaManualConfigurados() {
       regimes:regra.regimes || {}, contas_questor:Array.isArray(regra.contas_questor) ? regra.contas_questor : [] };
   });
 }
+
+// O catálogo de entradas é a fonte de verdade também para fatos do Razão que
+// já haviam sido materializados. Não cabe ao usuário lembrar de "reaplicar"
+// uma natureza depois de corrigir a regra: ao salvar o item, somente os fatos
+// que já apontam para ele recebem a nova referência e entram na fila
+// incremental. Valores, documentos, exclusões e fechamentos não são tocados.
+async function propagarItemEntradaManualParaRazao(chave, item) {
+  const movimentos=db.prepare(`SELECT m.id,m.empresa_id,m.normalizacao_evidencia,e.regime AS regime_empresa
+    FROM movimentos m JOIN empresas e ON e.id=m.empresa_id
+    WHERE m.origem='QUESTOR_RAZAO'`).all();
+  const porEmpresa=new Map();
+  const atualizar=db.prepare(`UPDATE movimentos
+    SET cst=?,cclasstrib=?,cst_declarado=?,cclasstrib_declarado=?,
+      nbs=COALESCE(NULLIF(nbs,''),?),lc116=COALESCE(NULLIF(lc116,''),?),normalizacao_evidencia=?
+    WHERE id=? AND empresa_id=?`);
+  db.transaction(()=>{
+    for (const movimento of movimentos) {
+      let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { continue; }
+      const itemAtual=String(evidencia.item_cadastrado?.chave || evidencia.item_cadastrado || '');
+      if (itemAtual!==chave) continue;
+      const regraRegime=item.regimes?.[String(movimento.regime_empresa || '')] || null;
+      const referencia=regraRegime ? {
+        regime:String(movimento.regime_empresa || ''), pis_percentual:regraRegime.pis ?? null,
+        cofins_percentual:regraRegime.cofins ?? null,
+        pis_cofins_percentual:regraRegime.pis_cofins ?? ((regraRegime.pis ?? 0)+(regraRegime.cofins ?? 0)),
+        tratamento_atual:regraRegime.tratamento_atual || '',
+      } : null;
+      evidencia.item_cadastrado={ chave:item.chave, nome:item.nome };
+      evidencia.beneficio_percentual=item.beneficio;
+      evidencia.gera_credito=item.gera_credito;
+      evidencia.observacao=item.observacao || evidencia.observacao || '';
+      evidencia.referencia_pis_cofins=referencia;
+      evidencia.catalogo_atualizado_em=new Date().toISOString();
+      evidencia.catalogo_atualizado_motivo='ALTERACAO_CADASTRO_ITEM_ENTRADA_MANUAL';
+      atualizar.run(item.cst || null,item.cclasstrib || null,item.cst || null,item.cclasstrib || null,item.nbs || null,item.lc116 || null,JSON.stringify(evidencia),movimento.id,movimento.empresa_id);
+      const ids=porEmpresa.get(movimento.empresa_id) || [];
+      ids.push(movimento.id); porEmpresa.set(movimento.empresa_id,ids);
+    }
+  })();
+  const processamentos=[];
+  for (const [empresaId,ids] of porEmpresa) {
+    await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,ids);
+    const processamento=await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:ids });
+    estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Cadastro de item de entrada atualizado');
+    processamentos.push({ empresa_id:empresaId, documentos:ids.length, processamento_id:processamento.processamento_id });
+  }
+  return { documentos:[...porEmpresa.values()].reduce((s,ids)=>s+ids.length,0), empresas:processamentos.length, processamentos };
+}
 function fornecedorPeloDocumentoRazao(fornecedores, documentos, documento) {
   const numero=String(documento || '').split('/').at(-1).replace(/\D/g,'');
   if (!numero) return null;
@@ -7772,7 +7820,8 @@ router.put('/config/itens-entrada-manual/:chave', async (req,res)=>{
     }};
     db.prepare("UPDATE param_regras SET valor=?,label=?,descricao=? WHERE grupo='itens_entrada_manual' AND chave=?").run(JSON.stringify(regra),nome,regra.observacao,chave);
     await confirmarParametrosCompartilhados();
-    ok(res,{ chave,...regra });
+    const propagacao=await propagarItemEntradaManualParaRazao(chave,{ chave,...regra });
+    ok(res,{ chave,...regra, propagacao });
   } catch(e) { erro(res,e); }
 });
 
