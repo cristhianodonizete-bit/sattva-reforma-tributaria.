@@ -118,6 +118,28 @@ function ehContribuicaoAssociativaPresumida(item = {}) {
     && semDocumentoFiscal && semServicoIdentificado;
 }
 
+// A conta contábil "Legais e judiciais" é mais ampla do que honorários:
+// também comporta custas, taxas públicas, depósitos e reembolsos. A redução
+// do art. 127 só nasce da seleção expressa da natureza técnica de advocacia;
+// nunca da conta ampla ou de uma palavra solta no histórico.
+function ehHonorarioAdvocaticioArt127(item = {}) {
+  const chave = String(item.entradaManual?.itemChave || item.itemChave || '');
+  return chave === 'HONORARIOS_ADVOCATICIOS_ART_127';
+}
+
+function memoriaHonorarioAdvocaticio(item = {}) {
+  if (!ehHonorarioAdvocaticioArt127(item)) return null;
+  return {
+    rotulo: 'Projeção de honorários advocatícios — art. 127',
+    premissa: 'Serviço efetivamente prestado por escritório de advocacia, selecionado no catálogo técnico. O atendimento aos requisitos do art. 127 permanece hipótese explícita quando não documentado.',
+    cst: '200',
+    cclasstrib: '200052',
+    reducao_aliquota: 0.30,
+    fundamento: 'LC 214/2025, arts. 47 e 127; Decreto 12.955/2026, art. 202.',
+    aviso: 'Projeção realizada sob a hipótese de serviço advocatício elegível ao art. 127. Custas judiciais, taxas públicas, depósitos judiciais e reembolsos não se enquadram nesta natureza.',
+  };
+}
+
 function memoriaContribuicaoAssociativa(item = {}) {
   if (!ehContribuicaoAssociativaPresumida(item)) return null;
   return {
@@ -380,6 +402,7 @@ function projetarItem(item, ctx) {
     : classificar(item, { empresa: ctx.empresa, sentido, regimeContraparte: ctx.regimeContraparte,
       perfilDestinatario: ctx.perfilDestinatario, elegibilidadeAnexoXi: ctx.elegibilidadeAnexoXi });
   const contribuicaoAssociativa = sentido === 'entrada' ? memoriaContribuicaoAssociativa(item) : null;
+  const honorarioAdvocaticio = sentido === 'entrada' ? memoriaHonorarioAdvocaticio(item) : null;
   if (contribuicaoAssociativa) {
     // Sem documento fiscal ou serviço individualizado, não existe base para
     // declarar uma operação tributada. A classificação fica explicitamente
@@ -387,6 +410,15 @@ function projetarItem(item, ctx) {
     cls = { ...cls, cst: '', cclasstrib: '', status: 'CLASSIFICACAO_FISCAL_PENDENTE', reducao: null, reducaoIbs: 0, reducaoCbs: 0,
       origemRegra: 'CONTRIBUICAO_ASSOCIATIVA_PRESUMIDA',
       tratamento: contribuicaoAssociativa.status };
+  }
+  if (honorarioAdvocaticio) {
+    // A escolha explícita da natureza específica é a evidência classificatória
+    // da simulação. Não se aplica à natureza contábil genérica de legais e
+    // judiciais, que continua pendente para as demais operações.
+    cls = { ...cls, cst: honorarioAdvocaticio.cst, cclasstrib: honorarioAdvocaticio.cclasstrib,
+      status: 'CLASSIFICADO', reducao: 'reduzida', reducaoIbs: honorarioAdvocaticio.reducao_aliquota,
+      reducaoCbs: honorarioAdvocaticio.reducao_aliquota, origemRegra: 'HONORARIOS_ADVOCATICIOS_ART_127',
+      tratamento: honorarioAdvocaticio.rotulo, fundamento: honorarioAdvocaticio.fundamento };
   }
   const contextoClassificatorio = contextoAposEquivalencia(item, cls, ctx.decisaoClassificatoria || null);
 
@@ -400,11 +432,26 @@ function projetarItem(item, ctx) {
   // confiável; não substitui monofasia, alíquota zero ou regra específica.
   const regraGeralRegimeConfirmada = ['lucro_presumido', 'lucro_real'].includes(regimeEmitente)
     && contextoClassificatorio.item?.condicao_material_pendente !== true;
-  const rec = reconstruir({ ...contextoClassificatorio.item, tipo, regime: regimeEmitente, simples: simplesInfo,
+  let rec = reconstruir({ ...contextoClassificatorio.item, tipo, regime: regimeEmitente, simples: simplesInfo,
     regra_geral_regime_confirmada: regraGeralRegimeConfirmada }, {
     ibsHabilitado: Number(aliq.parametros.calcular_ibs) === 1,
   });
   const planoAssistenciaSaude = memoriaPlanoAssistenciaSaude(contextoClassificatorio.item, cls, aliq, rec);
+  if (honorarioAdvocaticio) {
+    // A alíquota/carga do prestador não demonstra crédito histórico do
+    // adquirente. Sem hipótese validada, não retirar 3,65% ou 9,25% da
+    // despesa nem formar a base CBS a partir dessa presunção.
+    rec = {
+      ...rec,
+      baseEconomica: r2(num(item.valor) || rec.baseEconomica),
+      memoriaPisCofins: {
+        ...(rec.memoriaPisCofins || {}),
+        carga_atual_pis_cofins_valor: 0,
+        carga_atual_pis_cofins_origem: 'REGRA_ESPECIFICA_HONORARIOS_ADVOCATICIOS',
+        base_reconstrucao_metodo: 'Valor integral da despesa; crédito histórico de PIS/Cofins não presumido para honorários advocatícios.',
+      },
+    };
+  }
   if (contextoClassificatorio.equivalente) {
     rec.equivalenciaClassificatoria = {
       regra: contextoClassificatorio.equivalencia.regra,
@@ -493,6 +540,14 @@ function projetarItem(item, ctx) {
     cred = credito('PROJECAO_CONCLUIDA', 'SEM_CREDITO', 'CONTRIBUICAO_ASSOCIATIVA_PRESUMIDA', 'DETERMINADO_POR_PREMISSA', contribuicaoAssociativa.status);
     cred.projecaoContribuicaoAssociativa = contribuicaoAssociativa;
   }
+  if (honorarioAdvocaticio && sentido === 'entrada') {
+    cred.elegibilidadeLegal = {
+      status: 'HIPOTESE_PROJECAO',
+      fundamento: honorarioAdvocaticio.fundamento,
+      rotulo: 'Elegibilidade do art. 127 presumida exclusivamente para fins de projeção; a apropriação fiscal exige confirmação dos requisitos legais e documentais.',
+    };
+    cred.projecaoHonorarioAdvocaticio = honorarioAdvocaticio;
+  }
   if (!classificacaoBloqueiaCredito(cls, contextoClassificatorio.decisao)
     && contextoClassificatorio.equivalente) {
     cred.decisaoClassificatoria = {
@@ -534,6 +589,13 @@ function projetarItem(item, ctx) {
       valor: 0, status: 'DETERMINADO', classificacao: 'CREDITO_HISTORICO_ZERO_CONTRIBUICAO_ASSOCIATIVA',
       motivo: 'Contribuição associativa presumida sem contraprestação individualizada: não há crédito histórico de PIS/Cofins.',
       origem: 'CONTRIBUICAO_ASSOCIATIVA_PRESUMIDA', natureza: 'CALCULADO', ausencia_regra_especifica_superior: false,
+    };
+  }
+  if (honorarioAdvocaticio && sentido === 'entrada') {
+    creditoPisCofinsAdquirente = {
+      valor: 0, status: 'DETERMINADO', classificacao: 'CREDITO_HISTORICO_ZERO_HONORARIOS_ADVOCATICIOS',
+      motivo: 'Honorários advocatícios: a tributação do prestador não comprova crédito de PIS/Cofins do contratante; não presumir 3,65% sem hipótese legal específica validada.',
+      origem: 'REGRA_ESPECIFICA_HONORARIOS_ADVOCATICIOS', natureza: 'CALCULADO', ausencia_regra_especifica_superior: false,
     };
   }
   // CREDITO_PRESUMIDO fica em zero até que a hipótese seja informada como
@@ -601,6 +663,7 @@ function projetarItem(item, ctx) {
     creditoPisCofinsAdquirente,
     projecaoPlanoSaude: planoAssistenciaSaude,
     projecaoContribuicaoAssociativa: contribuicaoAssociativa,
+    projecaoHonorarioAdvocaticio: honorarioAdvocaticio,
     regimeCbsEmitente: regimeCbs(regimeEmitenteProjetado), regimeCbsAdquirente: regimeCbs(regimeAdquirenteProjetado),
     precoProjetado: r2(precoProjetado),
     custoLiquido: r2(custoLiquido),

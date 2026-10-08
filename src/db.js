@@ -2865,6 +2865,7 @@ const ITENS_ENTRADA_MANUAL_PADRAO = [
   ['OUTRAS_DESPESAS_SEM_BENEFICIO','Outras despesas sem benefício específico',0,'000001','000','Usado quando o Razão não comprova uma natureza especial; não atribui benefício imobiliário por presunção.',5,'simples_nacional',[]],
   ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',6,'simples_nacional',[]],
   ['PLANOS_ASSISTENCIA_SAUDE','Plano privado de assistência à saúde',0,'011002','011','Regime específico de planos de saúde. Projeção com participação integral da empresa; crédito somente estimado até confirmação da elegibilidade legal e do débito da operadora.',7,'lucro_real',[],'109101000','0422'],
+  ['HONORARIOS_ADVOCATICIOS_ART_127','Honorários advocatícios — art. 127 LC 214/2025',.30,'200052','200','Use somente para serviço efetivamente prestado por escritório de advocacia elegível ao art. 127. Não usar para custas, taxas públicas, depósitos judiciais ou reembolsos.',8,'lucro_real',[]],
 ];
 db.transaction(() => ITENS_ENTRADA_MANUAL_PADRAO.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor,nbs='',lc116='']) => db.prepare(`INSERT OR IGNORE INTO param_regras
   (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)`)

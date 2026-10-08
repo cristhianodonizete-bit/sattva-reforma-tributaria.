@@ -7605,11 +7605,12 @@ function assegurarItensEntradaManualPadrao() {
     ['LOCACAO_VEICULOS','Locação de veículos',0,'000001','000','Locação de veículo é bem móvel e não recebe o benefício imobiliário',4,'simples_nacional',['3.7.03.013.005']],
     ['OUTRAS_DESPESAS_SEM_BENEFICIO','Outras despesas sem benefício específico',0,'000001','000','Usado quando o Razão não comprova uma natureza especial; não atribui benefício imobiliário por presunção.',5,'simples_nacional',[]],
     ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',6,'simples_nacional',[]],
+    ['HONORARIOS_ADVOCATICIOS_ART_127','Honorários advocatícios — art. 127 LC 214/2025',.30,'200052','200','Use somente para serviço efetivamente prestado por escritório de advocacia elegível ao art. 127. Não usar para custas, taxas públicas, depósitos judiciais ou reembolsos.',8,'lucro_real',[], '', '', { lucro_real:{pis:0,cofins:0,tratamento_atual:'Honorários advocatícios: não presumir crédito histórico de PIS/Cofins sem hipótese legal específica validada.'}, lucro_presumido:{pis:0,cofins:0,tratamento_atual:'Honorários advocatícios: não presumir crédito histórico de PIS/Cofins sem hipótese legal específica validada.'}, simples_nacional:{pis:0,cofins:0,pis_cofins:0,tratamento_atual:'Honorários advocatícios: crédito histórico não presumido.'} }],
   ];
   const inserir=db.prepare("INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)");
   const existente=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?");
   const atualizar=db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?");
-  db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor,nbs='',lc116='']) => {
+  db.transaction(() => itens.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor,nbs='',lc116='',regimesPadrao=null]) => {
     inserir.run(chave,nome,observacao,ordem);
     let anterior={}; try { anterior=JSON.parse(existente.get(chave)?.valor || '{}'); } catch (_) { /* será reparado sem apagar campos conhecidos */ }
     const contasConfiguradas=Array.isArray(anterior.contas_questor) ? anterior.contas_questor : [];
@@ -7617,7 +7618,7 @@ function assegurarItensEntradaManualPadrao() {
     const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior,
       nbs:anterior.nbs || nbs, lc116:anterior.lc116 || lc116,
       contas_questor:contasMescladas,
-      regimes:anterior.regimes || regimesPadraoEntrada(), fornecedor_padrao_regime:anterior.fornecedor_padrao_regime || fornecedor_padrao_regime };
+      regimes:anterior.regimes || regimesPadrao || regimesPadraoEntrada(), fornecedor_padrao_regime:anterior.fornecedor_padrao_regime || fornecedor_padrao_regime };
     if (!Object.keys(anterior).length || !anterior.regimes || !anterior.fornecedor_padrao_regime || !Array.isArray(anterior.contas_questor) || contasMescladas.length!==contasConfiguradas.length || (nbs && !anterior.nbs) || (lc116 && !anterior.lc116)) { atualizar.run(JSON.stringify(proxima),chave); alterou=true; }
   }))();
   return alterou;

@@ -536,6 +536,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
     // não compõe crédito potencial/apurável até confirmação legal e do débito.
     projecaoPlanoSaude: x.detalhe?.projecaoPlanoSaude || null,
     projecaoContribuicaoAssociativa: x.detalhe?.projecaoContribuicaoAssociativa || null,
+    projecaoHonorarioAdvocaticio: x.detalhe?.projecaoHonorarioAdvocaticio || null,
     pisCofinsAtual: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor ?? null,
     origemPisCofins: x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_origem || 'INDETERMINADO',
     tributosRetirados: {
