@@ -94,13 +94,12 @@ function possuiBaseOperacionalLocal() {
   try {
     const db = require('./src/db');
     const empresas=Number(db.prepare('SELECT COUNT(*) AS total FROM empresas').get()?.total || 0);
-    const movimentos=Number(db.prepare('SELECT COUNT(*) AS total FROM movimentos').get()?.total || 0);
-    const resultados=Number(db.prepare('SELECT COUNT(*) AS total FROM motor_resultados').get()?.total || 0);
-    // A carteira isolada não torna a instância apta para Cadeias. Depois de
-    // um reinício o SQLite pode conter empresas, mas ainda não ter restaurado
-    // movimentos ou a fotografia ativa do motor. Liberar a API nesse intervalo
-    // fazia a tela concluir, incorretamente, que não havia movimentação.
-    return empresas > 0 && movimentos > 0 && resultados > 0;
+    // A carteira é o mínimo para a pessoa entrar, trocar de empresa e usar as
+    // áreas que não dependem de uma fotografia fiscal. Movimentos e resultados
+    // podem continuar chegando em segundo plano; exigi-los aqui transformava
+    // uma restauração grande em indisponibilidade global de vários minutos.
+    // As rotas de análise já distinguem ausência de fotografia de dado zero.
+    return empresas > 0;
   } catch (_) {
     return false;
   }
