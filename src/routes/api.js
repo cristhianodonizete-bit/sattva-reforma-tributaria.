@@ -7626,7 +7626,7 @@ router.get('/config/regras', async (_req, res) => {
   try {
     // Esta é a rota que alimenta a tela de Configurações. Ela consulta a
     // fonte compartilhada antes de montar o formulário, nunca um cache antigo.
-    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_aliquotas','param_regimes','param_cfop','catalogo_itens_receita','regras_itens_receita_regime']);
+    if (supabase.configurado()) await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_regras','param_aliquotas','param_regimes','param_cfop','catalogo_itens_receita','regras_itens_receita_regime']);
     const padroesEntradaAtualizados=assegurarItensEntradaManualPadrao();
     if (padroesEntradaAtualizados) await confirmarParametrosCompartilhados();
     regras.invalidar();
