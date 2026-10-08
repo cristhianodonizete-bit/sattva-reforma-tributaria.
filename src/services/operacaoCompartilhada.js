@@ -648,15 +648,16 @@ function lerMovimentosLocais(empresaId, opcoes = {}) {
 // exclusões antigas ocorreram antes de a remoção canônica existir; portanto,
 // mesmo que um registro residual ainda exista no compartilhado, ele jamais
 // pode voltar a materializar-se no cache ou compor uma tela financeira.
-async function chavesDocumentosExcluidosAuditados(remoto, empresaId) {
+async function chavesDocumentosExcluidosAuditados(remoto, empresaId, empresaRemotaId = null) {
   // A chave fiscal, isoladamente, não é evidência suficiente para suprimir
   // uma versão posterior do documento. Em bases antigas havia cópias
   // duplicadas com a mesma chave; a exclusão da cópia de quatro itens não
   // pode eliminar uma versão canônica posterior com dois itens.
   const chaves = new Map();
   for (let de = 0;; de += 1000) {
+    const empresas=[...new Set([empresaId,empresaRemotaId].map(Number).filter(Number.isInteger))];
     const { data, error } = await remoto.from('auditoria').select('entidade_id,antes')
-      .eq('empresa_id', Number(empresaId)).eq('acao', 'DOCUMENTO_FISCAL_EXCLUIDO')
+      .in('empresa_id', empresas).eq('acao', 'DOCUMENTO_FISCAL_EXCLUIDO')
       .eq('entidade', 'movimentos').range(de, de + 999);
     if (error) throw new Error(`Trilha de exclusões fiscais: ${error.message}`);
     for (const evento of (data || [])) {
@@ -781,36 +782,13 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   const pendentesQuestor=locais.filter((linha) => !remotos.has(Number(linha.id))
     && !identidadesRemotas.has(identidadeFiscal(linha))
     && ['QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO'].includes(String(linha.origem || '').toUpperCase()));
-  // A tela não mistura duas fontes. Havendo fatos pendentes, publica primeiro
-  // e consulta novamente a fonte canônica. Se isso falhar, interrompe a
-  // leitura em vez de exibir totais parciais ou duplicados.
-  // Publicação genérica não conhece a identidade contábil do Razão e pode
-  // tratar o id local como se fosse id remoto. Razão/Conciliação Questor só
-  // seguem pela rotina com chave estável abaixo; isso impede que uma leitura
-  // vazia da fonte compartilhada faça a inclusão confirmada desaparecer.
-  const haLocaisGenericos=locais.some((linha)=>!['QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO'].includes(String(linha.origem || '').toUpperCase()));
-  if (pendentes.length || pendentesQuestor.length || (!normalizadas.length && haLocaisGenericos)) {
-    // O motor nunca é um canal de publicação de fatos fiscais. Se uma
-    // importação ainda não chegou à fonte canônica, o job para aqui e mantém
-    // tanto a base quanto a fotografia ativa intactas. A publicação ocorre
-    // somente nos fluxos explícitos de importação/conciliação.
-    if (opcoes.permitirPublicacao === false) {
-      throw new Error('Há documentos locais aguardando publicação segura na fonte canônica. O motor não publica nem altera bases fiscais; conclua a importação/conciliação e execute novamente.');
-    }
-    try {
-      if (pendentes.length || (!normalizadas.length && haLocaisGenericos)) await publicarOperacaoEmpresa(id);
-      if (pendentesQuestor.length) await publicarEntradasQuestorConciliadas(id, pendentesQuestor.map((x)=>x.id));
-    }
-    catch (erroPublicacao) { throw new Error(`Documentos fiscais aguardam publicação segura: ${erroPublicacao.message}`); }
-    leitura = await carregarMovimentosCanonicos(empresa, opcoes);
-    ({ remota, linhas, origem } = leitura);
-    linhas = deduplicarMovimentosFiscais(linhas);
-    normalizadas = normalizarEmpresaIdDoCache('movimentos', linhas, new Map([[String(remota.id), id]]));
-    chavesBloqueadas = chavesQueDevemPermanecerExcluidas(normalizadas, chavesExcluidas);
-    normalizadas = normalizadas.filter((linha) => !chavesBloqueadas.has(String(linha.chave || '').trim()));
-    remotos = new Set(normalizadas.map((x) => Number(x.id)).filter(Number.isInteger));
-    identidadesRemotas = new Set(normalizadas.map(identidadeFiscal).filter(Boolean));
-  }
+  // Reconciliação é estritamente leitura da fonte canônica. Um cache local
+  // desatualizado jamais pode republicar documento que foi excluído na fonte
+  // compartilhada; a publicação só ocorre nos fluxos explícitos de
+  // importação/conciliação, antes de a tela ser liberada ao usuário.
+  // Isso elimina o ciclo "exclui e volta" entre instâncias.
+  // `pendentes` é mantido apenas para o diagnóstico da divergência; nunca
+  // dispara publicação implícita a partir da leitura.
   const removerNormais = locais.filter((linha) => !remotos.has(Number(linha.id))
     && !identidadesRemotas.has(identidadeFiscal(linha))
     && !['xml','sped','questor_conciliacao_entrada','questor_razao'].includes(String(linha.origem || '').toLowerCase())).map((linha) => Number(linha.id));
@@ -1562,11 +1540,17 @@ async function publicarOperacaoEmpresa(empresaId) {
   const empresas=(candidatas || []).filter((x) => Number(x.origem_local_id) === Number(empresaId) || String(x.cnpj || '').replace(/\D/g,'') === cnpj);
   if (empresas.length !== 1) throw new Error('Empresa compartilhada não localizada de forma única; a importação local foi preservada.');
   const empresaRemotaId=Number(empresas[0].id);
+  // Exclusões confirmadas vencem qualquer cache de outra instância. Sem esta
+  // guarda, uma publicação administrativa posterior poderia recriar uma
+  // nota que o usuário já removeu da fonte canônica.
+  const exclusoes=await chavesDocumentosExcluidosAuditados(remoto, Number(empresaId), empresaRemotaId);
+  const foiExcluido=(linha)=>exclusoes.has(String(linha?.chave || '').trim());
   const tabelas=['lotes','parceiros','movimentos','enriquecimento_pis_cofins_evidencias'];
   const resultado={ empresa_id:empresaRemotaId };
   for (const tabela of tabelas) {
     const campos=CAMPOS[tabela];
     const linhas=db.prepare(`SELECT ${campos.join(',')} FROM ${tabela} WHERE empresa_id=?`).all(Number(empresaId))
+      .filter((linha)=>tabela !== 'movimentos' || !foiExcluido(linha))
       .map((linha) => ({ ...linha, empresa_id:empresaRemotaId }));
     // IDs SQLite não são globais: outra instância pode gerar o mesmo número
     // para outro XML. Em documento XML a chave eletrônica + item é a
@@ -1588,7 +1572,8 @@ async function publicarOperacaoEmpresa(empresaId) {
   // só é considerada publicada quando cada movimento local também pode ser
   // localizado na fotografia compartilhada. Isso evita o estado enganoso
   // "lote importado" com NFC-e ausente nas telas de documentos e cadeias.
-  const locais = db.prepare('SELECT id,lote_id,chave,item_numero,origem FROM movimentos WHERE empresa_id=?').all(Number(empresaId));
+  const locais = db.prepare('SELECT id,lote_id,chave,item_numero,origem FROM movimentos WHERE empresa_id=?').all(Number(empresaId))
+    .filter((linha)=>!foiExcluido(linha));
   const identidadesRemotas = new Set();
   for (let inicio = 0;; inicio += 1000) {
     const { data, error } = await remoto.from('movimentos').select('id,lote_id,chave,item_numero,origem').eq('empresa_id', empresaRemotaId).range(inicio, inicio + 999);
