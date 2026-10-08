@@ -165,6 +165,13 @@ function reconstruir(item, contexto = {}) {
     memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(pis + cofins), carga_atual_pis_cofins_percentual: valor ? r6(percentualDeValor(pis + cofins, valor)) : 0, carga_atual_pis_cofins_origem: 'DOCUMENTO', carga_atual_pis_cofins_natureza: 'REAL', modo_reconstrucao_monofasia: 'VALOR_REAL_DOCUMENTO', base_reconstrucao_metodo: 'DOCUMENTO', base_reconstrucao_percentual: valor ? r6(percentualDeValor(pis + cofins, valor)) : 0, base_reconstrucao_valor_excluido: r2(pis + cofins), base_reconstrucao_fonte: 'DOCUMENTO', base_reconstrucao_natureza: 'REAL' };
     memoriaTributos.pis = memoriaTributo({ valor: pis, base: valor, aliquota: percentualDeValor(pis, valor), origem: 'DOCUMENTO', regra: 'VALOR_DESTACADO_DOCUMENTO', evidencia: 'Campo PIS do documento fiscal', natureza: 'REAL', status: 'DETERMINADO', justificativa: 'PIS documentado.' });
     memoriaTributos.cofins = memoriaTributo({ valor: cofins, base: valor, aliquota: percentualDeValor(cofins, valor), origem: 'DOCUMENTO', regra: 'VALOR_DESTACADO_DOCUMENTO', evidencia: 'Campo COFINS do documento fiscal', natureza: 'REAL', status: 'DETERMINADO', justificativa: 'COFINS documentado.' });
+  } else if (item.entradaManual?.itemChave && item.pis_cofins_referencia !== null && item.pis_cofins_referencia !== undefined) {
+    // A natureza escolhida no catálogo de entradas manuais é a evidência
+    // fiscal parametrizada para fatos vindos do Razão, que não traz item/NCM.
+    // Ela tem precedência sobre a ausência de correspondência no catálogo
+    // externo e também funciona para empresas do Simples, inclusive em 0%.
+    const p=num(item.pis_cofins_referencia);
+    registrarCargaResolvida({ percentual:p, valor:aplicarPercentual(valor,p), origem:'CATALOGO_ENTRADA_MANUAL', natureza:'CALCULADO', metodo:'CATALOGO_ENTRADA_MANUAL', justificativa:'Referência histórica de PIS/Cofins definida no item do catálogo de entrada manual.' });
   } else if (regime === 'mei') {
     // MEI não carrega PIS/COFINS separadamente para esta reconstrução.
     registrarCargaResolvida({ percentual: 0, valor: 0, origem: 'REGRA_REGIME', natureza: 'CALCULADO', metodo: 'MEI_SEM_PIS_COFINS', justificativa: 'MEI: carga de PIS/COFINS reconstruída como zero pela regra de regime.' });

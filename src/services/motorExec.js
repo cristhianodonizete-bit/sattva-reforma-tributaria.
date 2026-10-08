@@ -475,6 +475,13 @@ function executar(empresaId, opcoes = {}) {
 /** Converte a linha do banco no formato que o motor espera */
 function normalizar(m) {
   let evidencia={}; try { evidencia=typeof m.normalizacao_evidencia === 'string' ? JSON.parse(m.normalizacao_evidencia || '{}') : (m.normalizacao_evidencia || {}); } catch (_) { /* evidência inválida não impede o processamento do documento */ }
+  const itemChave=typeof evidencia.item_cadastrado === 'object' ? String(evidencia.item_cadastrado?.chave || '') : String(evidencia.item_cadastrado || '');
+  const referenciaManual=evidencia.referencia_pis_cofins || null;
+  const pisCofinsManual=referenciaManual?.pis_cofins_percentual ?? (
+    referenciaManual && (referenciaManual.pis_percentual !== null || referenciaManual.cofins_percentual !== null)
+      ? Number(referenciaManual.pis_percentual || 0) + Number(referenciaManual.cofins_percentual || 0)
+      : null
+  );
   return {
     documento: m.documento || '', item_numero: m.item_numero,
     nome: m.nome_cadastro || m.nome, inscr_federal: m.inscr_federal,
@@ -486,14 +493,18 @@ function normalizar(m) {
     valor: m.valor, base_calculo: m.base_calculo,
     icms: m.icms, icms_st: m.icms_st, ipi: m.ipi,
     pis: m.pis, cofins: m.cofins, pis_cofins_documentado: Number(m.pis_cofins_documentado) === 1, iss: m.iss,
-    pis_cofins_referencia: m.referenciaFiscal?.pis_cofins,
+    // Entradas do Razão não possuem item fiscal no Questor. Quando a natureza
+    // foi escolhida no catálogo manual, a referência histórica declarada no
+    // próprio lançamento é a fonte correta — não uma tentativa de localizar
+    // NCM/NBS em catálogo externo.
+    pis_cofins_referencia: m.referenciaFiscal?.pis_cofins ?? pisCofinsManual,
     frete: m.frete, seguro: m.seguro, outras: m.outras, desconto: m.desconto,
     data_emissao: m.data_emissao, origem:m.origem,
     historico: evidencia.historico || evidencia.descricao_original || '', conta: evidencia.conta || evidencia.conta_codigo || '',
-    entradaManual: evidencia.tipo === 'LANCAMENTO_MANUAL_ENTRADA' ? {
+    entradaManual: (evidencia.tipo === 'LANCAMENTO_MANUAL_ENTRADA' || itemChave) ? {
       beneficioPercentual:Number(evidencia.beneficio_percentual || 0), geraCredito:evidencia.gera_credito !== false,
       observacao:evidencia.observacao || '',
-      itemChave:typeof evidencia.item_cadastrado === 'object' ? String(evidencia.item_cadastrado?.chave || '') : String(evidencia.item_cadastrado || ''),
+      itemChave,
     } : null,
     // A evidência é somente leitura para o motor: a simulação de plano de
     // saúde não regrava o lançamento, não altera o valor do documento e não

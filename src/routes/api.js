@@ -5896,8 +5896,8 @@ function sugerirItemEntradaPeloRazao(itens, linha = {}) {
 function itensEntradaManualConfigurados() {
   return db.prepare("SELECT chave,label,valor FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((registro)=>{
     let regra={}; try { regra=JSON.parse(registro.valor || '{}'); } catch (_) { /* registro inválido não decide natureza */ }
-    return { chave:registro.chave, nome:regra.nome || registro.label || registro.chave, beneficio:Number(regra.beneficio || 0), cst:regra.cst || '', cclasstrib:regra.cclasstrib || '', nbs:regra.nbs || '', lc116:regra.lc116 || '', gera_credito:regra.gera_credito !== false,
-      contas_questor:Array.isArray(regra.contas_questor) ? regra.contas_questor : [] };
+    return { chave:registro.chave, nome:regra.nome || registro.label || registro.chave, beneficio:Number(regra.beneficio || 0), cst:regra.cst || '', cclasstrib:regra.cclasstrib || '', nbs:regra.nbs || '', lc116:regra.lc116 || '', gera_credito:regra.gera_credito !== false, observacao:regra.observacao || '',
+      regimes:regra.regimes || {}, contas_questor:Array.isArray(regra.contas_questor) ? regra.contas_questor : [] };
   });
 }
 function fornecedorPeloDocumentoRazao(fornecedores, documentos, documento) {
@@ -6555,6 +6555,7 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
     const configuracaoAlterada=assegurarItensEntradaManualPadrao();
     if (configuracaoAlterada) await confirmarParametrosCompartilhados();
     const itens=itensEntradaManualConfigurados();
+    const regimeEmpresa=String(db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime || '');
     const movimentos=db.prepare("SELECT id,nome,inscr_federal,regime,descricao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' ORDER BY id").all(empresaId);
     const fornecedores=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' ORDER BY descricao").all(empresaId);
     // A natureza e o fornecedor são leituras independentes do Razão. Antes,
@@ -6583,6 +6584,14 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
         // imobiliário. Quando não há outra identificação, fica neutro.
         if (!item && anterior==='ALUGUEL_IMOVEL_COMERCIAL') item=itens.find((x)=>x.chave==='OUTRAS_DESPESAS_SEM_BENEFICIO') || null;
         if (!item) continue;
+        const regraRegime=item.regimes?.[regimeEmpresa] || null;
+        const referenciaPisCofins=regraRegime ? {
+          regime:regimeEmpresa,
+          pis_percentual:regraRegime.pis ?? null,
+          cofins_percentual:regraRegime.cofins ?? null,
+          pis_cofins_percentual:regraRegime.pis_cofins ?? ((regraRegime.pis ?? 0) + (regraRegime.cofins ?? 0)),
+          tratamento_atual:regraRegime.tratamento_atual || '',
+        } : null;
         let nome=movimento.nome, cnpj=movimento.inscr_federal, regime=movimento.regime;
         const fornecedorAtual=evidencia.fornecedor_vinculado || {};
         let fornecedorHistoricoAjustado=false;
@@ -6612,7 +6621,9 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
           }
         }
         const referenciaFiscalJaAplicada=(!item.nbs || movimento.nbs) && (!item.lc116 || movimento.lc116);
-        if (anterior===item.chave && referenciaFiscalJaAplicada && !fornecedorHistoricoAjustado) continue;
+        const referenciaAnterior=evidencia.referencia_pis_cofins || null;
+        const referenciaPisCofinsIgual=JSON.stringify(referenciaAnterior)===JSON.stringify(referenciaPisCofins);
+        if (anterior===item.chave && referenciaFiscalJaAplicada && referenciaPisCofinsIgual && !fornecedorHistoricoAjustado) continue;
         if (!cnpj && /^Fornecedor genérico\s+—/i.test(String(nome || fornecedorAtual.descricao || ''))) {
           const padrao=fornecedorPadraoDaNaturezaEntrada(empresaId,item.chave);
           nome=padrao.descricao; cnpj=padrao.cnpj || null; regime=padrao.regime;
@@ -6622,6 +6633,8 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
         evidencia.item_cadastrado={ chave:item.chave, nome:item.nome };
         evidencia.beneficio_percentual=item.beneficio;
         evidencia.gera_credito=item.gera_credito;
+        evidencia.observacao=item.observacao || evidencia.observacao || '';
+        evidencia.referencia_pis_cofins=referenciaPisCofins;
         evidencia.natureza_reaplicada_em=new Date().toISOString();
         evidencia.natureza_reaplicada_de=anterior || null;
         evidencia.natureza_reaplicada_motivo='CONTA_E_HISTORICO_RAZAO';

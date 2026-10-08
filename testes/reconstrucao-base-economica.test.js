@@ -55,6 +55,14 @@ r = reconstruir({ valor: 100, tipo: 'servico', regime: 'mei', pis: 1.65, cofins:
 assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 0);
 assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'MEI_SEM_PIS_COFINS');
 
+// Fato do Razão sem NCM/NBS usa a matriz do item de entrada manual. A regra
+// vale inclusive no Simples e 0% é um valor determinado, não uma pendência.
+r = reconstruir({ valor: 521.70, tipo: 'servico', regime: 'simples_nacional',
+  entradaManual:{ itemChave:'LOCACAO_VEICULOS' }, pis_cofins_referencia:0 });
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 0);
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_origem, 'CATALOGO_ENTRADA_MANUAL');
+assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'CATALOGO_ENTRADA_MANUAL');
+
 // Zero comprovado por regra/evidência continua tendo precedência sobre o fallback.
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', pis: 0, cofins: 0,
   pis_cofins_documentado: true, pis_cofins_zero_comprovado: true, regra_geral_regime_confirmada: true });

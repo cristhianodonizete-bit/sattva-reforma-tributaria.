@@ -91,7 +91,8 @@ const telasQuestor=fs.readFileSync(path.join(raiz,'public/js/telas2.js'),'utf8')
 assert.match(telasQuestor,/Nenhum lançamento foi incluído/,'a interface não confirma sucesso quando a rota incluiu zero linhas');
 assert.match(tela,/data-aba-cadeia/);
 assert.match(tela,/NCM \$\{d\.ncm/);
-assert.match(tela,/deixam o total de PIS\/Cofins/);
+assert.match(tela,/valor identificado continua exibido no resumo/);
+assert.match(tela,/data-pis-cofins-pendencias/,'a pendência histórica deve abrir somente os documentos afetados');
 assert.match(tela,/carga atual no DAS/);
 assert.doesNotMatch(tela,/Grau de repasse simulado/);
 assert.match(tela,/Itens com crédito CBS/);
@@ -104,6 +105,8 @@ assert.match(tela,/Antes — PIS\/Cofins/);
 assert.match(api,/pis_cofins_atual/);
 assert.match(api,/regimes_fornecedor/);
 assert.match(motor,/entradaManual/);
+assert.match(motor,/referenciaManual=evidencia\.referencia_pis_cofins/,'o motor deve consumir a referência histórica do item manual');
+assert.match(api,/evidencia\.referencia_pis_cofins=referenciaPisCofins/,'a reaplicação do Razão deve gravar a referência do catálogo no lançamento');
 assert.match(api,/gera_credito:itemCadastrado && regra\.gera_credito !== false/,'classificação avulsa não pode gerar crédito sem item tributário cadastrado');
 assert.match(classificador,/lançamento manual de entrada/);
 assert.match(classificador,/reducao_cbs:beneficio/);
