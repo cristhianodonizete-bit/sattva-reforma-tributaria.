@@ -49,6 +49,10 @@ button,input,select,textarea{font-family:inherit;font-size:inherit}
 .empresa-ativa label{font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:#8fabbd}
 .empresa-ativa select{width:100%;margin-top:6px;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.18);color:#fff;border-radius:8px;padding:7px 8px}
 .empresa-ativa select option{color:#16232b}
+.cnpj-empresa-ativa{display:flex;align-items:center;justify-content:space-between;width:100%;margin-top:7px;padding:4px 2px;border:0;background:transparent;color:#cfe0e9;font:600 12px ui-monospace,SFMono-Regular,Consolas,monospace;letter-spacing:.03em;cursor:pointer;text-align:left}
+.cnpj-empresa-ativa:before{content:'CNPJ';font-family:inherit;font-size:9px;letter-spacing:.1em;color:#8fabbd}
+.cnpj-empresa-ativa:after{content:'Copiar';font-family:inherit;font-size:10px;letter-spacing:0;color:#8fabbd}
+.cnpj-empresa-ativa:hover,.cnpj-empresa-ativa:focus-visible{color:#fff;outline:none}.cnpj-empresa-ativa:hover:after,.cnpj-empresa-ativa:focus-visible:after{color:var(--ouro)}
 
 nav{padding:10px 10px 24px;flex:1}
 nav .grupo{cursor:pointer;user-select:none}

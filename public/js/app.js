@@ -510,6 +510,19 @@ const App = (() => {
     S.empresas = empresas;
     const sel = document.getElementById('seletorEmpresa');
     const selHeader = document.getElementById('seletorEmpresaHeader');
+    const copiarCnpj = document.getElementById('copiarCnpjEmpresa');
+    const formatarCnpj = (valor) => {
+      const digitos = String(valor || '').replace(/\D/g, '');
+      return digitos.length === 14 ? digitos.replace(/^(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})$/, '$1.$2.$3/$4-$5') : (valor || 'CNPJ não informado');
+    };
+    const atualizarCnpjEmpresa = () => {
+      if (!copiarCnpj) return;
+      const cnpj = String(S.empresa?.cnpj || '').replace(/\D/g, '');
+      copiarCnpj.textContent = formatarCnpj(cnpj);
+      copiarCnpj.disabled = !cnpj;
+      copiarCnpj.dataset.cnpj = cnpj;
+      copiarCnpj.title = cnpj ? 'Copiar CNPJ da empresa selecionada' : 'CNPJ não informado para esta empresa';
+    };
     sel.innerHTML = empresas.length
       ? empresas.map((e) => `<option value="${e.id}">${esc(e.razao_social)}</option>`).join('')
       : '<option value="">— nenhuma empresa cadastrada —</option>';
@@ -519,6 +532,7 @@ const App = (() => {
       sel.value = S.empresaId;
       S.empresa = empresas.find((e) => e.id === S.empresaId);
     } else { S.empresaId = null; S.empresa = null; }
+    atualizarCnpjEmpresa();
     const atualizarProntidaoMenu = async () => {
       if (!S.empresaId) { S.cache.prontidaoMotor = undefined; return; }
       try { S.cache.prontidaoMotor = Boolean((await api(`/empresas/${S.empresaId}/prontidao-dados`)).motor?.liberado); }
@@ -534,6 +548,7 @@ const App = (() => {
     const selecionarEmpresa = (valor) => {
       S.empresaId = Number(valor) || null;
       S.empresa = S.empresas.find((e) => e.id === S.empresaId) || null;
+      atualizarCnpjEmpresa();
       // A operação da carteira sempre inicia no mesmo contexto do cabeçalho.
       // A opção "Todas as empresas" continua disponível dentro daquela tela.
       S.cache.filtroGestaoEmpresa = S.empresaId ? String(S.empresaId) : '';
@@ -548,6 +563,19 @@ const App = (() => {
       ir(S.tela);
     };
     sel.onchange = () => selecionarEmpresa(sel.value);
+    copiarCnpj?.addEventListener('click', async () => {
+      const cnpj = copiarCnpj.dataset.cnpj;
+      if (!cnpj) return;
+      try {
+        await navigator.clipboard.writeText(cnpj);
+        toast('CNPJ copiado', 'ok');
+      } catch (_) {
+        const campo = document.createElement('textarea');
+        campo.value = cnpj; campo.style.position = 'fixed'; campo.style.opacity = '0';
+        document.body.appendChild(campo); campo.select(); document.execCommand('copy'); campo.remove();
+        toast('CNPJ copiado', 'ok');
+      }
+    });
     if (selHeader) {
       selHeader.innerHTML = sel.innerHTML;
       selHeader.value = sel.value;
