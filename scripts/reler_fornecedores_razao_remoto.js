@@ -39,6 +39,10 @@ function aliasTelecom(pessoas, historico, descricao) {
     [/\bVIVO(?:\s+MG)?\b/, /^VIVO S\.? A\.?$/, 'ALIAS_TELECOM_VIVO_QUESTOR', /TELECOMUNIC|TELEFON|CELULAR|INTERNET/],
     [/\bALGAR TELECOM\b/, /^ALGAR MULTIMIDIA\b/, 'ALIAS_TELECOM_ALGAR_QUESTOR', /TELECOMUNIC|TELEFON|CELULAR|INTERNET/],
     [/\bCEMIG\b/, /^CEMIG DISTRIB\b/, 'ALIAS_ENERGIA_CEMIG_QUESTOR', /LUZ|ENERGIA|ELETRIC/],
+    // "CAME DO BRASIL IND IMP EX" é a abreviação bancária da única pessoa
+    // Questor iniciada por "CAME DO BRASIL". Sem a expressão completa,
+    // nenhuma associação é feita por esta regra.
+    [/\bCAME\s+DO\s+BRASIL\b/, /^CAME DO BRASIL\b/, 'ALIAS_CAME_QUESTOR', null],
     [/\bDMAE\b/, /^DMAE AGUA E ESGOTO\b/, 'ALIAS_AGUA_DMAE_QUESTOR', /AGUA|ESGOTO/],
     [/\bALSOL\b/, /^ALSOL ENERGIAS RENOVAVEIS\b/, 'ALIAS_ENERGIA_ALSOL_QUESTOR', /ENERGIA|BOLETO/],
   ];

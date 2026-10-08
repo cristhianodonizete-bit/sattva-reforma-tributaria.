@@ -144,22 +144,28 @@ function textoFiscalNormalizado(...valores) {
   return valores.join(' ').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 }
 
-// Taxas, custas e depósitos judiciais são desembolsos perante o Judiciário,
-// não remuneração de advocacia. A regra também reconhece o lançamento legado
-// somente quando a evidência original do Razão traz termos judiciais claros.
+// Taxas públicas, custas e depósitos judiciais são desembolsos sem uma
+// prestação de serviço individualizada. Não podem ser convertidos em crédito
+// pela natureza contábil que os recebeu. A regra legada exige evidência no
+// Razão: nunca usa apenas o nome da conta para substituir um fornecedor.
 function ehCustaTaxaOuDepositoJudicial(item = {}) {
   const chave = String(item.entradaManual?.itemChave || item.itemChave || '');
   if (chave === 'CUSTAS_TAXAS_DEPOSITOS_JUDICIAIS') return true;
-  if (chave !== '3_7_03_015_005_LEGAIS_E_JUDICIAIS') return false;
   const texto = textoFiscalNormalizado(item.historico, item.descricao, item.conta);
-  return /\b(CUSTAS?|TAXAS?\s+JUDICIAIS?|DEPOSITO\s+JUDICIAL|TRIBUNAL\s+DA\s+JUSTICA|RECURSAL)\b/.test(texto);
+  if (chave === '3_7_03_015_005_LEGAIS_E_JUDICIAIS') {
+    return /\b(CUSTAS?|TAXAS?\s+JUDICIAIS?|DEPOSITO\s+JUDICIAL|TRIBUNAL\s+DA\s+JUSTICA|RECURSAL)\b/.test(texto);
+  }
+  if (chave === '3_7_03_011_008_IPTU_E_TAXAS') {
+    return /\b(IPTU|TRIBUTOS?\s+MUNICIPAIS?|PREFEITURA|TAXAS?\s+PUBLICAS?)\b/.test(texto);
+  }
+  return false;
 }
 
 function memoriaCustaTaxaOuDepositoJudicial(item = {}) {
   if (!ehCustaTaxaOuDepositoJudicial(item)) return null;
   return {
-    status: 'Projeção concluída — taxa, custa ou depósito judicial sem operação tributada identificada.',
-    premissa: 'O histórico do Razão identifica desembolso judicial/taxa pública, sem serviço individualizado do fornecedor.',
+    status: 'Projeção concluída — taxa pública, custa ou depósito judicial sem operação tributada identificada.',
+    premissa: 'O histórico do Razão identifica desembolso perante poder público ou Judiciário, sem serviço individualizado do fornecedor.',
     valor_despesa: r2(num(item.valor)),
     credito_pis_cofins: 0,
     credito_cbs: 0,

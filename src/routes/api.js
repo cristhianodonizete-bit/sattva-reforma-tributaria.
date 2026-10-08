@@ -6007,6 +6007,10 @@ function pessoaQuestorPorAliasSeguro(pessoas, linha) {
     // aparece como Algar Multimídia. A regra só vale na natureza de telecom.
     { alias:/\bALGAR TELECOM\b/, nome:/^ALGAR MULTIMIDIA\b/, criterio:'ALIAS_TELECOM_ALGAR_QUESTOR', exige:/TELECOMUNIC|TELEFON|CELULAR|INTERNET/ },
     { alias:/\bCEMIG\b/, nome:/^CEMIG DISTRIB\b/, criterio:'ALIAS_ENERGIA_CEMIG_QUESTOR', exige:/LUZ|ENERGIA|ELETRIC/ },
+    // O extrato bancário abrevia a razão social como "CAME DO BRASIL IND
+    // IMP EX". A correspondência é segura porque a regra exige a marca
+    // completa e a base Questor tem um único CNPJ para esta razão.
+    { alias:/\bCAME\s+DO\s+BRASIL\b/, nome:/^CAME DO BRASIL\b/, criterio:'ALIAS_CAME_QUESTOR' },
     { alias:/\bDMAE\b/, nome:/^DMAE AGUA E ESGOTO\b/, criterio:'ALIAS_AGUA_DMAE_QUESTOR', exige:/AGUA|ESGOTO/ },
     { alias:/\bALSOL\b/, nome:/^ALSOL ENERGIAS RENOVAVEIS\b/, criterio:'ALIAS_ENERGIA_ALSOL_QUESTOR', exige:/ENERGIA|BOLETO/ },
   ];
@@ -7608,6 +7612,7 @@ function assegurarItensEntradaManualPadrao() {
     ['MATERIAL_LIMPEZA','Material de limpeza',0,'000001','000','Validar produto/NCM se houver tratamento específico',6,'simples_nacional',[]],
     ['HONORARIOS_ADVOCATICIOS_ART_127','Honorários advocatícios — art. 127 LC 214/2025',.30,'200052','200','Use somente para serviço efetivamente prestado por escritório de advocacia elegível ao art. 127. Não usar para custas, taxas públicas, depósitos judiciais ou reembolsos.',8,'lucro_real',[], '', '', { lucro_real:{pis:0,cofins:0,tratamento_atual:'Honorários advocatícios: não presumir crédito histórico de PIS/Cofins sem hipótese legal específica validada.'}, lucro_presumido:{pis:0,cofins:0,tratamento_atual:'Honorários advocatícios: não presumir crédito histórico de PIS/Cofins sem hipótese legal específica validada.'}, simples_nacional:{pis:0,cofins:0,pis_cofins:0,tratamento_atual:'Honorários advocatícios: crédito histórico não presumido.'} }],
     ['CUSTAS_TAXAS_DEPOSITOS_JUDICIAIS','Custas, taxas e depósitos judiciais',0,'','','Use para custas judiciais, taxas públicas, depósitos judiciais e reembolsos sem serviço individualizado. Não gera CBS nem crédito presumido.',9,'simples_nacional',[], '', '', { lucro_real:{pis:0,cofins:0,tratamento_atual:'Taxa, custa ou depósito judicial: sem crédito histórico presumido.'}, lucro_presumido:{pis:0,cofins:0,tratamento_atual:'Taxa, custa ou depósito judicial: sem crédito histórico presumido.'}, simples_nacional:{pis:0,cofins:0,pis_cofins:0,tratamento_atual:'Taxa, custa ou depósito judicial: sem crédito histórico presumido.'} }, false],
+    ['IPTU_TAXAS_PUBLICAS','IPTU e taxas públicas',0,'','','Use para IPTU, tributos municipais e taxas públicas sem serviço individualizado. Não gera CBS nem crédito presumido.',10,'simples_nacional',['3.7.03.011.008'], '', '', { lucro_real:{pis:0,cofins:0,tratamento_atual:'IPTU ou taxa pública: sem crédito histórico presumido.'}, lucro_presumido:{pis:0,cofins:0,tratamento_atual:'IPTU ou taxa pública: sem crédito histórico presumido.'}, simples_nacional:{pis:0,cofins:0,pis_cofins:0,tratamento_atual:'IPTU ou taxa pública: sem crédito histórico presumido.'} }, false],
   ];
   const inserir=db.prepare("INSERT OR IGNORE INTO param_regras (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)");
   const existente=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?");

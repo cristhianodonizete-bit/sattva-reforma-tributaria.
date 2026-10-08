@@ -2867,6 +2867,7 @@ const ITENS_ENTRADA_MANUAL_PADRAO = [
   ['PLANOS_ASSISTENCIA_SAUDE','Plano privado de assistência à saúde',0,'011002','011','Regime específico de planos de saúde. Projeção com participação integral da empresa; crédito somente estimado até confirmação da elegibilidade legal e do débito da operadora.',7,'lucro_real',[],'109101000','0422'],
   ['HONORARIOS_ADVOCATICIOS_ART_127','Honorários advocatícios — art. 127 LC 214/2025',.30,'200052','200','Use somente para serviço efetivamente prestado por escritório de advocacia elegível ao art. 127. Não usar para custas, taxas públicas, depósitos judiciais ou reembolsos.',8,'lucro_real',[]],
   ['CUSTAS_TAXAS_DEPOSITOS_JUDICIAIS','Custas, taxas e depósitos judiciais',0,'','','Use para custas judiciais, taxas públicas, depósitos judiciais e reembolsos sem serviço individualizado. Não gera CBS nem crédito presumido.',9,'simples_nacional',[], '', '', false],
+  ['IPTU_TAXAS_PUBLICAS','IPTU e taxas públicas',0,'','','Use para IPTU, tributos municipais e taxas públicas sem serviço individualizado. Não gera CBS nem crédito presumido.',10,'simples_nacional',['3.7.03.011.008'], '', '', false],
 ];
 db.transaction(() => ITENS_ENTRADA_MANUAL_PADRAO.forEach(([chave,nome,beneficio,cclasstrib,cst,observacao,ordem,fornecedor_padrao_regime,contas_questor,nbs='',lc116='',gera_credito=true]) => db.prepare(`INSERT OR IGNORE INTO param_regras
   (grupo,chave,valor,tipo,label,descricao,unidade,ordem) VALUES ('itens_entrada_manual',?,'{}','json',?,?, 'cadastro técnico',?)`)

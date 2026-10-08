@@ -12,7 +12,7 @@ const persistencia=fs.readFileSync(path.join(raiz,'src/services/questorPersisten
 const operacaoCompartilhada=fs.readFileSync(path.join(raiz,'src/services/operacaoCompartilhada.js'),'utf8');
 const migration=fs.readFileSync(path.join(raiz,'supabase/migrations/20261014_questor_razao_previas_duraveis.sql'),'utf8');
 
-for (const chave of ['LICENCA_USO_SISTEMAS_SOFTWARE','MATERIAL_ESCRITORIO','ALUGUEL_IMOVEL_COMERCIAL','LOCACAO_VEICULOS','OUTRAS_DESPESAS_SEM_BENEFICIO','MATERIAL_LIMPEZA']) assert.match(db,new RegExp(chave));
+for (const chave of ['LICENCA_USO_SISTEMAS_SOFTWARE','MATERIAL_ESCRITORIO','ALUGUEL_IMOVEL_COMERCIAL','LOCACAO_VEICULOS','OUTRAS_DESPESAS_SEM_BENEFICIO','MATERIAL_LIMPEZA','IPTU_TAXAS_PUBLICAS']) assert.match(db,new RegExp(chave));
 assert.match(api,/router\.post\('\/empresas\/:id\/entradas-manuais'/);
 assert.match(api,/router\.get\('\/empresas\/:id\/entradas-manuais'/);
 assert.match(api,/fornecedores\/consultar-cnpj/,'entradas manuais precisam permitir prévia de fornecedor por CNPJ');
@@ -63,6 +63,7 @@ assert.match(api,/NOME_LITERAL_QUESTOR/,'nomes idênticos com filiais de CNPJ di
 assert.match(api,/ALIAS_TELECOM_TIM_QUESTOR/,'TIM no histórico deve ser reconhecida pelo alias de telecom controlado');
 assert.match(api,/ALIAS_TELECOM_VIVO_QUESTOR/,'Vivo no histórico deve ser reconhecida pelo alias de telecom controlado');
 assert.match(api,/ALIAS_TELECOM_ALGAR_QUESTOR/,'Algar Telecom deve ser vinculada somente pelo alias de telecom controlado');
+assert.match(api,/ALIAS_CAME_QUESTOR/,'a abreviação bancária de CAME DO BRASIL deve usar a única pessoa Questor correspondente');
 assert.match(api,/HISTORICO_ALIAS_QUESTOR/,'o vínculo por denominação comercial deve ficar rastreável e distinto do nome literal');
 assert.match(api,/identificados_por_historico/,'a releitura deve informar quantos fornecedores foram identificados pelo histórico');
 assert.doesNotMatch(api,/flatMap\(\(linha\)=>termosParaBuscaPessoaQuestor\(linha\.texto\)\)\)\]\.slice\(0,120\)/,'a leitura do histórico não pode ignorar fornecedores por ordem no lote');
