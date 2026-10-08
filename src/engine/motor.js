@@ -107,6 +107,11 @@ function somenteDigitos(valor) { return String(valor || '').replace(/\D/g, ''); 
 function ehPlanoAssistenciaSaude(item = {}, cls = {}) {
   return somenteDigitos(cls.cclasstrib) === '011002'
     || somenteDigitos(item.nbs) === '109101000'
+    // NF de serviços pode carregar a natureza como LC 116 (0422) ou como
+    // código fiscal bruto 042201. Ambos identificam plano privado de saúde
+    // e prevalecem sobre a classificação genérica do documento.
+    || somenteDigitos(item.lc116) === '0422'
+    || somenteDigitos(item.cstAtual).startsWith('0422')
     || item.planoSaude === true;
 }
 
@@ -436,6 +441,16 @@ function projetarItem(item, ctx) {
     ? structuredClone(ctx.classificacaoPrecalculada)
     : classificar(item, { empresa: ctx.empresa, sentido, regimeContraparte: ctx.regimeContraparte,
       perfilDestinatario: ctx.perfilDestinatario, elegibilidadeAnexoXi: ctx.elegibilidadeAnexoXi });
+  const planoSaudePorEvidencia = sentido === 'entrada' && ehPlanoAssistenciaSaude(item, cls);
+  if (planoSaudePorEvidencia) {
+    // A NBS/LC 116 do documento é evidência fiscal suficiente para enquadrar
+    // a simulação no regime específico. Isso não habilita apropriação: o
+    // crédito continua somente estimado até a confirmação legal e do débito.
+    cls = { ...cls, cst: '011', cclasstrib: '011002', status: 'CLASSIFICADO',
+      reducao: 'integral', reducaoIbs: 0, reducaoCbs: 0,
+      origemRegra: 'PLANO_ASSISTENCIA_SAUDE_DOCUMENTO',
+      tratamento: 'Regime específico — planos privados de assistência à saúde' };
+  }
   const contribuicaoAssociativa = sentido === 'entrada' ? memoriaContribuicaoAssociativa(item) : null;
   const honorarioAdvocaticio = sentido === 'entrada' ? memoriaHonorarioAdvocaticio(item) : null;
   const custaTaxaJudicial = sentido === 'entrada' ? memoriaCustaTaxaOuDepositoJudicial(item) : null;

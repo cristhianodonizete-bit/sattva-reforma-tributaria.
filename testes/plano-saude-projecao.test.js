@@ -35,6 +35,14 @@ assert.equal(resultado.creditoCbsEstimado, Math.round(fatura * resultado.projeca
   'a estimativa específica usa a alíquota parametrizada do regime, não a CBS geral sobre a base econômica');
 assert.notEqual(resultado.creditoCbsEstimado, Math.round(resultado.baseEconomica * resultado.aliquotas.aliquotaReferencia.cbs * 100) / 100);
 
+const xmlLc116 = projetarItem({
+  valor: 193.47, cstAtual: '042201', descricao: 'Contraprestação pecuniária de plano de assistência médica',
+}, { sentido: 'entrada', ano: 2027, empresa: { regime: 'lucro_real' }, regimeContraparte: 'lucro_real' });
+assert.equal(xmlLc116.classificacao.cst, '011', 'LC 116 0422 do XML deve substituir a regra genérica');
+assert.equal(xmlLc116.classificacao.cclasstrib, '011002');
+assert.equal(xmlLc116.creditoCbs, 0, 'documento de plano de saúde não habilita crédito automático');
+assert.ok(xmlLc116.creditoCbsEstimado > 0, 'a ausência do débito da operadora mantém a estimativa específica');
+
 const comDebitoOperadora = projetarItem({
   valor: fatura, nbs: '109101000', descricao: 'Plano de saúde',
   planoSaude: { debito_cbs_operadora: 88.76, participacao_empresa: 1, elegibilidade_legal_confirmada: true },
