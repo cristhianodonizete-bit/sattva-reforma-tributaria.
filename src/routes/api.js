@@ -6107,8 +6107,9 @@ function sugestaoFornecedorPelaPessoaQuestor(fornecedores, pessoa, origem='CONTR
   return {
     id:null, cnpj, descricao:String(pessoa.nome).trim(),
     // O cadastro de pessoas prova a identidade, não o regime tributário.
-    // Conservamos a premissa já adotada para contrapartes sem regime apurado.
-    regime:'simples_nacional', confianca:'CONFIRMADA', origem,
+    // O cadastro de pessoas identifica o CNPJ, mas não demonstra o regime.
+    // Nunca converter identidade confirmada em presunção de Simples.
+    regime:'indeterminado', confianca:'CONFIRMADA', origem,
     evidencia_pessoa:{ codigo_pessoa:String(pessoa.codigo_pessoa || ''), nome:String(pessoa.nome || ''), cnpj, criterio:String(pessoa?.criterio || '') },
   };
 }

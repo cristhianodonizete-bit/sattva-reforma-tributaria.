@@ -18,6 +18,11 @@ function chaveNome(valor) { return normalizar(valor).replace(/ /g, ''); }
 function criterio(pessoa, historico) {
   const nome = normalizar(pessoa.nome);
   if (nome.length >= 8 && historico.includes(nome)) return 'NOME_LITERAL_QUESTOR';
+  // A razão pode aparecer sem o sufixo societário no histórico bancário.
+  // Preservamos os demais termos (inclusive "Brasil" e "Tecnologia"), pois
+  // são justamente o que distingue UBER DO BRASIL de outras empresas "Uber".
+  const semSufixo = nome.split(' ').filter((x) => !['LTDA','LIMITADA','SA','S','A','EIRELI','ME','EPP','EI','SLU'].includes(x)).join(' ');
+  if (semSufixo.length >= 8 && historico.includes(semSufixo)) return 'NOME_COMPLETO_QUESTOR';
   const historicoCompacto = chaveNome(historico);
   const nomeCompacto = chaveNome(pessoa.nome);
   if (nomeCompacto.length >= 12 && historicoCompacto.includes(nomeCompacto)) return 'NOME_COMPACTADO_QUESTOR';
@@ -88,9 +93,9 @@ function aliasTelecom(pessoas, historico, descricao) {
       await client.query('begin');
       try {
         for (const { movimento, evidencia, pessoa, criterio } of atualizacoes) {
-          evidencia.fornecedor_vinculado = { cnpj: pessoa.inscr_federal, descricao: pessoa.nome, regime: 'simples_nacional', origem: criterio.startsWith('ALIAS_') ? 'HISTORICO_ALIAS_QUESTOR' : 'HISTORICO_NOME_QUESTOR', evidencia_pessoa: { codigo_pessoa: String(pessoa.codigo_pessoa), nome: pessoa.nome, cnpj: pessoa.inscr_federal, criterio } };
+          evidencia.fornecedor_vinculado = { cnpj: pessoa.inscr_federal, descricao: pessoa.nome, regime: 'indeterminado', origem: criterio.startsWith('ALIAS_') ? 'HISTORICO_ALIAS_QUESTOR' : 'HISTORICO_NOME_QUESTOR', evidencia_pessoa: { codigo_pessoa: String(pessoa.codigo_pessoa), nome: pessoa.nome, cnpj: pessoa.inscr_federal, criterio } };
           evidencia.fornecedor_relido_em = new Date().toISOString();
-          await client.query(`update public.movimentos set nome=$1,inscr_federal=$2,normalizacao_evidencia=$3::jsonb where id=$4 and empresa_id=$5`, [pessoa.nome, pessoa.inscr_federal, JSON.stringify(evidencia), movimento.id, empresaId]);
+          await client.query(`update public.movimentos set nome=$1,inscr_federal=$2,regime='indeterminado',normalizacao_evidencia=$3::jsonb where id=$4 and empresa_id=$5`, [pessoa.nome, pessoa.inscr_federal, JSON.stringify(evidencia), movimento.id, empresaId]);
         }
         await client.query('commit');
       } catch (erro) { await client.query('rollback'); throw erro; }
