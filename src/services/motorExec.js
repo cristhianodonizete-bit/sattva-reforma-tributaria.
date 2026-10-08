@@ -245,17 +245,17 @@ function executar(empresaId, opcoes = {}) {
   const elegibilidadeParaAdquirente = (cnpj) => {
     const documento = String(cnpj || '').replace(/\D/g, '');
     const cadastro = cadastroCnpj.get(documento);
-    const resultado = elegibilidadeAnexoXi.naturezaAdquirente(cadastro || {});
     // Um optante do Simples/MEI não é administração direta, autarquia ou
     // fundação pública. Isso afasta objetivamente o 200043 mesmo que o cache
-    // cadastral compartilhado ainda não esteja disponível nesta instância.
-    if (!cadastro && documento && documento === cnpjEmpresa
+    // cadastral compartilhado esteja ausente OU contenha uma consulta
+    // incompleta. O cadastro da própria empresa tem precedência.
+    if (documento && documento === cnpjEmpresa
       && ['simples_nacional', 'mei'].includes(String(empresa.regime || '').toLowerCase())) {
       return { status: 'NAO', codigo: null,
-        motivo: 'Empresa analisada optante do Simples/MEI: não se enquadra como administração pública, autarquia ou fundação pública para o cClassTrib 200043.',
+        motivo: 'Empresa analisada optante do Simples/MEI: não se enquadra como administração pública, autarquia ou fundação pública para as hipóteses condicionadas de aquisição pública.',
         fonte: 'cadastro_da_empresa' };
     }
-    return resultado;
+    return elegibilidadeAnexoXi.naturezaAdquirente(cadastro || {});
   };
   const qsaFornecedor = (movimento) => {
     if (fornecedorMultinacionalConhecido(movimento)) {

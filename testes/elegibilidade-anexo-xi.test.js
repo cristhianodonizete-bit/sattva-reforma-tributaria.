@@ -3,7 +3,7 @@ const fs = require('node:fs'); const os = require('node:os'); const path = requi
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sattva-anexo-xi-')); process.env.SATTVA_DADOS = dir;
 const db = require('../src/db');
 const { classificar } = require('../src/engine/classificador');
-const { naturezaAdquirente, qsaEmpresa } = require('../src/services/elegibilidadeAnexoXi');
+const { naturezaAdquirente, qsaEmpresa, filtrarCandidatos } = require('../src/services/elegibilidadeAnexoXi');
 
 db.prepare(`INSERT INTO base_servicos (lc116,nbs,descricao_item,cclasstrib,reducao) VALUES
  ('0106','115012000','Serviço Anexo XI','000001','integral'),
@@ -19,6 +19,16 @@ assert.equal(autarquia.status, 'SIM');
 const direto = naturezaAdquirente({ codigo_natureza_juridica:'101-5', natureza_juridica:'Órgão Público do Poder Executivo Federal' });
 assert.equal(direto.status, 'SIM');
 assert.equal(naturezaAdquirente({ codigo_natureza_juridica:'201-1', natureza_juridica:'Empresa Pública' }).status, 'NAO');
+
+// Hipóteses cuja condição é compra pública não podem ficar em validação para
+// empresa privada conhecida, qualquer que seja o Anexo de origem.
+for (const codigo of ['200005', '200008', '200011', '200040', '200043']) {
+  const filtragem = filtrarCandidatos([{ cclasstrib: codigo }], { adquirente: privado });
+  assert.deepEqual(filtragem.candidatos, []);
+  assert.equal(filtragem.excluidos[0].codigo, codigo);
+}
+const filtragemTextual = filtrarCandidatos([{ cclasstrib: '209999', classificacao: 'Fornecimento adquirido por órgão da administração pública' }], { adquirente: privado });
+assert.deepEqual(filtragemTextual.candidatos, []);
 
 let r = classificar(item, { sentido:'saida', elegibilidadeAnexoXi:{ adquirente:privado, qsa:{status:'NAO',motivo:'Sem sócio elegível.'} } });
 assert.equal(r.status, 'CLASSIFICADO'); assert.equal(r.cclasstrib, '000001');

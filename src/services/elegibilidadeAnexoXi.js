@@ -1,6 +1,17 @@
 const db = require('./db_ref');
 
 const normalizarCodigo = (v) => String(v || '').replace(/\D/g, '');
+// Códigos atualmente publicados cuja própria hipótese exige que o adquirente
+// seja órgão/ente da Administração Pública. A leitura textual é mantida como
+// proteção para uma nova hipótese oficial que venha com a mesma condição
+// antes de ser incluída nesta relação versionada.
+const CCLASSTRIB_AQUISICAO_PUBLICA = new Set(['200005', '200008', '200011', '200040', '200043']);
+function exigeAquisicaoPublica(candidato = {}) {
+  const codigo = String(candidato.cclasstrib || '');
+  if (CCLASSTRIB_AQUISICAO_PUBLICA.has(codigo)) return true;
+  const texto = String(candidato.classificacao || candidato.nome_cclasstrib || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  return /(?:ADQUIRID[OA]S?\s+POR|A\s+)ORGAOS?\s+DA\s+ADMINISTRACAO\s+PUBLICA|A\s+ADMINISTRACAO\s+PUBLICA|ENTE\s+PUBLICO/.test(texto);
+}
 
 // Mantém o cache local utilizável antes da primeira restauração do Supabase.
 // A fonte/versionamento da matriz oficial permanece na migration correspondente.
@@ -48,10 +59,12 @@ function qsaEmpresa(empresaId) {
 function filtrarCandidatos(candidatos, contexto = {}) {
   const excluidos = []; const pendentes = [];
   const filtrados = (candidatos || []).filter((c) => {
-    if (c.cclasstrib === '200043') {
+    // Benefícios que exigem comprador público não podem permanecer como
+    // candidatos quando o adquirente já é uma empresa privada identificada.
+    if (exigeAquisicaoPublica(c)) {
       const e = contexto.adquirente || { status: 'PENDENTE', motivo: 'Adquirente não identificado.' };
-      if (e.status === 'NAO') { excluidos.push({ codigo: '200043', motivo: e.motivo }); return false; }
-      if (e.status === 'PENDENTE') pendentes.push({ codigo: '200043', motivo: e.motivo });
+      if (e.status === 'NAO') { excluidos.push({ codigo: c.cclasstrib, motivo: e.motivo }); return false; }
+      if (e.status === 'PENDENTE') pendentes.push({ codigo: c.cclasstrib, motivo: e.motivo });
     }
     if (c.cclasstrib === '200044') {
       const e = contexto.qsa || { status: 'PENDENTE', motivo: 'QSA do emitente não identificado.' };
@@ -63,4 +76,4 @@ function filtrarCandidatos(candidatos, contexto = {}) {
   return { candidatos: filtrados, excluidos, pendentes };
 }
 
-module.exports = { normalizarCodigo, garantirMatrizLocal, naturezaAdquirente, qsaEmpresa, filtrarCandidatos, MATRIZ_PADRAO };
+module.exports = { normalizarCodigo, garantirMatrizLocal, naturezaAdquirente, qsaEmpresa, filtrarCandidatos, exigeAquisicaoPublica, CCLASSTRIB_AQUISICAO_PUBLICA, MATRIZ_PADRAO };
