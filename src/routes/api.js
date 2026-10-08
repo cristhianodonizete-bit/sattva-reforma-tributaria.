@@ -6476,7 +6476,11 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
     const pessoasPorCodigo=await pessoasQuestorPorCodigos(contrapartidas);
     const pessoasPorHistorico=await pessoasQuestorPelosHistoricos(movimentos.map((movimento,indice)=>({
       chave:String(movimento.id), historico:evidenciaDosMovimentos[indice]?.historico,
-      descricao:movimento.descricao, participante:evidenciaDosMovimentos[indice]?.participante || evidenciaDosMovimentos[indice]?.fornecedor_entrada_original || movimento.nome,
+      // `nome` é resultado de uma leitura anterior, nunca evidência bruta do
+      // Razão. Reusá-lo como participante criava uma confirmação circular:
+      // um fornecedor vinculado por engano passava a ser reaplicado a cada
+      // releitura, mesmo quando o lançamento não tinha contrapartida.
+      descricao:movimento.descricao, participante:evidenciaDosMovimentos[indice]?.participante || '',
       contrapartida:evidenciaDosMovimentos[indice]?.contrapartida, conta:evidenciaDosMovimentos[indice]?.conta_codigo || movimento.conta_codigo || movimento.conta,
     })).filter((linha)=>!pessoasPorCodigo.get(codigoPessoaQuestor(linha.contrapartida))));
     const atualizar=db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?');
@@ -6486,7 +6490,10 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
         const movimento=movimentos[indice];
         const evidencia=evidenciaDosMovimentos[indice];
         if (evidencia.fornecedor_vinculado?.origem === 'AJUSTE_USUARIO') { resultado.preservados_manualmente++; continue; }
-        if (!evidencia.fornecedor_entrada_original && movimento.nome && movimento.nome !== 'Fornecedor genérico — Simples Nacional') evidencia.fornecedor_entrada_original=movimento.nome;
+        // Preserve somente a identidade que veio do Razão. O nome já salvo
+        // no movimento pode ter sido produzido por uma leitura anterior e
+        // não pode virar fonte de verdade do fornecedor.
+        if (!evidencia.fornecedor_entrada_original && evidencia.participante) evidencia.fornecedor_entrada_original=evidencia.participante;
         // Lançamentos antigos podem ter chegado antes de a evidência do Razão
         // ser completa. Neles, o fornecedor já informado foi preservado em
         // `nome`; ele é uma fonte válida e prioritária para a releitura.
@@ -6502,7 +6509,7 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
           ? fornecedores.find((x)=>Number(x.id)===Number(sugestaoHistorico.id))
           : materializarFornecedorDaContrapartida(empresaId,sugestaoHistorico,fornecedores);
         const peloDocumento=fornecedorPeloDocumentoRazao(fornecedores,documentosFornecedor,movimento.documento || evidencia.documento);
-        const leitura=fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante || evidencia.fornecedor_entrada_original || movimento.nome, descricao:movimento.descricao });
+        const leitura=fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante || '', descricao:movimento.descricao });
         let fornecedor=pelaContrapartida || peloHistorico || peloDocumento || (leitura.sugestao?.id
           ? fornecedores.find((x)=>Number(x.id)===Number(leitura.sugestao.id))
           : null);
@@ -6551,7 +6558,7 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
     });
     const pessoasPorHistorico=await pessoasQuestorPelosHistoricos(movimentos.map((movimento,indice)=>({
       chave:String(movimento.id), historico:evidencias[indice]?.historico,
-      descricao:movimento.descricao, participante:evidencias[indice]?.participante || evidencias[indice]?.fornecedor_entrada_original || movimento.nome,
+      descricao:movimento.descricao, participante:evidencias[indice]?.participante || '',
       conta:evidencias[indice]?.conta_codigo || evidencias[indice]?.conta || '',
     })));
     const atualizar=db.prepare("UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,descricao=?,cst=?,cclasstrib=?,cst_declarado=?,cclasstrib_declarado=?,nbs=COALESCE(NULLIF(nbs,''),?),lc116=COALESCE(NULLIF(lc116,''),?),normalizacao_evidencia=? WHERE id=? AND empresa_id=?");
