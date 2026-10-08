@@ -1239,7 +1239,17 @@ async function validarFotografiaAtivaMotor(empresaId, execucaoId, quantidadeEspe
 async function integridadeFotografiaAtivaMotor(empresaId) {
   if (!ativo()) return null;
   const remoto=supabase.admin();
-  const empresaIdRemota=empresaRemota(Number(empresaId));
+  // Esta função pode ser chamada antes da publicação, portanto não pode usar
+  // o resolvedor local de `publicarResultadosMotor`. Resolva a empresa na
+  // própria fonte compartilhada para que a guarda de determinismo nunca
+  // interrompa o job por causa de escopo de variável.
+  const idLocal=Number(empresaId);
+  const { data:empresas, error:erroEmpresa }=await remoto.from('empresas').select('id,origem_local_id')
+    .or(`origem_local_id.eq.${idLocal},id.eq.${idLocal}`).limit(3);
+  if (erroEmpresa) throw new Error(`Integridade da fotografia ativa: ${erroEmpresa.message}`);
+  const empresaRemota=(empresas || []).find((empresa) => Number(empresa.origem_local_id || empresa.id) === idLocal);
+  if (!empresaRemota) throw new Error(`Integridade da fotografia ativa: empresa compartilhada ${idLocal} não encontrada.`);
+  const empresaIdRemota=Number(empresaRemota.id);
   const { data:linhas, error:erroLinhas }=await remoto.from('motor_resultados_operacionais')
     .select('execucao_id').eq('empresa_id',empresaIdRemota).eq('ativo',true).limit(2);
   if (erroLinhas) throw new Error(`Integridade da fotografia ativa: ${erroLinhas.message}`);
