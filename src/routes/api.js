@@ -2499,6 +2499,19 @@ function filtroSqlDocumentosFiscais(filtros = {}) {
   if (busca) { condicoes.push("LOWER(COALESCE(NULLIF(documento,''), NULLIF(chave,''), 'Lançamento #' || item_id) || ' ' || COALESCE(chave,'') || ' ' || COALESCE(parceiro,'')) LIKE ?"); valores.push(`%${busca}%`); }
   return { sql:condicoes.length ? ` WHERE ${condicoes.join(' AND ')}` : '', valores };
 }
+function ordenacaoSqlDocumentosFiscais(filtros = {}) {
+  const campos={
+    competencia:"COALESCE(data_emissao, competencia, criado_em)",
+    documento:'documento',
+    modelo:"COALESCE(modelo_documento_fiscal,'')",
+    itens:'itens',
+    valor:'valor',
+    origem:"COALESCE(origem,'')",
+  };
+  const campo=campos[String(filtros.ordenar_por || '').trim()] || campos.competencia;
+  const ordem=String(filtros.ordem || '').toUpperCase()==='ASC' ? 'ASC' : 'DESC';
+  return `${campo} ${ordem}, item_id ${ordem}`;
+}
 function listarDocumentosFiscais(empresaId, limite = 100, pagina = 1, filtros = {}) {
   // A lista é uma leitura de tela. `limite=0` é reservado à exportação
   // explícita, que pode percorrer todo o conjunto sem forçar a interface a
@@ -2507,6 +2520,7 @@ function listarDocumentosFiscais(empresaId, limite = 100, pagina = 1, filtros = 
   const paginaNormalizada = limiteNormalizado ? Math.max(1, Number(pagina) || 1) : 1;
   const deslocamento = limiteNormalizado ? (paginaNormalizada - 1) * limiteNormalizado : 0;
   const filtro=filtroSqlDocumentosFiscais(filtros);
+  const ordenacao=ordenacaoSqlDocumentosFiscais(filtros);
   const base=`${sqlMovimentosFiscaisCanonicos()}, documentos_agrupados AS (
       SELECT
         CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:' || chave ELSE 'movimento:' || id END referencia,
@@ -2524,7 +2538,7 @@ function listarDocumentosFiscais(empresaId, limite = 100, pagina = 1, filtros = 
     )`;
   const limiteSql = limiteNormalizado ? 'LIMIT ? OFFSET ?' : 'LIMIT -1 OFFSET 0';
   const documentos=db.prepare(`${base} SELECT * FROM documentos_agrupados${filtro.sql}
-      ORDER BY COALESCE(data_emissao, competencia, criado_em) DESC, item_id DESC ${limiteSql}`)
+      ORDER BY ${ordenacao} ${limiteSql}`)
     .all(Number(empresaId), ...filtro.valores, ...(limiteNormalizado ? [limiteNormalizado, deslocamento] : []));
   const total=db.prepare(`${base} SELECT COUNT(*) c FROM documentos_agrupados${filtro.sql}`).get(Number(empresaId), ...filtro.valores);
   return { documentos:documentos.map((d)=>({ ...d, operacao_receita: receitaOperacional.compoeReceita(d), motivo_operacao: receitaOperacional.motivo(d) })), total:total.c,
