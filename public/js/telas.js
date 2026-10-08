@@ -1877,6 +1877,10 @@ async function telaCadeia(el, tipo) {
     // pendência nem induz o usuário a classificar cada lançamento novamente.
     const cadastroManual=String(d.classificacaoOrigem || '').toLowerCase()==='lançamento manual de entrada';
     const referencia=cadastroManual ? `Cadastro de entrada manual${d.nbs ? ` · NBS ${d.nbs}` : d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : produto ? `NCM ${d.ncm || 'não identificado'}` : servico ? `NBS ${d.nbs || 'não identificado'}${d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : 'Referência fiscal pendente';
+    const ncmNormalizado=String(d.ncm || '').replace(/\D/g,'');
+    const classificacaoVisivel=d.cclasstrib ? `${d.cclasstrib==='000001' ? 'Tributação integral · ' : ''}CST ${d.cst || '—'} · cClassTrib ${d.cclasstrib}` : 'Classificação a validar';
+    const fundamentoVisivel=ncmNormalizado==='85437099' && d.cclasstrib==='000001'
+      ? 'NCM 8543.70.99 sem descrição de agenda eletrônica com teclado em braille.' : (d.tratamento || '');
     const memoria=['pis','cofins','iss','icms'].map((k)=>{ const m=d.memoriaTributos?.[k]; return m ? `<div><b>${k.toUpperCase()}</b><span>${A.esc(m.origem || 'INDETERMINADO')} · ${A.esc(m.regra || m.status || '')}</span></div>` : ''; }).filter(Boolean).join('');
     const planoSaude=d.projecaoPlanoSaude || null;
     const memoriaPlanoSaude=planoSaude ? `<div><span>Projeção de plano de saúde</span><b>${A.esc(planoSaude.rotulo)}</b><small>Fatura considerada: ${A.moeda(planoSaude.base_financeira)} · empresa ${A.pct(planoSaude.participacao_empresa)} · empregados ${A.pct(planoSaude.participacao_empregados)} · coparticipação ${A.moeda(planoSaude.coparticipacao_empregados)}</small><small>Crédito habilitado: ${A.moeda(d.creditoCbs)} · crédito estimado: ${A.moeda(d.creditoCbsEstimado)}. ${A.esc(planoSaude.elegibilidade_legal || '')}</small><small>${A.esc(planoSaude.aviso || '')}</small></div>` : '';
@@ -1891,7 +1895,7 @@ async function telaCadeia(el, tipo) {
         <div><span class="olho">DOCUMENTO</span><b class="mono">${A.esc(d.documento || 'sem número')}</b><small>${A.esc(d.competencia || '—')}</small></div>
         <div><span class="olho">${eForn ? 'FORNECEDOR' : 'CLIENTE'}</span><b>${A.esc(d.parceiro || 'Não identificado')}</b><small class="mono">${A.cnpjFmt(d.cnpj || '')}</small></div>
         ${eForn ? `<div><span class="olho">REGIME | CATÁLOGO PIS/COFINS</span><span class="tag ${String(d.regimeEmitente || '').toLowerCase()==='indeterminado' ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(d.regimeEmitente))}</span>${rotuloCatalogoPisCofins(d.origemPisCofins) ? `<small>${A.esc(rotuloCatalogoPisCofins(d.origemPisCofins))}</small>` : ''}</div>` : ''}
-        <div class="rastreabilidade-item-produto"><span class="olho">ITEM / REFERÊNCIA</span><b>${A.esc(d.produto || 'Sem descrição')}</b><small><span class="tag ${produto ? 'c' : servico ? 'a' : cadastroManual ? 'c' : 'n'}">${produto ? 'Produto' : servico ? 'Serviço' : cadastroManual ? 'Cadastro manual' : 'A classificar'}</span> <span class="mono">${A.esc(referencia)}</span></small></div>
+        <div class="rastreabilidade-item-produto"><span class="olho">ITEM / REFERÊNCIA</span><b>${A.esc(d.produto || 'Sem descrição')}</b><small><span class="tag ${produto ? 'c' : servico ? 'a' : cadastroManual ? 'c' : 'n'}">${produto ? 'Produto' : servico ? 'Serviço' : cadastroManual ? 'Cadastro manual' : 'A classificar'}</span> <span class="mono">${A.esc(referencia)}</span></small><small><b>${A.esc(classificacaoVisivel)}</b>${fundamentoVisivel ? ` · ${A.esc(fundamentoVisivel)}` : ''}</small></div>
       </div>
       <div class="rastreabilidade-valores">
         <div><span>${eForn ? 'Compra atual' : 'Venda atual'}</span><b>${A.moeda(d.valor)}</b></div>
