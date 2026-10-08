@@ -7669,6 +7669,7 @@ router.get('/config/regras', async (_req, res) => {
     const itensEntradaManual = db.prepare("SELECT chave,valor,label,descricao,ordem FROM param_regras WHERE grupo='itens_entrada_manual' ORDER BY ordem,chave").all().map((x) => {
       let dados={}; try { dados=JSON.parse(x.valor || '{}'); } catch (_) { /* cadastro antigo inválido fica visível sem travar a tela */ }
       return { chave:x.chave, nome:dados.nome || x.label, beneficio:Number(dados.beneficio || 0), gera_credito:dados.gera_credito !== false, cclasstrib:dados.cclasstrib || '', cst:dados.cst || '', nbs:dados.nbs || '', lc116:dados.lc116 || '', contas_questor:Array.isArray(dados.contas_questor) ? dados.contas_questor : [], observacao:dados.observacao || x.descricao || '', fornecedor_padrao_regime:regimeFornecedorPadrao(dados.fornecedor_padrao_regime),
+        cbs_regular:dados.cbs_regular ?? null, situacao_cbs:dados.situacao_cbs || '', situacao_credito_cbs:dados.situacao_credito_cbs || '',
         regimes:{ ...padraoRegimesEntrada, ...(dados.regimes || {}), simples_nacional:{ ...padraoRegimesEntrada.simples_nacional, ...(dados.regimes?.simples_nacional || {}) } } };
     });
     ok(res, { ...regras.tudo(), auditoria, auditoriaRegimeSimples, itensReceita, regrasItensReceita, itensEntradaManual });
