@@ -1765,7 +1765,7 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
 // Exclusão de documento fiscal precisa ocorrer na fonte canônica antes de
 // atingir o cache. Caso contrário, a próxima reconciliação restaura o XML e
 // a tela transmite a impressão de que o botão não funcionou.
-async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimentoIds = [] } = {}) {
+async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, chaves = [], movimentoIds = [] } = {}) {
   if (!ativo()) throw new Error('A fonte compartilhada não está disponível; o documento não foi removido para evitar que reapareça depois.');
   const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
   if (!empresa?.cnpj) throw new Error('Empresa não encontrada para excluir o documento fiscal.');
@@ -1777,13 +1777,16 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
   const candidatas = (empresas || []).filter((x) => Number(x.origem_local_id) === Number(empresaId) || String(x.cnpj || '').replace(/\D/g, '') === cnpj);
   if (candidatas.length !== 1) throw new Error('Não foi possível localizar unicamente a empresa compartilhada; o documento foi preservado.');
   const empresaRemotaId = candidatas[0].id;
-  let consulta = remoto.from('movimentos').select('id').eq('empresa_id', empresaRemotaId);
-  if (chave) consulta = consulta.eq('chave', String(chave));
-  else if (movimentoIds.length) consulta = consulta.in('id', movimentoIds.map(Number));
-  else throw new Error('Identidade do documento fiscal ausente.');
-  const { data: itens, error: erroLeitura } = await consulta;
-  if (erroLeitura) throw new Error(`Documento fiscal compartilhado: ${erroLeitura.message}`);
-  const ids = (itens || []).map((x) => Number(x.id)).filter(Number.isInteger);
+  const chavesUnicas=[...new Set([chave,...chaves].map((x)=>String(x || '').trim()).filter(Boolean))];
+  const idsSolicitados=[...new Set(movimentoIds.map(Number).filter(Number.isInteger))];
+  if (!chavesUnicas.length && !idsSolicitados.length) throw new Error('Identidade do documento fiscal ausente.');
+  const consultas=[];
+  if (chavesUnicas.length) consultas.push(remoto.from('movimentos').select('id').eq('empresa_id', empresaRemotaId).in('chave', chavesUnicas));
+  if (idsSolicitados.length) consultas.push(remoto.from('movimentos').select('id').eq('empresa_id', empresaRemotaId).in('id', idsSolicitados));
+  const resultados=await Promise.all(consultas);
+  const falha=resultados.find((x)=>x.error);
+  if (falha) throw new Error(`Documento fiscal compartilhado: ${falha.error.message}`);
+  const ids=[...new Set(resultados.flatMap((x)=>x.data || []).map((x) => Number(x.id)).filter(Number.isInteger))];
   if (!ids.length) throw new Error('Documento fiscal não localizado na fonte compartilhada; a cópia local foi preservada.');
   // Resultados do motor dependem do item fiscal. Eles são retirados junto com
   // o documento; uma nova execução gerará a próxima fotografia sem a nota.

@@ -38,6 +38,19 @@ function filtrosSql(f = {}, parametros) {
   if (f.busca) { parametros.push(`%${String(f.busca).trim().toLowerCase()}%`); partes.push(`LOWER(COALESCE(documento,chave,'') || ' ' || COALESCE(chave,'') || ' ' || COALESCE(parceiro,'')) LIKE $${parametros.length}`); }
   return partes.length ? `WHERE ${partes.join(' AND ')}` : '';
 }
+function ordenacaoSql(f = {}) {
+  const campos={
+    competencia:'COALESCE(data_emissao::text,competencia,criado_em::text)',
+    documento:'documento',
+    modelo:"COALESCE(modelo_documento_fiscal,'')",
+    itens:'itens',
+    valor:'valor',
+    origem:"COALESCE(origem,'')",
+  };
+  const campo=campos[String(f.ordenar_por || '').trim()] || campos.competencia;
+  const direcao=String(f.ordem || '').toUpperCase()==='ASC' ? 'ASC' : 'DESC';
+  return `${campo} ${direcao},item_id ${direcao}`;
+}
 
 async function listar(cnpj, filtros = {}, opcoes = {}) {
   if (!process.env.SUPABASE_DB_URL) throw new Error('Fonte compartilhada indisponível para a leitura direta de documentos.');
@@ -81,13 +94,14 @@ async function listar(cnpj, filtros = {}, opcoes = {}) {
       FROM canonicos WHERE linha=1 GROUP BY CASE WHEN NULLIF(chave,'') IS NOT NULL THEN 'chave:'||chave ELSE 'movimento:'||id::text END
     ) SELECT * FROM docs`;
     const filtro = filtrosSql({ ...filtros, competencia: null, sentido: null }, params);
+    const ordenacao=ordenacaoSql(filtros);
     // Resultado e página compartilham a mesma CTE: uma ida ao PostgreSQL
     // devolve a página e seu total. Antes eram duas consultas sequenciais
     // (COUNT e SELECT), cujo tempo de rede dominava a leitura aquecida.
     params.push(l, offset);
     const dados = await db.query(`WITH resultado AS (${base} ${filtro}), pagina AS (
       SELECT * FROM resultado
-      ORDER BY COALESCE(data_emissao::text,competencia,criado_em::text) DESC,item_id DESC
+      ORDER BY ${ordenacao}
       LIMIT $${params.length-1} OFFSET $${params.length}
     ) SELECT pagina.*, (SELECT COUNT(*)::int FROM resultado) total FROM pagina`, params);
     await db.query('ROLLBACK');

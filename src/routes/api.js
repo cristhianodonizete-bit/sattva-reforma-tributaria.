@@ -2872,34 +2872,47 @@ router.post('/empresas/:id/documentos-fiscais/excluir-lote', async (req, res) =>
     const filtros=req.body?.filtros && typeof req.body.filtros==='object' ? req.body.filtros : {};
     if (req.body?.confirmar !== true) throw new Error('Confirme a exclusão dos documentos filtrados.');
     if (!filtrosDocumentosFiscaisAtivos(filtros)) throw new Error('Aplique ao menos um filtro antes de excluir documentos de saída em lote.');
-    const documentos=documentosFiscaisDeSaidaPorFiltro(empresaId, filtros);
+    const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa?.cnpj) throw new Error('Empresa não encontrada para excluir documentos de saída.');
+    // A lista da tela é lida diretamente da fonte compartilhada. A exclusão
+    // precisa resolver o mesmo conjunto nessa fonte; usar o cache SQLite aqui
+    // faria uma nota parecer excluída localmente e reaparecer na próxima tela.
+    const filtrosSaida={ competencia:filtros.competencia, modelo:filtros.modelo, receita:filtros.receita,
+      valor_minimo:filtros.valor_minimo, valor_maximo:filtros.valor_maximo, busca:filtros.busca, sentido:'cliente' };
+    const leituraCanonica=await require('../services/documentosFiscaisCompartilhados').listar(empresa.cnpj, filtrosSaida, { exportacao:true });
+    if (leituraCanonica.exportacao_limitada) throw new Error('O filtro é amplo demais para uma exclusão segura. Refine-o antes de continuar.');
+    const documentos=filtrarDocumentosFiscais((leituraCanonica.documentos || []).map((d)=>({
+      ...d, operacao_receita:receitaOperacional.compoeReceita(d), motivo_operacao:receitaOperacional.motivo(d),
+    })), filtrosSaida);
     if (!documentos.length) throw new Error('Nenhum documento de saída atende aos filtros atuais.');
     // Mantemos o lote deliberadamente limitado. Além de proteger contra um
     // clique em um filtro amplo demais, isto preserva uma exclusão rastreável
     // na fonte compartilhada, que é a condição para o documento não voltar.
     if (documentos.length > 500) throw new Error(`O filtro encontrou ${documentos.length} documentos. Refine-o para excluir até 500 documentos por vez.`);
     const chaves=[...new Set(documentos.map((d)=>String(d.chave || '').trim()).filter(Boolean))];
-    const idsSemChave=[...new Set(documentos.filter((d)=>!d.chave).map((d)=>Number(d.item_id)).filter(Number.isInteger))];
-    const grupos=[], valores=[empresaId];
-    if (chaves.length) { grupos.push(`chave IN (${chaves.map(()=>'?').join(',')})`); valores.push(...chaves); }
-    if (idsSemChave.length) { grupos.push(`id IN (${idsSemChave.map(()=>'?').join(',')})`); valores.push(...idsSemChave); }
-    if (!grupos.length) throw new Error('Não foi possível determinar a identidade dos documentos filtrados. Nenhum dado foi removido.');
-    const antes=db.prepare(`SELECT id,documento,chave,valor FROM movimentos WHERE empresa_id=? AND tipo='cliente' AND (${grupos.join(' OR ')})`).all(...valores);
-    if (!antes.length) throw new Error('Os documentos filtrados já não estão disponíveis para exclusão. Atualize a lista.');
-    if (antes.length > 500) throw new Error(`O filtro alcança ${antes.length} itens fiscais. Refine-o para excluir até 500 itens por vez.`);
+    // item_id veio da consulta canônica. Para documentos sem chave fiscal ele
+    // é a única identidade segura; jamais o substituímos por um ID local.
+    const idsCanonicos=[...new Set(documentos.filter((d)=>!d.chave).map((d)=>Number(d.item_id)).filter(Number.isInteger))];
+    if (!chaves.length && !idsCanonicos.length) throw new Error('Não foi possível determinar a identidade canônica dos documentos filtrados. Nenhum dado foi removido.');
     const operacaoCompartilhada=require('../services/operacaoCompartilhada');
-    let compartilhado={ ativo:false, excluidos:0 };
-    if (operacaoCompartilhada.ativo()) {
-      // Sem chave: usar a lista completa de IDs preserva exatamente as linhas
-      // resolvidas pelo filtro, inclusive documentos com mais de um item.
-      compartilhado=await operacaoCompartilhada.excluirDocumentoFiscalCanonico(empresaId, { movimentoIds:antes.map((x)=>x.id) });
+    if (!operacaoCompartilhada.ativo()) throw new Error('A fonte canônica está indisponível. Nenhum documento foi removido para evitar que reapareça.');
+    const compartilhado=await operacaoCompartilhada.excluirDocumentoFiscalCanonico(empresaId, { chaves, movimentoIds:idsCanonicos });
+    // A cópia local nunca decide o lote. Quando há chave fiscal, ela pode ser
+    // descartada com segurança; documentos sem chave ficam apenas órfãos no
+    // cache e não são mais lidos pela tela canônica.
+    let locaisExcluidos=0;
+    if (chaves.length) {
+      const locais=db.prepare(`SELECT id FROM movimentos WHERE empresa_id=? AND tipo='cliente' AND chave IN (${chaves.map(()=>'?').join(',')})`).all(empresaId,...chaves);
+      if (locais.length) {
+        const idsLocais=locais.map((x)=>Number(x.id));
+        db.prepare(`DELETE FROM movimentos WHERE empresa_id=? AND id IN (${idsLocais.map(()=>'?').join(',')})`).run(empresaId,...idsLocais);
+        locaisExcluidos=idsLocais.length;
+      }
     }
-    const ids=antes.map((x)=>Number(x.id));
-    db.prepare(`DELETE FROM movimentos WHERE empresa_id=? AND id IN (${ids.map(()=>'?').join(',')})`).run(empresaId,...ids);
-    const valor=antes.reduce((s,x)=>s+(Number(x.valor)||0),0);
+    const valor=documentos.reduce((s,x)=>s+(Number(x.valor)||0),0);
     estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','cancelamentos','perfil','motor','cadeias','cenarios','precificacao'],'Documentos de saída excluídos em lote');
-    auditar(req,{ empresaId, acao:'DOCUMENTOS_FISCAIS_SAIDA_EXCLUIDOS_EM_LOTE', entidade:'movimentos', entidadeId:`filtro:${JSON.stringify(filtros)}`, antes:{ documentos:documentos.length,itens:antes.length,valor,filtros }, depois:{ compartilhado } });
-    ok(res,{ documentos:documentos.length, excluidos:antes.length, valor, compartilhado });
+    auditar(req,{ empresaId, acao:'DOCUMENTOS_FISCAIS_SAIDA_EXCLUIDOS_EM_LOTE', entidade:'movimentos', entidadeId:`filtro:${JSON.stringify(filtros)}`, antes:{ documentos:documentos.length,valor,filtros,fonte:'CANONICA_COMPARTILHADA' }, depois:{ compartilhado,locais_excluidos:locaisExcluidos } });
+    ok(res,{ documentos:documentos.length, excluidos:compartilhado.excluidos, locais_excluidos:locaisExcluidos, valor, compartilhado });
   } catch (e) { erro(res,e); }
 });
 router.get('/empresas/:id/documentos-fiscais/:referencia', async (req, res) => {
