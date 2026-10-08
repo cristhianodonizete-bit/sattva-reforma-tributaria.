@@ -32,6 +32,12 @@ const credito = soma(linhas.filter((x) => x.sentido === 'entrada'), 'credito_cbs
 
 assert.equal(r2(clientes.totais.cbs), debito, 'Cadeia de Clientes deve ler a CBS de motor_resultados');
 assert.equal(r2(fornecedores.totais.creditoFinal), credito, 'Cadeia de Fornecedores deve ler o crédito de motor_resultados');
+const pendenciasHistoricas = linhas.filter((x) => x.sentido === 'entrada' && (x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor === null
+  || x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor === undefined));
+assert.equal(fornecedores.pendenciasPisCofins.length, pendenciasHistoricas.length, 'a lista de pendências deve cobrir toda a fotografia, não somente a página de detalhes');
+assert.equal(fornecedores.resumoPendenciasPisCofins.registros, pendenciasHistoricas.length, 'o resumo deve informar a quantidade exata de pendências');
+assert.equal(fornecedores.resumoPendenciasPisCofins.valor, soma(pendenciasHistoricas, 'preco_atual'), 'o resumo deve informar o valor dos documentos pendentes');
+assert.ok(fornecedores.pendenciasPisCofins.every((x) => x.motivo && Object.hasOwn(x, 'documento')), 'cada pendência deve expor documento e motivo para auditoria');
 assert.equal(impacto.cbs_debito_vendas, debito, 'Impacto Final deve ler o débito materializado');
 assert.equal(impacto.cbs_credito_compras, credito, 'Impacto Final deve ler o crédito materializado');
 assert.equal(impacto.cbs_liquida, r2(debito - credito), 'CBS líquida deve reconciliar');

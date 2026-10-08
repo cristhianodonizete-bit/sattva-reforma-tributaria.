@@ -1831,12 +1831,22 @@ async function telaCadeia(el, tipo) {
   const mostrarRiscos = abaCadeia === 'riscos';
   const mostrarAbc = abaCadeia === 'abc';
   const resumoBeneficios = analise.tratamentoBeneficios || { operacoes: 0 };
-  const pendenciasPisCofins = (analise.detalhes || []).filter((x) => x.pisCofinsAtual === null || x.pisCofinsAtual === undefined);
+  // A pendência é retornada pela consolidação completa, e não apenas pela
+  // página aberta de rastreabilidade. Assim o cartão explica o total sem
+  // ocultar a parcela de PIS/Cofins que já foi identificada.
+  const pendenciasPisCofins = analise.pendenciasPisCofins || (analise.detalhes || []).filter((x) => x.pisCofinsAtual === null || x.pisCofinsAtual === undefined);
+  const resumoPendenciasPisCofins = analise.resumoPendenciasPisCofins || {
+    registros: pendenciasPisCofins.length,
+    valor: pendenciasPisCofins.reduce((s, x) => s + Number(x.valor || 0), 0),
+  };
   const simplesHibrido = !eForn && analise.projecao_regime === 'SIMPLES_HIBRIDO';
   const outrasReceitasSemCliente = analise.outras_receitas_sem_cliente || { registros: 0, valor: 0, cbs: 0 };
   // O DAS é a origem da carga, não motivo para ocultar o valor. A soma já
   // foi materializada pelo motor/PGDAS; a tela apenas a identifica como tal.
   const pisAntes = (x) => x.pisIndeterminado ? 'a validar' : x.pisCofinsNoDas ? `no DAS · ${A.moeda(x.pisCofinsAtual)}` : A.moeda(x.pisCofinsAtual);
+  const pisCofinsParcial = () => t.pisIndeterminado
+    ? `<b>${A.moeda(t.pisCofinsAtual)}</b><div class="mini">valor identificado · ${resumoPendenciasPisCofins.registros} documento(s) pendente(s)</div>`
+    : `${A.moeda(t.pisCofinsAtual)}${t.pisCofinsNoDas ? ' · no DAS' : ''}`;
   const tributosReforma = (x) => `${ibsAtivo ? `IBS ${A.moeda(x.ibs)} · ` : ''}CBS ${A.moeda(x.cbs)}`;
   const valorDasHibrido = (x, campo) => x.dasHibridoPendente && !Number(x.dasAtual) ? 'A validar' : A.moeda(x[campo]);
   // A memória completa tem muitos campos tributários e, em forma de tabela,
@@ -1943,7 +1953,7 @@ async function telaCadeia(el, tipo) {
     (t.registros ? `
     <div class="grade g4">
       ${A.kpi(eForn ? 'Compra atual' : 'Venda atual', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
-      ${A.kpi('Antes — PIS/Cofins', t.pisIndeterminado ? 'A validar' : A.moeda(t.pisCofinsAtual), t.pisCofinsNoDas ? 'carga atual no DAS' : 'carga atual identificada')}
+      ${A.kpi('Antes — PIS/Cofins', t.pisIndeterminado ? `${A.moeda(t.pisCofinsAtual)}<div class="mini">valor identificado · parcial</div>` : A.moeda(t.pisCofinsAtual), t.pisIndeterminado ? `<button type="button" class="btn pq vazio" data-pis-cofins-pendencias>Ver ${resumoPendenciasPisCofins.registros} pendência(s)</button>` : (t.pisCofinsNoDas ? 'carga atual no DAS' : 'carga atual identificada'))}
       ${simplesHibrido ? A.kpi('(-) CBS já no DAS', valorDasHibrido(t, 'cbsDentroDoDas'), 'parcela substituída no Híbrido') : ''}
       ${simplesHibrido ? A.kpi('DAS sem CBS', valorDasHibrido(t, 'dasResidualHibrido'), `DAS atual ${valorDasHibrido(t, 'dasAtual')} − CBS retirada`) : ''}
       ${A.kpi(`Depois — ${ibsAtivo ? 'IBS + CBS' : 'CBS'}`, tributosReforma(ultimo), 'projeção da reforma')}
@@ -1953,7 +1963,7 @@ async function telaCadeia(el, tipo) {
       <p class="desc">${simplesHibrido ? 'No Híbrido, a CBS regular substitui a parcela de CBS já recolhida dentro do DAS. Portanto, o impacto no faturamento é a diferença líquida entre as duas — sem duplicidade.' : 'Comparação da carga atual com a projeção da reforma: antes, PIS/Cofins; depois, CBS e a diferença econômica no preço.'} CBS configurada: <b>${A.pct(cbsReferencia)}</b>${ibsAtivo ? ` · IBS configurado: <b>${A.pct(ibsReferencia)}</b>` : ' · IBS desabilitado nesta análise.'}</p>
       ${A.tabela([
         { t: eForn ? 'Compra atual' : 'Venda atual', num: true, r: () => A.moeda(t.valor) },
-        { t: 'Antes — PIS/Cofins', num: true, r: () => t.pisIndeterminado ? 'A validar' : `${A.moeda(t.pisCofinsAtual)}${t.pisCofinsNoDas ? ' · no DAS' : ''}` },
+        { t: 'Antes — PIS/Cofins', num: true, r: pisCofinsParcial },
         { t: rotuloBase, num: true, r: () => A.moeda(ultimo.baseEconomica || 0) },
         ...(simplesHibrido ? [{ t: 'DAS atual', num: true, r: () => valorDasHibrido(ultimo, 'dasAtual') }] : []),
         ...(simplesHibrido ? [{ t: '(-) CBS no DAS', num: true, r: () => valorDasHibrido(ultimo, 'cbsDentroDoDas') }] : []),
@@ -2065,11 +2075,11 @@ async function telaCadeia(el, tipo) {
     </div>` : ''}
     ${mostrarRastreabilidadeItens ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade por item</h2>
       <p class="desc">Mostra, item a item, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. As notas e os itens com crédito CBS acima são recortes desta mesma fotografia; nada é recalculado nesta tela.</p>
-      ${pendenciasPisCofins.length ? `<div class="aviso atencao" style="margin-top:14px"><b>${pendenciasPisCofins.length} item(ns) deixam o total de PIS/Cofins “A validar”.</b><br><span class="mini">A lista abaixo traz exatamente os lançamentos sem carga histórica determinada; CBS e crédito CBS continuam apresentados a partir da fotografia do motor.</span></div><div style="margin-top:12px">${A.tabela([
+      ${pendenciasPisCofins.length ? `<div class="aviso atencao" style="margin-top:14px"><b>${pendenciasPisCofins.length} documento(s), no valor de ${A.moeda(resumoPendenciasPisCofins.valor)}, ainda não têm carga histórica de PIS/Cofins.</b><br><span class="mini">O valor identificado continua exibido no resumo. Esta lista contém somente as pendências; CBS e crédito CBS permanecem os da fotografia do motor.</span></div><div style="margin-top:12px">${A.tabela([
         {t:'Documento / competência',r:d=>`<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '—')}</div>`},
         {t:eForn ? 'Fornecedor' : 'Cliente',r:d=>`${A.esc(d.parceiro || 'Não identificado')}<div class="mini mono">${A.cnpjFmt(d.cnpj || '')}</div>`},
-        {t:'Item / NCM ou NBS',r:d=>{const codigo=d.ncm ? `NCM ${d.ncm}` : d.nbs ? `NBS ${d.nbs}${d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : 'Código não informado'; return `<b>${A.esc(d.produto || 'Sem descrição')}</b><div class="mini mono">${A.esc(codigo)}</div>`;}},
-        {t:'Motivo',r:d=>`<span class="tag a">Carga histórica pendente</span><div class="mini">${A.esc(d.motivoBaseEconomica || d.origemPisCofins || 'Sem valor de PIS/Cofins na memória do motor.')}</div>`},
+        {t:'Item / referência',r:d=>{const codigo=d.ncm ? `NCM ${d.ncm}` : d.nbs ? `NBS ${d.nbs}${d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : ''; return `<b>${A.esc(d.produto || d.descricao || 'Sem descrição')}</b>${codigo ? `<div class="mini mono">${A.esc(codigo)}</div>` : ''}`;}},
+        {t:'Motivo',r:d=>`<span class="tag a">Carga histórica pendente</span><div class="mini">${A.esc(d.motivo || d.motivoBaseEconomica || d.origem || d.origemPisCofins || 'Sem valor de PIS/Cofins na memória do motor.')}</div>`},
         {t:'CBS',num:true,r:d=>A.moeda(d.cbs)},
         ...(eForn ? [{t:'Crédito CBS',num:true,r:d=>A.moeda(d.creditoCbs)}] : []),
       ],pendenciasPisCofins,{vazio:'Nenhum item pendente.'})}</div>` : '<div class="aviso bom" style="margin-top:14px"><b>Todos os itens desta página têm carga histórica de PIS/Cofins determinada.</b></div>'}
@@ -2087,6 +2097,23 @@ async function telaCadeia(el, tipo) {
   });
   el.querySelectorAll('[data-cadeia-pagina]').forEach((botao) => {
     botao.onclick = () => { S.cache[`cadeia_pagina_${tipo}`] = Number(botao.dataset.cadeiaPagina) || 1; A.ir(eForn ? 'fornecedores' : 'clientes'); };
+  });
+  el.querySelector('[data-pis-cofins-pendencias]')?.addEventListener('click', () => {
+    const itens = pendenciasPisCofins;
+    A.modal({
+      titulo: 'Documentos pendentes de PIS/Cofins histórico',
+      largura: 1200,
+      confirmar: 'Fechar',
+      descricao: `${itens.length} documento(s), no total de ${A.moeda(resumoPendenciasPisCofins.valor)}, ainda não possuem carga histórica determinada. O valor exibido no resumo é a parcela já identificada; esta lista não recalcula nem altera nenhum dado.`,
+      corpo: A.tabela([
+        {t:'Documento / competência',r:d=>`<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '—')}</div>`},
+        {t:eForn ? 'Fornecedor' : 'Cliente',r:d=>`${A.esc(d.parceiro || 'Não identificado')}<div class="mini mono">${A.cnpjFmt(d.cnpj || '')}</div>`},
+        {t:'Item',r:d=>A.esc(d.descricao || d.produto || 'Sem descrição')},
+        {t:'Valor',num:true,r:d=>A.moeda(d.valor)},
+        {t:'Motivo',r:d=>`<span class="tag a">Pendente</span><div class="mini">${A.esc(d.motivo || d.origem || 'Sem carga histórica determinada')}</div>`},
+      ], itens, { vazio:'Não há documentos pendentes.' }),
+      aoConfirmar: async () => {},
+    });
   });
   el.querySelectorAll('[data-cadeia-parceiros]').forEach((botao) => {
     botao.onclick = () => { S.cache[`cadeia_parceiros_${tipo}`] = Number(botao.dataset.cadeiaParceiros) || 1; A.ir(tipo === 'fornecedor' ? 'fornecedores' : 'clientes'); };

@@ -433,6 +433,35 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   // entram na cadeia como contraparte consolidada, sem atribuir um cliente
   // específico que não existe na origem.
   const itens = [...base.linhas.filter((x) => x.sentido === sentido), ...adicionais];
+  // Pendência não pode apagar a parte já determinada da carga histórica.
+  // Mantemos um recorte compacto, completo e somente-leitura para a tela
+  // explicar exatamente quais documentos impedem a conclusão do total.
+  const pendenciasPisCofins = itens
+    .filter((x) => x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor === null
+      || x.detalhe?.reconstrucao?.memoriaPisCofins?.carga_atual_pis_cofins_valor === undefined)
+    .map((x) => {
+      const memoria = x.detalhe?.reconstrucao?.memoriaPisCofins || {};
+      const pendencias = x.detalhe?.reconstrucao?.pendencias || [];
+      return {
+        movimento_id: x.movimento_id,
+        documento: x.documento || x.chave || '',
+        competencia: x.competencia || null,
+        parceiro: x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || '',
+        cnpj: x.inscr_federal || '',
+        descricao: x.descricao || '',
+        valor: r2(x.preco_atual),
+        origem: memoria.carga_atual_pis_cofins_origem || 'INDETERMINADO',
+        motivo: memoria.base_reconstrucao_metodo
+          ? `PIS/COFINS: ${memoria.base_reconstrucao_metodo}${memoria.fundamento ? ` — ${memoria.fundamento}` : ''}`
+          : pendencias.join(' ') || 'Sem carga histórica de PIS/Cofins determinada na fotografia do motor.',
+      };
+    })
+    .sort((a, b) => String(a.competencia || '').localeCompare(String(b.competencia || ''))
+      || String(a.documento || '').localeCompare(String(b.documento || '')));
+  const resumoPendenciasPisCofins = {
+    registros: pendenciasPisCofins.length,
+    valor: r2(pendenciasPisCofins.reduce((s, x) => s + n(x.valor), 0)),
+  };
   const resumoOutrasReceitas = adicionais.reduce((s, x) => ({
     registros: s.registros + 1,
     valor: r2(s.valor + n(x.preco_atual)),
@@ -588,6 +617,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
       ? 'Projeção principal: Simples Nacional no regime regular de IBS/CBS (híbrido). O DAS permanece disponível somente como comparação.'
       : 'Projeção principal pelo regime tributário atual da empresa.',
     totais: t, parceiros: parceirosPaginados, regimes, detalhes,
+    pendenciasPisCofins, resumoPendenciasPisCofins,
     outras_receitas_sem_cliente: lado === 'cliente' ? resumoOutrasReceitas : { registros: 0, valor: 0, cbs: 0 },
     paginacaoParceiros: { pagina: paginaParceiros, limite: limiteParceiros, total: parceiros.length, totalPaginas: totalPaginasParceiros,
       temAnterior: paginaParceiros > 1, temProxima: paginaParceiros < totalPaginasParceiros },
