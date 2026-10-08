@@ -1401,8 +1401,12 @@ router.get('/empresas/:id/prontidao-dados', async (req, res) => {
 });
 router.post('/empresas/:id/prontidao-dados/declaracoes', async (req, res) => {
   try {
-    const resultado = await prontidaoDados.declararCompartilhado(Number(req.params.id), req.body || {}, req.usuario?.id || null);
-    auditar(req, { empresaId:Number(req.params.id), acao:'prontidao_declaracao_registrada', entidade:'empresa_prontidao_declaracoes', entidadeId:req.params.id, depois:req.body || {} });
+    const dados=req.body || {};
+    const emLote=Array.isArray(dados.referencias);
+    const resultado = emLote
+      ? await prontidaoDados.declararLoteCompartilhado(Number(req.params.id), dados, req.usuario?.id || null)
+      : await prontidaoDados.declararCompartilhado(Number(req.params.id), dados, req.usuario?.id || null);
+    auditar(req, { empresaId:Number(req.params.id), acao:emLote?'prontidao_declaracoes_em_lote_registradas':'prontidao_declaracao_registrada', entidade:'empresa_prontidao_declaracoes', entidadeId:req.params.id, depois:dados });
     ok(res, resultado);
   } catch (e) { erro(res, e); }
 });

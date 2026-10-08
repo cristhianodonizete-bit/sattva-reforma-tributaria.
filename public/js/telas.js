@@ -1097,7 +1097,24 @@ Telas.dados = async (el) => {
   });
   document.getElementById('declararFolha')?.addEventListener('click', () => abrirDeclaracaoProntidao('FOLHA_SEM_MOVIMENTO','Declarar ausência de folha',itemProntidao('folha')?.pendencias?.[0]?.match(/\d{4}-\d{2}/)?.[0] || '', 'Use somente quando a competência não possui folha ou pró-labore.'));
   document.getElementById('declararDocumentoSemMovimento')?.addEventListener('click', () => abrirDeclaracaoProntidao('DOCUMENTOS_SEM_MOVIMENTO','Declarar competência sem movimento',itemProntidao('documentos')?.pendencias?.[0]?.match(/\d{4}-\d{2}/)?.[0] || '', 'Use somente quando não houve documento fiscal na competência.'));
-  document.getElementById('declararReceitaNaoAplicavel')?.addEventListener('click', () => abrirDeclaracaoProntidao('OUTRAS_RECEITAS_NAO_APLICAVEL','Declarar outras receitas não aplicáveis',itemProntidao('receitas')?.pendencias?.[0]?.match(/\d{4}-\d{2}/)?.[0] || '', 'Registre que não há receita complementar fora dos documentos fiscais. Você pode informar uma competência ou um ano inteiro.'));
+  document.getElementById('declararReceitaNaoAplicavel')?.addEventListener('click', () => {
+    const competencias = [...new Set((itemProntidao('receitas')?.pendencias || [])
+      .map((pendencia) => String(pendencia).match(/\d{4}-\d{2}/)?.[0]).filter(Boolean))].sort();
+    if (!competencias.length) return A.toast('Não há competências pendentes de outras receitas para declarar.', 'erro');
+    A.modal({
+      titulo:'Declarar outras receitas não aplicáveis',
+      descricao:'Selecione as competências para as quais não houve receita complementar fora dos documentos fiscais. Cada competência recebe sua própria declaração auditável.',
+      corpo:`<div class="campo"><span>Competências pendentes</span><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px;margin-top:8px">${competencias.map((competencia)=>`<label class="tag" style="display:flex;gap:6px;align-items:center;justify-content:flex-start"><input type="checkbox" data-declaracao-receita-competencia value="${A.esc(competencia)}" checked> ${A.esc(competencia)}</label>`).join('')}</div></div>${A.selecao('motivo','Motivo',[{v:'EMPRESA_NOVA',t:'Empresa constituída ou iniciou operação posteriormente'},{v:'SEM_MOVIMENTO',t:'Não houve movimento no período'},{v:'NAO_APLICAVEL',t:'Não se aplica à empresa'},{v:'OUTRO',t:'Outro'}],'SEM_MOVIMENTO')}${A.area('justificativa','Justificativa complementar','',3)}`,
+      confirmar:'Registrar declarações',
+      aoConfirmar:async(d, fundo)=>{
+        const referencias=[...fundo.querySelectorAll('[data-declaracao-receita-competencia]:checked')].map((campo)=>campo.value);
+        if (!referencias.length) throw new Error('Selecione ao menos uma competência.');
+        const resultado=await A.api(`/empresas/${S.empresaId}/prontidao-dados/declaracoes`,{metodo:'POST',corpo:{...d,tipo:'OUTRAS_RECEITAS_NAO_APLICAVEL',referencias}});
+        A.toast(`${resultado.declaracoes_registradas || referencias.length} declaração(ões) registrada(s) com trilha de auditoria.`, 'ok');
+        A.ir('dados');
+      },
+    });
+  });
   document.getElementById('declararHistoricoApuracao')?.addEventListener('click', () => abrirDeclaracaoProntidao('APURACAO_HISTORICO_NAO_APLICAVEL','Declarar histórico não disponível',String(itemProntidao('apuracoes')?.anos?.[2] || ''), 'Use para empresa nova, início posterior ou período de inatividade. A declaração resolve a ausência sem simular apuração.'));
   document.getElementById('importarFolha')?.addEventListener('click', () => A.modal({
     titulo: 'Importar folha de pagamento', descricao: 'Envie uma planilha agregada por competência. Competência e Valor da Folha são obrigatórios; Pró-labore e Referência são opcionais.', confirmar: null,

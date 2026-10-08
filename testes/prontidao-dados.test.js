@@ -7,6 +7,10 @@ let r=prontidao.obter(empresa); assert.equal(r.motor.status,'VERMELHO'); assert.
 prontidao.declarar(empresa,{tipo:'DOCUMENTOS_SEM_MOVIMENTO',referencia:'2026',motivo:'Sem movimento'},'teste');
 prontidao.declarar(empresa,{tipo:'OUTRAS_RECEITAS_NAO_APLICAVEL',referencia:'2026',motivo:'Não se aplica'},'teste');
 r=prontidao.obter(empresa); assert.equal(r.motor.status,'VERDE'); assert.equal(r.motor.liberado,true);
+const lote=prontidao.declararLote(empresa,{tipo:'OUTRAS_RECEITAS_NAO_APLICAVEL',referencias:['2027-01','2027-03','2027-01'],motivo:'Sem receita complementar',justificativa:'Declaração em lote de teste'},'teste');
+assert.equal(lote.declaracoes_registradas,2,'o lote deve deduplicar competências repetidas');
+assert.deepEqual(lote.referencias,['2027-01','2027-03']);
+assert.equal(db.prepare("SELECT COUNT(*) c FROM empresa_prontidao_declaracoes WHERE empresa_id=? AND tipo='OUTRAS_RECEITAS_NAO_APLICAVEL' AND referencia IN ('2027-01','2027-03')").get(empresa).c,2,'cada competência deve manter sua própria trilha');
 prontidao.declarar(empresa,{tipo:'APURACAO_HISTORICO_NAO_APLICAVEL',referencia:'2024',motivo:'Empresa nova'},'teste');
 prontidao.declarar(empresa,{tipo:'APURACAO_HISTORICO_NAO_APLICAVEL',referencia:'2026-01',motivo:'Sem movimento'},'teste');
 assert.ok(!prontidao.obter(empresa).etapas.find(x=>x.id==='apuracoes').pendencias.some(x=>x.includes('2026-01')));

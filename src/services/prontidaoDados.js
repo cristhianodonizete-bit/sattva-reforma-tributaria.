@@ -82,6 +82,27 @@ function declarar(empresaId, dados, usuarioId=null, { banco=dbPadrao } = {}) {
   return obter(empresaId,{banco});
 }
 
+function referenciasLote(dados = {}) {
+  const lista = Array.isArray(dados.referencias) ? dados.referencias : [dados.referencia];
+  return [...new Set(lista.map((x) => String(x || '').trim()).filter(Boolean))];
+}
+
+function validarDeclaracao(tipo, referencia, motivo) {
+  if (!TIPOS.has(tipo)) throw new Error('Tipo de declaração inválido.');
+  if (!motivo) throw new Error('Informe o motivo da declaração.');
+  const cobreAno = tipo==='DOCUMENTOS_SEM_MOVIMENTO' || tipo==='OUTRAS_RECEITAS_NAO_APLICAVEL' || tipo==='APURACAO_HISTORICO_NAO_APLICAVEL';
+  if ((cobreAno && !(ANO.test(referencia) || COMPETENCIA.test(referencia))) || (!cobreAno && tipo!=='MARGEM_NAO_APLICAVEL' && !COMPETENCIA.test(referencia)) || (tipo==='MARGEM_NAO_APLICAVEL' && referencia!=='PERIODO_ANALISADO')) throw new Error('Referência da declaração inválida. Use AAAA-MM ou, quando aplicável, somente AAAA.');
+}
+
+function declararLote(empresaId, dados, usuarioId=null, { banco=dbPadrao } = {}) {
+  const tipo=String(dados.tipo||''); const motivo=String(dados.motivo||'').trim(); const referencias=referenciasLote(dados);
+  if (!referencias.length) throw new Error('Selecione ao menos uma competência.');
+  referencias.forEach((referencia) => validarDeclaracao(tipo, referencia, motivo));
+  const inserir=banco.prepare(`INSERT INTO empresa_prontidao_declaracoes (empresa_id,tipo,referencia,motivo,justificativa,usuario_id) VALUES (?,?,?,?,?,?) ON CONFLICT(empresa_id,tipo,referencia) DO UPDATE SET motivo=excluded.motivo,justificativa=excluded.justificativa,usuario_id=excluded.usuario_id,criado_em=datetime('now','localtime')`);
+  banco.transaction(() => referencias.forEach((referencia) => inserir.run(empresaId,tipo,referencia,motivo,String(dados.justificativa||''),usuarioId||null)))();
+  return { ...obter(empresaId,{banco}), declaracoes_registradas:referencias.length, referencias };
+}
+
 async function empresaRemota(empresaId, banco) {
   const local=banco.prepare('SELECT cnpj FROM empresas WHERE id=?').get(Number(empresaId));
   if (!local || !supabase.configurado()) return null;
@@ -127,4 +148,17 @@ async function declararCompartilhado(empresaId,dados,usuarioId=null,{banco=dbPad
   if(error) throw new Error(`Não foi possível gravar a declaração compartilhada: ${error.message}`);
   return declarar(empresaId,dados,usuarioId,{banco});
 }
-module.exports={ obter,declarar,sincronizarCompartilhado,declararCompartilhado };
+
+async function declararLoteCompartilhado(empresaId,dados,usuarioId=null,{banco=dbPadrao}={}) {
+  const tipo=String(dados.tipo||''); const motivo=String(dados.motivo||'').trim(); const referencias=referenciasLote(dados);
+  if (!referencias.length) throw new Error('Selecione ao menos uma competência.');
+  referencias.forEach((referencia) => validarDeclaracao(tipo, referencia, motivo));
+  if (!supabase.configurado()) return declararLote(empresaId,{...dados,referencias},usuarioId,{banco});
+  const empresa=await empresaRemota(empresaId,banco);
+  if(!empresa) throw new Error('Empresa ainda não está disponível na base compartilhada. As declarações não foram gravadas para evitar perda de sincronização.');
+  const registros=referencias.map((referencia)=>({empresa_id:empresa.id,tipo,referencia,motivo,justificativa:String(dados.justificativa||''),usuario_id:usuarioId||null}));
+  const {error}=await supabase.admin().from('empresa_prontidao_declaracoes').upsert(registros,{onConflict:'empresa_id,tipo,referencia'});
+  if(error) throw new Error(`Não foi possível gravar as declarações compartilhadas: ${error.message}`);
+  return declararLote(empresaId,{...dados,referencias},usuarioId,{banco});
+}
+module.exports={ obter,declarar,declararLote,sincronizarCompartilhado,declararCompartilhado,declararLoteCompartilhado };
