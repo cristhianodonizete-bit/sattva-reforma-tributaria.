@@ -26,6 +26,10 @@ async function preparar(empresaId) {
       competenciaFim: periodo.competencia_fim,
       // Execução do motor é estritamente leitora quanto à base fiscal.
       permitirPublicacao:false,
+      // Divergência deixa de ser corrigida pelo worker. O motor só aceita uma
+      // base já sincronizada e preserva a fotografia ativa se houver diferença.
+      somenteLeitura:true,
+      forcar:true,
     }),
     { motivo:'Documentos canônicos conferidos pelo worker' },
   );

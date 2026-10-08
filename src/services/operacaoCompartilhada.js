@@ -774,6 +774,19 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   const removerPorExclusao = locais.filter((linha) => chavesBloqueadas.has(String(linha.chave || '').trim()))
     .map((linha) => Number(linha.id));
   const remover = [...new Set([...removerNormais, ...removerPorExclusao])];
+  // O motor geral jamais corrige a base fiscal. Em modo somente leitura,
+  // qualquer diferença é um bloqueio explícito: não remove fatos locais e
+  // não reimporta fatos canônicos, inclusive os que foram excluídos.
+  const camposComparacao=CAMPOS.movimentos.filter((campo)=>!['criado_em'].includes(campo));
+  const normalizarComparacao=(linha)=>JSON.stringify(Object.fromEntries(camposComparacao.map((campo)=>{
+    const valor=linha?.[campo];
+    return [campo, valor && typeof valor === 'object' ? JSON.stringify(valor) : (valor ?? null)];
+  })));
+  const locaisPorId=new Map(locais.map((linha)=>[Number(linha.id),linha]));
+  const divergentes=normalizadas.filter((linha)=>normalizarComparacao(linha)!==normalizarComparacao(locaisPorId.get(Number(linha.id))));
+  if (opcoes.somenteLeitura && (remover.length || divergentes.length)) {
+    throw new Error(`Fonte canônica e cache local divergem (${divergentes.length} inclusão/alteração(ões), ${remover.length} remoção(ões)). O motor foi bloqueado: sincronize ou revise os fatos explicitamente; ele não altera a base fiscal.`);
+  }
   db.transaction(() => {
     if (remover.length) {
       const marcas = remover.map(() => '?').join(',');
