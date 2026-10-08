@@ -522,6 +522,41 @@ async function prepararContextoMotorEmpresa(empresaId) {
   return resultado;
 }
 
+// Um job incremental não pode depender do disco efêmero do worker. Os IDs
+// enviados pela fila são IDs canônicos do Supabase; antes de calcular,
+// reidratamos *somente* esses fatos e suas evidências. Esta rotina não publica,
+// não remove e não reconcilia a base: o SQLite é apenas o cache descartável do
+// worker.
+async function prepararContextoMotorIncremental(empresaId, movimentoIds = []) {
+  const id = Number(empresaId);
+  const ids = [...new Set((movimentoIds || []).map(Number).filter(Number.isInteger))];
+  if (!ids.length) throw new Error('Preparação incremental sem movimentos explícitos.');
+  const contexto = await prepararContextoMotorEmpresa(id);
+  const remoto = supabase.admin();
+  const { data: candidatas, error: erroEmpresa } = await remoto.from('empresas').select('id,origem_local_id')
+    .or(`origem_local_id.eq.${id},id.eq.${id}`).limit(3);
+  if (erroEmpresa) throw new Error(`Empresa do worker incremental: ${erroEmpresa.message}`);
+  const empresaRemota = (candidatas || []).find((empresa) => Number(empresa.origem_local_id || empresa.id) === id);
+  if (!empresaRemota) throw new Error(`Empresa compartilhada não identificada para o job incremental ${id}.`);
+  const { data: remotos, error: erroMovimentos } = await remoto.from('movimentos').select('*')
+    .eq('empresa_id', Number(empresaRemota.id)).in('id', ids);
+  if (erroMovimentos) throw new Error(`Movimentos do job incremental: ${erroMovimentos.message}`);
+  if ((remotos || []).length !== ids.length) throw new Error('Job incremental contém lançamento inexistente ou de outra empresa na fonte canônica.');
+  const mapaEmpresa = new Map([[String(empresaRemota.id), id]]);
+  const movimentos = normalizarEmpresaIdDoCache('movimentos', remotos || [], mapaEmpresa);
+  const locaisConflitantes = db.prepare(`SELECT id,empresa_id FROM movimentos WHERE id IN (${ids.map(() => '?').join(',')})`)
+    .all(...ids).filter((linha) => Number(linha.empresa_id) !== id);
+  if (locaisConflitantes.length) throw new Error('Colisão de identidade no cache do worker; a fotografia ativa foi preservada.');
+  gravar('movimentos', movimentos);
+  const evidencias = {};
+  for (const tabela of TABELAS_MOTOR_APOS_DOCUMENTOS) {
+    const { data, error } = await remoto.from(tabela).select('*').eq('empresa_id', Number(empresaRemota.id)).in('movimento_id', ids);
+    if (error) throw new Error(`${tabela} incremental: ${error.message}`);
+    evidencias[tabela] = gravar(tabela, normalizarEmpresaIdDoCache(tabela, data || [], mapaEmpresa));
+  }
+  return { ...contexto, movimentos: movimentos.length, evidencias };
+}
+
 // Evidências apontam para movimentos fiscais. Elas só podem ser restauradas
 // depois que a reconciliação da empresa inseriu os documentos no SQLite do
 // worker; restaurá-las antes violaria FK e interromperia o job sem cálculo.
@@ -1248,6 +1283,20 @@ async function promoverFotografiaMotor(empresaId, execucaoId, quantidadeEsperada
   if (error) throw new Error(`Promoção atômica da fotografia: ${error.message}`);
   return { promovida: true, empresa_id: Number(empresaId), execucao_id: Number(execucaoId), quantidade: Number(quantidadeEsperada) };
 }
+// A execução incremental contém somente as linhas autorizadas. A RPC cria a
+// próxima fotografia completa no banco: copia a foto ativa, troca o recorte e
+// só então faz a comutação. Assim a tela nunca lê um mosaico de execuções e um
+// erro mantém a fotografia anterior intacta.
+async function promoverFotografiaMotorIncremental(empresaId, execucaoId, quantidadeSubstituta) {
+  if (!ativo()) return { ativo: false };
+  const { data, error } = await supabase.admin().rpc('promover_fotografia_motor_incremental', {
+    p_empresa_id: Number(empresaId), p_execucao_id: Number(execucaoId), p_quantidade_substituta: Number(quantidadeSubstituta),
+  });
+  if (error) throw new Error(`Promoção incremental atômica da fotografia: ${error.message}`);
+  const quantidade = Number(data);
+  if (!Number.isInteger(quantidade) || quantidade <= 0) throw new Error('Promoção incremental não retornou uma fotografia completa válida.');
+  return { promovida: true, empresa_id: Number(empresaId), execucao_id: Number(execucaoId), quantidade };
+}
 async function validarFotografiaAtivaMotor(empresaId, execucaoId, quantidadeEsperada) {
   if (!ativo()) return { ativo: false };
   // Contagem no servidor via API, sem transferir a fotografia (inclusive para
@@ -1746,6 +1795,6 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
 }
 
 module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
-  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
+  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
   chavesQueDevemPermanecerExcluidas };

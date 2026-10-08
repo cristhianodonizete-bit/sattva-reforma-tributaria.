@@ -186,14 +186,33 @@ async function processarUm() {
         const payload = JSON.parse(job.payload || '{}');
         const solicitados = [...new Set((payload.movimento_ids || []).map(Number).filter(Number.isInteger))];
         if (!solicitados.length) throw new Error('Job incremental sem lançamentos explícitos.');
-        const marcadores = solicitados.map(() => '?').join(',');
-        const encontrados = db.prepare(`SELECT id FROM movimentos WHERE empresa_id=? AND id IN (${marcadores})`).all(job.empresa_id, ...solicitados).map((x) => Number(x.id));
-        if (encontrados.length !== solicitados.length) throw new Error('Job incremental contém lançamento inexistente ou de outra empresa.');
-        // Não chama preparação nem classificação global: esta fila só recalcula
-        // resultados derivados dos IDs explicitamente autorizados.
+        const operacao = require('./operacaoCompartilhada');
+        // O worker não assume que o seu SQLite conhece os IDs do job. Ele
+        // recompõe exclusivamente os fatos canônicos autorizados, sem
+        // publicação, remoção ou reclassificação global da base.
+        await operacao.prepararContextoMotorIncremental(job.empresa_id, solicitados);
+        const entradaMotor = integridadeMotor.assinarEntrada(job.empresa_id);
         const resultado = motorExec.reprocessarIncremental(job.empresa_id, { ano:Number(payload.ano) || Number(job.competencia) || 2027, movimentoIds:solicitados });
+        if (Number(resultado.reprocessados) !== solicitados.length) throw new Error('Execução incremental incompleta; a fotografia anterior foi preservada.');
+        const execucao = motorExec.ultimaExecucao(job.empresa_id);
+        if (!execucao?.id) throw new Error('Execução incremental não materializou uma execução local.');
+        const resultadoMotor = integridadeMotor.assinarResultado(job.empresa_id, execucao.id);
+        if (resultadoMotor.itens !== solicitados.length) throw new Error('Integridade incremental: quantidade de resultados diferente do escopo autorizado.');
+        const entradaAntesDePublicar = integridadeMotor.assinarEntrada(job.empresa_id);
+        integridadeMotor.exigirMesmaEntrada(entradaMotor, entradaAntesDePublicar);
+        // O lote calculado contém apenas o delta. A RPC no Supabase clona as
+        // linhas intactas da foto ativa e substitui este recorte sob uma única
+        // transação; em hipótese alguma uma foto parcial vira ativa.
+        const publicacao = await operacao.publicarResultadosMotor(job.empresa_id, {
+          ativar:false, execucao_id:execucao.id, quantidade_esperada:resultadoMotor.itens,
+          integridade:{ entrada:entradaMotor, resultado:resultadoMotor, modo:'INCREMENTAL_IDS_EXPLICITOS' },
+        });
+        const promovida = await operacao.promoverFotografiaMotorIncremental(
+          Number(publicacao.empresa_remota_id || job.empresa_id), Number(publicacao.execucao_id), resultadoMotor.itens,
+        );
+        await operacao.validarFotografiaAtivaMotor(Number(publicacao.empresa_remota_id || job.empresa_id), Number(publicacao.execucao_id), promovida.quantidade);
         const excecoes = excecoesMotor.resumo(job.empresa_id);
-        await finalizar(job, 'CONCLUIDO', null, { itens:resultado.reprocessados, movimento_ids:solicitados, modo:'INCREMENTAL_IDS_EXPLICITOS', excecoes });
+        await finalizar(job, 'CONCLUIDO', null, { itens:resultado.reprocessados, movimento_ids:solicitados, modo:'INCREMENTAL_IDS_EXPLICITOS', execucao_id:publicacao.execucao_id, fotografia_itens:promovida.quantidade, excecoes });
         continue;
       }
       bases.classificarMovimentos(job.empresa_id);
