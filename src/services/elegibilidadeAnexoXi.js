@@ -66,6 +66,13 @@ function filtrarCandidatos(candidatos, contexto = {}) {
       if (e.status === 'NAO') { excluidos.push({ codigo: c.cclasstrib, motivo: e.motivo }); return false; }
       if (e.status === 'PENDENTE') pendentes.push({ codigo: c.cclasstrib, motivo: e.motivo });
     }
+    // O 200031 não decorre apenas do NCM: para o 8543.70.99, o Anexo V exige
+    // que a descrição demonstre agenda eletrônica com teclado em braille.
+    // Sem essa comprovação, não se aplica a redução; a regra geral permanece.
+    if (c.cclasstrib === '200031') {
+      const e = contexto.acessibilidade || { status: 'NAO', motivo: 'Documento não comprova agenda eletrônica com teclado em braille.' };
+      if (e.status !== 'SIM') { excluidos.push({ codigo: '200031', motivo: e.motivo }); return false; }
+    }
     if (c.cclasstrib === '200044') {
       const e = contexto.qsa || { status: 'PENDENTE', motivo: 'QSA do emitente não identificado.' };
       if (e.status === 'NAO') { excluidos.push({ codigo: '200044', motivo: e.motivo }); return false; }

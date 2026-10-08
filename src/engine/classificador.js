@@ -50,6 +50,20 @@ function limpezaConservacaoOrdinaria(item = {}) {
   const excecaoUrbana = /\b(REABILITACAO|RECONVERSAO|ZONA\s+HISTORICA|AREA\s+CRITICA)\b/.test(texto);
   return nbs === '118031000' && manutencao && !excecaoUrbana;
 }
+// Para o NCM 8543.70.99, o benefício de acessibilidade do cClassTrib 200031
+// é restrito à agenda eletrônica com teclado em braille. "Controlador facial"
+// não demonstra essa característica e deve seguir a tributação geral, salvo
+// outro enquadramento concreto já comprovado no catálogo/na revisão técnica.
+function evidenciaAgendaBraille(item = {}) {
+  const ncm = soDigitos(item.ncm);
+  const texto = String(item.descricao || '').toUpperCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  if (ncm === '85437099' && /AGENDA\s+ELETRONICA/.test(texto) && /TECLADO\s+(?:EM\s+)?BRAILLE/.test(texto)) {
+    return { status: 'SIM', motivo: 'NCM 8543.70.99 e descrição comprovam agenda eletrônica com teclado em braille.' };
+  }
+  return { status: 'NAO', motivo: ncm === '85437099'
+    ? 'NCM 8543.70.99 sem descrição compatível com agenda eletrônica com teclado em braille; cClassTrib 200031 não aplicável.'
+    : 'NCM incompatível com a hipótese de agenda eletrônica com teclado em braille.' };
+}
 // A base de serviços traz cClassTrib. Para o motor, o grupo do código define
 // o CST recomendado quando a planilha não o informa explicitamente.
 function cstDaBase(c) {
@@ -263,7 +277,10 @@ function classificar(item, ctx = {}) {
       { natureza, sentido });
   }
 
-  const elegibilidade = filtrarCandidatos(candidatos, ctx.elegibilidadeAnexoXi || {});
+  const elegibilidade = filtrarCandidatos(candidatos, {
+    ...(ctx.elegibilidadeAnexoXi || {}),
+    acessibilidade: evidenciaAgendaBraille(item),
+  });
   candidatos = elegibilidade.candidatos;
   if (elegibilidade.excluidos.length) fundamentos.push(...elegibilidade.excluidos.map((x) => `${x.codigo} eliminado: ${x.motivo}`));
   if (elegibilidade.pendentes.length) fundamentos.push(...elegibilidade.pendentes.map((x) => `${x.codigo} permanece pendente: ${x.motivo}`));
@@ -391,4 +408,4 @@ function montar(status, c, origem, fundamentos, extra = {}) {
   };
 }
 
-module.exports = { classificar, naturezaPorCfop };
+module.exports = { classificar, naturezaPorCfop, evidenciaAgendaBraille };

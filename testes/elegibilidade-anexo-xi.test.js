@@ -29,6 +29,10 @@ for (const codigo of ['200005', '200008', '200011', '200040', '200043']) {
 }
 const filtragemTextual = filtrarCandidatos([{ cclasstrib: '209999', classificacao: 'Fornecimento adquirido por órgão da administração pública' }], { adquirente: privado });
 assert.deepEqual(filtragemTextual.candidatos, []);
+const semBraille = filtrarCandidatos([{ cclasstrib: '200031' }], { acessibilidade: { status: 'NAO', motivo: 'Controlador facial não é agenda em braille.' } });
+assert.deepEqual(semBraille.candidatos, []);
+const comBraille = filtrarCandidatos([{ cclasstrib: '200031' }], { acessibilidade: { status: 'SIM' } });
+assert.equal(comBraille.candidatos[0].cclasstrib, '200031');
 
 let r = classificar(item, { sentido:'saida', elegibilidadeAnexoXi:{ adquirente:privado, qsa:{status:'NAO',motivo:'Sem sócio elegível.'} } });
 assert.equal(r.status, 'CLASSIFICADO'); assert.equal(r.cclasstrib, '000001');
