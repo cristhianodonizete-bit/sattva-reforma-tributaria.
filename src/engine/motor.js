@@ -156,6 +156,7 @@ function textoFiscalNormalizado(...valores) {
 function ehCustaTaxaOuDepositoJudicial(item = {}) {
   const chave = String(item.entradaManual?.itemChave || item.itemChave || '');
   if (chave === 'CUSTAS_TAXAS_DEPOSITOS_JUDICIAIS') return true;
+  if (chave === 'IPTU_TAXAS_PUBLICAS') return true;
   const texto = textoFiscalNormalizado(item.historico, item.descricao, item.conta);
   if (chave === '3_7_03_015_005_LEGAIS_E_JUDICIAIS') {
     return /\b(CUSTAS?|TAXAS?\s+JUDICIAIS?|DEPOSITO\s+JUDICIAL|TRIBUNAL\s+DA\s+JUSTICA|RECURSAL)\b/.test(texto);
