@@ -1482,6 +1482,9 @@ async function publicarContratos(remoto, empresaId, empresaRemotaId = empresaId)
 // restrito aos fatos operacionais da empresa importada e preserva os IDs que
 // dão rastreabilidade ao lote, movimento e evidência C175.
 function identidadeMovimentoFiscal(linha) {
+  if (String(linha?.origem || '').toLowerCase() === 'planilha_saida_manual' && linha?.chave) {
+    return `planilha_saida_manual:${linha.chave}:${linha.item_numero == null ? '__SEM_ITEM__' : String(linha.item_numero)}`;
+  }
   if (String(linha?.origem || '').toLowerCase() === 'xml' && String(linha?.modelo_documento_fiscal || '').toLowerCase() === 'nfse') {
     // A mesma NFS-e pode ser exportada pelo município com o código de
     // verificação curto e pelo padrão nacional com chave longa. A chave muda,
@@ -1557,9 +1560,9 @@ async function publicarOperacaoEmpresa(empresaId) {
     // identidade fiscal estável e impede que uma publicação substitua outra.
     const grupos = tabela === 'movimentos'
       ? [
-        { linhas:deduplicarXmlParaPublicacao(linhas.filter((linha) => String(linha.origem || '').toLowerCase() === 'xml' && linha.chave))
+        { linhas:deduplicarXmlParaPublicacao(linhas.filter((linha) => ['xml','planilha_saida_manual'].includes(String(linha.origem || '').toLowerCase()) && linha.chave))
           .map(({ id, ...linha }) => linha), conflito:'empresa_id,chave,item_numero' },
-        { linhas:linhas.filter((linha) => !(String(linha.origem || '').toLowerCase() === 'xml' && linha.chave)), conflito:'id' },
+        { linhas:linhas.filter((linha) => !(['xml','planilha_saida_manual'].includes(String(linha.origem || '').toLowerCase()) && linha.chave)), conflito:'id' },
       ]
       : [{ linhas, conflito:'id' }];
     for (const grupo of grupos) for (let inicio=0; inicio<grupo.linhas.length; inicio+=500) {
@@ -1578,12 +1581,12 @@ async function publicarOperacaoEmpresa(empresaId) {
   for (let inicio = 0;; inicio += 1000) {
     const { data, error } = await remoto.from('movimentos').select('id,lote_id,chave,item_numero,origem').eq('empresa_id', empresaRemotaId).range(inicio, inicio + 999);
     if (error) throw new Error(`verificação de movimentos: ${error.message}`);
-    (data || []).forEach((linha) => identidadesRemotas.add(String(linha.origem || '').toLowerCase() === 'xml' && linha.chave
-      ? `xml:${linha.chave}:${linha.item_numero}` : `id:${linha.id}`));
+    (data || []).forEach((linha) => identidadesRemotas.add(['xml','planilha_saida_manual'].includes(String(linha.origem || '').toLowerCase()) && linha.chave
+      ? `${String(linha.origem || '').toLowerCase()}:${linha.chave}:${linha.item_numero}` : `id:${linha.id}`));
     if (!data || data.length < 1000) break;
   }
-  const ausentes = locais.filter((linha) => !identidadesRemotas.has(String(linha.origem || '').toLowerCase() === 'xml' && linha.chave
-    ? `xml:${linha.chave}:${linha.item_numero}` : `id:${linha.id}`));
+  const ausentes = locais.filter((linha) => !identidadesRemotas.has(['xml','planilha_saida_manual'].includes(String(linha.origem || '').toLowerCase()) && linha.chave
+    ? `${String(linha.origem || '').toLowerCase()}:${linha.chave}:${linha.item_numero}` : `id:${linha.id}`));
   if (ausentes.length) {
     const porLote = new Map();
     ausentes.forEach((linha) => porLote.set(linha.lote_id || 'sem_lote', (porLote.get(linha.lote_id || 'sem_lote') || 0) + 1));

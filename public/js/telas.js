@@ -494,7 +494,7 @@ Telas.dados = async (el) => {
       </div>
       <div class="cartao" data-documentos-central-painel="importacao" data-importacao-planilha-painel="movimentacao" style="margin-top:16px" id="movimentacao">
         <h2>2. Movimentação de ${rotulo}</h2>
-        <p class="desc">Nome, inscrição federal, descrição do produto, NCM, valor, base de cálculo e impostos.</p>
+        <p class="desc">${aba === 'cliente' ? 'Para saídas manuais: competência, data de emissão, número, modelo do documento, CFOP, descrição do item e valor são obrigatórios. O arquivo entra na base de documentos fiscais.' : 'Nome, inscrição federal, descrição do produto, NCM, valor, base de cálculo e impostos.'}</p>
         ${A.dropzone('zonaMov', `<b>Solte a movimentação aqui</b><div class="mini">ou clique para escolher · .xlsx, .xls, .csv</div>`, (f) => enviar(f, 'movimentos'))}
         <div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap">
           <button class="btn vazio pq" onclick="App.baixarArquivo('/modelos/movimento_${aba}').catch(e=>App.toast(e.message,'erro'))">Baixar modelo</button>

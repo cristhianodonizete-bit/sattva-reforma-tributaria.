@@ -30,6 +30,15 @@ const CAMPOS_MOVIMENTO = {
   cfop: ['cfop'],
   cst: ['cst', 'csosn', 'situacaotributaria'],
   competencia: ['competencia', 'periodo', 'mesano', 'data', 'dataemissao'],
+  data_emissao: ['dataemissao', 'dataemissao', 'data', 'emissao'],
+  documento: ['documento', 'numerodocumento', 'numeronota', 'numnota', 'nota', 'nf', 'numero'],
+  serie: ['serie', 'serienota'],
+  modelo_documento_fiscal: ['modelodocumento', 'modelofiscal', 'modelo', 'especiedocumento', 'especie'],
+  chave: ['chaveacesso', 'chave', 'chavenfe', 'chavenfse'],
+  item_numero: ['itemnumero', 'nritem', 'numeroitem'],
+  codigo_produto: ['codigoproduto', 'codigoitem', 'cprod', 'sku'],
+  quantidade: ['quantidade', 'qtd', 'qcom'],
+  unidade: ['unidade', 'un', 'ucom'],
   valor: ['valor', 'valortotal', 'valoroperacao', 'vlrtotal', 'total', 'valorcontabil'],
   base_calculo: ['basecalculo', 'basedecalculo', 'basecalc', 'bc', 'baseicms', 'basecalculoicms'],
   icms: ['icms', 'valoricms', 'vlricms'],
@@ -150,6 +159,22 @@ function numeroOpcional(valor) {
   else if (texto.includes(',')) texto = texto.replace(',', '.');
   const numero = Number(texto);
   return Number.isFinite(numero) ? numero : null;
+}
+
+function dataFiscal(valor) {
+  const texto = String(valor == null ? '' : valor).trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(texto)) return texto;
+  const m = texto.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})$/);
+  if (!m) return '';
+  const [, dia, mes, ano] = m;
+  if (Number(dia) < 1 || Number(dia) > 31 || Number(mes) < 1 || Number(mes) > 12) return '';
+  return `${ano}-${mes.padStart(2, '0')}-${dia.padStart(2, '0')}`;
+}
+
+function modeloFiscal(valor) {
+  const texto = normalizar(valor);
+  const mapa = { nfe: 'nfe', nfce: 'nfce', nfse: 'nfse', cte: 'cte', cteos: 'cteos', bpe: 'bpe', mdfe: 'mdfe' };
+  return mapa[texto] || '';
 }
 
 function importarPgdas(buffer) {
@@ -275,12 +300,16 @@ function importarMovimentos(buffer, tipo) {
   const mensagens = [];
   if (!mapa.valor) mensagens.push('Coluna de VALOR não encontrada — a importação não terá base para cálculo.');
   if (!mapa.inscr_federal) mensagens.push('Coluna de inscrição federal (CNPJ/CPF) não encontrada — não será possível cruzar com o cadastro de regimes.');
+  if (tipo === 'cliente') {
+    const obrigatorias = [['cfop', 'CFOP'], ['documento', 'Número do documento'], ['modelo_documento_fiscal', 'Modelo do documento'], ['data_emissao', 'Data de emissão'], ['competencia', 'Competência'], ['descricao', 'Descrição'], ['valor', 'Valor']];
+    obrigatorias.filter(([campo]) => !mapa[campo]).forEach(([, rotulo]) => mensagens.push(`Coluna obrigatória para saídas não encontrada: ${rotulo}.`));
+  }
   const semImposto = !mapa.icms && !mapa.pis && !mapa.cofins && !mapa.iss && !mapa.impostos;
   if (semImposto) mensagens.push('Nenhuma coluna de imposto encontrada — o sistema vai ESTIMAR os tributos pelo regime do parceiro (marcado como estimativa nos relatórios).');
 
   const registros = [];
   let ignorados = 0;
-  for (const l of linhas) {
+  for (const [indice, l] of linhas.entries()) {
     const valor = numeroBR(mapa.valor ? l[mapa.valor] : 0);
     const insc = soDigitos(mapa.inscr_federal ? l[mapa.inscr_federal] : '');
     const nome = String(mapa.nome ? l[mapa.nome] : '').trim();
@@ -303,18 +332,43 @@ function importarMovimentos(buffer, tipo) {
       }
     }
 
+    const cfop = soDigitos(mapa.cfop ? l[mapa.cfop] : '');
+    const documento = String(mapa.documento ? l[mapa.documento] : '').trim();
+    const serie = String(mapa.serie ? l[mapa.serie] : '').trim();
+    const emissao = dataFiscal(mapa.data_emissao ? l[mapa.data_emissao] : '');
+    const modelo_documento_fiscal = modeloFiscal(mapa.modelo_documento_fiscal ? l[mapa.modelo_documento_fiscal] : '');
+    const competencia = competenciaPgdas(mapa.competencia ? l[mapa.competencia] : '') || String(mapa.competencia ? l[mapa.competencia] : '').trim();
+    const descricao = String(mapa.descricao ? l[mapa.descricao] : '').trim();
+    if (tipo === 'cliente') {
+      const problemas=[];
+      if (!competencia) problemas.push('competência');
+      if (!emissao) problemas.push('data de emissão válida');
+      if (!documento) problemas.push('número do documento');
+      if (!modelo_documento_fiscal) problemas.push('modelo fiscal (NF-e, NFC-e, NFS-e, CT-e, CT-e OS, BP-e ou MDF-e)');
+      if (!/^[567]\d{3}$/.test(cfop)) problemas.push('CFOP de saída válido (4 dígitos iniciado por 5, 6 ou 7)');
+      if (!descricao) problemas.push('descrição do item');
+      if (!(valor > 0)) problemas.push('valor maior que zero');
+      if (problemas.length) { mensagens.push(`Linha ${indice + 2} ignorada: informe ${problemas.join(', ')}.`); ignorados++; continue; }
+    }
     registros.push({
       tipo, nome: nome || insc, inscr_federal: insc,
-      descricao: String(mapa.descricao ? l[mapa.descricao] : '').trim(),
+      descricao,
       ncm: soDigitos(mapa.ncm ? l[mapa.ncm] : ''),
       nbs: String(mapa.nbs ? l[mapa.nbs] : '').trim(),
-      cfop: soDigitos(mapa.cfop ? l[mapa.cfop] : ''),
+      cfop,
       cst: String(mapa.cst ? l[mapa.cst] : '').trim(),
-      competencia: String(mapa.competencia ? l[mapa.competencia] : '').trim(),
+      competencia,
+      documento, serie, data_emissao: emissao, modelo_documento_fiscal,
+      chave: String(mapa.chave ? l[mapa.chave] : '').replace(/\s/g, ''),
+      item_numero: Number(soDigitos(mapa.item_numero ? l[mapa.item_numero] : '')) || 1,
+      codigo_produto: String(mapa.codigo_produto ? l[mapa.codigo_produto] : '').trim(),
+      quantidade: numeroOpcional(mapa.quantidade ? l[mapa.quantidade] : null) || 1,
+      unidade: String(mapa.unidade ? l[mapa.unidade] : '').trim(),
       valor,
       base_calculo: numeroBR(mapa.base_calculo ? l[mapa.base_calculo] : 0) || valor,
       icms, icms_st: icmsSt, ipi, pis, cofins, iss,
       reducao: resolverReducao(mapa.reducao ? l[mapa.reducao] : ''),
+      pis_cofins_documentado: Boolean(mapa.pis || mapa.cofins),
     });
   }
   return { registros, ignorados, mensagens, aba, mapa, colunas: Object.keys(linhas[0]) };
@@ -359,11 +413,13 @@ function gerarModelo(tipo) {
     nomeAba = tipo === 'movimento_cliente' ? 'Saidas' : 'Entradas';
     const rotulo = tipo === 'movimento_cliente' ? 'Cliente' : 'Fornecedor';
     dados = [
-      { [`Nome ${rotulo}`]: 'FORNECEDOR EXEMPLO LTDA', [`InscrFederal ${rotulo}`]: '12.345.678/0001-90',
+      { [`Nome ${rotulo}`]: tipo === 'movimento_cliente' ? 'CLIENTE EXEMPLO LTDA' : 'FORNECEDOR EXEMPLO LTDA', [`InscrFederal ${rotulo}`]: '12.345.678/0001-90',
+        ...(tipo === 'movimento_cliente' ? { 'Número do Documento': '1001', 'Série': '1', 'Modelo do Documento': 'NF-e', 'Data de Emissão': '2026-01-15', 'CFOP': '5102' } : {}),
         'Descrição Produto': 'MATERIA PRIMA X', 'NCM': '39269090', 'Competência': '2026-01',
         'Valor': 10000, 'Base de Cálculo': 10000, 'ICMS': 1800, 'ICMS ST': 0, 'IPI': 0,
         'PIS': 165, 'COFINS': 760, 'ISS': 0, 'Redução': 'Integral' },
-      { [`Nome ${rotulo}`]: 'PRESTADOR EXEMPLO ME', [`InscrFederal ${rotulo}`]: '98.765.432/0001-10',
+      { [`Nome ${rotulo}`]: tipo === 'movimento_cliente' ? 'TOMADOR EXEMPLO LTDA' : 'PRESTADOR EXEMPLO ME', [`InscrFederal ${rotulo}`]: '98.765.432/0001-10',
+        ...(tipo === 'movimento_cliente' ? { 'Número do Documento': '2001', 'Série': '', 'Modelo do Documento': 'NFS-e', 'Data de Emissão': '2026-01-20', 'CFOP': '5933' } : {}),
         'Descrição Produto': 'SERVICO DE MANUTENCAO', 'NCM': '', 'Competência': '2026-01',
         'Valor': 5000, 'Base de Cálculo': 5000, 'ICMS': 0, 'ICMS ST': 0, 'IPI': 0,
         'PIS': 0, 'COFINS': 0, 'ISS': 150, 'Redução': 'Integral' },
@@ -381,6 +437,7 @@ function gerarModelo(tipo) {
     { Campo: 'Valores', 'Valores aceitos': 'Aceita 1.234,56 ou 1234.56' },
     { Campo: 'Colunas', 'Valores aceitos': 'A ordem não importa. O sistema identifica pelo nome do cabeçalho e ignora acentos e maiúsculas.' },
     { Campo: 'Impostos', 'Valores aceitos': 'Se não houver colunas de imposto, o sistema estima pelo regime. Uma coluna única "Impostos" também é aceita.' },
+    ...(tipo === 'movimento_cliente' ? [{ Campo: 'Saídas manuais — obrigatório', 'Valores aceitos': 'Competência, Data de Emissão, Número do Documento, Modelo do Documento, CFOP, Descrição do Item e Valor. Modelos aceitos: NF-e, NFC-e, NFS-e, CT-e, CT-e OS, BP-e e MDF-e. CFOP deve ter 4 dígitos e iniciar por 5, 6 ou 7.' }] : []),
     ...(tipo === 'referencias_servicos' ? [{ Campo: 'Referências fiscais', 'Valores aceitos': 'Informe Descrição do serviço e ao menos PIS/COFINS ou DAS efetivo. A chave usa NBS e, quando ausente, LC 116; sem ambos, usa a descrição. As alíquotas aceitam 9,25% ou 0,0925.' }] : []),
     ...(tipo === 'pgdas' ? [{ Campo: 'PGDAS', 'Valores aceitos': 'Competência e DAS são obrigatórios. Receita Bruta, PIS e COFINS são opcionais; ausência não é transformada em zero.' }] : []),
     ...(tipo === 'folha' ? [{ Campo: 'Folha', 'Valores aceitos': 'Competência e Valor da Folha são obrigatórios. Pró-labore e Referência do arquivo são opcionais.' }] : []),

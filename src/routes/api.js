@@ -2124,16 +2124,30 @@ router.post('/empresas/:id/importar/movimentos', upload.single('arquivo'), async
     if (!req.file) throw new Error('Envie a planilha no campo "arquivo".');
     const tipo = req.body.tipo === 'cliente' ? 'cliente' : 'fornecedor';
     const r = imp.importarMovimentos(req.file.buffer, tipo);
+    if (!r.registros.length) throw new Error(`Nenhuma linha válida foi encontrada.${r.mensagens.length ? ` ${r.mensagens.join(' ')}` : ''}`);
+    const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(Number(req.params.id));
+    if (!empresa) throw new Error('Empresa não encontrada.');
     const lote = db.prepare('INSERT INTO lotes (empresa_id, tipo, arquivo, registros, ignorados, mensagens) VALUES (?,?,?,?,?,?)')
       .run(req.params.id, tipo, req.file.originalname, r.registros.length, r.ignorados || 0, JSON.stringify(r.mensagens));
-    const ins = db.prepare(`INSERT INTO movimentos (empresa_id, lote_id, tipo, nome, inscr_federal, descricao,
-      ncm, nbs, cfop, cst, competencia, valor, base_calculo, icms, icms_st, ipi, pis, cofins, iss, reducao)
-      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    const ins = db.prepare(`INSERT INTO movimentos (empresa_id, lote_id, tipo, sentido, nome, inscr_federal, descricao,
+      ncm, nbs, cfop, cst, competencia, documento, item_numero, chave, modelo_documento_fiscal, data_emissao,
+      emitente_cnpj, destinatario_cnpj, codigo_produto, quantidade, unidade, valor, base_calculo, icms, icms_st,
+      ipi, pis, cofins, pis_cofins_documentado, iss, reducao, origem)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
     let total = 0;
     db.transaction(() => {
       for (const m of r.registros) {
-        ins.run(req.params.id, lote.lastInsertRowid, tipo, m.nome, m.inscr_federal, m.descricao, m.ncm, m.nbs,
-          m.cfop, m.cst, m.competencia, m.valor, m.base_calculo, m.icms, m.icms_st, m.ipi, m.pis, m.cofins, m.iss, m.reducao);
+        const saida=tipo === 'cliente';
+        const documento=saida && m.serie ? `${m.serie}/${m.documento}` : m.documento;
+        // Chave manual é uma identidade técnica, não uma chave eletrônica.
+        // Ela permite reimportação idempotente e publicação sem usar o ID
+        // efêmero do SQLite como identidade fiscal compartilhada.
+        const chave=saida ? (m.chave || `MANUAL_SAIDA:${m.modelo_documento_fiscal}:${m.data_emissao}:${documento}:${m.inscr_federal || m.nome}:${m.item_numero}`) : '';
+        ins.run(req.params.id, lote.lastInsertRowid, tipo, saida ? 'saida' : 'entrada', m.nome, m.inscr_federal, m.descricao,
+          m.ncm, m.nbs, m.cfop, m.cst, m.competencia, documento, m.item_numero, chave, m.modelo_documento_fiscal,
+          m.data_emissao, saida ? String(empresa.cnpj || '').replace(/\D/g,'') : '', saida ? m.inscr_federal : '',
+          m.codigo_produto, m.quantidade, m.unidade, m.valor, m.base_calculo, m.icms, m.icms_st, m.ipi, m.pis,
+          m.cofins, m.pis_cofins_documentado ? 1 : 0, m.iss, m.reducao, saida ? 'PLANILHA_SAIDA_MANUAL' : 'planilha');
         total += m.valor;
       }
     })();
@@ -2146,8 +2160,14 @@ router.post('/empresas/:id/importar/movimentos', upload.single('arquivo'), async
       if (temBase) classificacao = bases.classificarMovimentos(req.params.id);
     } catch (_) { /* bases ausentes: segue com tributação integral */ }
     const enriquecimento = agendarEnriquecimentoAutomatico(req.params.id);
+    let publicacao=null;
+    if (tipo === 'cliente') {
+      publicacao=await require('../services/operacaoCompartilhada').publicarOperacaoEmpresa(Number(req.params.id));
+      estadoLeituraEmpresa.invalidar(db, Number(req.params.id), ['documentos','perfil','motor','cadeias'], 'Saídas manuais publicadas na fonte canônica');
+    }
     ok(res, { importados: r.registros.length, ignorados: r.ignorados, valorTotal: calc.r2(total),
       mensagens: r.mensagens, colunasDetectadas: r.mapa, colunasArquivo: r.colunas, classificacao, ...vinc,
+      publicacao,
       enriquecimento: { status: enriquecimento.status, empresa_id: enriquecimento.empresa_id,
         mensagem: 'Consulta cadastral de clientes e fornecedores agendada. O cadastro compartilhado será reutilizado antes de chamar fontes externas.' } });
   } catch (e) { erro(res, e); }
