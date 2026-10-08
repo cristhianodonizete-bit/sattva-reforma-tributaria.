@@ -628,9 +628,11 @@ const App = (() => {
     configurarAcoesCabecalho();
     const toggle = document.getElementById('menuToggle'); if (toggle) toggle.onclick = () => document.body.classList.toggle('menu-colapsado');
     try {
-      // Leituras independentes: não altera contexto da empresa, parâmetros ou
-      // motor; somente elimina uma espera de rede antes da primeira tela.
-      await Promise.all([carregarParametros(), carregarEmpresas(), atualizarNotificacoesReforma()]);
+      // A carteira de empresas é a única leitura necessária para abrir a
+      // primeira tela. Parâmetros e notificações continuam em segundo plano:
+      // em um reinício do servidor não podem segurar a navegação enquanto a
+      // fotografia operacional pesada ainda é restaurada.
+      await carregarEmpresas();
     } catch (e) { document.getElementById('tela').innerHTML = `<div class="aviso neutro"><b>Preparando a base operacional</b><br>${esc(e.message)}</div>`; return; }
     // A navegação começa recolhida a cada acesso; cada pessoa abre apenas a
     // área necessária para não transformar a lateral numa lista extensa.
@@ -640,6 +642,8 @@ const App = (() => {
     if (toggleMenu) toggleMenu.onclick = () => { const ativo = document.body.classList.toggle('menu-colapsado'); localStorage.setItem('sattva_menu_colapsado', ativo ? 'sim' : 'nao'); };
     const inicial = (location.hash || '').replace('#', '') || 'visaoCarteira';
     ir(TELAS_MENU.some((m) => m.id === inicial) ? inicial : 'visaoCarteira');
+    carregarParametros().then(() => desenharMenu()).catch((e) => console.warn('[parâmetros] atualização em segundo plano:', e.message));
+    atualizarNotificacoesReforma().catch((e) => console.warn('[atualizações] consulta em segundo plano:', e.message));
   }
 
   function telaLogin() {
