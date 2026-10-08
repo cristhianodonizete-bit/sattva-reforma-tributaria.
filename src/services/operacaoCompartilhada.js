@@ -1159,11 +1159,7 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   if (empresaId != null) { clausulas.push('empresa_id=?'); parametros.push(empresaId); }
   if (publicacaoPorExecucao) { clausulas.push('id=?'); parametros.push(execucaoId); }
   const filtroExecucoes = clausulas.length ? ` WHERE ${clausulas.join(' AND ')}` : '';
-  const execucoes = db.prepare(`SELECT * FROM motor_execucoes${filtroExecucoes}`).all(...parametros)
-    .map((x) => ({ id: x.id, empresa_id: empresaRemota(x.empresa_id), dados: {
-      ...x,
-      integridade: opcoes.integridade || null,
-    } }));
+  const execucoes = db.prepare(`SELECT * FROM motor_execucoes${filtroExecucoes}`).all(...parametros);
   if (publicacaoPorExecucao && execucoes.length !== 1) {
     throw new Error(`Fotografia do motor não localizada para empresa ${empresaId} e execução ${execucaoId}.`);
   }
@@ -1171,11 +1167,22 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   if (empresaId != null) { clausulasResultados.push('empresa_id=?'); parametrosResultados.push(empresaId); }
   if (publicacaoPorExecucao) { clausulasResultados.push('execucao_id=?'); parametrosResultados.push(execucaoId); }
   const filtroResultados = clausulasResultados.length ? ` WHERE ${clausulasResultados.join(' AND ')}` : '';
-  const resultados = db.prepare(`SELECT * FROM motor_resultados${filtroResultados}`).all(...parametrosResultados)
-    .map((x) => ({ id: x.id, empresa_id: empresaRemota(x.empresa_id), movimento_id: x.movimento_id, dados: x,
+  const resultadosLocais = db.prepare(`SELECT * FROM motor_resultados${filtroResultados}`).all(...parametrosResultados);
+  if (publicacaoPorExecucao && resultadosLocais.length !== Number(opcoes.quantidade_esperada)) {
+    throw new Error(`Fotografia local incompleta para execução ${execucaoId}: esperado ${opcoes.quantidade_esperada}, encontrado ${resultadosLocais.length}.`);
+  }
+  // A execução e cada resultado recebem ID do PostgreSQL. Nunca reutilizamos
+  // IDs do SQLite, que são locais a uma instância e podiam colidir no remoto.
+  const execucaoLocal=execucoes[0];
+  const { data:execucaoRemota, error:erroExecucaoRemota }=await remoto.from('motor_execucoes_operacionais')
+    .insert({ empresa_id:empresaRemota(execucaoLocal.empresa_id), dados:{ ...execucaoLocal, integridade:opcoes.integridade || null } }).select('id').single();
+  if (erroExecucaoRemota) throw new Error(`Execução remota do motor: ${erroExecucaoRemota.message}`);
+  const execucaoRemotaId=Number(execucaoRemota.id);
+  const resultados = resultadosLocais
+    .map((x) => ({ empresa_id: empresaRemota(x.empresa_id), movimento_id: x.movimento_id, dados: { ...x, execucao_id:execucaoRemotaId, execucao_local_id:x.execucao_id },
       // A nova foto sempre chega inativa. Só a RPC de promoção, depois de
       // conferir a quantidade completa, troca a fotografia visível.
-      ativo: false, execucao_id: x.execucao_id,
+      ativo: false, execucao_id: execucaoRemotaId,
       tipo_credito: x.tipo_credito, modalidade_credito: x.modalidade_credito,
       status_credito_determinacao: x.status_credito_determinacao,
       regime_cbs_emitente: x.regime_cbs_emitente, regime_cbs_adquirente: x.regime_cbs_adquirente,
@@ -1184,18 +1191,13 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
       parametro_version: x.parametro_version, motor_version: x.motor_version,
       estado_autonomia: x.estado_autonomia, codigo_causa: x.codigo_causa,
       origem_resolucao: x.origem_resolucao, requer_intervencao_humana: x.requer_intervencao_humana }));
-  if (publicacaoPorExecucao && resultados.length !== Number(opcoes.quantidade_esperada)) {
-    throw new Error(`Fotografia local incompleta para execução ${execucaoId}: esperado ${opcoes.quantidade_esperada}, encontrado ${resultados.length}.`);
-  }
   // 100 linhas evita que uma foto grande gere uma requisição PostgREST lenta
   // ou ultrapasse a memória do worker. É transporte de resultado derivado;
   // nenhuma linha-fonte fiscal é alterada aqui.
   const tamanhoLote = Math.max(25, Math.min(250, Number(process.env.PUBLICACAO_MOTOR_LOTE) || 100));
-  for (const [tabela, linhas] of [['motor_execucoes_operacionais', execucoes], ['motor_resultados_operacionais', resultados]]) {
-    for (let i = 0; i < linhas.length; i += tamanhoLote) {
-      const { error } = await remoto.from(tabela).upsert(linhas.slice(i, i + tamanhoLote), { onConflict: 'id' });
-      if (error) throw new Error(`${tabela}: ${error.message}`);
-    }
+  for (let i = 0; i < resultados.length; i += tamanhoLote) {
+      const { error } = await remoto.from('motor_resultados_operacionais').insert(resultados.slice(i, i + tamanhoLote));
+      if (error) throw new Error(`Resultados remotos do motor: ${error.message}`);
   }
   const filtroTelemetrias = publicacaoPorExecucao ? ' WHERE empresa_id=? AND execucao_id=?' : (empresaId == null ? '' : ' WHERE empresa_id=?');
   const parametrosTelemetrias = publicacaoPorExecucao ? [empresaId, execucaoId] : (empresaId == null ? [] : [empresaId]);
@@ -1212,7 +1214,7 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
       if (error) { avisos.push(`excecoes_motor_execucoes: ${error.message}`); break; }
     }
   }
-  return { execucoes: execucoes.length, resultados: resultados.length, telemetrias: telemetrias.length, excecoes_execucao: excecoesExecucao.length, avisos, execucao_id: publicacaoPorExecucao ? execucaoId : null,
+  return { execucoes: 1, resultados: resultados.length, telemetrias: telemetrias.length, excecoes_execucao: excecoesExecucao.length, avisos, execucao_id: execucaoRemotaId,
     // A fotografia é gravada com a identidade remota da empresa. Quem a
     // promove precisa usar essa mesma identidade; o id SQLite pode diferir.
     empresa_remota_id: empresaId == null ? null : empresaRemota(empresaId) };

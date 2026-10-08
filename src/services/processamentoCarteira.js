@@ -167,10 +167,11 @@ async function processarUm() {
         // instalações em que este difere do id local, promover com o id local
         // encontrava zero itens e descartava uma fotografia já gravada.
         const empresaFotografia = Number(publicacao.empresa_remota_id || job.empresa_id);
+        const execucaoFotografia = Number(publicacao.execucao_id);
         const entradaAntesDePromover = integridadeMotor.assinarEntrada(job.empresa_id);
         integridadeMotor.exigirMesmaEntrada(entradaMotor, entradaAntesDePromover);
-        await operacao.promoverFotografiaMotor(empresaFotografia, execucao.id, quantidade);
-        await operacao.validarFotografiaAtivaMotor(empresaFotografia, execucao.id, quantidade);
+        await operacao.promoverFotografiaMotor(empresaFotografia, execucaoFotografia, quantidade);
+        await operacao.validarFotografiaAtivaMotor(empresaFotografia, execucaoFotografia, quantidade);
         motorStaging.atualizar(job.id, 'CONCLUIDO');
         await finalizar(job, 'CONCLUIDO', null, { itens: quantidade, execucao_id: execucao.id, periodo: preparado.periodo, reconciliacao_documental: {
           movimentos: preparado.reconciliacao.inseridos_ou_atualizados, removidos: preparado.reconciliacao.removidos, origem: preparado.reconciliacao.origem,
