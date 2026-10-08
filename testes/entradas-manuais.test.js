@@ -61,6 +61,7 @@ assert.match(api,/pessoaQuestorPorCnpj/,'códigos repetidos no cadastro Questor 
 assert.match(api,/NOME_ABREVIADO_QUESTOR/,'históricos que abreviam a razão social devem manter a evidência do critério usado');
 assert.match(api,/NOME_LITERAL_QUESTOR/,'nomes idênticos com filiais de CNPJ diferentes devem usar a grafia literal antes do nome normalizado');
 assert.match(api,/ALIAS_TELECOM_TIM_QUESTOR/,'TIM no histórico deve ser reconhecida pelo alias de telecom controlado');
+assert.match(api,/ALIAS_TELECOM_TIM_REGIME_QUESTOR/,'TIM SA deve usar a referência de CNPJ com regime cadastrado, quando o Razão não informa filial');
 assert.match(api,/ALIAS_TELECOM_VIVO_QUESTOR/,'Vivo no histórico deve ser reconhecida pelo alias de telecom controlado');
 assert.match(api,/ALIAS_TELECOM_ALGAR_QUESTOR/,'Algar Telecom deve ser vinculada somente pelo alias de telecom controlado');
 assert.match(api,/ALIAS_CAME_QUESTOR/,'a abreviação bancária de CAME DO BRASIL deve usar a única pessoa Questor correspondente');

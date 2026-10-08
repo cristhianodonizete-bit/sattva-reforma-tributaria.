@@ -35,6 +35,7 @@ function criterio(pessoa, historico) {
 }
 function aliasTelecom(pessoas, historico, descricao) {
   const regras = [
+    [/\bTIM\s+SA\b/, /^TIM CELULAR\b/, 'ALIAS_TELECOM_TIM_REGIME_QUESTOR', /TELECOMUNIC|TELEFON|CELULAR|INTERNET/, '02421421000111'],
     [/\bTIM\b/, /^TIM CELULAR\b/, 'ALIAS_TELECOM_TIM_QUESTOR', /TELECOMUNIC|TELEFON|CELULAR|INTERNET/],
     [/\bVIVO(?:\s+MG)?\b/, /^VIVO S\.? A\.?$/, 'ALIAS_TELECOM_VIVO_QUESTOR', /TELECOMUNIC|TELEFON|CELULAR|INTERNET/],
     [/\bALGAR TELECOM\b/, /^ALGAR MULTIMIDIA\b/, 'ALIAS_TELECOM_ALGAR_QUESTOR', /TELECOMUNIC|TELEFON|CELULAR|INTERNET/],
@@ -47,9 +48,9 @@ function aliasTelecom(pessoas, historico, descricao) {
     [/\bALSOL\b/, /^ALSOL ENERGIAS RENOVAVEIS\b/, 'ALIAS_ENERGIA_ALSOL_QUESTOR', /ENERGIA|BOLETO/],
   ];
   const contexto = `${normalizar(historico)} ${normalizar(descricao)}`;
-  for (const [termo, nome, evidencia, exige] of regras) {
+  for (const [termo, nome, evidencia, exige, cnpj] of regras) {
     if (!termo.test(normalizar(historico)) || !exige.test(contexto)) continue;
-    const unicos = [...new Map(pessoas.filter((p) => nome.test(normalizar(p.nome))).map((p) => [p.inscr_federal, p])).values()];
+    const unicos = [...new Map(pessoas.filter((p) => nome.test(normalizar(p.nome)) && (!cnpj || p.inscr_federal === cnpj)).map((p) => [p.inscr_federal, p])).values()];
     if (unicos.length === 1) return { pessoa: unicos[0], criterio: evidencia };
   }
   return null;

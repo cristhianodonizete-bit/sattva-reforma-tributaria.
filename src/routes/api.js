@@ -5999,6 +5999,10 @@ function pessoaQuestorPorAliasSeguro(pessoas, linha) {
   const contexto=normalizarTextoRazao(`${linha?.descricao || ''} ${linha?.conta || ''}`);
   const contextoCompleto=`${texto} ${contexto}`;
   const regras=[
+    // O Razão traz somente "TIM SA". Para esse texto exato, a matriz
+    // 02.421.421/0001-11 é a referência cadastrada em base_regime (Lucro
+    // Real). Um XML com CNPJ continua prevalecendo sobre este alias.
+    { alias:/\bTIM\s+SA\b/, nome:/^TIM CELULAR\b/, cnpj:'02421421000111', criterio:'ALIAS_TELECOM_TIM_REGIME_QUESTOR', exige:/TELECOMUNIC|TELEFON|CELULAR|INTERNET/ },
     { alias:/\bTIM\b/, nome:/^TIM CELULAR\b/, criterio:'ALIAS_TELECOM_TIM_QUESTOR', exige:/TELECOMUNIC|TELEFON|CELULAR|INTERNET/ },
     // Evita confundir a operadora com empresas que apenas contêm "Vivo" no
     // nome (supermercado, restaurante, corretora etc.).
@@ -6016,7 +6020,7 @@ function pessoaQuestorPorAliasSeguro(pessoas, linha) {
   ];
   for (const regra of regras) {
     if (!regra.alias.test(texto) || (regra.exige && !regra.exige.test(contextoCompleto))) continue;
-    const encontrados=pessoaQuestorPorCnpj((pessoas || []).filter((pessoa)=>regra.nome.test(nomeFornecedorComparavel(pessoa.nome))));
+    const encontrados=pessoaQuestorPorCnpj((pessoas || []).filter((pessoa)=>regra.nome.test(nomeFornecedorComparavel(pessoa.nome)) && (!regra.cnpj || String(pessoa.inscr_federal || '').replace(/\D/g,'')===regra.cnpj)));
     if (encontrados.length===1) return { ...encontrados[0], criterio:regra.criterio };
   }
   return null;
