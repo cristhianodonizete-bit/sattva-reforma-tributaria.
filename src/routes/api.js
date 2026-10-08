@@ -7834,13 +7834,17 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
     const referenciaPisCofins=regra.regimes?.[regimeEmpresa]
       ? { ...regimesPadraoEntrada()[regimeEmpresa], ...regra.regimes[regimeEmpresa] }
       : null;
+    const itemCadastrado=Boolean(cadastro);
     const beneficio=regra.beneficio === undefined ? 0 : Number(regra.beneficio);
     if (!Number.isFinite(beneficio) || beneficio < 0 || beneficio > 1) throw new Error('O benefício do item deve estar entre 0% e 100%.');
     const itemHash=crypto.createHash('sha256').update(`${empresaId}|${chave || 'AVULSO'}|${descricao}`).digest('hex').slice(0,16);
     const cnpjFornecedor=String(corpo.fornecedor_cnpj || '').replace(/\D/g,'');
+    // Uma classificação avulsa é um fato contábil, não uma regra fiscal. Sem
+    // item cadastrado e sem CNPJ informado, não invente fornecedor/regime nem
+    // permita que a entrada gere crédito por padrão.
     const fornecedor=cnpjFornecedor
       ? (await fornecedorPorCnpjConsultado(empresaId,cnpjFornecedor,{ materializar:true })).fornecedor
-      : obterFornecedorGenericoPorRegime(empresaId,regra.fornecedor_padrao_regime);
+      : itemCadastrado ? obterFornecedorGenericoPorRegime(empresaId,regra.fornecedor_padrao_regime) : null;
     const inserir=db.prepare(`INSERT INTO movimentos (empresa_id,tipo,sentido,nome,inscr_federal,regime,descricao,competencia,valor,valor_produto,base_calculo,reducao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,codigo_produto,documento,item_numero,chave,modelo_documento_fiscal,origem,classificacao_origem,normalizacao_status,normalizacao_evidencia)
       VALUES (
         ?,'fornecedor','entrada', ?,?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
@@ -7853,8 +7857,8 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
       if (!Number.isFinite(valor) || valor < 0) throw new Error(`Valor inválido para ${competencia}.`);
       const chaveMovimento=`MANUAL_ENTRADA:${itemHash}:${competencia}`;
       const existente=db.prepare("SELECT id,valor FROM movimentos WHERE empresa_id=? AND origem='MANUAL_ENTRADA' AND chave=?").get(empresaId,chaveMovimento);
-      const evidenciaObjeto={ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, gera_credito:regra.gera_credito !== false, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null,
-        fornecedor_vinculado:{ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem:cnpjFornecedor?'CONSULTA_CNPJ_ENTRADA_MANUAL':'FORNECEDOR_PADRAO_NATUREZA' },
+      const evidenciaObjeto={ tipo:'LANCAMENTO_MANUAL_ENTRADA', item_cadastrado:chave || null, beneficio_percentual:beneficio, gera_credito:itemCadastrado && regra.gera_credito !== false, observacao:regra.observacao || '', cst_declarado:regra.cst || null, cclasstrib_declarado:regra.cclasstrib || null,
+        fornecedor_vinculado:fornecedor ? { parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem:cnpjFornecedor?'CONSULTA_CNPJ_ENTRADA_MANUAL':'FORNECEDOR_PADRAO_NATUREZA' } : null,
         referencia_pis_cofins:referenciaPisCofins ? { regime:regimeEmpresa, pis_percentual:referenciaPisCofins.pis ?? null, cofins_percentual:referenciaPisCofins.cofins ?? null, pis_cofins_percentual:referenciaPisCofins.pis_cofins ?? null, tratamento_atual:referenciaPisCofins.tratamento_atual || '' } : null };
       const evidencia=JSON.stringify(evidenciaObjeto);
       if (existente) {
@@ -7865,7 +7869,7 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
           .run(fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,evidencia,existente.id,empresaId);
         inseridos.push({ id:existente.id, competencia, valor:existente.valor, existente:true }); continue;
       }
-      const r=inserir.run(empresaId,fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,chaveMovimento,evidencia);
+      const r=inserir.run(empresaId,fornecedor?.descricao || 'Fornecedor não informado — lançamento manual',fornecedor?.cnpj || null,fornecedor?.regime || null,descricao,competencia,valor,valor,valor,String(beneficio),regra.cst || null,regra.cclasstrib || null,regra.cst || null,regra.cclasstrib || null,`MANUAL:${itemHash}`,`MANUAL ${competencia}`,1,chaveMovimento,evidencia);
       inseridos.push({ id:r.lastInsertRowid, competencia, valor });
     } })();
     let publicacao=null;
