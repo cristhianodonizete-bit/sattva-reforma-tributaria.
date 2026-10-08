@@ -665,6 +665,17 @@ function chavesQueDevemPermanecerExcluidas(linhas, exclusoes) {
   return manter;
 }
 
+function diagnosticarDivergenciaMovimentosCanonicos(normalizadas, locais, remover = []) {
+  const camposComparacao=CAMPOS.movimentos.filter((campo)=>campo!=='criado_em');
+  const normalizarComparacao=(linha)=>JSON.stringify(Object.fromEntries(camposComparacao.map((campo)=>{
+    const valor=linha?.[campo];
+    return [campo, valor && typeof valor === 'object' ? JSON.stringify(valor) : (valor ?? null)];
+  })));
+  const locaisPorId=new Map((locais || []).map((linha)=>[Number(linha.id),linha]));
+  const divergentes=(normalizadas || []).filter((linha)=>normalizarComparacao(linha)!==normalizarComparacao(locaisPorId.get(Number(linha.id))));
+  return { inclusoes_ou_alteracoes:divergentes.length, remocoes:(remover || []).length, bloqueia:Boolean(divergentes.length || (remover || []).length) };
+}
+
 async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   const id = Number(empresaId);
   const escopo = escopoCompetencias(opcoes);
@@ -777,15 +788,9 @@ async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   // O motor geral jamais corrige a base fiscal. Em modo somente leitura,
   // qualquer diferença é um bloqueio explícito: não remove fatos locais e
   // não reimporta fatos canônicos, inclusive os que foram excluídos.
-  const camposComparacao=CAMPOS.movimentos.filter((campo)=>!['criado_em'].includes(campo));
-  const normalizarComparacao=(linha)=>JSON.stringify(Object.fromEntries(camposComparacao.map((campo)=>{
-    const valor=linha?.[campo];
-    return [campo, valor && typeof valor === 'object' ? JSON.stringify(valor) : (valor ?? null)];
-  })));
-  const locaisPorId=new Map(locais.map((linha)=>[Number(linha.id),linha]));
-  const divergentes=normalizadas.filter((linha)=>normalizarComparacao(linha)!==normalizarComparacao(locaisPorId.get(Number(linha.id))));
-  if (opcoes.somenteLeitura && (remover.length || divergentes.length)) {
-    throw new Error(`Fonte canônica e cache local divergem (${divergentes.length} inclusão/alteração(ões), ${remover.length} remoção(ões)). O motor foi bloqueado: sincronize ou revise os fatos explicitamente; ele não altera a base fiscal.`);
+  const divergencia=diagnosticarDivergenciaMovimentosCanonicos(normalizadas, locais, remover);
+  if (opcoes.somenteLeitura && divergencia.bloqueia) {
+    throw new Error(`Fonte canônica e cache local divergem (${divergencia.inclusoes_ou_alteracoes} inclusão/alteração(ões), ${divergencia.remocoes} remoção(ões)). O motor foi bloqueado: sincronize ou revise os fatos explicitamente; ele não altera a base fiscal.`);
   }
   db.transaction(() => {
     if (remover.length) {
@@ -1739,5 +1744,5 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, movimen
 
 module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, reconciliarMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
   baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarResultadosMotor, promoverFotografiaMotor, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
-  reduzirEventosIncrementais, chaveEvento, validarEventoIncremental,
+  reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
   chavesQueDevemPermanecerExcluidas };

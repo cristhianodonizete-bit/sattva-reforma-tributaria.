@@ -41,6 +41,6 @@ assert.doesNotMatch(rotaRazao, /motorExecucaoFila\.solicitar\(empresaId,\{\}\)/,
 assert.match(preparacao, /permitirPublicacao:false/);
 assert.match(preparacao, /somenteLeitura:true/);
 assert.match(preparacao, /forcar:true/);
-assert.match(operacao, /if \(opcoes\.somenteLeitura && \(remover\.length \|\| divergentes\.length\)\)/);
+assert.match(operacao, /if \(opcoes\.somenteLeitura && divergencia\.bloqueia\)/);
 assert.match(operacao, /O motor foi bloqueado/);
 console.log('motor-fila-contrato: job deduplicado e consumo exclusivo do worker: OK');
