@@ -88,6 +88,27 @@ async function buscarTudo(remoto, tabela) {
     if (!data || data.length < tamanho) return linhas;
   }
 }
+async function aplicarExclusoesCanonicas(remoto) {
+  const { data, error }=await remoto.from('sincronizacao_operacional_tombstones')
+    .select('tabela,chave,sequencia_exclusao').is('restaurado_em',null);
+  // Antes da migration a tabela não existe: mantém compatibilidade de leitura
+  // durante o rollout, sem transformar o cache em fonte de verdade.
+  if (error) {
+    if (['PGRST205','42P01'].includes(error.code)) return { disponivel:false, removidas:0 };
+    throw new Error(`Tombstones canônicos: ${error.message}`);
+  }
+  let removidas=0;
+  db.transaction(() => {
+    for (const tombstone of data || []) {
+      if (!TABELAS_INCREMENTAIS_SEGURAS.has(tombstone.tabela)) continue;
+      const chave=tombstone.chave && typeof tombstone.chave==='object' ? tombstone.chave : JSON.parse(tombstone.chave || '{}');
+      const colunas=db.prepare(`PRAGMA table_info(${tombstone.tabela})`).all().map((x)=>x.name);
+      if (!Object.keys(chave).length || Object.keys(chave).some((campo)=>!colunas.includes(campo))) continue;
+      removidas+=apagarLinhaIncremental({ tabela:tombstone.tabela, chave });
+    }
+  })();
+  return { disponivel:true, removidas };
+}
 // A carga completa possui muitas coleções independentes. Buscá-las uma a uma
 // transforma uma lentidão pontual em dezenas de minutos de espera. O limite
 // baixo protege a fonte remota e reduz o tempo total da primeira fotografia.
@@ -472,6 +493,8 @@ async function baixar(remotoInformado = null) {
   catch (e) { falhas.parametros_irpj_csll = e.message; }
   try { resultado.gestao = await baixarGestao(remoto); }
   catch (e) { falhas.gestao = e.message; }
+  try { resultado.exclusoes_canonicas = await aplicarExclusoesCanonicas(remoto); }
+  catch (e) { falhas.exclusoes_canonicas = e.message; }
   if (Object.keys(falhas).length) resultado.falhas = falhas;
   return resultado;
 }
@@ -896,32 +919,42 @@ function consumidorIncrementalV2() {
 }
 function erroFilaV2Indisponivel(erro) {
   const texto=String(erro?.message || erro || '').toLowerCase();
-  return texto.includes('could not find the function') || texto.includes('pgrst202')
-    || texto.includes('estado_fila_sincronizacao_operacional') || texto.includes('registrar_consumidor_sincronizacao_operacional');
+  const funcaoFila=texto.includes('estado_fila_sincronizacao_operacional') || texto.includes('registrar_consumidor_sincronizacao_operacional');
+  return texto.includes('pgrst202') || (funcaoFila && texto.includes('could not find the function'));
 }
 function linhaRpc(dados) { return Array.isArray(dados) ? dados[0] : dados; }
+function erroRespostaRpc(nome, resposta) {
+  const bruto=resposta?.error;
+  const campos=bruto&&typeof bruto==='object' ? {
+    code:bruto.code??null, message:bruto.message??null, details:bruto.details??null, hint:bruto.hint??null,
+  } : { code:null, message:bruto==null?null:String(bruto), details:null, hint:null };
+  const diagnostico={rpc:nome,status:resposta?.status??null,status_text:resposta?.statusText??null,error:campos};
+  const erro=new Error(`${nome}: ${campos.message||`HTTP ${diagnostico.status??'desconhecido'}`}`);
+  erro.rpc=diagnostico;
+  return erro;
+}
 async function registrarConsumidorIncrementalV2(remoto, consumidor) {
-  const { data, error }=await remoto.rpc('registrar_consumidor_sincronizacao_operacional', {
+  const resposta=await remoto.rpc('registrar_consumidor_sincronizacao_operacional', {
     p_consumidor_id:consumidor, p_sessao_id:SESSAO_CONSUMIDOR_INCREMENTAL_V2, p_lease_segundos:120,
   });
-  if (error) throw error;
-  return linhaRpc(data);
+  if (resposta.error) throw erroRespostaRpc('registrar_consumidor_sincronizacao_operacional',resposta);
+  return linhaRpc(resposta.data);
 }
 async function publicarEventosIncrementaisV2(remoto) {
   let publicados=0, ultimo=0;
   for (;;) {
-    const { data, error }=await remoto.rpc('publicar_eventos_sincronizacao_operacional', { p_limite:1000 });
-    if (error) throw error;
-    const lote=linhaRpc(data) || {};
+    const resposta=await remoto.rpc('publicar_eventos_sincronizacao_operacional', { p_limite:1000 });
+    if (resposta.error) throw erroRespostaRpc('publicar_eventos_sincronizacao_operacional',resposta);
+    const lote=linhaRpc(resposta.data) || {};
     const quantidade=Number(lote.publicados || 0);
     publicados+=quantidade; ultimo=Number(lote.sequencia_final || ultimo);
     if (!quantidade) return { publicados, sequencia_final:ultimo };
   }
 }
 async function estadoFilaIncrementalV2(remoto) {
-  const { data, error }=await remoto.rpc('estado_fila_sincronizacao_operacional');
-  if (error) throw error;
-  const linha=linhaRpc(data) || {};
+  const resposta=await remoto.rpc('estado_fila_sincronizacao_operacional');
+  if (resposta.error) throw erroRespostaRpc('estado_fila_sincronizacao_operacional',resposta);
+  const linha=linhaRpc(resposta.data) || {};
   return { corte_tecnico:Number(linha.corte_sequencia_tecnica || 0), sequencia_publicada:Number(linha.sequencia_publicada || 0) };
 }
 async function buscarEventosIncrementaisV2(remoto, sequencia) {
@@ -937,12 +970,12 @@ async function buscarEventosIncrementaisV2(remoto, sequencia) {
   }
 }
 async function confirmarCheckpointIncrementalV2(remoto, consumidor, sequencia, cargaBaseConcluida=false) {
-  const { data, error }=await remoto.rpc('confirmar_checkpoint_sincronizacao_operacional', {
+  const resposta=await remoto.rpc('confirmar_checkpoint_sincronizacao_operacional', {
     p_consumidor_id:consumidor, p_sessao_id:SESSAO_CONSUMIDOR_INCREMENTAL_V2,
     p_sequencia:sequencia, p_carga_base_concluida:cargaBaseConcluida,
   });
-  if (error) throw error;
-  return linhaRpc(data);
+  if (resposta.error) throw erroRespostaRpc('confirmar_checkpoint_sincronizacao_operacional',resposta);
+  return linhaRpc(resposta.data);
 }
 function lerConfiguracaoCertificada() {
   const valor = db.prepare('SELECT valor FROM sincronizacao_operacional_estado WHERE chave=?').get(CHAVE_CONFIGURACAO_CERTIFICADA)?.valor;
@@ -1035,16 +1068,6 @@ async function aplicarEventosIncrementais(remoto, eventos, opcoes = {}) {
   exclusoes.sort((a, b) => prioridadeIncremental(b.tabela) - prioridadeIncremental(a.tabela));
   let aplicadas = 0, removidas = 0;
   db.transaction(() => {
-    const insMarcoSla = db.prepare(`INSERT INTO sla_marcos (chave,titulo,prazo_dias,precedencia_chave,ativo,ordem,criado_em,atualizado_em)
-      VALUES (?,?,?,?,?,?,?,?) ON CONFLICT(chave) DO UPDATE SET titulo=excluded.titulo,prazo_dias=excluded.prazo_dias,precedencia_chave=excluded.precedencia_chave,ativo=excluded.ativo,ordem=excluded.ordem,atualizado_em=excluded.atualizado_em`);
-    for (const m of marcosSla) {
-      if (!m?.chave) continue;
-      insMarcoSla.run(m.chave,m.titulo,m.prazo_dias||0,m.precedencia_chave||null,m.ativo===false?0:1,m.ordem||0,m.criado_em||null,m.atualizado_em||null);
-      const local = db.prepare('SELECT id FROM sla_marcos WHERE chave=?').get(m.chave);
-      if (local) marcoLocalPorRemoto.set(m.id, local.id);
-    }
-    const insTarefaSla = db.prepare('INSERT OR REPLACE INTO sla_tarefas (id,marco_id,titulo,descricao,obrigatoria,ativo,ordem) VALUES (?,?,?,?,?,?,?)');
-    for (const t of tarefasSla) { const marcoId=marcoLocalPorRemoto.get(t.marco_id); if (marcoId && t.origem_local_id) insTarefaSla.run(Number(t.origem_local_id),marcoId,t.titulo,t.descricao||'',t.obrigatoria?1:0,t.ativo===false?0:1,t.ordem||0); }
     for (const { evento, linha } of inclusoes) {
       if (CAMPOS[evento.tabela]?.includes('empresa_id') && !empresaLocalPorRemota.has(String(linha.empresa_id))) {
         throw new Error(`Empresa remota ausente para ${evento.tabela}; fotografia incremental recusada.`);
@@ -1068,7 +1091,8 @@ async function sincronizarIncrementalV2(remoto) {
   try { remotoConsumidor=await registrarConsumidorIncrementalV2(remoto, consumidor); }
   catch (erro) {
     if (erroFilaV2Indisponivel(erro)) return { disponivel:false };
-    throw new Error(`Registro do consumidor v2: ${erro.message}`);
+    const contexto=erro?.message||String(erro);
+    const falha=new Error(`Registro do consumidor v2: ${contexto}`); falha.rpc=erro?.rpc||null; throw falha;
   }
   await publicarEventosIncrementaisV2(remoto);
   const marcoInicial=await estadoFilaIncrementalV2(remoto);
@@ -1946,8 +1970,18 @@ async function excluirDocumentoFiscalCanonico(empresaId, { chave = null, chaves 
   invalidarReconciliacaoMovimentosEmpresa(empresaId);
   return { empresa_remota_id: empresaRemotaId, excluidos: ids.length, movimento_ids: ids };
 }
+async function restaurarLinhaCanonica(tabela, linha, justificativa, remotoInformado = null) {
+  if (!ativo()) throw new Error('A fonte compartilhada não está disponível; restauração canônica recusada.');
+  if (!linha || typeof linha!=='object' || !String(justificativa || '').trim()) throw new Error('Linha e justificativa são obrigatórias para restauração canônica.');
+  const remoto=remotoInformado || supabase.admin();
+  const { error }=await remoto.rpc('restaurar_linha_sincronizacao_operacional', {
+    p_tabela:tabela, p_linha:linha, p_justificativa:String(justificativa).trim(),
+  });
+  if (error) throw new Error(`Restauração canônica: ${error.message}`);
+  return { tabela, restaurada:true };
+}
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, restaurarLinhaCanonica, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
   baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
   chavesQueDevemPermanecerExcluidas };
