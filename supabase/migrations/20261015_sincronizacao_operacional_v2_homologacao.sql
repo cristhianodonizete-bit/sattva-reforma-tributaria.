@@ -28,6 +28,8 @@ create table if not exists public.sincronizacao_operacional_consumidores (
   sequencia_confirmada bigint not null default 0,
   versao_protocolo integer not null default 2 check (versao_protocolo = 2),
   requer_carga_base boolean not null default true,
+  sessao_id text,
+  lease_expira_em timestamptz,
   ultimo_heartbeat timestamptz not null default clock_timestamp(),
   criado_em timestamptz not null default clock_timestamp(),
   atualizado_em timestamptz not null default clock_timestamp(),
@@ -142,7 +144,9 @@ begin
 end;
 $$;
 
-create or replace function public.registrar_consumidor_sincronizacao_operacional(p_consumidor_id text)
+create or replace function public.registrar_consumidor_sincronizacao_operacional(
+  p_consumidor_id text, p_sessao_id text, p_lease_segundos integer default 120
+)
 returns public.sincronizacao_operacional_consumidores
 language plpgsql
 security definer
@@ -150,14 +154,25 @@ set search_path = public, pg_catalog
 as $$
 declare resultado public.sincronizacao_operacional_consumidores%rowtype;
 begin
-  if nullif(btrim(p_consumidor_id), '') is null then
-    raise exception 'Identidade do consumidor é obrigatória.';
+  if nullif(btrim(p_consumidor_id), '') is null or nullif(btrim(p_sessao_id), '') is null then
+    raise exception 'Identidade e sessão do consumidor são obrigatórias.';
   end if;
-  insert into public.sincronizacao_operacional_consumidores(consumidor_id)
-  values (btrim(p_consumidor_id))
+  if p_lease_segundos < 30 or p_lease_segundos > 3600 then
+    raise exception 'Lease deve estar entre 30 e 3600 segundos.';
+  end if;
+  insert into public.sincronizacao_operacional_consumidores(consumidor_id,sessao_id,lease_expira_em)
+  values (btrim(p_consumidor_id),btrim(p_sessao_id),clock_timestamp() + make_interval(secs => p_lease_segundos))
   on conflict (consumidor_id) do update
-    set ultimo_heartbeat=clock_timestamp(), atualizado_em=clock_timestamp()
+    set sessao_id=excluded.sessao_id,
+        lease_expira_em=excluded.lease_expira_em,
+        ultimo_heartbeat=clock_timestamp(), atualizado_em=clock_timestamp()
+    where public.sincronizacao_operacional_consumidores.sessao_id=excluded.sessao_id
+       or public.sincronizacao_operacional_consumidores.lease_expira_em is null
+       or public.sincronizacao_operacional_consumidores.lease_expira_em < clock_timestamp()
   returning * into resultado;
+  if resultado.consumidor_id is null then
+    raise exception 'Consumidor % está ativo em outra sessão; aguarde o vencimento do lease.', p_consumidor_id;
+  end if;
   return resultado;
 end;
 $$;
@@ -165,7 +180,7 @@ $$;
 -- O checkpoint só é confirmado depois que o SQLite já concluiu sua transação.
 -- Repetir a confirmação é idempotente; regressão é recusada.
 create or replace function public.confirmar_checkpoint_sincronizacao_operacional(
-  p_consumidor_id text, p_sequencia bigint, p_carga_base_concluida boolean default false
+  p_consumidor_id text, p_sessao_id text, p_sequencia bigint, p_carga_base_concluida boolean default false
 )
 returns public.sincronizacao_operacional_consumidores
 language plpgsql
@@ -181,17 +196,35 @@ begin
     raise exception 'Checkpoint % está fora da fila publicada (máximo %).', p_sequencia, publicado;
   end if;
   insert into public.sincronizacao_operacional_consumidores as consumidor
-    (consumidor_id, sequencia_confirmada, requer_carga_base)
-  values (btrim(p_consumidor_id), p_sequencia, not p_carga_base_concluida)
+    (consumidor_id, sequencia_confirmada, requer_carga_base, sessao_id, lease_expira_em)
+  values (btrim(p_consumidor_id), p_sequencia, not p_carga_base_concluida, btrim(p_sessao_id), clock_timestamp() + interval '120 seconds')
   on conflict (consumidor_id) do update
     set sequencia_confirmada=greatest(consumidor.sequencia_confirmada, excluded.sequencia_confirmada),
         requer_carga_base=case when p_carga_base_concluida then false else consumidor.requer_carga_base end,
         ultimo_heartbeat=clock_timestamp(), atualizado_em=clock_timestamp()
+    where consumidor.sessao_id=btrim(p_sessao_id)
   returning * into resultado;
+  if resultado.consumidor_id is null then
+    raise exception 'Sessão do consumidor não possui o lease para confirmar checkpoint.';
+  end if;
   return resultado;
 end;
 $$;
 
+create or replace function public.estado_fila_sincronizacao_operacional()
+returns table (corte_sequencia_tecnica bigint, sequencia_publicada bigint)
+language sql
+security definer
+set search_path = public, pg_catalog
+stable
+as $$
+  select e.corte_sequencia_tecnica,
+         coalesce((select max(x.sequencia_consumo) from public.sincronizacao_operacional_eventos x), 0)
+    from public.sincronizacao_operacional_estado e
+   where e.chave='fila_v2'
+$$;
+
 revoke all on function public.publicar_eventos_sincronizacao_operacional(integer) from public;
-revoke all on function public.registrar_consumidor_sincronizacao_operacional(text) from public;
-revoke all on function public.confirmar_checkpoint_sincronizacao_operacional(text,bigint,boolean) from public;
+revoke all on function public.registrar_consumidor_sincronizacao_operacional(text,text,integer) from public;
+revoke all on function public.confirmar_checkpoint_sincronizacao_operacional(text,text,bigint,boolean) from public;
+revoke all on function public.estado_fila_sincronizacao_operacional() from public;

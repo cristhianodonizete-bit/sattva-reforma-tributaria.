@@ -2,6 +2,7 @@
 const db = require('../db');
 const supabase = require('./supabase');
 const { Client } = require('pg');
+const crypto = require('crypto');
 
 const CAMPOS = {
   empresas: ['id','cnpj','razao_social','nome_fantasia','regime','regime_reconhecimento_simples','uf','municipio','cnae','atividade','cnaes_secundarios','data_abertura','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes','criado_em'],
@@ -839,6 +840,9 @@ function invalidarReconciliacaoMovimentosEmpresa(empresaId) {
 // A trilha remota é a fonte de verdade para o delta. O marco só é avançado
 // dentro da mesma transação SQLite que aplica todas as linhas do lote.
 const CHAVE_SEQUENCIA_INCREMENTAL = 'operacao_compartilhada_sequencia';
+const CHAVE_SEQUENCIA_INCREMENTAL_V2 = 'operacao_compartilhada_sequencia_v2';
+const CHAVE_CONSUMIDOR_INCREMENTAL_V2 = 'operacao_compartilhada_consumidor_v2';
+const SESSAO_CONSUMIDOR_INCREMENTAL_V2 = crypto.randomUUID();
 const CHAVE_CONFIGURACAO_CERTIFICADA = 'configuracao_fiscal_certificada_v1';
 const TABELAS_INCREMENTAIS_SEGURAS = new Set([
   'empresas', 'empresa_servicos_fiscais', 'parceiros', 'empresa_qsa', 'lotes',
@@ -871,6 +875,74 @@ function temSequenciaIncremental() {
 function salvarSequenciaIncremental(sequencia) {
   db.prepare(`INSERT INTO sincronizacao_operacional_estado(chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))
     ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor, atualizado_em=excluded.atualizado_em`).run(CHAVE_SEQUENCIA_INCREMENTAL, String(sequencia));
+}
+function lerEstadoOperacional(chave) {
+  return db.prepare('SELECT valor FROM sincronizacao_operacional_estado WHERE chave=?').get(chave)?.valor || null;
+}
+function salvarEstadoOperacional(chave, valor) {
+  db.prepare(`INSERT INTO sincronizacao_operacional_estado(chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))
+    ON CONFLICT(chave) DO UPDATE SET valor=excluded.valor, atualizado_em=excluded.atualizado_em`).run(chave, String(valor));
+}
+function consumidorIncrementalV2() {
+  const configurado=String(process.env.SINCRONIZACAO_CONSUMIDOR_ID || '').trim();
+  if (configurado) return configurado;
+  const existente=lerEstadoOperacional(CHAVE_CONSUMIDOR_INCREMENTAL_V2);
+  if (existente) return existente;
+  // Persistido junto ao SQLite: reinício da mesma cópia mantém o consumidor;
+  // uma instância nova ganha outra identidade e não disputa checkpoint alheio.
+  const criado=`cache:${crypto.randomUUID()}`;
+  salvarEstadoOperacional(CHAVE_CONSUMIDOR_INCREMENTAL_V2, criado);
+  return criado;
+}
+function erroFilaV2Indisponivel(erro) {
+  const texto=String(erro?.message || erro || '').toLowerCase();
+  return texto.includes('could not find the function') || texto.includes('pgrst202')
+    || texto.includes('estado_fila_sincronizacao_operacional') || texto.includes('registrar_consumidor_sincronizacao_operacional');
+}
+function linhaRpc(dados) { return Array.isArray(dados) ? dados[0] : dados; }
+async function registrarConsumidorIncrementalV2(remoto, consumidor) {
+  const { data, error }=await remoto.rpc('registrar_consumidor_sincronizacao_operacional', {
+    p_consumidor_id:consumidor, p_sessao_id:SESSAO_CONSUMIDOR_INCREMENTAL_V2, p_lease_segundos:120,
+  });
+  if (error) throw error;
+  return linhaRpc(data);
+}
+async function publicarEventosIncrementaisV2(remoto) {
+  let publicados=0, ultimo=0;
+  for (;;) {
+    const { data, error }=await remoto.rpc('publicar_eventos_sincronizacao_operacional', { p_limite:1000 });
+    if (error) throw error;
+    const lote=linhaRpc(data) || {};
+    const quantidade=Number(lote.publicados || 0);
+    publicados+=quantidade; ultimo=Number(lote.sequencia_final || ultimo);
+    if (!quantidade) return { publicados, sequencia_final:ultimo };
+  }
+}
+async function estadoFilaIncrementalV2(remoto) {
+  const { data, error }=await remoto.rpc('estado_fila_sincronizacao_operacional');
+  if (error) throw error;
+  const linha=linhaRpc(data) || {};
+  return { corte_tecnico:Number(linha.corte_sequencia_tecnica || 0), sequencia_publicada:Number(linha.sequencia_publicada || 0) };
+}
+async function buscarEventosIncrementaisV2(remoto, sequencia) {
+  const eventos=[]; const tamanho=1000;
+  for (let de=0;; de+=tamanho) {
+    const { data, error }=await remoto.from('sincronizacao_operacional_eventos')
+      .select('sequencia,sequencia_consumo,tabela,operacao,chave,empresa_id,ocorrido_em')
+      .gt('sequencia_consumo', sequencia).not('sequencia_consumo', 'is', null)
+      .order('sequencia_consumo', { ascending:true }).range(de,de+tamanho-1);
+    if (error) throw new Error(`Fila incremental v2: ${error.message}`);
+    eventos.push(...(data || []).map((evento) => ({ ...evento, sequencia:Number(evento.sequencia_consumo) })));
+    if (!data || data.length<tamanho) return eventos;
+  }
+}
+async function confirmarCheckpointIncrementalV2(remoto, consumidor, sequencia, cargaBaseConcluida=false) {
+  const { data, error }=await remoto.rpc('confirmar_checkpoint_sincronizacao_operacional', {
+    p_consumidor_id:consumidor, p_sessao_id:SESSAO_CONSUMIDOR_INCREMENTAL_V2,
+    p_sequencia:sequencia, p_carga_base_concluida:cargaBaseConcluida,
+  });
+  if (error) throw error;
+  return linhaRpc(data);
 }
 function lerConfiguracaoCertificada() {
   const valor = db.prepare('SELECT valor FROM sincronizacao_operacional_estado WHERE chave=?').get(CHAVE_CONFIGURACAO_CERTIFICADA)?.valor;
@@ -945,7 +1017,7 @@ function apagarLinhaIncremental(evento) {
   return db.prepare(sql).run(...campos.map((campo) => chave[campo])).changes;
 }
 
-async function aplicarEventosIncrementais(remoto, eventos) {
+async function aplicarEventosIncrementais(remoto, eventos, opcoes = {}) {
   const reduzidos = reduzirEventosIncrementais(eventos);
   for (const evento of reduzidos) {
     const motivo = validarEventoIncremental(evento);
@@ -984,14 +1056,74 @@ async function aplicarEventosIncrementais(remoto, eventos) {
       aplicadas += normalizada.length;
     }
     for (const evento of exclusoes) removidas += apagarLinhaIncremental(evento);
-    salvarSequenciaIncremental(Math.max(...reduzidos.map((evento) => Number(evento.sequencia))));
+    const chaveCheckpoint=opcoes.chaveCheckpoint || CHAVE_SEQUENCIA_INCREMENTAL;
+    salvarEstadoOperacional(chaveCheckpoint, Math.max(...reduzidos.map((evento) => Number(evento.sequencia))));
   })();
   return { fallback: false, eventos: reduzidos.length, aplicadas, removidas };
+}
+
+async function sincronizarIncrementalV2(remoto) {
+  const consumidor=consumidorIncrementalV2();
+  let remotoConsumidor;
+  try { remotoConsumidor=await registrarConsumidorIncrementalV2(remoto, consumidor); }
+  catch (erro) {
+    if (erroFilaV2Indisponivel(erro)) return { disponivel:false };
+    throw new Error(`Registro do consumidor v2: ${erro.message}`);
+  }
+  await publicarEventosIncrementaisV2(remoto);
+  const marcoInicial=await estadoFilaIncrementalV2(remoto);
+  const checkpointRemoto=Number(remotoConsumidor?.sequencia_confirmada || 0);
+  const requerCargaBase=Boolean(remotoConsumidor?.requer_carga_base) || !lerEstadoOperacional(CHAVE_SEQUENCIA_INCREMENTAL_V2);
+  if (requerCargaBase) {
+    // O checkpoint v1 não é promovido: sua ordem de commit não é comprovável.
+    // A carga-base fornece uma fotografia canônica e a sobreposição posterior
+    // é aplicada de forma idempotente pela fila publicada.
+    const completo=await baixar(remoto);
+    validarCargaBase(completo, 'Carga-base da fila v2');
+    await publicarEventosIncrementaisV2(remoto);
+    const pendentes=await buscarEventosIncrementaisV2(remoto, marcoInicial.sequencia_publicada);
+    const aplicado=pendentes.length
+      ? await aplicarEventosIncrementais(remoto, pendentes, { chaveCheckpoint:CHAVE_SEQUENCIA_INCREMENTAL_V2 })
+      : { fallback:false, eventos:0, aplicadas:0, removidas:0 };
+    if (aplicado.fallback) {
+      const recuperacao=await baixar(remoto);
+      validarCargaBase(recuperacao, 'Recuperação da fila v2');
+    }
+    await publicarEventosIncrementaisV2(remoto);
+    const fim=(await estadoFilaIncrementalV2(remoto)).sequencia_publicada;
+    // O SQLite já foi confirmado acima; só agora a retenção poderá considerar
+    // este consumidor coberto. Uma falha aqui só provoca repetição segura.
+    await confirmarCheckpointIncrementalV2(remoto, consumidor, fim, true);
+    salvarEstadoOperacional(CHAVE_SEQUENCIA_INCREMENTAL_V2, fim);
+    return { disponivel:true, modo:'carga_base_v2', consumidor, sequencia:fim, ...aplicado };
+  }
+  const eventos=await buscarEventosIncrementaisV2(remoto, checkpointRemoto);
+  if (!eventos.length) {
+    await confirmarCheckpointIncrementalV2(remoto, consumidor, checkpointRemoto, false);
+    return { disponivel:true, modo:'incremental_v2', consumidor, eventos:0, aplicadas:0, removidas:0, sequencia:checkpointRemoto };
+  }
+  const aplicado=await aplicarEventosIncrementais(remoto, eventos, { chaveCheckpoint:CHAVE_SEQUENCIA_INCREMENTAL_V2 });
+  if (aplicado.fallback) {
+    const completo=await baixar(remoto);
+    validarCargaBase(completo, 'Fallback da fila v2');
+    await publicarEventosIncrementaisV2(remoto);
+    const fim=(await estadoFilaIncrementalV2(remoto)).sequencia_publicada;
+    await confirmarCheckpointIncrementalV2(remoto, consumidor, fim, true);
+    salvarEstadoOperacional(CHAVE_SEQUENCIA_INCREMENTAL_V2, fim);
+    return { disponivel:true, modo:'fallback_completo_v2', consumidor, sequencia:fim, eventos:eventos.length, ...aplicado };
+  }
+  const fim=Math.max(...eventos.map((evento) => Number(evento.sequencia)));
+  await confirmarCheckpointIncrementalV2(remoto, consumidor, fim, false);
+  return { disponivel:true, modo:'incremental_v2', consumidor, sequencia:fim, ...aplicado };
 }
 
 async function sincronizarIncremental(opcoes = {}) {
   if (!ativo()) return { ativo: false };
   const remoto = opcoes.remoto || supabase.admin({ prazoMs: opcoes.prazoMs });
+  if (!opcoes.forcarLegado) {
+    const v2=await sincronizarIncrementalV2(remoto);
+    if (v2.disponivel) return v2;
+  }
   const sequencia = lerSequenciaIncremental();
   // A primeira instalação cria uma base íntegra e somente depois habilita o
   // delta. Eventos ocorridos durante a carga são reaplicados idempotentemente.
