@@ -46,6 +46,13 @@ const fornecedores = compararRegistros('parceiros',
   [{ id: 99, empresa_id: 8, tipo: 'fornecedor', cnpj: '12345678000190', descricao: 'Empresa A', regime: 'simples_nacional' }],
 );
 assert.strictEqual(fornecedores.resumo.DIVERGENCIA_DE_CONTEUDO, 1);
+assert.deepStrictEqual(fornecedores.divergencias[0].campos_divergentes, ['regime']);
+
+const fornecedorMesmoCadastro = compararRegistros('parceiros',
+  [{ id: 1, empresa_id: 8, tipo: 'fornecedor', cnpj: '12.345.678/0001-90', descricao: 'Empresa A', regime: 'lucro_real', origem: 'QUESTOR', atualizado_em: '2026-01-01', faturamento_anual: 100 }],
+  [{ id: 99, empresa_id: 8, tipo: 'fornecedor', cnpj: '12345678000190', descricao: ' EMPRESA   A ', regime: 'lucro_real', origem: 'MANUAL', atualizado_em: '2026-02-01', faturamento_anual: 200 }],
+);
+assert.strictEqual(fornecedorMesmoCadastro.resumo.CONFERE, 1);
 
 const perfis = compararRegistros('perfil_cbs_competencias',
   [{ id: 1, empresa_id: 8, competencia: '2026-01', cbs_debito: 100 }],

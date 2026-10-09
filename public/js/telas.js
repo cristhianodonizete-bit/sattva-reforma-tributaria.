@@ -854,11 +854,12 @@ Telas.dados = async (el) => {
             const canonico=x.canonico?.[0] || {}, local=x.cache_local?.[0] || {};
             return { ...x, cnpj:canonico.cnpj || local.cnpj || '', canonico, local };
           });
-          A.modal({titulo:'Conferência de fornecedores',largura:1280,confirmar:'Fechar',descricao:'Comparação CNPJ a CNPJ entre o cadastro canônico e o cache local. Esta tela não sincroniza, não exclui e não altera fornecedores.',corpo:`<div class="aviso info"><b>Como tratar:</b> “só na canônica” e “só no cache” são ausências objetivas. “Divergência de conteúdo” mostra o mesmo fornecedor com dados diferentes. “Identidade ambígua” exige revisão antes de qualquer ação.</div><div class="grade g3" style="margin:14px 0">${Object.entries(leitura.resumo || {}).map(([status,total])=>A.kpi(rotulo(status),total,'fornecedores')).join('')}</div>${A.tabela([
+          A.modal({titulo:'Conferência de fornecedores',largura:1280,confirmar:'Fechar',descricao:'Comparação CNPJ a CNPJ entre o cadastro canônico e o cache local. Esta tela não sincroniza, não exclui e não altera fornecedores.',corpo:`<div class="aviso info"><b>Como tratar:</b> “só na canônica” e “só no cache” são ausências objetivas. “Divergência de conteúdo” considera apenas CNPJ, nome, tipo e regime; a coluna ao lado informa o campo que realmente difere. “Identidade ambígua” exige revisão antes de qualquer ação.</div><div class="grade g3" style="margin:14px 0">${Object.entries(leitura.resumo || {}).map(([status,total])=>A.kpi(rotulo(status),total,'fornecedores')).join('')}</div>${A.tabela([
             {t:'Status',r:x=>`<span class="tag ${classe(x.status)}">${A.esc(rotulo(x.status))}</span>`},
             {t:'CNPJ / identidade',r:x=>`<b class="mono">${A.esc(A.cnpjFmt(x.cnpj) || 'Sem CNPJ')}</b><div class="mini mono">${A.esc(x.chave_identidade || '')}</div>`},
             {t:'Fonte canônica',r:x=>x.canonico?.descricao?`<b>${A.esc(x.canonico.descricao)}</b><div class="mini">${A.esc(A.regimeLabel(x.canonico.regime || ''))} · ${A.esc(x.canonico.origem || '—')}</div>`:'—'},
             {t:'Cache local',r:x=>x.local?.descricao?`<b>${A.esc(x.local.descricao)}</b><div class="mini">${A.esc(A.regimeLabel(x.local.regime || ''))} · ${A.esc(x.local.origem || '—')}</div>`:'—'},
+            {t:'Campo diferente',r:x=>x.status==='DIVERGENCIA_DE_CONTEUDO'?A.esc((x.campos_divergentes || []).join(', ') || '—'):'—'},
           ],itens.slice(0,1000),{vazio:'Nenhuma divergência de fornecedor encontrada.'})}${itens.length>1000?`<p class="mini">Mostrando 1.000 de ${itens.length} fornecedores divergentes.</p>`:''}`});
         });
         modalAuditoria.fundo.querySelectorAll('[data-auditar-competencia]').forEach((botao)=>botao.addEventListener('click',()=>{

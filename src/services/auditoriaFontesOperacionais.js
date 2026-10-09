@@ -91,7 +91,18 @@ function chaveRegistro(tabela, linha = {}) {
   throw new Error(`Tabela sem identidade de auditoria: ${tabela}`);
 }
 
-function normalizarRegistro(linha = {}) {
+function normalizarRegistro(tabela, linha = {}) {
+  // Cadastro de fornecedor: somente campos de negócio podem caracterizar uma
+  // divergência. Origem, datas e outros metadados internos não podem fazer a
+  // tela acusar que dois cadastros iguais são diferentes.
+  if (tabela === 'parceiros') {
+    return {
+      tipo: texto(linha.tipo).toLowerCase(),
+      cnpj: digitos(linha.cnpj),
+      descricao: texto(linha.descricao).replace(/\s+/g, ' ').toUpperCase(),
+      regime: texto(linha.regime).toLowerCase(),
+    };
+  }
   return Object.keys(linha).sort().reduce((saida, campo) => {
     if (CAMPOS_TECNICOS.has(campo)) return saida;
     const valor = linha[campo];
@@ -100,6 +111,11 @@ function normalizarRegistro(linha = {}) {
     else saida[campo] = valor == null ? null : texto(valor);
     return saida;
   }, {});
+}
+
+function camposDivergentes(canonico = {}, local = {}) {
+  const campos = new Set([...Object.keys(canonico), ...Object.keys(local)]);
+  return [...campos].filter((campo) => JSON.stringify(canonico[campo] ?? null) !== JSON.stringify(local[campo] ?? null));
 }
 
 function compararRegistros(tabela, canonicos = [], locais = []) {
@@ -116,12 +132,17 @@ function compararRegistros(tabela, canonicos = [], locais = []) {
   const divergencias = [];
   for (const chave of new Set([...remoto.keys(), ...local.keys()])) {
     const r = remoto.get(chave) || [], l = local.get(chave) || [];
+    const comparavelCanonico = r.length === 1 ? normalizarRegistro(tabela, r[0]) : null;
+    const comparavelLocal = l.length === 1 ? normalizarRegistro(tabela, l[0]) : null;
+    const camposDiferentes = comparavelCanonico && comparavelLocal
+      ? camposDivergentes(comparavelCanonico, comparavelLocal)
+      : [];
     const status = r.length > 1 || l.length > 1 ? 'IDENTIDADE_AMBIGUA'
       : !r.length ? 'SO_NO_CACHE_LOCAL'
       : !l.length ? 'SO_NA_FONTE_CANONICA'
-      : JSON.stringify(normalizarRegistro(r[0])) !== JSON.stringify(normalizarRegistro(l[0])) ? 'DIVERGENCIA_DE_CONTEUDO'
+      : camposDiferentes.length ? 'DIVERGENCIA_DE_CONTEUDO'
       : 'CONFERE';
-    if (status !== 'CONFERE') divergencias.push({ chave_identidade:chave, status, canonico:r, cache_local:l });
+    if (status !== 'CONFERE') divergencias.push({ chave_identidade:chave, status, campos_divergentes:camposDiferentes, canonico:r, cache_local:l });
   }
   const resumo = { CONFERE: 0 };
   for (const chave of new Set([...remoto.keys(), ...local.keys()])) {
