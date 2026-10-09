@@ -92,6 +92,7 @@ const estadoLeituraEmpresa = require('../services/estadoLeituraEmpresa');
 const integridadeOperacional = require('../services/integridadeOperacional');
 const saudeOperacional = require('../services/saudeOperacional');
 const auditoriaDecisaoFiscal = require('../services/auditoriaDecisaoFiscal');
+const auditoriaFontesOperacionais = require('../services/auditoriaFontesOperacionais');
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
@@ -2809,6 +2810,18 @@ router.get('/empresas/:id/documentos-fiscais/sombra-compartilhada', async (req, 
       competencia:req.query.competencia, modelo:req.query.modelo, sentido:req.query.sentido, busca:req.query.busca,
     }, { limite:req.query.limite, pagina:req.query.pagina });
     ok(res, leitura);
+  } catch (e) { erro(res, e); }
+});
+// Auditoria independente das camadas de dados. Diferentemente da rotina de
+// reconciliação operacional, esta rota não restaura o cache, não publica
+// documentos e não executa o motor: ela apenas prova o estado das três
+// camadas no instante da leitura.
+router.get('/empresas/:id/auditoria-fontes-operacionais', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const competencia=String(req.query.competencia || '').trim();
+    if (competencia && !/^\d{4}-\d{2}$/.test(competencia)) throw new Error('Competência inválida. Informe no formato AAAA-MM.');
+    ok(res, await auditoriaFontesOperacionais.auditar(Number(req.params.id), { competencia:competencia || null }));
   } catch (e) { erro(res, e); }
 });
 // Visão de auditoria por nota e item. Não chama a reconciliação local, não
