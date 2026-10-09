@@ -324,7 +324,11 @@ async function registrosCanonicos(cnpj, tabela) {
     await cliente.query('BEGIN READ ONLY');
     const empresa = await cliente.query("SELECT id FROM public.empresas WHERE regexp_replace(cnpj,'[^0-9]','','g')=$1 LIMIT 2", [digitos(cnpj)]);
     if (empresa.rows.length !== 1) throw new Error('Empresa compartilhada não identificada unicamente para a auditoria.');
-    const dados = await cliente.query(`SELECT * FROM public.${tabela} WHERE empresa_id=$1`, [empresa.rows[0].id]);
+    // Parceiros arquivados existem apenas para rastreabilidade da consolidação.
+    // Eles não podem voltar a aparecer como fornecedor vigente nem contaminar a
+    // conferência entre a fonte oficial e o cache derivado.
+    const filtroAtivo = tabela === 'parceiros' ? ' AND COALESCE(ativo,true) IS TRUE' : '';
+    const dados = await cliente.query(`SELECT * FROM public.${tabela} WHERE empresa_id=$1${filtroAtivo}`, [empresa.rows[0].id]);
     await cliente.query('ROLLBACK');
     return dados.rows;
   } catch (erro) {

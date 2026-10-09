@@ -393,7 +393,11 @@ async function restaurarParceirosEmpresa(empresaId, remotoInformado = null) {
   const empresaRemota = (candidatas || []).find((x) => Number(x.origem_local_id || x.id) === Number(empresaId)
     || String(x.cnpj || '').replace(/\D/g, '') === cnpj);
   if (!empresaRemota) return { ativo:true, parceiros:0, motivo:'empresa_remota_ausente' };
-  const { data, error } = await remoto.from('parceiros').select('*').eq('empresa_id', empresaRemota.id);
+  // A cópia local é derivada. Registros arquivados na fonte canônica ficam
+  // disponíveis apenas na auditoria remota e nunca devem ser restaurados no
+  // cache nem ressuscitar fornecedores consolidados.
+  const { data, error } = await remoto.from('parceiros').select('*')
+    .eq('empresa_id', empresaRemota.id).eq('ativo', true);
   if (error) throw new Error(`Parceiros compartilhados: ${error.message}`);
   const linhas = normalizarEmpresaIdDoCache('parceiros', data || [], new Map([[String(empresaRemota.id), Number(empresaId)]]));
   const parceiros=gravar('parceiros', linhas);
@@ -1731,27 +1735,9 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
       WHERE empresa_id=? AND tipo='fornecedor' AND cnpj IN (${marcasCnpj})`).all(Number(empresaId),...cnpjs);
     const publicaveis=parceiros.map(({ id, empresa_id, ...parceiro })=>({ ...parceiro, empresa_id:Number(empresas[0].id) }));
     if (publicaveis.length) {
-      // A tabela remota legada não possui uma constraint única para
-      // (empresa_id,tipo,cnpj); por isso `upsert(... onConflict)` falha.
-      // Fazemos o mesmo merge de maneira explícita e compatível com todas as
-      // versões do schema: localiza pelo CNPJ e atualiza, ou insere se ainda
-      // não houver o fornecedor.
-      const { data:remotos, error:erroBusca }=await remoto.from('parceiros').select('id,cnpj')
-        .eq('empresa_id',Number(empresas[0].id)).eq('tipo','fornecedor').in('cnpj',cnpjs);
-      if (erroBusca) throw new Error(`Fornecedores das entradas conciliadas: ${erroBusca.message}`);
-      const porCnpj=new Map((remotos || []).map((x)=>[String(x.cnpj || '').replace(/\D/g,''),x]));
-      for (let indice=0; indice<publicaveis.length; indice++) {
-        const parceiro=publicaveis[indice];
-        const existente=porCnpj.get(String(parceiro.cnpj || '').replace(/\D/g,''));
-        const operacao=existente
-          ? remoto.from('parceiros').update(parceiro).eq('id',existente.id)
-          // A tabela remota legada foi criada sem DEFAULT/identity na coluna
-          // id. Um identificador temporal evita o NOT NULL sem reutilizar o
-          // id local efêmero e permanece seguro no intervalo do bigint.
-          : remoto.from('parceiros').insert({ ...parceiro, id:Date.now()+indice });
-        const { error }=await operacao;
-        if (error) throw new Error(`Fornecedores das entradas conciliadas: ${error.message}`);
-      }
+      // A fonte canônica vence o cache. A conciliação pode criar somente uma
+      // identidade que ainda não existe; nunca altera cadastro já confirmado.
+      await publicarParceirosNovosCanonicos(remoto, Number(empresas[0].id), publicaveis);
     }
   }
   const { data:existentes, error:erroExistentes }=await remoto.from('movimentos').select('chave,nome,inscr_federal,normalizacao_evidencia').eq('empresa_id',Number(empresas[0].id)).in('chave',chaves);
