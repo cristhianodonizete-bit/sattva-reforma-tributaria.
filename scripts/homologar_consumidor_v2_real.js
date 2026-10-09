@@ -41,7 +41,7 @@ const resultado={homologacao:'consumidor_real_v2',aprovados:[],falhos:[],nao_exe
 let cenarioAtual='preparacao_postgrest';
 const ok=(cenario,detalhe={})=>resultado.aprovados.push({cenario,detalhe});
 function evidenciaResposta(resposta){return {status:resposta?.status??null,status_text:resposta?.statusText??null,dados:resposta?.data??null,erro:resposta?.error?{code:resposta.error.code??null,message:resposta.error.message??null,details:resposta.error.details??null,hint:resposta.error.hint??null}:null};}
-const cenariosObrigatorios=['carga_base_real','transicao_legado_v2_e_delta','tombstone_republicacao_e_restauracao','falha_reinicio_idempotencia','lease_consumidor_real'];
+const cenariosObrigatorios=['carga_base_real','transicao_legado_v2_e_delta','publicacao_idempotente_movimentos_e_parceiros','dois_ciclos_sem_alteracao','tombstone_republicacao_e_restauracao','falha_reinicio_idempotencia','lease_consumidor_real'];
 async function q(text,params=[]){ return c.query(text,params); }
 async function esperarPostgrest(){
   const limite=Date.now()+Number(process.env.HOMOLOG_POSTGREST_TIMEOUT_MS||120000); let ultimo='sem resposta';
@@ -129,12 +129,13 @@ async function prepararSchema(){
   await q(`create unique index if not exists ux_parametros_operacionais on public.parametros_operacionais(tabela,chave);
     create unique index if not exists ux_param_irpj_csll_homolog on public.param_irpj_csll_versionados(tributo,regime,natureza_receita,versao,vigencia_inicio);`);
   await q(sql('20260917_trilha_incremental_operacional.sql'));
-  await q(`create trigger trg_sync_operacional_empresas after insert or update or delete on public.empresas for each row execute function public.registrar_evento_sincronizacao_operacional();
-    create trigger trg_sync_operacional_movimentos after insert or update or delete on public.movimentos for each row execute function public.registrar_evento_sincronizacao_operacional();
-    insert into public.empresas(id,origem_local_id,cnpj,razao_social,regime) values(1,1,'00000000000191','Empresa teste','Lucro Real');
+  // A migration 20260917 já instala exatamente um gatilho por tabela.
+  // Criá-los novamente aqui duplicava artificialmente cada evento.
+  await q(`insert into public.empresas(id,origem_local_id,cnpj,razao_social,regime) values(1,1,'00000000000191','Empresa teste','Lucro Real');
     insert into public.movimentos(id,empresa_id,tipo,nome,descricao,competencia,valor,chave,item_numero,origem) values(1,1,'ENTRADA','Fornecedor','Base','2026-01',100,'NFE-1',1,'teste');`);
   await q(sql('20261015_sincronizacao_operacional_v2_homologacao.sql'));
   await q(sql('20261016_sincronizacao_exclusoes_v2_homologacao.sql'));
+  await q(sql('20261017_sincronizacao_eventos_idempotentes.sql'));
   const configuracoes=['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','param_naturezas_juridicas_anexo_xi','catalogo_itens_receita','regras_itens_receita_regime','servicos','combos','combo_itens'];
   for(const chave of configuracoes) await q("insert into public.parametros_operacionais(tabela,chave,dados) values('configuracao',$1,'[]'::jsonb) on conflict(tabela,chave) do update set dados=excluded.dados",[chave]);
   await q(`insert into public.param_irpj_csll_versionados(tributo,regime,natureza_receita,tipo_base,percentual_base,aliquota,vigencia_inicio,fonte,fundamento,versao,status)
@@ -176,6 +177,34 @@ async function main(){
     evidenciaMovimento2.checkpoint_depois={remoto:Number(checkpointDepois?.sequencia_confirmada||0),local:db.prepare("select valor from sincronizacao_operacional_estado where chave='operacao_compartilhada_sequencia_v2'").get()?.valor||null,ordem:'após transação SQLite concluída'};
     assert.ok(db.prepare('select id from movimentos where id=2').get());
     ok('transicao_legado_v2_e_delta',{modo:delta.modo,evidencia:'resultado.evidencias.movimento_id_2'});
+    cenarioAtual='publicacao_idempotente_movimentos_e_parceiros';
+    const contarEventos=async()=>Number((await q('select count(*)::bigint total from public.sincronizacao_operacional_eventos')).rows[0].total);
+    await q("insert into public.parceiros(id,empresa_id,tipo,cnpj,descricao,regime,origem,criado_em) values(1,1,'fornecedor','00000000000191','Parceiro teste','lucro_real','teste',clock_timestamp())");
+    const eventosAntes=await contarEventos();
+    await q("update public.movimentos set valor=valor,nome=nome where id=1");
+    await q("update public.movimentos set lote_id=coalesce(lote_id,0)+1,criado_em=clock_timestamp() where id=1");
+    await q("update public.parceiros set descricao=descricao,criado_em=clock_timestamp() where id=1");
+    const eventosAposRepeticao=await contarEventos();
+    assert.equal(eventosAposRepeticao,eventosAntes,'Repetição/reimportação técnica gerou evento.');
+    await q("update public.movimentos set valor=101 where id=1");
+    await q("update public.parceiros set regime='lucro_presumido' where id=1");
+    const eventosAposNegocio=await contarEventos();
+    const eventosNegocio=(await q(`select tabela,operacao,count(*)::int total from public.sincronizacao_operacional_eventos
+      where sequencia>(select coalesce(max(sequencia),0)-$1 from public.sincronizacao_operacional_eventos)
+      group by tabela,operacao order by tabela`,[eventosAposNegocio-eventosAposRepeticao])).rows;
+    assert.equal(eventosAposNegocio-eventosAposRepeticao,2,`Alterações de negócio geraram ${eventosAposNegocio-eventosAposRepeticao} evento(s), esperado 2.`);
+    assert.deepEqual(eventosNegocio.map(x=>[x.tabela,x.operacao,x.total]),[['movimentos','UPDATE',1],['parceiros','UPDATE',1]]);
+    const cicloAlterado=await operacao.sincronizarIncremental();
+    assert.equal(Number(db.prepare('select valor from movimentos where id=1').get().valor),101);
+    assert.equal(db.prepare('select regime from parceiros where id=1').get().regime,'lucro_presumido');
+    ok('publicacao_idempotente_movimentos_e_parceiros',{eventos_antes:eventosAntes,eventos_apos_repeticao:eventosAposRepeticao,eventos_apos_alteracao:eventosAposNegocio,eventos_negocio:eventosNegocio,eventos_incrementais:cicloAlterado.eventos});
+    cenarioAtual='dois_ciclos_sem_alteracao';
+    const primeiroSemMudanca=await operacao.sincronizarIncremental();
+    const segundoSemMudanca=await operacao.sincronizarIncremental();
+    assert.equal(Number(primeiroSemMudanca.eventos||0),0);
+    assert.equal(Number(segundoSemMudanca.eventos||0),0);
+    assert.equal(await contarEventos(),eventosAposNegocio);
+    ok('dois_ciclos_sem_alteracao',{primeiro:Number(primeiroSemMudanca.eventos||0),segundo:Number(segundoSemMudanca.eventos||0)});
     cenarioAtual='tombstone_republicacao_e_restauracao'; await q('delete from public.movimentos where id=2');
     await operacao.sincronizarIncremental();
     assert.equal(db.prepare('select id from movimentos where id=2').get(),undefined);
