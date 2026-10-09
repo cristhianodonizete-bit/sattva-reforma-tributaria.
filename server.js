@@ -146,6 +146,8 @@ async function iniciarOperacao() {
       // processo que já estava no ar mantinha o SQLite antigo até um novo
       // deploy, embora a fonte compartilhada já estivesse correta.
       const intervaloOperacionalMs = Math.max(60_000, Number(process.env.SUPABASE_BACKGROUND_INTERVAL_MS || 5 * 60_000));
+      const intervaloRetencaoMs = Math.max(60 * 60_000, Number(process.env.SINCRONIZACAO_RETENCAO_INTERVALO_MS || 60 * 60_000));
+      let ultimaRetencaoEm = 0;
       const atualizarOperacaoIncremental = async () => {
         if (estadoOperacao.sincronizando) return;
         estadoOperacao.sincronizando = true;
@@ -153,6 +155,19 @@ async function iniciarOperacao() {
           const atualizado = await operacao.sincronizarIncremental({
             remoto: supabase.admin({ prazoMs: prazoSegundoPlano }),
           });
+          if (Date.now() - ultimaRetencaoEm >= intervaloRetencaoMs) {
+            try {
+              const remotoRetencao = supabase.admin({ prazoMs: prazoSegundoPlano });
+              const { data: retencao, error: erroRetencao } = await remotoRetencao.rpc('limpar_eventos_sincronizacao_operacional');
+              if (erroRetencao) throw new Error(erroRetencao.message);
+              ultimaRetencaoEm = Date.now();
+              const loteRetencao = Array.isArray(retencao) ? retencao[0] : retencao;
+              if (Number(loteRetencao?.removidos || 0) > 0) console.log(`  retenção da fila operacional: ${JSON.stringify(loteRetencao)}`);
+            } catch (erroRetencao) {
+              // Retenção é manutenção: nunca invalida um ciclo de sincronização já aplicado.
+              console.error('  retenção da fila operacional falhou:', erroRetencao.message);
+            }
+          }
           const reprocessamentos=await require('./src/services/reprocessamentoAutomatico').agendarPendencias();
           if (reprocessamentos.length) console.log(`  reprocessamentos incrementais automáticos: ${JSON.stringify(reprocessamentos)}`);
           if (Number(atualizado?.eventos || 0) > 0 || atualizado?.modo === 'fallback_completo') {

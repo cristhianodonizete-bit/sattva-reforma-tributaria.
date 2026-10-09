@@ -41,7 +41,7 @@ const resultado={homologacao:'consumidor_real_v2',aprovados:[],falhos:[],nao_exe
 let cenarioAtual='preparacao_postgrest';
 const ok=(cenario,detalhe={})=>resultado.aprovados.push({cenario,detalhe});
 function evidenciaResposta(resposta){return {status:resposta?.status??null,status_text:resposta?.statusText??null,dados:resposta?.data??null,erro:resposta?.error?{code:resposta.error.code??null,message:resposta.error.message??null,details:resposta.error.details??null,hint:resposta.error.hint??null}:null};}
-const cenariosObrigatorios=['carga_base_real','transicao_legado_v2_e_delta','publicacao_idempotente_movimentos_e_parceiros','dois_ciclos_sem_alteracao','tombstone_republicacao_e_restauracao','falha_reinicio_idempotencia','lease_consumidor_real'];
+const cenariosObrigatorios=['carga_base_real','transicao_legado_v2_e_delta','publicacao_idempotente_movimentos_e_parceiros','dois_ciclos_sem_alteracao','tombstone_republicacao_e_restauracao','falha_reinicio_idempotencia','retencao_segura_em_lotes','lease_consumidor_real','manutencao_pos_limpeza'];
 async function q(text,params=[]){ return c.query(text,params); }
 async function esperarPostgrest(){
   const limite=Date.now()+Number(process.env.HOMOLOG_POSTGREST_TIMEOUT_MS||120000); let ultimo='sem resposta';
@@ -136,6 +136,7 @@ async function prepararSchema(){
   await q(sql('20261015_sincronizacao_operacional_v2_homologacao.sql'));
   await q(sql('20261016_sincronizacao_exclusoes_v2_homologacao.sql'));
   await q(sql('20261017_sincronizacao_eventos_idempotentes.sql'));
+  await q(sql('20261018_retencao_sincronizacao_operacional.sql'));
   const configuracoes=['param_regras','param_aliquotas','param_tributos','param_regimes','param_reducoes','param_cfop','param_simples','param_naturezas_juridicas_anexo_xi','catalogo_itens_receita','regras_itens_receita_regime','servicos','combos','combo_itens'];
   for(const chave of configuracoes) await q("insert into public.parametros_operacionais(tabela,chave,dados) values('configuracao',$1,'[]'::jsonb) on conflict(tabela,chave) do update set dados=excluded.dados",[chave]);
   await q(`insert into public.param_irpj_csll_versionados(tributo,regime,natureza_receita,tipo_base,percentual_base,aliquota,vigencia_inicio,fonte,fundamento,versao,status)
@@ -232,9 +233,46 @@ async function main(){
     const retomada=await operacao.sincronizarIncremental();
     assert.ok(db.prepare('select id from movimentos where id=3').get());
     ok('falha_reinicio_idempotencia',{modo:retomada.modo});
+    cenarioAtual='retencao_segura_em_lotes';
+    await q("update public.sincronizacao_operacional_retencao set dias_retencao=7,tamanho_lote=100 where chave='eventos'");
+    await q(`insert into public.sincronizacao_operacional_consumidores
+      (consumidor_id,sequencia_confirmada,requer_carga_base,ultimo_heartbeat)
+      values('consumidor-inativo',0,false,clock_timestamp()-interval '48 hours')`);
+    await q("update public.sincronizacao_operacional_eventos set ocorrido_em=clock_timestamp()-interval '40 days'");
+    await q("update public.movimentos set valor=102 where id=1");
+    await q('select public.publicar_eventos_sincronizacao_operacional(1000)');
+    const pendente=(await q("select sequencia,sequencia_consumo from public.sincronizacao_operacional_eventos where tabela='movimentos' and chave->>'id'='1' order by sequencia desc limit 1")).rows[0];
+    assert.ok(pendente?.sequencia_consumo,'Alteração real não foi publicada na fila v2.');
+    await q("update public.sincronizacao_operacional_eventos set ocorrido_em=clock_timestamp()-interval '40 days' where sequencia=$1",[pendente.sequencia]);
+    const antesRetencao=await contarEventos();
+    let removidos=0;
+    for(let i=0;i<100;i++){
+      const lote=(await q('select * from public.limpar_eventos_sincronizacao_operacional(2)')).rows[0];
+      removidos+=Number(lote.removidos||0);
+      if(Number(lote.removidos||0)===0) break;
+    }
+    assert.ok(removidos>0,'Nenhum evento antigo confirmado foi removido.');
+    assert.ok((await q('select 1 from public.sincronizacao_operacional_eventos where sequencia=$1',[pendente.sequencia])).rowCount===1,'Evento ainda não confirmado foi removido.');
+    assert.ok((await q("select 1 from public.sincronizacao_operacional_tombstones where tabela='movimentos' and chave->>'id'='2'")).rowCount===1,'Tombstone foi removido pela retenção.');
+    assert.equal((await q("select requer_carga_base from public.sincronizacao_operacional_consumidores where consumidor_id='consumidor-inativo'")).rows[0].requer_carga_base,true,'Consumidor inativo não foi direcionado para carga-base.');
+    const aposRetencao=await contarEventos();
+    await operacao.sincronizarIncremental();
+    assert.equal(Number(db.prepare('select valor from movimentos where id=1').get().valor),102);
+    const limpezaConfirmado=(await q('select * from public.limpar_eventos_sincronizacao_operacional(2)')).rows[0];
+    assert.ok((await q('select 1 from public.sincronizacao_operacional_eventos where sequencia=$1',[pendente.sequencia])).rowCount===0,'Evento confirmado e expirado não foi removido.');
+    ok('retencao_segura_em_lotes',{eventos_antes:antesRetencao,removidos_antes_confirmacao:removidos,eventos_depois:aposRetencao,evento_pendente_preservado:true,removidos_apos_confirmacao:Number(limpezaConfirmado.removidos||0),tombstone_preservado:true,consumidor_inativo_exige_carga_base:true});
     cenarioAtual='lease_consumidor_real'; const outra=recarregarServico();
     await assert.rejects(()=>outra.sincronizarIncremental(),/outra sessão|lease/i);
     ok('lease_consumidor_real');
+    cenarioAtual='manutencao_pos_limpeza';
+    await q('vacuum (analyze) public.sincronizacao_operacional_eventos');
+    await q('drop index concurrently if exists public.ix_sync_operacional_eventos_sequencia');
+    for(const indice of ['ix_sync_operacional_eventos_tabela_sequencia','ix_sync_operacional_eventos_empresa_sequencia','sincronizacao_operacional_eventos_pkey']) await q(`reindex index concurrently public.${indice}`);
+    const indices=(await q(`select indexrelid::regclass::text indice,indisvalid from pg_index
+      where indrelid='public.sincronizacao_operacional_eventos'::regclass order by 1`)).rows;
+    assert.ok(indices.every(x=>x.indisvalid));
+    assert.ok(!indices.some(x=>x.indice.endsWith('ix_sync_operacional_eventos_sequencia')));
+    ok('manutencao_pos_limpeza',{indices_validos:indices.map(x=>x.indice)});
     resultado.metricas={tombstones:1,sqlite_temp:process.env.SATTVA_DADOS};
   } catch (erro) { resultado.falhos.push({cenario:cenarioAtual,erro:erro?.stack||erro?.message||String(erro),rpc:erro?.rpc||null}); process.exitCode=1; }
   finally {
