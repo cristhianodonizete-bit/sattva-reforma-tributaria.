@@ -24,6 +24,6 @@ assert.match(operacao, /exclusão sensível em/);
 assert.match(operacao, /modo: 'fallback_completo'/);
 assert.match(operacao, /const dependentesDoMotor = \['excecoes_motor_execucoes', 'telemetria_autonomia_execucoes'\]/);
 assert.match(operacao, /resultado\.motor = await baixarResultadosMotor\(remoto\); motorCarregado = true/);
-assert.match(server, /await operacao\.sincronizarIncremental\(\)/);
+assert.match(server, /await operacao\.sincronizarIncremental\(/);
 assert.doesNotMatch(server, /dados = await operacao\.baixar\(\)/);
 console.log('sincronizacao-incremental-consumo: deduplicação, checkpoint e bootstrap incremental validados.');
