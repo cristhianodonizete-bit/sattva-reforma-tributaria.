@@ -2,6 +2,7 @@ const assert = require('assert');
 const {
   chaveIdentidade,
   compararCamadas,
+  compararRegistros,
   totaisPorCompetencia,
 } = require('../src/services/auditoriaFontesOperacionais');
 
@@ -34,5 +35,17 @@ assert.deepStrictEqual(totais, [{
   cache_local: { documentos: 1, valor: 100 },
   motor: { documentos: 1, valor: 100 },
 }]);
+
+const fornecedores = compararRegistros('parceiros',
+  [{ id: 1, empresa_id: 8, tipo: 'fornecedor', cnpj: '12.345.678/0001-90', descricao: 'Empresa A', regime: 'lucro_real' }],
+  [{ id: 99, empresa_id: 8, tipo: 'fornecedor', cnpj: '12345678000190', descricao: 'Empresa A', regime: 'simples_nacional' }],
+);
+assert.strictEqual(fornecedores.resumo.DIVERGENCIA_DE_CONTEUDO, 1);
+
+const perfis = compararRegistros('perfil_cbs_competencias',
+  [{ id: 1, empresa_id: 8, competencia: '2026-01', cbs_debito: 100 }],
+  [{ id: 2, empresa_id: 8, competencia: '2026-01', cbs_debito: 100 }],
+);
+assert.strictEqual(perfis.resumo.CONFERE, 1);
 
 console.log('OK auditoria-fontes-operacionais');

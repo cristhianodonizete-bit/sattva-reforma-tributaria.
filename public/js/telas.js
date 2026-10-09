@@ -816,6 +816,14 @@ Telas.dados = async (el) => {
         }[status] || status);
         const classe=(status)=>status==='CONFERE'?'c':status.includes('AMBIGUA')||status.includes('DIVERGENCIA')||status.includes('ORFAO')?'a':'b';
         const pendentes=(r.divergencias || []).filter((x)=>x.status!=='CONFERE');
+        const nomeLeitura={ documentos_fiscais:'Documentos fiscais', fornecedores:'Fornecedores', outras_receitas:'Outras receitas', perfil_tributario:'Perfil tributário', perfil_cbs:'Perfil CBS', cadeia_fornecedores:'Cadeia de fornecedores', cadeia_clientes:'Cadeia de clientes', auditoria_mensal:'Auditoria mensal', conformidade:'Conformidade' };
+        const leituras=Object.entries(r.leituras || {}).map(([chave,leitura])=>({
+          tela:nomeLeitura[chave] || chave,
+          situacao:leitura.disponivel ? 'Auditada' : 'Não auditada',
+          canonico:leitura.total_canonico ?? '—', local:leitura.total_cache_local ?? '—',
+          divergencias:Object.entries(leitura.resumo || {}).filter(([status])=>status!=='CONFERE').map(([status,total])=>`${rotulo(status)}: ${total}`).join(' · ') || 'Nenhuma',
+          motivo:leitura.motivo || '',
+        }));
         const totais=(r.totais_por_competencia || []).map((x)=>({
           competencia:x.competencia,
           canonica:A.moeda(x.fonte_canonica?.valor || 0), local:A.moeda(x.cache_local?.valor || 0), motor:A.moeda(x.motor?.valor || 0),
@@ -825,6 +833,9 @@ Telas.dados = async (el) => {
           titulo:'Auditoria das fontes operacionais', largura:1250, confirmar:'Fechar',
           descricao:`Somente leitura${competencia ? ` · competência ${competencia}` : ' · todas as competências'}. Não sincroniza o cache, não executa o motor e não altera documentos. Certificado ${String(r.certificado?.assinatura || '').slice(0,16)}…`,
           corpo:`<div class="aviso info"><b>Como ler:</b> a fonte canônica é a base compartilhada; o cache local é apenas a cópia operacional; o motor é a última fotografia calculada. Nenhuma camada “vence” automaticamente nesta tela.</div>
+            <h3 style="margin-top:18px">Cobertura por leitura de tela</h3><p class="mini">Cada linha representa a base usada por uma área do sistema. “Não auditada” é uma lacuna explícita, não uma confirmação.</p>${A.tabela([
+              {t:'Leitura',r:x=>A.esc(x.tela)}, {t:'Situação',r:x=>`<span class="tag ${x.situacao==='Auditada'?'c':'a'}">${A.esc(x.situacao)}</span>${x.motivo?`<div class="mini">${A.esc(x.motivo)}</div>`:''}`}, {t:'Canônica',num:true,r:x=>A.esc(x.canonico)}, {t:'Cache local',num:true,r:x=>A.esc(x.local)}, {t:'Pendências',r:x=>A.esc(x.divergencias)},
+            ],leituras,{vazio:'Nenhuma leitura auditável encontrada.'})}
             <div class="grade g4" style="margin:14px 0">${Object.entries(r.resumo || {}).map(([status,total])=>A.kpi(rotulo(status),total,'itens')).join('') || A.kpi('Resultado','0','sem documentos no recorte')}</div>
             <h3>Totais de receita por competência</h3><p class="mini">Documentos e valor: canônica / cache local / última fotografia do motor.</p>${A.tabela([
               {t:'Competência',r:x=>A.esc(x.competencia)}, {t:'Fonte canônica',num:true,r:x=>x.canonica}, {t:'Cache local',num:true,r:x=>x.local}, {t:'Motor',num:true,r:x=>x.motor}, {t:'Documentos',r:x=>A.esc(x.documentos)},

@@ -31,6 +31,8 @@ const digitos = (valor) => texto(valor).replace(/\D/g, '');
 const numero = (valor) => Number(valor || 0);
 const dinheiro = (valor) => Math.round(numero(valor) * 100) / 100;
 const hash = (valor) => crypto.createHash('sha256').update(JSON.stringify(valor)).digest('hex');
+const TABELAS_ADICIONAIS = new Set(['parceiros', 'receitas_sem_dfe', 'perfil_tributario', 'perfil_cbs_competencias']);
+const CAMPOS_TECNICOS = new Set(['id', 'empresa_id', 'criado_em', 'atualizado_em', 'origem_local_id']);
 
 // Chave de negocio, nunca id tecnico. NFe/NFSe e' identificada pela chave e
 // item. Lancamentos sem chave recebem uma identidade conservadora; se ela
@@ -79,6 +81,53 @@ function indexar(linhas = []) {
     mapa.set(chave, grupo);
   }
   return mapa;
+}
+
+function chaveRegistro(tabela, linha = {}) {
+  if (tabela === 'parceiros') return [texto(linha.tipo).toLowerCase(), digitos(linha.cnpj) || texto(linha.descricao).toUpperCase()].join('|');
+  if (tabela === 'receitas_sem_dfe') return texto(linha.chave_deduplicacao) || [linha.competencia, linha.item_receita_chave || linha.tipo_receita, texto(linha.descricao).toUpperCase(), dinheiro(linha.valor)].join('|');
+  if (tabela === 'perfil_tributario' || tabela === 'perfil_cbs_competencias') return texto(linha.competencia);
+  throw new Error(`Tabela sem identidade de auditoria: ${tabela}`);
+}
+
+function normalizarRegistro(linha = {}) {
+  return Object.keys(linha).sort().reduce((saida, campo) => {
+    if (CAMPOS_TECNICOS.has(campo)) return saida;
+    const valor = linha[campo];
+    if (typeof valor === 'number') saida[campo] = dinheiro(valor);
+    else if (valor && typeof valor === 'object') saida[campo] = JSON.stringify(valor);
+    else saida[campo] = valor == null ? null : texto(valor);
+    return saida;
+  }, {});
+}
+
+function compararRegistros(tabela, canonicos = [], locais = []) {
+  const agrupar = (linhas) => {
+    const mapa = new Map();
+    for (const linha of linhas) {
+      const chave = chaveRegistro(tabela, linha);
+      const grupo = mapa.get(chave) || [];
+      grupo.push(linha); mapa.set(chave, grupo);
+    }
+    return mapa;
+  };
+  const remoto = agrupar(canonicos), local = agrupar(locais);
+  const divergencias = [];
+  for (const chave of new Set([...remoto.keys(), ...local.keys()])) {
+    const r = remoto.get(chave) || [], l = local.get(chave) || [];
+    const status = r.length > 1 || l.length > 1 ? 'IDENTIDADE_AMBIGUA'
+      : !r.length ? 'SO_NO_CACHE_LOCAL'
+      : !l.length ? 'SO_NA_FONTE_CANONICA'
+      : JSON.stringify(normalizarRegistro(r[0])) !== JSON.stringify(normalizarRegistro(l[0])) ? 'DIVERGENCIA_DE_CONTEUDO'
+      : 'CONFERE';
+    if (status !== 'CONFERE') divergencias.push({ chave_identidade:chave, status, canonico:r, cache_local:l });
+  }
+  const resumo = { CONFERE: 0 };
+  for (const chave of new Set([...remoto.keys(), ...local.keys()])) {
+    const achada = divergencias.find((x) => x.chave_identidade === chave);
+    resumo[achada?.status || 'CONFERE'] = (resumo[achada?.status || 'CONFERE'] || 0) + 1;
+  }
+  return { tabela, total_canonico:canonicos.length, total_cache_local:locais.length, resumo, divergencias };
 }
 
 function resumoLinha(linha) {
@@ -212,6 +261,42 @@ async function linhasCanonicas(cnpj, competencia) {
   } finally { cliente.release(); }
 }
 
+function existeTabelaLocal(tabela) {
+  return Boolean(db.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(tabela));
+}
+
+function registrosLocais(tabela, empresaId) {
+  if (!existeTabelaLocal(tabela)) return [];
+  return db.prepare(`SELECT * FROM ${tabela} WHERE empresa_id=?`).all(Number(empresaId));
+}
+
+async function registrosCanonicos(cnpj, tabela) {
+  if (!TABELAS_ADICIONAIS.has(tabela)) throw new Error('Tabela não permitida para auditoria.');
+  const cliente = await obterPool().connect();
+  try {
+    await cliente.query('BEGIN READ ONLY');
+    const empresa = await cliente.query("SELECT id FROM public.empresas WHERE regexp_replace(cnpj,'[^0-9]','','g')=$1 LIMIT 2", [digitos(cnpj)]);
+    if (empresa.rows.length !== 1) throw new Error('Empresa compartilhada não identificada unicamente para a auditoria.');
+    const dados = await cliente.query(`SELECT * FROM public.${tabela} WHERE empresa_id=$1`, [empresa.rows[0].id]);
+    await cliente.query('ROLLBACK');
+    return dados.rows;
+  } catch (erro) {
+    try { await cliente.query('ROLLBACK'); } catch (_) { /* transação já encerrada */ }
+    throw erro;
+  } finally { cliente.release(); }
+}
+
+async function auditarLeitura(tabela, empresa) {
+  try {
+    const [canonicos, locais] = await Promise.all([registrosCanonicos(empresa.cnpj, tabela), Promise.resolve(registrosLocais(tabela, empresa.id))]);
+    return { disponivel:true, ...compararRegistros(tabela, canonicos, locais) };
+  } catch (erro) {
+    // Uma tela não auditável nunca pode ser tratada como conferida. O retorno
+    // explícito mantém a lacuna visível sem bloquear o diagnóstico das demais.
+    return { disponivel:false, tabela, motivo:erro.message, resumo:{ NAO_AUDITADA:1 }, divergencias:[] };
+  }
+}
+
 async function auditar(empresaId, opcoes = {}) {
   const empresa = db.prepare('SELECT id,cnpj,razao_social FROM empresas WHERE id=?').get(Number(empresaId));
   if (!empresa?.cnpj) throw new Error('Empresa nao localizada para a auditoria.');
@@ -224,6 +309,12 @@ async function auditar(empresaId, opcoes = {}) {
   const divergencias = compararCamadas(canonicos, locais, resultados);
   const resumo = divergencias.reduce((acc, linha) => { acc[linha.status] = (acc[linha.status] || 0) + 1; return acc; }, {});
   const totais = totaisPorCompetencia(canonicos, locais, resultados);
+  const [fornecedores, outrasReceitas, perfilTributario, perfilCbs] = await Promise.all([
+    auditarLeitura('parceiros', empresa),
+    auditarLeitura('receitas_sem_dfe', empresa),
+    auditarLeitura('perfil_tributario', empresa),
+    auditarLeitura('perfil_cbs_competencias', empresa),
+  ]);
   return {
     somente_leitura: true,
     empresa: { id: empresa.id, cnpj: empresa.cnpj, razao_social: empresa.razao_social },
@@ -233,8 +324,19 @@ async function auditar(empresaId, opcoes = {}) {
     resumo,
     totais_por_competencia: totais,
     divergencias,
+    leituras: {
+      documentos_fiscais:{ disponivel:true, resumo, total_canonico:canonicos.length, total_cache_local:locais.length, divergencias },
+      fornecedores,
+      outras_receitas:outrasReceitas,
+      perfil_tributario:perfilTributario,
+      perfil_cbs:perfilCbs,
+      cadeia_fornecedores:{ disponivel:false, resumo:{ NAO_AUDITADA:1 }, divergencias:[], motivo:'Depende simultaneamente de documentos, parceiros e fotografia do motor; a regra de composição ainda será certificada por tela.' },
+      cadeia_clientes:{ disponivel:false, resumo:{ NAO_AUDITADA:1 }, divergencias:[], motivo:'Depende simultaneamente de documentos, parceiros e fotografia do motor; a regra de composição ainda será certificada por tela.' },
+      auditoria_mensal:{ disponivel:false, resumo:{ NAO_AUDITADA:1 }, divergencias:[], motivo:'Depende de documentos, outras receitas e apurações; a composição mensal ainda será certificada por tela.' },
+      conformidade:{ disponivel:false, resumo:{ NAO_AUDITADA:1 }, divergencias:[], motivo:'Depende de evidências fiscais e da classificação materializada; a leitura ainda será certificada por tela.' },
+    },
     certificado: { algoritmo: 'sha256', assinatura: hash({ empresa: empresa.id, competencia, canonicos: canonicos.map(conteudoComparavel), locais: locais.map(conteudoComparavel), resultados }) },
   };
 }
 
-module.exports = { chaveIdentidade, conteudoComparavel, compararCamadas, totaisPorCompetencia, auditar };
+module.exports = { chaveIdentidade, conteudoComparavel, compararCamadas, compararRegistros, totaisPorCompetencia, auditar };
