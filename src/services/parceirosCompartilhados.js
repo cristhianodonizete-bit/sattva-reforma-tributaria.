@@ -33,7 +33,7 @@ async function listar(cnpjEmpresa, tipo = '') {
     const parametros = [empresa.rows[0].id];
     const filtroTipo = tipo ? (parametros.push(String(tipo)), ` AND tipo=$${parametros.length}`) : '';
     const dados = await cliente.query(`SELECT id,tipo,cnpj,descricao,regime,faturamento_anual,uf,municipio,origem,criado_em
-      FROM public.parceiros WHERE empresa_id=$1${filtroTipo}
+      FROM public.parceiros WHERE empresa_id=$1 AND COALESCE(ativo,true) IS TRUE${filtroTipo}
       ORDER BY tipo, descricao, criado_em DESC NULLS LAST, id DESC`, parametros);
     await cliente.query('ROLLBACK');
 

@@ -1,6 +1,6 @@
 /*
  * Diagnóstico somente leitura do cadastro canônico de parceiros.
- * Uso: node scripts/auditar_duplicidades_parceiros_canonicos.js 17796012000177
+ * Uso: node scripts/auditar_duplicidades_parceiros_canonicos.js [CNPJ]
  * Não remove, atualiza, publica nem sincroniza qualquer registro.
  */
 require('dotenv').config();
@@ -20,20 +20,23 @@ const conteudo = (linha) => JSON.stringify({
 
 async function main() {
   const cnpj = digitos(process.argv[2]);
-  if (cnpj.length !== 14) throw new Error('Informe o CNPJ da empresa com 14 dígitos.');
+  if (cnpj && cnpj.length !== 14) throw new Error('Informe o CNPJ da empresa com 14 dígitos ou omita para consolidado geral.');
   if (!process.env.SUPABASE_DB_URL) throw new Error('SUPABASE_DB_URL não configurada.');
   const db = new Client({ connectionString:process.env.SUPABASE_DB_URL, ssl:{ rejectUnauthorized:false } });
   await db.connect();
   try {
     await db.query('BEGIN READ ONLY');
-    const empresa = await db.query("SELECT id,cnpj,razao_social FROM public.empresas WHERE regexp_replace(cnpj,'[^0-9]','','g')=$1 LIMIT 2", [cnpj]);
-    if (empresa.rows.length !== 1) throw new Error('Empresa canônica não identificada de forma única.');
-    const linhas = await db.query('SELECT id,tipo,cnpj,descricao,regime,origem,criado_em FROM public.parceiros WHERE empresa_id=$1 ORDER BY criado_em DESC NULLS LAST,id DESC', [empresa.rows[0].id]);
+    const empresa = cnpj ? await db.query("SELECT id,cnpj,razao_social FROM public.empresas WHERE regexp_replace(cnpj,'[^0-9]','','g')=$1 LIMIT 2", [cnpj]) : null;
+    if (empresa && empresa.rows.length !== 1) throw new Error('Empresa canônica não identificada de forma única.');
+    const linhas = await db.query(`SELECT p.id,p.empresa_id,p.tipo,p.cnpj,p.descricao,p.regime,p.origem,p.criado_em,e.razao_social
+      FROM public.parceiros p JOIN public.empresas e ON e.id=p.empresa_id WHERE COALESCE(p.ativo,true) IS TRUE${empresa ? ' AND p.empresa_id=$1' : ''}
+      ORDER BY p.empresa_id,p.criado_em DESC NULLS LAST,p.id DESC`, empresa ? [empresa.rows[0].id] : []);
     await db.query('ROLLBACK');
     const grupos = new Map();
     for (const linha of linhas.rows) {
-      const grupo = grupos.get(chave(linha)) || [];
-      grupo.push(linha); grupos.set(chave(linha), grupo);
+      const identidade=`${linha.empresa_id}|${chave(linha)}`;
+      const grupo = grupos.get(identidade) || [];
+      grupo.push(linha); grupos.set(identidade, grupo);
     }
     const duplicados = [...grupos.entries()].filter(([, grupo]) => grupo.length > 1).map(([identidade, grupo]) => ({
       identidade, quantidade:grupo.length, excesso:grupo.length - 1,
@@ -43,7 +46,7 @@ async function main() {
     }));
     const resumo = {
       somente_leitura:true,
-      empresa:empresa.rows[0],
+      empresa:empresa ? empresa.rows[0] : 'TODAS_AS_EMPRESAS',
       registros_fisicos:linhas.rows.length,
       fornecedores_logicos:grupos.size,
       grupos_duplicados:duplicados.length,

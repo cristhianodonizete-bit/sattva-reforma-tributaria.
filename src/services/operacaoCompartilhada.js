@@ -1531,6 +1531,38 @@ function deduplicarXmlParaPublicacao(linhas) {
   return deduplicarMovimentosFiscais(linhas);
 }
 
+function chaveParceiroCanonico(linha = {}) {
+  const cnpj=String(linha.cnpj || '').replace(/\D/g,'');
+  if (cnpj) return `CNPJ|${String(linha.tipo || '').toLowerCase()}|${cnpj}`;
+  return `GENERICO|${String(linha.tipo || '').toLowerCase()}|${String(linha.origem || '').trim().toUpperCase()}|${String(linha.regime || '').trim().toLowerCase()}|${String(linha.descricao || '').trim().replace(/\s+/g,' ').toUpperCase()}`;
+}
+
+// A fonte compartilhada é a verdade do cadastro. A publicação vinda de um
+// SQLite de trabalho jamais atualiza um parceiro canônico já existente: ela
+// só cria uma identidade ainda ausente. Isso impede que cache defasado
+// reverta regime, nome ou origem confirmados na canônica.
+async function publicarParceirosNovosCanonicos(remoto, empresaRemotaId, linhas = []) {
+  const unicos=new Map();
+  for (const linha of linhas) unicos.set(chaveParceiroCanonico(linha),linha);
+  if (!unicos.size) return { inseridos:0, existentes:0 };
+  const { data:existentes, error }=await remoto.from('parceiros').select('id,tipo,cnpj,descricao,regime,origem,ativo')
+    .eq('empresa_id',Number(empresaRemotaId)).eq('ativo',true);
+  if (error) throw new Error(`Fornecedores canônicos: ${error.message}`);
+  const porChave=new Map((existentes || []).map((linha)=>[chaveParceiroCanonico(linha),linha]));
+  let inseridos=0, existentesAtuais=0, indice=0;
+  for (const [chave,linha] of unicos) {
+    if (porChave.has(chave)) { existentesAtuais++; continue; }
+    const { id,empresa_id,...dados }=linha;
+    // A tabela legada não possui DEFAULT para id. Este id temporal só é usado
+    // na primeira inserção; nas leituras seguintes, a identidade de negócio
+    // (não o id) controla a publicação.
+    const { error:erroInserir }=await remoto.from('parceiros').insert({ ...dados, empresa_id:Number(empresaRemotaId), ativo:true, id:Date.now()+(indice++) });
+    if (erroInserir) throw new Error(`Novo fornecedor canônico: ${erroInserir.message}`);
+    inseridos++;
+  }
+  return { inseridos, existentes:existentesAtuais };
+}
+
 async function publicarOperacaoEmpresa(empresaId) {
   if (!ativo()) return { ativo:false };
   const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
@@ -1555,6 +1587,10 @@ async function publicarOperacaoEmpresa(empresaId) {
     const linhas=db.prepare(`SELECT ${campos.join(',')} FROM ${tabela} WHERE empresa_id=?`).all(Number(empresaId))
       .filter((linha)=>tabela !== 'movimentos' || !foiExcluido(linha))
       .map((linha) => ({ ...linha, empresa_id:empresaRemotaId }));
+    if (tabela === 'parceiros') {
+      resultado[tabela]=await publicarParceirosNovosCanonicos(remoto, empresaRemotaId, linhas);
+      continue;
+    }
     // IDs SQLite não são globais: outra instância pode gerar o mesmo número
     // para outro XML. Em documento XML a chave eletrônica + item é a
     // identidade fiscal estável e impede que uma publicação substitua outra.
