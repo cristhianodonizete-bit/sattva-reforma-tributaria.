@@ -2055,11 +2055,22 @@ function analisarPerfil(empresa, linhas) {
 // ===========================================================================
 // PARCEIROS (clientes e fornecedores)
 // ===========================================================================
-router.get('/empresas/:id/parceiros', (req, res) => {
-  const tipo = req.query.tipo;
-  const sql = tipo ? 'SELECT * FROM parceiros WHERE empresa_id = ? AND tipo = ? ORDER BY descricao'
-                   : 'SELECT * FROM parceiros WHERE empresa_id = ? ORDER BY tipo, descricao';
-  ok(res, { parceiros: tipo ? db.prepare(sql).all(req.params.id, tipo) : db.prepare(sql).all(req.params.id) });
+router.get('/empresas/:id/parceiros', async (req, res) => {
+  try {
+    const tipo = req.query.tipo;
+    // A lista exibida como cadastro de fornecedores deve refletir a mesma
+    // fonte canônica dos documentos. A rota local continua disponível apenas
+    // para os formulários legados enquanto a escrita canônica é migrada.
+    if (req.query.leitura === 'canonica') {
+      await garantirEmpresaPermitida(req, req.params.id);
+      const empresa = db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(Number(req.params.id));
+      if (!empresa?.cnpj) throw new Error('Empresa não encontrada para leitura canônica de parceiros.');
+      return ok(res, await require('../services/parceirosCompartilhados').listar(empresa.cnpj, tipo));
+    }
+    const sql = tipo ? 'SELECT * FROM parceiros WHERE empresa_id = ? AND tipo = ? ORDER BY descricao'
+                     : 'SELECT * FROM parceiros WHERE empresa_id = ? ORDER BY tipo, descricao';
+    ok(res, { parceiros: tipo ? db.prepare(sql).all(req.params.id, tipo) : db.prepare(sql).all(req.params.id), fonte:'CACHE_LOCAL_FORMULARIO' });
+  } catch (e) { erro(res, e); }
 });
 
 router.post('/empresas/:id/parceiros', (req, res) => {

@@ -311,7 +311,7 @@ Telas.dados = async (el) => {
   // apurações).
   const consultaProntidao = consultaDadosAdicionais || consultaApuracoes || grupoCentral === 'dashboard';
   const [parceirosResposta, lotesResposta, dadosAdicionais, cobertura, apuracoesResposta, pgdasResposta, periodoResposta, prontidao, documentosFiscaisResposta, opcoesFiltrosDocumentosResposta, rastreabilidadeCfopResposta, movimentosResposta, referenciasVendas, catalogoReceitasResposta, entradasManuaisResposta] = await Promise.all([
-    (consultaImportacoes || consultaFornecedores) ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${consultaFornecedores ? 'fornecedor' : aba}`) : Promise.resolve({ parceiros: [] }),
+    (consultaImportacoes || consultaFornecedores) ? A.api(`/empresas/${S.empresaId}/parceiros?tipo=${consultaFornecedores ? 'fornecedor&leitura=canonica' : aba}`) : Promise.resolve({ parceiros: [] }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/lotes`) : Promise.resolve({ lotes: [] }),
     consultaDadosAdicionais ? A.api(`/empresas/${S.empresaId}/dados-adicionais-analise`) : Promise.resolve({ folhas: [], receitas_sem_dfe: [], margens: [] }),
     consultaImportacoes ? A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`) : Promise.resolve({ fotografia: { pendencias_operacionais: [] } }),
@@ -628,12 +628,13 @@ Telas.dados = async (el) => {
     </div>
     <div class="cartao" data-documentos-central-painel="documentos" data-documentos-fiscais-painel="fornecedores" id="historico">
       <h2>Fornecedores cadastrados</h2>
+      ${parceirosResposta.fonte==='SUPABASE_CANONICA' ? `<p class="mini" style="color:#0f766e">Cadastro oficial · fonte canônica${Number(parceirosResposta.leitura_metricas?.duplicidades_tecnicas_ocultas || 0) ? ` · ${Number(parceirosResposta.leitura_metricas.duplicidades_tecnicas_ocultas)} cópia(s) técnica(s) não exibida(s)` : ''}</p>` : ''}
       ${A.tabela([
         { t: 'CNPJ/CPF', r: (p) => `<span class="mono">${A.cnpjFmt(p.cnpj)}</span>` },
         { t: 'Descrição', r: (p) => A.esc(p.descricao) },
         { t: 'Regime', r: (p) => `<span class="tag ${['simples_nacional', 'mei'].includes(p.regime) ? 'b' : ''}">${A.regimeLabel(p.regime)}</span>` },
         { t: 'Origem', r: (p) => `<span class="mini">${A.esc(p.origem)}</span>` },
-        { t: '', r: (p) => `<button class="btn pq vazio" data-ep="${p.id}">Editar</button>` },
+        { t: '', r: (p) => parceirosResposta.fonte==='SUPABASE_CANONICA' ? '<span class="mini">Edição canônica em migração</span>' : `<button class="btn pq vazio" data-ep="${p.id}">Editar</button>` },
       ], parceiros, { vazio: `Nenhum ${aba} cadastrado ainda.` })}
     </div>
     </div>` : ''}`;
