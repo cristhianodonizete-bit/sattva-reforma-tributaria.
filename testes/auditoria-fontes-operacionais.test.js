@@ -61,9 +61,22 @@ const fornecedorAmbiguo = compararRegistros('parceiros',
   ],
   [{ id: 99, empresa_id: 8, tipo: 'fornecedor', cnpj: '12345678000190', descricao: 'Empresa A', regime: 'lucro_real' }],
 );
-assert.strictEqual(fornecedorAmbiguo.resumo.IDENTIDADE_AMBIGUA, 1);
+assert.strictEqual(fornecedorAmbiguo.resumo.DUPLICIDADE_SOMENTE_CANONICA, 1);
 assert.strictEqual(fornecedorAmbiguo.divergencias[0].canonico.length, 2);
 assert.strictEqual(fornecedorAmbiguo.divergencias[0].cache_local.length, 1);
+assert.strictEqual(fornecedorAmbiguo.divergencias[0].excesso_canonico, 1);
+
+const duplicidadeEspelho = compararRegistros('parceiros',
+  [
+    { id: 1, empresa_id: 8, tipo: 'fornecedor', cnpj: '', descricao: 'Fornecedor genérico', regime: 'simples_nacional' },
+    { id: 2, empresa_id: 8, tipo: 'fornecedor', cnpj: '', descricao: 'Fornecedor genérico', regime: 'simples_nacional' },
+  ],
+  [
+    { id: 3, empresa_id: 8, tipo: 'fornecedor', cnpj: '', descricao: 'Fornecedor genérico', regime: 'simples_nacional' },
+    { id: 4, empresa_id: 8, tipo: 'fornecedor', cnpj: '', descricao: 'Fornecedor genérico', regime: 'simples_nacional' },
+  ],
+);
+assert.strictEqual(duplicidadeEspelho.resumo.DUPLICIDADE_ESPELHO, 1);
 
 const perfis = compararRegistros('perfil_cbs_competencias',
   [{ id: 1, empresa_id: 8, competencia: '2026-01', cbs_debito: 100 }],

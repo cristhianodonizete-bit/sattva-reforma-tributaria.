@@ -118,6 +118,12 @@ function camposDivergentes(canonico = {}, local = {}) {
   return [...campos].filter((campo) => JSON.stringify(canonico[campo] ?? null) !== JSON.stringify(local[campo] ?? null));
 }
 
+function grupoUniforme(tabela, registros = []) {
+  if (!registros.length) return false;
+  const referencia = JSON.stringify(normalizarRegistro(tabela, registros[0]));
+  return registros.every((registro) => JSON.stringify(normalizarRegistro(tabela, registro)) === referencia);
+}
+
 function compararRegistros(tabela, canonicos = [], locais = []) {
   const agrupar = (linhas) => {
     const mapa = new Map();
@@ -137,12 +143,19 @@ function compararRegistros(tabela, canonicos = [], locais = []) {
     const camposDiferentes = comparavelCanonico && comparavelLocal
       ? camposDivergentes(comparavelCanonico, comparavelLocal)
       : [];
-    const status = r.length > 1 || l.length > 1 ? 'IDENTIDADE_AMBIGUA'
+    const duplicacaoTecnica = (r.length > 1 || l.length > 1)
+      && r.length && l.length
+      && grupoUniforme(tabela, r)
+      && grupoUniforme(tabela, l)
+      && !camposDivergentes(normalizarRegistro(tabela, r[0]), normalizarRegistro(tabela, l[0])).length;
+    const status = duplicacaoTecnica
+      ? (r.length === l.length ? 'DUPLICIDADE_ESPELHO' : r.length > l.length ? 'DUPLICIDADE_SOMENTE_CANONICA' : 'DUPLICIDADE_SOMENTE_CACHE_LOCAL')
+      : r.length > 1 || l.length > 1 ? 'IDENTIDADE_AMBIGUA'
       : !r.length ? 'SO_NO_CACHE_LOCAL'
       : !l.length ? 'SO_NA_FONTE_CANONICA'
       : camposDiferentes.length ? 'DIVERGENCIA_DE_CONTEUDO'
       : 'CONFERE';
-    if (status !== 'CONFERE') divergencias.push({ chave_identidade:chave, status, campos_divergentes:camposDiferentes, canonico:r, cache_local:l });
+    if (status !== 'CONFERE') divergencias.push({ chave_identidade:chave, status, campos_divergentes:camposDiferentes, canonico:r, cache_local:l, excesso_canonico:Math.max(0, r.length - l.length), excesso_cache_local:Math.max(0, l.length - r.length) });
   }
   const resumo = { CONFERE: 0 };
   for (const chave of new Set([...remoto.keys(), ...local.keys()])) {

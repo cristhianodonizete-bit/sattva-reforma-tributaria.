@@ -812,7 +812,8 @@ Telas.dados = async (el) => {
         const rotulo=(status)=>({
           CONFERE:'Confere', SO_NA_FONTE_CANONICA:'Só na fonte canônica', SO_NO_CACHE_LOCAL:'Só no cache local',
           DIVERGENCIA_DE_CONTEUDO:'Divergência de conteúdo', RESULTADO_DERIVADO_ORFAO:'Resultado derivado órfão',
-          IDENTIDADE_AMBIGUA:'Identidade ambígua — revisão necessária',
+          IDENTIDADE_AMBIGUA:'Identidade ambígua — revisão necessária', DUPLICIDADE_SOMENTE_CANONICA:'Duplicidade técnica na canônica',
+          DUPLICIDADE_SOMENTE_CACHE_LOCAL:'Duplicidade técnica no cache', DUPLICIDADE_ESPELHO:'Duplicidade técnica espelhada',
         }[status] || status);
         const classe=(status)=>status==='CONFERE'?'c':status.includes('AMBIGUA')||status.includes('DIVERGENCIA')||status.includes('ORFAO')?'a':'b';
         const pendentes=(r.divergencias || []).filter((x)=>x.status!=='CONFERE');
@@ -856,13 +857,23 @@ Telas.dados = async (el) => {
           });
           const diferencaQuantidade=Number(leitura.total_canonico || 0)-Number(leitura.total_cache_local || 0);
           const textoSaldo=diferencaQuantidade===0?'As duas fontes têm a mesma quantidade de registros.':`${Math.abs(diferencaQuantidade)} registro(s) ${diferencaQuantidade>0?'a mais na fonte canônica':'a mais no cache local'}.`;
-          A.modal({titulo:'Conferência de fornecedores',largura:1280,confirmar:'Fechar',descricao:'Comparação CNPJ a CNPJ entre o cadastro canônico e o cache local. Esta tela não sincroniza, não exclui e não altera fornecedores.',corpo:`<div class="aviso info"><b>Como tratar:</b> “só na canônica” e “só no cache” são ausências objetivas. “Divergência de conteúdo” considera apenas CNPJ, nome, tipo e regime; a coluna ao lado informa o campo que realmente difere. “Identidade ambígua” exige revisão antes de qualquer ação.</div><div class="aviso alerta" style="margin-top:10px"><b>Conciliação de quantidade:</b> ${A.esc(textoSaldo)} Em identidades ambíguas, consulte “Registros (C/L)”: a diferença pode estar em cadastros repetidos, mesmo quando o primeiro registro exibido é igual.</div><div class="grade g3" style="margin:14px 0">${Object.entries(leitura.resumo || {}).map(([status,total])=>A.kpi(rotulo(status),total,'fornecedores')).join('')}</div>${A.tabela([
+          const acao=(x)=>({
+            DUPLICIDADE_SOMENTE_CANONICA:`Nenhuma ação sua. A canônica tem ${x.excesso_canonico} cópia(s) técnica(s) extra(s); correção é do sistema.`,
+            DUPLICIDADE_SOMENTE_CACHE_LOCAL:`Nenhuma ação sua. O cache tem ${x.excesso_cache_local} cópia(s) técnica(s) extra(s); correção é do sistema.`,
+            DUPLICIDADE_ESPELHO:'Nenhuma ação sua. Há cópias idênticas nas duas fontes; não há diferença de cadastro.',
+            IDENTIDADE_AMBIGUA:'Revisão necessária: existem cadastros com dados de negócio diferentes sob a mesma identidade.',
+            DIVERGENCIA_DE_CONTEUDO:'Revisão necessária: confira o campo indicado.',
+            SO_NA_FONTE_CANONICA:'Ação do sistema: verificar publicação no cache.',
+            SO_NO_CACHE_LOCAL:'Ação do sistema: verificar registro local sem correspondente canônico.',
+          }[x.status] || '—');
+          A.modal({titulo:'Conferência de fornecedores',largura:1400,confirmar:'Fechar',descricao:'Comparação CNPJ a CNPJ entre o cadastro canônico e o cache local. Esta tela não sincroniza, não exclui e não altera fornecedores.',corpo:`<div class="aviso info"><b>Como tratar:</b> você só precisa revisar linhas marcadas como “revisão necessária”. Duplicidade técnica é uma correção interna do sistema e não exige ação fiscal sua.</div><div class="aviso alerta" style="margin-top:10px"><b>Conciliação de quantidade:</b> ${A.esc(textoSaldo)} Cada linha informa se esse saldo decorre de duplicidade técnica ou de diferença real de cadastro.</div><div class="grade g3" style="margin:14px 0">${Object.entries(leitura.resumo || {}).map(([status,total])=>A.kpi(rotulo(status),total,'fornecedores')).join('')}</div>${A.tabela([
             {t:'Status',r:x=>`<span class="tag ${classe(x.status)}">${A.esc(rotulo(x.status))}</span>`},
             {t:'CNPJ / identidade',r:x=>`<b class="mono">${A.esc(A.cnpjFmt(x.cnpj) || 'Sem CNPJ')}</b><div class="mini mono">${A.esc(x.chave_identidade || '')}</div>`},
             {t:'Registros (C / L)',num:true,r:x=>`${x.quantidade_canonica} / ${x.quantidade_local}`},
             {t:'Fonte canônica',r:x=>x.canonico?.descricao?`<b>${A.esc(x.canonico.descricao)}</b><div class="mini">${A.esc(A.regimeLabel(x.canonico.regime || ''))} · ${A.esc(x.canonico.origem || '—')}</div>`:'—'},
             {t:'Cache local',r:x=>x.local?.descricao?`<b>${A.esc(x.local.descricao)}</b><div class="mini">${A.esc(A.regimeLabel(x.local.regime || ''))} · ${A.esc(x.local.origem || '—')}</div>`:'—'},
             {t:'Campo diferente',r:x=>x.status==='DIVERGENCIA_DE_CONTEUDO'?A.esc((x.campos_divergentes || []).join(', ') || '—'):'—'},
+            {t:'O que fazer',r:x=>A.esc(acao(x))},
           ],itens.slice(0,1000),{vazio:'Nenhuma divergência de fornecedor encontrada.'})}${itens.length>1000?`<p class="mini">Mostrando 1.000 de ${itens.length} fornecedores divergentes.</p>`:''}`});
         });
         modalAuditoria.fundo.querySelectorAll('[data-auditar-competencia]').forEach((botao)=>botao.addEventListener('click',()=>{
