@@ -12,7 +12,7 @@ assert.match(sql, /for update/);
 assert.match(sql, /for update skip locked/);
 assert.match(sql, /proxima_sequencia_consumo=fim \+ 1/);
 assert.match(sql, /confirmar_checkpoint_sincronizacao_operacional/);
-assert.match(sql, /greatest\(public\.sincronizacao_operacional_consumidores\.sequencia_confirmada/);
+assert.match(sql, /greatest\(consumidor\.sequencia_confirmada/);
 assert.doesNotMatch(sql, /delete from public\.sincronizacao_operacional_eventos/i);
 assert.doesNotMatch(sql, /truncate\s+public\.sincronizacao_operacional_eventos/i);
 console.log('sincronizacao-operacional-v2: supressão de ruído, fila serial e checkpoint central validados.');
