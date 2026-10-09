@@ -10,6 +10,7 @@ const crypto = require('crypto');
 const { Pool } = require('pg');
 const db = require('../db');
 const motorExec = require('./motorExec');
+const receitaOperacional = require('./receitaOperacional');
 
 let pool;
 function obterPool() {
@@ -200,9 +201,17 @@ function totaisPorCompetencia(canonicos = [], locais = [], resultadosMotor = [])
     for (const linha of linhas) {
       if (texto(linha.tipo).toLowerCase() !== 'cliente') continue;
       const competencia = texto(linha.competencia) || 'SEM_COMPETENCIA';
-      const atual = mapa.get(competencia) || { documentos: 0, valor: 0 };
+      const atual = mapa.get(competencia) || { documentos: 0, valor: 0, documentos_receita: 0, receita: 0, documentos_cancelados: 0, valor_cancelado: 0 };
       atual.documentos += 1;
       atual.valor += numero(linha[campoValor]);
+      if (['CANCELADO','DENEGADO','INUTILIZADO'].includes(texto(linha.situacao_documento).toUpperCase())) {
+        atual.documentos_cancelados += 1;
+        atual.valor_cancelado += numero(linha[campoValor]);
+      }
+      if (receitaOperacional.compoeReceita(linha)) {
+        atual.documentos_receita += 1;
+        atual.receita += numero(linha[campoValor]);
+      }
       mapa.set(competencia, atual);
     }
     return mapa;
@@ -215,17 +224,21 @@ function totaisPorCompetencia(canonicos = [], locais = [], resultadosMotor = [])
     const movimento = localPorId.get(Number(resultado.movimento_id));
     if (!movimento || texto(movimento.tipo).toLowerCase() !== 'cliente') continue;
     const competencia = texto(movimento.competencia) || 'SEM_COMPETENCIA';
-    const atual = motor.get(competencia) || { documentos: 0, valor: 0 };
+    const atual = motor.get(competencia) || { documentos: 0, valor: 0, documentos_receita: 0, receita: 0, documentos_cancelados: 0, valor_cancelado: 0 };
     atual.documentos += 1;
     atual.valor += numero(resultado.preco_atual);
+    if (receitaOperacional.compoeReceita(movimento)) {
+      atual.documentos_receita += 1;
+      atual.receita += numero(resultado.preco_atual);
+    }
     motor.set(competencia, atual);
   }
   const competencias = new Set([...remoto.keys(), ...local.keys(), ...motor.keys()]);
   return [...competencias].sort().map((competencia) => ({
     competencia,
-    fonte_canonica: { ...(remoto.get(competencia) || { documentos: 0, valor: 0 }), valor: dinheiro(remoto.get(competencia)?.valor) },
-    cache_local: { ...(local.get(competencia) || { documentos: 0, valor: 0 }), valor: dinheiro(local.get(competencia)?.valor) },
-    motor: { ...(motor.get(competencia) || { documentos: 0, valor: 0 }), valor: dinheiro(motor.get(competencia)?.valor) },
+    fonte_canonica: { ...(remoto.get(competencia) || { documentos: 0, valor: 0, documentos_receita: 0, receita: 0, documentos_cancelados: 0, valor_cancelado: 0 }), valor: dinheiro(remoto.get(competencia)?.valor), receita: dinheiro(remoto.get(competencia)?.receita), valor_cancelado: dinheiro(remoto.get(competencia)?.valor_cancelado) },
+    cache_local: { ...(local.get(competencia) || { documentos: 0, valor: 0, documentos_receita: 0, receita: 0, documentos_cancelados: 0, valor_cancelado: 0 }), valor: dinheiro(local.get(competencia)?.valor), receita: dinheiro(local.get(competencia)?.receita), valor_cancelado: dinheiro(local.get(competencia)?.valor_cancelado) },
+    motor: { ...(motor.get(competencia) || { documentos: 0, valor: 0, documentos_receita: 0, receita: 0, documentos_cancelados: 0, valor_cancelado: 0 }), valor: dinheiro(motor.get(competencia)?.valor), receita: dinheiro(motor.get(competencia)?.receita), valor_cancelado: dinheiro(motor.get(competencia)?.valor_cancelado) },
   }));
 }
 

@@ -826,8 +826,9 @@ Telas.dados = async (el) => {
         }));
         const totais=(r.totais_por_competencia || []).map((x)=>({
           competencia:x.competencia,
-          canonica:A.moeda(x.fonte_canonica?.valor || 0), local:A.moeda(x.cache_local?.valor || 0), motor:A.moeda(x.motor?.valor || 0),
-          documentos:`${x.fonte_canonica?.documentos || 0} / ${x.cache_local?.documentos || 0} / ${x.motor?.documentos || 0}`,
+          canonica:A.moeda(x.fonte_canonica?.receita || 0), local:A.moeda(x.cache_local?.receita || 0), motor:A.moeda(x.motor?.receita || 0),
+          documentos:`${x.fonte_canonica?.documentos_receita || 0} / ${x.cache_local?.documentos_receita || 0} / ${x.motor?.documentos_receita || 0}`,
+          cancelados:`${x.fonte_canonica?.documentos_cancelados || 0} / ${x.cache_local?.documentos_cancelados || 0} / ${x.motor?.documentos_cancelados || 0}`,
         }));
         A.modal({
           titulo:'Auditoria das fontes operacionais', largura:1250, confirmar:'Fechar',
@@ -837,8 +838,8 @@ Telas.dados = async (el) => {
               {t:'Leitura',r:x=>A.esc(x.tela)}, {t:'Situação',r:x=>`<span class="tag ${x.situacao==='Auditada'?'c':'a'}">${A.esc(x.situacao)}</span>${x.motivo?`<div class="mini">${A.esc(x.motivo)}</div>`:''}`}, {t:'Canônica',num:true,r:x=>A.esc(x.canonico)}, {t:'Cache local',num:true,r:x=>A.esc(x.local)}, {t:'Pendências',r:x=>A.esc(x.divergencias)},
             ],leituras,{vazio:'Nenhuma leitura auditável encontrada.'})}
             <div class="grade g4" style="margin:14px 0">${Object.entries(r.resumo || {}).map(([status,total])=>A.kpi(rotulo(status),total,'itens')).join('') || A.kpi('Resultado','0','sem documentos no recorte')}</div>
-            <h3>Totais de receita por competência</h3><p class="mini">Documentos e valor: canônica / cache local / última fotografia do motor.</p>${A.tabela([
-              {t:'Competência',r:x=>A.esc(x.competencia)}, {t:'Fonte canônica',num:true,r:x=>x.canonica}, {t:'Cache local',num:true,r:x=>x.local}, {t:'Motor',num:true,r:x=>x.motor}, {t:'Documentos',r:x=>A.esc(x.documentos)},
+            <h3>Receita operacional por competência</h3><p class="mini">Somente saídas ativas que compõem receita. Valores e documentos: canônica / cache local / última fotografia do motor. Canceladas, denegadas, inutilizadas e operações fora de receita ficam fora da soma.</p>${A.tabela([
+              {t:'Competência',r:x=>A.esc(x.competencia)}, {t:'Fonte canônica',num:true,r:x=>x.canonica}, {t:'Cache local',num:true,r:x=>x.local}, {t:'Motor',num:true,r:x=>x.motor}, {t:'Docs. receita',r:x=>A.esc(x.documentos)}, {t:'Cancelados',r:x=>A.esc(x.cancelados)},
             ],totais,{vazio:'Não há receitas no recorte.'})}
             <h3 style="margin-top:18px">Divergências e pendências</h3>${A.tabela([
               {t:'Status',r:x=>`<span class="tag ${classe(x.status)}">${A.esc(rotulo(x.status))}</span>`},

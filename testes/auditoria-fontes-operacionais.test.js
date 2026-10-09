@@ -31,10 +31,15 @@ assert.strictEqual(comparacao.find((x) => x.status === 'RESULTADO_DERIVADO_ORFAO
 const totais = totaisPorCompetencia([base], [{ ...base, id: 10 }], [{ movimento_id: 10, preco_atual: 100 }]);
 assert.deepStrictEqual(totais, [{
   competencia: '2026-01',
-  fonte_canonica: { documentos: 1, valor: 100 },
-  cache_local: { documentos: 1, valor: 100 },
-  motor: { documentos: 1, valor: 100 },
+  fonte_canonica: { documentos: 1, valor: 100, documentos_receita: 0, receita: 0, documentos_cancelados: 0, valor_cancelado: 0 },
+  cache_local: { documentos: 1, valor: 100, documentos_receita: 0, receita: 0, documentos_cancelados: 0, valor_cancelado: 0 },
+  motor: { documentos: 1, valor: 100, documentos_receita: 0, receita: 0, documentos_cancelados: 0, valor_cancelado: 0 },
 }]);
+
+const cancelada = { ...base, chave: '351299', cfop: '5102', situacao_documento: 'CANCELADO' };
+const totalCancelado = totaisPorCompetencia([cancelada], [cancelada], []);
+assert.strictEqual(totalCancelado[0].fonte_canonica.receita, 0);
+assert.strictEqual(totalCancelado[0].fonte_canonica.documentos_cancelados, 1);
 
 const fornecedores = compararRegistros('parceiros',
   [{ id: 1, empresa_id: 8, tipo: 'fornecedor', cnpj: '12.345.678/0001-90', descricao: 'Empresa A', regime: 'lucro_real' }],
