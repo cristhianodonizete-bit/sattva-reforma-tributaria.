@@ -830,7 +830,7 @@ Telas.dados = async (el) => {
           documentos:`${x.fonte_canonica?.documentos_receita || 0} / ${x.cache_local?.documentos_receita || 0} / ${x.motor?.documentos_receita || 0}`,
           cancelados:`${x.fonte_canonica?.documentos_cancelados || 0} / ${x.cache_local?.documentos_cancelados || 0} / ${x.motor?.documentos_cancelados || 0}`,
         }));
-        A.modal({
+        const modalAuditoria=A.modal({
           titulo:'Auditoria das fontes operacionais', largura:1250, confirmar:'Fechar',
           descricao:`Somente leitura${competencia ? ` · competência ${competencia}` : ' · todas as competências'}. Não sincroniza o cache, não executa o motor e não altera documentos. Certificado ${String(r.certificado?.assinatura || '').slice(0,16)}…`,
           corpo:`<div class="aviso info"><b>Como ler:</b> a fonte canônica é a base compartilhada; o cache local é apenas a cópia operacional; o motor é a última fotografia calculada. Nenhuma camada “vence” automaticamente nesta tela.</div>
@@ -839,7 +839,7 @@ Telas.dados = async (el) => {
             ],leituras,{vazio:'Nenhuma leitura auditável encontrada.'})}
             <div class="grade g4" style="margin:14px 0">${Object.entries(r.resumo || {}).map(([status,total])=>A.kpi(rotulo(status),total,'itens')).join('') || A.kpi('Resultado','0','sem documentos no recorte')}</div>
             <h3>Receita operacional por competência</h3><p class="mini">Somente saídas ativas que compõem receita. Valores e documentos: canônica / cache local / última fotografia do motor. Canceladas, denegadas, inutilizadas e operações fora de receita ficam fora da soma.</p>${A.tabela([
-              {t:'Competência',r:x=>A.esc(x.competencia)}, {t:'Fonte canônica',num:true,r:x=>x.canonica}, {t:'Cache local',num:true,r:x=>x.local}, {t:'Motor',num:true,r:x=>x.motor}, {t:'Docs. receita',r:x=>A.esc(x.documentos)}, {t:'Cancelados',r:x=>A.esc(x.cancelados)},
+              {t:'Competência',r:x=>`<b class="mono">${A.esc(x.competencia)}</b>`}, {t:'Fonte canônica',num:true,r:x=>x.canonica}, {t:'Cache local',num:true,r:x=>x.local}, {t:'Motor',num:true,r:x=>x.motor}, {t:'Docs. receita',r:x=>A.esc(x.documentos)}, {t:'Cancelados',r:x=>A.esc(x.cancelados)}, {t:'',r:x=>`<button class="btn pq vazio" data-auditar-competencia="${A.esc(x.competencia)}">Comparar ${A.esc(x.competencia)}</button>`},
             ],totais,{vazio:'Não há receitas no recorte.'})}
             <h3 style="margin-top:18px">Divergências e pendências</h3>${A.tabela([
               {t:'Status',r:x=>`<span class="tag ${classe(x.status)}">${A.esc(rotulo(x.status))}</span>`},
@@ -847,6 +847,17 @@ Telas.dados = async (el) => {
               {t:'Canônica',r:x=>x.canonico?.length ? A.moeda(x.canonico[0].valor) : '—'}, {t:'Cache local',r:x=>x.cache_local?.length ? A.moeda(x.cache_local[0].valor) : '—'}, {t:'Motor',r:x=>x.motor?.length ? A.moeda(x.motor[0].valor) : '—'},
             ],pendentes.slice(0,500),{vazio:'Nenhuma divergência encontrada.'})}${pendentes.length>500 ? `<p class="mini">Mostrando 500 de ${pendentes.length} divergências.</p>` : ''}`,
         });
+        modalAuditoria.fundo.querySelectorAll('[data-auditar-competencia]').forEach((botao)=>botao.addEventListener('click',()=>{
+          const mes=botao.dataset.auditarCompetencia;
+          const divergenciasMes=pendentes.filter((x)=>String(x.canonico?.[0]?.competencia || x.cache_local?.[0]?.competencia || '').slice(0,7)===mes);
+          A.modal({titulo:`Comparação detalhada — ${mes}`,largura:1250,confirmar:'Fechar',descricao:'Documento a documento, somente para a competência selecionada. Esta consulta não sincroniza nem altera nenhuma camada.',corpo:A.tabela([
+            {t:'Status',r:x=>`<span class="tag ${classe(x.status)}">${A.esc(rotulo(x.status))}</span>`},
+            {t:'Documento',r:x=>{const c=x.canonico?.[0]||{},l=x.cache_local?.[0]||{};return `<b>${A.esc(c.documento || l.documento || 'Resultado sem documento')}</b><div class="mini">${A.esc(c.parceiro || l.parceiro || c.cnpj || l.cnpj || '—')}</div><div class="mini mono">${A.esc(c.chave || l.chave || x.chave_identidade)}</div>`;}},
+            {t:'Fonte canônica',r:x=>{const d=x.canonico?.[0];return d?`${A.moeda(d.valor)}<div class="mini">${A.esc(d.situacao_documento || '—')} · CST ${A.esc(d.cst || '—')} · cClassTrib ${A.esc(d.cclasstrib || '—')}</div>`:'—';}},
+            {t:'Cache local',r:x=>{const d=x.cache_local?.[0];return d?`${A.moeda(d.valor)}<div class="mini">${A.esc(d.situacao_documento || '—')} · CST ${A.esc(d.cst || '—')} · cClassTrib ${A.esc(d.cclasstrib || '—')}</div>`:'—';}},
+            {t:'Motor',r:x=>x.motor?.length?A.moeda(x.motor[0].valor):'—'},
+          ],divergenciasMes,{vazio:`Nenhuma divergência documental em ${mes}.`})});
+        }));
       } catch(e) { A.toast(e.message,'erro'); }
     });
     document.getElementById('exportarDocumentosFiscais')?.addEventListener('click', async () => {
