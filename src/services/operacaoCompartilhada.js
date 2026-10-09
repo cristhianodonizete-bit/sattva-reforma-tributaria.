@@ -1109,17 +1109,26 @@ async function sincronizarIncrementalV2(remoto) {
     const aplicado=pendentes.length
       ? await aplicarEventosIncrementais(remoto, pendentes, { chaveCheckpoint:CHAVE_SEQUENCIA_INCREMENTAL_V2 })
       : { fallback:false, eventos:0, aplicadas:0, removidas:0 };
+    let marcoAplicado=pendentes.length
+      ? Math.max(...pendentes.map((evento) => Number(evento.sequencia)))
+      : marcoInicial.sequencia_publicada;
     if (aplicado.fallback) {
+      // O marco é fechado antes da nova fotografia. Assim, qualquer evento
+      // publicado enquanto a carga estiver em andamento continuará pendente.
+      await publicarEventosIncrementaisV2(remoto);
+      marcoAplicado=(await estadoFilaIncrementalV2(remoto)).sequencia_publicada;
       const recuperacao=await baixar(remoto);
       validarCargaBase(recuperacao, 'Recuperação da fila v2');
     }
+    // Publica o que chegou durante a aplicação, mas não inclui essas novas
+    // sequências no checkpoint: elas ainda não foram aplicadas ao SQLite e
+    // serão consumidas no próximo ciclo.
     await publicarEventosIncrementaisV2(remoto);
-    const fim=(await estadoFilaIncrementalV2(remoto)).sequencia_publicada;
     // O SQLite já foi confirmado acima; só agora a retenção poderá considerar
     // este consumidor coberto. Uma falha aqui só provoca repetição segura.
-    await confirmarCheckpointIncrementalV2(remoto, consumidor, fim, true);
-    salvarEstadoOperacional(CHAVE_SEQUENCIA_INCREMENTAL_V2, fim);
-    return { disponivel:true, modo:'carga_base_v2', consumidor, sequencia:fim, ...aplicado };
+    await confirmarCheckpointIncrementalV2(remoto, consumidor, marcoAplicado, true);
+    salvarEstadoOperacional(CHAVE_SEQUENCIA_INCREMENTAL_V2, marcoAplicado);
+    return { disponivel:true, modo:'carga_base_v2', consumidor, sequencia:marcoAplicado, ...aplicado };
   }
   const eventos=await buscarEventosIncrementaisV2(remoto, checkpointRemoto);
   if (!eventos.length) {
@@ -1128,13 +1137,15 @@ async function sincronizarIncrementalV2(remoto) {
   }
   const aplicado=await aplicarEventosIncrementais(remoto, eventos, { chaveCheckpoint:CHAVE_SEQUENCIA_INCREMENTAL_V2 });
   if (aplicado.fallback) {
+    await publicarEventosIncrementaisV2(remoto);
+    const marcoCobertoPeloFallback=(await estadoFilaIncrementalV2(remoto)).sequencia_publicada;
     const completo=await baixar(remoto);
     validarCargaBase(completo, 'Fallback da fila v2');
+    // Eventos que surgirem durante a fotografia ficam acima deste marco.
     await publicarEventosIncrementaisV2(remoto);
-    const fim=(await estadoFilaIncrementalV2(remoto)).sequencia_publicada;
-    await confirmarCheckpointIncrementalV2(remoto, consumidor, fim, true);
-    salvarEstadoOperacional(CHAVE_SEQUENCIA_INCREMENTAL_V2, fim);
-    return { disponivel:true, modo:'fallback_completo_v2', consumidor, sequencia:fim, eventos:eventos.length, ...aplicado };
+    await confirmarCheckpointIncrementalV2(remoto, consumidor, marcoCobertoPeloFallback, true);
+    salvarEstadoOperacional(CHAVE_SEQUENCIA_INCREMENTAL_V2, marcoCobertoPeloFallback);
+    return { disponivel:true, modo:'fallback_completo_v2', consumidor, sequencia:marcoCobertoPeloFallback, eventos:eventos.length, ...aplicado };
   }
   const fim=Math.max(...eventos.map((evento) => Number(evento.sequencia)));
   await confirmarCheckpointIncrementalV2(remoto, consumidor, fim, false);

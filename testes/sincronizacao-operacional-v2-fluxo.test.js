@@ -70,6 +70,27 @@ assert.equal(cacheA.has(1),false); assert.equal(cacheB.has(1),false, 'exclusão 
 
 assert.throws(() => fila.registrar('cache-a','outra-sessao'), /LEASE_OCUPADO/, 'duas instâncias do mesmo consumidor não disputam checkpoint');
 
+// Corrida da carga-base: uma alteração é confirmada depois que o consumidor
+// leu seu lote, mas antes de confirmar o checkpoint. O checkpoint deve cobrir
+// somente o lote aplicado; a alteração concorrente fica para o ciclo seguinte.
+const corridaCarga=new FilaV2Probe();
+corridaCarga.alterar(20,null,{ descricao:'fotografia' });
+corridaCarga.publicar();
+corridaCarga.registrar('cache-carga','sessao-carga');
+const cacheCarga=new Map();
+const loteLido=corridaCarga.eventosDepois('cache-carga');
+aplicar(cacheCarga,loteLido);
+const maiorAplicada=loteLido.at(-1).consumo;
+corridaCarga.alterar(21,null,{ descricao:'durante confirmação' });
+corridaCarga.publicar();
+corridaCarga.confirmar('cache-carga','sessao-carga',maiorAplicada);
+assert.equal(corridaCarga.checkpoints.get('cache-carga'),maiorAplicada, 'checkpoint não avança até a cabeça ainda não aplicada da fila');
+const proximoLote=corridaCarga.eventosDepois('cache-carga');
+assert.deepEqual(proximoLote.map((evento) => evento.id),[21], 'alteração concorrente permanece pendente');
+aplicar(cacheCarga,proximoLote);
+corridaCarga.confirmar('cache-carga','sessao-carga',proximoLote.at(-1).consumo);
+assert.equal(cacheCarga.get(21).descricao,'durante confirmação', 'alteração concorrente é aplicada no ciclo seguinte');
+
 // Reserva técnica 1 fica pendente; a 2 confirma primeiro. A fila v2 entrega
 // 2 como consumo 1 e, depois da confirmação da 1, entrega-a como consumo 2.
 const concorrente=new FilaV2Probe();
@@ -95,4 +116,6 @@ assert.match(migration, /to_jsonb\(NEW\) - campos_tecnicos/);
 assert.match(consumidor, /sincronizarIncrementalV2/);
 assert.match(consumidor, /confirmarCheckpointIncrementalV2/);
 assert.match(consumidor, /forcarLegado/);
-console.log(JSON.stringify({ fluxo:'v2-probe', eventos_sem_mudanca:semMudanca, eventos_reais:medicao.publicados.length, tempo_ms:duracao, consumidores_independentes:2, concorrencia_commit_invertido:'ok', rollback:'evento não confirmado não foi publicado' }));
+assert.match(consumidor, /confirmarCheckpointIncrementalV2\(remoto, consumidor, marcoAplicado, true\)/, 'carga-base confirma somente o maior marco aplicado');
+assert.doesNotMatch(consumidor, /confirmarCheckpointIncrementalV2\(remoto, consumidor, fim, true\)/, 'carga-base não confirma a cabeça global da fila');
+console.log(JSON.stringify({ fluxo:'v2-probe', eventos_sem_mudanca:semMudanca, eventos_reais:medicao.publicados.length, tempo_ms:duracao, consumidores_independentes:2, concorrencia_commit_invertido:'ok', concorrencia_carga_base:'evento permaneceu pendente e foi aplicado no ciclo seguinte', rollback:'evento não confirmado não foi publicado' }));
