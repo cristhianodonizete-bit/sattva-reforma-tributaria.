@@ -818,6 +818,7 @@ Telas.dados = async (el) => {
         const pendentes=(r.divergencias || []).filter((x)=>x.status!=='CONFERE');
         const nomeLeitura={ documentos_fiscais:'Documentos fiscais', fornecedores:'Fornecedores', outras_receitas:'Outras receitas', perfil_tributario:'Perfil tributário', perfil_cbs:'Perfil CBS', cadeia_fornecedores:'Cadeia de fornecedores', cadeia_clientes:'Cadeia de clientes', auditoria_mensal:'Auditoria mensal', conformidade:'Conformidade' };
         const leituras=Object.entries(r.leituras || {}).map(([chave,leitura])=>({
+          chave,
           tela:nomeLeitura[chave] || chave,
           situacao:leitura.disponivel ? 'Auditada' : 'Não auditada',
           canonico:leitura.total_canonico ?? '—', local:leitura.total_cache_local ?? '—',
@@ -835,7 +836,7 @@ Telas.dados = async (el) => {
           descricao:`Somente leitura${competencia ? ` · competência ${competencia}` : ' · todas as competências'}. Não sincroniza o cache, não executa o motor e não altera documentos. Certificado ${String(r.certificado?.assinatura || '').slice(0,16)}…`,
           corpo:`<div class="aviso info"><b>Como ler:</b> a fonte canônica é a base compartilhada; o cache local é apenas a cópia operacional; o motor é a última fotografia calculada. Nenhuma camada “vence” automaticamente nesta tela.</div>
             <h3 style="margin-top:18px">Cobertura por leitura de tela</h3><p class="mini">Cada linha representa a base usada por uma área do sistema. “Não auditada” é uma lacuna explícita, não uma confirmação.</p>${A.tabela([
-              {t:'Leitura',r:x=>A.esc(x.tela)}, {t:'Situação',r:x=>`<span class="tag ${x.situacao==='Auditada'?'c':'a'}">${A.esc(x.situacao)}</span>${x.motivo?`<div class="mini">${A.esc(x.motivo)}</div>`:''}`}, {t:'Canônica',num:true,r:x=>A.esc(x.canonico)}, {t:'Cache local',num:true,r:x=>A.esc(x.local)}, {t:'Pendências',r:x=>A.esc(x.divergencias)},
+              {t:'Leitura',r:x=>A.esc(x.tela)}, {t:'Situação',r:x=>`<span class="tag ${x.situacao==='Auditada'?'c':'a'}">${A.esc(x.situacao)}</span>${x.motivo?`<div class="mini">${A.esc(x.motivo)}</div>`:''}`}, {t:'Canônica',num:true,r:x=>A.esc(x.canonico)}, {t:'Cache local',num:true,r:x=>A.esc(x.local)}, {t:'Pendências',r:x=>A.esc(x.divergencias)}, {t:'',r:x=>x.chave==='fornecedores'&&x.situacao==='Auditada'?`<button class="btn pq vazio" data-conferir-fornecedores>Conferir fornecedores</button>`:'—'},
             ],leituras,{vazio:'Nenhuma leitura auditável encontrada.'})}
             <div class="grade g4" style="margin:14px 0">${Object.entries(r.resumo || {}).map(([status,total])=>A.kpi(rotulo(status),total,'itens')).join('') || A.kpi('Resultado','0','sem documentos no recorte')}</div>
             <h3>Receita operacional por competência</h3><p class="mini">Somente saídas ativas que compõem receita. Valores e documentos: canônica / cache local / última fotografia do motor. Canceladas, denegadas, inutilizadas e operações fora de receita ficam fora da soma.</p>${A.tabela([
@@ -846,6 +847,19 @@ Telas.dados = async (el) => {
               {t:'Documento / competência',r:x=>{const d=x.canonico?.[0] || x.cache_local?.[0] || {};return `<b>${A.esc(d.documento || 'Resultado sem documento')}</b><div class="mini">${A.esc(d.competencia || '—')} · ${A.esc(d.parceiro || d.cnpj || '—')}</div>`;}},
               {t:'Canônica',r:x=>x.canonico?.length ? A.moeda(x.canonico[0].valor) : '—'}, {t:'Cache local',r:x=>x.cache_local?.length ? A.moeda(x.cache_local[0].valor) : '—'}, {t:'Motor',r:x=>x.motor?.length ? A.moeda(x.motor[0].valor) : '—'},
             ],pendentes.slice(0,500),{vazio:'Nenhuma divergência encontrada.'})}${pendentes.length>500 ? `<p class="mini">Mostrando 500 de ${pendentes.length} divergências.</p>` : ''}`,
+        });
+        modalAuditoria.fundo.querySelector('[data-conferir-fornecedores]')?.addEventListener('click',()=>{
+          const leitura=r.leituras?.fornecedores || {};
+          const itens=(leitura.divergencias || []).map((x)=>{
+            const canonico=x.canonico?.[0] || {}, local=x.cache_local?.[0] || {};
+            return { ...x, cnpj:canonico.cnpj || local.cnpj || '', canonico, local };
+          });
+          A.modal({titulo:'Conferência de fornecedores',largura:1280,confirmar:'Fechar',descricao:'Comparação CNPJ a CNPJ entre o cadastro canônico e o cache local. Esta tela não sincroniza, não exclui e não altera fornecedores.',corpo:`<div class="aviso info"><b>Como tratar:</b> “só na canônica” e “só no cache” são ausências objetivas. “Divergência de conteúdo” mostra o mesmo fornecedor com dados diferentes. “Identidade ambígua” exige revisão antes de qualquer ação.</div><div class="grade g3" style="margin:14px 0">${Object.entries(leitura.resumo || {}).map(([status,total])=>A.kpi(rotulo(status),total,'fornecedores')).join('')}</div>${A.tabela([
+            {t:'Status',r:x=>`<span class="tag ${classe(x.status)}">${A.esc(rotulo(x.status))}</span>`},
+            {t:'CNPJ / identidade',r:x=>`<b class="mono">${A.esc(A.cnpjFmt(x.cnpj) || 'Sem CNPJ')}</b><div class="mini mono">${A.esc(x.chave_identidade || '')}</div>`},
+            {t:'Fonte canônica',r:x=>x.canonico?.descricao?`<b>${A.esc(x.canonico.descricao)}</b><div class="mini">${A.esc(A.regimeLabel(x.canonico.regime || ''))} · ${A.esc(x.canonico.origem || '—')}</div>`:'—'},
+            {t:'Cache local',r:x=>x.local?.descricao?`<b>${A.esc(x.local.descricao)}</b><div class="mini">${A.esc(A.regimeLabel(x.local.regime || ''))} · ${A.esc(x.local.origem || '—')}</div>`:'—'},
+          ],itens.slice(0,1000),{vazio:'Nenhuma divergência de fornecedor encontrada.'})}${itens.length>1000?`<p class="mini">Mostrando 1.000 de ${itens.length} fornecedores divergentes.</p>`:''}`});
         });
         modalAuditoria.fundo.querySelectorAll('[data-auditar-competencia]').forEach((botao)=>botao.addEventListener('click',()=>{
           const mes=botao.dataset.auditarCompetencia;
