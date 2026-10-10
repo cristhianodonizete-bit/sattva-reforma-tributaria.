@@ -20,5 +20,7 @@ for(const aba of ['Análise atual','Compras por fornecedor','Riscos e oportunida
 assert.match(abas,/id: 'rastreabilidade'.*render: renderVisaoFornecedor/,'a rastreabilidade deve ficar na navegação superior');
 assert.match(tela,/abaSuperiorFornecedor/,'a visão interna deve acompanhar a aba superior ativa');
 assert.match(tela,/abaSuperiorFornecedor==='atual' \? 'resumo'/,'Análise atual deve ser um resumo sem duplicar Compras por fornecedor');
+assert.match(tela,/const exibirResumoAtual=!eForn \|\| abaSuperiorFornecedor==='atual'/,'o resumo executivo deve ficar restrito à Análise atual de fornecedores');
+assert.match(tela,/\$\{exibirResumoAtual \? `/,'as demais visões não devem repetir indicadores e impacto da análise atual');
 
 console.log('OK: rastreabilidade por item filtra e ordena toda a fotografia antes da paginação.');

@@ -2039,6 +2039,7 @@ async function telaCadeia(el, tipo) {
   const mostrarCarteira = abaCadeia === 'carteira';
   const mostrarRiscos = abaCadeia === 'riscos';
   const mostrarAbc = abaCadeia === 'abc';
+  const exibirResumoAtual=!eForn || abaSuperiorFornecedor==='atual';
   const resumoBeneficios = analise.tratamentoBeneficios || { operacoes: 0 };
   // A pendência é retornada pela consolidação completa, e não apenas pela
   // página aberta de rastreabilidade. Assim o cartão explica o total sem
@@ -2154,7 +2155,7 @@ async function telaCadeia(el, tipo) {
     </article>`;
   }).join('')}</div>` : A.vazio('Nenhuma nota de entrada disponível.');
 
-  el.innerHTML = cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
+  el.innerHTML = (exibirResumoAtual ? cab(eForn ? 'Módulo 1.b' : 'Módulo 1.c',
     eForn ? 'Análise da cadeia de fornecedores' : 'Análise da cadeia de clientes',
     eForn ? 'Impacto da reforma no preço das compras da empresa. O crédito potencial é exibido separadamente e não reduz o impacto do preço.'
           : 'Impacto da reforma no preço das vendas da empresa. O perfil do cliente não altera o IBS/CBS devido na saída; ele apenas orienta a relevância comercial do crédito potencial.',
@@ -2162,8 +2163,9 @@ async function telaCadeia(el, tipo) {
     (analise.projecao_regime === 'SIMPLES_HIBRIDO' ? `<div class="aviso ok" style="margin-top:16px"><b>Projeção principal: Simples Híbrido.</b> ${A.esc(analise.leitura_projecao || '')}</div>` : '') +
     (!eForn && t.dasHibridoProvisorio ? `<div class="aviso neutro" style="margin-top:12px"><b>Memória provisória do DAS usada na projeção.</b><br>O PGDAS extraído já identificou a linha de locação e sua repartição de PIS/Cofins. A confirmação do documento mantém a rastreabilidade e substitui esta memória pela informação oficialmente validada.</div>` : '') +
     (!eForn && outrasReceitasSemCliente.registros ? `<div class="aviso neutro" style="margin-top:16px"><b>${outrasReceitasSemCliente.registros} lançamento(s) de outras receitas, no total de ${A.moeda(outrasReceitasSemCliente.valor)}, foram consolidados em “Clientes diversos”.</b><br>O grupo segue a regra de regime regular e não atribui artificialmente um cliente individual.</div>` : '') +
-    (!eForn && pendenciasReferencias.length ? `<div class="aviso atencao" style="margin-top:16px"><b>${pendenciasReferencias.length} lançamento(s) de serviço estão sem referência fiscal específica.</b> A análise foi carregada com a melhor evidência disponível (documento, catálogo ou regime da empresa). <button class="btn pq vazio" id="corrigirDadosCadeia">Corrigir na Central de Dados</button> Esses itens permanecem <b>a validar</b>.</div>` : '') +
+    (!eForn && pendenciasReferencias.length ? `<div class="aviso atencao" style="margin-top:16px"><b>${pendenciasReferencias.length} lançamento(s) de serviço estão sem referência fiscal específica.</b> A análise foi carregada com a melhor evidência disponível (documento, catálogo ou regime da empresa). <button class="btn pq vazio" id="corrigirDadosCadeia">Corrigir na Central de Dados</button> Esses itens permanecem <b>a validar</b>.</div>` : '') : '') +
     (t.registros ? `
+    ${exibirResumoAtual ? `
     <div class="grade g4">
       ${A.kpi(eForn ? 'Compra atual' : 'Venda atual', A.moeda(t.valor), `${t.registros} lançamentos · ${t.parceiros} ${eForn ? 'fornecedores' : 'clientes'}`)}
       ${A.kpi('Antes — PIS/Cofins', t.pisIndeterminado ? `${A.moeda(t.pisCofinsAtual)}<div class="mini">valor identificado · parcial</div>` : A.moeda(t.pisCofinsAtual), t.pisIndeterminado ? `<button type="button" class="btn pq vazio" data-pis-cofins-pendencias>Ver ${resumoPendenciasPisCofins.registros} pendência(s)</button>` : (t.pisCofinsNoDas ? 'carga atual no DAS' : 'carga atual identificada'))}
@@ -2187,7 +2189,7 @@ async function telaCadeia(el, tipo) {
       ], [{}])}
       <p class="mini" style="margin-top:12px"><b>Crédito potencial juridicamente associado à operação:</b> ${A.moeda(ultimo.creditoPotencial || 0)}. A CBS da venda é exibida separadamente e não pressupõe direito de crédito para Pessoa Física, Simples ou outro perfil sem apropriação.</p>
       ${!eForn ? `<div class="aviso neutro" style="margin-top:12px"><b>Origem do PIS/COFINS usado na base econômica</b><br>${Object.entries(t.origensPisCofins || {}).map(([origem, x]) => `${A.esc(origem)}: <b>${A.moeda(x.valor)}</b> em ${x.registros} lançamento(s) · ${A.pct(t.valor ? x.vendas / t.valor : 0, 1)} das vendas`).join(' · ') || 'Sem informação disponível.'}</div>` : ''}
-    </div>
+    </div>` : ''}
     ${!eForn ? `<div class="abas" style="margin-top:16px">
       <button class="${abaCadeia === 'carteira' ? 'ativo' : ''}" data-aba-cadeia="carteira">${eForn ? 'Compras por fornecedor' : 'Carteira por perfil'}</button>
       <button class="${abaCadeia === 'riscos' ? 'ativo' : ''}" data-aba-cadeia="riscos">Riscos e oportunidades</button>
