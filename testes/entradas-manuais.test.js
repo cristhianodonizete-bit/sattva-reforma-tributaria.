@@ -15,6 +15,9 @@ const migration=fs.readFileSync(path.join(raiz,'supabase/migrations/20261014_que
 for (const chave of ['LICENCA_USO_SISTEMAS_SOFTWARE','MATERIAL_ESCRITORIO','ALUGUEL_IMOVEL_COMERCIAL','LOCACAO_VEICULOS','OUTRAS_DESPESAS_SEM_BENEFICIO','MATERIAL_LIMPEZA','IPTU_TAXAS_PUBLICAS']) assert.match(db,new RegExp(chave));
 assert.match(api,/router\.post\('\/empresas\/:id\/entradas-manuais'/);
 assert.match(api,/router\.get\('\/empresas\/:id\/entradas-manuais'/);
+assert.match(api,/router\.delete\('\/empresas\/:id\/entradas-manuais\/:chave'/,'entradas manuais devem permitir exclusao por chave estavel');
+assert.match(api,/excluirDocumentoFiscalCanonico\(empresaId,\{ chaves:\[chave\] \}\)/,'a exclusao deve atingir a fonte canonica antes do cache local');
+assert.match(api,/ENTRADA_MANUAL_EXCLUIDA/,'a exclusao precisa permanecer auditavel');
 assert.match(api,/fornecedores\/consultar-cnpj/,'entradas manuais precisam permitir prévia de fornecedor por CNPJ');
 assert.match(api,/fornecedorPorCnpjConsultado/,'a prévia e a confirmação precisam reutilizar a mesma identificação do fornecedor');
 assert.match(api,/CONSULTA_CNPJ_ENTRADA_MANUAL/,'o fornecedor consultado precisa permanecer rastreável na entrada manual');
@@ -84,8 +87,11 @@ assert.match(api,/typeof x\.normalizacao_evidencia === 'object'/,'a evidência e
 assert.match(tela,/referenciaPisCofinsEntradaManual/);
 assert.match(tela,/Entradas manuais/);
 assert.match(tela,/identificados_por_historico/,'a tela deve informar a identificação feita pelo histórico do Razão');
-assert.match(tela,/Reaplicar natureza das entradas do Razão/,'a tela deve permitir corrigir as classificações já materializadas');
+assert.match(tela,/Reaplicar a natureza usando conta e histórico do Razão/,'a tela deve permitir corrigir as classificações já materializadas');
 assert.match(tela,/Lançamentos manuais de entrada/);
+assert.match(tela,/aplicarFiltrosEntradasManuais/,'a tela deve combinar filtros de entradas manuais');
+assert.match(tela,/data-excluir-entrada-manual/,'cada resultado filtrado com chave estavel deve poder ser excluido');
+assert.match(tela,/Histórico do Razão preservado/,'confirmacoes sem identidade estavel nao podem ser apagadas apenas da tela');
 assert.match(tela,/Questor · conciliada/,'a tela identifica a origem da conciliação direta do Questor');
 const telasQuestor=fs.readFileSync(path.join(raiz,'public/js/telas2.js'),'utf8');
 assert.match(telasQuestor,/Nenhum lançamento foi incluído/,'a interface não confirma sucesso quando a rota incluiu zero linhas');

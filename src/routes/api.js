@@ -8025,6 +8025,36 @@ router.get('/empresas/:id/entradas-manuais', async (req, res) => {
   } catch(e) { erro(res,e); }
 });
 
+// A exclusao usa a chave estavel do lancamento e atinge primeiro a fonte
+// canonica. Apagar somente o cache SQLite faria a entrada reaparecer no ciclo
+// seguinte de sincronizacao, especialmente no Render sem disco persistente.
+router.delete('/empresas/:id/entradas-manuais/:chave', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId=Number(req.params.id), chave=String(req.params.chave || '').trim();
+    if (!chave) throw new Error('Identidade da entrada manual ausente.');
+    const origensPermitidas=new Set(['MANUAL_ENTRADA','QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA']);
+    const locais=db.prepare(`SELECT id,chave,competencia,documento,descricao,valor,origem FROM movimentos
+      WHERE empresa_id=? AND chave=? AND origem IN ('MANUAL_ENTRADA','QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')`).all(empresaId,chave);
+    let referencia=locais[0] || null;
+    if (!referencia) {
+      const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId);
+      const remotas=await require('../services/documentosFiscaisCompartilhados').listarEntradasQuestor(empresa?.cnpj);
+      referencia=(remotas || []).find((x)=>String(x.chave || '')===chave && origensPermitidas.has(String(x.origem || '').toUpperCase())) || null;
+    }
+    if (!referencia) throw new Error('Entrada manual nao localizada na fonte operacional. Nenhum dado foi removido.');
+    const operacaoCompartilhada=require('../services/operacaoCompartilhada');
+    const compartilhado=await operacaoCompartilhada.excluirDocumentoFiscalCanonico(empresaId,{ chaves:[chave] });
+    const exclusaoLocal=db.prepare(`DELETE FROM movimentos WHERE empresa_id=? AND chave=?
+      AND origem IN ('MANUAL_ENTRADA','QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')`).run(empresaId,chave);
+    estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','perfil','motor','cadeias','cenarios','precificacao'],'Entrada manual excluida');
+    auditar(req,{ empresaId, acao:'ENTRADA_MANUAL_EXCLUIDA', entidade:'movimentos', entidadeId:chave,
+      antes:{ competencia:referencia.competencia,documento:referencia.documento,descricao:referencia.descricao,valor:referencia.valor,origem:referencia.origem },
+      depois:{ compartilhado,locais_excluidos:exclusaoLocal.changes } });
+    ok(res,{ excluidos:compartilhado.excluidos, locais_excluidos:exclusaoLocal.changes, chave });
+  } catch(e) { erro(res,e); }
+});
+
 // Lançamento manual é aditivo: cada competência cria seu próprio movimento
 // de entrada, marcado como MANUAL_ENTRADA. Não altera documentos importados e
 // não executa o motor; qualquer cálculo posterior continua sendo ação explícita.
