@@ -763,9 +763,15 @@ async function projImportacaoPdf(el) {
 // =========================================================================
 // LIGAÇÃO COM AS TELAS EXISTENTES
 // =========================================================================
+const telaFornecedoresAnalise=Telas.fornecedores;
+const renderVisaoFornecedor=(el)=>telaFornecedoresAnalise(el);
 comAbas('fornecedores', [
   { id: 'atual', t: 'Análise atual' },
   { id: 'motor', t: () => S.params?.modoAnalise?.ibsAtivo ? 'Projeção IBS/CBS' : 'Projeção CBS', render: projFornecedores },
+  { id: 'carteira', t: 'Compras por fornecedor', render: renderVisaoFornecedor },
+  { id: 'riscos', t: 'Riscos e oportunidades', render: renderVisaoFornecedor },
+  { id: 'abc', t: 'Curva ABC', render: renderVisaoFornecedor },
+  { id: 'rastreabilidade', t: 'Rastreabilidade', render: renderVisaoFornecedor },
 ], 'atual');
 
 comAbas('clientes', [

@@ -3488,6 +3488,12 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
       incluirBeneficios: String(req.query.beneficios) === '1',
       paginaDetalhes: req.query.pagina,
       limiteDetalhes: req.query.limite,
+      filtroDocumento: req.query.documento,
+      filtroParceiro: req.query.fornecedor,
+      filtroRegime: req.query.regime,
+      filtroServico: req.query.servico,
+      ordenarDetalhes: req.query.ordenar,
+      direcaoDetalhes: req.query.direcao,
       paginaParceiros: req.query.pagina_parceiros,
       limiteParceiros: req.query.limite_parceiros,
     });

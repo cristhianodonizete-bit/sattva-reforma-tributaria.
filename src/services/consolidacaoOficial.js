@@ -426,7 +426,9 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   // atual. A cadeia é sempre agregada dos resultados canônicos restaurados.
   const adicionais = lado === 'cliente' ? outrasReceitasDaCadeiaCliente(empresaId, base.periodo, base.execucao?.ano || 2027) : [];
   const marcaAdicionais = adicionais.map((x) => `${x.movimento_id}:${x.preco_atual}`).join('|');
-  const chaveCache = `${empresaId}:${base.execucao?.id || 'sem-execucao'}:${chavePeriodo}:${tipo}:${marcaAdicionais}:${opcoes.incluirDetalhes === false ? 0 : 1}:${opcoes.incluirBeneficios === true ? 1 : 0}:${opcoes.paginaDetalhes || 1}:${opcoes.limiteDetalhes || 100}:${opcoes.paginaParceiros || 1}:${opcoes.limiteParceiros || 100}`;
+  const chaveFiltrosDetalhes=[opcoes.filtroDocumento,opcoes.filtroParceiro,opcoes.filtroRegime,opcoes.filtroServico,opcoes.ordenarDetalhes,opcoes.direcaoDetalhes]
+    .map((valor)=>String(valor || '').trim().toLowerCase()).join('|');
+  const chaveCache = `${empresaId}:${base.execucao?.id || 'sem-execucao'}:${chavePeriodo}:${tipo}:${marcaAdicionais}:${opcoes.incluirDetalhes === false ? 0 : 1}:${opcoes.incluirBeneficios === true ? 1 : 0}:${opcoes.paginaDetalhes || 1}:${opcoes.limiteDetalhes || 100}:${opcoes.paginaParceiros || 1}:${opcoes.limiteParceiros || 100}:${chaveFiltrosDetalhes}`;
   const cadeiaEmMemoria = cadeiasPorExecucao.get(chaveCache);
   if (cadeiaEmMemoria) return cadeiaEmMemoria;
   // Outras receitas seguem a regra de "Clientes diversos" em regime regular:
@@ -540,11 +542,36 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   // Evita transferir e montar centenas de memórias JSON quando a tela não está
   // na aba de rastreabilidade.
   const incluirDetalhes = opcoes.incluirDetalhes !== false;
+  const normalizarBusca=(valor)=>String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const filtroDocumento=normalizarBusca(opcoes.filtroDocumento), filtroParceiro=normalizarBusca(opcoes.filtroParceiro);
+  const filtroRegime=normalizarBusca(opcoes.filtroRegime), filtroServico=normalizarBusca(opcoes.filtroServico);
+  const valorOrdenacao=(x,campo)=>({
+    documento:String(x.documento || x.chave || ''),
+    fornecedor:String(x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || ''),
+    regime:String(x.detalhe?.regimeEmitente || x.regime_cbs_emitente || ''),
+    servico:String(x.descricao || x.nbs || x.lc116 || ''),
+    competencia:String(x.competencia || ''),
+    valor:Number(x.preco_atual || 0),
+  }[campo] ?? String(x.competencia || ''));
+  const campoOrdenacao=['documento','fornecedor','regime','servico','competencia','valor'].includes(String(opcoes.ordenarDetalhes || '')) ? String(opcoes.ordenarDetalhes) : 'competencia';
+  const fatorOrdenacao=String(opcoes.direcaoDetalhes || 'desc').toLowerCase()==='asc' ? 1 : -1;
+  const itensDetalhados=itens.filter((x)=>{
+    const documento=normalizarBusca(`${x.documento || ''} ${x.chave || ''}`);
+    const parceiro=normalizarBusca(`${x.parceiro_cadastrado || ''} ${x.nome || ''} ${x.detalhe?.contraparte || ''} ${x.inscr_federal || ''}`);
+    const regime=normalizarBusca(`${x.detalhe?.regimeEmitente || ''} ${x.regime_cbs_emitente || ''}`);
+    const servico=normalizarBusca(`${x.descricao || ''} ${x.nbs || ''} ${x.lc116 || ''} ${x.ncm || ''}`);
+    return (!filtroDocumento || documento.includes(filtroDocumento)) && (!filtroParceiro || parceiro.includes(filtroParceiro))
+      && (!filtroRegime || regime.includes(filtroRegime)) && (!filtroServico || servico.includes(filtroServico));
+  }).sort((a,b)=>{
+    const av=valorOrdenacao(a,campoOrdenacao), bv=valorOrdenacao(b,campoOrdenacao);
+    const comparacao=typeof av==='number' && typeof bv==='number' ? av-bv : String(av).localeCompare(String(bv),'pt-BR',{numeric:true,sensitivity:'base'});
+    return comparacao*fatorOrdenacao || (Number(a.movimento_id || 0)-Number(b.movimento_id || 0))*fatorOrdenacao;
+  });
   const limiteDetalhes = Math.min(500, Math.max(1, Number(opcoes.limiteDetalhes) || 100));
-  const paginasDetalhes = Math.max(1, Math.ceil(itens.length / limiteDetalhes));
+  const paginasDetalhes = Math.max(1, Math.ceil(itensDetalhados.length / limiteDetalhes));
   const paginaDetalhes = Math.min(paginasDetalhes, Math.max(1, Number(opcoes.paginaDetalhes) || 1));
   const inicioDetalhes = (paginaDetalhes - 1) * limiteDetalhes;
-  const detalhes = (incluirDetalhes ? itens.slice(inicioDetalhes, inicioDetalhes + limiteDetalhes) : []).map((x) => ({
+  const detalhes = (incluirDetalhes ? itensDetalhados.slice(inicioDetalhes, inicioDetalhes + limiteDetalhes) : []).map((x) => ({
     // A referência revela a natureza efetivamente analisada pelo motor. NCM
     // (ou tributos próprios de mercadoria) não pode ser apresentado como
     // serviço só porque a tela de rastreabilidade é comum aos dois tipos.
@@ -625,7 +652,8 @@ function cadeia(empresaId, tipo, opcoes = {}) {
       incluido: incluirDetalhes,
       pagina: paginaDetalhes,
       limite: limiteDetalhes,
-      total: itens.length,
+      total: itensDetalhados.length,
+      totalSemFiltro: itens.length,
       totalPaginas: paginasDetalhes,
       temAnterior: paginaDetalhes > 1,
       temProxima: paginaDetalhes < paginasDetalhes,
