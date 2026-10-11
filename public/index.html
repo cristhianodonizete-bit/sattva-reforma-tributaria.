@@ -26,15 +26,26 @@
   <section class="area-app"><header class="app-header"><div><span class="crumb">Sattva · Reforma Tributária</span><strong id="tituloContexto">Visão geral</strong></div><div class="header-acoes"><select id="seletorEmpresaHeader" aria-label="Empresa em análise"></select><button class="header-btn" id="abrirAtualizacoes" type="button">Atualizações<span id="badgeAtualizacoes" class="badge-notificacao" hidden>0</span></button><button class="header-btn" id="abrirUtilidadesFiscais" type="button">Utilidades</button><div class="usuario-menu"><button class="usuario-header" id="usuarioHeader" type="button" aria-expanded="false"></button><div class="usuario-menu-itens" id="usuarioMenuItens" hidden><div class="menu-aparencia"><span>Aparência</span><button type="button" data-tema="claro">☀ Claro</button><button type="button" data-tema="escuro">☾ Escuro</button></div><button type="button" data-manual-header>Manuais do sistema</button><button type="button" data-redefinir-header>Redefinir senha</button><button type="button" data-sair-header>Sair</button></div></div></div></header><main class="conteudo" id="tela"><div class="carregando">Carregando…</div></main></section>
 </div>
 <div id="modais"></div>
-<script src="js/app.js"></script>
-<script src="js/telas.js"></script>
-<script src="js/telas2.js"></script>
-<script src="js/telas3.js"></script>
-<script src="js/telas4.js"></script>
-<script src="js/telas5.js"></script>
-<script src="js/telas6.js"></script>
-<script src="js/telas7.js"></script>
-<script src="js/telas8.js"></script>
-<script>App.iniciar();</script>
+<script>
+(async () => {
+  // Cada abertura consulta o commit que está realmente Live e usa essa versão
+  // na URL dos scripts. Isso impede uma aba/navegador de combinar HTML antigo
+  // com a API de um deploy novo.
+  const status = await fetch('/auth/status', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({}));
+  const versao = encodeURIComponent(status.commit_render || String(Date.now()));
+  const arquivos = ['app','telas','telas2','telas3','telas4','telas5','telas6','telas7','telas8'];
+  for (const arquivo of arquivos) await new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = `js/${arquivo}.js?v=${versao}`;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error(`Não foi possível carregar ${arquivo}.js da versão ${versao}.`));
+    document.body.appendChild(script);
+  });
+  App.iniciar();
+})().catch((erro) => {
+  const tela = document.getElementById('tela');
+  if (tela) tela.innerHTML = `<div class="aviso atencao"><b>Atualização incompleta.</b> ${String(erro.message || erro)}</div>`;
+});
+</script>
 </body>
 </html>
