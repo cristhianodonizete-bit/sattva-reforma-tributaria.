@@ -3448,7 +3448,7 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
 
 router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
   try {
-    const renovacaoFotografia=await renovarFotografiasItensEntradaManualSeNecessario();
+    await atualizarConfiguracaoDeCalculo();
     const empresaId = Number(req.params.id);
     // A correção de uma regra do catálogo não pode depender de o usuário abrir
     // antes a tela de Configurações. Em instâncias efêmeras, a cadeia baixa a
@@ -3479,6 +3479,7 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     // antes de consolidar outras receitas do Simples; sem isso, um reinício
     // da instância fazia o DAS aparecer como “A validar” mesmo já extraído.
     if (empresa.regime === 'simples_nacional') await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['pgdas'], () => pgdasCompartilhado.restaurar(empresa.id), { motivo:'PGDAS confirmado restaurado para a cadeia' });
+    const renovacaoFotografia=await renovarFotografiasItensEntradaManualSeNecessario(empresaId);
     const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';
     // A execução é materializada antes da leitura. A cadeia apenas agrega
     // motor_resultados; ela não recalcula base, CBS, IBS ou crédito.
@@ -6075,10 +6076,11 @@ function referenciaPisCofinsDoFornecedor(item, regimeFornecedor) {
 // uma natureza depois de corrigir a regra: ao salvar o item, somente os fatos
 // que já apontam para ele recebem a nova referência e entram na fila
 // incremental. Valores, documentos, exclusões e fechamentos não são tocados.
-async function propagarItemEntradaManualParaRazao(chave, item) {
+async function propagarItemEntradaManualParaRazao(chave, item, empresaIdFiltro = null) {
   const movimentos=db.prepare(`SELECT m.id,m.empresa_id,m.regime AS regime_fornecedor,m.normalizacao_evidencia
     FROM movimentos m JOIN empresas e ON e.id=m.empresa_id
-    WHERE m.origem IN ('QUESTOR_RAZAO','MANUAL_ENTRADA','QUESTOR_CONCILIACAO_ENTRADA')`).all();
+    WHERE m.origem IN ('QUESTOR_RAZAO','MANUAL_ENTRADA','QUESTOR_CONCILIACAO_ENTRADA')
+      AND (? IS NULL OR m.empresa_id=?)`).all(empresaIdFiltro,empresaIdFiltro);
   const porEmpresa=new Map();
   const atualizar=db.prepare(`UPDATE movimentos
     SET cst=?,cclasstrib=?,cst_declarado=?,cclasstrib_declarado=?,
@@ -6090,6 +6092,12 @@ async function propagarItemEntradaManualParaRazao(chave, item) {
       const itemAtual=String(evidencia.item_cadastrado?.chave || evidencia.item_cadastrado || '');
       if (itemAtual!==chave) continue;
       const referencia=referenciaPisCofinsDoFornecedor(item,movimento.regime_fornecedor);
+      const referenciaAtual=evidencia.referencia_pis_cofins || null;
+      const metadadosIguais=JSON.stringify(referenciaAtual)===JSON.stringify(referencia)
+        && Number(evidencia.beneficio_percentual || 0)===Number(item.beneficio || 0)
+        && evidencia.gera_credito===item.gera_credito
+        && String(evidencia.item_cadastrado?.nome || '')===String(item.nome || '');
+      if (metadadosIguais) continue;
       evidencia.item_cadastrado={ chave:item.chave, nome:item.nome };
       evidencia.beneficio_percentual=item.beneficio;
       evidencia.gera_credito=item.gera_credito;
@@ -6111,23 +6119,25 @@ async function propagarItemEntradaManualParaRazao(chave, item) {
   }
   return { documentos:[...porEmpresa.values()].reduce((s,ids)=>s+ids.length,0), empresas:processamentos.length, processamentos };
 }
-let renovacaoCatalogoEntradaEmAndamento=null;
-async function renovarFotografiasItensEntradaManualSeNecessario() {
-  if (renovacaoCatalogoEntradaEmAndamento) return renovacaoCatalogoEntradaEmAndamento;
-  renovacaoCatalogoEntradaEmAndamento=(async()=>{
-    await atualizarConfiguracaoDeCalculo();
-    if (!assegurarItensEntradaManualPadrao()) return null;
-    await confirmarParametrosCompartilhados();
+const renovacoesCatalogoEntradaEmAndamento=new Map();
+async function renovarFotografiasItensEntradaManualSeNecessario(empresaId) {
+  const id=Number(empresaId);
+  if (renovacoesCatalogoEntradaEmAndamento.has(id)) return renovacoesCatalogoEntradaEmAndamento.get(id);
+  const renovacao=(async()=>{
+    const configuracaoAlterada=assegurarItensEntradaManualPadrao();
+    if (configuracaoAlterada) await confirmarParametrosCompartilhados();
     const propagacoes=[];
     for (const item of itensEntradaManualConfigurados()) {
-      const propagacao=await propagarItemEntradaManualParaRazao(item.chave,item);
+      const propagacao=await propagarItemEntradaManualParaRazao(item.chave,item,id);
       if (propagacao.documentos) propagacoes.push({ item:item.chave,...propagacao });
     }
+    if (!propagacoes.length) return null;
     return { status:'PROCESSAMENTO_PENDENTE',
       documentos:propagacoes.reduce((s,x)=>s+Number(x.documentos || 0),0),
       itens:propagacoes.map((x)=>x.item) };
-  })().finally(()=>{ renovacaoCatalogoEntradaEmAndamento=null; });
-  return renovacaoCatalogoEntradaEmAndamento;
+  })().finally(()=>{ renovacoesCatalogoEntradaEmAndamento.delete(id); });
+  renovacoesCatalogoEntradaEmAndamento.set(id,renovacao);
+  return renovacao;
 }
 function fornecedorPeloDocumentoRazao(fornecedores, documentos, documento) {
   const numero=String(documento || '').split('/').at(-1).replace(/\D/g,'');
@@ -7844,7 +7854,7 @@ function regimesPadraoEntrada() {
 
 function normalizarEscalaPisCofinsEntradaManual(regra = {}) {
   const escalaAtual=regra.escala_pis_cofins === 'PONTOS_PERCENTUAIS_V1';
-  const origemAtual=regra.origem_referencia_pis_cofins === 'FALLBACK_REGIME_FORNECEDOR_V3';
+  const origemAtual=regra.origem_referencia_pis_cofins === 'FALLBACK_REGIME_FORNECEDOR_V4';
   if (escalaAtual && origemAtual) return { regra, converteu:false };
   if (!regra.regimes || !Object.keys(regra.regimes).length) return { regra, converteu:false };
   const regimes={};
@@ -7855,7 +7865,7 @@ function normalizarEscalaPisCofinsEntradaManual(regra = {}) {
     }
     regimes[chave]=proximo;
   }
-  return { regra:{ ...regra, regimes, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V3' }, converteu:true };
+  return { regra:{ ...regra, regimes, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V4' }, converteu:true };
 }
 function assegurarItensEntradaManualPadrao() {
   let alterou=false;
@@ -7889,7 +7899,7 @@ function assegurarItensEntradaManualPadrao() {
     anterior=escala.regra;
     const contasConfiguradas=Array.isArray(anterior.contas_questor) ? anterior.contas_questor : [];
     const contasMescladas=[...new Set([...contas_questor,...contasConfiguradas])];
-    const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V3',
+    const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V4',
       nbs:anterior.nbs || nbs, lc116:anterior.lc116 || lc116,
       contas_questor:contasMescladas, gera_credito:anterior.gera_credito === undefined ? geraCreditoPadrao : anterior.gera_credito,
       regimes:anterior.regimes || regimesPadrao || regimesPadraoEntrada(), fornecedor_padrao_regime:anterior.fornecedor_padrao_regime || fornecedor_padrao_regime };
@@ -7981,7 +7991,7 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
       return n;
     };
     const contasQuestor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
-    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, nbs, lc116, observacao:String(b.observacao || '').trim(), contas_questor, fornecedor_padrao_regime:fornecedorPadraoRegime, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V3', regimes:{
+    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, nbs, lc116, observacao:String(b.observacao || '').trim(), contas_questor, fornecedor_padrao_regime:fornecedorPadraoRegime, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V4', regimes:{
       lucro_real:{ pis:percentualObrigatorio('pis_lucro_real','PIS — Lucro Real'),cofins:percentualObrigatorio('cofins_lucro_real','Cofins — Lucro Real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ pis:percentualObrigatorio('pis_lucro_presumido','PIS — Lucro Presumido'),cofins:percentualObrigatorio('cofins_lucro_presumido','Cofins — Lucro Presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
       simples_nacional:regimesPadraoEntrada().simples_nacional,
@@ -8013,7 +8023,7 @@ router.put('/config/itens-entrada-manual/:chave', async (req,res)=>{
     if (lc116 && lc116.length!==4) throw new Error('LC 116 deve ter 4 dígitos, quando informada.');
     const percentual=(campo,rotulo)=>{ const valor=String(b[campo] ?? '').trim(), n=Number(valor.replace(',','.')); if (!valor || !Number.isFinite(n) || n<0 || n>100) throw new Error(`${rotulo} deve estar entre 0% e 100%.`); return n; };
     const contas_questor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
-    const regra={ ...atual, nome, beneficio:beneficioInformado/100, gera_credito:!(b.gera_credito===false || String(b.gera_credito || '').toLowerCase()==='false' || String(b.gera_credito || '')==='0'), cst, cclasstrib, nbs, lc116, contas_questor, observacao:String(b.observacao || '').trim(), fornecedor_padrao_regime:regimeFornecedorPadrao(b.fornecedor_padrao_regime), escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V3', regimes:{
+    const regra={ ...atual, nome, beneficio:beneficioInformado/100, gera_credito:!(b.gera_credito===false || String(b.gera_credito || '').toLowerCase()==='false' || String(b.gera_credito || '')==='0'), cst, cclasstrib, nbs, lc116, contas_questor, observacao:String(b.observacao || '').trim(), fornecedor_padrao_regime:regimeFornecedorPadrao(b.fornecedor_padrao_regime), escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V4', regimes:{
       ...(atual.regimes || {}),
       lucro_real:{ ...(atual.regimes?.lucro_real || {}), pis:percentual('pis_lucro_real','PIS — Lucro Real'), cofins:percentual('cofins_lucro_real','Cofins — Lucro Real'), tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ ...(atual.regimes?.lucro_presumido || {}), pis:percentual('pis_lucro_presumido','PIS — Lucro Presumido'), cofins:percentual('cofins_lucro_presumido','Cofins — Lucro Presumido'), tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
@@ -8956,16 +8966,6 @@ router.get('/acompanhamento/desvios/:id/memoria', async (req, res) => {
     const alertas = db.prepare('SELECT * FROM monitoring_alerts WHERE desvio_id=? ORDER BY id').all(d.id);
     ok(res, { desvio: d, baseline, snapshot, acoes, alertas, memoria: acompanhamento.json(d.memoria) });
   } catch (e) { erro(res, e); }
-});
-
-// O deploy precisa reparar fotografias vencidas mesmo que nenhum usuário abra
-// Configurações ou a cadeia naquele momento. No Render, a rotina idempotente
-// baixa o catálogo canônico, publica somente os fatos afetados e deixa o
-// worker promover a nova fotografia. Falha aqui não derruba o serviço: fica
-// registrada e a própria rota da cadeia tenta novamente.
-if (process.env.RENDER === 'true' || process.env.RENDER_SERVICE_ID) setImmediate(()=>{
-  renovarFotografiasItensEntradaManualSeNecessario()
-    .catch((e)=>console.error(`Renovação automática da fotografia de entradas: ${e.message}`));
 });
 
 module.exports = router;
