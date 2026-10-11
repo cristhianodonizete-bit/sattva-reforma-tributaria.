@@ -73,8 +73,13 @@ assert.match(operacaoCompartilhada,/empresa_remota_id:Number\(empresas\[0\]\.id\
 assert.match(operacaoCompartilhada,/for \(let de=0;de<ids\.length;de\+=500\)[\s\S]*?ids\.slice\(de,de\+500\)/,'o worker deve buscar movimentos incrementais em lotes menores que o limite do Supabase');
 assert.doesNotMatch(tela,/setTimeout\(\(\)=>A\.ir\(eForn \? 'fornecedores'/,'a cadeia não pode entrar em recarregamento automático');
 assert.match(config,/rastreabilidade-lista/,'itens de entrada manual devem usar o mesmo conceito visual da rastreabilidade');
+assert.match(config,/filtroItemEntradaBusca/,'cadastro de itens deve permitir filtrar por item ou conta Questor');
+assert.match(config,/filtroItemEntradaRegime/,'cadastro de itens deve permitir filtrar por regime');
+assert.match(config,/filtroItemEntradaReferencia/,'cadastro de itens deve permitir filtrar por referencia fiscal');
+assert.match(config,/filtroItemEntradaClassificacao/,'cadastro de itens deve permitir filtrar por classificacao CBS e IBS');
+assert.match(config,/aplicarFiltrosItensEntrada/,'filtros do cadastro devem ser combinaveis');
 assert.match(config,/rastreabilidade-item item-entrada-manual-config/,'cada item cadastrado deve ser um cartão');
-assert.match(config,/const cadastros=itens\.flatMap/,'cada item deve renderizar um cadastro separado para cada regime');
+assert.match(config,/const cadastrosTodos=itens\.flatMap/,'cada item deve renderizar um cadastro separado para cada regime');
 assert.match(config,/Ver regra cadastrada e ações/,'a regra detalhada e as ações devem permanecer acessíveis');
 assert.match(api,/referencia_pis_cofins/);
 assert.match(api,/razao_identificador/,'a inclusão do Razão deve guardar a identidade estável da linha');

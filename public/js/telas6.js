@@ -57,10 +57,19 @@ Telas.configuracoes = async (el) => {
 
 function entradas_manuais(box, d) {
   const itens=d.itensEntradaManual || [];
+  const filtros=S.aba.itensEntradaManualFiltros || {};
+  const normalizar=(valor)=>String(valor || '').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
   const rotulo={lucro_real:'Lucro Real',lucro_presumido:'Lucro Presumido',simples_nacional:'Simples Nacional'};
   const pctPontos=(valor)=>`${Number(valor || 0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4})}%`;
   const rotuloSituacao=(valor)=>String(valor || '').replaceAll('_',' ').toLowerCase().replace(/(^|\s)\S/g,(letra)=>letra.toUpperCase());
-  const cadastros=itens.flatMap((item)=>['simples_nacional','lucro_real','lucro_presumido'].map((regime)=>({item,regime,regra:item.regimes?.[regime] || {}})));
+  const cadastrosTodos=itens.flatMap((item)=>['simples_nacional','lucro_real','lucro_presumido'].map((regime)=>({item,regime,regra:item.regimes?.[regime] || {}})));
+  const cadastros=cadastrosTodos.filter(({item,regime,regra})=>{
+    const busca=normalizar(filtros.busca), referencia=normalizar(filtros.referencia), classificacao=normalizar(filtros.classificacao);
+    return (!busca || normalizar(`${item.nome} ${item.chave} ${(item.contas_questor || []).join(' ')}`).includes(busca))
+      && (!filtros.regime || regime===filtros.regime)
+      && (!referencia || normalizar(`${item.nbs || ''} ${item.lc116 || ''}`).includes(referencia))
+      && (!classificacao || normalizar(`${item.cst || regra.cst || ''} ${item.cclasstrib || regra.cclasstrib || ''} ${regra.situacao_cbs || ''} ${regra.situacao_credito_cbs || ''}`).includes(classificacao));
+  });
   const cartoes=cadastros.length ? `<div class="rastreabilidade-lista">${cadastros.map(({item,regime,regra})=>{
     const regimes=item.regimes || {};
     const referencia=[item.nbs ? `NBS ${item.nbs}` : '',item.lc116 ? `LC 116 ${item.lc116}` : ''].filter(Boolean).join(' · ') || 'Sem NBS ou LC 116';
@@ -87,6 +96,36 @@ function entradas_manuais(box, d) {
     </article>`;
   }).join('')}</div>` : A.vazio('Nenhum item de entrada manual foi cadastrado.','Use Adicionar item para criar a primeira regra.');
   box.innerHTML=`<div class="aviso"><b>Cadastro técnico para lançamentos manuais de entrada.</b> PIS e Cofins são obrigatórios para Lucro Real e Lucro Presumido. No Simples, a referência conjunta vem da regra vigente em Regras e parâmetros (hoje, 2,5%), sem divisão presumida entre os dois tributos. A elegibilidade continua dependente do documento e da operação. Alterações só afetam lançamentos futuros.</div><div class="cartao"><div class="cabecalho-lista"><div><h2>Itens e regras por regime</h2><p class="desc">Leitura por item no mesmo padrão da rastreabilidade da cadeia de fornecedores.</p></div><button class="btn pq" id="adicionarItemEntradaManual">Adicionar item</button></div>${cartoes}</div>`;
+  const listaItens=box.querySelector('.rastreabilidade-lista');
+  const opcoesRegime=Object.entries(rotulo).map(([valor,texto])=>`<option value="${valor}" ${filtros.regime===valor?'selected':''}>${texto}</option>`).join('');
+  const seletorRegime=`<label class="campo"><span>Regime</span><select id="filtroItemEntradaRegime"><option value="">Todos</option>${opcoesRegime}</select></label>`;
+  const campoReferencia=`<label class="campo"><span>Referencia fiscal</span><input id="filtroItemEntradaReferencia" value="${A.esc(filtros.referencia || '')}" placeholder="NBS ou LC 116"></label>`;
+  const campoClassificacao=`<label class="campo"><span>Classificacao CBS / IBS</span><input id="filtroItemEntradaClassificacao" value="${A.esc(filtros.classificacao || '')}" placeholder="CST, cClassTrib ou situacao"></label>`;
+  const filtrosHtml='<section class="documentos-filtros" aria-label="Filtros dos itens de entrada"><div class="documentos-filtros-campos"></div></section>';
+  if(listaItens) listaItens.insertAdjacentHTML('beforebegin',filtrosHtml);
+  else box.querySelector('.cartao')?.insertAdjacentHTML('beforeend',filtrosHtml);
+  const camposFiltros=box.querySelector('.documentos-filtros-campos');
+  camposFiltros.insertAdjacentHTML('beforebegin',`<div class="documentos-filtros-topo"><div><span class="olho">LOCALIZAR ITENS</span><p>${cadastros.length} de ${cadastrosTodos.length} cadastro(s) por regime.</p></div><button class="btn vazio pq" id="limparFiltrosItensEntrada">Limpar filtros</button></div>`);
+  camposFiltros.insertAdjacentHTML('beforeend',`<label class="campo"><span>Item</span><input id="filtroItemEntradaBusca" value="${A.esc(filtros.busca || '')}" placeholder="Nome, chave ou conta Questor"></label>`);
+  camposFiltros.insertAdjacentHTML('beforeend',seletorRegime);
+  camposFiltros.insertAdjacentHTML('beforeend',campoReferencia);
+  camposFiltros.insertAdjacentHTML('beforeend',campoClassificacao);
+  camposFiltros.insertAdjacentHTML('beforeend','<button class="btn documentos-filtros-aplicar" id="aplicarFiltrosItensEntrada">Aplicar filtros</button>');
+  const aplicarFiltros=()=>{
+    S.aba.itensEntradaManualFiltros={
+      busca:document.getElementById('filtroItemEntradaBusca')?.value.trim() || '',
+      regime:document.getElementById('filtroItemEntradaRegime')?.value || '',
+      referencia:document.getElementById('filtroItemEntradaReferencia')?.value.trim() || '',
+      classificacao:document.getElementById('filtroItemEntradaClassificacao')?.value.trim() || '',
+    };
+    entradas_manuais(box,d);
+  };
+  document.getElementById('aplicarFiltrosItensEntrada')?.addEventListener('click',aplicarFiltros);
+  document.getElementById('filtroItemEntradaRegime')?.addEventListener('change',aplicarFiltros);
+  document.getElementById('limparFiltrosItensEntrada')?.addEventListener('click',()=>{
+    S.aba.itensEntradaManualFiltros={};
+    entradas_manuais(box,d);
+  });
   document.getElementById('adicionarItemEntradaManual')?.addEventListener('click',()=>A.modal({
     titulo:'Adicionar item de entrada manual', confirmar:'Adicionar ao cadastro',
     descricao:'O item ficará disponível para lançamentos futuros. Não altera documentos, lançamentos ou resultados já calculados.',
