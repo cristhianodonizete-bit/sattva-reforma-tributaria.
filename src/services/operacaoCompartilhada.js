@@ -3,6 +3,7 @@ const db = require('../db');
 const supabase = require('./supabase');
 const { Client } = require('pg');
 const crypto = require('crypto');
+const baseRegimeReceita = require('./baseRegimeReceita');
 
 const CAMPOS = {
   empresas: ['id','cnpj','razao_social','nome_fantasia','regime','regime_reconhecimento_simples','uf','municipio','cnae','atividade','cnaes_secundarios','data_abertura','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes','criado_em'],
@@ -215,6 +216,17 @@ function aplicarRegimeBaseNosVinculosQuestor(empresaId) {
     UPDATE movimentos SET regime=(SELECT r.regime FROM resolvidos r WHERE r.id=movimentos.id)
     WHERE id IN (SELECT id FROM resolvidos)`).run(Number(empresaId)).changes;
   return parceiros+movimentos;
+}
+
+async function hidratarBaseRegimeDaEmpresa(empresaId) {
+  const cnpjs=db.prepare("SELECT DISTINCT inscr_federal cnpj FROM movimentos WHERE empresa_id=? AND tipo='fornecedor' AND LENGTH(REPLACE(REPLACE(REPLACE(COALESCE(inscr_federal,''),'.',''),'/',''),'-',''))=14")
+    .all(Number(empresaId)).map((x)=>String(x.cnpj || '').replace(/\D/g,'')).filter(Boolean);
+  const referencias=await baseRegimeReceita.consultarCompartilhada(cnpjs);
+  const unicas=[...new Map([...referencias.values()].map((x)=>[`${x.cnpj}|${x.ano}`,x])).values()];
+  const inserir=db.prepare(`INSERT INTO base_regime(cnpj,raiz,regime,ano,fonte) VALUES (?,?,?,?,?)
+    ON CONFLICT(cnpj,ano) DO UPDATE SET raiz=excluded.raiz,regime=excluded.regime,fonte=excluded.fonte`);
+  db.transaction(()=>unicas.forEach((x)=>inserir.run(x.cnpj,x.raiz,x.regime,x.ano,x.fonte)))();
+  return unicas.length;
 }
 
 function gravar(tabela, linhas, dentroDaTransacao = false) {
@@ -545,6 +557,7 @@ async function prepararContextoMotorEmpresa(empresaId) {
     const linhas = normalizarEmpresaIdDoCache(tabela, data || [], mapaEmpresa);
     resultado.dados_empresa[tabela] = tabela === 'empresa_qsa' ? gravarEmpresaQsa(linhas) : gravar(tabela, linhas);
   }
+  resultado.referencias.base_regime=await hidratarBaseRegimeDaEmpresa(id);
   resultado.dados_empresa.regimes_base_questor=aplicarRegimeBaseNosVinculosQuestor(id);
   try { require('./regras').invalidar(); } catch (_) { /* somente cache */ }
   return resultado;

@@ -71,6 +71,8 @@ assert.match(api,/fotografiaRefleteReferencia\(movimento\.valor,referencia,fotog
 assert.match(api,/metadadosIguais && fotografiaCorreta/,'metadados corretos não podem esconder uma fotografia antiga zerada');
 assert.match(operacaoCompartilhada,/empresa_remota_id:Number\(empresas\[0\]\.id\)/,'a publicação deve devolver a empresa canônica junto dos movimentos');
 assert.match(operacaoCompartilhada,/for \(let de=0;de<ids\.length;de\+=500\)[\s\S]*?ids\.slice\(de,de\+500\)/,'o worker deve buscar movimentos incrementais em lotes menores que o limite do Supabase');
+assert.match(operacaoCompartilhada,/hidratarBaseRegimeDaEmpresa/,'o worker deve restaurar do Supabase os regimes dos CNPJs antes do calculo');
+assert.match(operacaoCompartilhada,/consultarCompartilhada\(cnpjs\)/,'a restauracao deve consultar CNPJ completo e raiz na fonte compartilhada');
 assert.doesNotMatch(tela,/setTimeout\(\(\)=>A\.ir\(eForn \? 'fornecedores'/,'a cadeia não pode entrar em recarregamento automático');
 assert.match(config,/rastreabilidade-lista/,'itens de entrada manual devem usar o mesmo conceito visual da rastreabilidade');
 assert.match(config,/filtroItemEntradaBusca/,'cadastro de itens deve permitir filtrar por item ou conta Questor');
