@@ -39,6 +39,13 @@ assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 3.65);
 assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'PREMISSA_FORNECEDOR_REGULAR_365');
 assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_natureza, 'SIMULADO');
 
+// Saber apenas que o fornecedor esta fora do Simples nao autoriza escolher
+// silenciosamente entre a carga de 9,25% do Real e 3,65% do Presumido.
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'regime_regular' });
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_valor, null);
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_percentual, null);
+assert.equal(r.pendencias.some((x) => x.includes('PIS/COFINS nao determinado') || x.includes('PIS/COFINS não determinado')), true);
+
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', pis: 1.65, cofins: 7.6,
   pis_cofins_documentado: true, regra_geral_regime_confirmada: true });
 assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 3.65);

@@ -197,7 +197,7 @@ function reconstruir(item, contexto = {}) {
     // regular sem carga atual determinada. Ela existe somente para recompor
     // a base econômica comparável à CBS: não afirma a apuração real de
     // PIS/Cofins do fornecedor e permanece identificada como SIMULADA.
-    if (resolucao.percentual === null && ['lucro_real', 'lucro_presumido', 'regime_regular'].includes(String(item.regime || ''))) {
+    if (resolucao.percentual === null && ['lucro_real', 'lucro_presumido'].includes(String(item.regime || ''))) {
       const p = 3.65;
       resolucao = { percentual: p, valor: aplicarPercentual(valor, p), origem: 'PREMISSA_FORNECEDOR_REGULAR', natureza: 'SIMULADO',
         metodo: 'PREMISSA_FORNECEDOR_REGULAR_365', catalogo: resolucao.catalogo,
