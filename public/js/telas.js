@@ -1977,7 +1977,17 @@ async function telaCadeia(el, tipo) {
     eForn && mostrarRastreabilidade ? A.api(`/empresas/${S.empresaId}/documentos-fiscais?sentido=fornecedor&limite=100&pagina=${paginaDocumentosCreditoCbs}`).catch(() => ({ documentos:[], total:0, paginacao:{}, leitura:'Entradas fiscais indisponíveis.' })) : Promise.resolve({ documentos:[], total:0, paginacao:{} }),
     eForn && mostrarRastreabilidade ? A.api(`/empresas/${S.empresaId}/elegibilidade-pis-cofins/entradas`).catch(() => ({ documentos:[], resumo:{}, leitura:'Triagem de PIS/Cofins indisponível.' })) : Promise.resolve({ documentos:[], resumo:{} }),
   ]);
-  const { analise, pendenciasReferencias = [] } = cadeiaResposta;
+  const { analise, pendenciasReferencias = [], renovacaoFotografia = null } = cadeiaResposta;
+  // A primeira leitura pode descobrir que o cadastro do item já mudou, mas
+  // a fotografia ativa ainda é anterior. Nesse caso o backend enfileira apenas
+  // os movimentos divergentes. A tela acompanha essa troca automaticamente,
+  // em vez de exigir que o usuário adivinhe quando deve atualizar novamente.
+  const chaveRenovacao=`renovacao_fotografia_${tipo}_${S.empresaId}`;
+  if (renovacaoFotografia?.status==='PROCESSAMENTO_PENDENTE') {
+    const tentativas=Number(S.cache[chaveRenovacao] || 0)+1;
+    S.cache[chaveRenovacao]=tentativas;
+    if (tentativas<=20) setTimeout(()=>A.ir(eForn ? 'fornecedores' : 'clientes'),3000);
+  } else delete S.cache[chaveRenovacao];
   // A fotografia do motor não é recalculada automaticamente ao incluir uma
   // nota conciliada. Para que ela não desapareça até a próxima execução,
   // agregamos os itens Questor na própria lista de Notas de entrada, nunca em
