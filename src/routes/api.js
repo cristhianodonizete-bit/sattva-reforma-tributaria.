@@ -3448,27 +3448,13 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
 
 router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
   try {
-    await atualizarConfiguracaoDeCalculo();
+    const renovacaoFotografia=await renovarFotografiasItensEntradaManualSeNecessario();
     const empresaId = Number(req.params.id);
     // A correção de uma regra do catálogo não pode depender de o usuário abrir
     // antes a tela de Configurações. Em instâncias efêmeras, a cadeia baixa a
     // configuração canônica e aplica a migração idempotente antes de restaurar
     // a fotografia. Quando há mudança, apenas os lançamentos vinculados aos
     // itens alterados são publicados e enfileirados para recálculo incremental.
-    let renovacaoFotografia=null;
-    if (assegurarItensEntradaManualPadrao()) {
-      await confirmarParametrosCompartilhados();
-      const propagacoes=[];
-      for (const item of itensEntradaManualConfigurados()) {
-        const propagacao=await propagarItemEntradaManualParaRazao(item.chave,item);
-        if (propagacao.documentos) propagacoes.push({ item:item.chave,...propagacao });
-      }
-      renovacaoFotografia={
-        status:'PROCESSAMENTO_PENDENTE',
-        documentos:propagacoes.reduce((s,x)=>s+Number(x.documentos || 0),0),
-        itens:propagacoes.map((x)=>x.item),
-      };
-    }
     await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido para a cadeia' });
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(empresaId);
     if (!empresa) throw new Error('Empresa não encontrada');
@@ -6124,6 +6110,24 @@ async function propagarItemEntradaManualParaRazao(chave, item) {
     processamentos.push({ empresa_id:empresaId, documentos:ids.length, processamento_id:processamento.processamento_id });
   }
   return { documentos:[...porEmpresa.values()].reduce((s,ids)=>s+ids.length,0), empresas:processamentos.length, processamentos };
+}
+let renovacaoCatalogoEntradaEmAndamento=null;
+async function renovarFotografiasItensEntradaManualSeNecessario() {
+  if (renovacaoCatalogoEntradaEmAndamento) return renovacaoCatalogoEntradaEmAndamento;
+  renovacaoCatalogoEntradaEmAndamento=(async()=>{
+    await atualizarConfiguracaoDeCalculo();
+    if (!assegurarItensEntradaManualPadrao()) return null;
+    await confirmarParametrosCompartilhados();
+    const propagacoes=[];
+    for (const item of itensEntradaManualConfigurados()) {
+      const propagacao=await propagarItemEntradaManualParaRazao(item.chave,item);
+      if (propagacao.documentos) propagacoes.push({ item:item.chave,...propagacao });
+    }
+    return { status:'PROCESSAMENTO_PENDENTE',
+      documentos:propagacoes.reduce((s,x)=>s+Number(x.documentos || 0),0),
+      itens:propagacoes.map((x)=>x.item) };
+  })().finally(()=>{ renovacaoCatalogoEntradaEmAndamento=null; });
+  return renovacaoCatalogoEntradaEmAndamento;
 }
 function fornecedorPeloDocumentoRazao(fornecedores, documentos, documento) {
   const numero=String(documento || '').split('/').at(-1).replace(/\D/g,'');
@@ -8952,6 +8956,16 @@ router.get('/acompanhamento/desvios/:id/memoria', async (req, res) => {
     const alertas = db.prepare('SELECT * FROM monitoring_alerts WHERE desvio_id=? ORDER BY id').all(d.id);
     ok(res, { desvio: d, baseline, snapshot, acoes, alertas, memoria: acompanhamento.json(d.memoria) });
   } catch (e) { erro(res, e); }
+});
+
+// O deploy precisa reparar fotografias vencidas mesmo que nenhum usuário abra
+// Configurações ou a cadeia naquele momento. No Render, a rotina idempotente
+// baixa o catálogo canônico, publica somente os fatos afetados e deixa o
+// worker promover a nova fotografia. Falha aqui não derruba o serviço: fica
+// registrada e a própria rota da cadeia tenta novamente.
+if (process.env.RENDER === 'true' || process.env.RENDER_SERVICE_ID) setImmediate(()=>{
+  renovarFotografiasItensEntradaManualSeNecessario()
+    .catch((e)=>console.error(`Renovação automática da fotografia de entradas: ${e.message}`));
 });
 
 module.exports = router;

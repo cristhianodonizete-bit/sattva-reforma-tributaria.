@@ -51,8 +51,9 @@ assert.match(api,/referenciaPisCofinsDoFornecedor\(\{ regimes:regra\.regimes \},
 assert.doesNotMatch(api,/regra\.regimes\?\.\[regimeEmpresa\]/,'o regime da empresa compradora não define a carga histórica do fornecedor');
 assert.match(api,/regra\.pis \?\? padrao\.pis/,'campo nulo no item promovido deve usar a referência geral do regime');
 assert.match(api,/conjunto === null/,'ausência real de referência deve continuar indeterminada');
-assert.match(api,/if \(assegurarItensEntradaManualPadrao\(\)\)[\s\S]*?renovacaoFotografia=\{/,'a cadeia deve migrar o catálogo e sinalizar a renovação sem depender da tela de configurações');
+assert.match(api,/async function renovarFotografiasItensEntradaManualSeNecessario\(\)[\s\S]*?if \(!assegurarItensEntradaManualPadrao\(\)\) return null/,'a cadeia deve migrar o catálogo e sinalizar a renovação sem depender da tela de configurações');
 assert.match(api,/for \(const item of itensEntradaManualConfigurados\(\)\)[\s\S]*?propagarItemEntradaManualParaRazao/,'a fotografia deve ser invalidada somente para os itens afetados pela migração');
+assert.match(api,/RENDER_SERVICE_ID[\s\S]*?renovarFotografiasItensEntradaManualSeNecessario/,'o deploy no Render deve renovar a fotografia sem depender da navegação do usuário');
 assert.match(motor,/escalaReferenciaManual/,'evidências legadas em fator decimal devem continuar calculáveis');
 assert.doesNotMatch(config,/Number\(v\)\*100/,'a tela não deve multiplicar novamente valores já armazenados em pontos percentuais');
 assert.match(config,/Obrigatória para Lucro Real e Lucro Presumido/);
