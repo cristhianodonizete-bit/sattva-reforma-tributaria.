@@ -58,31 +58,32 @@ Telas.configuracoes = async (el) => {
 function entradas_manuais(box, d) {
   const itens=d.itensEntradaManual || [];
   const rotulo={lucro_real:'Lucro Real',lucro_presumido:'Lucro Presumido',simples_nacional:'Simples Nacional'};
+  const pctPontos=(valor)=>`${Number(valor || 0).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:4})}%`;
   const rotuloSituacao=(valor)=>String(valor || '').replaceAll('_',' ').toLowerCase().replace(/(^|\s)\S/g,(letra)=>letra.toUpperCase());
-  const cartoes=itens.length ? `<div class="rastreabilidade-lista">${itens.map((item)=>{
+  const cadastros=itens.flatMap((item)=>['simples_nacional','lucro_real','lucro_presumido'].map((regime)=>({item,regime,regra:item.regimes?.[regime] || {}})));
+  const cartoes=cadastros.length ? `<div class="rastreabilidade-lista">${cadastros.map(({item,regime,regra})=>{
     const regimes=item.regimes || {};
     const referencia=[item.nbs ? `NBS ${item.nbs}` : '',item.lc116 ? `LC 116 ${item.lc116}` : ''].filter(Boolean).join(' · ') || 'Sem NBS ou LC 116';
-    const regraReferencia=regimes.lucro_real || regimes.lucro_presumido || regimes.simples_nacional || {};
-    const fornecedorPadrao=item.fornecedor_padrao_regime || regraReferencia.fornecedor_padrao_regime || 'simples_nacional';
+    const regraReferencia=regra;
     const blocoRegime=(regime)=>{ const regra=regimes[regime] || {};
       const pisCofins=regra.pis_cofins !== null && regra.pis_cofins !== undefined
-        ? `${A.pct(regra.pis_cofins)} conjunto`
-        : `PIS ${regra.pis === null || regra.pis === undefined ? '—' : A.pct(regra.pis)} · Cofins ${regra.cofins === null || regra.cofins === undefined ? '—' : A.pct(regra.cofins)}`;
+        ? `${pctPontos(regra.pis_cofins)} conjunto`
+        : `PIS ${regra.pis === null || regra.pis === undefined ? '—' : pctPontos(regra.pis)} · Cofins ${regra.cofins === null || regra.cofins === undefined ? '—' : pctPontos(regra.cofins)}`;
       return `<div><span>${A.esc(rotulo[regime] || regime)}</span><b>${pisCofins}</b><small>${A.esc(regra.tratamento_atual || 'Sem tratamento informado')}</small></div>`;
     };
     return `<article class="rastreabilidade-item item-entrada-manual-config">
       <div class="rastreabilidade-item-topo">
-        <div><span class="olho">ITEM PADRONIZADO</span><b>${A.esc(item.nome)}</b><small class="mono">${A.esc(item.chave)}</small></div>
+        <div><span class="olho">ITEM PADRONIZADO</span><b>${A.esc(item.nome)} — ${A.esc(rotulo[regime])}</b><small class="mono">${A.esc(item.chave)}::${A.esc(regime)}</small></div>
         <div><span class="olho">REFERÊNCIA FISCAL</span><b>${A.esc(referencia)}</b><small>Cadastro para entrada manual</small></div>
-        <div><span class="olho">FORNECEDOR SEM CNPJ</span><span class="tag c">Genérico</span><small>${A.esc(rotulo[fornecedorPadrao] || fornecedorPadrao)}</small></div>
+        <div><span class="olho">CADASTRO DO FORNECEDOR</span><span class="tag c">Genérico</span><small>${A.esc(rotulo[regime])}</small></div>
         <div class="rastreabilidade-item-produto"><span class="olho">CLASSIFICAÇÃO CBS / IBS</span><b>CST ${A.esc(item.cst || regraReferencia.cst || '—')} · cClassTrib ${A.esc(item.cclasstrib || regraReferencia.cclasstrib || '—')}</b><small>${A.esc(rotuloSituacao(regraReferencia.situacao_cbs || 'sem situação cadastrada'))} · ${A.esc(rotuloSituacao(regraReferencia.situacao_credito_cbs || (item.gera_credito===false?'sem crédito':'conforme elegibilidade')))}</small></div>
       </div>
-      <div class="rastreabilidade-valores">${blocoRegime('lucro_real')}${blocoRegime('lucro_presumido')}${blocoRegime('simples_nacional')}<div><span>Benefício</span><b>${A.pct(item.beneficio || 0)}</b><small>${item.gera_credito===false ? 'Sem crédito CBS/IBS' : 'Crédito conforme elegibilidade'}</small></div></div>
+      <div class="rastreabilidade-valores">${blocoRegime(regime)}<div><span>Benefício</span><b>${A.pct(item.beneficio || 0)}</b><small>${item.gera_credito===false ? 'Sem crédito CBS/IBS' : 'Crédito conforme elegibilidade'}</small></div></div>
       <details class="rastreabilidade-memoria"><summary>Ver regra cadastrada e ações</summary><div class="rastreabilidade-memoria-grid">
         <div><span>Observação</span><b>${A.esc(item.observacao || 'Sem observação')}</b></div>
         <div><span>Contas Questor</span><b>${A.esc((item.contas_questor || []).join(' · ') || 'Nenhuma conta vinculada')}</b></div>
         <div><span>Vigência</span><b>Próximos lançamentos</b><small>Alterações não modificam silenciosamente fotografias já calculadas.</small></div>
-      </div><div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 0 14px"><button class="btn pq vazio" data-editar-item-entrada="${A.esc(item.chave)}">Editar</button><button class="btn pq vazio" data-fornecedor-padrao-item="${A.esc(item.chave)}">Fornecedor padrão</button></div></details>
+      </div><div style="display:flex;gap:8px;flex-wrap:wrap;padding:0 0 14px"><button class="btn pq vazio" data-editar-item-entrada="${A.esc(item.chave)}">Editar matriz do item</button></div></details>
     </article>`;
   }).join('')}</div>` : A.vazio('Nenhum item de entrada manual foi cadastrado.','Use Adicionar item para criar a primeira regra.');
   box.innerHTML=`<div class="aviso"><b>Cadastro técnico para lançamentos manuais de entrada.</b> PIS e Cofins são obrigatórios para Lucro Real e Lucro Presumido. No Simples, a referência conjunta vem da regra vigente em Regras e parâmetros (hoje, 2,5%), sem divisão presumida entre os dois tributos. A elegibilidade continua dependente do documento e da operação. Alterações só afetam lançamentos futuros.</div><div class="cartao"><div class="cabecalho-lista"><div><h2>Itens e regras por regime</h2><p class="desc">Leitura por item no mesmo padrão da rastreabilidade da cadeia de fornecedores.</p></div><button class="btn pq" id="adicionarItemEntradaManual">Adicionar item</button></div>${cartoes}</div>`;

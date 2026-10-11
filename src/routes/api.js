@@ -7852,23 +7852,8 @@ function regimesPadraoEntrada() {
   };
 }
 
-function normalizarEscalaPisCofinsEntradaManual(regra = {}) {
-  const escalaAtual=regra.escala_pis_cofins === 'PONTOS_PERCENTUAIS_V1';
-  const origemAtual=regra.origem_referencia_pis_cofins === 'MATRIZ_TRES_REGIMES_V5';
-  if (escalaAtual && origemAtual) return { regra, converteu:false };
-  const padroes=regimesPadraoEntrada();
-  const regimes={};
-  for (const chave of ['simples_nacional','lucro_real','lucro_presumido']) {
-    const proximo={ ...padroes[chave], ...(regra.regimes?.[chave] || {}) };
-    if (!escalaAtual) for (const campo of ['pis','cofins','pis_cofins']) {
-      if (proximo[campo] !== null && proximo[campo] !== undefined && Number.isFinite(Number(proximo[campo]))) proximo[campo]=Number(proximo[campo]) * 100;
-    }
-    for (const campo of ['pis','cofins','pis_cofins','tratamento_atual']) {
-      if (proximo[campo] === null || proximo[campo] === undefined || proximo[campo] === '') proximo[campo]=padroes[chave][campo] ?? null;
-    }
-    regimes[chave]=proximo;
-  }
-  return { regra:{ ...regra, regimes, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'MATRIZ_TRES_REGIMES_V5' }, converteu:true };
+function normalizarEscalaPisCofinsEntradaManual(regra = {}, chaveItem = '') {
+  return require('../services/matrizPisCofinsEntradaManual').normalizar(regra,chaveItem,regimesPadraoEntrada());
 }
 function assegurarItensEntradaManualPadrao() {
   let alterou=false;
@@ -7878,7 +7863,7 @@ function assegurarItensEntradaManualPadrao() {
   const atualizarEscala=db.prepare("UPDATE param_regras SET valor=? WHERE grupo='itens_entrada_manual' AND chave=?");
   db.transaction(()=>cadastros.forEach((cadastro)=>{
     let regra={}; try { regra=JSON.parse(cadastro.valor || '{}'); } catch (_) { return; }
-    const escala=normalizarEscalaPisCofinsEntradaManual(regra);
+    const escala=normalizarEscalaPisCofinsEntradaManual(regra,cadastro.chave);
     if (escala.converteu) { atualizarEscala.run(JSON.stringify(escala.regra),cadastro.chave); alterou=true; }
   }))();
   const itens=[
@@ -7901,11 +7886,11 @@ function assegurarItensEntradaManualPadrao() {
     // Regras fiscais específicas (por exemplo, operações sem crédito presumido)
     // nascem antes da matriz geral e, portanto, continuam tendo precedência.
     if ((!anterior.regimes || !Object.keys(anterior.regimes).length) && regimesPadrao) anterior={ ...anterior, regimes:regimesPadrao };
-    const escala=normalizarEscalaPisCofinsEntradaManual(anterior);
+    const escala=normalizarEscalaPisCofinsEntradaManual(anterior,chave);
     anterior=escala.regra;
     const contasConfiguradas=Array.isArray(anterior.contas_questor) ? anterior.contas_questor : [];
     const contasMescladas=[...new Set([...contas_questor,...contasConfiguradas])];
-    const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'MATRIZ_TRES_REGIMES_V5',
+    const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'MATRIZ_TRES_REGIMES_V6',
       nbs:anterior.nbs || nbs, lc116:anterior.lc116 || lc116,
       contas_questor:contasMescladas, gera_credito:anterior.gera_credito === undefined ? geraCreditoPadrao : anterior.gera_credito,
       regimes:anterior.regimes || regimesPadrao || regimesPadraoEntrada(), fornecedor_padrao_regime:anterior.fornecedor_padrao_regime || fornecedor_padrao_regime };
@@ -7997,7 +7982,7 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
       return n;
     };
     const contasQuestor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
-    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, nbs, lc116, observacao:String(b.observacao || '').trim(), contas_questor, fornecedor_padrao_regime:fornecedorPadraoRegime, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'MATRIZ_TRES_REGIMES_V5', regimes:{
+    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, nbs, lc116, observacao:String(b.observacao || '').trim(), contas_questor, fornecedor_padrao_regime:fornecedorPadraoRegime, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'MATRIZ_TRES_REGIMES_V6', regimes:{
       lucro_real:{ pis:percentualObrigatorio('pis_lucro_real','PIS — Lucro Real'),cofins:percentualObrigatorio('cofins_lucro_real','Cofins — Lucro Real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ pis:percentualObrigatorio('pis_lucro_presumido','PIS — Lucro Presumido'),cofins:percentualObrigatorio('cofins_lucro_presumido','Cofins — Lucro Presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
       simples_nacional:regimesPadraoEntrada().simples_nacional,
@@ -8029,7 +8014,7 @@ router.put('/config/itens-entrada-manual/:chave', async (req,res)=>{
     if (lc116 && lc116.length!==4) throw new Error('LC 116 deve ter 4 dígitos, quando informada.');
     const percentual=(campo,rotulo)=>{ const valor=String(b[campo] ?? '').trim(), n=Number(valor.replace(',','.')); if (!valor || !Number.isFinite(n) || n<0 || n>100) throw new Error(`${rotulo} deve estar entre 0% e 100%.`); return n; };
     const contas_questor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
-    const regra={ ...atual, nome, beneficio:beneficioInformado/100, gera_credito:!(b.gera_credito===false || String(b.gera_credito || '').toLowerCase()==='false' || String(b.gera_credito || '')==='0'), cst, cclasstrib, nbs, lc116, contas_questor, observacao:String(b.observacao || '').trim(), fornecedor_padrao_regime:regimeFornecedorPadrao(b.fornecedor_padrao_regime), escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'MATRIZ_TRES_REGIMES_V5', regimes:{
+    const regra={ ...atual, nome, beneficio:beneficioInformado/100, gera_credito:!(b.gera_credito===false || String(b.gera_credito || '').toLowerCase()==='false' || String(b.gera_credito || '')==='0'), cst, cclasstrib, nbs, lc116, contas_questor, observacao:String(b.observacao || '').trim(), fornecedor_padrao_regime:regimeFornecedorPadrao(b.fornecedor_padrao_regime), escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'MATRIZ_TRES_REGIMES_V6', regimes:{
       ...(atual.regimes || {}),
       lucro_real:{ ...(atual.regimes?.lucro_real || {}), pis:percentual('pis_lucro_real','PIS — Lucro Real'), cofins:percentual('cofins_lucro_real','Cofins — Lucro Real'), tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ ...(atual.regimes?.lucro_presumido || {}), pis:percentual('pis_lucro_presumido','PIS — Lucro Presumido'), cofins:percentual('cofins_lucro_presumido','Cofins — Lucro Presumido'), tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
