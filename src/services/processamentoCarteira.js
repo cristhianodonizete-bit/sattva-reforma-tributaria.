@@ -197,7 +197,8 @@ async function processarUm() {
         const execucao = motorExec.ultimaExecucao(job.empresa_id);
         if (!execucao?.id) throw new Error('Execução incremental não materializou uma execução local.');
         const resultadoMotor = integridadeMotor.assinarResultado(job.empresa_id, execucao.id);
-        if (resultadoMotor.itens !== solicitados.length) throw new Error('Integridade incremental: quantidade de resultados diferente do escopo autorizado.');
+        const quantidadeProduzida=Number(resultado.resultado?.entradas?.length || 0)+Number(resultado.resultado?.saidas?.length || 0);
+        if (resultadoMotor.itens !== quantidadeProduzida) throw new Error('Integridade incremental: quantidade materializada diferente dos resultados produzidos pelo motor.');
         const entradaAntesDePublicar = integridadeMotor.assinarEntrada(job.empresa_id);
         integridadeMotor.exigirMesmaEntrada(entradaMotor, entradaAntesDePublicar);
         // O lote calculado contém apenas o delta. A RPC no Supabase clona as
@@ -208,7 +209,7 @@ async function processarUm() {
           integridade:{ entrada:entradaMotor, resultado:resultadoMotor, modo:'INCREMENTAL_IDS_EXPLICITOS' },
         });
         const promovida = await operacao.promoverFotografiaMotorIncremental(
-          Number(publicacao.empresa_remota_id || job.empresa_id), Number(publicacao.execucao_id), resultadoMotor.itens,
+          Number(publicacao.empresa_remota_id || job.empresa_id), Number(publicacao.execucao_id), resultadoMotor.itens, solicitados,
         );
         await operacao.validarFotografiaAtivaMotor(Number(publicacao.empresa_remota_id || job.empresa_id), Number(publicacao.execucao_id), promovida.quantidade);
         const excecoes = excecoesMotor.resumo(job.empresa_id);

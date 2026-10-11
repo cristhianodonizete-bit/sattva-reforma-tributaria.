@@ -1451,10 +1451,12 @@ async function promoverFotografiaMotor(empresaId, execucaoId, quantidadeEsperada
 // próxima fotografia completa no banco: copia a foto ativa, troca o recorte e
 // só então faz a comutação. Assim a tela nunca lê um mosaico de execuções e um
 // erro mantém a fotografia anterior intacta.
-async function promoverFotografiaMotorIncremental(empresaId, execucaoId, quantidadeSubstituta) {
+async function promoverFotografiaMotorIncremental(empresaId, execucaoId, quantidadeSubstituta, movimentoIds) {
   if (!ativo()) return { ativo: false };
+  const ids=[...new Set((movimentoIds || []).map(Number).filter(Number.isInteger))];
+  if (!ids.length) throw new Error('Promoção incremental sem movimentos explicitamente autorizados.');
   const { data, error } = await supabase.admin().rpc('promover_fotografia_motor_incremental', {
-    p_empresa_id: Number(empresaId), p_execucao_id: Number(execucaoId), p_quantidade_substituta: Number(quantidadeSubstituta),
+    p_empresa_id:Number(empresaId),p_execucao_id:Number(execucaoId),p_quantidade_substituta:Number(quantidadeSubstituta),p_movimento_ids:ids,
   });
   if (error) throw new Error(`Promoção incremental atômica da fotografia: ${error.message}`);
   const quantidade = Number(data);
