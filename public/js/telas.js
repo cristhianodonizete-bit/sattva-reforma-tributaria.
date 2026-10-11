@@ -2058,6 +2058,8 @@ async function telaCadeia(el, tipo) {
   };
   const explicarPendenciaPisCofins = (item) => {
     const codigo = String(item.motivo || item.motivoBaseEconomica || item.origem || item.origemPisCofins || '').toUpperCase();
+    const regime = String(item.regimeEmitente || item.regimeFornecedor || item.regime || '').toLowerCase();
+    if (regime === 'regime_regular') return { titulo: 'Regime de PIS/Cofins a confirmar', detalhe: 'O CNPJ confirma que o fornecedor esta fora do Simples, mas a fonte publica nao distingue Lucro Real de Lucro Presumido. Confirme o regime para aplicar 9,25% ou 3,65%.', acao: 'Confirmar regime' };
     if (codigo.includes('MULTIPLOS_CANDIDATOS')) return { titulo: 'Mais de uma regra fiscal compatível', detalhe: 'O motor encontrou referências concorrentes e não pode escolher uma alíquota sem confirmação.', acao: 'Revisar regras' };
     if (codigo.includes('REGIME') && (codigo.includes('DESCONHECIDO') || codigo.includes('INDETERMINADO'))) return { titulo: 'Regime do fornecedor não confirmado', detalhe: 'Sem o regime do fornecedor, o sistema não pode escolher entre Simples, Lucro Real e Lucro Presumido.', acao: 'Corrigir fornecedor' };
     if (codigo.includes('SEM_CATALOGO')) return { titulo: 'Item sem regra de PIS/Cofins aplicável', detalhe: 'Não existe uma referência vinculada a este item/conta para o regime do fornecedor. Cadastre ou vincule o item e confira as alíquotas dos três regimes.', acao: 'Corrigir catálogo' };
@@ -2360,6 +2362,27 @@ async function telaCadeia(el, tipo) {
     const referencia = item.nbs || item.lc116 || item.ncm || '';
     const regime = String(item.regimeEmitente || item.regimeFornecedor || item.regime || '').toLowerCase();
     const regimesConhecidos = ['simples_nacional','lucro_real','lucro_presumido'];
+    if (eForn && item.movimento_id && (regime === 'regime_regular' || !regimesConhecidos.includes(regime))) {
+      const corpo = [
+        '<div class="aviso atencao"><b>Motivo da pendencia:</b> falta confirmar o regime que define a carga historica de PIS/Cofins.</div>',
+        '<div class="grade g2" style="margin-top:14px">',
+        `<label class="campo"><span>CNPJ do fornecedor</span><input name="cnpj" required inputmode="numeric" value="${A.esc(item.cnpj || '')}"></label>`,
+        '<label class="campo"><span>Regime confirmado</span><select name="regime" required>',
+        '<option value="">Selecione</option><option value="lucro_real">Lucro Real - 9,25%</option>',
+        '<option value="lucro_presumido">Lucro Presumido - 3,65%</option></select></label></div>',
+      ].join('');
+      A.modal({ titulo:'Confirmar regime de PIS/Cofins do fornecedor', largura:700,
+        confirmar:'Salvar e recalcular', corpo,
+        descricao:'A consulta publica exclui o Simples, mas nao distingue Lucro Real de Lucro Presumido.',
+        aoConfirmar:async(f)=>{
+          await A.api(`/empresas/${S.empresaId}/movimentos/${item.movimento_id}/confirmar-regime-fornecedor`,
+            { metodo:'POST',corpo:{cnpj:f.cnpj,regime:f.regime} });
+          A.toast('Regime confirmado. O documento entrou na fila de recalculo.','ok');
+          A.ir('fornecedores');
+        }
+      });
+      return;
+    }
     S.aba.config = 'entradas_manuais';
     S.aba.itensEntradaManualFiltros = {
       busca: item.conta_questor || item.produto || item.descricao || '',

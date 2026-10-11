@@ -25,6 +25,7 @@ const motorReceitasSemDfe = require('./motorReceitasSemDfe');
 const telemetriaReusoClassificacao = require('./telemetriaReusoClassificacao');
 const fechamentoModulos = require('./fechamentoModulos');
 const matrizPisCofinsEntradaManual = require('./matrizPisCofinsEntradaManual');
+const regimeFornecedor = require('./regimeFornecedor');
 // Exceções conhecidas à premissa operacional de participação brasileira.
 // A lista é deliberadamente conservadora: uma correspondência não afirma a
 // composição societária, apenas preserva a validação antes de aplicar 200044.
@@ -312,7 +313,7 @@ function executar(empresaId, opcoes = {}) {
 
   // ------------------------------------------------------------------ ENTRADAS
   for (const m of carregar(empresaId, 'entrada', movimentoIds)) {
-    const regime = m.regime_cadastro || m.regime || null;
+    const regime = regimeFornecedor.resolver(m.regime_cadastro || m.regime, m.nome_cadastro || m.nome);
     const item = normalizar(m);
 
     // Faixa do Simples do fornecedor: conhecida ou simulada (itens 12 e 39)

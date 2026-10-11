@@ -450,6 +450,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
         competencia: x.competencia || null,
         parceiro: x.parceiro_cadastrado || x.nome || x.detalhe?.contraparte || '',
         cnpj: x.inscr_federal || '',
+        regimeEmitente: x.detalhe?.regimeEmitente || x.regime_cbs_emitente || null,
         descricao: x.descricao || '',
         valor: r2(x.preco_atual),
         origem: memoria.carga_atual_pis_cofins_origem || 'INDETERMINADO',

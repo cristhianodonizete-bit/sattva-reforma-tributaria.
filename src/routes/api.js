@@ -44,6 +44,7 @@ const cenarioTemplates = require('../services/cenarioTemplates');
 const analiseCadeia = require('../services/analiseCadeia');
 const saidaExecutiva = require('../services/saidaExecutiva');
 const cnpjReceita = require('../services/cnpjReceita');
+const regimeFornecedor = require('../services/regimeFornecedor');
 const baseRegime = require('../services/baseRegimeReceita');
 const relatorio = require('../services/relatorio');
 const perfilCbs = require('../services/perfilCbs');
@@ -6003,11 +6004,20 @@ async function fornecedorPorCnpjConsultado(empresaId, valor, opcoes = {}) {
   // A fonte pública só distingue Simples/MEI de regime regular. Quando ela
   // não prova o enquadramento, preservamos eventual cadastro existente ou
   // deixamos o fornecedor como "a validar" — nunca presumimos Lucro Real.
-  const regime=String(resultado?.regime_derivado || existente?.regime || 'indeterminado');
+  const regime=regimeFornecedor.resolver(resultado?.regime_derivado || existente?.regime || 'indeterminado',descricao);
   const previa={ cnpj, descricao, regime, uf:String(resultado?.uf || existente?.uf || ''), municipio:String(resultado?.municipio || existente?.municipio || ''),
     fonte:resultado?.fonte || null, justificativa:resultado?.justificativa || null, ja_cadastrado:Boolean(existente) };
   if (!opcoes.materializar) return { ...previa, fornecedor:existente || null };
-  if (existente) return { ...previa, fornecedor:existente };
+  if (existente) {
+    const regimeCorrigido=regime==='regime_regular' && ['simples_nacional','mei'].includes(String(existente.regime || '').toLowerCase())
+      ? 'regime_regular' : regimeFornecedor.resolver(existente.regime,descricao);
+    if (regimeCorrigido!==existente.regime) {
+      db.prepare("UPDATE parceiros SET descricao=?,regime=?,uf=?,municipio=?,origem='CONSULTA_CNPJ_ENTRADA_MANUAL' WHERE id=? AND empresa_id=?")
+        .run(descricao,regimeCorrigido,previa.uf,previa.municipio,existente.id,Number(empresaId));
+      Object.assign(existente,{ descricao,regime:regimeCorrigido,uf:previa.uf,municipio:previa.municipio,origem:'CONSULTA_CNPJ_ENTRADA_MANUAL' });
+    }
+    return { ...previa, regime:regimeCorrigido, fornecedor:existente };
+  }
   // A consulta pode ser aberta em duas requisições quase simultâneas (por
   // exemplo, prévia e confirmação). O CNPJ continua sendo único; a segunda
   // gravação apenas reaproveita o mesmo fornecedor, sem abortar o motor.
@@ -6077,7 +6087,7 @@ function referenciaPisCofinsDoFornecedor(item, regimeFornecedor) {
 // que já apontam para ele recebem a nova referência e entram na fila
 // incremental. Valores, documentos, exclusões e fechamentos não são tocados.
 async function propagarItemEntradaManualParaRazao(chave, item, empresaIdFiltro = null) {
-  const movimentos=db.prepare(`SELECT m.id,m.empresa_id,m.valor,
+  const movimentos=db.prepare(`SELECT m.id,m.empresa_id,m.valor,m.nome,
       COALESCE(p.regime,m.regime,json_extract(m.normalizacao_evidencia,'$.fornecedor_vinculado.regime')) AS regime_fornecedor,
       m.normalizacao_evidencia
     FROM movimentos m JOIN empresas e ON e.id=m.empresa_id
@@ -6099,7 +6109,8 @@ async function propagarItemEntradaManualParaRazao(chave, item, empresaIdFiltro =
       let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { continue; }
       const itemAtual=String(evidencia.item_cadastrado?.chave || evidencia.item_cadastrado || '');
       if (itemAtual!==chave) continue;
-      const referencia=referenciaPisCofinsDoFornecedor(item,movimento.regime_fornecedor);
+      const regimeResolvido=regimeFornecedor.resolver(movimento.regime_fornecedor,movimento.nome);
+      const referencia=referenciaPisCofinsDoFornecedor(item,regimeResolvido);
       const referenciaAtual=evidencia.referencia_pis_cofins || null;
       const metadadosIguais=JSON.stringify(referenciaAtual)===JSON.stringify(referencia)
         && Number(evidencia.beneficio_percentual || 0)===Number(item.beneficio || 0)
@@ -6386,7 +6397,7 @@ function materializarFornecedorDaContrapartida(empresaId, sugestao, fornecedores
   // conserva o cadastro já confirmado e devolve a única linha existente.
   db.prepare(`INSERT INTO parceiros (empresa_id,tipo,cnpj,descricao,regime,origem)
     VALUES (?,'fornecedor',?,?,?,?)
-    ON CONFLICT(empresa_id,tipo,cnpj) DO NOTHING`).run(Number(empresaId),cnpj,descricao,sugestao.regime || 'simples_nacional',origem);
+    ON CONFLICT(empresa_id,tipo,cnpj) DO NOTHING`).run(Number(empresaId),cnpj,descricao,regimeFornecedor.resolver(sugestao.regime || 'indeterminado',descricao),origem);
   const fornecedor=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' AND cnpj=? ORDER BY id LIMIT 1")
     .get(Number(empresaId),cnpj);
   fornecedores.push(fornecedor);
@@ -6704,6 +6715,35 @@ router.post('/empresas/:id/questor/razao/vincular-fornecedor', async (req,res)=>
     const processamento_motor=await motorExecucaoFila.solicitar(empresaId,{});
     auditar(req,{ empresaId,acao:'AJUSTE_FORNECEDOR_RAZAO',entidade:'movimentos',entidadeId:String(movimento.id),depois:{ chave,fornecedor:{id:fornecedor.id,descricao:fornecedor.descricao,regime:fornecedor.regime} } });
     ok(res,{ fornecedor, publicacao, processamento_motor });
+  } catch(e) { erro(res,e); }
+});
+
+router.post('/empresas/:id/movimentos/:movimentoId/confirmar-regime-fornecedor', async (req,res)=>{
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId=Number(req.params.id), movimentoId=Number(req.params.movimentoId);
+    const regime=String(req.body?.regime || '').trim().toLowerCase();
+    const cnpj=String(req.body?.cnpj || '').replace(/\D/g,'');
+    if (!['lucro_real','lucro_presumido'].includes(regime)) throw new Error('Confirme Lucro Real ou Lucro Presumido.');
+    if (cnpj.length!==14) throw new Error('Informe o CNPJ do fornecedor com 14 dígitos.');
+    const movimento=db.prepare("SELECT id,chave,nome,origem,normalizacao_evidencia FROM movimentos WHERE id=? AND empresa_id=? AND tipo='fornecedor'").get(movimentoId,empresaId);
+    if (!movimento) throw new Error('Lançamento de entrada não localizado nesta empresa.');
+    const consulta=await fornecedorPorCnpjConsultado(empresaId,cnpj,{ materializar:true });
+    const fornecedor=consulta.fornecedor;
+    db.prepare("UPDATE parceiros SET regime=?,origem='REGIME_CONFIRMADO_USUARIO' WHERE id=? AND empresa_id=?")
+      .run(regime,fornecedor.id,empresaId);
+    let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
+    evidencia.fornecedor_vinculado={ parceiro_id:fornecedor.id,cnpj,descricao:fornecedor.descricao,regime,origem:'REGIME_CONFIRMADO_USUARIO' };
+    evidencia.fornecedor_ajustado_em=new Date().toISOString();
+    evidencia.fornecedor_regime_justificativa='Regime de PIS/Cofins confirmado pelo usuário na pendência da cadeia de fornecedores.';
+    db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?')
+      .run(fornecedor.descricao,cnpj,regime,JSON.stringify(evidencia),movimentoId,empresaId);
+    const publicacao=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,[movimentoId]);
+    estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Regime do fornecedor confirmado');
+    const idsCanonicos=publicacao.movimento_ids_canonicos || [movimentoId];
+    const processamento_motor=await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:idsCanonicos });
+    auditar(req,{ empresaId,acao:'CONFIRMACAO_REGIME_FORNECEDOR',entidade:'movimentos',entidadeId:String(movimentoId),depois:{ cnpj,regime,fornecedor_id:fornecedor.id } });
+    ok(res,{ fornecedor:{ ...fornecedor,regime },publicacao,processamento_motor });
   } catch(e) { erro(res,e); }
 });
 

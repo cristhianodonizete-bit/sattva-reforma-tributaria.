@@ -51,7 +51,7 @@ assert.match(api,/lucro_presumido:\{ pis:0\.65, cofins:3/,'o padrão cumulativo 
 assert.match(api,/\['simples_nacional','lucro_real','lucro_presumido'\]/,'cada item manual deve materializar os três cadastros de regime');
 assert.match(api,/SELECT chave,valor FROM param_regras WHERE grupo='itens_entrada_manual'/,'a migração deve alcançar também itens criados pelo usuário');
 assert.match(api,/MANUAL_ENTRADA','QUESTOR_CONCILIACAO_ENTRADA/,'lançamentos existentes devem receber a referência corrigida');
-assert.match(api,/referenciaPisCofinsDoFornecedor\(item,movimento\.regime_fornecedor\)/,'a propagação deve usar o regime do fornecedor');
+assert.match(api,/regimeFornecedor\.resolver\(movimento\.regime_fornecedor,movimento\.nome\)/,'a propagação deve rejeitar regime incompatível com a forma societária');
 assert.match(api,/referenciaPisCofinsDoFornecedor\(\{ regimes:regra\.regimes \},fornecedor\?\.regime\)/,'a entrada nova deve usar o regime do fornecedor');
 assert.match(api,/regimeFornecedorInformado/,'o backend deve exigir e materializar o fornecedor genérico do regime escolhido');
 assert.doesNotMatch(api,/regra\.regimes\?\.\[regimeEmpresa\]/,'o regime da empresa compradora não define a carga histórica do fornecedor');
@@ -79,6 +79,8 @@ assert.match(config,/filtroItemEntradaReferencia/,'cadastro de itens deve permit
 assert.match(config,/filtroItemEntradaClassificacao/,'cadastro de itens deve permitir filtrar por classificacao CBS e IBS');
 assert.match(tela,/explicarPendenciaPisCofins/,'pendencia de PIS/Cofins deve explicar a causa em linguagem de negocio');
 assert.match(tela,/data-corrigir-pis-cofins-modal/,'lista de pendencias deve oferecer acao de correcao por documento');
+assert.match(api,/confirmar-regime-fornecedor/,'a pendencia deve permitir confirmar CNPJ e regime sem sair da tela');
+assert.match(tela,/Confirmar regime de PIS\/Cofins do fornecedor/,'a correção do regime deve explicar o motivo e ocorrer na própria pendência');
 assert.match(tela,/S\.aba\.config = 'entradas_manuais'/,'acao da pendencia deve abrir o cadastro que resolve a fonte oficial');
 assert.match(config,/aplicarFiltrosItensEntrada/,'filtros do cadastro devem ser combinaveis');
 assert.match(config,/rastreabilidade-item item-entrada-manual-config/,'cada item cadastrado deve ser um cartão');
