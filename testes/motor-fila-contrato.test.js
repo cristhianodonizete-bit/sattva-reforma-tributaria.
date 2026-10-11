@@ -5,10 +5,17 @@ const motor = fs.readFileSync(path.join(__dirname, '../src/services/motorExecuca
 const api = fs.readFileSync(path.join(__dirname, '../src/routes/api.js'), 'utf8');
 const preparacao = fs.readFileSync(path.join(__dirname, '../src/services/preparacaoMotor.js'), 'utf8');
 const operacao = fs.readFileSync(path.join(__dirname, '../src/services/operacaoCompartilhada.js'), 'utf8');
+const index = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
+assert.match(index, /tentativa<=4/, 'assets devem ser repetidos durante a troca de instâncias');
+assert.match(index, /script\.remove\(\)/, 'uma tentativa falha não pode deixar script órfão na página');
+assert.match(index, /versao=await consultarVersao\(\)/, 'o retry deve consultar novamente o commit live');
 assert.match(motor, /const TIPO = 'MOTOR_COMPLETO'/);
 assert.match(motor, /const TIPO_INCREMENTAL = 'MOTOR_INCREMENTAL'/);
 assert.match(motor, /async function solicitarIncremental/);
 assert.match(motor, /modo:'INCREMENTAL_IDS_EXPLICITOS'/);
+assert.match(motor, /const limiteIncremental/,'a criação da fila deve compartilhar o limite seguro do worker');
+assert.match(motor, /movimentoIds\.length>limiteIncremental\(\)/,'lote grande deve ser recusado antes de criar job');
+assert.match(motor, /unidos\.length>limiteIncremental\(\)/,'deduplicação não pode transformar deltas pequenos em um lote sem limite');
 assert.match(motor, /identidade_movimento:'SUPABASE_CANONICA_V1'/,'a fila incremental deve declarar que seus ids pertencem ao Supabase');
 assert.match(motor, /payload\.identidade_movimento==='SUPABASE_CANONICA_V1' \? \(payload\.movimento_ids \|\| \[\]\) : \[\]/,'um job legado com ids efêmeros deve ser substituído, não mesclado');
 assert.match(motor, /iniciarWorker: false/);
@@ -26,6 +33,9 @@ assert.match(fila, /require\('\.\/preparacaoMotor'\)\.preparar\(job\.empresa_id\
 const ramoIncremental = fila.slice(fila.indexOf("if (job.tipo_job === 'MOTOR_INCREMENTAL')"), fila.indexOf('bases.classificarMovimentos(job.empresa_id)'));
 assert.match(ramoIncremental, /movimento_ids/);
 assert.match(ramoIncremental, /motorExec\.reprocessarIncremental/);
+assert.match(ramoIncremental, /MOTOR_INCREMENTAL_LIMITE_ITENS/,'worker deve limitar o tamanho de um delta antes de materializá-lo');
+assert.match(ramoIncremental, /solicitados\.length>limiteIncremental/,'worker deve recusar lote incremental acima do limite seguro');
+assert.match(ramoIncremental, /fotografia anterior foi preservada/,'recusa por memória deve preservar explicitamente a fotografia ativa');
 assert.doesNotMatch(ramoIncremental, /preparar\(job\.empresa_id\)/, 'execução incremental não pode preparar a empresa inteira');
 assert.doesNotMatch(ramoIncremental, /bases\.classificarMovimentos/, 'execução incremental não pode reclassificar a base inteira');
 assert.match(api, /A conferência\n\s+\/\/ fiscal canônica ocorre no worker/);

@@ -31,16 +31,38 @@
   // Cada abertura consulta o commit que está realmente Live e usa essa versão
   // na URL dos scripts. Isso impede uma aba/navegador de combinar HTML antigo
   // com a API de um deploy novo.
-  const status = await fetch('/auth/status', { cache: 'no-store' }).then((r) => r.json()).catch(() => ({}));
-  const versao = encodeURIComponent(status.commit_render || String(Date.now()));
+  const consultarVersao = async () => {
+    const status = await fetch('/auth/status', { cache: 'no-store' }).then((r) => {
+      if (!r.ok) throw new Error(`HTTP ${r.status}`);
+      return r.json();
+    });
+    return encodeURIComponent(status.commit_render || String(Date.now()));
+  };
+  let versao = await consultarVersao();
   const arquivos = ['app','telas','telas2','telas3','telas4','telas5','telas6','telas7','telas8'];
-  for (const arquivo of arquivos) await new Promise((resolve, reject) => {
-    const script = document.createElement('script');
-    script.src = `js/${arquivo}.js?v=${versao}`;
-    script.onload = resolve;
-    script.onerror = () => reject(new Error(`Não foi possível carregar ${arquivo}.js da versão ${versao}.`));
-    document.body.appendChild(script);
-  });
+  const carregar = async (arquivo) => {
+    let ultimoErro;
+    for (let tentativa=1;tentativa<=4;tentativa++) {
+      try {
+        await new Promise((resolve, reject) => {
+          const script = document.createElement('script');
+          script.src = `js/${arquivo}.js?v=${versao}&tentativa=${tentativa}`;
+          script.onload = resolve;
+          script.onerror = () => { script.remove(); reject(new Error(`Não foi possível carregar ${arquivo}.js da versão ${versao}.`)); };
+          document.body.appendChild(script);
+        });
+        return;
+      } catch (erro) {
+        ultimoErro=erro;
+        await new Promise((resolve) => setTimeout(resolve, tentativa * 750));
+        // Durante um rolling deploy, /auth/status pode passar a apontar para a
+        // nova instância entre duas requisições de assets.
+        versao=await consultarVersao().catch(() => versao);
+      }
+    }
+    throw ultimoErro;
+  };
+  for (const arquivo of arquivos) await carregar(arquivo);
   App.iniciar();
 })().catch((erro) => {
   const tela = document.getElementById('tela');

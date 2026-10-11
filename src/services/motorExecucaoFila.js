@@ -5,6 +5,7 @@ const supabase = require('./supabase');
 
 const TIPO = 'MOTOR_COMPLETO';
 const TIPO_INCREMENTAL = 'MOTOR_INCREMENTAL';
+const limiteIncremental = () => Math.max(25,Math.min(500,Number(process.env.MOTOR_INCREMENTAL_LIMITE_ITENS)||250));
 const json = (valor, padrao = null) => {
   if (valor === null || valor === undefined || valor === '') return padrao;
   return typeof valor === 'string' ? JSON.parse(valor) : valor;
@@ -28,6 +29,7 @@ async function solicitarIncremental(empresaId, opcoes = {}) {
   if (!empresa) throw new Error('Empresa não encontrada.');
   const movimentoIds = [...new Set((opcoes.movimentoIds || []).map(Number).filter(Number.isInteger))];
   if (!movimentoIds.length) throw new Error('Informe ao menos um lançamento para o reprocessamento incremental.');
+  if (movimentoIds.length>limiteIncremental()) throw new Error(`A alteração reúne ${movimentoIds.length} itens e excede o limite incremental seguro de ${limiteIncremental()}. Nenhum job foi criado; solicite o cálculo completo explicitamente.`);
   const ano = String(Number(opcoes.ano) || 2027);
   // Não descarte uma segunda alteração enquanto há um job incremental
   // pendente. Unimos o novo recorte ao job existente, mantendo ambos os
@@ -42,6 +44,7 @@ async function solicitarIncremental(empresaId, opcoes = {}) {
     // inválido. Depois da marca, alterações concorrentes voltam a ser unidas.
     const idsAnteriores=payload.identidade_movimento==='SUPABASE_CANONICA_V1' ? (payload.movimento_ids || []) : [];
     const unidos=[...new Set([...idsAnteriores,...movimentoIds].map(Number).filter(Number.isInteger))];
+    if (unidos.length>limiteIncremental()) throw new Error(`As alterações pendentes reúnem ${unidos.length} itens e excedem o limite incremental seguro de ${limiteIncremental()}. O job existente foi preservado sem ampliar seu escopo.`);
     if (payload.identidade_movimento!=='SUPABASE_CANONICA_V1' || unidos.length !== (payload.movimento_ids || []).length) {
       payload.movimento_ids=unidos;
       payload.identidade_movimento='SUPABASE_CANONICA_V1';

@@ -186,6 +186,14 @@ async function processarUm() {
         const payload = JSON.parse(job.payload || '{}');
         const solicitados = [...new Set((payload.movimento_ids || []).map(Number).filter(Number.isInteger))];
         if (!solicitados.length) throw new Error('Job incremental sem lançamentos explícitos.');
+        // Um delta grande deixou de ser incremental e não pode ser materializado
+        // inteiro no heap de 1 GB do worker. Recuse antes de consultar SQLite ou
+        // executar o motor; a fotografia ativa permanece intacta e o processo
+        // continua disponível para os demais jobs.
+        const limiteIncremental=Math.max(25,Math.min(500,Number(process.env.MOTOR_INCREMENTAL_LIMITE_ITENS)||250));
+        if (solicitados.length>limiteIncremental) {
+          throw new Error(`Escopo incremental com ${solicitados.length} itens excede o limite seguro de ${limiteIncremental}; a fotografia anterior foi preservada. Divida a alteração em lotes ou solicite cálculo completo explicitamente.`);
+        }
         const operacao = require('./operacaoCompartilhada');
         // O worker não assume que o seu SQLite conhece os IDs do job. Ele
         // recompõe exclusivamente os fatos canônicos autorizados, sem
