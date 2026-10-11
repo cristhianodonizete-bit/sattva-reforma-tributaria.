@@ -63,6 +63,11 @@ assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 0);
 assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_origem, 'CATALOGO_ENTRADA_MANUAL');
 assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'CATALOGO_ENTRADA_MANUAL');
 
+r = reconstruir({ valor: 70, tipo: 'servico', regime: 'lucro_presumido',
+  entradaManual:{ itemChave:'FRETE_COMPRA' }, pis_cofins_referencia:3.65 });
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_valor, 2.55);
+assert.equal(r.baseEconomica, 67.44);
+
 // Zero comprovado por regra/evidência continua tendo precedência sobre o fallback.
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', pis: 0, cofins: 0,
   pis_cofins_documentado: true, pis_cofins_zero_comprovado: true, regra_geral_regime_confirmada: true });

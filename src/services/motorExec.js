@@ -500,11 +500,13 @@ function normalizar(m) {
   let evidencia={}; try { evidencia=typeof m.normalizacao_evidencia === 'string' ? JSON.parse(m.normalizacao_evidencia || '{}') : (m.normalizacao_evidencia || {}); } catch (_) { /* evidência inválida não impede o processamento do documento */ }
   const itemChave=typeof evidencia.item_cadastrado === 'object' ? String(evidencia.item_cadastrado?.chave || '') : String(evidencia.item_cadastrado || '');
   const referenciaManual=evidencia.referencia_pis_cofins || null;
-  const pisCofinsManual=referenciaManual?.pis_cofins_percentual ?? (
+  const escalaReferenciaManual=referenciaManual?.escala === 'PONTOS_PERCENTUAIS_V1' ? 1 : 100;
+  const pisCofinsManualBruto=referenciaManual?.pis_cofins_percentual ?? (
     referenciaManual && (referenciaManual.pis_percentual !== null || referenciaManual.cofins_percentual !== null)
       ? Number(referenciaManual.pis_percentual || 0) + Number(referenciaManual.cofins_percentual || 0)
       : null
   );
+  const pisCofinsManual=pisCofinsManualBruto === null ? null : Number(pisCofinsManualBruto) * escalaReferenciaManual;
   return {
     documento: m.documento || '', item_numero: m.item_numero,
     nome: m.nome_cadastro || m.nome, inscr_federal: m.inscr_federal,
