@@ -6118,8 +6118,8 @@ async function propagarItemEntradaManualParaRazao(chave, item) {
   })();
   const processamentos=[];
   for (const [empresaId,ids] of porEmpresa) {
-    await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,ids);
-    const processamento=await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:ids });
+    const publicacao=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,ids);
+    const processamento=await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:publicacao.movimento_ids_canonicos });
     estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Cadastro de item de entrada atualizado');
     processamentos.push({ empresa_id:empresaId, documentos:ids.length, processamento_id:processamento.processamento_id });
   }
@@ -6864,7 +6864,7 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
     const publicacao=resultado.movimento_ids.length ? await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,resultado.movimento_ids) : null;
     // A reaplicação do Razão só pode recalcular os fatos que ela própria
     // alterou. Nunca agenda MOTOR_COMPLETO, que prepara a empresa inteira.
-    const processamento_motor=resultado.movimento_ids.length ? await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:resultado.movimento_ids }) : null;
+    const processamento_motor=resultado.movimento_ids.length ? await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:publicacao.movimento_ids_canonicos }) : null;
     if (resultado.movimento_ids.length) estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Naturezas das entradas do Razão reaplicadas');
     auditar(req,{ empresaId,acao:'RECLASSIFICAR_NATUREZAS_RAZAO',entidade:'movimentos',entidadeId:resultado.movimento_ids.join(','),depois:{ ...resultado, movimento_ids:undefined } });
     ok(res,{ ...resultado, publicacao, processamento_motor });
@@ -7840,7 +7840,7 @@ function regimesPadraoEntrada() {
 
 function normalizarEscalaPisCofinsEntradaManual(regra = {}) {
   const escalaAtual=regra.escala_pis_cofins === 'PONTOS_PERCENTUAIS_V1';
-  const origemAtual=regra.origem_referencia_pis_cofins === 'FALLBACK_REGIME_FORNECEDOR_V2';
+  const origemAtual=regra.origem_referencia_pis_cofins === 'FALLBACK_REGIME_FORNECEDOR_V3';
   if (escalaAtual && origemAtual) return { regra, converteu:false };
   if (!regra.regimes || !Object.keys(regra.regimes).length) return { regra, converteu:false };
   const regimes={};
@@ -7851,7 +7851,7 @@ function normalizarEscalaPisCofinsEntradaManual(regra = {}) {
     }
     regimes[chave]=proximo;
   }
-  return { regra:{ ...regra, regimes, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V2' }, converteu:true };
+  return { regra:{ ...regra, regimes, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V3' }, converteu:true };
 }
 function assegurarItensEntradaManualPadrao() {
   let alterou=false;
@@ -7885,7 +7885,7 @@ function assegurarItensEntradaManualPadrao() {
     anterior=escala.regra;
     const contasConfiguradas=Array.isArray(anterior.contas_questor) ? anterior.contas_questor : [];
     const contasMescladas=[...new Set([...contas_questor,...contasConfiguradas])];
-    const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V2',
+    const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V3',
       nbs:anterior.nbs || nbs, lc116:anterior.lc116 || lc116,
       contas_questor:contasMescladas, gera_credito:anterior.gera_credito === undefined ? geraCreditoPadrao : anterior.gera_credito,
       regimes:anterior.regimes || regimesPadrao || regimesPadraoEntrada(), fornecedor_padrao_regime:anterior.fornecedor_padrao_regime || fornecedor_padrao_regime };
@@ -7977,7 +7977,7 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
       return n;
     };
     const contasQuestor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
-    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, nbs, lc116, observacao:String(b.observacao || '').trim(), contas_questor, fornecedor_padrao_regime:fornecedorPadraoRegime, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V2', regimes:{
+    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, nbs, lc116, observacao:String(b.observacao || '').trim(), contas_questor, fornecedor_padrao_regime:fornecedorPadraoRegime, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V3', regimes:{
       lucro_real:{ pis:percentualObrigatorio('pis_lucro_real','PIS — Lucro Real'),cofins:percentualObrigatorio('cofins_lucro_real','Cofins — Lucro Real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ pis:percentualObrigatorio('pis_lucro_presumido','PIS — Lucro Presumido'),cofins:percentualObrigatorio('cofins_lucro_presumido','Cofins — Lucro Presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
       simples_nacional:regimesPadraoEntrada().simples_nacional,
@@ -8009,7 +8009,7 @@ router.put('/config/itens-entrada-manual/:chave', async (req,res)=>{
     if (lc116 && lc116.length!==4) throw new Error('LC 116 deve ter 4 dígitos, quando informada.');
     const percentual=(campo,rotulo)=>{ const valor=String(b[campo] ?? '').trim(), n=Number(valor.replace(',','.')); if (!valor || !Number.isFinite(n) || n<0 || n>100) throw new Error(`${rotulo} deve estar entre 0% e 100%.`); return n; };
     const contas_questor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
-    const regra={ ...atual, nome, beneficio:beneficioInformado/100, gera_credito:!(b.gera_credito===false || String(b.gera_credito || '').toLowerCase()==='false' || String(b.gera_credito || '')==='0'), cst, cclasstrib, nbs, lc116, contas_questor, observacao:String(b.observacao || '').trim(), fornecedor_padrao_regime:regimeFornecedorPadrao(b.fornecedor_padrao_regime), escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V2', regimes:{
+    const regra={ ...atual, nome, beneficio:beneficioInformado/100, gera_credito:!(b.gera_credito===false || String(b.gera_credito || '').toLowerCase()==='false' || String(b.gera_credito || '')==='0'), cst, cclasstrib, nbs, lc116, contas_questor, observacao:String(b.observacao || '').trim(), fornecedor_padrao_regime:regimeFornecedorPadrao(b.fornecedor_padrao_regime), escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V3', regimes:{
       ...(atual.regimes || {}),
       lucro_real:{ ...(atual.regimes?.lucro_real || {}), pis:percentual('pis_lucro_real','PIS — Lucro Real'), cofins:percentual('cofins_lucro_real','Cofins — Lucro Real'), tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ ...(atual.regimes?.lucro_presumido || {}), pis:percentual('pis_lucro_presumido','PIS — Lucro Presumido'), cofins:percentual('cofins_lucro_presumido','Cofins — Lucro Presumido'), tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },

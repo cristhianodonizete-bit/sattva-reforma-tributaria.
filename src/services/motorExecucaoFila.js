@@ -37,9 +37,14 @@ async function solicitarIncremental(empresaId, opcoes = {}) {
     .get(Number(empresaId),ano,TIPO_INCREMENTAL);
   if (ativo) {
     let payload={}; try { payload=json(ativo.payload,{}) || {}; } catch (_) { payload={}; }
-    const unidos=[...new Set([...(payload.movimento_ids || []),...movimentoIds].map(Number).filter(Number.isInteger))];
-    if (unidos.length !== (payload.movimento_ids || []).length) {
+    // Jobs anteriores transportavam ids do SQLite efêmero. Ao receber a
+    // primeira solicitação com o contrato canônico, substituímos esse recorte
+    // inválido. Depois da marca, alterações concorrentes voltam a ser unidas.
+    const idsAnteriores=payload.identidade_movimento==='SUPABASE_CANONICA_V1' ? (payload.movimento_ids || []) : [];
+    const unidos=[...new Set([...idsAnteriores,...movimentoIds].map(Number).filter(Number.isInteger))];
+    if (payload.identidade_movimento!=='SUPABASE_CANONICA_V1' || unidos.length !== (payload.movimento_ids || []).length) {
       payload.movimento_ids=unidos;
+      payload.identidade_movimento='SUPABASE_CANONICA_V1';
       db.prepare('UPDATE jobs_carteira SET payload=? WHERE id=?').run(JSON.stringify(payload),ativo.id);
       if (supabase.configurado()) {
         const { error }=await supabase.admin().from('jobs_carteira').update({ payload }).eq('id',ativo.id).eq('status','PENDENTE');
@@ -49,7 +54,7 @@ async function solicitarIncremental(empresaId, opcoes = {}) {
     return { processamento_id:ativo.processamento_id, deduplicado:true, job:{ ...ativo, payload:JSON.stringify(payload) }, movimento_ids:unidos };
   }
   const processamento = await fila.iniciar({ empresas:[Number(empresaId)], competencia:ano, tipo:TIPO_INCREMENTAL, prioridade:10,
-    payload:{ ano:Number(ano), movimento_ids:movimentoIds, modo:'INCREMENTAL_IDS_EXPLICITOS' }, iniciarWorker:false });
+    payload:{ ano:Number(ano), movimento_ids:movimentoIds, identidade_movimento:'SUPABASE_CANONICA_V1', modo:'INCREMENTAL_IDS_EXPLICITOS' }, iniciarWorker:false });
   const job = (processamento.jobs || []).find((x) => Number(x.empresa_id) === Number(empresaId) && x.tipo_job === TIPO_INCREMENTAL) || null;
   return { processamento_id:processamento.id, deduplicado:Boolean(processamento.deduplicado), job, movimento_ids:movimentoIds };
 }

@@ -1944,7 +1944,18 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
       .eq('empresa_id',Number(empresas[0].id)).eq('chave',String(linha.chave));
     if (error) throw new Error(`Atualização de entrada conciliada compartilhada: ${error.message}`);
   }
-  return { ativo:true, publicados:novas.length, atualizados:existentesLocais.length-preservadosRemotamente, preservados_remotamente:preservadosRemotamente, ja_publicados:locais.length-novas.length, pendentes:0 };
+  // A fila do motor roda em outra instância e só pode receber as identidades
+  // canônicas. O id SQLite é efêmero e pode apontar para outro fato (ou para
+  // nenhum) depois de um deploy. Resolva os ids pela chave estável somente
+  // depois de concluir inserts e updates na fonte compartilhada.
+  const { data:canonicos, error:erroCanonicos }=await remoto.from('movimentos').select('id,chave')
+    .eq('empresa_id',Number(empresas[0].id)).in('chave',chaves);
+  if (erroCanonicos) throw new Error(`Identidades canônicas das entradas conciliadas: ${erroCanonicos.message}`);
+  const movimentoIdsCanonicos=[...new Set((canonicos || []).map((x)=>Number(x.id)).filter(Number.isInteger))];
+  if (movimentoIdsCanonicos.length!==new Set(chaves).size) throw new Error('Nem todas as entradas publicadas receberam identidade canônica; o motor não foi enfileirado.');
+  return { ativo:true, publicados:novas.length, atualizados:existentesLocais.length-preservadosRemotamente,
+    preservados_remotamente:preservadosRemotamente, ja_publicados:locais.length-novas.length, pendentes:0,
+    movimento_ids_canonicos:movimentoIdsCanonicos };
 }
 // Exclusão de documento fiscal precisa ocorrer na fonte canônica antes de
 // atingir o cache. Caso contrário, a próxima reconciliação restaura o XML e

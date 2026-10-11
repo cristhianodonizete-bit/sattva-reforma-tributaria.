@@ -9,6 +9,8 @@ assert.match(motor, /const TIPO = 'MOTOR_COMPLETO'/);
 assert.match(motor, /const TIPO_INCREMENTAL = 'MOTOR_INCREMENTAL'/);
 assert.match(motor, /async function solicitarIncremental/);
 assert.match(motor, /modo:'INCREMENTAL_IDS_EXPLICITOS'/);
+assert.match(motor, /identidade_movimento:'SUPABASE_CANONICA_V1'/,'a fila incremental deve declarar que seus ids pertencem ao Supabase');
+assert.match(motor, /payload\.identidade_movimento==='SUPABASE_CANONICA_V1' \? \(payload\.movimento_ids \|\| \[\]\) : \[\]/,'um job legado com ids efêmeros deve ser substituído, não mesclado');
 assert.match(motor, /iniciarWorker: false/);
 assert.match(motor, /from\('jobs_carteira'\)/);
 assert.match(motor, /a fila compartilhada é a fonte de/i);
@@ -44,4 +46,5 @@ assert.match(preparacao, /reidratar o SQLite efêmero do\n\s+\/\/ worker a parti
 assert.match(preparacao, /forcar:true/);
 assert.match(operacao, /if \(opcoes\.somenteLeitura && divergencia\.bloqueia\)/);
 assert.match(operacao, /O motor foi bloqueado/);
+assert.match(operacao, /movimento_ids_canonicos:movimentoIdsCanonicos/,'a publicação deve devolver as identidades canônicas resolvidas pelas chaves estáveis');
 console.log('motor-fila-contrato: job deduplicado e consumo exclusivo do worker: OK');
