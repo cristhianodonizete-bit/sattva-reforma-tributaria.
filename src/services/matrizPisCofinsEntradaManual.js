@@ -35,4 +35,18 @@ function fotografiaRefleteReferencia(valorMovimento, referencia = null, detalheI
     && Math.abs(Number(memoria.carga_atual_pis_cofins_valor)-valorEsperado)<0.011;
 }
 
-module.exports={ normalizar,fotografiaRefleteReferencia,REGIMES };
+function referenciaDoRegime(regra = {}, regimeFornecedor = '') {
+  const regime=String(regimeFornecedor || '').trim().toLowerCase();
+  if (!REGIMES.includes(regime)) return null;
+  const faixa=regra?.regimes?.[regime];
+  if (!faixa) return null;
+  const pis=faixa.pis === null || faixa.pis === undefined ? null : Number(faixa.pis);
+  const cofins=faixa.cofins === null || faixa.cofins === undefined ? null : Number(faixa.cofins);
+  const conjunto=faixa.pis_cofins === null || faixa.pis_cofins === undefined
+    ? (pis !== null && cofins !== null ? pis+cofins : null) : Number(faixa.pis_cofins);
+  if (conjunto === null || !Number.isFinite(conjunto)) return null;
+  return { regime,escala:'PONTOS_PERCENTUAIS_V1',pis_percentual:pis,cofins_percentual:cofins,
+    pis_cofins_percentual:conjunto,tratamento_atual:faixa.tratamento_atual || '' };
+}
+
+module.exports={ normalizar,fotografiaRefleteReferencia,referenciaDoRegime,REGIMES };

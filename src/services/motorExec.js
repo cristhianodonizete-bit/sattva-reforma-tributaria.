@@ -24,6 +24,7 @@ const receitaOperacional = require('./receitaOperacional');
 const motorReceitasSemDfe = require('./motorReceitasSemDfe');
 const telemetriaReusoClassificacao = require('./telemetriaReusoClassificacao');
 const fechamentoModulos = require('./fechamentoModulos');
+const matrizPisCofinsEntradaManual = require('./matrizPisCofinsEntradaManual');
 // Exceções conhecidas à premissa operacional de participação brasileira.
 // A lista é deliberadamente conservadora: uma correspondência não afirma a
 // composição societária, apenas preserva a validação antes de aplicar 200044.
@@ -501,7 +502,15 @@ function executar(empresaId, opcoes = {}) {
 function normalizar(m) {
   let evidencia={}; try { evidencia=typeof m.normalizacao_evidencia === 'string' ? JSON.parse(m.normalizacao_evidencia || '{}') : (m.normalizacao_evidencia || {}); } catch (_) { /* evidência inválida não impede o processamento do documento */ }
   const itemChave=typeof evidencia.item_cadastrado === 'object' ? String(evidencia.item_cadastrado?.chave || '') : String(evidencia.item_cadastrado || '');
-  const referenciaManual=evidencia.referencia_pis_cofins || null;
+  let regraItemManual=null;
+  if (itemChave) {
+    const registro=db.prepare("SELECT valor FROM param_regras WHERE grupo='itens_entrada_manual' AND chave=?").get(itemChave);
+    try { regraItemManual=JSON.parse(registro?.valor || 'null'); } catch (_) { regraItemManual=null; }
+  }
+  // A matriz vigente é a fonte do cálculo; a cópia da evidência permanece
+  // somente como trilha e fallback para itens legados já removidos.
+  const referenciaManual=matrizPisCofinsEntradaManual.referenciaDoRegime(regraItemManual,m.regime_cadastro || m.regime)
+    || evidencia.referencia_pis_cofins || null;
   const escalaReferenciaManual=referenciaManual?.escala === 'PONTOS_PERCENTUAIS_V1' ? 1 : 100;
   const pisCofinsManualBruto=referenciaManual?.pis_cofins_percentual ?? (
     referenciaManual && (referenciaManual.pis_percentual !== null || referenciaManual.cofins_percentual !== null)

@@ -28,5 +28,9 @@ const fotoAntiga={reconstrucao:{memoriaPisCofins:{carga_atual_pis_cofins_origem:
 const fotoNova={reconstrucao:{memoriaPisCofins:{carga_atual_pis_cofins_origem:'CATALOGO_ENTRADA_MANUAL',carga_atual_pis_cofins_percentual:9.25,carga_atual_pis_cofins_valor:4.15}}};
 assert.equal(matriz.fotografiaRefleteReferencia(44.9,referenciaReal,JSON.stringify(fotoAntiga)),false,'fotografia antiga zerada precisa entrar novamente na fila');
 assert.equal(matriz.fotografiaRefleteReferencia(44.9,referenciaReal,JSON.stringify(fotoNova)),true,'fotografia já recomposta não pode gerar reprocessamento repetido');
+assert.deepStrictEqual(matriz.referenciaDoRegime({regimes:{simples_nacional:{pis_cofins:2.5,tratamento_atual:'DAS'}}},'simples_nacional'),{
+  regime:'simples_nacional',escala:'PONTOS_PERCENTUAIS_V1',pis_percentual:null,cofins_percentual:null,pis_cofins_percentual:2.5,tratamento_atual:'DAS'
+});
+assert.equal(matriz.referenciaDoRegime({regimes:{lucro_real:{pis:1.65,cofins:7.6}}},'lucro_real').pis_cofins_percentual,9.25);
 
 console.log('matriz-pis-cofins-entrada-manual: três cadastros, alíquotas e exceções: OK');
