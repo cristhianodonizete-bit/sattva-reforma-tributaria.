@@ -49,9 +49,7 @@ async function iniciar(opcoes = {}) {
     competencia, tipo_job: tipo, prioridade: Number(opcoes.prioridade) || 0,
     status: 'PENDENTE', tentativas: 0, max_tentativas: 3, payload: JSON.stringify(opcoes.payload || { incremental: true }), criado_em: agora() }));
   db.transaction(() => jobs.forEach((j) => { inserirItem.run(processamentoId, j.empresa_id); inserirJob.run(j.id, j.processamento_id, j.grupo_id, j.empresa_id, j.competencia, j.tipo_job, j.prioridade, j.payload, j.criado_em); }))();
-  for (const job of jobs) await espelharJob(opcoes.empresaRemotaId && jobs.length===1
-    ? { ...job, empresa_id:Number(opcoes.empresaRemotaId) }
-    : job);
+  for (const job of jobs) await espelharJob(job);
   // O serviço HTTP apenas registra trabalho na fila durável. Consumir a fila
   // neste processo fazia um clique do usuário disputar CPU e memória com as
   // telas, além de tornar o resultado dependente da instância web atual. A

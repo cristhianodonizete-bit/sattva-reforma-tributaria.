@@ -69,8 +69,8 @@ assert.match(config,/const pctPontos=/,'alíquotas armazenadas em pontos percent
 assert.match(matrizPisCofins,/cumulatividadeObrigatoria[\s\S]*?padroes\.lucro_presumido/,'item de cumulatividade obrigatória deve usar 0,65% e 3,00% também no Lucro Real');
 assert.match(api,/fotografiaRefleteReferencia\(movimento\.valor,referencia,fotografiaAtual\?\.detalhe\)/,'a renovação deve comparar a fotografia materializada com o cadastro atual');
 assert.match(api,/metadadosIguais && fotografiaCorreta/,'metadados corretos não podem esconder uma fotografia antiga zerada');
-assert.match(api,/empresaRemotaId:publicacao\.empresa_remota_id/,'o job incremental deve usar a identidade canônica da empresa');
 assert.match(operacaoCompartilhada,/empresa_remota_id:Number\(empresas\[0\]\.id\)/,'a publicação deve devolver a empresa canônica junto dos movimentos');
+assert.match(operacaoCompartilhada,/for \(let de=0;de<ids\.length;de\+=500\)[\s\S]*?ids\.slice\(de,de\+500\)/,'o worker deve buscar movimentos incrementais em lotes menores que o limite do Supabase');
 assert.doesNotMatch(tela,/setTimeout\(\(\)=>A\.ir\(eForn \? 'fornecedores'/,'a cadeia não pode entrar em recarregamento automático');
 assert.match(config,/rastreabilidade-lista/,'itens de entrada manual devem usar o mesmo conceito visual da rastreabilidade');
 assert.match(config,/rastreabilidade-item item-entrada-manual-config/,'cada item cadastrado deve ser um cartão');

@@ -566,10 +566,14 @@ async function prepararContextoMotorIncremental(empresaId, movimentoIds = []) {
   if (erroEmpresa) throw new Error(`Empresa do worker incremental: ${erroEmpresa.message}`);
   const empresaRemota = (candidatas || []).find((empresa) => Number(empresa.origem_local_id || empresa.id) === id);
   if (!empresaRemota) throw new Error(`Empresa compartilhada não identificada para o job incremental ${id}.`);
-  const { data: remotos, error: erroMovimentos } = await remoto.from('movimentos').select('*')
-    .eq('empresa_id', Number(empresaRemota.id)).in('id', ids);
-  if (erroMovimentos) throw new Error(`Movimentos do job incremental: ${erroMovimentos.message}`);
-  if ((remotos || []).length !== ids.length) throw new Error('Job incremental contém lançamento inexistente ou de outra empresa na fonte canônica.');
+  const remotos=[];
+  for (let de=0;de<ids.length;de+=500) {
+    const { data, error } = await remoto.from('movimentos').select('*')
+      .eq('empresa_id', Number(empresaRemota.id)).in('id', ids.slice(de,de+500));
+    if (error) throw new Error(`Movimentos do job incremental: ${error.message}`);
+    remotos.push(...(data || []));
+  }
+  if (remotos.length !== ids.length) throw new Error('Job incremental contém lançamento inexistente ou de outra empresa na fonte canônica.');
   const mapaEmpresa = new Map([[String(empresaRemota.id), id]]);
   const movimentos = normalizarEmpresaIdDoCache('movimentos', remotos || [], mapaEmpresa);
   const locaisConflitantes = db.prepare(`SELECT id,empresa_id FROM movimentos WHERE id IN (${ids.map(() => '?').join(',')})`)
@@ -578,9 +582,13 @@ async function prepararContextoMotorIncremental(empresaId, movimentoIds = []) {
   gravar('movimentos', movimentos);
   const evidencias = {};
   for (const tabela of TABELAS_MOTOR_APOS_DOCUMENTOS) {
-    const { data, error } = await remoto.from(tabela).select('*').eq('empresa_id', Number(empresaRemota.id)).in('movimento_id', ids);
-    if (error) throw new Error(`${tabela} incremental: ${error.message}`);
-    evidencias[tabela] = gravar(tabela, normalizarEmpresaIdDoCache(tabela, data || [], mapaEmpresa));
+    const linhas=[];
+    for (let de=0;de<ids.length;de+=500) {
+      const { data, error } = await remoto.from(tabela).select('*').eq('empresa_id', Number(empresaRemota.id)).in('movimento_id', ids.slice(de,de+500));
+      if (error) throw new Error(`${tabela} incremental: ${error.message}`);
+      linhas.push(...(data || []));
+    }
+    evidencias[tabela] = gravar(tabela, normalizarEmpresaIdDoCache(tabela, linhas, mapaEmpresa));
   }
   return { ...contexto, movimentos: movimentos.length, evidencias };
 }
