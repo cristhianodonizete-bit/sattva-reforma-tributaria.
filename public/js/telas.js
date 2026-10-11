@@ -829,13 +829,16 @@ Telas.dados = async (el) => {
         const itens=configuracao.itensEntradaManual || [];
         A.modal({ titulo:'Lançar entradas manuais', largura:920, confirmar:'Registrar entradas',
           descricao:'Cada competência selecionada cria um lançamento de entrada novo e auditável. Ele entra na fila incremental e será considerado normalmente na próxima execução do motor, sem alterar XMLs ou notas existentes.',
-          corpo:`<div class="aviso info">Selecione um item do cadastro técnico. Cada classificação de entrada manual pertence a este mesmo catálogo; para uma nova natureza, cadastre primeiro a regra fiscal em Configurações.</div><div class="grade g2"><label class="campo"><span>Item cadastrado</span><select id="entradaManualItem" required><option value="">Selecione uma classificação</option>${itens.map(i=>`<option value="${A.esc(i.chave)}">${A.esc(i.nome)} · benefício ${A.pct(i.beneficio || 0)}</option>`).join('')}</select></label></div><div class="grade g2" style="margin-top:14px"><label class="campo"><span>Fornecedor pelo CNPJ (opcional)</span><input id="entradaManualFornecedorCnpj" inputmode="numeric" placeholder="00.000.000/0000-00"></label><div class="campo" style="align-self:end"><span>&nbsp;</span><button type="button" class="btn vazio" id="consultarFornecedorEntradaManual">Consultar CNPJ</button></div></div><input type="hidden" id="entradaManualFornecedorCnpjConfirmado"><div id="preconsultaFornecedorEntradaManual" class="mini">Sem CNPJ, será aplicado o fornecedor padrão definido para a natureza da entrada.</div><div class="aviso info" id="referenciaPisCofinsEntradaManual" style="margin-top:12px"></div><h3 style="margin-top:16px">Competências do Período analisado</h3><p class="mini">Marque as competências que deseja incluir e informe o valor de cada uma.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">${competencias.map(c=>`<label class="campo" style="border:1px solid var(--borda);padding:10px;border-radius:8px"><span><input type="checkbox" data-entrada-manual-competencia="${c}"> ${c}</span><input inputmode="decimal" data-entrada-manual-valor="${c}" placeholder="Valor da entrada"></label>`).join('')}</div>`,
+          corpo:`<div class="aviso info">Selecione o item e o cadastro do fornecedor aplicável. Cada item possui referências próprias para Simples Nacional, Lucro Real e Lucro Presumido.</div><div class="grade g2"><label class="campo"><span>Item cadastrado</span><select id="entradaManualItem" required><option value="">Selecione uma classificação</option>${itens.map(i=>`<option value="${A.esc(i.chave)}">${A.esc(i.nome)} · benefício ${A.pct(i.beneficio || 0)}</option>`).join('')}</select></label><label class="campo"><span>Regime do fornecedor quando não houver CNPJ</span><select id="entradaManualFornecedorRegime" required><option value="simples_nacional">Simples Nacional</option><option value="lucro_real">Lucro Real</option><option value="lucro_presumido">Lucro Presumido</option></select><small>Cada opção usa o cadastro correspondente deste item.</small></label></div><div class="grade g2" style="margin-top:14px"><label class="campo"><span>Fornecedor pelo CNPJ (opcional)</span><input id="entradaManualFornecedorCnpj" inputmode="numeric" placeholder="00.000.000/0000-00"></label><div class="campo" style="align-self:end"><span>&nbsp;</span><button type="button" class="btn vazio" id="consultarFornecedorEntradaManual">Consultar CNPJ</button></div></div><input type="hidden" id="entradaManualFornecedorCnpjConfirmado"><input type="hidden" id="entradaManualFornecedorRegimeConfirmado"><div id="preconsultaFornecedorEntradaManual" class="mini">Sem CNPJ, será usado o fornecedor genérico do regime selecionado acima.</div><div class="aviso info" id="referenciaPisCofinsEntradaManual" style="margin-top:12px"></div><h3 style="margin-top:16px">Competências do Período analisado</h3><p class="mini">Marque as competências que deseja incluir e informe o valor de cada uma.</p><div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:10px">${competencias.map(c=>`<label class="campo" style="border:1px solid var(--borda);padding:10px;border-radius:8px"><span><input type="checkbox" data-entrada-manual-competencia="${c}"> ${c}</span><input inputmode="decimal" data-entrada-manual-valor="${c}" placeholder="Valor da entrada"></label>`).join('')}</div>`,
           aoAbrir: (fundo) => {
             const seletor=fundo.querySelector('#entradaManualItem');
+            const seletorRegime=fundo.querySelector('#entradaManualFornecedorRegime');
             const referencia=fundo.querySelector('#referenciaPisCofinsEntradaManual');
             const atualizarReferencia=() => {
               const item=itens.find(i=>i.chave === seletor?.value);
-              const regra=item?.regimes?.[regimeEmpresa];
+              const regimeConfirmado=fundo.querySelector('#entradaManualFornecedorRegimeConfirmado')?.value;
+              const regimeFornecedor=regimeConfirmado || seletorRegime?.value;
+              const regra=item?.regimes?.[regimeFornecedor];
               if (!regra) {
                 referencia.innerHTML='Referência histórica de PIS/Cofins: informe-a no documento/evidência. Nenhuma taxa ou crédito é presumido para item avulso.';
                 return;
@@ -843,9 +846,10 @@ Telas.dados = async (el) => {
               const pis=regra.pis === null || regra.pis === undefined ? '—' : A.pct(regra.pis);
               const cofins=regra.cofins === null || regra.cofins === undefined ? '—' : A.pct(regra.cofins);
               const conjunto=regra.pis_cofins === null || regra.pis_cofins === undefined ? '' : ` · <b>PIS/Cofins conjunto ${A.esc(A.pct(regra.pis_cofins))}</b>`;
-              referencia.innerHTML=`Referência histórica para o regime desta empresa: <b>PIS ${A.esc(pis)}</b> · <b>Cofins ${A.esc(cofins)}</b>${conjunto}${regra.tratamento_atual ? `<div class="mini">${A.esc(regra.tratamento_atual)}</div>` : ''}<div class="mini">Essa referência será registrada como evidência; não cria crédito nem altera o cálculo de CBS.</div>`;
+              referencia.innerHTML=`Referência histórica do fornecedor ${A.esc(A.regimeLabel(regimeFornecedor))}: <b>PIS ${A.esc(pis)}</b> · <b>Cofins ${A.esc(cofins)}</b>${conjunto}${regra.tratamento_atual ? `<div class="mini">${A.esc(regra.tratamento_atual)}</div>` : ''}<div class="mini">Essa referência será registrada como evidência; não cria crédito nem altera o cálculo de CBS.</div>`;
             };
             seletor?.addEventListener('change',atualizarReferencia);
+            seletorRegime?.addEventListener('change',atualizarReferencia);
             atualizarReferencia();
             const entradaCnpj=fundo.querySelector('#entradaManualFornecedorCnpj'); const previaCnpj=fundo.querySelector('#preconsultaFornecedorEntradaManual');
             const consultarFornecedor=async()=>{
@@ -854,15 +858,18 @@ Telas.dados = async (el) => {
               previaCnpj.innerHTML='<span class="mini">Consultando fornecedor…</span>';
               const consulta=await A.api(`/empresas/${S.empresaId}/fornecedores/consultar-cnpj`,{metodo:'POST',corpo:{cnpj}});
               const f=consulta.fornecedor; fundo.querySelector('#entradaManualFornecedorCnpjConfirmado').value=f.cnpj;
+              fundo.querySelector('#entradaManualFornecedorRegimeConfirmado').value=f.regime || '';
+              if (f.regime && ['simples_nacional','lucro_real','lucro_presumido'].includes(f.regime)) seletorRegime.value=f.regime;
+              seletorRegime.disabled=true; atualizarReferencia();
               previaCnpj.innerHTML=`<div class="aviso bom"><b>${A.esc(f.descricao)}</b> · ${A.esc(A.cnpjFmt(f.cnpj))}<br><span>${A.esc(A.regimeLabel(f.regime || 'indeterminado'))}${f.municipio || f.uf ? ` · ${A.esc([f.municipio,f.uf].filter(Boolean).join('/'))}` : ''}</span><div class="mini">${f.ja_cadastrado?'Fornecedor já cadastrado; será vinculado ao lançamento.':'Será cadastrado e vinculado ao confirmar o lançamento.'}</div></div>`;
             };
             fundo.querySelector('#consultarFornecedorEntradaManual')?.addEventListener('click',()=>consultarFornecedor().catch((e)=>{ previaCnpj.innerHTML=`<span class="mini" style="color:var(--perigo)">${A.esc(e.message)}</span>`; }));
-            entradaCnpj?.addEventListener('change',()=>{ fundo.querySelector('#entradaManualFornecedorCnpjConfirmado').value=''; });
+            entradaCnpj?.addEventListener('change',()=>{ fundo.querySelector('#entradaManualFornecedorCnpjConfirmado').value=''; fundo.querySelector('#entradaManualFornecedorRegimeConfirmado').value=''; seletorRegime.disabled=false; atualizarReferencia(); });
           },
           aoConfirmar: async () => {
             const selecionadas=[...document.querySelectorAll('[data-entrada-manual-competencia]:checked')].map(x=>x.dataset.entradaManualCompetencia);
             const competencias=selecionadas.map(competencia=>({competencia,valor:String(document.querySelector(`[data-entrada-manual-valor="${competencia}"]`)?.value || '').replace(',','.')}));
-            const r=await A.api(`/empresas/${S.empresaId}/entradas-manuais`,{metodo:'POST',corpo:{item_chave:document.getElementById('entradaManualItem')?.value || '',fornecedor_cnpj:document.getElementById('entradaManualFornecedorCnpjConfirmado')?.value || '',competencias}});
+            const r=await A.api(`/empresas/${S.empresaId}/entradas-manuais`,{metodo:'POST',corpo:{item_chave:document.getElementById('entradaManualItem')?.value || '',fornecedor_cnpj:document.getElementById('entradaManualFornecedorCnpjConfirmado')?.value || '',fornecedor_regime:document.getElementById('entradaManualFornecedorRegime')?.value || '',competencias}});
             A.toast(`${r.inseridos.length} entrada(s) manual(is) registrada(s) e incluída(s) na fila do motor.`, 'ok'); A.ir('dados');
           },
         });

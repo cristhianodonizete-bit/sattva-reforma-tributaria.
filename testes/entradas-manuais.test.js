@@ -30,6 +30,8 @@ assert.match(api,/publicarOperacaoEmpresa/);
 assert.match(tela,/grupoCentral === 'receitas'/);
 assert.match(tela,/Lançar entrada manual/);
 assert.match(tela,/Fornecedor pelo CNPJ \(opcional\)/,'o lançamento manual deve permitir consulta rápida de fornecedor por CNPJ');
+assert.match(tela,/entradaManualFornecedorRegime/,'o lançamento sem CNPJ deve escolher um dos três cadastros de fornecedor do item');
+assert.match(tela,/Referência histórica do fornecedor/,'a tela deve explicar a referência do regime do fornecedor, não da empresa compradora');
 assert.match(tela,/Consultar CNPJ/,'a interface deve disparar a consulta antes da confirmação');
 assert.match(tela,/fila incremental/);
 assert.match(config,/Itens de entrada manual/);
@@ -50,6 +52,7 @@ assert.match(api,/SELECT chave,valor FROM param_regras WHERE grupo='itens_entrad
 assert.match(api,/MANUAL_ENTRADA','QUESTOR_CONCILIACAO_ENTRADA/,'lançamentos existentes devem receber a referência corrigida');
 assert.match(api,/referenciaPisCofinsDoFornecedor\(item,movimento\.regime_fornecedor\)/,'a propagação deve usar o regime do fornecedor');
 assert.match(api,/referenciaPisCofinsDoFornecedor\(\{ regimes:regra\.regimes \},fornecedor\?\.regime\)/,'a entrada nova deve usar o regime do fornecedor');
+assert.match(api,/regimeFornecedorInformado/,'o backend deve exigir e materializar o fornecedor genérico do regime escolhido');
 assert.doesNotMatch(api,/regra\.regimes\?\.\[regimeEmpresa\]/,'o regime da empresa compradora não define a carga histórica do fornecedor');
 assert.match(api,/regra\.pis \?\? padrao\.pis/,'campo nulo no item promovido deve usar a referência geral do regime');
 assert.match(api,/conjunto === null/,'ausência real de referência deve continuar indeterminada');

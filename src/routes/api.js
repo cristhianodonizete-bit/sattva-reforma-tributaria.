@@ -8160,12 +8160,16 @@ router.post('/empresas/:id/entradas-manuais', async (req, res) => {
     if (!Number.isFinite(beneficio) || beneficio < 0 || beneficio > 1) throw new Error('O benefício do item deve estar entre 0% e 100%.');
     const itemHash=crypto.createHash('sha256').update(`${empresaId}|${chave || 'AVULSO'}|${descricao}`).digest('hex').slice(0,16);
     const cnpjFornecedor=String(corpo.fornecedor_cnpj || '').replace(/\D/g,'');
+    const regimeFornecedorInformado=String(corpo.fornecedor_regime || '').trim().toLowerCase();
+    if (!cnpjFornecedor && !['simples_nacional','lucro_real','lucro_presumido'].includes(regimeFornecedorInformado)) {
+      throw new Error('Selecione o regime do fornecedor quando o CNPJ não for informado.');
+    }
     // Uma classificação avulsa é um fato contábil, não uma regra fiscal. Sem
     // item cadastrado e sem CNPJ informado, não invente fornecedor/regime nem
     // permita que a entrada gere crédito por padrão.
     const fornecedor=cnpjFornecedor
       ? (await fornecedorPorCnpjConsultado(empresaId,cnpjFornecedor,{ materializar:true })).fornecedor
-      : itemCadastrado ? obterFornecedorGenericoPorRegime(empresaId,regra.fornecedor_padrao_regime) : null;
+      : itemCadastrado ? obterFornecedorGenericoPorRegime(empresaId,regimeFornecedorInformado) : null;
     // A carga histórica da compra é definida pelo regime do fornecedor. O
     // regime da empresa adquirente participa do direito ao crédito, não pode
     // substituir a origem do PIS/Cofins embutido na aquisição.
