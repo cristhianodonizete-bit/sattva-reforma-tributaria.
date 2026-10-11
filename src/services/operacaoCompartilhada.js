@@ -1318,6 +1318,31 @@ async function baixarResultadosMotor(remotoInformado = null) {
 // por uma parcela que tenha sobrevivido no disco efêmero do Render. Esta
 // restauração é restrita à empresa aberta (não recarrega a carteira inteira)
 // e é chamada depois de os movimentos canônicos já estarem no cache local.
+async function restaurarMovimentosDaFotografia(remoto,empresaRemota,empresaLocal,ids) {
+  const linhas=[];
+  for (let de=0;de<ids.length;de+=500) {
+    const {data,error}=await remoto.from('movimentos').select('*')
+      .eq('empresa_id',Number(empresaRemota.id)).in('id',ids.slice(de,de+500));
+    if (error) throw new Error(`Movimentos da fotografia compartilhada: ${error.message}`);
+    linhas.push(...(data || []));
+  }
+  const mapa=new Map([[String(empresaRemota.id),Number(empresaLocal)]]);
+  return gravar('movimentos',normalizarEmpresaIdDoCache('movimentos',linhas,mapa));
+}
+
+function movimentosLocaisExistentes(empresaId,ids) {
+  const existentes=new Set();
+  for (let de=0;de<ids.length;de+=500) {
+    const lote=ids.slice(de,de+500);
+    if (!lote.length) continue;
+    const marcadores=lote.map(()=>'?').join(',');
+    for (const linha of db.prepare(`SELECT id FROM movimentos WHERE empresa_id=? AND id IN (${marcadores})`).all(Number(empresaId),...lote)) {
+      existentes.add(Number(linha.id));
+    }
+  }
+  return existentes;
+}
+
 async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null) {
   if (!ativo()) return { ativo:false, resultados:0, execucoes:0 };
   const id=Number(empresaId);
@@ -1339,9 +1364,12 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     if (!data || data.length<1000) break;
   }
   const movimentoIds=[...new Set(resultados.map((x)=>Number(x.movimento_id)).filter(Number.isInteger))];
-  const locais=new Set(db.prepare('SELECT id FROM movimentos WHERE empresa_id=?').all(id).map((x)=>Number(x.id)));
+  let locais=movimentosLocaisExistentes(id,movimentoIds);
   const ausentes=movimentoIds.filter((movimentoId)=>!locais.has(movimentoId));
-  if (ausentes.length) throw new Error(`Fotografia canônica possui ${ausentes.length} documento(s) ainda ausente(s) no cache; a cadeia não será exibida parcialmente.`);
+  if (ausentes.length) await restaurarMovimentosDaFotografia(remoto,remota,id,ausentes);
+  locais=movimentosLocaisExistentes(id,movimentoIds);
+  const aindaAusentes=movimentoIds.filter((movimentoId)=>!locais.has(movimentoId));
+  if (aindaAusentes.length) throw new Error(`Fotografia canonica possui ${aindaAusentes.length} documento(s) ausente(s) na fonte.`);
   // A execução é a indicada pelas linhas ativas, nunca a última execução da
   // empresa. Usar a mais recente misturava uma foto histórica com metadados
   // de outro cálculo e permitia que uma reexecução falha parecesse publicada.

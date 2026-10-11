@@ -58,6 +58,10 @@ assert.doesNotMatch(api,/regra\.regimes\?\.\[regimeEmpresa\]/,'o regime da empre
 assert.match(api,/regra\.pis \?\? padrao\.pis/,'campo nulo no item promovido deve usar a referência geral do regime');
 assert.match(api,/conjunto === null/,'ausência real de referência deve continuar indeterminada');
 assert.match(api,/async function renovarFotografiasItensEntradaManualSeNecessario\(empresaId\)/,'a cadeia deve renovar somente a empresa restaurada por sua identidade estável');
+assert.doesNotMatch(api,/reconciliarMovimentosEmpresa\(empresaId, \{ forcar:true, maxAgeMs:0 \}\)/,'a abertura da cadeia nao deve forcar reconciliacao completa');
+assert.doesNotMatch(api,/await operacaoCompartilhada\.reconciliarMovimentosEmpresa\(empresaId\);/,'a abertura da cadeia nao deve materializar todos os movimentos');
+assert.match(operacaoCompartilhada,/async function restaurarMovimentosDaFotografia/,'a fotografia deve restaurar somente os movimentos referenciados');
+assert.match(operacaoCompartilhada,/WHERE empresa_id=\? AND id IN/,'a verificacao local deve limitar a leitura aos ids da fotografia');
 assert.match(api,/for \(const item of itensEntradaManualConfigurados\(\)\)[\s\S]*?propagarItemEntradaManualParaRazao/,'a fotografia deve ser invalidada somente para os itens afetados pela migração');
 assert.match(api,/propagarItemEntradaManualParaRazao\(item\.chave,item,id\)/,'a renovação não pode atravessar empresas no cache efêmero');
 assert.match(motor,/escalaReferenciaManual/,'evidências legadas em fator decimal devem continuar calculáveis');

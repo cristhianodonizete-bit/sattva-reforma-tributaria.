@@ -3460,11 +3460,10 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(empresaId);
     if (!empresa) throw new Error('Empresa não encontrada');
     // A cadeia lê a fotografia do motor; após reinício, o cache efêmero pode
-    // conter só uma fração dos resultados. Reconcilie primeiro os documentos
-    // e então restaure somente a fotografia ativa desta empresa. Falhar aqui
-    // é preferível a apresentar um total parcial como se fosse a carteira.
+    // conter só uma fração dos resultados. A restauração da fotografia busca
+    // somente os documentos nela referenciados; reconciliar a empresa inteira
+    // nesta rota pode esgotar a memória do processo ao simplesmente abrir a tela.
     const operacaoCompartilhada=require('../services/operacaoCompartilhada');
-    await operacaoCompartilhada.reconciliarMovimentosEmpresa(empresaId, { forcar:true, maxAgeMs:0 });
     await operacaoCompartilhada.restaurarFotografiaMotorEmpresa(empresaId);
     // Regime de parceiro é cadastro, não resultado do motor. Revalidamos o
     // espelho pequeno da empresa antes de consolidar compras ou receitas para
