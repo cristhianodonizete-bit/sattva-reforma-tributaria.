@@ -3450,6 +3450,25 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
   try {
     await atualizarConfiguracaoDeCalculo();
     const empresaId = Number(req.params.id);
+    // A correção de uma regra do catálogo não pode depender de o usuário abrir
+    // antes a tela de Configurações. Em instâncias efêmeras, a cadeia baixa a
+    // configuração canônica e aplica a migração idempotente antes de restaurar
+    // a fotografia. Quando há mudança, apenas os lançamentos vinculados aos
+    // itens alterados são publicados e enfileirados para recálculo incremental.
+    let renovacaoFotografia=null;
+    if (assegurarItensEntradaManualPadrao()) {
+      await confirmarParametrosCompartilhados();
+      const propagacoes=[];
+      for (const item of itensEntradaManualConfigurados()) {
+        const propagacao=await propagarItemEntradaManualParaRazao(item.chave,item);
+        if (propagacao.documentos) propagacoes.push({ item:item.chave,...propagacao });
+      }
+      renovacaoFotografia={
+        status:'PROCESSAMENTO_PENDENTE',
+        documentos:propagacoes.reduce((s,x)=>s+Number(x.documentos || 0),0),
+        itens:propagacoes.map((x)=>x.item),
+      };
+    }
     await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido para a cadeia' });
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(empresaId);
     if (!empresa) throw new Error('Empresa não encontrada');
@@ -3497,7 +3516,8 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
       paginaParceiros: req.query.pagina_parceiros,
       limiteParceiros: req.query.limite_parceiros,
     });
-    ok(res, { empresa, analise: resultado, pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', lc116:m.lc116 || '', valor: Number(m.valor) || 0 })) });
+    ok(res, { empresa, analise: resultado, renovacaoFotografia,
+      pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', lc116:m.lc116 || '', valor: Number(m.valor) || 0 })) });
   } catch (e) { erro(res, e); }
 });
 
@@ -6046,12 +6066,22 @@ function itensEntradaManualConfigurados() {
 function referenciaPisCofinsDoFornecedor(item, regimeFornecedor) {
   const regime=String(regimeFornecedor || '').trim().toLowerCase();
   if (!['lucro_real','lucro_presumido','simples_nacional'].includes(regime)) return null;
-  const regra=item?.regimes?.[regime];
-  if (!regra) return null;
-  return { regime, escala:'PONTOS_PERCENTUAIS_V1', pis_percentual:regra.pis ?? null,
-    cofins_percentual:regra.cofins ?? null,
-    pis_cofins_percentual:regra.pis_cofins ?? ((regra.pis ?? 0)+(regra.cofins ?? 0)),
-    tratamento_atual:regra.tratamento_atual || '' };
+  const regra=item?.regimes?.[regime] || {};
+  const padrao=regimesPadraoEntrada()[regime] || {};
+  // Itens promovidos do Razão foram cadastrados com campos nulos para não
+  // inventar uma exceção fiscal. Nulo significa "sem regra específica" e
+  // deve cair na referência geral do regime do fornecedor; zero explícito
+  // continua zero para alíquota zero, custas e demais exceções confirmadas.
+  const pis=regra.pis ?? padrao.pis ?? null;
+  const cofins=regra.cofins ?? padrao.cofins ?? null;
+  const conjunto=regra.pis_cofins ?? padrao.pis_cofins ?? (pis !== null && cofins !== null ? pis+cofins : null);
+  if (conjunto === null) return null;
+  const usouPadrao=regra.pis_cofins === null || regra.pis_cofins === undefined
+    ? (regra.pis === null || regra.pis === undefined || regra.cofins === null || regra.cofins === undefined)
+    : false;
+  return { regime, escala:'PONTOS_PERCENTUAIS_V1', pis_percentual:pis, cofins_percentual:cofins,
+    pis_cofins_percentual:conjunto,
+    tratamento_atual:usouPadrao ? `${padrao.tratamento_atual || ''} Referência geral aplicada porque o item não possui exceção específica cadastrada.`.trim() : (regra.tratamento_atual || padrao.tratamento_atual || '') };
 }
 
 // O catálogo de entradas é a fonte de verdade também para fatos do Razão que
@@ -7810,7 +7840,7 @@ function regimesPadraoEntrada() {
 
 function normalizarEscalaPisCofinsEntradaManual(regra = {}) {
   const escalaAtual=regra.escala_pis_cofins === 'PONTOS_PERCENTUAIS_V1';
-  const origemAtual=regra.origem_referencia_pis_cofins === 'REGIME_FORNECEDOR_V1';
+  const origemAtual=regra.origem_referencia_pis_cofins === 'FALLBACK_REGIME_FORNECEDOR_V2';
   if (escalaAtual && origemAtual) return { regra, converteu:false };
   if (!regra.regimes || !Object.keys(regra.regimes).length) return { regra, converteu:false };
   const regimes={};
@@ -7821,7 +7851,7 @@ function normalizarEscalaPisCofinsEntradaManual(regra = {}) {
     }
     regimes[chave]=proximo;
   }
-  return { regra:{ ...regra, regimes, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'REGIME_FORNECEDOR_V1' }, converteu:true };
+  return { regra:{ ...regra, regimes, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V2' }, converteu:true };
 }
 function assegurarItensEntradaManualPadrao() {
   let alterou=false;
@@ -7855,7 +7885,7 @@ function assegurarItensEntradaManualPadrao() {
     anterior=escala.regra;
     const contasConfiguradas=Array.isArray(anterior.contas_questor) ? anterior.contas_questor : [];
     const contasMescladas=[...new Set([...contas_questor,...contasConfiguradas])];
-    const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'REGIME_FORNECEDOR_V1',
+    const proxima={ nome,beneficio,cclasstrib,cst,observacao,...anterior, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V2',
       nbs:anterior.nbs || nbs, lc116:anterior.lc116 || lc116,
       contas_questor:contasMescladas, gera_credito:anterior.gera_credito === undefined ? geraCreditoPadrao : anterior.gera_credito,
       regimes:anterior.regimes || regimesPadrao || regimesPadraoEntrada(), fornecedor_padrao_regime:anterior.fornecedor_padrao_regime || fornecedor_padrao_regime };
@@ -7947,7 +7977,7 @@ router.post('/config/itens-entrada-manual', async (req, res) => {
       return n;
     };
     const contasQuestor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
-    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, nbs, lc116, observacao:String(b.observacao || '').trim(), contas_questor, fornecedor_padrao_regime:fornecedorPadraoRegime, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'REGIME_FORNECEDOR_V1', regimes:{
+    const regra={ nome, beneficio:beneficioInformado / 100, gera_credito:geraCredito, cst, cclasstrib, nbs, lc116, observacao:String(b.observacao || '').trim(), contas_questor, fornecedor_padrao_regime:fornecedorPadraoRegime, escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V2', regimes:{
       lucro_real:{ pis:percentualObrigatorio('pis_lucro_real','PIS — Lucro Real'),cofins:percentualObrigatorio('cofins_lucro_real','Cofins — Lucro Real'),tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ pis:percentualObrigatorio('pis_lucro_presumido','PIS — Lucro Presumido'),cofins:percentualObrigatorio('cofins_lucro_presumido','Cofins — Lucro Presumido'),tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
       simples_nacional:regimesPadraoEntrada().simples_nacional,
@@ -7979,7 +8009,7 @@ router.put('/config/itens-entrada-manual/:chave', async (req,res)=>{
     if (lc116 && lc116.length!==4) throw new Error('LC 116 deve ter 4 dígitos, quando informada.');
     const percentual=(campo,rotulo)=>{ const valor=String(b[campo] ?? '').trim(), n=Number(valor.replace(',','.')); if (!valor || !Number.isFinite(n) || n<0 || n>100) throw new Error(`${rotulo} deve estar entre 0% e 100%.`); return n; };
     const contas_questor=[...new Set((Array.isArray(b.contas_questor)?b.contas_questor:String(b.conta_questor || '').split(/[;,]/)).map((v)=>String(v).trim()).filter(Boolean))];
-    const regra={ ...atual, nome, beneficio:beneficioInformado/100, gera_credito:!(b.gera_credito===false || String(b.gera_credito || '').toLowerCase()==='false' || String(b.gera_credito || '')==='0'), cst, cclasstrib, nbs, lc116, contas_questor, observacao:String(b.observacao || '').trim(), fornecedor_padrao_regime:regimeFornecedorPadrao(b.fornecedor_padrao_regime), escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'REGIME_FORNECEDOR_V1', regimes:{
+    const regra={ ...atual, nome, beneficio:beneficioInformado/100, gera_credito:!(b.gera_credito===false || String(b.gera_credito || '').toLowerCase()==='false' || String(b.gera_credito || '')==='0'), cst, cclasstrib, nbs, lc116, contas_questor, observacao:String(b.observacao || '').trim(), fornecedor_padrao_regime:regimeFornecedorPadrao(b.fornecedor_padrao_regime), escala_pis_cofins:'PONTOS_PERCENTUAIS_V1', origem_referencia_pis_cofins:'FALLBACK_REGIME_FORNECEDOR_V2', regimes:{
       ...(atual.regimes || {}),
       lucro_real:{ ...(atual.regimes?.lucro_real || {}), pis:percentual('pis_lucro_real','PIS — Lucro Real'), cofins:percentual('cofins_lucro_real','Cofins — Lucro Real'), tratamento_atual:String(b.tratamento_lucro_real || '').trim() || 'Não cumulativo: confirmar elegibilidade documental do crédito.' },
       lucro_presumido:{ ...(atual.regimes?.lucro_presumido || {}), pis:percentual('pis_lucro_presumido','PIS — Lucro Presumido'), cofins:percentual('cofins_lucro_presumido','Cofins — Lucro Presumido'), tratamento_atual:String(b.tratamento_lucro_presumido || '').trim() || 'Cumulativo: crédito de entrada não é presumido.' },
