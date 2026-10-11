@@ -2056,6 +2056,15 @@ async function telaCadeia(el, tipo) {
     registros: pendenciasPisCofins.length,
     valor: pendenciasPisCofins.reduce((s, x) => s + Number(x.valor || 0), 0),
   };
+  const explicarPendenciaPisCofins = (item) => {
+    const codigo = String(item.motivo || item.motivoBaseEconomica || item.origem || item.origemPisCofins || '').toUpperCase();
+    if (codigo.includes('MULTIPLOS_CANDIDATOS')) return { titulo: 'Mais de uma regra fiscal compatível', detalhe: 'O motor encontrou referências concorrentes e não pode escolher uma alíquota sem confirmação.', acao: 'Revisar regras' };
+    if (codigo.includes('REGIME') && (codigo.includes('DESCONHECIDO') || codigo.includes('INDETERMINADO'))) return { titulo: 'Regime do fornecedor não confirmado', detalhe: 'Sem o regime do fornecedor, o sistema não pode escolher entre Simples, Lucro Real e Lucro Presumido.', acao: 'Corrigir fornecedor' };
+    if (codigo.includes('SEM_CATALOGO')) return { titulo: 'Item sem regra de PIS/Cofins aplicável', detalhe: 'Não existe uma referência vinculada a este item/conta para o regime do fornecedor. Cadastre ou vincule o item e confira as alíquotas dos três regimes.', acao: 'Corrigir catálogo' };
+    if (codigo.includes('SEM_EVIDENCIA')) return { titulo: 'Documento sem evidência suficiente', detalhe: 'O documento não trouxe PIS/Cofins e nenhuma regra fiscal confirmada pôde preencher a carga histórica.', acao: 'Informar regra' };
+    return { titulo: 'Carga histórica não determinada', detalhe: 'A fotografia do motor não possui evidência suficiente para determinar o PIS/Cofins vigente deste item.', acao: 'Corrigir pendência' };
+  };
+  const indicePendenciaPisCofins = (item) => pendenciasPisCofins.indexOf(item);
   const simplesHibrido = !eForn && analise.projecao_regime === 'SIMPLES_HIBRIDO';
   const outrasReceitasSemCliente = analise.outras_receitas_sem_cliente || { registros: 0, valor: 0, cbs: 0 };
   // O DAS é a origem da carga, não motivo para ocultar o valor. A soma já
@@ -2311,7 +2320,7 @@ async function telaCadeia(el, tipo) {
         {t:'Documento / competência',r:d=>`<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '—')}</div>`},
         {t:eForn ? 'Fornecedor' : 'Cliente',r:d=>`${A.esc(d.parceiro || 'Não identificado')}<div class="mini mono">${A.cnpjFmt(d.cnpj || '')}</div>`},
         {t:'Item / referência',r:d=>{const codigo=d.ncm ? `NCM ${d.ncm}` : d.nbs ? `NBS ${d.nbs}${d.lc116 ? ` · LC 116 ${d.lc116}` : ''}` : ''; return `<b>${A.esc(d.produto || d.descricao || 'Sem descrição')}</b>${codigo ? `<div class="mini mono">${A.esc(codigo)}</div>` : ''}`;}},
-        {t:'Motivo',r:d=>`<span class="tag a">Carga histórica pendente</span><div class="mini">${A.esc(d.motivo || d.motivoBaseEconomica || d.origem || d.origemPisCofins || 'Sem valor de PIS/Cofins na memória do motor.')}</div>`},
+        {t:'Motivo e correção',r:d=>{const motivo=explicarPendenciaPisCofins(d);return `<span class="tag a">${A.esc(motivo.titulo)}</span><div class="mini">${A.esc(motivo.detalhe)}</div><button class="btn pq vazio" style="margin-top:8px" data-corrigir-pis-cofins="${indicePendenciaPisCofins(d)}">${A.esc(motivo.acao)}</button>`;}},
         {t:'CBS',num:true,r:d=>A.moeda(d.cbs)},
         ...(eForn ? [{t:'Crédito CBS',num:true,r:d=>A.moeda(d.creditoCbs)}] : []),
       ],pendenciasPisCofins,{vazio:'Nenhum item pendente.'})}</div>` : '<div class="aviso bom" style="margin-top:14px"><b>Todos os itens desta página têm carga histórica de PIS/Cofins determinada.</b></div>'}
@@ -2347,9 +2356,25 @@ async function telaCadeia(el, tipo) {
   el.querySelectorAll('[data-cadeia-pagina]').forEach((botao) => {
     botao.onclick = () => { S.cache[`cadeia_pagina_${tipo}`] = Number(botao.dataset.cadeiaPagina) || 1; A.ir(eForn ? 'fornecedores' : 'clientes'); };
   });
+  const abrirCorrecaoPisCofins = (item) => {
+    const referencia = item.nbs || item.lc116 || item.ncm || '';
+    const regime = String(item.regimeEmitente || item.regimeFornecedor || item.regime || '').toLowerCase();
+    const regimesConhecidos = ['simples_nacional','lucro_real','lucro_presumido'];
+    S.aba.config = 'entradas_manuais';
+    S.aba.itensEntradaManualFiltros = {
+      busca: item.conta_questor || item.produto || item.descricao || '',
+      regime: regimesConhecidos.includes(regime) ? regime : '',
+      referencia,
+      classificacao: '',
+    };
+    A.ir('configuracoes');
+  };
+  el.querySelectorAll('[data-corrigir-pis-cofins]').forEach((botao) => {
+    botao.onclick = () => abrirCorrecaoPisCofins(pendenciasPisCofins[Number(botao.dataset.corrigirPisCofins)]);
+  });
   el.querySelector('[data-pis-cofins-pendencias]')?.addEventListener('click', () => {
     const itens = pendenciasPisCofins;
-    A.modal({
+    const modal = A.modal({
       titulo: 'Documentos pendentes de PIS/Cofins histórico',
       largura: 1200,
       confirmar: 'Fechar',
@@ -2359,9 +2384,17 @@ async function telaCadeia(el, tipo) {
         {t:eForn ? 'Fornecedor' : 'Cliente',r:d=>`${A.esc(d.parceiro || 'Não identificado')}<div class="mini mono">${A.cnpjFmt(d.cnpj || '')}</div>`},
         {t:'Item',r:d=>A.esc(d.descricao || d.produto || 'Sem descrição')},
         {t:'Valor',num:true,r:d=>A.moeda(d.valor)},
-        {t:'Motivo',r:d=>`<span class="tag a">Pendente</span><div class="mini">${A.esc(d.motivo || d.origem || 'Sem carga histórica determinada')}</div>`},
+        {t:'Motivo',r:d=>{const motivo=explicarPendenciaPisCofins(d);return `<span class="tag a">${A.esc(motivo.titulo)}</span><div class="mini">${A.esc(motivo.detalhe)}</div>`;}},
+        {t:'Correção',r:d=>{const motivo=explicarPendenciaPisCofins(d);return `<button class="btn pq" data-corrigir-pis-cofins-modal="${indicePendenciaPisCofins(d)}">${A.esc(motivo.acao)}</button>`;}},
       ], itens, { vazio:'Não há documentos pendentes.' }),
       aoConfirmar: async () => {},
+    });
+    modal.fundo.querySelectorAll('[data-corrigir-pis-cofins-modal]').forEach((botao) => {
+      botao.onclick = () => {
+        const item = pendenciasPisCofins[Number(botao.dataset.corrigirPisCofinsModal)];
+        modal.fechar();
+        abrirCorrecaoPisCofins(item);
+      };
     });
   });
   el.querySelectorAll('[data-cadeia-parceiros]').forEach((botao) => {

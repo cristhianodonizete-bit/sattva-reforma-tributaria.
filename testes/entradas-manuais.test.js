@@ -77,6 +77,9 @@ assert.match(config,/filtroItemEntradaBusca/,'cadastro de itens deve permitir fi
 assert.match(config,/filtroItemEntradaRegime/,'cadastro de itens deve permitir filtrar por regime');
 assert.match(config,/filtroItemEntradaReferencia/,'cadastro de itens deve permitir filtrar por referencia fiscal');
 assert.match(config,/filtroItemEntradaClassificacao/,'cadastro de itens deve permitir filtrar por classificacao CBS e IBS');
+assert.match(tela,/explicarPendenciaPisCofins/,'pendencia de PIS/Cofins deve explicar a causa em linguagem de negocio');
+assert.match(tela,/data-corrigir-pis-cofins-modal/,'lista de pendencias deve oferecer acao de correcao por documento');
+assert.match(tela,/S\.aba\.config = 'entradas_manuais'/,'acao da pendencia deve abrir o cadastro que resolve a fonte oficial');
 assert.match(config,/aplicarFiltrosItensEntrada/,'filtros do cadastro devem ser combinaveis');
 assert.match(config,/rastreabilidade-item item-entrada-manual-config/,'cada item cadastrado deve ser um cartão');
 assert.match(config,/const cadastrosTodos=itens\.flatMap/,'cada item deve renderizar um cadastro separado para cada regime');
