@@ -6120,7 +6120,7 @@ async function propagarItemEntradaManualParaRazao(chave, item, empresaIdFiltro =
   const processamentos=[];
   for (const [empresaId,ids] of porEmpresa) {
     const publicacao=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,ids);
-    const processamento=await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:publicacao.movimento_ids_canonicos });
+    const processamento=await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:publicacao.movimento_ids_canonicos, empresaRemotaId:publicacao.empresa_remota_id });
     estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Cadastro de item de entrada atualizado');
     processamentos.push({ empresa_id:empresaId, documentos:ids.length, processamento_id:processamento.processamento_id });
   }

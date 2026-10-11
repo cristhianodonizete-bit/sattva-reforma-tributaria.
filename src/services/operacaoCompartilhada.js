@@ -1953,7 +1953,7 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
   if (erroCanonicos) throw new Error(`Identidades canônicas das entradas conciliadas: ${erroCanonicos.message}`);
   const movimentoIdsCanonicos=[...new Set((canonicos || []).map((x)=>Number(x.id)).filter(Number.isInteger))];
   if (movimentoIdsCanonicos.length!==new Set(chaves).size) throw new Error('Nem todas as entradas publicadas receberam identidade canônica; o motor não foi enfileirado.');
-  return { ativo:true, publicados:novas.length, atualizados:existentesLocais.length-preservadosRemotamente,
+  return { ativo:true, empresa_remota_id:Number(empresas[0].id), publicados:novas.length, atualizados:existentesLocais.length-preservadosRemotamente,
     preservados_remotamente:preservadosRemotamente, ja_publicados:locais.length-novas.length, pendentes:0,
     movimento_ids_canonicos:movimentoIdsCanonicos };
 }

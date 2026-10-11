@@ -54,7 +54,8 @@ async function solicitarIncremental(empresaId, opcoes = {}) {
     return { processamento_id:ativo.processamento_id, deduplicado:true, job:{ ...ativo, payload:JSON.stringify(payload) }, movimento_ids:unidos };
   }
   const processamento = await fila.iniciar({ empresas:[Number(empresaId)], competencia:ano, tipo:TIPO_INCREMENTAL, prioridade:10,
-    payload:{ ano:Number(ano), movimento_ids:movimentoIds, identidade_movimento:'SUPABASE_CANONICA_V1', modo:'INCREMENTAL_IDS_EXPLICITOS' }, iniciarWorker:false });
+    payload:{ ano:Number(ano), movimento_ids:movimentoIds, identidade_movimento:'SUPABASE_CANONICA_V1', modo:'INCREMENTAL_IDS_EXPLICITOS' },
+    empresaRemotaId:Number(opcoes.empresaRemotaId) || null, iniciarWorker:false });
   const job = (processamento.jobs || []).find((x) => Number(x.empresa_id) === Number(empresaId) && x.tipo_job === TIPO_INCREMENTAL) || null;
   return { processamento_id:processamento.id, deduplicado:Boolean(processamento.deduplicado), job, movimento_ids:movimentoIds };
 }
