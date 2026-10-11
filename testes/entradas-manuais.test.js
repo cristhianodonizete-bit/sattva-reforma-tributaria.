@@ -157,6 +157,8 @@ assert.match(api,/regimes_fornecedor/);
 assert.match(motor,/entradaManual/);
 assert.match(motor,/referenciaManual=evidencia\.referencia_pis_cofins/,'o motor deve consumir a referência histórica do item manual');
 assert.match(api,/evidencia\.referencia_pis_cofins=referenciaPisCofins/,'a reaplicação do Razão deve gravar a referência do catálogo no lançamento');
+assert.match(motor,/COALESCE\(q\.regime,p\.regime,m\.regime,[\s\S]*?fornecedor_vinculado\.regime/,'o motor deve resolver o regime pelo cadastro ligado ao CNPJ e preservar o vínculo auditável como fallback');
+assert.match(api,/COALESCE\(p\.regime,m\.regime,json_extract\(m\.normalizacao_evidencia,'\$\.fornecedor_vinculado\.regime'\)\)/,'a propagação do catálogo deve usar o regime do fornecedor ligado ao CNPJ');
 assert.match(api,/gera_credito:itemCadastrado && regra\.gera_credito !== false/,'classificação avulsa não pode gerar crédito sem item tributário cadastrado');
 assert.match(classificador,/lançamento manual de entrada/);
 assert.match(classificador,/reducao_cbs:beneficio/);

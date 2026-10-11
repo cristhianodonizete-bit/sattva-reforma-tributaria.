@@ -6077,8 +6077,13 @@ function referenciaPisCofinsDoFornecedor(item, regimeFornecedor) {
 // que já apontam para ele recebem a nova referência e entram na fila
 // incremental. Valores, documentos, exclusões e fechamentos não são tocados.
 async function propagarItemEntradaManualParaRazao(chave, item, empresaIdFiltro = null) {
-  const movimentos=db.prepare(`SELECT m.id,m.empresa_id,m.valor,m.regime AS regime_fornecedor,m.normalizacao_evidencia
+  const movimentos=db.prepare(`SELECT m.id,m.empresa_id,m.valor,
+      COALESCE(p.regime,m.regime,json_extract(m.normalizacao_evidencia,'$.fornecedor_vinculado.regime')) AS regime_fornecedor,
+      m.normalizacao_evidencia
     FROM movimentos m JOIN empresas e ON e.id=m.empresa_id
+    LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo='fornecedor'
+      AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')
+        = REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
     WHERE m.origem IN ('QUESTOR_RAZAO','MANUAL_ENTRADA','QUESTOR_CONCILIACAO_ENTRADA')
       AND (? IS NULL OR m.empresa_id=?)`).all(empresaIdFiltro,empresaIdFiltro);
   const porEmpresa=new Map();
