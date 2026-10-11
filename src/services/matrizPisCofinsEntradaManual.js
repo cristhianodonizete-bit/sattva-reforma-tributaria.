@@ -17,4 +17,22 @@ function normalizar(regra = {}, chaveItem = '', padroes = {}) {
   return { regra:{ ...regra,cumulatividade_obrigatoria:cumulatividadeObrigatoria,regimes,escala_pis_cofins:'PONTOS_PERCENTUAIS_V1',origem_referencia_pis_cofins:'MATRIZ_TRES_REGIMES_V6' },converteu:true };
 }
 
-module.exports={ normalizar,REGIMES };
+function fotografiaRefleteReferencia(valorMovimento, referencia = null, detalheInformado = null) {
+  if (!referencia) return true;
+  let detalhe=detalheInformado;
+  try { if (typeof detalhe==='string') detalhe=JSON.parse(detalhe); } catch (_) { return false; }
+  const memoria=detalhe?.reconstrucao?.memoriaPisCofins;
+  if (!memoria) return false;
+  const percentual=referencia.pis_cofins_percentual ?? (
+    referencia.pis_percentual !== null && referencia.pis_percentual !== undefined
+      && referencia.cofins_percentual !== null && referencia.cofins_percentual !== undefined
+      ? Number(referencia.pis_percentual)+Number(referencia.cofins_percentual) : null
+  );
+  if (percentual===null || !Number.isFinite(Number(percentual))) return false;
+  const valorEsperado=Math.round((Number(valorMovimento || 0)*Number(percentual)/100)*100)/100;
+  return memoria.carga_atual_pis_cofins_origem==='CATALOGO_ENTRADA_MANUAL'
+    && Math.abs(Number(memoria.carga_atual_pis_cofins_percentual)-Number(percentual))<0.000001
+    && Math.abs(Number(memoria.carga_atual_pis_cofins_valor)-valorEsperado)<0.011;
+}
+
+module.exports={ normalizar,fotografiaRefleteReferencia,REGIMES };

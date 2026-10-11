@@ -23,4 +23,10 @@ for(const regime of matriz.REGIMES){assert.equal(semIncidencia.regimes[regime].p
 const novamente=matriz.normalizar(regular,'MATERIAL_ESCRITORIO',padroes);
 assert.equal(novamente.converteu,false,'a migração precisa ser idempotente');
 
+const referenciaReal={ escala:'PONTOS_PERCENTUAIS_V1',pis_percentual:1.65,cofins_percentual:7.6,pis_cofins_percentual:9.25 };
+const fotoAntiga={reconstrucao:{memoriaPisCofins:{carga_atual_pis_cofins_origem:'CATALOGO_ENTRADA_MANUAL',carga_atual_pis_cofins_percentual:0,carga_atual_pis_cofins_valor:0}}};
+const fotoNova={reconstrucao:{memoriaPisCofins:{carga_atual_pis_cofins_origem:'CATALOGO_ENTRADA_MANUAL',carga_atual_pis_cofins_percentual:9.25,carga_atual_pis_cofins_valor:4.15}}};
+assert.equal(matriz.fotografiaRefleteReferencia(44.9,referenciaReal,JSON.stringify(fotoAntiga)),false,'fotografia antiga zerada precisa entrar novamente na fila');
+assert.equal(matriz.fotografiaRefleteReferencia(44.9,referenciaReal,JSON.stringify(fotoNova)),true,'fotografia já recomposta não pode gerar reprocessamento repetido');
+
 console.log('matriz-pis-cofins-entrada-manual: três cadastros, alíquotas e exceções: OK');

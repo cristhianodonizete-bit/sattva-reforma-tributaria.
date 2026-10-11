@@ -67,6 +67,8 @@ assert.match(api,/pis_cofins_percentual/);
 assert.match(config,/pis_cofins.*conjunto/s,'o cartão deve exibir a referência conjunta do Simples');
 assert.match(config,/const pctPontos=/,'alíquotas armazenadas em pontos percentuais não podem ser multiplicadas novamente na tela');
 assert.match(matrizPisCofins,/cumulatividadeObrigatoria[\s\S]*?padroes\.lucro_presumido/,'item de cumulatividade obrigatória deve usar 0,65% e 3,00% também no Lucro Real');
+assert.match(api,/fotografiaRefleteReferencia\(movimento\.valor,referencia,fotografiaAtual\?\.detalhe\)/,'a renovação deve comparar a fotografia materializada com o cadastro atual');
+assert.match(api,/metadadosIguais && fotografiaCorreta/,'metadados corretos não podem esconder uma fotografia antiga zerada');
 assert.match(config,/rastreabilidade-lista/,'itens de entrada manual devem usar o mesmo conceito visual da rastreabilidade');
 assert.match(config,/rastreabilidade-item item-entrada-manual-config/,'cada item cadastrado deve ser um cartão');
 assert.match(config,/const cadastros=itens\.flatMap/,'cada item deve renderizar um cadastro separado para cada regime');
