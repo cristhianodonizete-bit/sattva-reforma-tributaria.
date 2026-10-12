@@ -707,6 +707,12 @@ async function prepararContextoMotorIncremental(empresaId, movimentoIds = []) {
     .all(...ids).filter((linha) => Number(linha.empresa_id) !== id);
   if (locaisConflitantes.length) throw new Error('Colisão de identidade no cache do worker; a fotografia ativa foi preservada.');
   gravar('movimentos', movimentos);
+  // No worker efêmero, o contexto da empresa é preparado antes de os
+  // movimentos explícitos do lote existirem no cache. Como a base de regimes
+  // é escopada pelos CNPJs desses movimentos, hidrate-a novamente após o lote
+  // chegar e antes de qualquer cálculo.
+  contexto.referencias.base_regime = await hidratarBaseRegimeDaEmpresa(id);
+  contexto.dados_empresa.regimes_base_questor = aplicarRegimeBaseNosVinculosQuestor(id);
   const evidencias = {};
   for (const tabela of TABELAS_MOTOR_APOS_DOCUMENTOS) {
     const linhas=[];
