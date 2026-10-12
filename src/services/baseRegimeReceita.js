@@ -349,7 +349,8 @@ async function refinarParceiros(empresaId, opcoes = {}) {
     D.prepare(`UPDATE movimentos SET regime = (
         SELECT p.regime FROM parceiros p
         WHERE p.empresa_id = movimentos.empresa_id AND p.tipo = movimentos.tipo
-          AND p.cnpj = movimentos.inscr_federal)
+          AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')
+            = REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(movimentos.inscr_federal,''),'.',''),'/',''),'-',''),' ',''))
       WHERE empresa_id = ? AND inscr_federal <> ''`).run(empresaId);
   } catch (_) { /* segue */ }
   return rel;

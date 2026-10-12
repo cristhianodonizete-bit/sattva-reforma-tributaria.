@@ -74,9 +74,10 @@ function linhas(empresaId, opcoes = {}) {
   const duplicadosRazao=motorExec.idsRazaoDuplicadosPorDocumento(empresaId);
   const dados = db.prepare(`WITH regime_base AS (
       SELECT mb.id,br.regime,
-        ROW_NUMBER() OVER (PARTITION BY mb.id ORDER BY CASE WHEN br.cnpj=mb.inscr_federal THEN 0 ELSE 1 END,br.ano DESC) AS posicao
+        ROW_NUMBER() OVER (PARTITION BY mb.id ORDER BY CASE WHEN br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(mb.inscr_federal,''),'.',''),'/',''),'-',''),' ','') THEN 0 ELSE 1 END,br.ano DESC) AS posicao
       FROM movimentos mb
-      JOIN base_regime br ON br.cnpj=mb.inscr_federal OR br.raiz=SUBSTR(mb.inscr_federal,1,8)
+      JOIN base_regime br ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(mb.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
+        OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(mb.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8)
     )
     SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.modelo_documento_fiscal,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento, m.origem AS origem_movimento,

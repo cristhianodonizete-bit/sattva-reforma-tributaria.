@@ -203,13 +203,14 @@ function carregar(empresaId, sentido, movimentoIds = null) {
   const tipo = sentido === 'saida' ? 'cliente' : 'fornecedor';
   let sql = `WITH regime_questor AS (
       SELECT mq.id,br.regime,
-        ROW_NUMBER() OVER (PARTITION BY mq.id ORDER BY CASE WHEN br.cnpj=mq.inscr_federal THEN 0 ELSE 1 END,br.ano DESC) AS posicao
+        ROW_NUMBER() OVER (PARTITION BY mq.id ORDER BY CASE WHEN br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(mq.inscr_federal,''),'.',''),'/',''),'-',''),' ','') THEN 0 ELSE 1 END,br.ano DESC) AS posicao
       FROM movimentos mq
-      JOIN base_regime br ON br.cnpj=mq.inscr_federal OR br.raiz=SUBSTR(mq.inscr_federal,1,8)
+      JOIN base_regime br ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(mq.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
+        OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(mq.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8)
       WHERE UPPER(COALESCE(mq.origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
     )
     SELECT m.*, COALESCE(q.regime,p.regime,m.regime,
-      json_extract(m.normalizacao_evidencia,'$.fornecedor_vinculado.regime')) AS regime_cadastro,
+      CASE WHEN json_valid(COALESCE(m.normalizacao_evidencia,'')) THEN json_extract(m.normalizacao_evidencia,'$.fornecedor_vinculado.regime') END) AS regime_cadastro,
       p.perfil_economico AS perfil_cadastro, COALESCE(p.descricao,m.nome) AS nome_cadastro,
       p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro, p.multinacional AS multinacional_cadastro
       ,CASE WHEN EXISTS(SELECT 1 FROM enriquecimento_pis_cofins_evidencias e WHERE e.empresa_id=m.empresa_id AND e.movimento_id=m.id AND e.origem_evidencia='SPED_C175') THEN 'SPED_C175' ELSE '' END AS origem_evidencia_pis_cofins

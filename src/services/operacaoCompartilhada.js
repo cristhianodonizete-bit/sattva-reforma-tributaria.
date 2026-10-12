@@ -198,25 +198,28 @@ function aplicarRegimeBaseNosVinculosQuestor(empresaId) {
   // publicar a fotografia.
   const parceiros=db.prepare(`WITH candidatos AS (
       SELECT p.id, br.regime,
-        ROW_NUMBER() OVER (PARTITION BY p.id ORDER BY CASE WHEN br.cnpj=p.cnpj THEN 0 ELSE 1 END, br.ano DESC) AS posicao
+        ROW_NUMBER() OVER (PARTITION BY p.id ORDER BY CASE WHEN br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','') THEN 0 ELSE 1 END, br.ano DESC) AS posicao
       FROM parceiros p
-      JOIN base_regime br ON br.cnpj=p.cnpj OR br.raiz=SUBSTR(p.cnpj,1,8)
+      JOIN base_regime br ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')
+        OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ',''),1,8)
       WHERE p.empresa_id=? AND p.tipo='fornecedor' AND COALESCE(p.cnpj,'')<>''
         AND UPPER(COALESCE(p.origem,'')) IN ('QUESTOR_PESSOA_CONTRAPARTIDA','QUESTOR_PESSOA_HISTORICO')
     ), resolvidos AS (
       SELECT id,regime FROM candidatos WHERE posicao=1
     )
     UPDATE parceiros SET regime=(SELECT r.regime FROM resolvidos r WHERE r.id=parceiros.id)
-    WHERE id IN (SELECT id FROM resolvidos WHERE regime IS NOT NULL)`).run(Number(empresaId)).changes;
+    WHERE id IN (SELECT id FROM resolvidos WHERE regime IS NOT NULL)
+      AND COALESCE(regime,'') IS NOT COALESCE((SELECT r.regime FROM resolvidos r WHERE r.id=parceiros.id),'')`).run(Number(empresaId)).changes;
   // O Razão também pode trazer o CNPJ já identificado no próprio lançamento,
   // sem que o parceiro tenha sido materializado pela rotina de pessoas. A
   // premissa inicial de Simples é apenas um fallback de importação; nunca
   // pode prevalecer sobre a base de regimes por CNPJ/raiz nessa situação.
   const movimentos=db.prepare(`WITH candidatos AS (
       SELECT m.id, br.regime,
-        ROW_NUMBER() OVER (PARTITION BY m.id ORDER BY CASE WHEN br.cnpj=m.inscr_federal THEN 0 ELSE 1 END, br.ano DESC) AS posicao
+        ROW_NUMBER() OVER (PARTITION BY m.id ORDER BY CASE WHEN br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','') THEN 0 ELSE 1 END, br.ano DESC) AS posicao
       FROM movimentos m
-      JOIN base_regime br ON br.cnpj=m.inscr_federal OR br.raiz=SUBSTR(m.inscr_federal,1,8)
+      JOIN base_regime br ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
+        OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8)
       WHERE m.empresa_id=? AND m.tipo='fornecedor'
         AND UPPER(COALESCE(m.origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
         AND LENGTH(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''))=14
@@ -224,7 +227,8 @@ function aplicarRegimeBaseNosVinculosQuestor(empresaId) {
       SELECT id,regime FROM candidatos WHERE posicao=1
     )
     UPDATE movimentos SET regime=(SELECT r.regime FROM resolvidos r WHERE r.id=movimentos.id)
-    WHERE id IN (SELECT id FROM resolvidos)`).run(Number(empresaId)).changes;
+    WHERE id IN (SELECT id FROM resolvidos)
+      AND COALESCE(regime,'') IS NOT COALESCE((SELECT r.regime FROM resolvidos r WHERE r.id=movimentos.id),'')`).run(Number(empresaId)).changes;
   return parceiros+movimentos;
 }
 
@@ -483,6 +487,7 @@ async function garantirCacheOperacionalEmpresa(empresaId, opcoes = {}) {
     // Lotes são pais de movimentos e precisam existir antes da reconciliação.
     const lotes=await buscarEmpresa('lotes');
     gravar('lotes',lotes);
+    const pendentesAntes=new Set(db.prepare('SELECT movimento_id FROM motor_pendencias WHERE empresa_id=?').all(id).map((x)=>Number(x.movimento_id)));
     const [movimentos,parceiros]=await Promise.all([
       reconciliarMovimentosEmpresa(id,{ forcar:true,maxAgeMs:0 }),
       restaurarParceirosEmpresa(id,remoto),
@@ -504,10 +509,39 @@ async function garantirCacheOperacionalEmpresa(empresaId, opcoes = {}) {
       componentes.push(...(data||[]));
     }
     auxiliares.formacao_custo_componentes=gravar('formacao_custo_componentes',componentes);
+    const referenciasRegime=await hidratarBaseRegimeDaEmpresa(id);
+    const regimesAtualizados=aplicarRegimeBaseNosVinculosQuestor(id);
     await restaurarFotografiaMotorEmpresa(id,remoto);
+    // A restauração do cache dispara os mesmos gatilhos locais de uma edição.
+    // Linhas já cobertas pela fotografia ativa não devem virar recálculo só
+    // porque a tela foi aberta. Preservamos pendências anteriores e marcamos
+    // novamente apenas snapshots cujo regime diverge da base canônica.
+    const pendenciasCache=db.prepare(`SELECT mp.movimento_id FROM motor_pendencias mp
+      JOIN motor_resultados mr ON mr.empresa_id=mp.empresa_id AND mr.movimento_id=mp.movimento_id
+      WHERE mp.empresa_id=?`).all(id).map((x)=>Number(x.movimento_id)).filter((movimentoId)=>!pendentesAntes.has(movimentoId));
+    if(pendenciasCache.length){
+      for(let de=0;de<pendenciasCache.length;de+=500){
+        const lote=pendenciasCache.slice(de,de+500);
+        db.prepare(`DELETE FROM motor_pendencias WHERE empresa_id=? AND movimento_id IN (${lote.map(()=>'?').join(',')})`).run(id,...lote);
+      }
+    }
+    const divergentes=db.prepare(`WITH regime_base AS (
+        SELECT m.id movimento_id,br.regime,
+          ROW_NUMBER() OVER (PARTITION BY m.id ORDER BY CASE WHEN br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','') THEN 0 ELSE 1 END,br.ano DESC) posicao
+        FROM movimentos m JOIN base_regime br
+          ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
+          OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8)
+        WHERE m.empresa_id=? AND m.tipo='fornecedor'
+      ) SELECT mr.movimento_id,rb.regime FROM motor_resultados mr JOIN regime_base rb ON rb.movimento_id=mr.movimento_id AND rb.posicao=1
+        WHERE mr.empresa_id=? AND LOWER(COALESCE(CASE WHEN json_valid(COALESCE(mr.detalhe,'')) THEN json_extract(mr.detalhe,'$.regimeEmitente') END,mr.regime_cbs_emitente,''))<>LOWER(rb.regime)`)
+      .all(id,id);
+    const marcar=db.prepare(`INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
+      VALUES (?,?,?,datetime('now','localtime')) ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em`);
+    db.transaction(()=>divergentes.forEach((x)=>marcar.run(id,x.movimento_id,`REGIME_BASE_CANONICA_${String(x.regime).toUpperCase()}`)))();
     hidratacoesEmpresaRecentes.set(id,Date.now());
     return { ativo:true,cache:'hidratado',empresa_id:id,lotes:lotes.length,
-      movimentos:movimentos.movimentos?.length||0,parceiros:parceiros.parceiros||0,auxiliares };
+      movimentos:movimentos.movimentos?.length||0,parceiros:parceiros.parceiros||0,auxiliares,
+      referencias_regime:referenciasRegime,regimes_atualizados:regimesAtualizados,fotografias_regime_divergente:divergentes.length };
   })().finally(()=>hidratacoesEmpresaEmAndamento.delete(id));
   hidratacoesEmpresaEmAndamento.set(id,tarefa);
   return tarefa;
