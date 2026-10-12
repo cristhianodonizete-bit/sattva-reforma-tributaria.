@@ -20,11 +20,35 @@ const concorrencia = () => Math.max(1, Math.min(8, Number(process.env.PROCESSAME
 
 async function espelharJob(job) {
   if (!supabase.configurado()) return;
+  const empresaLocal=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(job.empresa_id));
+  if (!empresaLocal) throw new Error('Empresa local do job não encontrada.');
+  const cnpj=String(empresaLocal.cnpj||'').replace(/\D/g,'');
+  const { data:empresas,error:erroEmpresa }=await supabase.admin().from('empresas').select('id,origem_local_id,cnpj')
+    .or(`origem_local_id.eq.${Number(empresaLocal.id)},cnpj.eq.${cnpj}`).limit(3);
+  if(erroEmpresa) throw new Error(`Empresa compartilhada do job: ${erroEmpresa.message}`);
+  const empresaRemota=(empresas||[]).find((x)=>Number(x.origem_local_id||x.id)===Number(empresaLocal.id)
+    || String(x.cnpj||'').replace(/\D/g,'')===cnpj);
+  if(!empresaRemota) throw new Error('Empresa compartilhada do job não localizada.');
   // processamento_id organiza a execução somente no SQLite da instância. Ele
   // pode voltar a 1 após um reinício e, por isso, não é identidade global; o
   // UUID do job é a chave durável usada no Supabase.
-  const { error } = await supabase.admin().from('jobs_carteira').upsert({ ...job, payload: JSON.parse(job.payload || '{}') }, { onConflict: 'id' });
+  const { error } = await supabase.admin().from('jobs_carteira').upsert({ ...job, empresa_id:Number(empresaRemota.id),payload: JSON.parse(job.payload || '{}') }, { onConflict: 'id' });
   if (error) throw new Error(`Fila Supabase: ${error.message}`);
+}
+
+async function normalizarEmpresaJobRemoto(job,remotoApi){
+  if(!job) return job;
+  const { data:empresa,error }=await remotoApi.from('empresas').select('id,origem_local_id,cnpj').eq('id',Number(job.empresa_id)).maybeSingle();
+  if(error) throw new Error(`Empresa do job remoto: ${error.message}`);
+  if(!empresa) throw new Error(`Empresa canônica ${job.empresa_id} do job não encontrada.`);
+  const origem=Number(empresa.origem_local_id);
+  let local=Number.isInteger(origem)&&origem>0 ? db.prepare('SELECT id FROM empresas WHERE id=?').get(origem) : null;
+  if(!local){
+    const cnpj=String(empresa.cnpj||'').replace(/\D/g,'');
+    local=db.prepare(`SELECT id FROM empresas WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cnpj,''),'.',''),'/',''),'-',''),' ','')=?`).get(cnpj);
+  }
+  if(!local) throw new Error(`Empresa local do job canônico ${job.empresa_id} não encontrada.`);
+  return { ...job,empresa_id:Number(local.id),empresa_remota_id:Number(empresa.id) };
 }
 
 async function iniciar(opcoes = {}) {
@@ -77,7 +101,8 @@ async function claim() {
     if (!error && data?.length) {
       const remoto = data[0];
       db.prepare("UPDATE jobs_carteira SET status='PROCESSANDO',worker_id=?,tentativas=?,heartbeat=? WHERE id=?").run(workerId, remoto.tentativas, remoto.heartbeat, remoto.id);
-      return { ...remoto, payload: JSON.stringify(remoto.payload || {}) };
+      const normalizado=await normalizarEmpresaJobRemoto(remoto,remotoApi);
+      return { ...normalizado, payload: JSON.stringify(remoto.payload || {}) };
     }
     // Algumas versões da função RPC não enxergam imediatamente o job recém
     // publicado. Não deixamos a empresa presa na fila: o fallback faz uma
@@ -98,7 +123,8 @@ async function claim() {
     const assumido = assumidos[0];
     db.prepare("UPDATE jobs_carteira SET status='PROCESSANDO',worker_id=?,tentativas=?,iniciado_em=COALESCE(iniciado_em,?),heartbeat=? WHERE id=? AND status='PENDENTE'")
       .run(workerId, tentativa, momento, momento, local.id);
-    return { ...local, ...assumido, payload: JSON.stringify(assumido.payload || local.payload || {}) };
+    const normalizado=await normalizarEmpresaJobRemoto(assumido,remotoApi);
+    return { ...local,...normalizado,payload:JSON.stringify(assumido.payload||local.payload||{}) };
   }
   const job = db.prepare("SELECT * FROM jobs_carteira WHERE status='PENDENTE' AND (proxima_tentativa_em IS NULL OR proxima_tentativa_em<=?) ORDER BY prioridade DESC,criado_em LIMIT 1").get(agora());
   if (!job) return null;
