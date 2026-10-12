@@ -29,6 +29,7 @@ assert.match(fila, /Acompanhamento compartilhado da fila/);
 assert.match(fila, /empresa_id:Number\(empresaRemota\.id\)/,'o job publicado deve usar a identidade canônica da empresa no Supabase');
 assert.match(fila, /async function normalizarEmpresaJobRemoto/,'o worker deve converter a empresa canônica para a identidade do cache local');
 assert.match(fila, /empresa_remota_id:Number\(empresa\.id\)/,'o job deve preservar ambas as identidades sem confundi-las');
+assert.match(fila, /empresaLocalId=Number\.isInteger\(origem\)&&origem>0 \? origem : null/,'o worker com cache vazio deve aceitar origem_local_id antes de hidratar a empresa');
 assert.match(fila, /PROCESSAMENTO_CARTEIRA_CONCORRENCIA\) \|\| 1/);
 assert.match(fila, /require\('\.\/preparacaoMotor'\)\.preparar\(job\.empresa_id\)/);
 const ramoIncremental = fila.slice(fila.indexOf("if (job.tipo_job === 'MOTOR_INCREMENTAL')"), fila.indexOf('bases.classificarMovimentos(job.empresa_id)'));

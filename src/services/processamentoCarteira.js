@@ -42,13 +42,17 @@ async function normalizarEmpresaJobRemoto(job,remotoApi){
   if(error) throw new Error(`Empresa do job remoto: ${error.message}`);
   if(!empresa) throw new Error(`Empresa canônica ${job.empresa_id} do job não encontrada.`);
   const origem=Number(empresa.origem_local_id);
-  let local=Number.isInteger(origem)&&origem>0 ? db.prepare('SELECT id FROM empresas WHERE id=?').get(origem) : null;
-  if(!local){
+  // O SQLite do worker é um cache efêmero e pode nascer sem nenhuma empresa.
+  // Quando a fonte canônica informa origem_local_id, esse é o identificador
+  // usado para hidratar a empresa antes do cálculo; a linha não precisa existir.
+  let empresaLocalId=Number.isInteger(origem)&&origem>0 ? origem : null;
+  if(!empresaLocalId){
     const cnpj=String(empresa.cnpj||'').replace(/\D/g,'');
-    local=db.prepare(`SELECT id FROM empresas WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cnpj,''),'.',''),'/',''),'-',''),' ','')=?`).get(cnpj);
+    const local=db.prepare(`SELECT id FROM empresas WHERE REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cnpj,''),'.',''),'/',''),'-',''),' ','')=?`).get(cnpj);
+    empresaLocalId=Number(local?.id)||null;
   }
-  if(!local) throw new Error(`Empresa local do job canônico ${job.empresa_id} não encontrada.`);
-  return { ...job,empresa_id:Number(local.id),empresa_remota_id:Number(empresa.id) };
+  if(!empresaLocalId) throw new Error(`Empresa local do job canônico ${job.empresa_id} não pôde ser identificada.`);
+  return { ...job,empresa_id:empresaLocalId,empresa_remota_id:Number(empresa.id) };
 }
 
 async function iniciar(opcoes = {}) {
