@@ -120,7 +120,7 @@ async function iniciarOperacao() {
       estadoOperacao.sincronizando = true;
       let dados = {};
       try {
-        dados = await operacao.sincronizarIncremental({ remoto: remotoSegundoPlano });
+        dados = await operacao.sincronizarIncremental({ remoto: remotoSegundoPlano,segmentadoPorEmpresa:true });
         sincronizacaoConcluida = true;
       }
       catch (e) {
@@ -154,6 +154,7 @@ async function iniciarOperacao() {
         try {
           const atualizado = await operacao.sincronizarIncremental({
             remoto: supabase.admin({ prazoMs: prazoSegundoPlano }),
+            segmentadoPorEmpresa:true,
           });
           if (Date.now() - ultimaRetencaoEm >= intervaloRetencaoMs) {
             try {

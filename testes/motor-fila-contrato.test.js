@@ -6,6 +6,7 @@ const api = fs.readFileSync(path.join(__dirname, '../src/routes/api.js'), 'utf8'
 const preparacao = fs.readFileSync(path.join(__dirname, '../src/services/preparacaoMotor.js'), 'utf8');
 const operacao = fs.readFileSync(path.join(__dirname, '../src/services/operacaoCompartilhada.js'), 'utf8');
 const index = fs.readFileSync(path.join(__dirname, '../public/index.html'), 'utf8');
+const server = fs.readFileSync(path.join(__dirname, '../server.js'), 'utf8');
 assert.match(index, /tentativa<=4/, 'assets devem ser repetidos durante a troca de instâncias');
 assert.match(index, /script\.remove\(\)/, 'uma tentativa falha não pode deixar script órfão na página');
 assert.match(index, /versao=await consultarVersao\(\)/, 'o retry deve consultar novamente o commit live');
@@ -13,9 +14,6 @@ assert.match(motor, /const TIPO = 'MOTOR_COMPLETO'/);
 assert.match(motor, /const TIPO_INCREMENTAL = 'MOTOR_INCREMENTAL'/);
 assert.match(motor, /async function solicitarIncremental/);
 assert.match(motor, /modo:'INCREMENTAL_IDS_EXPLICITOS'/);
-assert.match(motor, /const limiteIncremental/,'a criação da fila deve compartilhar o limite seguro do worker');
-assert.match(motor, /movimentoIds\.length>limiteIncremental\(\)/,'lote grande deve ser recusado antes de criar job');
-assert.match(motor, /unidos\.length>limiteIncremental\(\)/,'deduplicação não pode transformar deltas pequenos em um lote sem limite');
 assert.match(motor, /identidade_movimento:'SUPABASE_CANONICA_V1'/,'a fila incremental deve declarar que seus ids pertencem ao Supabase');
 assert.match(motor, /payload\.identidade_movimento==='SUPABASE_CANONICA_V1' \? \(payload\.movimento_ids \|\| \[\]\) : \[\]/,'um job legado com ids efêmeros deve ser substituído, não mesclado');
 assert.match(motor, /iniciarWorker: false/);
@@ -33,9 +31,10 @@ assert.match(fila, /require\('\.\/preparacaoMotor'\)\.preparar\(job\.empresa_id\
 const ramoIncremental = fila.slice(fila.indexOf("if (job.tipo_job === 'MOTOR_INCREMENTAL')"), fila.indexOf('bases.classificarMovimentos(job.empresa_id)'));
 assert.match(ramoIncremental, /movimento_ids/);
 assert.match(ramoIncremental, /motorExec\.reprocessarIncremental/);
-assert.match(ramoIncremental, /MOTOR_INCREMENTAL_LIMITE_ITENS/,'worker deve limitar o tamanho de um delta antes de materializá-lo');
-assert.match(ramoIncremental, /solicitados\.length>limiteIncremental/,'worker deve recusar lote incremental acima do limite seguro');
-assert.match(ramoIncremental, /fotografia anterior foi preservada/,'recusa por memória deve preservar explicitamente a fotografia ativa');
+assert.match(ramoIncremental, /MOTOR_INCREMENTAL_LOTE_ITENS/,'worker deve limitar a memória processando o delta em lotes');
+assert.match(ramoIncremental, /payload\.proximo_lote=proximo\+1/,'cada lote promovido deve gravar checkpoint retomável');
+assert.match(ramoIncremental, /INCREMENTAL_IDS_EXPLICITOS_EM_LOTES/,'conclusão deve declarar o processamento segmentado');
+assert.match(ramoIncremental, /promoverFotografiaMotorIncremental[\s\S]*?validarFotografiaAtivaMotor[\s\S]*?payload\.proximo_lote/,'checkpoint só pode avançar depois de promover e validar a fotografia');
 assert.doesNotMatch(ramoIncremental, /preparar\(job\.empresa_id\)/, 'execução incremental não pode preparar a empresa inteira');
 assert.doesNotMatch(ramoIncremental, /bases\.classificarMovimentos/, 'execução incremental não pode reclassificar a base inteira');
 assert.match(api, /A conferência\n\s+\/\/ fiscal canônica ocorre no worker/);
@@ -57,4 +56,14 @@ assert.match(preparacao, /forcar:true/);
 assert.match(operacao, /if \(opcoes\.somenteLeitura && divergencia\.bloqueia\)/);
 assert.match(operacao, /O motor foi bloqueado/);
 assert.match(operacao, /movimento_ids_canonicos:movimentoIdsCanonicos/,'a publicação deve devolver as identidades canônicas resolvidas pelas chaves estáveis');
+assert.match(operacao, /TABELAS_CACHE_POR_EMPRESA = new Set\(\[/,'cache operacional volumoso deve sair da carga-base global do Web');
+for (const tabela of ['lotes','movimentos','parceiros','formacao_custo_itens','formacao_custo_componentes',
+  'excecoes_motor','enriquecimento_servicos_evidencias','enriquecimento_pis_cofins_evidencias','pendencias_enriquecimento_fiscal']) {
+  assert.match(operacao, new RegExp(`'${tabela}'`), `${tabela} deve ser hidratada por empresa`);
+}
+assert.match(operacao, /operacao\|\|'\'\)\.toUpperCase\(\)!==\s*'DELETE'/,'tombstones devem continuar aplicados no cache segmentado');
+assert.match(operacao, /async function garantirCacheOperacionalEmpresa/,'cache fiscal deve ser hidratado pela empresa acessada');
+assert.match(api, /garantirCacheOperacionalEmpresa\(Number\(alvo\)\)/,'rotas da empresa devem hidratar somente seu escopo autorizado');
+assert.match(server, /sincronizarIncremental\(\{ remoto: remotoSegundoPlano,segmentadoPorEmpresa:true \}\)/,'boot Web deve usar carga-base segmentada');
+assert.match(server, /segmentadoPorEmpresa:true/,'ciclos Web devem manter a segmentação por empresa');
 console.log('motor-fila-contrato: job deduplicado e consumo exclusivo do worker: OK');

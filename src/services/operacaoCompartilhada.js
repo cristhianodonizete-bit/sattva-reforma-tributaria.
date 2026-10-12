@@ -78,6 +78,16 @@ const CONFIG_TABELAS = ['param_regras','param_aliquotas','param_tributos','param
 const TABELAS_PRECIFICACAO = ['pricing_products','pricing_services','pricing_components','pricing_import_batches','pricing_itens','pricing_premissas_comerciais','pricing_creditos_globais','pricing_calculos','pricing_calculo_tratamentos','pricing_import_linhas','pricing_base_operacional','pricing_base_estrutura'];
 const TABELAS_CONTRATOS = ['contratos','contrato_checklist','contrato_documentos','contrato_clausulas_extraidas','contrato_riscos_iniciais','contrato_precificacao_vinculos','contrato_recomendacoes','contrato_sugestoes_clausulas'];
 const TABELAS_ACOMPANHAMENTO = ['monitoring_baselines','monitoring_snapshots','monitoring_comparisons','monitoring_deviations','monitoring_alerts','monitoring_actions'];
+// Fatos volumosos e suas tabelas-filhas nunca entram na carga global do Web.
+// Eles são materializados somente para a empresa selecionada. Manter o grupo
+// completo evita tentar inserir filhos sem `movimentos` em uma instância nova.
+const TABELAS_CACHE_POR_EMPRESA = new Set([
+  'lotes','movimentos','parceiros','formacao_custo_itens','formacao_custo_componentes',
+  'excecoes_motor','enriquecimento_servicos_evidencias',
+  'enriquecimento_pis_cofins_evidencias','pendencias_enriquecimento_fiscal',
+]);
+const hidratacoesEmpresaRecentes = new Map();
+const hidratacoesEmpresaEmAndamento = new Map();
 
 function ativo() { return supabase.configurado() && process.env.SUPABASE_OPERACAO_COMPARTILHADA !== 'false'; }
 async function buscarTudo(remoto, tabela) {
@@ -438,7 +448,72 @@ async function restaurarParceirosEmpresa(empresaId, remotoInformado = null) {
   const regimes_atualizados=aplicarRegimeBaseNosVinculosQuestor(empresaId);
   return { ativo:true, parceiros, regimes_atualizados, empresa_remota_id:empresaRemota.id };
 }
-async function baixar(remotoInformado = null) {
+
+async function garantirCacheOperacionalEmpresa(empresaId, opcoes = {}) {
+  if (!ativo()) return { ativo:false };
+  const id=Number(empresaId);
+  if (!Number.isInteger(id)||id<=0) throw new Error('Empresa inválida para hidratação operacional.');
+  const maxAgeMs=Math.max(5_000,Number(opcoes.maxAgeMs)||30_000);
+  const recente=hidratacoesEmpresaRecentes.get(id);
+  if (!opcoes.forcar&&recente&&Date.now()-recente<maxAgeMs) return { ativo:true,cache:'recente',empresa_id:id };
+  if (hidratacoesEmpresaEmAndamento.has(id)) return hidratacoesEmpresaEmAndamento.get(id);
+  const tarefa=(async()=>{
+    const remoto=supabase.admin();
+    const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(id);
+    if (!empresa?.cnpj) throw new Error('Empresa não encontrada para hidratação operacional.');
+    const cnpj=String(empresa.cnpj).replace(/\D/g,'');
+    const { data:candidatas,error:erroEmpresa }=await remoto.from('empresas').select('id,cnpj,origem_local_id')
+      .or(`origem_local_id.eq.${id},cnpj.eq.${cnpj}`).limit(3);
+    if (erroEmpresa) throw new Error(`Empresa compartilhada: ${erroEmpresa.message}`);
+    const remota=(candidatas||[]).find((x)=>Number(x.origem_local_id||x.id)===id
+      || String(x.cnpj||'').replace(/\D/g,'')===cnpj);
+    if (!remota) throw new Error('Empresa compartilhada não localizada para hidratação operacional.');
+    const mapa=new Map([[String(remota.id),id]]);
+    const buscarEmpresa=async(tabela)=>{
+      const linhas=[];
+      for(let de=0;;de+=1000){
+        const { data,error }=await remoto.from(tabela).select('*').eq('empresa_id',Number(remota.id))
+          .order('id',{ascending:true}).range(de,de+999);
+        if(error) throw new Error(`${tabela} compartilhada: ${error.message}`);
+        linhas.push(...(data||[]));
+        if(!data||data.length<1000) break;
+      }
+      return normalizarEmpresaIdDoCache(tabela,linhas,mapa);
+    };
+    // Lotes são pais de movimentos e precisam existir antes da reconciliação.
+    const lotes=await buscarEmpresa('lotes');
+    gravar('lotes',lotes);
+    const [movimentos,parceiros]=await Promise.all([
+      reconciliarMovimentosEmpresa(id,{ forcar:true,maxAgeMs:0 }),
+      restaurarParceirosEmpresa(id,remoto),
+    ]);
+    // Dependências do fato são repostas somente depois dos movimentos. A ordem
+    // também mantém `formacao_custo_componentes` após seu item-pai.
+    const auxiliares={};
+    for(const tabela of ['formacao_custo_itens','excecoes_motor','enriquecimento_servicos_evidencias',
+      'enriquecimento_pis_cofins_evidencias','pendencias_enriquecimento_fiscal']){
+      const linhas=await buscarEmpresa(tabela);
+      auxiliares[tabela]=gravar(tabela,linhas);
+    }
+    const itens=db.prepare('SELECT id FROM formacao_custo_itens WHERE empresa_id=?').all(id).map((x)=>Number(x.id));
+    let componentes=[];
+    for(let de=0;de<itens.length;de+=200){
+      const lote=itens.slice(de,de+200);
+      const { data,error }=await remoto.from('formacao_custo_componentes').select('*').in('item_formacao_id',lote);
+      if(error) throw new Error(`formacao_custo_componentes compartilhada: ${error.message}`);
+      componentes.push(...(data||[]));
+    }
+    auxiliares.formacao_custo_componentes=gravar('formacao_custo_componentes',componentes);
+    await restaurarFotografiaMotorEmpresa(id,remoto);
+    hidratacoesEmpresaRecentes.set(id,Date.now());
+    return { ativo:true,cache:'hidratado',empresa_id:id,lotes:lotes.length,
+      movimentos:movimentos.movimentos?.length||0,parceiros:parceiros.parceiros||0,auxiliares };
+  })().finally(()=>hidratacoesEmpresaEmAndamento.delete(id));
+  hidratacoesEmpresaEmAndamento.set(id,tarefa);
+  return tarefa;
+}
+
+async function baixar(remotoInformado = null, opcoes = {}) {
   if (!ativo()) return { ativo: false };
   const remoto = remotoInformado || supabase.admin(), resultado = {}, falhas = {};
   // A carteira é a âncora do cache efêmero. Ela precisa ser carregada antes
@@ -448,7 +523,9 @@ async function baixar(remotoInformado = null) {
   // fotografia ativa viola FK em uma instância nova e deixava a carga-base
   // artificialmente parcial. Elas são restauradas logo após o motor.
   const dependentesDoMotor = ['excecoes_motor_execucoes', 'telemetria_autonomia_execucoes'];
-  const tabelas = Object.keys(CAMPOS).filter((tabela) => tabela !== 'empresas' && !dependentesDoMotor.includes(tabela));
+  const segmentadoPorEmpresa=Boolean(opcoes.segmentadoPorEmpresa);
+  const tabelas = Object.keys(CAMPOS).filter((tabela) => tabela !== 'empresas' && !dependentesDoMotor.includes(tabela)
+    && (!segmentadoPorEmpresa || !TABELAS_CACHE_POR_EMPRESA.has(tabela)));
   const empresasValidas = new Set(), lotesValidos = new Set();
   let empresaLocalPorRemota = new Map();
   // A carteira é a única dependência para a navegação inicial. Ela é gravada
@@ -486,8 +563,11 @@ async function baixar(remotoInformado = null) {
     }
   }
   let motorCarregado = false;
-  try { resultado.motor = await baixarResultadosMotor(remoto); motorCarregado = true; }
-  catch (e) { falhas.motor = e.message; }
+  if (segmentadoPorEmpresa) resultado.cache_empresa_segmentado=true;
+  else {
+    try { resultado.motor = await baixarResultadosMotor(remoto); motorCarregado = true; }
+    catch (e) { falhas.motor = e.message; }
+  }
   if (motorCarregado) {
     for (const tabela of dependentesDoMotor) {
       try {
@@ -496,7 +576,7 @@ async function baixar(remotoInformado = null) {
         resultado[tabela] = gravar(tabela, linhas);
       } catch (e) { falhas[tabela] = e.message; }
     }
-  } else {
+  } else if (!segmentadoPorEmpresa) {
     for (const tabela of dependentesDoMotor) falhas[tabela] = 'Fotografia do motor indisponível; tabela dependente não foi carregada.';
   }
   try { Object.assign(resultado, await baixarConfiguracao(CONFIG_TABELAS, remoto)); }
@@ -1072,7 +1152,20 @@ function apagarLinhaIncremental(evento) {
 }
 
 async function aplicarEventosIncrementais(remoto, eventos, opcoes = {}) {
-  const reduzidos = reduzirEventosIncrementais(eventos);
+  const todosReduzidos = reduzirEventosIncrementais(eventos);
+  // DELETE é sempre seguro: se a empresa não estiver materializada é no-op;
+  // se estiver, impede que um tombstone fique visível até a próxima hidratação.
+  const ignoradosSegmentados=opcoes.segmentadoPorEmpresa
+    ? todosReduzidos.filter((evento)=>TABELAS_CACHE_POR_EMPRESA.has(evento.tabela)
+      && String(evento.operacao||'').toUpperCase()!=='DELETE') : [];
+  const reduzidos=opcoes.segmentadoPorEmpresa
+    ? todosReduzidos.filter((evento)=>!TABELAS_CACHE_POR_EMPRESA.has(evento.tabela)
+      || String(evento.operacao||'').toUpperCase()==='DELETE') : todosReduzidos;
+  if (!reduzidos.length) {
+    const chaveCheckpoint=opcoes.chaveCheckpoint||CHAVE_SEQUENCIA_INCREMENTAL;
+    salvarEstadoOperacional(chaveCheckpoint,Math.max(...todosReduzidos.map((evento)=>Number(evento.sequencia))));
+    return { fallback:false,eventos:todosReduzidos.length,aplicadas:0,removidas:0,adiadas_por_empresa:ignoradosSegmentados.length };
+  }
   for (const evento of reduzidos) {
     const motivo = validarEventoIncremental(evento);
     if (motivo) return { fallback: true, motivo };
@@ -1103,10 +1196,10 @@ async function aplicarEventosIncrementais(remoto, eventos, opcoes = {}) {
     const chaveCheckpoint=opcoes.chaveCheckpoint || CHAVE_SEQUENCIA_INCREMENTAL;
     salvarEstadoOperacional(chaveCheckpoint, Math.max(...reduzidos.map((evento) => Number(evento.sequencia))));
   })();
-  return { fallback: false, eventos: reduzidos.length, aplicadas, removidas };
+  return { fallback: false, eventos: todosReduzidos.length, aplicadas, removidas, adiadas_por_empresa:ignoradosSegmentados.length };
 }
 
-async function sincronizarIncrementalV2(remoto) {
+async function sincronizarIncrementalV2(remoto, opcoes = {}) {
   const consumidor=consumidorIncrementalV2();
   let remotoConsumidor;
   try { remotoConsumidor=await registrarConsumidorIncrementalV2(remoto, consumidor); }
@@ -1123,12 +1216,12 @@ async function sincronizarIncrementalV2(remoto) {
     // O checkpoint v1 não é promovido: sua ordem de commit não é comprovável.
     // A carga-base fornece uma fotografia canônica e a sobreposição posterior
     // é aplicada de forma idempotente pela fila publicada.
-    const completo=await baixar(remoto);
+    const completo=await baixar(remoto,opcoes);
     validarCargaBase(completo, 'Carga-base da fila v2');
     await publicarEventosIncrementaisV2(remoto);
     const pendentes=await buscarEventosIncrementaisV2(remoto, marcoInicial.sequencia_publicada);
     const aplicado=pendentes.length
-      ? await aplicarEventosIncrementais(remoto, pendentes, { chaveCheckpoint:CHAVE_SEQUENCIA_INCREMENTAL_V2 })
+      ? await aplicarEventosIncrementais(remoto, pendentes, { ...opcoes,chaveCheckpoint:CHAVE_SEQUENCIA_INCREMENTAL_V2 })
       : { fallback:false, eventos:0, aplicadas:0, removidas:0 };
     let marcoAplicado=pendentes.length
       ? Math.max(...pendentes.map((evento) => Number(evento.sequencia)))
@@ -1138,7 +1231,7 @@ async function sincronizarIncrementalV2(remoto) {
       // publicado enquanto a carga estiver em andamento continuará pendente.
       await publicarEventosIncrementaisV2(remoto);
       marcoAplicado=(await estadoFilaIncrementalV2(remoto)).sequencia_publicada;
-      const recuperacao=await baixar(remoto);
+      const recuperacao=await baixar(remoto,opcoes);
       validarCargaBase(recuperacao, 'Recuperação da fila v2');
     }
     // Publica o que chegou durante a aplicação, mas não inclui essas novas
@@ -1156,11 +1249,11 @@ async function sincronizarIncrementalV2(remoto) {
     await confirmarCheckpointIncrementalV2(remoto, consumidor, checkpointRemoto, false);
     return { disponivel:true, modo:'incremental_v2', consumidor, eventos:0, aplicadas:0, removidas:0, sequencia:checkpointRemoto };
   }
-  const aplicado=await aplicarEventosIncrementais(remoto, eventos, { chaveCheckpoint:CHAVE_SEQUENCIA_INCREMENTAL_V2 });
+  const aplicado=await aplicarEventosIncrementais(remoto, eventos, { ...opcoes,chaveCheckpoint:CHAVE_SEQUENCIA_INCREMENTAL_V2 });
   if (aplicado.fallback) {
     await publicarEventosIncrementaisV2(remoto);
     const marcoCobertoPeloFallback=(await estadoFilaIncrementalV2(remoto)).sequencia_publicada;
-    const completo=await baixar(remoto);
+    const completo=await baixar(remoto,opcoes);
     validarCargaBase(completo, 'Fallback da fila v2');
     // Eventos que surgirem durante a fotografia ficam acima deste marco.
     await publicarEventosIncrementaisV2(remoto);
@@ -1177,7 +1270,7 @@ async function sincronizarIncremental(opcoes = {}) {
   if (!ativo()) return { ativo: false };
   const remoto = opcoes.remoto || supabase.admin({ prazoMs: opcoes.prazoMs });
   if (!opcoes.forcarLegado) {
-    const v2=await sincronizarIncrementalV2(remoto);
+    const v2=await sincronizarIncrementalV2(remoto,opcoes);
     if (v2.disponivel) return v2;
   }
   const sequencia = lerSequenciaIncremental();
@@ -1185,14 +1278,14 @@ async function sincronizarIncremental(opcoes = {}) {
   // delta. Eventos ocorridos durante a carga são reaplicados idempotentemente.
   if (!temSequenciaIncremental()) {
     const inicio = await maiorSequenciaIncremental(remoto);
-    const completo = await baixar(remoto);
+    const completo = await baixar(remoto,opcoes);
     validarCargaBase(completo, 'Carga-base incremental');
     const pendentes = await buscarEventosIncrementais(remoto, inicio);
-    const aplicado = pendentes.length ? await aplicarEventosIncrementais(remoto, pendentes) : { fallback: false, eventos: 0, aplicadas: 0, removidas: 0 };
+    const aplicado = pendentes.length ? await aplicarEventosIncrementais(remoto, pendentes,opcoes) : { fallback: false, eventos: 0, aplicadas: 0, removidas: 0 };
     let marcoAplicado = pendentes.at(-1)?.sequencia || inicio;
     if (aplicado.fallback) {
       const marcoCobertoPeloFallback = await maiorSequenciaIncremental(remoto);
-      const recuperacao = await baixar(remoto);
+      const recuperacao = await baixar(remoto,opcoes);
       validarCargaBase(recuperacao, 'Recuperação incremental');
       marcoAplicado = marcoCobertoPeloFallback;
     }
@@ -1203,12 +1296,12 @@ async function sincronizarIncremental(opcoes = {}) {
   }
   const eventos = await buscarEventosIncrementais(remoto, sequencia);
   if (!eventos.length) return { modo: 'incremental', eventos: 0, aplicadas: 0, removidas: 0, sequencia };
-  const aplicado = await aplicarEventosIncrementais(remoto, eventos);
+  const aplicado = await aplicarEventosIncrementais(remoto, eventos,opcoes);
   if (!aplicado.fallback) return { modo: 'incremental', sequencia: lerSequenciaIncremental(), ...aplicado };
   // Fallback intencional: a tabela ainda não possui semântica incremental ou
   // o evento é sensível. Nada do lote foi aplicado antes desta decisão.
   const marcoCobertoPeloFallback = await maiorSequenciaIncremental(remoto);
-  const completo = await baixar(remoto);
+  const completo = await baixar(remoto,opcoes);
   validarCargaBase(completo, 'Fallback incremental');
   db.transaction(() => salvarSequenciaIncremental(marcoCobertoPeloFallback))();
   return { modo: 'fallback_completo', sequencia: Number(marcoCobertoPeloFallback), eventos: eventos.length, ...aplicado };
@@ -2054,7 +2147,7 @@ async function restaurarLinhaCanonica(tabela, linha, justificativa, remotoInform
   return { tabela, restaurada:true };
 }
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, restaurarLinhaCanonica, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
+module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, garantirCacheOperacionalEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, restaurarLinhaCanonica, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
   baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
   chavesQueDevemPermanecerExcluidas };

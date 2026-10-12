@@ -6,6 +6,7 @@ const bases = require('./basesReforma');
 const motorExec = require('./motorExec');
 const excecoesMotor = require('./excecoesMotor');
 const motorStaging = require('./motorStaging');
+const lotesIncrementais = require('./lotesIncrementais');
 const integridadeMotor = require('./integridadeMotor');
 
 const workerId = `${process.env.RENDER_INSTANCE_ID || process.env.HOSTNAME || 'local'}-${process.pid}`;
@@ -186,42 +187,42 @@ async function processarUm() {
         const payload = JSON.parse(job.payload || '{}');
         const solicitados = [...new Set((payload.movimento_ids || []).map(Number).filter(Number.isInteger))];
         if (!solicitados.length) throw new Error('Job incremental sem lançamentos explícitos.');
-        // Um delta grande deixou de ser incremental e não pode ser materializado
-        // inteiro no heap de 1 GB do worker. Recuse antes de consultar SQLite ou
-        // executar o motor; a fotografia ativa permanece intacta e o processo
-        // continua disponível para os demais jobs.
-        const limiteIncremental=Math.max(25,Math.min(500,Number(process.env.MOTOR_INCREMENTAL_LIMITE_ITENS)||250));
-        if (solicitados.length>limiteIncremental) {
-          throw new Error(`Escopo incremental com ${solicitados.length} itens excede o limite seguro de ${limiteIncremental}; a fotografia anterior foi preservada. Divida a alteração em lotes ou solicite cálculo completo explicitamente.`);
-        }
         const operacao = require('./operacaoCompartilhada');
-        // O worker não assume que o seu SQLite conhece os IDs do job. Ele
-        // recompõe exclusivamente os fatos canônicos autorizados, sem
-        // publicação, remoção ou reclassificação global da base.
-        await operacao.prepararContextoMotorIncremental(job.empresa_id, solicitados);
-        const entradaMotor = integridadeMotor.assinarEntrada(job.empresa_id);
-        const resultado = motorExec.reprocessarIncremental(job.empresa_id, { ano:Number(payload.ano) || Number(job.competencia) || 2027, movimentoIds:solicitados });
-        if (Number(resultado.reprocessados) !== solicitados.length) throw new Error('Execução incremental incompleta; a fotografia anterior foi preservada.');
-        const execucao = motorExec.ultimaExecucao(job.empresa_id);
-        if (!execucao?.id) throw new Error('Execução incremental não materializou uma execução local.');
-        const resultadoMotor = integridadeMotor.assinarResultado(job.empresa_id, execucao.id);
-        const quantidadeProduzida=Number(resultado.resultado?.entradas?.length || 0)+Number(resultado.resultado?.saidas?.length || 0);
-        if (resultadoMotor.itens !== quantidadeProduzida) throw new Error('Integridade incremental: quantidade materializada diferente dos resultados produzidos pelo motor.');
-        const entradaAntesDePublicar = integridadeMotor.assinarEntrada(job.empresa_id);
-        integridadeMotor.exigirMesmaEntrada(entradaMotor, entradaAntesDePublicar);
-        // O lote calculado contém apenas o delta. A RPC no Supabase clona as
-        // linhas intactas da foto ativa e substitui este recorte sob uma única
-        // transação; em hipótese alguma uma foto parcial vira ativa.
-        const publicacao = await operacao.publicarResultadosMotor(job.empresa_id, {
-          ativar:false, execucao_id:execucao.id, quantidade_esperada:resultadoMotor.itens,
-          integridade:{ entrada:entradaMotor, resultado:resultadoMotor, modo:'INCREMENTAL_IDS_EXPLICITOS' },
-        });
-        const promovida = await operacao.promoverFotografiaMotorIncremental(
-          Number(publicacao.empresa_remota_id || job.empresa_id), Number(publicacao.execucao_id), resultadoMotor.itens, solicitados,
-        );
-        await operacao.validarFotografiaAtivaMotor(Number(publicacao.empresa_remota_id || job.empresa_id), Number(publicacao.execucao_id), promovida.quantidade);
+        const tamanhoLote=Math.max(25,Math.min(250,Number(process.env.MOTOR_INCREMENTAL_LOTE_ITENS)||100));
+        const lotes=lotesIncrementais.dividir(solicitados,tamanhoLote);
+        let proximo=Math.max(0,Math.min(lotes.length,Number(payload.proximo_lote)||0));
+        let ultimaPromovida=null; let ultimaExecucao=null;
+        for (;proximo<lotes.length;proximo++) {
+          const lote=lotes[proximo];
+          // O worker recompõe e calcula somente um lote por vez. Cada promoção
+          // produz uma fotografia completa e válida; o checkpoint no payload
+          // permite retomar no lote seguinte após reinício sem repetir os já
+          // confirmados nem manter todo o delta no heap.
+          await operacao.prepararContextoMotorIncremental(job.empresa_id,lote);
+          const entradaMotor=integridadeMotor.assinarEntrada(job.empresa_id);
+          const resultado=motorExec.reprocessarIncremental(job.empresa_id,{ ano:Number(payload.ano)||Number(job.competencia)||2027,movimentoIds:lote });
+          if (Number(resultado.reprocessados)!==lote.length) throw new Error('Execução incremental incompleta; a fotografia anterior foi preservada.');
+          const execucao=motorExec.ultimaExecucao(job.empresa_id);
+          if (!execucao?.id) throw new Error('Execução incremental não materializou uma execução local.');
+          const resultadoMotor=integridadeMotor.assinarResultado(job.empresa_id,execucao.id);
+          const quantidadeProduzida=Number(resultado.resultado?.entradas?.length||0)+Number(resultado.resultado?.saidas?.length||0);
+          if (resultadoMotor.itens!==quantidadeProduzida) throw new Error('Integridade incremental: quantidade materializada diferente dos resultados produzidos pelo motor.');
+          integridadeMotor.exigirMesmaEntrada(entradaMotor,integridadeMotor.assinarEntrada(job.empresa_id));
+          const publicacao=await operacao.publicarResultadosMotor(job.empresa_id,{ ativar:false,execucao_id:execucao.id,quantidade_esperada:resultadoMotor.itens,
+            integridade:{ entrada:entradaMotor,resultado:resultadoMotor,modo:'INCREMENTAL_IDS_EXPLICITOS',lote:proximo+1,total_lotes:lotes.length } });
+          ultimaPromovida=await operacao.promoverFotografiaMotorIncremental(Number(publicacao.empresa_remota_id||job.empresa_id),Number(publicacao.execucao_id),resultadoMotor.itens,lote);
+          await operacao.validarFotografiaAtivaMotor(Number(publicacao.empresa_remota_id||job.empresa_id),Number(publicacao.execucao_id),ultimaPromovida.quantidade);
+          ultimaExecucao=publicacao.execucao_id;
+          payload.proximo_lote=proximo+1; payload.total_lotes=lotes.length; payload.tamanho_lote=tamanhoLote;
+          db.prepare('UPDATE jobs_carteira SET payload=?,heartbeat=? WHERE id=?').run(JSON.stringify(payload),agora(),job.id);
+          if (supabase.configurado()) {
+            const { error:erroProgresso }=await supabase.admin().from('jobs_carteira').update({ payload,heartbeat:agora() }).eq('id',job.id).eq('status','PROCESSANDO');
+            if (erroProgresso) throw new Error(`Checkpoint incremental: ${erroProgresso.message}`);
+          }
+        }
         const excecoes = excecoesMotor.resumo(job.empresa_id);
-        await finalizar(job, 'CONCLUIDO', null, { itens:resultado.reprocessados, movimento_ids:solicitados, modo:'INCREMENTAL_IDS_EXPLICITOS', execucao_id:publicacao.execucao_id, fotografia_itens:promovida.quantidade, excecoes });
+        await finalizar(job,'CONCLUIDO',null,{ itens:solicitados.length,movimento_ids:solicitados,modo:'INCREMENTAL_IDS_EXPLICITOS_EM_LOTES',
+          lotes:lotes.length,tamanho_lote:tamanhoLote,execucao_id:ultimaExecucao,fotografia_itens:ultimaPromovida?.quantidade||null,excecoes });
         continue;
       }
       bases.classificarMovimentos(job.empresa_id);
