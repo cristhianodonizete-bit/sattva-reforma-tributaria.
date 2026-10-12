@@ -493,6 +493,7 @@ function executar(empresaId, opcoes = {}) {
 
   if (opcoes.gravar !== false) gravar(empresaId, ano, resumo, entradas, saidas, {
     incremental: Boolean(movimentoIds),
+    movimentoIdsSolicitados: movimentoIds || [],
     movimentoIdsExcluidos: saidasExcluidasDaReceita,
     publicarAssincrona: opcoes.publicarAssincrona !== false,
   });
@@ -684,9 +685,11 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
   const id = ex.lastInsertRowid;
   const linhas = [...entradas, ...saidas];
   if (opcoes.incremental) {
-    // Também remove a fotografia antiga de uma saída que deixou de ser venda
-    // após a classificação do CFOP; o documento fiscal não é apagado.
-    const ids = [...new Set([...linhas.map((x) => x.movimento_id), ...(opcoes.movimentoIdsExcluidos || [])].filter(Boolean))];
+    // Substitui todo o escopo solicitado, inclusive movimentos que deixaram
+    // de produzir resultado por deduplicação documental ou por não comporem
+    // receita. Caso contrário, a fotografia antiga dessas linhas sobreviveria
+    // indefinidamente mesmo após um incremental concluído com sucesso.
+    const ids = [...new Set([...(opcoes.movimentoIdsSolicitados || []), ...linhas.map((x) => x.movimento_id), ...(opcoes.movimentoIdsExcluidos || [])].filter(Boolean))];
     if (ids.length) db.prepare(`DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN (${ids.map(() => '?').join(',')})`).run(empresaId, ...ids);
   } else db.prepare('DELETE FROM motor_resultados WHERE empresa_id = ?').run(empresaId);
   const ins = db.prepare(`INSERT INTO motor_resultados (empresa_id, movimento_id, execucao_id, sentido, ano,
