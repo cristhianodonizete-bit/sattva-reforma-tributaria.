@@ -8632,10 +8632,11 @@ function idsSaidaExecutiva(req) {
   return [...new Set((Array.isArray(bruto) ? bruto : []).map(Number).filter(Boolean))];
 }
 function montarSaidaExecutiva(empresaId, ids, anoSolicitado) {
-  // A apresentação só pode ser montada depois do fechamento de todos os
-  // módulos. A partir daí ela lê fotografias persistidas: não aciona motor,
-  // não recalcula cenário e não modifica o que foi aprovado.
-  fechamentoModulos.exigirProntoParaEntrega(empresaId);
+  // O relatório é uma leitura das fotografias persistidas: não aciona motor,
+  // não recalcula cenário e não modifica o que foi aprovado. Antes do
+  // fechamento ele continua útil como minuta, explicitamente identificada
+  // como PRELIMINAR e com os módulos ainda pendentes.
+  const fechamento = fechamentoModulos.listar(empresaId);
   const cenarios = db.prepare(`SELECT id,empresa_id,tipo,ano FROM cenarios WHERE empresa_id=?`).all(empresaId);
   const permitidos = new Set(cenarios.map((x) => Number(x.id)));
   const escolhidos = cenarios.filter((x) => ids.includes(Number(x.id)));
@@ -8646,7 +8647,7 @@ function montarSaidaExecutiva(empresaId, ids, anoSolicitado) {
   if (!base) throw new Error(`Cenário base ${ano} não encontrado para esta empresa.`);
   if (selecionados.some((id) => !permitidos.has(id))) throw new Error('Há cenário selecionado que não pertence à empresa em análise.');
   if (selecionados.length > 5) throw new Error('Selecione o cenário base e no máximo quatro hipóteses.');
-  return saidaExecutiva.montar(selecionados.map((id) => cenarioMotor.obterResultadoPersistido(id)), { empresaId });
+  return saidaExecutiva.montar(selecionados.map((id) => cenarioMotor.obterResultadoPersistido(id)), { empresaId, fechamento });
 }
 router.post('/empresas/:id/saida-executiva', async (req, res) => {
   try {

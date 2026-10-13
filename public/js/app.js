@@ -293,7 +293,7 @@ const App = (() => {
     { id: 'diagnostico', titulo: 'Módulo 1 · Diagnóstico', itens: [
       { id: 'perfil', t: 'Perfil Tributário', i: '◉' }, { id: 'fornecedores', t: 'Cadeia de fornecedores', i: '↙' },
       { id: 'clientes', t: 'Cadeia de clientes', i: '↗' }, { id: 'impactoFinalCbs', t: 'Impacto Final CBS', i: '≋' }, { id: 'cenarios', t: 'Projeção de cenários', i: '⌁' },
-      { id: 'mapaOperacional', t: 'Mapa operacional', i: '⌘' }, { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' }, { id: 'conformidadeDocumental', t: 'Conformidade documental', i: '▤' }, { id: 'pendenciasDiagnostico', t: 'Pendências do diagnóstico', i: '!' }, { id: 'tarefasDiagnostico', t: 'Tarefas', i: '✓' },
+      { id: 'mapaOperacional', t: 'Mapa operacional', i: '⌘' }, { id: 'calculadora', t: 'Calculadora da reforma', i: '∑' }, { id: 'conformidadeDocumental', t: 'Conformidade documental', i: '▤' }, { id: 'pendenciasDiagnostico', t: 'Pendências do diagnóstico', i: '!' }, { id: 'entregavelCliente', t: 'Relatório de entrega', i: '▣' }, { id: 'tarefasDiagnostico', t: 'Tarefas', i: '✓' },
     ] },
     { id: 'precificacao', titulo: 'Módulo 2 · Precificação', itens: [
       { id: 'precificacao', t: 'Precificação e margem', i: '◫' }, { id: 'formacaoCusto', t: 'Base de formação de custo', i: '⊕' }, { id: 'tarefasPrecificacao', t: 'Tarefas', i: '✓' },
@@ -309,9 +309,6 @@ const App = (() => {
     ] },
     { id: 'acompanhamento', titulo: 'Módulo 6 · Acompanhamento', itens: [
       { id: 'acompanhamento', t: 'Baseline e realizado', i: '◷' },
-    ] },
-    { id: 'entregavel-cliente', titulo: 'Módulo 7 · Entregável ao cliente', itens: [
-      { id: 'entregavelCliente', t: 'Relatório executivo e conformidade', i: '▣' },
     ] },
     { id: 'empresa-operacao', titulo: 'Operação da carteira', itens: [
       { id: 'gestaoProjetos', t: 'Escopo, entregas e ações', i: '✓' },

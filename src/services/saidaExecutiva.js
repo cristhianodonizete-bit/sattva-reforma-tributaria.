@@ -94,6 +94,40 @@ function contextoEmpresa(empresaId) {
   return { empresa, perfil, conformidade, planejamento };
 }
 
+// A relação é propositalmente pequena e lida diretamente da fotografia oficial
+// mais recente do motor. Não usa a tela da cadeia (que pode materializar muitos
+// milhares de linhas) e não recalcula qualquer imposto para montar o relatório.
+function beneficiosNaFotografia(empresaId) {
+  if (!empresaId) return { total:0, valor:0, cbs:0, itens:[], natureza:'INDETERMINADO', fonte:'Sem empresa selecionada' };
+  const execucao = db.prepare('SELECT id FROM motor_execucoes WHERE empresa_id=? ORDER BY id DESC LIMIT 1').get(empresaId);
+  if (!execucao) return { total:0, valor:0, cbs:0, itens:[], natureza:'INDETERMINADO', fonte:'Sem fotografia oficial do motor' };
+  // Tratamento integral padrão não é benefício. CST iniciado em 4 também é
+  // preservado, pois representa imunidade/não incidência na fotografia.
+  const filtro = `sentido='saida' AND (COALESCE(tratamento,'') NOT IN ('', 'Tributação integral — regra padrão') OR COALESCE(cst,'') LIKE '4%')`;
+  const filtroR = `r.sentido='saida' AND (COALESCE(r.tratamento,'') NOT IN ('', 'Tributação integral — regra padrão') OR COALESCE(r.cst,'') LIKE '4%')`;
+  const resumo = db.prepare(`SELECT COUNT(*) AS total, COALESCE(SUM(preco_atual),0) AS valor, COALESCE(SUM(cbs),0) AS cbs
+    FROM motor_resultados WHERE empresa_id=? AND execucao_id=? AND ${filtro}`).get(empresaId, execucao.id);
+  const itens = db.prepare(`SELECT m.descricao,m.ncm,m.nbs,m.documento,m.competencia,r.preco_atual,r.cbs,r.cst,r.cclasstrib,r.tratamento
+    FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
+    WHERE r.empresa_id=? AND r.execucao_id=? AND ${filtroR}
+    ORDER BY r.preco_atual DESC,r.id DESC LIMIT 12`).all(empresaId, execucao.id).map((x) => ({
+    item:x.descricao || 'Item sem descrição', referencia:x.ncm || x.nbs || 'Sem NCM/NBS', documento:x.documento || '—', competencia:x.competencia || null,
+    valor:r2(x.preco_atual), cbs:r2(x.cbs), cst:x.cst || '—', cclasstrib:x.cclasstrib || '—', tratamento:x.tratamento || 'Tratamento específico',
+  }));
+  return { total:Number(resumo?.total || 0), valor:r2(resumo?.valor), cbs:r2(resumo?.cbs), itens, natureza:'CALCULADO',
+    fonte:`motor_resultados · execução oficial #${execucao.id}` };
+}
+
+function comparativoPisCofins(base, perfil) {
+  const pis = perfil?.carga_pis_cofins_atual || {};
+  const valor = pis.valor === null || pis.valor === undefined ? null : r2(pis.valor);
+  return {
+    pisCofins:valor, cbsLiquida:r2(base.cbsLiquida), delta:valor === null ? null : r2(base.cbsLiquida - valor),
+    natureza:valor === null ? 'INDETERMINADO' : 'CALCULADO', origemPisCofins:pis.origem || 'INDETERMINADO',
+    observacao:'Comparação gerencial entre a carga histórica de PIS/Cofins disponível e a CBS líquida da fotografia selecionada. Período, base e elegibilidade devem ser conferidos na memória de cálculo antes de qualquer decisão fiscal.',
+  };
+}
+
 function montar(resultados, opcoes = {}) {
   if (!resultados?.length) throw new Error('Selecione ao menos o cenário base.');
   const baseResultado = resultados.find((r) => r.eBase || r.cenario.tipo === 'base') || resultados[0];
@@ -110,10 +144,14 @@ function montar(resultados, opcoes = {}) {
   const atencoes = alertas.filter((a) => a.severidade !== 'bom').map((a) => ({ titulo:a.titulo, texto:a.texto, evidencia:a.evidencia, memoria:a.drilldown, natureza:a.natureza }));
   const empresaId = Number(opcoes.empresaId || baseResultado.cenario?.empresa_id || 0) || null;
   const contexto = contextoEmpresa(empresaId);
+  const beneficios = beneficiosNaFotografia(empresaId);
+  const cbsXPisCofins = comparativoPisCofins(base, contexto.perfil);
+  const fechamento = opcoes.fechamento || { pronto_para_entrega:false, abertos:[] };
   return {
     titulo:'Implementação da Reforma Tributária', subtitulo:'Diagnóstico executivo CBS', geradoEm:new Date().toISOString(),
     fonte:'motor_resultados via cenários, indicadores, alertas, matriz e memória de cálculo',
     empresa:contexto.empresa, perfilAtual:contexto.perfil, conformidadeDocumental:contexto.conformidade, planejamentoTributario:contexto.planejamento,
+    statusEntrega:{ status:fechamento.pronto_para_entrega ? 'FINAL' : 'PRELIMINAR', pronto:Boolean(fechamento.pronto_para_entrega), pendencias:fechamento.abertos || [] },
     base, cenarios, comparacao:comparacao(base, fotos),
     secoes:{
       resumoExecutivo:{ natureza:'CALCULADO', fatos:[
@@ -127,6 +165,8 @@ function montar(resultados, opcoes = {}) {
       ] },
       compras:{ natureza:base.natureza, valor:base.compras, baseEconomica:base.baseEconomicaEntradas, cbs:base.cbsCredito, credito:base.creditoRecebido, memoria:base.memoriaCompras },
       vendas:{ natureza:base.natureza, valor:base.receita, baseEconomica:base.baseEconomicaSaidas, cbs:base.cbsDebito, precoProjetado:base.receitaProjetada, creditoEntregue:base.creditoEntregue, memoria:base.memoriaVendas },
+      cbsXPisCofins,
+      beneficios,
       waterfall: efeitos ? { natureza:principal.eBase ? 'CALCULADO' : 'SIMULADO', ...efeitos } : null,
       matriz:prim.matriz, alertas, oportunidades, atencoes,
       premissas: resultados.flatMap((r) => premissasDoCenario(r.cenario.id).map((p) => ({ cenario:r.cenario.nome, ...p }))),
@@ -157,7 +197,8 @@ function gerarPdf(relatorio, destino) {
   cabeçalho('Relatório executivo'); let y=78;
   doc.fillColor(navy).font('Helvetica-Bold').fontSize(27).text('Diagnóstico e plano de adequação',M,y); y+=42;
   doc.fillColor(navy).font('Helvetica-Bold').fontSize(14).text(txt(empresa.razao_social || 'Empresa em análise'),M,y); y+=23;
-  doc.fillColor(cinza).font('Helvetica').fontSize(10).text(`Cenário de referência: ${txt(relatorio.base.nome)}  |  Gerado em: ${new Date(relatorio.geradoEm).toLocaleString('pt-BR')}`,M,y); y+=36;
+  doc.fillColor(cinza).font('Helvetica').fontSize(10).text(`Cenário de referência: ${txt(relatorio.base.nome)}  |  Gerado em: ${new Date(relatorio.geradoEm).toLocaleString('pt-BR')}`,M,y); y+=16;
+  doc.fillColor(relatorio.statusEntrega?.pronto ? turquesa : ouro).font('Helvetica-Bold').fontSize(9).text(`SITUAÇÃO: ${txt(relatorio.statusEntrega?.status || 'PRELIMINAR')}`,M,y); y+=20;
   caixa(M,y,CW,48,fundo); texto('Este relatório conta a história da operação atual, dos efeitos da CBS e das decisões que precisam ser avaliadas. Todos os valores vêm de fotografias oficiais já calculadas; dados ausentes permanecem explícitos.',M+16,y+14,CW-32,9,navy); y+=72;
   y=titulo('Informação da empresa',y);
   caixa(M,y,CW,93); let iy=y+18; iy=linhaDado(M+18,iy,'CNPJ',empresa.cnpj || 'INDETERMINADO'); iy=linhaDado(M+18,iy,'CNAE principal',empresa.cnae || 'INDETERMINADO'); linhaDado(M+18,iy,'Atividade',empresa.atividade || empresa.nome_fantasia || 'INDETERMINADO'); y+=118;
@@ -171,6 +212,11 @@ function gerarPdf(relatorio, destino) {
   y=titulo('Cadeia de clientes',y); caixa(M,y,metade,142); let vy=y+20; vy=linhaPequena(M+16,vy,metade-32,'Vendas atuais',brl(relatorio.secoes.vendas.valor)); vy=linhaPequena(M+16,vy,metade-32,'Base econômica',brl(relatorio.secoes.vendas.baseEconomica)); linhaPequena(M+16,vy,metade-32,'CBS das vendas',brl(relatorio.secoes.vendas.cbs),'#5B8DB9');
   caixa(x2,y,metade,142); let ly=y+20; ly=linhaPequena(x2+16,ly,metade-32,'Venda projetada',brl(relatorio.secoes.vendas.precoProjetado)); ly=linhaPequena(x2+16,ly,metade-32,'Crédito entregue',brl(relatorio.base.creditoEntregue)); linhaPequena(x2+16,ly,metade-32,'Operações',String(relatorio.base.operacoesVendas)); y+=168;
   y=titulo('Impacto da CBS',y); card(M,y,cw,'CBS débito',brl(relatorio.base.cbsDebito),'efeito nas vendas','#5B8DB9'); card(M+cw+gap,y,cw,'CBS crédito',brl(relatorio.base.cbsCredito),'efeito nas compras',turquesa); card(M+(cw+gap)*2,y,cw,'CBS líquida',brl(relatorio.base.cbsLiquida),'débito menos crédito',navy);
+
+  doc.addPage(); cabeçalho('CBS, PIS/Cofins e benefícios'); y=78;
+  y=titulo('Impacto CBS x PIS/Cofins',y); const comp=relatorio.secoes.cbsXPisCofins || {}; caixa(M,y,CW,102,'#EEF4F7'); let py=y+18; py=linhaDado(M+18,py,'PIS/Cofins histórico disponível',brl(comp.pisCofins)); py=linhaDado(M+18,py,'CBS líquida projetada',brl(comp.cbsLiquida),turquesa); linhaDado(M+18,py,'Variação gerencial',comp.delta === null ? 'INDETERMINADO' : brl(comp.delta),comp.delta !== null && comp.delta > 0 ? '#A13832' : navy); texto(comp.observacao || 'A comparação depende da equivalência de período e base.',M+18,y+83,CW-36,7.5,cinza); y+=126;
+  y=titulo('Itens com benefício ou tratamento específico',y); const bens=relatorio.secoes.beneficios || { total:0, valor:0, cbs:0, itens:[] }; caixa(M,y,CW,56,'#EAF6F6'); texto(`${bens.total || 0} item(ns) na execução oficial · base ${brl(bens.valor)} · CBS ${brl(bens.cbs)}`,M+16,y+14,CW-32,10,navy); texto(bens.fonte || 'Fonte indisponível',M+16,y+33,CW-32,8,cinza); y+=72;
+  if (bens.itens?.length) { bens.itens.slice(0,6).forEach((x) => { caixa(M,y,CW,54,'#FFFFFF',linha); doc.fillColor(navy).font('Helvetica-Bold').fontSize(8.5).text(txt(x.item),M+12,y+9,{width:260,ellipsis:true}); doc.fillColor(cinza).font('Helvetica').fontSize(7.5).text(`${txt(x.referencia)} · ${txt(x.tratamento)}`,M+12,y+24,{width:340,ellipsis:true}); doc.fillColor(navy).font('Helvetica-Bold').fontSize(8.5).text(brl(x.valor),M+390,y+12,{width:70,align:'right'}); doc.fillColor(turquesa).text(brl(x.cbs),M+470,y+12,{width:62,align:'right'}); y+=61; }); } else { caixa(M,y,CW,48,fundo); texto('Nenhum tratamento específico materializado na fotografia oficial atual. Esta ausência não presume inexistência jurídica fora do escopo analisado.',M+14,y+14,CW-28,8.5,cinza); }
 
   doc.addPage(); cabeçalho('Conformidade, cenários e planejamento'); y=78;
   y=titulo('Conformidade documental',y); caixa(M,y,CW,83,'#FFF7E4','#F4E1B9'); doc.fillColor(ouro).font('Helvetica-Bold').fontSize(9).text('PONTOS A VALIDAR',M+16,y+17); doc.fillColor(navy).font('Helvetica-Bold').fontSize(20).text(String(conf.resumo?.total || 0),M+16,y+38); doc.fillColor(tinta).font('Helvetica').fontSize(9).text(`apontamento(s) documentais · valor envolvido ${brl(conf.resumo?.valor)}`,M+55,y+45); texto('Apontamentos documentais são evidência para revisão. Só devem se tornar prioridade econômica quando o motor demonstrar impacto material na carga, crédito ou preço.',M+16,y+63,CW-32,8,cinza); y+=104;
@@ -189,7 +235,7 @@ function gerarXlsx(relatorio) {
   const adicionar = (nome, linhas) => XLSX.utils.book_append_sheet(livro, XLSX.utils.aoa_to_sheet(linhas), nome.slice(0, 31));
   const b = relatorio.base;
   adicionar('Resumo executivo', [
-    ['CAMPO', 'VALOR', 'NATUREZA'], ['Cenário base', b.nome, b.natureza], ['Ano', b.ano, b.natureza],
+    ['CAMPO', 'VALOR', 'NATUREZA'], ['Situação do relatório', relatorio.statusEntrega?.status || 'PRELIMINAR', relatorio.statusEntrega?.pronto ? 'FINAL' : 'PRELIMINAR'], ['Cenário base', b.nome, b.natureza], ['Ano', b.ano, b.natureza],
     ['Receita atual', b.receita, b.natureza], ['Compras atuais', b.compras, b.natureza],
     ['Base econômica das saídas', b.baseEconomicaSaidas, b.natureza], ['Base econômica das entradas', b.baseEconomicaEntradas, b.natureza],
     ['CBS débito', b.cbsDebito, b.natureza], ['CBS crédito', b.cbsCredito, b.natureza], ['CBS líquida', b.cbsLiquida, b.natureza],
@@ -199,6 +245,19 @@ function gerarXlsx(relatorio) {
   adicionar('Cenários', [
     ['CENÁRIO', 'NATUREZA', 'RECEITA PROJETADA', 'CBS LÍQUIDA', 'Δ CBS', 'CRÉDITO RECEBIDO', 'CUSTO EFETIVO', 'MARGEM', 'CAIXA'],
     ...relatorio.comparacao.map((x) => [x.cenario, x.natureza, x.receitaProjetada, x.cbsLiquida, x.deltaCbsLiquida, x.creditoRecebido, x.custoEfetivo, x.margem, x.caixa]),
+  ]);
+  const comparativo = relatorio.secoes.cbsXPisCofins || {};
+  adicionar('CBS x PIS Cofins', [
+    ['CAMPO', 'VALOR', 'NATUREZA'],
+    ['PIS/Cofins histórico disponível', comparativo.pisCofins, comparativo.natureza || 'INDETERMINADO'],
+    ['CBS líquida projetada', comparativo.cbsLiquida, comparativo.natureza || b.natureza],
+    ['Variação gerencial', comparativo.delta, comparativo.natureza || 'INDETERMINADO'],
+    ['Observação', comparativo.observacao || '', 'METODOLÓGICO'],
+  ]);
+  const beneficios = relatorio.secoes.beneficios || { itens:[] };
+  adicionar('Benefícios e tratamentos', [
+    ['ITEM', 'REFERÊNCIA', 'DOCUMENTO', 'TRATAMENTO', 'CST', 'cClassTrib', 'VALOR', 'CBS', 'NATUREZA'],
+    ...beneficios.itens.map((x) => [x.item, x.referencia, x.documento, x.tratamento, x.cst, x.cclasstrib, x.valor, x.cbs, beneficios.natureza || 'CALCULADO']),
   ]);
   const evidencias = [
     ...relatorio.secoes.oportunidades.map((x) => ({ grupo:'OPORTUNIDADE', ...x })),
@@ -220,4 +279,4 @@ function gerarXlsx(relatorio) {
   return XLSX.write(livro, { type:'buffer', bookType:'xlsx' });
 }
 
-module.exports = { montar, gerarPdf, gerarXlsx, fotografia, premissasDoCenario };
+module.exports = { montar, gerarPdf, gerarXlsx, fotografia, premissasDoCenario, beneficiosNaFotografia, comparativoPisCofins };

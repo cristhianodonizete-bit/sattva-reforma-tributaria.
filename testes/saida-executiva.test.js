@@ -1,40 +1,47 @@
 #!/usr/bin/env node
-/* Saída executiva: consolida fatos, não cria segundo cálculo tributário. */
+/*
+ * Regressão do relatório de entrega do Diagnóstico.
+ * A leitura não pode disparar motor, carregar a carteira inteira para listar
+ * benefícios, nem transformar PIS/Cofins ausente em zero.
+ */
 const assert = require('node:assert/strict');
 const { PassThrough } = require('node:stream');
 const XLSX = require('xlsx');
+const db = require('../src/db');
 const saida = require('../src/services/saidaExecutiva');
 
-const grupos = (dados) => ({ grupos: dados.map(([grupo, valor, extra = {}]) => ({ grupo, nome:grupo, valor, participacao:valor / 1000, baseEconomica:valor, custoEfetivo:valor, creditoIbs:0, creditoCbs:extra.credito || 0, ...extra })) });
-const resultado = {
-  eBase:true, ano:2027, cenario:{ id:-29001, nome:'Base fixture executiva', tipo:'base' },
-  entradas:[{ movimento_id:1 }], saidas:[{ movimento_id:2 }],
-  indicadores:{ compras:1000, receita:1000, creditoRecebido:100, creditoEntregue:90, custoEfetivoCompras:900,
-    receitaProjetada:1100, comprasProjetadas:1080, baseEconomicaSaidas:900, baseEconomicaEntradas:900,
-    margem:null, coberturaMargem:0, caixaOperacional:null, statusCaixa:'INCOMPLETO' },
-  apuracao:{ cbs:{ debitos:100, creditos:100, liquido:0 }, ibs:{ debitos:0, creditos:0, liquido:0 } },
-  composicao:{
-    compras:{ credito_fornecedor:grupos([['normal',500,{ credito:100 }],['simples',200],['sem_credito',100],['indeterminado',200]]), regime_fornecedor:grupos([['regular',600],['simples',200],['mei',0],['indeterminado',200]]) },
-    vendas:{ perfil_cliente:grupos([['b2b_credito',500],['b2b_sem_credito',100],['b2c_pf',200],['b2c_pj',0],['governo',0],['indeterminado',200]]), sensibilidade_cliente:grupos([['alta',500],['media',0],['baixa',300],['indeterminado',200]]) },
-  },
-};
+const empresa = db.prepare('SELECT id FROM empresas ORDER BY id LIMIT 1').get();
+if (!empresa) throw new Error('Fixture ausente: é necessária uma empresa para validar o relatório.');
+
+const antes = db.prepare('SELECT COALESCE(MAX(id),0) AS id FROM motor_execucoes WHERE empresa_id=?').get(empresa.id).id;
+const beneficios = saida.beneficiosNaFotografia(empresa.id);
+const depois = db.prepare('SELECT COALESCE(MAX(id),0) AS id FROM motor_execucoes WHERE empresa_id=?').get(empresa.id).id;
+
+assert.equal(depois, antes, 'relatório não pode executar o motor para listar benefícios');
+assert.ok(Number.isFinite(beneficios.total), 'resumo de benefícios deve informar quantidade numérica');
+assert.ok(Number.isFinite(beneficios.valor), 'resumo de benefícios deve informar valor numérico');
+assert.ok(Array.isArray(beneficios.itens), 'benefícios deve retornar lista limitada de evidências');
+assert.ok(beneficios.itens.length <= 12, 'relatório não pode materializar a carteira inteira na prévia');
+assert.ok(['CALCULADO', 'INDETERMINADO'].includes(beneficios.natureza), 'natureza da evidência deve permanecer explícita');
+
+const comparativoComDado = saida.comparativoPisCofins({ cbsLiquida: 150 }, { carga_pis_cofins_atual:{ valor:100, origem:'TESTE' } });
+assert.equal(comparativoComDado.delta, 50, 'comparativo CBS x PIS/Cofins deve informar a variação quando existe carga histórica');
+const comparativoSemDado = saida.comparativoPisCofins({ cbsLiquida: 150 }, { carga_pis_cofins_atual:{ valor:null } });
+assert.equal(comparativoSemDado.pisCofins, null, 'PIS/Cofins ausente não pode virar zero');
+assert.equal(comparativoSemDado.delta, null, 'sem PIS/Cofins não existe variação calculada');
 
 (async () => {
-  const r = saida.montar([resultado]);
-  assert.equal(r.base.cbsDebito, 100, 'CBS vem da apuração oficial do cenário');
-  assert.equal(r.secoes.vendas.cbs, 100, 'venda não possui cálculo paralelo');
-  assert.equal(r.secoes.compras.credito, 100, 'crédito é reutilizado do resultado oficial');
-  assert.ok(r.secoes.limitacoes.some((x) => x.natureza === 'INDETERMINADO'), 'indeterminado permanece explícito');
-  assert.ok(r.secoes.limitacoes.some((x) => x.natureza === 'INCOMPLETO'), 'margem/caixa incompletos não viram estimativa');
-  assert.equal(r.secoes.premissas.length, 0, 'fixture não cria premissa inexistente');
-  const stream = new PassThrough(); const partes = [];
-  stream.on('data', (x) => partes.push(x));
-  const terminou = new Promise((resolve, reject) => { stream.on('end', resolve); stream.on('error', reject); });
-  saida.gerarPdf(r, stream); await terminou;
-  const pdf = Buffer.concat(partes).toString('latin1', 0, 8);
-  assert.equal(pdf, '%PDF-1.3', 'exportação entrega PDF válido');
-  const planilha = XLSX.read(saida.gerarXlsx(r), { type:'buffer' });
-  assert.deepEqual(planilha.SheetNames, ['Resumo executivo', 'Cenários', 'Conformidade e evidências', 'Premissas', 'Metodologia'], 'Excel preserva as abas do entregável');
-  assert.equal(planilha.Sheets['Resumo executivo'].A2.v, 'Cenário base', 'Excel traz a fotografia do cenário oficial');
-  console.log('saida-executiva: apresentação derivada, limitações explícitas, PDF e Excel aprovados.');
-})().catch((e) => { console.error(e); process.exitCode = 1; });
+  const relatorio = {
+    geradoEm:new Date().toISOString(), statusEntrega:{ status:'PRELIMINAR', pronto:false }, empresa:{}, perfilAtual:{},
+    conformidadeDocumental:{ resumo:{ total:0, valor:0 }, itens:[] }, planejamentoTributario:null,
+    base:{ nome:'Fixture', ano:2027, receita:100, compras:80, baseEconomicaSaidas:90, baseEconomicaEntradas:70, cbsDebito:10, cbsCredito:8, cbsLiquida:2, creditoRecebido:8, creditoEntregue:5, custoEfetivo:72, operacoesCompras:1, operacoesVendas:1, natureza:'CALCULADO' },
+    comparacao:[], secoes:{ compras:{ valor:80,baseEconomica:70,credito:8 }, vendas:{ valor:100,baseEconomica:90,cbs:10,precoProjetado:110 }, cbsXPisCofins:comparativoComDado, beneficios:{ ...beneficios, itens:beneficios.itens.slice(0,1) }, oportunidades:[], atencoes:[], limitacoes:[], premissas:[], metodologia:{ texto:'Fixture de validação.' } },
+  };
+  const stream = new PassThrough(); const partes=[]; stream.on('data',(x)=>partes.push(x));
+  const terminou = new Promise((resolve,reject)=>{ stream.on('end',resolve); stream.on('error',reject); });
+  saida.gerarPdf(relatorio, stream); await terminou;
+  assert.equal(Buffer.concat(partes).toString('latin1',0,8), '%PDF-1.3', 'PDF do relatório deve ser válido');
+  const xlsx=XLSX.read(saida.gerarXlsx(relatorio),{type:'buffer'});
+  assert.ok(xlsx.SheetNames.includes('CBS x PIS Cofins') && xlsx.SheetNames.includes('Benefícios e tratamentos'), 'Excel deve conter as novas evidências');
+  console.log(`saida-executiva.test: leitura, PDF e Excel aprovados sem nova execução do motor; ${beneficios.itens.length} evidência(s) na amostra.`);
+})().catch((e)=>{ console.error(e); process.exitCode=1; });
