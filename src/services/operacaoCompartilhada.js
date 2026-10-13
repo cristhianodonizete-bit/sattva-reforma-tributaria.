@@ -1643,13 +1643,17 @@ async function publicarEstadosProjecoes(empresaId, movimentoIds = []) {
   if (!ativo()) return { ativo:false, estados:0 };
   const ids=[...new Set((movimentoIds || []).map(Number).filter(Number.isInteger))];
   if (!ids.length) return { ativo:true, estados:0 };
-  const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
-  if (!empresa?.cnpj) throw new Error('Empresa não encontrada para publicar estado de projeção.');
-  const remoto=supabase.admin(); const cnpj=String(empresa.cnpj).replace(/\D/g,'');
-  const { data:empresas,error:erroEmpresa }=await remoto.from('empresas').select('id,cnpj,origem_local_id')
-    .or(`origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`).limit(3);
+  // Estado de projeção pertence à fonte compartilhada. O SQLite do worker é
+  // descartável e não pode ser requisito para localizar a empresa ao fim de
+  // um job; `origem_local_id` é a identidade canônica desta ponte.
+  const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  const remoto=supabase.admin(); const cnpj=String(empresa?.cnpj || '').replace(/\D/g,'');
+  let consultaEmpresa=remoto.from('empresas').select('id,cnpj,origem_local_id').eq('origem_local_id',Number(empresaId));
+  if (cnpj) consultaEmpresa=remoto.from('empresas').select('id,cnpj,origem_local_id')
+    .or(`origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`);
+  const { data:empresas,error:erroEmpresa }=await consultaEmpresa.limit(3);
   if (erroEmpresa) throw new Error(`Empresa compartilhada para projeção: ${erroEmpresa.message}`);
-  const empresaRemota=(empresas || []).find((x)=>Number(x.origem_local_id || x.id)===Number(empresaId) || String(x.cnpj || '').replace(/\D/g,'')===cnpj);
+  const empresaRemota=(empresas || []).find((x)=>Number(x.origem_local_id || x.id)===Number(empresaId) || (cnpj && String(x.cnpj || '').replace(/\D/g,'')===cnpj));
   if (!empresaRemota) throw new Error('Empresa compartilhada não localizada para publicar estado de projeção.');
   const marcadores=ids.map(()=>'?').join(',');
   const estados=db.prepare(`SELECT empresa_id,movimento_id,assinatura_origem,versao_origem,assinatura_calculada,versao_calculada,situacao,motivo,job_id,atualizado_em
