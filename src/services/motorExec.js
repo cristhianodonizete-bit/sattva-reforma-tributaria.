@@ -87,7 +87,7 @@ const INVALIDACOES_FISCAIS = [
   {
     chave: 'NCM_85437099_ACESSIBILIDADE_V1',
     motivo: 'NCM_85437099_EXIGE_AGENDA_BRAILLE',
-    selecionar: () => db.prepare("SELECT id,empresa_id FROM movimentos WHERE REPLACE(COALESCE(ncm,''),'.','')='85437099'").all(),
+    selecionarPagina: (depoisId, limite) => db.prepare("SELECT id,empresa_id FROM movimentos WHERE REPLACE(COALESCE(ncm,''),'.','')='85437099' AND id>? ORDER BY id LIMIT ?").all(depoisId,limite),
   },
 ];
 // Alterações de parâmetros são rastreadas por gatilhos com a dependência da
@@ -114,12 +114,19 @@ function prepararFilaIncremental() {
   for (const invalida of INVALIDACOES_FISCAIS) {
     const chave=`motor_invalida_${invalida.chave}`;
     if (db.prepare('SELECT 1 FROM motor_pendencias_controle WHERE chave=?').get(chave)) continue;
-    const atingidos=invalida.selecionar();
-    db.transaction(()=>{
-      const inserir=db.prepare("INSERT OR REPLACE INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em) VALUES (?,?,?,datetime('now','localtime'))");
-      atingidos.forEach((m)=>inserir.run(m.empresa_id,m.id,invalida.motivo));
-      db.prepare("INSERT INTO motor_pendencias_controle(chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))").run(chave,String(atingidos.length));
-    })();
+    let cursor=0, total=0;
+    for (;;) {
+      const atingidos=invalida.selecionarPagina(cursor,250);
+      if (!atingidos.length) break;
+      db.transaction(()=>{
+        const inserir=db.prepare("INSERT OR REPLACE INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em) VALUES (?,?,?,datetime('now','localtime'))");
+        atingidos.forEach((m)=>inserir.run(m.empresa_id,m.id,invalida.motivo));
+      })();
+      total+=atingidos.length;
+      cursor=Number(atingidos.at(-1).id);
+      if (atingidos.length<250) break;
+    }
+    db.prepare("INSERT INTO motor_pendencias_controle(chave,valor,atualizado_em) VALUES (?,?,datetime('now','localtime'))").run(chave,String(total));
   }
 }
 const hashMovimento = (m) => hash({
