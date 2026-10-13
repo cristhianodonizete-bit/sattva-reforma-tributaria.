@@ -660,6 +660,49 @@ const TABELAS_MOTOR_DA_EMPRESA = [
 const TABELAS_MOTOR_APOS_DOCUMENTOS = ['enriquecimento_servicos_evidencias', 'enriquecimento_pis_cofins_evidencias'];
 const REFERENCIAS_GLOBAIS_DO_MOTOR = ['base_ncm', 'base_servicos', 'regras_governo', 'param_naturezas_juridicas_anexo_xi'];
 
+async function buscarPorValores(remoto, tabela, coluna, valores) {
+  const unicos=[...new Set((valores || []).map((x) => String(x || '').trim()).filter(Boolean))];
+  const linhas=[];
+  for (let inicio=0; inicio<unicos.length; inicio+=200) {
+    const { data,error }=await remoto.from(tabela).select('*').in(coluna,unicos.slice(inicio,inicio+200));
+    if (error) throw new Error(`${tabela} incremental: ${error.message}`);
+    linhas.push(...(data || []));
+  }
+  return linhas;
+}
+
+async function prepararReferenciasIncrementais(remoto, empresaRemota, empresaLocal, movimentos) {
+  const contexto={ empresa:1,referencias:{},dados_empresa:{} };
+  // Parâmetros versionados são pequenos e necessários a qualquer cálculo;
+  // `baixarConfiguracao` já consulta somente as chaves do motor.
+  Object.assign(contexto.referencias,await baixarConfiguracao(CONFIG_TABELAS,remoto));
+  const ncm=movimentos.map((m)=>String(m.ncm||'').replace(/\D/g,'')).filter(Boolean);
+  const nbs=movimentos.map((m)=>String(m.nbs||'').replace(/\D/g,'')).filter(Boolean);
+  const lc116=movimentos.map((m)=>String(m.lc116||'').trim()).filter(Boolean);
+  const [ncmLinhas,servicosNbs,servicosLc]=await Promise.all([
+    buscarPorValores(remoto,'base_ncm','ncm',ncm),
+    buscarPorValores(remoto,'base_servicos','nbs',nbs),
+    buscarPorValores(remoto,'base_servicos','lc116',lc116),
+  ]);
+  const servicos=[...new Map([...servicosNbs,...servicosLc].map((x)=>[String(x.id),x])).values()];
+  contexto.referencias.base_ncm=gravar('base_ncm',ncmLinhas);
+  contexto.referencias.base_servicos=gravar('base_servicos',servicos);
+  // Regras de governo só são relevantes às chaves presentes no lote; as
+  // regras genéricas pertencem a param_regras já restaurada acima.
+  const governo=[...await buscarPorValores(remoto,'regras_governo','ncm',ncm),
+    ...await buscarPorValores(remoto,'regras_governo','nbs',nbs),
+    ...await buscarPorValores(remoto,'regras_governo','lc116',lc116)];
+  contexto.referencias.regras_governo=gravar('regras_governo',[...new Map(governo.map((x)=>[String(x.id),x])).values()]);
+  const cnpjs=movimentos.map((m)=>String(m.inscr_federal||'').replace(/\D/g,'')).filter(Boolean);
+  const parceiros=await buscarPorValores(remoto,'parceiros','cnpj',cnpjs);
+  contexto.dados_empresa.parceiros=gravar('parceiros',normalizarEmpresaIdDoCache('parceiros',parceiros,new Map([[String(empresaRemota.id),empresaLocal]])));
+  const { data:qsa,error:erroQsa }=await remoto.from('empresa_qsa').select('*').eq('empresa_id',empresaRemota.id);
+  if (erroQsa) throw new Error(`empresa_qsa incremental: ${erroQsa.message}`);
+  contexto.dados_empresa.empresa_qsa=gravarEmpresaQsa(normalizarEmpresaIdDoCache('empresa_qsa',qsa||[],new Map([[String(empresaRemota.id),empresaLocal]])));
+  try { require('./regras').invalidar(); } catch (_) { /* cache opcional */ }
+  return contexto;
+}
+
 async function prepararContextoMotorEmpresa(empresaId) {
   if (!ativo()) throw new Error('A fonte compartilhada não está configurada para preparar o worker.');
   const id = Number(empresaId);
@@ -706,7 +749,6 @@ async function prepararContextoMotorIncremental(empresaId, movimentoIds = []) {
   const id = Number(empresaId);
   const ids = [...new Set((movimentoIds || []).map(Number).filter(Number.isInteger))];
   if (!ids.length) throw new Error('Preparação incremental sem movimentos explícitos.');
-  const contexto = await prepararContextoMotorEmpresa(id);
   const remoto = supabase.admin();
   const { data: candidatas, error: erroEmpresa } = await remoto.from('empresas').select('id,origem_local_id')
     .or(`origem_local_id.eq.${id},id.eq.${id}`).limit(3);
@@ -727,6 +769,7 @@ async function prepararContextoMotorIncremental(empresaId, movimentoIds = []) {
     .all(...ids).filter((linha) => Number(linha.empresa_id) !== id);
   if (locaisConflitantes.length) throw new Error('Colisão de identidade no cache do worker; a fotografia ativa foi preservada.');
   gravar('movimentos', movimentos);
+  const contexto = await prepararReferenciasIncrementais(remoto,empresaRemota,id,movimentos);
   // No worker efêmero, o contexto da empresa é preparado antes de os
   // movimentos explícitos do lote existirem no cache. Como a base de regimes
   // é escopada pelos CNPJs desses movimentos, hidrate-a novamente após o lote
