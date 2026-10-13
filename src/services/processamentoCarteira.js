@@ -305,7 +305,7 @@ async function processarUm(processamentoId = null) {
           if (resultadoMotor.itens!==quantidadeProduzida) throw new Error('Integridade incremental: quantidade materializada diferente dos resultados produzidos pelo motor.');
           integridadeMotor.exigirMesmaEntrada(entradaMotor,integridadeMotor.assinarEntrada(job.empresa_id,{ movimentoIds:lote }));
           payload=await registrarEtapaIncremental(job,payload,'PUBLICANDO_CANDIDATA',proximo+1);
-          const publicacao=await operacao.publicarResultadosMotor(job.empresa_id,{ ativar:false,execucao_id:execucao.id,quantidade_esperada:resultadoMotor.itens,
+          const publicacao=await operacao.publicarResultadosMotor(job.empresa_id,{ ativar:false,execucao_id:execucao.id,quantidade_esperada:resultadoMotor.itens,movimento_ids:lote,
             integridade:{ entrada:entradaMotor,resultado:resultadoMotor,modo:'INCREMENTAL_IDS_EXPLICITOS',lote:proximo+1,total_lotes:lotes.length } });
           payload=await registrarEtapaIncremental(job,payload,'PROMOVENDO_FOTOGRAFIA',proximo+1);
           ultimaPromovida=await operacao.promoverFotografiaMotorIncremental(Number(publicacao.empresa_remota_id||job.empresa_id),Number(publicacao.execucao_id),resultadoMotor.itens,lote);

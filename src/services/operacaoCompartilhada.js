@@ -1661,6 +1661,7 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   const remoto = supabase.admin();
   const execucaoId = Number(opcoes.execucao_id);
   const publicacaoPorExecucao = Number.isInteger(execucaoId) && execucaoId > 0;
+  const movimentoIds=[...new Set((opcoes.movimento_ids || []).map(Number).filter(Number.isInteger))];
   // Uma fotografia só pode ser transportada como lote fechado de uma
   // execução identificada. Publicar "a empresa inteira" misturava linhas
   // antigas com a execução nova e, pior, desativava a fotografia vigente
@@ -1687,6 +1688,12 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   const clausulasResultados = []; const parametrosResultados = [];
   if (empresaId != null) { clausulasResultados.push('empresa_id=?'); parametrosResultados.push(empresaId); }
   if (publicacaoPorExecucao) { clausulasResultados.push('execucao_id=?'); parametrosResultados.push(execucaoId); }
+  // A execução incremental contém somente o delta. Nunca materialize a
+  // execução inteira para publicar um lote já autorizado pelo worker.
+  if (movimentoIds.length) {
+    clausulasResultados.push(`movimento_id IN (${movimentoIds.map(() => '?').join(',')})`);
+    parametrosResultados.push(...movimentoIds);
+  }
   const filtroResultados = clausulasResultados.length ? ` WHERE ${clausulasResultados.join(' AND ')}` : '';
   const resultadosLocais = db.prepare(`SELECT * FROM motor_resultados${filtroResultados}`).all(...parametrosResultados);
   if (publicacaoPorExecucao && resultadosLocais.length !== Number(opcoes.quantidade_esperada)) {
