@@ -660,11 +660,13 @@ const TABELAS_MOTOR_DA_EMPRESA = [
 const TABELAS_MOTOR_APOS_DOCUMENTOS = ['enriquecimento_servicos_evidencias', 'enriquecimento_pis_cofins_evidencias'];
 const REFERENCIAS_GLOBAIS_DO_MOTOR = ['base_ncm', 'base_servicos', 'regras_governo', 'param_naturezas_juridicas_anexo_xi'];
 
-async function buscarPorValores(remoto, tabela, coluna, valores) {
+async function buscarPorValores(remoto, tabela, coluna, valores, empresaId = null) {
   const unicos=[...new Set((valores || []).map((x) => String(x || '').trim()).filter(Boolean))];
   const linhas=[];
   for (let inicio=0; inicio<unicos.length; inicio+=200) {
-    const { data,error }=await remoto.from(tabela).select('*').in(coluna,unicos.slice(inicio,inicio+200));
+    let consulta=remoto.from(tabela).select('*').in(coluna,unicos.slice(inicio,inicio+200));
+    if (empresaId != null) consulta=consulta.eq('empresa_id',Number(empresaId));
+    const { data,error }=await consulta;
     if (error) throw new Error(`${tabela} incremental: ${error.message}`);
     linhas.push(...(data || []));
   }
@@ -694,7 +696,10 @@ async function prepararReferenciasIncrementais(remoto, empresaRemota, empresaLoc
     ...await buscarPorValores(remoto,'regras_governo','lc116',lc116)];
   contexto.referencias.regras_governo=gravar('regras_governo',[...new Map(governo.map((x)=>[String(x.id),x])).values()]);
   const cnpjs=movimentos.map((m)=>String(m.inscr_federal||'').replace(/\D/g,'')).filter(Boolean);
-  const parceiros=await buscarPorValores(remoto,'parceiros','cnpj',cnpjs);
+  // CNPJ não é chave global do parceiro: a mesma contraparte pode existir em
+  // várias empresas. Sem o escopo, uma linha de outra empresa preserva o
+  // empresa_id remoto e viola a FK no SQLite recém-iniciado.
+  const parceiros=await buscarPorValores(remoto,'parceiros','cnpj',cnpjs,empresaRemota.id);
   contexto.dados_empresa.parceiros=gravar('parceiros',normalizarEmpresaIdDoCache('parceiros',parceiros,new Map([[String(empresaRemota.id),empresaLocal]])));
   const { data:qsa,error:erroQsa }=await remoto.from('empresa_qsa').select('*').eq('empresa_id',empresaRemota.id);
   if (erroQsa) throw new Error(`empresa_qsa incremental: ${erroQsa.message}`);
