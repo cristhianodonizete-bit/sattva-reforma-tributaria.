@@ -755,6 +755,12 @@ async function prepararContextoMotorIncremental(empresaId, movimentoIds = []) {
   if (erroEmpresa) throw new Error(`Empresa do worker incremental: ${erroEmpresa.message}`);
   const empresaRemota = (candidatas || []).find((empresa) => Number(empresa.origem_local_id || empresa.id) === id);
   if (!empresaRemota) throw new Error(`Empresa compartilhada não identificada para o job incremental ${id}.`);
+  // `movimentos.empresa_id` possui chave estrangeira no cache SQLite. Um
+  // worker novo pode ter recebido o job antes de qualquer tela hidratar a
+  // empresa; portanto a empresa-pai precisa existir antes do lote de fatos.
+  // Sem essa ordem o primeiro INSERT do delta falha com FOREIGN KEY e deixa
+  // uma decisão já confirmada apenas como atualização pendente.
+  gravarEmpresas([empresaRemota]);
   const remotos=[];
   for (let de=0;de<ids.length;de+=500) {
     const { data, error } = await remoto.from('movimentos').select('*')

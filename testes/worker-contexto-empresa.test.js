@@ -11,6 +11,11 @@ assert.match(op, /if \(ativo\(\)\) \{/);
 assert.match(op, /sem depender da conexão PostgreSQL direta/);
 assert.match(op, /restaurarEvidenciasMotorAposDocumentos/);
 assert.match(op, /gravarEmpresas\(\[empresaRemota\]\)/);
+const inicioIncremental = op.indexOf('async function prepararContextoMotorIncremental');
+const gravacaoEmpresaIncremental = op.indexOf('gravarEmpresas([empresaRemota]);', inicioIncremental);
+const gravacaoMovimentoIncremental = op.indexOf("gravar('movimentos', movimentos);", inicioIncremental);
+assert.ok(gravacaoEmpresaIncremental >= inicioIncremental && gravacaoEmpresaIncremental < gravacaoMovimentoIncremental,
+  'o worker incremental deve gravar a empresa-pai antes dos movimentos com chave estrangeira');
 assert.match(prep, /await operacaoCompartilhada\.prepararContextoMotorEmpresa\(id\)/);
 assert.match(prep, /await operacaoCompartilhada\.restaurarEvidenciasMotorAposDocumentos\(id\)/);
 assert.ok(fila.indexOf("await require('./preparacaoMotor').preparar(job.empresa_id)") < fila.indexOf('motorStaging.criar(job.id, job.empresa_id)'), 'staging deve ser criado depois da empresa no cache do worker');

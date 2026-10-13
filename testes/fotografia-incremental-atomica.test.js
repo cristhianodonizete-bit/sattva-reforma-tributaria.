@@ -11,7 +11,7 @@ assert.match(fila, /prepararContextoMotorIncremental/, 'job incremental deve rei
 assert.match(fila, /promoverFotografiaMotorIncremental/, 'delta não pode ficar somente no cache local');
 assert.match(fila, /fotografia_itens/, 'job concluído deve registrar o tamanho da fotografia completa');
 assert.match(fila, /quantidadeProduzida/, 'integridade incremental deve comparar com as linhas efetivamente produzidas');
-assert.match(fila, /resultadoMotor\.itens, solicitados/, 'promoção deve receber o escopo autorizado completo');
+assert.match(fila, /resultadoMotor\.itens,lote/, 'cada promoção deve receber somente o lote explícito autorizado');
 assert.match(operacao, /in\('id', ids\)/, 'a reidratação deve buscar somente os IDs explicitamente autorizados');
 assert.match(operacao, /não publica,\n\/\/ não remove e não reconcilia a base/i, 'reidratação incremental não pode alterar fontes');
 assert.match(migration, /pg_advisory_xact_lock/, 'promoção incremental deve serializar por empresa');
