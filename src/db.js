@@ -54,11 +54,13 @@ const COLUNAS_NOVAS = {
     sentido: 'TEXT',
     pis_cofins_documentado: 'INTEGER DEFAULT 0', produto_empresa_id: 'INTEGER', modelo_documento_fiscal: 'TEXT',
     situacao_documento: "TEXT DEFAULT 'AUTORIZADO'", cancelado_em: 'TEXT', cancelamento_motivo: 'TEXT', cancelamento_origem: 'TEXT',
+    regime_fonte: 'TEXT', regime_parceiro_versao: 'INTEGER', regime_confirmado_em: 'TEXT',
   },
   motor_resultados: {
     cenario_id: 'INTEGER', grupo_origem: 'TEXT', fracao: 'REAL DEFAULT 1',
     tipo_credito: 'TEXT', modalidade_credito: 'TEXT', status_credito_determinacao: 'TEXT', regime_cbs_emitente: 'TEXT', regime_cbs_adquirente: 'TEXT',
     movimento_hash: 'TEXT', regra_version: 'TEXT', catalogo_version: 'TEXT', parceiro_version: 'TEXT', parametro_version: 'TEXT', motor_version: 'TEXT',
+    assinatura_origem: 'TEXT', versao_origem: 'INTEGER',
     estado_autonomia: 'TEXT', codigo_causa: 'TEXT', origem_resolucao: 'TEXT', evidencia_utilizada: 'TEXT', regra_vencedora: 'TEXT',
     requer_intervencao_humana: 'INTEGER DEFAULT 0', motivo_intervencao: 'TEXT',
     autonomia_calculo_cbs_propria: 'INTEGER', autonomia_credito_entrada: 'INTEGER', autonomia_credito_cliente: 'INTEGER',
@@ -87,6 +89,7 @@ const COLUNAS_NOVAS = {
     perfil_origem: "TEXT DEFAULT 'nao_definido'",
     sensibilidade_credito: "TEXT DEFAULT 'indeterminado'",
     sensibilidade_origem: "TEXT DEFAULT 'nao_definido'",
+    regime_origem: 'TEXT', regime_versao: 'INTEGER DEFAULT 1', regime_confirmado_em: 'TEXT',
   },
   servicos: { chave_entrega: "TEXT DEFAULT 'outro'" },
   combos: { acompanhamento_meses: 'INTEGER DEFAULT 3' },
@@ -279,6 +282,40 @@ CREATE TABLE IF NOT EXISTS empresa_leituras_estado (
   erro TEXT,
   PRIMARY KEY (empresa_id, recurso)
 );
+
+-- Espelho do estado persistido no Supabase. Não contém valor fiscal e não é
+-- fonte de verdade; permite que uma instância efêmera reconheça que um
+-- resultado local está vencido antes de entregá-lo à tela.
+CREATE TABLE IF NOT EXISTS projecoes_movimentos_estado (
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  movimento_id INTEGER NOT NULL REFERENCES movimentos(id) ON DELETE CASCADE,
+  assinatura_origem TEXT NOT NULL,
+  versao_origem INTEGER NOT NULL DEFAULT 1,
+  assinatura_calculada TEXT,
+  versao_calculada INTEGER,
+  situacao TEXT NOT NULL,
+  motivo TEXT,
+  job_id TEXT,
+  atualizado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  PRIMARY KEY (empresa_id,movimento_id)
+);
+CREATE INDEX IF NOT EXISTS ix_projecoes_movimentos_estado_empresa_situacao
+  ON projecoes_movimentos_estado(empresa_id,situacao,atualizado_em DESC);
+
+CREATE TABLE IF NOT EXISTS movimento_decisoes_fiscais (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE RESTRICT,
+  movimento_id INTEGER NOT NULL REFERENCES movimentos(id) ON DELETE RESTRICT,
+  campo TEXT NOT NULL,
+  valor TEXT NOT NULL,
+  origem TEXT NOT NULL,
+  versao INTEGER NOT NULL DEFAULT 1,
+  confirmado_em TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  revogado_em TEXT,
+  UNIQUE(empresa_id,movimento_id,campo,versao)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_movimento_decisoes_fiscais_vigente
+  ON movimento_decisoes_fiscais(empresa_id,movimento_id,campo) WHERE revogado_em IS NULL;
 
 -- Apurações históricas: o arquivo e cada afirmação extraída ficam separados.
 -- A camada é somente de evidência para o Raio-X; jamais alimenta o motor CBS.
@@ -709,6 +746,10 @@ CREATE TABLE IF NOT EXISTS movimentos (
 CREATE INDEX IF NOT EXISTS ix_mov ON movimentos(empresa_id, tipo);
 CREATE INDEX IF NOT EXISTS ix_mov_empresa_tipo_valor ON movimentos(empresa_id, tipo, valor DESC);
 CREATE INDEX IF NOT EXISTS ix_mov_insc ON movimentos(empresa_id, inscr_federal);
+-- Leituras analíticas paginadas: a ordenação faz parte do contrato, para que
+-- o SQLite limite antes de devolver a página ao Node.
+CREATE INDEX IF NOT EXISTS ix_mov_empresa_tipo_competencia_id ON movimentos(empresa_id, tipo, competencia DESC, id DESC);
+CREATE INDEX IF NOT EXISTS ix_mov_empresa_origem_id ON movimentos(empresa_id, origem, id);
 
 -- Cancelamentos conhecidos antes da chegada do XML. O relatório fiscal pode
 -- ser posterior à emissão; preservar essa identidade impede que uma NFS-e
@@ -1479,6 +1520,7 @@ CREATE TABLE IF NOT EXISTS motor_resultados (
   ibs REAL, cbs REAL, credito_ibs REAL, credito_cbs REAL,
   tipo_credito TEXT, modalidade_credito TEXT, status_credito_determinacao TEXT,
   movimento_hash TEXT, regra_version TEXT, catalogo_version TEXT, parceiro_version TEXT, parametro_version TEXT, motor_version TEXT,
+  assinatura_origem TEXT, versao_origem INTEGER,
   regime_cbs_emitente TEXT, regime_cbs_adquirente TEXT,
   preco_projetado REAL, custo_liquido REAL,
   cst TEXT, cclasstrib TEXT, tratamento TEXT,
@@ -1492,6 +1534,8 @@ CREATE TABLE IF NOT EXISTS motor_resultados (
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS ix_motor ON motor_resultados(empresa_id, execucao_id, sentido);
+CREATE INDEX IF NOT EXISTS ix_movimentos_empresa_tipo_inscricao
+  ON movimentos(empresa_id,tipo,inscr_federal);
 CREATE INDEX IF NOT EXISTS ix_motor_autonomia ON motor_resultados(empresa_id, execucao_id, estado_autonomia, requer_intervencao_humana);
 -- A consolidação das cadeias ordena por empresa, valor e id. Este índice é
 -- estritamente aditivo e evita a ordenação em árvore temporária observada no

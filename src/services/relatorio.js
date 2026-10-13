@@ -48,27 +48,26 @@ function requerReferenciaFiscalServico(m) {
 // riscos a partir do detalhe já persistido em motor_resultados. Não chama o
 // motor nem calcula base, CBS, crédito ou classificação novamente.
 function motorPersistido(empresaId) {
-  const base = consolidacaoOficial.linhas(empresaId, { executarSeAusente: false });
+  const entradasResumo = consolidacaoOficial.resumo(empresaId, { sentido:'entrada' });
+  const saidasResumo = consolidacaoOficial.resumo(empresaId, { sentido:'saida' });
   const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(empresaId);
-  const linhas = base.linhas.map((r) => ({ ...r.detalhe, movimento_id: r.movimento_id, sentido: r.sentido }));
-  const entradas = linhas.filter((x) => x.sentido === 'entrada');
-  const saidas = linhas.filter((x) => x.sentido === 'saida');
-  const soma = (xs, campo) => xs.reduce((s, x) => s + (Number(x[campo]) || 0), 0);
+  // Relatório executivo lê agregados persistidos. Evidências são solicitadas
+  // separadamente e paginadas; gerar a capa nunca traz detalhes JSON.
+  const entradas = [];
+  const saidas = [];
+  const ei = entradasResumo.totais || {}, si = saidasResumo.totais || {};
   const apuracao = {
-    ibs: { debitos: soma(saidas, 'ibs'), creditos: soma(entradas, 'creditoIbs') },
-    cbs: { debitos: soma(saidas, 'cbs'), creditos: soma(entradas, 'creditoCbs') },
+    ibs: { debitos: Number(si.ibs || 0), creditos: Number(ei.credito_ibs || 0) },
+    cbs: { debitos: Number(si.cbs || 0), creditos: Number(ei.credito_cbs || 0) },
   };
   apuracao.ibs.saldo = apuracao.ibs.debitos - apuracao.ibs.creditos;
   apuracao.cbs.saldo = apuracao.cbs.debitos - apuracao.cbs.creditos;
   apuracao.cargaLiquida = apuracao.ibs.saldo + apuracao.cbs.saldo;
-  return { empresa, ano: base.execucao?.ano || 2027, entradas, saidas, apuracao, resumo: {
-    ano: base.execucao?.ano || 2027, itens: linhas.length, entradas: entradas.length, saidas: saidas.length,
-    classificados: linhas.filter((x) => x.classificacao?.status === 'CLASSIFICADO').length,
-    requerValidacao: linhas.filter((x) => x.classificacao?.status === 'REQUER_VALIDACAO').length,
-    semCorrespondencia: linhas.filter((x) => x.classificacao?.status === 'SEM_CORRESPONDENCIA').length,
-    simulados: linhas.filter((x) => x.natureza === 'SIMULADO').length,
-    comprasAnalisadas: soma(entradas, 'precoAtual'), faturamentoAnalisado: soma(saidas, 'precoAtual'),
-    baseEconomicaEntradas: soma(entradas, 'baseEconomica'), baseEconomicaSaidas: soma(saidas, 'baseEconomica'),
+  return { empresa, ano: saidasResumo.execucao?.ano || entradasResumo.execucao?.ano || 2027, entradas, saidas, apuracao, resumo: {
+    ano: saidasResumo.execucao?.ano || entradasResumo.execucao?.ano || 2027, itens: entradasResumo.total + saidasResumo.total, entradas: entradasResumo.total, saidas: saidasResumo.total,
+    classificados: 0, requerValidacao: 0, semCorrespondencia: 0, simulados: 0,
+    comprasAnalisadas: Number(ei.valor || 0), faturamentoAnalisado: Number(si.valor || 0),
+    baseEconomicaEntradas: Number(ei.base_economica || 0), baseEconomicaSaidas: Number(si.base_economica || 0),
     apuracao, cargaAtual: { total: 0 }, comparacao: { cargaAtual: null, diferenca: null }, conformidade: [],
   }};
 }
@@ -189,7 +188,9 @@ function gerar(empresaId, tipo, query = {}) {
       r.preco_atual,r.base_economica,r.cbs,r.ibs,r.preco_projetado,r.tratamento,r.cst,r.cclasstrib,r.natureza,
       COUNT(c.id) componentes
       FROM formacao_custo_itens i
+      LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=i.empresa_id AND pe.movimento_id=i.movimento_saida_id
       LEFT JOIN motor_resultados r ON r.empresa_id=i.empresa_id AND r.movimento_id=i.movimento_saida_id
+        AND COALESCE(pe.situacao,'ATUAL')='ATUAL'
       LEFT JOIN formacao_custo_componentes c ON c.item_formacao_id=i.id
       WHERE i.empresa_id=? GROUP BY i.id ORDER BY i.descricao,i.id`).all(empresaId);
     aba(wb, 'Precificacao', itens.map((i) => ({

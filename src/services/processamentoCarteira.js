@@ -9,6 +9,14 @@ const motorStaging = require('./motorStaging');
 const lotesIncrementais = require('./lotesIncrementais');
 const integridadeMotor = require('./integridadeMotor');
 
+// Parâmetros de referência não podem nascer dentro de uma execução depois da
+// assinatura da entrada. A matriz do Anexo XI era inicializada sob demanda na
+// calculadora, alterando a própria fonte durante o primeiro job e fazendo a
+// verificação de integridade descartar uma fotografia correta.
+function prepararParametrosEstaveisMotor() {
+  require('./elegibilidadeAnexoXi').garantirMatrizLocal();
+}
+
 const workerId = `${process.env.RENDER_INSTANCE_ID || process.env.HOSTNAME || 'local'}-${process.pid}`;
 const id = () => crypto.randomUUID();
 const agora = () => new Date().toISOString();
@@ -98,8 +106,8 @@ async function recuperarAbandonados() {
   }
 }
 
-async function claim() {
-  if (supabase.configurado()) {
+async function claim(processamentoId = null) {
+  if (supabase.configurado() && !processamentoId) {
     const remotoApi = supabase.admin();
     const { data, error } = await remotoApi.rpc('claim_job_carteira', { p_worker_id: workerId });
     if (!error && data?.length) {
@@ -112,7 +120,7 @@ async function claim() {
     // publicado. Não deixamos a empresa presa na fila: o fallback faz uma
     // atualização condicional no próprio Supabase, que continua atômica entre
     // instâncias e só permite que uma delas assuma o mesmo UUID.
-    const local = db.prepare("SELECT * FROM jobs_carteira WHERE status='PENDENTE' AND (proxima_tentativa_em IS NULL OR proxima_tentativa_em<=?) ORDER BY prioridade DESC,criado_em LIMIT 1").get(agora());
+    const local = db.prepare(`SELECT * FROM jobs_carteira WHERE status='PENDENTE' AND (proxima_tentativa_em IS NULL OR proxima_tentativa_em<=?)${processamentoId ? ' AND processamento_id=?' : ''} ORDER BY prioridade DESC,criado_em LIMIT 1`).get(agora(), ...(processamentoId ? [processamentoId] : []));
     if (!local) {
       if (error) throw new Error(`Claim da fila: ${error.message}`);
       return null;
@@ -130,7 +138,7 @@ async function claim() {
     const normalizado=await normalizarEmpresaJobRemoto(assumido,remotoApi);
     return { ...local,...normalizado,payload:JSON.stringify(assumido.payload||local.payload||{}) };
   }
-  const job = db.prepare("SELECT * FROM jobs_carteira WHERE status='PENDENTE' AND (proxima_tentativa_em IS NULL OR proxima_tentativa_em<=?) ORDER BY prioridade DESC,criado_em LIMIT 1").get(agora());
+  const job = db.prepare(`SELECT * FROM jobs_carteira WHERE status='PENDENTE' AND (proxima_tentativa_em IS NULL OR proxima_tentativa_em<=?)${processamentoId ? ' AND processamento_id=?' : ''} ORDER BY prioridade DESC,criado_em LIMIT 1`).get(agora(), ...(processamentoId ? [processamentoId] : []));
   if (!job) return null;
   db.prepare("UPDATE jobs_carteira SET status='PROCESSANDO',worker_id=?,tentativas=tentativas+1,iniciado_em=COALESCE(iniciado_em,?),heartbeat=? WHERE id=? AND status='PENDENTE'").run(workerId, agora(), agora(), job.id);
   return db.prepare('SELECT * FROM jobs_carteira WHERE id=?').get(job.id);
@@ -151,9 +159,23 @@ async function finalizar(job, status, erro = null, dados = {}) {
   db.prepare(`UPDATE processamentos_carteira SET processadas=processadas+1, ${campo}=${campo}+1 WHERE id=?`).run(job.processamento_id);
 }
 
-async function processarUm() {
+// O processo pode ser encerrado pelo runtime antes de alcançar o catch (por
+// exemplo, em OOM). Registrar a etapa antes de cada operação custosa preserva
+// a causa operacional no job compartilhado sem depender de memória/log local.
+async function registrarEtapaIncremental(job, payload, etapa, lote = null) {
+  const atualizado={ ...(payload || {}), etapa, etapa_em:agora(), ...(lote == null ? {} : { lote_atual:lote }) };
+  db.prepare('UPDATE jobs_carteira SET payload=?,heartbeat=? WHERE id=?').run(JSON.stringify(atualizado),agora(),job.id);
+  if (supabase.configurado()) {
+    const { error }=await supabase.admin().from('jobs_carteira').update({ payload:atualizado,heartbeat:agora() })
+      .eq('id',job.id).eq('status','PROCESSANDO');
+    if (error) throw new Error(`Checkpoint de etapa incremental: ${error.message}`);
+  }
+  return atualizado;
+}
+
+async function processarUm(processamentoId = null) {
   for (;;) {
-    const job = await claim();
+    const job = await claim(processamentoId);
     if (!job) break;
     try {
       db.prepare('UPDATE jobs_carteira SET heartbeat=? WHERE id=?').run(agora(), job.id);
@@ -175,6 +197,7 @@ async function processarUm() {
         // A fotografia candidata fica vinculada à entrada exata do cálculo.
         // Nada é promovido se qualquer fato, cadastro ou parâmetro mudar entre
         // este ponto e a publicação.
+        prepararParametrosEstaveisMotor();
         const entradaMotor = integridadeMotor.assinarEntrada(job.empresa_id);
         motorStaging.atualizar(job.id, 'CALCULANDO');
         const resultado = motorExec.executar(job.empresa_id, { ano: Number(payload.ano) || Number(job.competencia) || 2027, anexoSimples: payload.anexo, publicarAssincrona: false });
@@ -214,7 +237,7 @@ async function processarUm() {
         continue;
       }
       if (job.tipo_job === 'MOTOR_INCREMENTAL') {
-        const payload = JSON.parse(job.payload || '{}');
+        let payload = JSON.parse(job.payload || '{}');
         const solicitados = [...new Set((payload.movimento_ids || []).map(Number).filter(Number.isInteger))];
         if (!solicitados.length) throw new Error('Job incremental sem lançamentos explícitos.');
         const operacao = require('./operacaoCompartilhada');
@@ -228,18 +251,24 @@ async function processarUm() {
           // produz uma fotografia completa e válida; o checkpoint no payload
           // permite retomar no lote seguinte após reinício sem repetir os já
           // confirmados nem manter todo o delta no heap.
+          payload=await registrarEtapaIncremental(job,payload,'PREPARANDO_CONTEXTO',proximo+1);
           await operacao.prepararContextoMotorIncremental(job.empresa_id,lote);
+          payload=await registrarEtapaIncremental(job,payload,'ASSINANDO_ORIGEM',proximo+1);
+          prepararParametrosEstaveisMotor();
           const entradaMotor=integridadeMotor.assinarEntrada(job.empresa_id,{ movimentoIds:lote });
+          payload=await registrarEtapaIncremental(job,payload,'CALCULANDO_DELTA',proximo+1);
           const resultado=motorExec.reprocessarIncremental(job.empresa_id,{ ano:Number(payload.ano)||Number(job.competencia)||2027,movimentoIds:lote });
           if (Number(resultado.reprocessados)!==lote.length) throw new Error('Execução incremental incompleta; a fotografia anterior foi preservada.');
           const execucao=motorExec.ultimaExecucao(job.empresa_id);
           if (!execucao?.id) throw new Error('Execução incremental não materializou uma execução local.');
-          const resultadoMotor=integridadeMotor.assinarResultado(job.empresa_id,execucao.id);
+          const resultadoMotor=integridadeMotor.assinarResultado(job.empresa_id,execucao.id,{movimentoIds:lote});
           const quantidadeProduzida=Number(resultado.resultado?.entradas?.length||0)+Number(resultado.resultado?.saidas?.length||0);
           if (resultadoMotor.itens!==quantidadeProduzida) throw new Error('Integridade incremental: quantidade materializada diferente dos resultados produzidos pelo motor.');
           integridadeMotor.exigirMesmaEntrada(entradaMotor,integridadeMotor.assinarEntrada(job.empresa_id,{ movimentoIds:lote }));
+          payload=await registrarEtapaIncremental(job,payload,'PUBLICANDO_CANDIDATA',proximo+1);
           const publicacao=await operacao.publicarResultadosMotor(job.empresa_id,{ ativar:false,execucao_id:execucao.id,quantidade_esperada:resultadoMotor.itens,
             integridade:{ entrada:entradaMotor,resultado:resultadoMotor,modo:'INCREMENTAL_IDS_EXPLICITOS',lote:proximo+1,total_lotes:lotes.length } });
+          payload=await registrarEtapaIncremental(job,payload,'PROMOVENDO_FOTOGRAFIA',proximo+1);
           ultimaPromovida=await operacao.promoverFotografiaMotorIncremental(Number(publicacao.empresa_remota_id||job.empresa_id),Number(publicacao.execucao_id),resultadoMotor.itens,lote);
           await operacao.validarFotografiaAtivaMotor(Number(publicacao.empresa_remota_id||job.empresa_id),Number(publicacao.execucao_id),ultimaPromovida.quantidade);
           ultimaExecucao=publicacao.execucao_id;
@@ -251,6 +280,10 @@ async function processarUm() {
           }
         }
         const excecoes = excecoesMotor.resumo(job.empresa_id);
+        // A promoção terminou; somente agora a assinatura do resultado pode
+        // ser marcada como vigente. Antes disso, a leitura permanece pendente.
+        require('./projecoesMovimentos').reconciliar(db,job.empresa_id,solicitados);
+        await operacao.publicarEstadosProjecoes(job.empresa_id,solicitados);
         await finalizar(job,'CONCLUIDO',null,{ itens:solicitados.length,movimento_ids:solicitados,modo:'INCREMENTAL_IDS_EXPLICITOS_EM_LOTES',
           lotes:lotes.length,tamanho_lote:tamanhoLote,execucao_id:ultimaExecucao,fotografia_itens:ultimaPromovida?.quantidade||null,excecoes });
         continue;
@@ -260,6 +293,12 @@ async function processarUm() {
       const excecoes = excecoesMotor.resumo(job.empresa_id);
       await finalizar(job, 'CONCLUIDO', null, { itens: resultado.reprocessados, excecoes });
     } catch (e) {
+      if (job.tipo_job === 'MOTOR_INCREMENTAL') {
+        let ids=[]; try { ids=JSON.parse(job.payload || '{}').movimento_ids || []; } catch (_) { /* payload inválido já será registrado no job */ }
+        require('./projecoesMovimentos').marcar(db,job.empresa_id,ids,'FALHOU',`Atualização incremental falhou: ${e.message}`,job.id);
+        try { await require('./operacaoCompartilhada').publicarEstadosProjecoes(job.empresa_id,ids); }
+        catch (erroEstado) { console.error('[projeção] não foi possível publicar estado de falha:', erroEstado.message); }
+      }
       if (job.tipo_job === 'MOTOR_COMPLETO') motorStaging.atualizar(job.id, 'FALHOU', { erro: e.message });
       const atual = db.prepare('SELECT tentativas,max_tentativas FROM jobs_carteira WHERE id=?').get(job.id) || job;
       const status = Number(atual.tentativas) < Number(atual.max_tentativas) ? 'PENDENTE' : 'FALHOU';
@@ -273,7 +312,7 @@ async function processarUm() {
 
 async function executar(processamentoId = null) {
   await recuperarAbandonados();
-  await Promise.all(Array.from({ length: concorrencia() }, () => processarUm()));
+  await Promise.all(Array.from({ length: concorrencia() }, () => processarUm(processamentoId)));
   if (processamentoId) db.prepare("UPDATE processamentos_carteira SET status='CONCLUIDO',concluido_em=datetime('now','localtime') WHERE id=? AND processadas>=total_empresas").run(processamentoId);
 }
 

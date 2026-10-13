@@ -8,10 +8,10 @@ const baseRegimeReceita = require('./baseRegimeReceita');
 const CAMPOS = {
   empresas: ['id','cnpj','razao_social','nome_fantasia','regime','regime_reconhecimento_simples','uf','municipio','cnae','atividade','cnaes_secundarios','data_abertura','faturamento_anual','setor','reducao_padrao','codigo_questor','observacoes','criado_em'],
   empresa_servicos_fiscais: ['id','empresa_id','chave','nbs','descricao','pis_cofins','das_efetivo','iss_aliquota','ativo','origem','criado_em','atualizado_em'],
-  parceiros: ['id','empresa_id','tipo','cnpj','descricao','regime','faturamento_anual','uf','municipio','origem','criado_em','regime_resolvido','perfil_economico','perfil_origem','sensibilidade_credito','sensibilidade_origem'],
+  parceiros: ['id','empresa_id','tipo','cnpj','descricao','regime','faturamento_anual','uf','municipio','origem','criado_em','regime_resolvido','perfil_economico','perfil_origem','sensibilidade_credito','sensibilidade_origem','regime_origem','regime_versao','regime_confirmado_em'],
   empresa_qsa: ['id','empresa_id','nome','documento','qualificacao','pais','percentual_participacao','brasileiro','fonte','consultado_em','origem','criado_em','atualizado_em'],
   lotes: ['id','empresa_id','tipo','arquivo','registros','ignorados','valor_total','mensagens','origem','criado_em'],
-  movimentos: ['id','empresa_id','lote_id','tipo','nome','inscr_federal','descricao','ncm','nbs','lc116','normalizacao_status','normalizacao_pendencia','normalizacao_evidencia','cfop','cst','competencia','valor','valor_produto','base_calculo','icms','icms_st','ipi','pis','cofins','pis_cofins_documentado','iss','regime','reducao','aliq_especifica','cclasstrib','classificacao_origem','cst_declarado','cclasstrib_declarado','ibs_declarado','cbs_declarado','modelo_documento_fiscal','documento','item_numero','chave','emitente_cnpj','destinatario_cnpj','codigo_produto','quantidade','unidade','csosn','data_emissao','frete','seguro','outras','desconto','sentido','situacao_documento','cancelado_em','cancelamento_motivo','cancelamento_origem','origem','criado_em'],
+  movimentos: ['id','empresa_id','lote_id','tipo','nome','inscr_federal','descricao','ncm','nbs','lc116','normalizacao_status','normalizacao_pendencia','normalizacao_evidencia','cfop','cst','competencia','valor','valor_produto','base_calculo','icms','icms_st','ipi','pis','cofins','pis_cofins_documentado','iss','regime','reducao','aliq_especifica','cclasstrib','classificacao_origem','cst_declarado','cclasstrib_declarado','ibs_declarado','cbs_declarado','modelo_documento_fiscal','documento','item_numero','chave','emitente_cnpj','destinatario_cnpj','codigo_produto','quantidade','unidade','csosn','data_emissao','frete','seguro','outras','desconto','sentido','situacao_documento','cancelado_em','cancelamento_motivo','cancelamento_origem','origem','criado_em','regime_fonte','regime_parceiro_versao','regime_confirmado_em'],
   documentos_fiscais_cancelamentos: ['id','empresa_id','data_emissao','numero','modelo_documento_fiscal','serie','situacao','origem','evidencia','criado_em','atualizado_em'],
   perfil_tributario: ['id','empresa_id','competencia','receita_bruta','receita_recebida','receita_mercadorias','receita_servicos','receita_exportacao','icms','iss','ipi','pis','cofins','das','creditos_tomados','origem','criado_em'],
   folhas_pagamento_competencias: ['id','empresa_id','competencia','valor_folha','pro_labore','origem','referencia_arquivo','status_validacao','criado_em','atualizado_em'],
@@ -1516,11 +1516,28 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   if (erroExecucao) throw new Error(`Execução da fotografia compartilhada: ${erroExecucao.message}`);
   if (!execucoes?.length) throw new Error('Fotografia canônica sem execução compartilhada para a empresa.');
   const execucaoAtiva=execucoes[0];
+  const estadosRemotos=[];
+  for (let de=0;;de+=1000) {
+    const {data,error}=await remoto.from('projecoes_movimentos_estado').select('*')
+      .eq('empresa_id',Number(remota.id)).order('movimento_id',{ascending:true}).range(de,de+999);
+    if (error) throw new Error(`Estado compartilhado da projeção: ${error.message}`);
+    estadosRemotos.push(...(data || []));
+    if (!data || data.length<1000) break;
+  }
   db.transaction(()=>{
     db.prepare('DELETE FROM motor_resultados WHERE empresa_id=?').run(id);
     db.prepare('DELETE FROM motor_execucoes WHERE empresa_id=?').run(id);
     gravarLinhasComColunas('motor_execucoes',[execucaoCompartilhadaLocal(execucaoAtiva,id)],true);
     gravarLinhasComColunas('motor_resultados',resultados.map((x)=>resultadoCompartilhadoLocal(x,id,execucaoAtiva.id)),true);
+    const gravarEstado=db.prepare(`INSERT INTO projecoes_movimentos_estado
+      (empresa_id,movimento_id,assinatura_origem,versao_origem,assinatura_calculada,versao_calculada,situacao,motivo,job_id,atualizado_em)
+      VALUES (?,?,?,?,?,?,?,?,?,?)
+      ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET assinatura_origem=excluded.assinatura_origem,
+      versao_origem=excluded.versao_origem,assinatura_calculada=excluded.assinatura_calculada,
+      versao_calculada=excluded.versao_calculada,situacao=excluded.situacao,motivo=excluded.motivo,
+      job_id=excluded.job_id,atualizado_em=excluded.atualizado_em`);
+    estadosRemotos.forEach((x)=>gravarEstado.run(id,x.movimento_id,x.assinatura_origem,x.versao_origem,
+      x.assinatura_calculada,x.versao_calculada,x.situacao,x.motivo,x.job_id,x.atualizado_em));
   })();
   const gravados=Number(db.prepare('SELECT COUNT(*) quantidade FROM motor_resultados WHERE empresa_id=? AND execucao_id=?')
     .get(id,Number(execucaoAtiva.id))?.quantidade || 0);
@@ -1528,6 +1545,30 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     throw new Error(`Fotografia canônica gravada parcialmente: esperado ${resultados.length}, encontrado ${gravados}. A cadeia não será exibida.`);
   }
   return { ativo:true, resultados:resultados.length, execucoes:1, empresa_remota_id:Number(remota.id), execucao_remota_id:Number(execucaoAtiva.id) };
+}
+
+// Persiste somente o estado de validade da projeção. Não publica fatos nem
+// resultados financeiros: a fonte canônica continua em parceiros/movimentos.
+async function publicarEstadosProjecoes(empresaId, movimentoIds = []) {
+  if (!ativo()) return { ativo:false, estados:0 };
+  const ids=[...new Set((movimentoIds || []).map(Number).filter(Number.isInteger))];
+  if (!ids.length) return { ativo:true, estados:0 };
+  const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!empresa?.cnpj) throw new Error('Empresa não encontrada para publicar estado de projeção.');
+  const remoto=supabase.admin(); const cnpj=String(empresa.cnpj).replace(/\D/g,'');
+  const { data:empresas,error:erroEmpresa }=await remoto.from('empresas').select('id,cnpj,origem_local_id')
+    .or(`origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`).limit(3);
+  if (erroEmpresa) throw new Error(`Empresa compartilhada para projeção: ${erroEmpresa.message}`);
+  const empresaRemota=(empresas || []).find((x)=>Number(x.origem_local_id || x.id)===Number(empresaId) || String(x.cnpj || '').replace(/\D/g,'')===cnpj);
+  if (!empresaRemota) throw new Error('Empresa compartilhada não localizada para publicar estado de projeção.');
+  const marcadores=ids.map(()=>'?').join(',');
+  const estados=db.prepare(`SELECT empresa_id,movimento_id,assinatura_origem,versao_origem,assinatura_calculada,versao_calculada,situacao,motivo,job_id,atualizado_em
+    FROM projecoes_movimentos_estado WHERE empresa_id=? AND movimento_id IN (${marcadores})`).all(Number(empresaId),...ids)
+    .map((x)=>({ ...x,empresa_id:Number(empresaRemota.id) }));
+  if (!estados.length) return { ativo:true, estados:0 };
+  const { error }=await remoto.from('projecoes_movimentos_estado').upsert(estados,{ onConflict:'empresa_id,movimento_id' });
+  if (error) throw new Error(`Estado compartilhado da projeção: ${error.message}`);
+  return { ativo:true, estados:estados.length,empresa_remota_id:Number(empresaRemota.id) };
 }
 async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
   if (!ativo()) return { ativo: false };
@@ -1583,6 +1624,7 @@ async function publicarResultadosMotor(empresaId = null, opcoes = {}) {
       movimento_hash: x.movimento_hash, regra_version: x.regra_version,
       catalogo_version: x.catalogo_version, parceiro_version: x.parceiro_version,
       parametro_version: x.parametro_version, motor_version: x.motor_version,
+      assinatura_origem: x.assinatura_origem, versao_origem: x.versao_origem,
       estado_autonomia: x.estado_autonomia, codigo_causa: x.codigo_causa,
       origem_resolucao: x.origem_resolucao, requer_intervencao_humana: x.requer_intervencao_humana }));
   // 100 linhas evita que uma foto grande gere uma requisição PostgREST lenta
@@ -2192,6 +2234,6 @@ async function restaurarLinhaCanonica(tabela, linha, justificativa, remotoInform
 }
 
 module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, garantirCacheOperacionalEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, restaurarLinhaCanonica, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
-  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
+  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarEstadosProjecoes, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
   chavesQueDevemPermanecerExcluidas };

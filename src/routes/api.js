@@ -1851,26 +1851,19 @@ router.put('/atualizacoes-reforma/:id/status', async (req, res) => {
 router.get('/empresas/:id/perfil-cbs', (req, res) => {
   try {
     const detectadas = db.prepare("SELECT COUNT(DISTINCT competencia) c FROM movimentos WHERE empresa_id=? AND COALESCE(competencia,'')<>''").get(req.params.id).c;
-    let competencias=perfilCbs.listar(req.params.id);
-    // `perfil_cbs_competencias` é apenas a apresentação agregada da
-    // fotografia ativa do motor. Em worker efêmero ela pode não acompanhar
-    // os resultados restaurados, embora o Perfil Tributário/PGDAS confirmado
-    // continue íntegro. A recomposição não executa motor, não altera
-    // movimentos e não substitui nenhuma apuração confirmada.
-    if (!competencias.length && motorExec.ultimaExecucao(req.params.id)) {
-      perfilCbs.materializar(req.params.id);
-      competencias=perfilCbs.listar(req.params.id);
-    }
-    ok(res, { competencias, competencias_detectadas: detectadas, ultima_execucao: motorExec.ultimaExecucao(req.params.id) });
+    // A tela só lê o agregado persistido pelo worker. Nunca reconstrói a
+    // carteira nem chama o motor durante a abertura.
+    const perfil=perfilCbs.listar(req.params.id,{limite:req.query.limite,cursor:req.query.cursor});
+    ok(res, { competencias:perfil.itens,paginacao:perfil.paginacao,competencias_detectadas: detectadas, ultima_execucao: motorExec.ultimaExecucao(req.params.id) });
   }
   catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/perfil-cbs/atualizar', (req, res) => {
-  try { ok(res, perfilCbs.materializar(req.params.id, { forcar: req.body?.forcar === true })); }
+  try { const perfil=perfilCbs.listar(req.params.id,{limite:req.body?.limite,cursor:req.body?.cursor}); ok(res, { competencias:perfil.itens,paginacao:perfil.paginacao,leitura:'Agregado persistido; atualização é responsabilidade do worker incremental.' }); }
   catch (e) { erro(res, e); }
 });
 router.get('/empresas/:id/perfil-cbs/:competencia/detalhes', (req, res) => {
-  try { ok(res, { operacoes: perfilCbs.detalhes(req.params.id, req.params.competencia, { sentido: req.query.sentido }) }); }
+  try { ok(res, { operacoes: perfilCbs.detalhes(req.params.id, req.params.competencia, { sentido: req.query.sentido,limite:req.query.limite }) }); }
   catch (e) { erro(res, e); }
 });
 // Triagem de essencialidade/relevância para o crédito histórico de
@@ -1900,7 +1893,9 @@ router.get('/empresas/:id/creditos-cbs/entradas', async (req, res) => {
     if (competencia) { parametros.push(competencia); competenciaSql=' AND m.competencia=?'; }
     const base=`FROM motor_resultados r
       JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
+      LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id
       WHERE r.empresa_id=? AND r.execucao_id=? AND r.sentido='entrada'
+        AND COALESCE(pe.situacao,'ATUAL')='ATUAL'
         AND COALESCE(r.credito_cbs,0)>0${competenciaSql}`;
     const totais=db.prepare(`SELECT COUNT(*) total, COALESCE(SUM(r.credito_cbs),0) total_credito_cbs ${base}`).get(...parametros);
     const offset=(pagina-1)*limite;
@@ -1946,7 +1941,9 @@ router.get('/empresas/:id/creditos-cbs/documentos', async (req, res) => {
         CASE WHEN COALESCE(r.credito_cbs,0)>0 THEN 1 ELSE 0 END tem_credito,
         CASE WHEN UPPER(COALESCE(r.status_credito_determinacao,r.status_credito,'')) IN ('INDETERMINADO','DADOS_INSUFICIENTES','SUJEITO_VALIDACAO') THEN 1 ELSE 0 END pendente
       FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
+      LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id
       WHERE r.empresa_id=? AND r.execucao_id=? AND r.sentido='entrada'
+        AND COALESCE(pe.situacao,'ATUAL')='ATUAL'
     ), documentos AS (
       SELECT referencia,MIN(competencia) competencia,COALESCE(NULLIF(MAX(documento),''),NULLIF(MAX(chave),''),'Documento sem número') documento,MAX(modelo_documento_fiscal) modelo_documento_fiscal,MAX(chave) chave,
         MAX(fornecedor) fornecedor,MAX(fornecedor_cnpj) fornecedor_cnpj,MAX(CASE WHEN origem_movimento='QUESTOR_CONCILIACAO_ENTRADA' THEN 1 ELSE 0 END) origem_questor,COUNT(*) itens,SUM(COALESCE(valor,0)) valor_entrada,
@@ -1970,7 +1967,9 @@ router.get('/empresas/:id/creditos-cbs/documentos', async (req, res) => {
       const itensDaPagina=db.prepare(`SELECT CASE WHEN NULLIF(m.chave,'') IS NOT NULL THEN 'chave:'||m.chave ELSE 'movimento:'||m.id END referencia,
           r.regime_cbs_emitente,r.detalhe
         FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
+        LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id
         WHERE r.empresa_id=? AND r.execucao_id=? AND r.sentido='entrada'
+          AND COALESCE(pe.situacao,'ATUAL')='ATUAL'
           AND (CASE WHEN NULLIF(m.chave,'') IS NOT NULL THEN 'chave:'||m.chave ELSE 'movimento:'||m.id END) IN (${marcas})`).all(empresaId,execucao.id,...referencias);
       const memoriaPorNota=new Map();
       for (const item of itensDaPagina) {
@@ -3804,8 +3803,10 @@ function resumoFormacaoCusto(empresaId, item) {
     r.status_credito_determinacao, r.natureza
     FROM formacao_custo_componentes c
     LEFT JOIN movimentos m ON m.id=c.movimento_id
+    LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=? AND pe.movimento_id=c.movimento_id
     LEFT JOIN motor_resultados r ON r.movimento_id=c.movimento_id AND r.empresa_id=?
-    WHERE c.item_formacao_id=? ORDER BY c.id`).all(empresaId, item.id);
+      AND COALESCE(pe.situacao,'ATUAL')='ATUAL'
+    WHERE c.item_formacao_id=? ORDER BY c.id`).all(empresaId,empresaId, item.id);
   let creditoTotal = 0, direto = 0, rateavel = 0, naoAlocado = 0, custoBrutoAlocado = 0;
   for (const c of componentes) {
     const credito = Number(c.credito_cbs) || 0;
@@ -3854,7 +3855,8 @@ router.get('/empresas/:id/precificacao', (req, res) => {
       r.preco_atual,r.base_economica,r.cbs,r.ibs,r.credito_cbs,r.preco_projetado,
       r.tratamento,r.cst,r.cclasstrib,r.natureza
       FROM movimentos m JOIN motor_resultados r ON r.movimento_id=m.id AND r.empresa_id=m.empresa_id
-      WHERE m.empresa_id=? AND m.id=?`);
+      LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id
+      WHERE m.empresa_id=? AND m.id=? AND COALESCE(pe.situacao,'ATUAL')='ATUAL'`);
     const resultado = itens.map((item) => {
       const formacao = resumoFormacaoCusto(req.params.id, item);
       const saida = item.movimento_saida_id ? porMovimento.get(req.params.id, item.movimento_saida_id) : null;
@@ -4076,13 +4078,17 @@ router.get('/empresas/:id/formacao-custo', (req, res) => {
   try {
     const itens = db.prepare('SELECT * FROM formacao_custo_itens WHERE empresa_id=? ORDER BY descricao,id').all(req.params.id);
     const entradasDisponiveis = db.prepare(`SELECT m.id, m.codigo_produto, m.descricao, m.ncm, m.nbs, m.valor,
-      r.base_economica, r.credito_cbs, r.tipo_credito, r.modalidade_credito, r.status_credito_determinacao, r.natureza
-      FROM movimentos m LEFT JOIN motor_resultados r ON r.movimento_id=m.id AND r.empresa_id=m.empresa_id
+      r.base_economica, r.credito_cbs, r.tipo_credito, r.modalidade_credito, r.status_credito_determinacao, r.natureza,
+      COALESCE(pe.situacao,'ATUAL') situacao_projecao
+      FROM movimentos m LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=m.empresa_id AND pe.movimento_id=m.id
+      LEFT JOIN motor_resultados r ON r.movimento_id=m.id AND r.empresa_id=m.empresa_id AND COALESCE(pe.situacao,'ATUAL')='ATUAL'
       WHERE m.empresa_id=? AND (m.tipo='fornecedor' OR m.sentido='entrada')
       ORDER BY m.descricao,m.id LIMIT 500`).all(req.params.id);
     const saidasDisponiveis = db.prepare(`SELECT m.id,m.codigo_produto,m.descricao,m.ncm,m.nbs,m.valor,
-      r.preco_atual,r.base_economica,r.cbs,r.credito_cbs,r.preco_projetado,r.natureza
-      FROM movimentos m LEFT JOIN motor_resultados r ON r.movimento_id=m.id AND r.empresa_id=m.empresa_id
+      r.preco_atual,r.base_economica,r.cbs,r.credito_cbs,r.preco_projetado,r.natureza,
+      COALESCE(pe.situacao,'ATUAL') situacao_projecao
+      FROM movimentos m LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=m.empresa_id AND pe.movimento_id=m.id
+      LEFT JOIN motor_resultados r ON r.movimento_id=m.id AND r.empresa_id=m.empresa_id AND COALESCE(pe.situacao,'ATUAL')='ATUAL'
       WHERE m.empresa_id=? AND (m.tipo='cliente' OR m.sentido='saida') ORDER BY m.descricao,m.id LIMIT 500`).all(req.params.id);
     ok(res, { itens: itens.map((item) => resumoFormacaoCusto(req.params.id, item)),
       entradasDisponiveis, saidasDisponiveis,
@@ -4155,7 +4161,9 @@ router.get('/contratos/:id/impacto-diagnostico', async (req, res) => {
     const impacto = db.prepare(`SELECT COUNT(DISTINCT m.id) movimentos, COALESCE(SUM(m.valor),0) valor,
       COALESCE(SUM(r.ibs),0) ibs, COALESCE(SUM(r.cbs),0) cbs,
       COALESCE(SUM(r.credito_ibs+r.credito_cbs),0) credito, COALESCE(SUM(r.custo_liquido),0) custo_liquido
-      FROM movimentos m LEFT JOIN motor_resultados r ON r.movimento_id=m.id AND r.execucao_id=?
+      FROM movimentos m LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=m.empresa_id AND pe.movimento_id=m.id
+      LEFT JOIN motor_resultados r ON r.movimento_id=m.id AND r.execucao_id=? AND r.empresa_id=m.empresa_id
+        AND COALESCE(pe.situacao,'ATUAL')='ATUAL'
       WHERE m.empresa_id=? AND replace(replace(replace(m.inscr_federal,'.',''),'/',''),'-','')=?`).get(execucao.id, contrato.empresa_id, cnpj);
     if (!impacto.movimentos) return ok(res, { encontrado: false, motivo: 'Não há movimentação importada para esta contraparte no diagnóstico.' });
     ok(res, { encontrado: true, impacto });
@@ -6732,27 +6740,35 @@ router.post('/empresas/:id/movimentos/:movimentoId/confirmar-regime-fornecedor',
     if (!movimento) throw new Error('Lançamento de entrada não localizado nesta empresa.');
     const consulta=await fornecedorPorCnpjConsultado(empresaId,cnpj,{ materializar:true });
     const fornecedor=consulta.fornecedor;
-    db.prepare("UPDATE parceiros SET regime=?,origem='REGIME_CONFIRMADO_USUARIO' WHERE id=? AND empresa_id=?")
-      .run(regime,fornecedor.id,empresaId);
+    db.prepare(`UPDATE parceiros SET regime=?,origem='REGIME_CONFIRMADO_USUARIO',
+      regime_origem='REGIME_CONFIRMADO_USUARIO',regime_versao=COALESCE(regime_versao,0)+1,
+      regime_confirmado_em=? WHERE id=? AND empresa_id=?`)
+      .run(regime,new Date().toISOString(),fornecedor.id,empresaId);
+    const fornecedorCanonico=db.prepare('SELECT * FROM parceiros WHERE id=? AND empresa_id=?').get(fornecedor.id,empresaId);
     // A confirmação é do fornecedor (CNPJ), não de uma linha isolada. Todos
     // os lançamentos de entrada já identificados com o mesmo CNPJ recebem a
     // mesma identidade canônica e entram no mesmo recálculo incremental.
     const movimentosAfetados=db.prepare(`SELECT id,normalizacao_evidencia FROM movimentos
       WHERE empresa_id=? AND tipo='fornecedor' AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(inscr_federal,''),'.',''),'/',''),'-',''),' ','')=?`).all(empresaId,cnpj);
     const afetados=movimentosAfetados.length ? movimentosAfetados : [movimento];
-    const atualizar=db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?');
+    const atualizar=db.prepare(`UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,regime_fonte='PARCEIRO_CANONICO',
+      regime_parceiro_versao=?,regime_confirmado_em=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?`);
     const agora=new Date().toISOString();
     db.transaction(() => afetados.forEach((linha) => {
       let evidencia={}; try { evidencia=JSON.parse(linha.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
-      evidencia.fornecedor_vinculado={ parceiro_id:fornecedor.id,cnpj,descricao:fornecedor.descricao,regime,origem:'REGIME_CONFIRMADO_USUARIO' };
+      evidencia.fornecedor_vinculado={ parceiro_id:fornecedorCanonico.id,cnpj,descricao:fornecedorCanonico.descricao,regime,
+        versao_regime:fornecedorCanonico.regime_versao,origem:'REGIME_CONFIRMADO_USUARIO' };
       evidencia.fornecedor_ajustado_em=agora;
       evidencia.fornecedor_regime_justificativa='Regime de PIS/Cofins confirmado pelo usuário na pendência da cadeia de fornecedores.';
-      atualizar.run(fornecedor.descricao,cnpj,regime,JSON.stringify(evidencia),linha.id,empresaId);
+      atualizar.run(fornecedorCanonico.descricao,cnpj,regime,fornecedorCanonico.regime_versao,fornecedorCanonico.regime_confirmado_em,JSON.stringify(evidencia),linha.id,empresaId);
     }));
     const publicacao=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,afetados.map((x)=>x.id));
     estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Regime do fornecedor confirmado');
     const idsCanonicos=publicacao.movimento_ids_canonicos || afetados.map((x)=>x.id);
     const processamento_motor=await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:idsCanonicos });
+    require('../services/projecoesMovimentos').marcar(db,empresaId,idsCanonicos,'ATUALIZACAO_PENDENTE',
+      'Regime canônico confirmado; aguardando recálculo incremental.',processamento_motor?.id || processamento_motor?.job_id || null);
+    await require('../services/operacaoCompartilhada').publicarEstadosProjecoes(empresaId,idsCanonicos);
     auditar(req,{ empresaId,acao:'CONFIRMACAO_REGIME_FORNECEDOR',entidade:'movimentos',entidadeId:afetados.map((x)=>x.id).join(','),depois:{ cnpj,regime,fornecedor_id:fornecedor.id,movimentos_afetados:afetados.length } });
     ok(res,{ fornecedor:{ ...fornecedor,regime },movimentos_afetados:afetados.length,publicacao,processamento_motor });
   } catch(e) { erro(res,e); }
@@ -6766,21 +6782,25 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
   try {
     await garantirEmpresaPermitida(req, req.params.id);
     const empresaId=Number(req.params.id);
-    const fornecedores=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' ORDER BY descricao").all(empresaId);
-    const movimentos=db.prepare("SELECT id,chave,nome,descricao,documento,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' ORDER BY id").all(empresaId);
+    const limite=Math.min(100,Math.max(1,Number(req.body?.limite)||100));
+    const depoisId=Math.max(0,Number(req.body?.depois_id)||0);
+    const competencia=String(req.body?.competencia||'').trim();
+    const loteId=Number(req.body?.lote_id)||null;
+    const filtros=['empresa_id=?',"origem='QUESTOR_RAZAO'",'id>?'];
+    const parametros=[empresaId,depoisId];
+    if (competencia) { filtros.push('competencia=?'); parametros.push(competencia); }
+    if (loteId) { filtros.push('lote_id=?'); parametros.push(loteId); }
+    // Lote determinístico: o cursor permite retomar sem carregar o Razão inteiro.
+    const movimentos=db.prepare(`SELECT id,chave,nome,descricao,documento,normalizacao_evidencia
+      FROM movimentos WHERE ${filtros.join(' AND ')} ORDER BY id LIMIT ?`).all(...parametros,limite);
     // Uma nota já registrada por outra origem pode trazer o fornecedor que o
     // histórico contábil omitiu. Número do documento + fornecedor cadastrado
     // é evidência suficiente; valor ou descrição isolados não são usados.
-    const documentosFornecedor=db.prepare("SELECT documento,nome,inscr_federal FROM movimentos WHERE empresa_id=? AND tipo='fornecedor' AND origem<>'QUESTOR_RAZAO' AND COALESCE(documento,'')<>''").all(empresaId);
     // As primeiras inclusões do Razão ainda não gravavam a contrapartida no
     // movimento. A prévia durável conserva a linha original do arquivo,
     // portanto recuperamos esse dado pela mesma identidade usada na inclusão.
-    const previa=db.prepare('SELECT resultado_json FROM questor_razao_previas WHERE empresa_id=?').get(empresaId);
-    let linhasDaPrevia=[]; try { linhasDaPrevia=JSON.parse(previa?.resultado_json || '{}').linhas || []; } catch (_) { linhasDaPrevia=[]; }
-    const contrapartidaPorIdentificador=new Map(linhasDaPrevia.map((linha)=>[String(linha?.identificador || ''),String(linha?.contrapartida || '')]).filter(([id,codigo])=>id && codigo));
     const evidenciaDosMovimentos=movimentos.map((movimento)=>{
       let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { /* compatibilidade com evidência legada */ }
-      if (!evidencia.contrapartida) evidencia.contrapartida=contrapartidaPorIdentificador.get(String(evidencia.razao_identificador || '')) || '';
       return evidencia;
     });
     const contrapartidas=evidenciaDosMovimentos.map((evidencia)=>evidencia.contrapartida);
@@ -6794,6 +6814,19 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
       descricao:movimento.descricao, participante:evidenciaDosMovimentos[indice]?.participante || '',
       contrapartida:evidenciaDosMovimentos[indice]?.contrapartida, conta:evidenciaDosMovimentos[indice]?.conta_codigo || movimento.conta_codigo || movimento.conta,
     })).filter((linha)=>!pessoasPorCodigo.get(codigoPessoaQuestor(linha.contrapartida))));
+    // Dimensão de fornecedores é acessada por chave. Não há mapa da carteira
+    // inteira nem comparação de arrays: cada uma das até 100 linhas do lote
+    // consulta apenas a identidade que a própria evidência apresentou.
+    const fornecedorPorCnpj=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' AND replace(replace(replace(cnpj,'.',''),'/',''),'-','')=? LIMIT 2");
+    const fornecedorPorNome=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' AND lower(descricao)=lower(?) LIMIT 2");
+    const fornecedorPorDocumento=db.prepare("SELECT p.id,p.cnpj,p.descricao,p.regime,p.origem FROM movimentos m JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo='fornecedor' AND replace(replace(replace(p.cnpj,'.',''),'/',''),'-','')=replace(replace(replace(m.inscr_federal,'.',''),'/',''),'-','') WHERE m.empresa_id=? AND m.tipo='fornecedor' AND m.origem<>'QUESTOR_RAZAO' AND m.documento=? AND COALESCE(m.inscr_federal,'')<>'' LIMIT 2");
+    const fornecedorDaPessoa=(pessoa)=>{
+      const cnpj=String(pessoa?.inscr_federal||pessoa?.cnpj||'').replace(/\D/g,'');
+      if (cnpj) { const linhas=fornecedorPorCnpj.all(empresaId,cnpj); if (linhas.length===1) return linhas[0]; }
+      const nome=String(pessoa?.nome||pessoa?.descricao||'').trim();
+      if (nome) { const linhas=fornecedorPorNome.all(empresaId,nome); if (linhas.length===1) return linhas[0]; }
+      return null;
+    };
     const atualizar=db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?');
     const resultado={ lidos:movimentos.length, identificados:0, identificados_por_contrapartida:0, identificados_por_historico:0, genericos_simples:0, preservados_manualmente:0, atualizados:0, movimento_ids:[] };
     db.transaction(()=>{
@@ -6809,25 +6842,17 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
         // ser completa. Neles, o fornecedor já informado foi preservado em
         // `nome`; ele é uma fonte válida e prioritária para a releitura.
         const pessoa=pessoasPorCodigo.get(codigoPessoaQuestor(evidencia.contrapartida));
-        const sugestaoContrapartida=sugestaoFornecedorPelaPessoaQuestor(fornecedores,pessoa);
-        const pelaContrapartida=sugestaoContrapartida?.id
-          ? fornecedores.find((x)=>Number(x.id)===Number(sugestaoContrapartida.id))
-          : materializarFornecedorDaContrapartida(empresaId,sugestaoContrapartida,fornecedores);
+        const pelaContrapartida=fornecedorDaPessoa(pessoa);
         const pessoaHistorico=pessoasPorHistorico.get(String(movimento.id));
         const origemHistorico=String(pessoaHistorico?.criterio || '').startsWith('ALIAS_') ? 'HISTORICO_ALIAS_QUESTOR' : 'HISTORICO_NOME_QUESTOR';
-        const sugestaoHistorico=pelaContrapartida ? null : sugestaoFornecedorPelaPessoaQuestor(fornecedores,pessoaHistorico,origemHistorico);
-        const peloHistorico=sugestaoHistorico?.id
-          ? fornecedores.find((x)=>Number(x.id)===Number(sugestaoHistorico.id))
-          : materializarFornecedorDaContrapartida(empresaId,sugestaoHistorico,fornecedores);
-        const peloDocumento=fornecedorPeloDocumentoRazao(fornecedores,documentosFornecedor,movimento.documento || evidencia.documento);
-        const leitura=fornecedorSugeridoPeloRazao(fornecedores,{ historico:evidencia.historico, participante:evidencia.participante || '', descricao:movimento.descricao });
-        let fornecedor=pelaContrapartida || peloHistorico || peloDocumento || (leitura.sugestao?.id
-          ? fornecedores.find((x)=>Number(x.id)===Number(leitura.sugestao.id))
-          : null);
+        const peloHistorico=pelaContrapartida ? null : fornecedorDaPessoa(pessoaHistorico);
+        const candidatosDocumento=String(movimento.documento || evidencia.documento || '') ? fornecedorPorDocumento.all(empresaId,movimento.documento || evidencia.documento) : [];
+        const peloDocumento=candidatosDocumento.length===1 ? candidatosDocumento[0] : null;
+        let fornecedor=pelaContrapartida || peloHistorico || peloDocumento;
         if (!fornecedor) fornecedor=fornecedorPadraoDaNaturezaEntrada(empresaId,evidencia.item_cadastrado);
-        const origem=fornecedor.origem==='QUESTOR_RAZAO_GENERICO' ? 'FORNECEDOR_GENERICO_SIMPLES' : pelaContrapartida ? 'CONTRAPARTIDA_QUESTOR' : peloHistorico ? origemHistorico : peloDocumento ? 'DOCUMENTO_EXISTENTE' : leitura.sugestao?.origem || 'HISTORICO_RAZAO';
+        const origem=fornecedor.origem==='QUESTOR_RAZAO_GENERICO' ? 'FORNECEDOR_GENERICO_SIMPLES' : pelaContrapartida ? 'CONTRAPARTIDA_QUESTOR' : peloHistorico ? origemHistorico : peloDocumento ? 'DOCUMENTO_EXISTENTE' : 'PENDENTE_EVIDENCIA_RAZAO';
         evidencia.fornecedor_vinculado={ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem,
-          evidencia_pessoa:(origem==='CONTRAPARTIDA_QUESTOR' ? sugestaoContrapartida : String(origem).startsWith('HISTORICO_') ? sugestaoHistorico : null)?.evidencia_pessoa || null };
+          evidencia_pessoa:(origem==='CONTRAPARTIDA_QUESTOR' ? pessoa : String(origem).startsWith('HISTORICO_') ? pessoaHistorico : null)?.evidencia_pessoa || null };
         evidencia.fornecedor_relido_em=new Date().toISOString();
         atualizar.run(fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,JSON.stringify(evidencia),movimento.id,empresaId);
         resultado.movimento_ids.push(movimento.id); resultado.atualizados++;
@@ -6838,10 +6863,12 @@ router.post('/empresas/:id/questor/razao/reler-fornecedores', async (req,res)=>{
     let processamento_motor=null;
     if (resultado.movimento_ids.length) {
       estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Fornecedores do Razão relidos');
-      processamento_motor=await motorExecucaoFila.solicitar(empresaId,{});
+      processamento_motor=await motorExecucaoFila.solicitarIncremental(empresaId,{movimentoIds:resultado.movimento_ids});
     }
     auditar(req,{ empresaId,acao:'RELEITURA_FORNECEDORES_RAZAO',entidade:'movimentos',entidadeId:resultado.movimento_ids.join(','),depois:{...resultado, movimento_ids:undefined} });
-    ok(res,{ ...resultado, publicacao, processamento_motor });
+    ok(res,{ ...resultado,publicacao,processamento_motor,
+      paginacao:{limite,depois_id:depoisId,proximo_id:movimentos.at(-1)?.id||null,tem_proxima:movimentos.length===limite},
+      escopo:{competencia:competencia||null,lote_id:loteId||null} });
   } catch(e) { erro(res,e); }
 });
 
@@ -6857,8 +6884,15 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
     const configuracaoAlterada=assegurarItensEntradaManualPadrao();
     if (configuracaoAlterada) await confirmarParametrosCompartilhados();
     const itens=itensEntradaManualConfigurados();
-    const movimentos=db.prepare("SELECT id,nome,inscr_federal,regime,descricao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO' ORDER BY id").all(empresaId);
-    const fornecedores=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' ORDER BY descricao").all(empresaId);
+    const limite=Math.min(100,Math.max(1,Number(req.body?.limite)||100));
+    const depoisId=Math.max(0,Number(req.body?.depois_id)||0);
+    const competencia=String(req.body?.competencia||'').trim();
+    const loteId=Number(req.body?.lote_id)||null;
+    const filtros=['empresa_id=?',"origem='QUESTOR_RAZAO'",'id>?']; const parametros=[empresaId,depoisId];
+    if (competencia) { filtros.push('competencia=?'); parametros.push(competencia); }
+    if (loteId) { filtros.push('lote_id=?'); parametros.push(loteId); }
+    const movimentos=db.prepare(`SELECT id,nome,inscr_federal,regime,descricao,cst,cclasstrib,cst_declarado,cclasstrib_declarado,normalizacao_evidencia,nbs,lc116
+      FROM movimentos WHERE ${filtros.join(' AND ')} ORDER BY id LIMIT ?`).all(...parametros,limite);
     // A natureza e o fornecedor são leituras independentes do Razão. Antes,
     // a reaplicação corrigia "locação de veículos" mas preservava o fornecedor
     // genérico de fatos já importados. Reutilizamos o histórico para reparar
@@ -6872,6 +6906,7 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
       descricao:movimento.descricao, participante:evidencias[indice]?.participante || '',
       conta:evidencias[indice]?.conta_codigo || evidencias[indice]?.conta || '',
     })));
+    const fornecedorPorCnpj=db.prepare("SELECT id,cnpj,descricao,regime,origem FROM parceiros WHERE empresa_id=? AND tipo='fornecedor' AND replace(replace(replace(cnpj,'.',''),'/',''),'-','')=? LIMIT 2");
     const atualizar=db.prepare("UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,descricao=?,cst=?,cclasstrib=?,cst_declarado=?,cclasstrib_declarado=?,nbs=COALESCE(NULLIF(nbs,''),?),lc116=COALESCE(NULLIF(lc116,''),?),normalizacao_evidencia=? WHERE id=? AND empresa_id=?");
     const resultado={ lidos:movimentos.length, reclassificados:0, veiculos:0, imoveis:0, fornecedor_padrao_ajustado:0, fornecedor_historico_ajustado:0, movimento_ids:[] };
     db.transaction(()=>{
@@ -6902,13 +6937,12 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
           && String(pessoaHistorico.inscr_federal || '').replace(/\D/g,'') !== String(cnpj || '').replace(/\D/g,'')
         );
         if ((!cnpj && /^Fornecedor genérico\s+—/i.test(String(nome || fornecedorAtual.descricao || ''))) || aliasSeguroConflitante) {
-          const sugestaoHistorico=sugestaoFornecedorPelaPessoaQuestor(fornecedores,pessoaHistorico,'HISTORICO_NOME_QUESTOR');
-          const fornecedorHistorico=sugestaoHistorico?.id
-            ? fornecedores.find((x)=>Number(x.id)===Number(sugestaoHistorico.id))
-            : materializarFornecedorDaContrapartida(empresaId,sugestaoHistorico,fornecedores);
+          const cnpjHistorico=String(pessoaHistorico?.inscr_federal||pessoaHistorico?.cnpj||'').replace(/\D/g,'');
+          const candidatosHistoricos=cnpjHistorico ? fornecedorPorCnpj.all(empresaId,cnpjHistorico) : [];
+          const fornecedorHistorico=candidatosHistoricos.length===1 ? candidatosHistoricos[0] : null;
           if (fornecedorHistorico) {
             nome=fornecedorHistorico.descricao; cnpj=fornecedorHistorico.cnpj || null; regime=fornecedorHistorico.regime;
-            evidencia.fornecedor_vinculado={ parceiro_id:fornecedorHistorico.id, cnpj, descricao:nome, regime, origem:'HISTORICO_NOME_QUESTOR', evidencia_pessoa:sugestaoHistorico?.evidencia_pessoa || null };
+            evidencia.fornecedor_vinculado={ parceiro_id:fornecedorHistorico.id, cnpj, descricao:nome, regime, origem:'HISTORICO_NOME_QUESTOR', evidencia_pessoa:pessoaHistorico?.evidencia_pessoa || null };
             fornecedorHistoricoAjustado=true;
             resultado.fornecedor_historico_ajustado++;
           }
@@ -6944,7 +6978,9 @@ router.post('/empresas/:id/questor/razao/reclassificar-naturezas', async (req,re
     const processamento_motor=resultado.movimento_ids.length ? await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:publicacao.movimento_ids_canonicos }) : null;
     if (resultado.movimento_ids.length) estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Naturezas das entradas do Razão reaplicadas');
     auditar(req,{ empresaId,acao:'RECLASSIFICAR_NATUREZAS_RAZAO',entidade:'movimentos',entidadeId:resultado.movimento_ids.join(','),depois:{ ...resultado, movimento_ids:undefined } });
-    ok(res,{ ...resultado, publicacao, processamento_motor });
+    ok(res,{ ...resultado,publicacao,processamento_motor,
+      paginacao:{limite,depois_id:depoisId,proximo_id:movimentos.at(-1)?.id||null,tem_proxima:movimentos.length===limite},
+      escopo:{competencia:competencia||null,lote_id:loteId||null} });
   } catch(e) { erro(res,e); }
 });
 
@@ -7078,14 +7114,17 @@ router.post('/empresas/:id/questor/conector/conciliacoes-entradas/:tarefaId/incl
 // Questor precisa continuar visível na Cadeia antes de um recálculo explícito.
 router.get('/empresas/:id/questor/entradas-conciliadas', async (req,res)=>{ try {
   await garantirEmpresaPermitida(req, req.params.id);
+  const limite=Math.min(100,Math.max(1,Number(req.query.limite)||100));
+  const pagina=Math.max(1,Number(req.query.pagina)||1),offset=(pagina-1)*limite,empresaId=Number(req.params.id);
   const entradas=db.prepare(`SELECT id,competencia,documento,modelo_documento_fiscal,data_emissao,nome,inscr_federal,descricao,ncm,valor,pis,cofins,origem,normalizacao_evidencia,criado_em
-    FROM movimentos WHERE empresa_id=? AND origem IN ('QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO') ORDER BY data_emissao DESC,competencia DESC,id DESC`).all(Number(req.params.id)).map((x)=>{
+    FROM movimentos WHERE empresa_id=? AND origem IN ('QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO') ORDER BY data_emissao DESC,competencia DESC,id DESC LIMIT ? OFFSET ?`).all(empresaId,limite,offset).map((x)=>{
       let evidencia={}; try { evidencia=JSON.parse(x.normalizacao_evidencia||'{}'); } catch (_) { /* mantém a lista mesmo com histórico antigo */ }
       const origem=evidencia.origem || x.origem;
       return {...x,normalizacao_evidencia:undefined,origem,tarefa_id:evidencia.tarefa_id||null,lancamento_questor:evidencia.lancamento_questor||null,
         conta_questor:evidencia.conta_codigo||null, origem_razao:origem==='QUESTOR_RAZAO'};
     });
-  ok(res,{entradas,total:entradas.length,leitura:'Entradas incluídas pelo Questor ou Razão. A inclusão pelo Razão solicita a atualização assíncrona da fotografia do motor.'});
+  const total=Number(db.prepare("SELECT COUNT(*) c FROM movimentos WHERE empresa_id=? AND origem IN ('QUESTOR_CONCILIACAO_ENTRADA','QUESTOR_RAZAO')").get(empresaId).c||0);
+  ok(res,{entradas,total,leitura:'Entradas incluídas pelo Questor ou Razão. A inclusão pelo Razão solicita a atualização assíncrona da fotografia do motor.',paginacao:{pagina,limite,totalPaginas:Math.max(1,Math.ceil(total/limite)),temAnterior:pagina>1,temProxima:offset+entradas.length<total}});
 } catch(e){erro(res,e);} });
 
 // Referências que o Questor confirmou como canceladas, mas cujo XML/DF-e ainda
@@ -7116,41 +7155,37 @@ async function sincronizarCancelamentosQuestorParaLeitura(empresaId) {
 }
 router.get('/empresas/:id/questor/cancelamentos-pendentes', async (req,res)=>{ try {
   const empresaId=Number(req.params.id);
+  const limite=Math.min(100,Math.max(1,Number(req.query.limite)||100));
+  const pagina=Math.max(1,Number(req.query.pagina)||1),offset=(pagina-1)*limite;
   await sincronizarCancelamentosQuestorParaLeitura(empresaId);
-  const cancelamentos=db.prepare(`SELECT data_emissao,numero,modelo_documento_fiscal,serie,situacao,origem,evidencia
-    FROM documentos_fiscais_cancelamentos WHERE empresa_id=? ORDER BY data_emissao DESC,numero DESC`).all(empresaId);
-  const movimentos=db.prepare(`SELECT id,documento,chave,modelo_documento_fiscal,data_emissao,situacao_documento,cancelamento_origem
-    FROM movimentos WHERE empresa_id=?`).all(empresaId);
-  const localizarDocumento=(c)=>{
-    const mesmaIdentidade=movimentos.filter((m)=>{
-    const partes=String(m.documento||'').split('/'); const numero=(partes[partes.length-1]||'').replace(/\D/g,'');
-    return numero===String(c.numero||'').replace(/\D/g,'')
-      && String(m.modelo_documento_fiscal||'').toLowerCase()===String(c.modelo_documento_fiscal||'').toLowerCase();
-    });
-    const porData=mesmaIdentidade.filter((m)=>String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10));
-    const candidatos=porData.length?porData:mesmaIdentidade;
-    const comSerie=candidatos.filter((m)=>{
-      const serie=String(m.documento||'').split('/')[0].replace(/\D/g,'');
-      return !c.serie || !serie || serie===String(c.serie);
-    });
-    if(comSerie.length) return comSerie;
-    // NFS-e pode usar série formatada de forma diferente no XML e no
-    // relatório Questor. Só consideramos conciliado sem série se a
-    // identidade número + modelo + data levar a um único documento.
-    const documentos=new Set(candidatos.map((m)=>m.chave || `d:${m.documento}`));
-    return String(c.modelo_documento_fiscal||'').toLowerCase()==='nfse' && documentos.size===1 ? candidatos : [];
-  };
-  const pendentes=[],encontrados=[];
-  for(const cancelamento of cancelamentos){
-    const documentos=localizarDocumento(cancelamento);
-    if(!documentos.length) { pendentes.push(cancelamento); continue; }
-    const situacoes=[...new Set(documentos.map((m)=>String(m.situacao_documento||'AUTORIZADO').toUpperCase()))];
-    const conciliado=situacoes.every((s)=>['CANCELADO','DENEGADO','INUTILIZADO'].includes(s));
-    encontrados.push({...cancelamento,conciliado,documento_encontrado:documentos[0].documento||documentos[0].chave||`#${documentos[0].id}`,
-      situacao_documento:situacoes.join(', '),cancelamento_origem:documentos[0].cancelamento_origem||null});
-  }
-  ok(res,{total:pendentes.length,documentos:pendentes,encontrados,total_encontrados:encontrados.length,
-    total_conciliados:encontrados.filter((x)=>x.conciliado).length});
+  // Conciliação é feita no banco, por página de cancelamentos. Não carregamos
+  // movimentos para filtrá-los em JavaScript: o predicado preserva empresa,
+  // número, modelo, data e série quando disponível.
+  const linhasSql=db.prepare(`WITH pagina AS (
+    SELECT c.*,COUNT(*) OVER() total_cancelamentos
+      FROM documentos_fiscais_cancelamentos c
+     WHERE c.empresa_id=?
+     ORDER BY c.data_emissao DESC,c.numero DESC,c.modelo_documento_fiscal DESC
+     LIMIT ? OFFSET ?
+  ), conciliacao AS (
+    SELECT p.*,
+      EXISTS(SELECT 1 FROM movimentos m WHERE m.empresa_id=?
+        AND LOWER(COALESCE(m.modelo_documento_fiscal,''))=LOWER(COALESCE(p.modelo_documento_fiscal,''))
+        AND INSTR(REPLACE(COALESCE(m.documento,''),'/',''),REPLACE(COALESCE(p.numero,''),'/',''))>0
+        AND (COALESCE(p.data_emissao,'')='' OR SUBSTR(COALESCE(m.data_emissao,''),1,10)=SUBSTR(p.data_emissao,1,10))
+        AND (COALESCE(p.serie,'')='' OR INSTR(COALESCE(m.documento,''),p.serie)>0)
+      ) conciliado,
+      (SELECT m.documento FROM movimentos m WHERE m.empresa_id=?
+        AND LOWER(COALESCE(m.modelo_documento_fiscal,''))=LOWER(COALESCE(p.modelo_documento_fiscal,''))
+        AND INSTR(REPLACE(COALESCE(m.documento,''),'/',''),REPLACE(COALESCE(p.numero,''),'/',''))>0
+        AND (COALESCE(p.data_emissao,'')='' OR SUBSTR(COALESCE(m.data_emissao,''),1,10)=SUBSTR(p.data_emissao,1,10))
+        ORDER BY m.id DESC LIMIT 1) documento_encontrado
+    FROM pagina p
+  ) SELECT * FROM conciliacao`).all(empresaId,limite,offset,empresaId,empresaId);
+  const totalPagina=Number(linhasSql[0]?.total_cancelamentos||0);
+  const documentos=linhasSql.filter((x)=>!x.conciliado),encontrados=linhasSql.filter((x)=>x.conciliado);
+  return ok(res,{total:documentos.length,documentos,encontrados,total_encontrados:encontrados.length,total_conciliados:encontrados.length,
+    paginacao:{pagina,limite,totalPaginas:Math.max(1,Math.ceil(totalPagina/limite)),temAnterior:pagina>1,temProxima:offset+linhasSql.length<totalPagina},leitura:'Conciliação SQL paginada; nenhum movimento foi materializado fora da página.'});
 }catch(e){erro(res,e);}});
 
 // Reaplica a evidência Questor já armazenada. É seguro executar repetidas
@@ -7158,63 +7193,30 @@ router.get('/empresas/:id/questor/cancelamentos-pendentes', async (req,res)=>{ t
 // alterados; NFS-e aceita a divergência conhecida de formatação da série.
 router.post('/empresas/:id/questor/cancelamentos-pendentes/reconciliar', async (req,res)=>{ try {
   const empresaId=Number(req.params.id);
-  const cancelamentos=db.prepare(`SELECT * FROM documentos_fiscais_cancelamentos WHERE empresa_id=? AND situacao='CANCELADO'`).all(empresaId);
-  const movimentos=db.prepare(`SELECT id,documento,chave,modelo_documento_fiscal,data_emissao,situacao_documento FROM movimentos WHERE empresa_id=?`).all(empresaId);
-  const ids=new Set(); let ambiguos=0;
-  for(const c of cancelamentos){
-    const mesmaIdentidade=movimentos.filter((m)=>{const partes=String(m.documento||'').split('/');return (partes.at(-1)||'').replace(/\D/g,'')===String(c.numero||'').replace(/\D/g,'')&&String(m.modelo_documento_fiscal||'').toLowerCase()===String(c.modelo_documento_fiscal||'').toLowerCase();});
-    const porData=mesmaIdentidade.filter((m)=>String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10));
-    const candidatos=porData.length?porData:mesmaIdentidade;
-    const exatos=candidatos.filter((m)=>{const serie=String(m.documento||'').split('/')[0].replace(/\D/g,'');return !c.serie||!serie||serie===String(c.serie);});
-    const grupo=exatos.length?exatos:candidatos;
-    const documentos=new Set(grupo.map((m)=>m.chave||`d:${m.documento}`));
-    const seguro=exatos.length>0 || String(c.modelo_documento_fiscal||'').toLowerCase()==='nfse';
-    if(!grupo.length) continue;
-    if(!seguro||documentos.size!==1){ambiguos++;continue;}
-    grupo.filter((m)=>!['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(m.situacao_documento||'').toUpperCase())).forEach((m)=>ids.add(m.id));
-  }
-  if(ids.size){
-    const lista=[...ids];
-    db.prepare(`UPDATE movimentos SET situacao_documento='CANCELADO',cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo='Cancelamento Questor reaplicado.',cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE empresa_id=? AND id IN (${lista.map(()=>'?').join(',')})`).run(empresaId,...lista);
-    db.prepare(`DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN (${lista.map(()=>'?').join(',')})`).run(empresaId,...lista);
-  }
-  let reconciliadosRemoto=0;
-  if(supabase.configurado()){
-    const empresaLocal=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId)||{};
-    const cnpj=String(empresaLocal.cnpj||'').replace(/\D/g,'');
-    const remoto=supabase.admin();
-    const {data: empresasRemotas,error:erroEmpresa}=await remoto.from('empresas').select('id,cnpj,origem_local_id').or(`origem_local_id.eq.${empresaId},cnpj.eq.${cnpj}`).limit(10);
-    if(erroEmpresa) throw erroEmpresa;
-    const candidatas=(empresasRemotas||[]).filter((x)=>Number(x.origem_local_id)===empresaId||String(x.cnpj||'').replace(/\D/g,'')===cnpj);
-    if(candidatas.length!==1) throw new Error('Empresa não localizada de forma única na fonte compartilhada.');
-    const empresaRemotaId=candidatas[0].id;
-    const [{data: cancelamentosRemotos,error:erroCancelamentos},{data: movimentosRemotos,error:erroMovimentos}]=await Promise.all([
-      remoto.from('documentos_fiscais_cancelamentos').select('numero,modelo_documento_fiscal,data_emissao,serie,situacao').eq('empresa_id',empresaRemotaId).eq('situacao','CANCELADO'),
-      remoto.from('movimentos').select('id,documento,chave,modelo_documento_fiscal,data_emissao,situacao_documento').eq('empresa_id',empresaRemotaId).eq('tipo','cliente').limit(10000),
-    ]);
-    if(erroCancelamentos) throw erroCancelamentos;
-    if(erroMovimentos) throw erroMovimentos;
-    const idsRemotos=new Set();
-    for(const c of cancelamentosRemotos||[]){
-      const mesmaIdentidade=(movimentosRemotos||[]).filter((m)=>{const partes=String(m.documento||'').split('/');return (partes.at(-1)||'').replace(/\D/g,'')===String(c.numero||'').replace(/\D/g,'')&&String(m.modelo_documento_fiscal||'').toLowerCase()===String(c.modelo_documento_fiscal||'').toLowerCase();});
-      const porData=mesmaIdentidade.filter((m)=>String(m.data_emissao||'').slice(0,10)===String(c.data_emissao||'').slice(0,10));
-      const candidatos=porData.length?porData:mesmaIdentidade;
-      const exatos=candidatos.filter((m)=>{const serie=String(m.documento||'').split('/')[0].replace(/\D/g,'');return !c.serie||!serie||serie===String(c.serie);});
-      const grupo=exatos.length?exatos:candidatos;
-      const documentos=new Set(grupo.map((m)=>m.chave||`d:${m.documento}`));
-      const seguro=exatos.length>0||String(c.modelo_documento_fiscal||'').toLowerCase()==='nfse';
-      if(seguro&&documentos.size===1) grupo.filter((m)=>!['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(m.situacao_documento||'').toUpperCase())).forEach((m)=>idsRemotos.add(m.id));
-    }
-    if(idsRemotos.size){
-      const listaRemota=[...idsRemotos];
-      const {error:erroAtualizar}=await remoto.from('movimentos').update({situacao_documento:'CANCELADO',cancelado_em:new Date().toISOString(),cancelamento_motivo:'Cancelamento Questor reaplicado.',cancelamento_origem:'QUESTOR_RELATORIO_CANCELADOS'}).in('id',listaRemota);
-      if(erroAtualizar) throw erroAtualizar;
-      const {error:erroMotor}=await remoto.from('motor_resultados_operacionais').update({ativo:false}).eq('empresa_id',empresaRemotaId).in('movimento_id',listaRemota);
-      if(erroMotor) throw erroMotor;
-      reconciliadosRemoto=listaRemota.length;
-    }
-  }
-  const resultado={reconciliados:Math.max(ids.size,reconciliadosRemoto),reconciliados_locais:ids.size,reconciliados_compartilhados:reconciliadosRemoto,ambiguos,cancelamentos_analisados:cancelamentos.length};
+  // O vínculo é resolvido inteiramente por SQL. A fonte compartilhada é
+  // sincronizada pelo fluxo operacional; esta rota nunca baixa duas carteiras
+  // para tentar cruzá-las no heap do processo web.
+  const correspondencias=`WITH correspondencias AS (
+      SELECT c.rowid AS cancelamento_id,m.id,COALESCE(NULLIF(m.chave,''),'d:'||m.documento) AS identidade
+        FROM documentos_fiscais_cancelamentos c
+        JOIN movimentos m ON m.empresa_id=c.empresa_id
+          AND LOWER(COALESCE(m.modelo_documento_fiscal,''))=LOWER(COALESCE(c.modelo_documento_fiscal,''))
+          AND INSTR(REPLACE(COALESCE(m.documento,''),'/',''),REPLACE(COALESCE(c.numero,''),'/',''))>0
+          AND (COALESCE(c.data_emissao,'')='' OR SUBSTR(COALESCE(m.data_emissao,''),1,10)=SUBSTR(c.data_emissao,1,10))
+          AND (COALESCE(c.serie,'')='' OR INSTR(COALESCE(m.documento,''),c.serie)>0)
+       WHERE c.empresa_id=? AND c.situacao='CANCELADO'
+    ), seguros AS (
+      SELECT cancelamento_id FROM correspondencias GROUP BY cancelamento_id HAVING COUNT(DISTINCT identidade)=1
+    ), alvos AS (
+      SELECT DISTINCT x.id FROM correspondencias x JOIN seguros s ON s.cancelamento_id=x.cancelamento_id
+    )`;
+  const totalCancelamentos=Number(db.prepare("SELECT COUNT(*) c FROM documentos_fiscais_cancelamentos WHERE empresa_id=? AND situacao='CANCELADO'").get(empresaId).c||0);
+  const ambiguos=Number(db.prepare(`${correspondencias} SELECT COUNT(*) c FROM correspondencias WHERE cancelamento_id NOT IN (SELECT cancelamento_id FROM seguros)`).get(empresaId).c||0);
+  const resultado=db.transaction(()=>{
+    const alterados=db.prepare(`${correspondencias} UPDATE movimentos SET situacao_documento='CANCELADO',cancelado_em=COALESCE(cancelado_em,datetime('now','localtime')),cancelamento_motivo='Cancelamento Questor reaplicado.',cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' WHERE empresa_id=? AND id IN (SELECT id FROM alvos) AND COALESCE(situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')`).run(empresaId,empresaId).changes;
+    db.prepare("DELETE FROM motor_resultados WHERE empresa_id=? AND movimento_id IN (SELECT id FROM movimentos WHERE empresa_id=? AND cancelamento_origem='QUESTOR_RELATORIO_CANCELADOS' AND situacao_documento='CANCELADO')").run(empresaId,empresaId);
+    return {reconciliados:alterados,reconciliados_locais:alterados,reconciliados_compartilhados:0,ambiguos,cancelamentos_analisados:totalCancelamentos,leitura:'JOIN/CTE SQL; sem cruzamento de carteiras em memória.'};
+  })();
   auditar(req,{empresaId,acao:'RECONCILIAR_CANCELAMENTOS_ARMAZENADOS',entidade:'movimentos',depois:resultado});
   ok(res,resultado);
 }catch(e){erro(res,e);}});
@@ -8109,6 +8111,8 @@ router.get('/empresas/:id/entradas-manuais', async (req, res) => {
   try {
     await garantirEmpresaPermitida(req, req.params.id);
     const empresaId=Number(req.params.id);
+    const limite=Math.min(100,Math.max(1,Number(req.query.limite)||100));
+    const pagina=Math.max(1,Number(req.query.pagina)||1), offset=(pagina-1)*limite;
     const empresa=db.prepare('SELECT cnpj FROM empresas WHERE id=?').get(empresaId);
     const normalizarEntrada=(x)=>{
       // SQLite conserva JSON como texto; PostgreSQL o entrega como objeto.
@@ -8124,12 +8128,12 @@ router.get('/empresas/:id/entradas-manuais', async (req, res) => {
     // A cópia local é uma conveniência. A referência é a base compartilhada:
     // sem esta leitura, inclusões do Razão/Questor desapareciam da tela após
     // reinício ou em outra instância, embora já estivessem lançadas.
-    const entradas=db.prepare(`SELECT id,competencia,nome,descricao,valor,origem,cst_declarado,cclasstrib_declarado,normalizacao_evidencia,chave,documento,criado_em
-      FROM movimentos WHERE empresa_id=? AND origem IN ('MANUAL_ENTRADA','QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA') ORDER BY competencia DESC,id DESC`).all(empresaId).map(normalizarEntrada);
-    let entradasCompartilhadas=[];
+    const locais=db.prepare(`SELECT id,competencia,nome,descricao,valor,origem,cst_declarado,cclasstrib_declarado,normalizacao_evidencia,chave,documento,criado_em
+      FROM movimentos WHERE empresa_id=? AND origem IN ('MANUAL_ENTRADA','QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA') ORDER BY competencia DESC,id DESC LIMIT ? OFFSET ?`).all(empresaId,limite,offset).map(normalizarEntrada);
+    const totalLocal=Number(db.prepare("SELECT COUNT(*) c FROM movimentos WHERE empresa_id=? AND origem IN ('MANUAL_ENTRADA','QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')").get(empresaId).c||0);
+    let entradasCompartilhadas=null;
     try {
-      const remotas=await require('../services/documentosFiscaisCompartilhados').listarEntradasQuestor(empresa?.cnpj);
-      entradasCompartilhadas=remotas.map(normalizarEntrada);
+      entradasCompartilhadas=await require('../services/documentosFiscaisCompartilhados').listarEntradasQuestor(empresa?.cnpj,{limite,pagina});
     } catch (e) {
       // Não esconde os fatos locais quando a fonte compartilhada estiver em
       // contingência; a consulta continua sendo estritamente de leitura.
@@ -8139,22 +8143,10 @@ router.get('/empresas/:id/entradas-manuais', async (req, res) => {
     // na prévia, mas cuja materialização local foi perdida por uma versão
     // anterior da sincronização. Elas são exibidas como lançamento contábil,
     // sem inventar item fiscal nem escondê-las da tela de entradas manuais.
-    const confirmadas=confirmacoesRazaoDaPrevia(empresaId).map((x)=>({
-      id:null, competencia:x.competencia, nome:x.parceiro, descricao:x.classificacao_questor,
-      valor:x.valor, cst_declarado:null, cclasstrib_declarado:null, origem:'QUESTOR_RAZAO',
-      documento:x.documento, conta_questor:x.conta_questor, lancamento_questor:x.lancamento_questor,
-      item_cadastrado:{ nome:x.classificacao_questor }, razao_confirmacao_persistida:true,
-      criado_em:null,
-    }));
-    const identidade=(x)=>String(x.chave || `${x.origem || ''}|${x.competencia || ''}|${x.documento || ''}|${x.valor || ''}|${x.descricao || ''}`);
-    const porIdentidade=new Map();
-    // A versão compartilhada prevalece porque é durável; a local e a prévia
-    // permanecem apenas como contingência para lançamentos legados.
-    // A cópia local contém o id estável para ações de ajuste; a remota é
-    // complementar e não pode sobrescrevê-la ao desduplicar pela chave.
-    [...confirmadas,...entradasCompartilhadas,...entradas].forEach((x)=>porIdentidade.set(identidade(x),x));
-    const todas=[...porIdentidade.values()].sort((a,b)=>String(b.competencia || '').localeCompare(String(a.competencia || '')));
-    ok(res,{ entradas:todas, total:todas.length, leitura:'Lançamentos manuais e inclusões Questor/Razão lidos da fonte compartilhada. Esta consulta não executa o motor nem altera documentos.' });
+    // A fonte compartilhada é canônica. Em contingência a página local é
+    // exibida sem mesclar carteiras nem desduplicar em memória.
+    const leitura=entradasCompartilhadas ? { entradas:entradasCompartilhadas.entradas.map(normalizarEntrada),total:entradasCompartilhadas.total,paginacao:entradasCompartilhadas.paginacao,fonte:'COMPARTILHADA' } : { entradas:locais,total:totalLocal,paginacao:{pagina,limite,totalPaginas:Math.max(1,Math.ceil(totalLocal/limite)),temAnterior:pagina>1,temProxima:offset+locais.length<totalLocal},fonte:'LOCAL_CONTINGENCIA' };
+    ok(res,{ ...leitura, leitura:'Página limitada; nenhum motor ou mesclagem de carteira foi executado.' });
   } catch(e) { erro(res,e); }
 });
 

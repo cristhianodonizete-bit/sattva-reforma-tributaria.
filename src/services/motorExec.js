@@ -56,6 +56,24 @@ const crypto = require('crypto');
 // que poderiam ter descartado indevidamente a exceção 200044 antes do QSA.
 const MOTOR_VERSION = 'motor-cbs-2026-10-06-credito-simples-c177';
 const hash = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 24);
+// Assinatura da origem canônica, independente da fotografia resultante. Ela é
+// gravada junto ao resultado para que a leitura possa rejeitar precisamente a
+// linha vencida após mudança de cadastro, sem recalcular toda a empresa.
+function assinaturaOrigemCanonica(movimento = {}, parceiro = {}) {
+  return crypto.createHash('sha256').update(JSON.stringify({
+    movimento_id: Number(movimento.id), tipo:movimento.tipo,
+    cnpj:String(movimento.inscr_federal || '').replace(/\D/g,''),
+    regime: parceiro.regime || movimento.regime || 'indeterminado',
+    regime_versao:Number(parceiro.regime_versao || movimento.regime_parceiro_versao || 1),
+    regime_origem:parceiro.regime_origem || movimento.regime_fonte || null,
+    ncm:movimento.ncm || null,nbs:movimento.nbs || null,lc116:movimento.lc116 || null,
+    cfop:movimento.cfop || null,cst:movimento.cst || null,csosn:movimento.csosn || null,
+    cclasstrib:movimento.cclasstrib || null,reducao:movimento.reducao || null,
+    valor:Number(movimento.valor || 0),base_calculo:Number(movimento.base_calculo || 0),
+    pis:Number(movimento.pis || 0),cofins:Number(movimento.cofins || 0),
+    situacao_documento:movimento.situacao_documento || 'AUTORIZADO',
+  })).digest('hex');
+}
 const versoesAtuais = () => {
   const params = regras.tudo();
   return { regra_version: hash(params), parametro_version: hash(params.regimes || params), catalogo_version: 'catalogo-local-v1', motor_version: MOTOR_VERSION };
@@ -207,9 +225,14 @@ function carregar(empresaId, sentido, movimentoIds = null) {
       FROM movimentos mq
       JOIN base_regime br ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(mq.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
         OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(mq.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8)
-      WHERE UPPER(COALESCE(mq.origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
+      -- Esta CTE é usada também pelo reprocessamento incremental. Ela não
+      -- pode materializar movimentos de outras empresas antes de o lote ser
+      -- aplicado: em produção isso fazia um lote pequeno percorrer a carteira
+      -- inteira e esgotava o heap do worker.
+      WHERE mq.empresa_id=? AND mq.tipo=?
+        AND UPPER(COALESCE(mq.origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
     )
-    SELECT m.*, COALESCE(q.regime,p.regime,m.regime,
+    SELECT m.*, COALESCE(d.valor,q.regime,p.regime,m.regime,
       CASE WHEN json_valid(COALESCE(m.normalizacao_evidencia,'')) THEN json_extract(m.normalizacao_evidencia,'$.fornecedor_vinculado.regime') END) AS regime_cadastro,
       p.perfil_economico AS perfil_cadastro, COALESCE(p.descricao,m.nome) AS nome_cadastro,
       p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro, p.multinacional AS multinacional_cadastro
@@ -219,14 +242,19 @@ function carregar(empresaId, sentido, movimentoIds = null) {
       AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')
         = REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
     LEFT JOIN regime_questor q ON q.id=m.id AND q.posicao=1
+    LEFT JOIN movimento_decisoes_fiscais d ON d.empresa_id=m.empresa_id AND d.movimento_id=m.id
+      AND d.campo='REGIME_FORNECEDOR' AND d.revogado_em IS NULL
     WHERE m.empresa_id = ? AND m.tipo = ? AND COALESCE(m.situacao_documento,'AUTORIZADO') NOT IN ('CANCELADO','DENEGADO','INUTILIZADO')`;
-  const p = [empresaId, tipo];
+  // Os dois primeiros parâmetros pertencem à CTE; os seguintes pertencem à
+  // leitura principal. Manter ambos explicitamente impede uma regressão que
+  // transforme o caminho incremental em varredura global.
+  const p = [empresaId, tipo, empresaId, tipo];
   if (Array.isArray(movimentoIds)) {
     if (!movimentoIds.length) return [];
     sql += ` AND m.id IN (${movimentoIds.map(() => '?').join(',')})`;
     p.push(...movimentoIds);
   }
-  const duplicadosRazao=sentido === 'entrada' ? idsRazaoDuplicadosPorDocumento(empresaId) : new Set();
+  const duplicadosRazao=sentido === 'entrada' ? idsRazaoDuplicadosPorDocumento(empresaId,movimentoIds) : new Set();
   return db.prepare(sql).all(...p).filter((m)=>!duplicadosRazao.has(Number(m.id)));
 }
 
@@ -694,15 +722,20 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
   } else db.prepare('DELETE FROM motor_resultados WHERE empresa_id = ?').run(empresaId);
   const ins = db.prepare(`INSERT INTO motor_resultados (empresa_id, movimento_id, execucao_id, sentido, ano,
     status_classificacao, status_credito, natureza, preco_atual, base_economica, ibs, cbs,
-    credito_ibs, credito_cbs, tipo_credito, modalidade_credito, status_credito_determinacao, movimento_hash, regra_version, catalogo_version, parceiro_version, parametro_version, motor_version, regime_cbs_emitente, regime_cbs_adquirente, preco_projetado, custo_liquido, cst, cclasstrib, tratamento,
+    credito_ibs, credito_cbs, tipo_credito, modalidade_credito, status_credito_determinacao, movimento_hash, regra_version, catalogo_version, parceiro_version, parametro_version, motor_version, assinatura_origem, versao_origem, regime_cbs_emitente, regime_cbs_adquirente, preco_projetado, custo_liquido, cst, cclasstrib, tratamento,
     perfil_destinatario, sensibilidade, estado_autonomia, codigo_causa, origem_resolucao, evidencia_utilizada, regra_vencedora, requer_intervencao_humana, motivo_intervencao, autonomia_calculo_cbs_propria, autonomia_credito_entrada, autonomia_credito_cliente, autonomia_classificatoria, autonomia_diagnostico_completo, memoria_autonomia_dimensoes, detalhe)
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
   db.transaction(() => {
     for (const x of linhas) {
       const movimento = db.prepare('SELECT * FROM movimentos WHERE id=?').get(x.movimento_id) || {};
-      const parceiro = db.prepare('SELECT * FROM parceiros WHERE empresa_id=? AND cnpj=? AND tipo=?').get(empresaId, movimento.inscr_federal || '', movimento.tipo || '');
+      const parceiro = db.prepare(`SELECT * FROM parceiros WHERE empresa_id=? AND tipo=?
+        AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cnpj,''),'.',''),'/',''),'-',''),' ','')=
+            REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(?,''),'.',''),'/',''),'-',''),' ','')`).get(empresaId, movimento.tipo || '', movimento.inscr_federal || '');
+      const decisao = db.prepare(`SELECT valor,versao,origem FROM movimento_decisoes_fiscais
+        WHERE empresa_id=? AND movimento_id=? AND campo='REGIME_FORNECEDOR' AND revogado_em IS NULL`).get(empresaId,x.movimento_id);
+      const parceiroResolvido = decisao ? { ...(parceiro || {}),regime:decisao.valor,regime_versao:decisao.versao,regime_origem:decisao.origem } : parceiro;
       const movimentoComRevisao = { ...movimento, revisaoBeneficio: x.revisaoBeneficio || null };
-      const versoes = versoesDaOperacao(movimentoComRevisao, parceiro);
+      const versoes = versoesDaOperacao(movimentoComRevisao, parceiroResolvido);
       const telemetria = autonomiaTelemetry.avaliar({
         ...x, detalhe: x, status_classificacao: x.classificacao?.status,
         status_credito_determinacao: x.credito?.statusDeterminacao,
@@ -714,7 +747,8 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
       ins.run(empresaId, x.movimento_id, id, x.sentido, ano,
         x.classificacao.status, x.credito.status, x.natureza,
         x.precoAtual, x.baseEconomica, x.ibs, x.cbs, x.creditoIbs, x.creditoCbs, x.credito.tipoCredito || null, x.credito.modalidadeCredito || null, x.credito.statusDeterminacao || null,
-        hashMovimento(movimentoComRevisao), versoes.regra_version, versoes.catalogo_version, hashParceiro(parceiro), versoes.parametro_version, versoes.motor_version, x.regimeCbsEmitente || null, x.regimeCbsAdquirente || null,
+        hashMovimento(movimentoComRevisao), versoes.regra_version, versoes.catalogo_version, hashParceiro(parceiroResolvido), versoes.parametro_version, versoes.motor_version,
+        assinaturaOrigemCanonica(movimentoComRevisao, parceiroResolvido), Number(parceiroResolvido?.regime_versao || movimento.regime_parceiro_versao || 1), x.regimeCbsEmitente || null, x.regimeCbsAdquirente || null,
         x.precoProjetado, x.custoLiquido, x.classificacao.cst, x.classificacao.cclasstrib,
         x.classificacao.tratamento, x.destinatario ? x.destinatario.perfil : null,
         x.sensibilidade ? x.sensibilidade.nivel : null,
@@ -726,7 +760,10 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
         dimensoes.autonomia_classificatoria, dimensoes.autonomia_diagnostico_completo == null ? null : Number(dimensoes.autonomia_diagnostico_completo), JSON.stringify(dimensoes.memoria), JSON.stringify(x));
     }
   })();
-  const linhasTelemetria = db.prepare('SELECT * FROM motor_resultados WHERE empresa_id=? AND execucao_id=?').all(empresaId, id);
+  // O lote recém-projetado já está em memória; reler toda a execução para
+  // telemetria faria o incremental materializar a carteira outra vez.
+  const linhasTelemetria=linhas.map((x)=>({ ...x,detalhe:x,status_classificacao:x.classificacao?.status,
+    status_credito:x.credito?.status,status_credito_determinacao:x.credito?.statusDeterminacao }));
   const consolidadoAutonomia = autonomiaTelemetry.consolidar(linhasTelemetria);
   db.prepare(`INSERT INTO telemetria_autonomia_execucoes
     (execucao_id,empresa_id,meta_autonomia,total_operacoes,operacoes_autonomas,operacoes_intervencao,taxa_autonomia,taxa_determinacao,taxa_simulacao,taxa_indeterminacao_automatica,taxa_intervencao_humana,estados_json,atualizado_em)
@@ -735,11 +772,11 @@ function gravar(empresaId, ano, resumo, entradas, saidas, opcoes = {}) {
     .run(id, empresaId, consolidadoAutonomia.meta_autonomia, consolidadoAutonomia.total_operacoes, consolidadoAutonomia.operacoes_autonomas, consolidadoAutonomia.operacoes_intervencao, consolidadoAutonomia.taxa_autonomia, consolidadoAutonomia.taxa_determinacao, consolidadoAutonomia.taxa_simulacao, consolidadoAutonomia.taxa_indeterminacao_automatica, consolidadoAutonomia.taxa_intervencao_humana, JSON.stringify(consolidadoAutonomia.estados), new Date().toISOString());
   // A fila não reprocessa nem escolhe uma classificação: só materializa o
   // dado/evidência que uma futura execução incremental deve aguardar.
-  pendenciasEnriquecimento.sincronizar(db, empresaId, id);
+  pendenciasEnriquecimento.sincronizar(db, empresaId, id, linhas.map((x)=>x.movimento_id));
   // A classificação e a reconstrução já foram tentadas pelo motor. Só agora
   // persistimos o que realmente ficou pendente, priorizado por materialidade.
   // Isso permite operar por exceção, sem revisão manual de toda a carteira.
-  excecoesMotor.sincronizar(empresaId, id);
+  excecoesMotor.sincronizar(empresaId, id, linhas.map((x)=>x.movimento_id));
   // Só remove a pendência depois de materializar e sincronizar todas as
   // consequências da execução. Em qualquer falha anterior, ela permanece.
   if (opcoes.incremental) {
@@ -879,12 +916,21 @@ function documentosEquivalentesRazao(a, b) {
 
 // O Razão preserva a evidência contábil, mas não é uma segunda aquisição
 // quando o XML da mesma nota já existe na empresa.
-function idsRazaoDuplicadosPorDocumento(empresaId) {
-  const movimentos=db.prepare(`SELECT id,origem,documento,valor,data_emissao,competencia,inscr_federal,normalizacao_evidencia
-    FROM movimentos WHERE empresa_id=? AND tipo='fornecedor'`).all(empresaId);
-  const fiscais=movimentos.filter((m)=>String(m.origem || '').toUpperCase()!=='QUESTOR_RAZAO');
-  return new Set(movimentos.filter((m)=>String(m.origem || '').toUpperCase()==='QUESTOR_RAZAO'
-    && fiscais.some((f)=>documentosEquivalentesRazao(m,f))).map((m)=>Number(m.id)));
+function idsRazaoDuplicadosPorDocumento(empresaId,movimentoIds=[]) {
+  const ids=[...new Set((movimentoIds||[]).map(Number).filter(Number.isInteger))];
+  if (!ids.length) return new Set();
+  // O Razão só é comparado contra a carteira fiscal para os IDs do lote
+  // incremental. O predicado fica no SQLite, sem materializar ambas as
+  // carteiras nem executar uma comparação quadrática em JavaScript.
+  const marcas=ids.map(()=>'?').join(',');
+  const linhas=db.prepare(`SELECT r.id FROM movimentos r
+    WHERE r.empresa_id=? AND r.tipo='fornecedor' AND r.origem='QUESTOR_RAZAO' AND r.id IN (${marcas})
+      AND EXISTS(SELECT 1 FROM movimentos f WHERE f.empresa_id=r.empresa_id AND f.tipo='fornecedor'
+        AND f.origem<>'QUESTOR_RAZAO' AND COALESCE(f.documento,'')=COALESCE(r.documento,'')
+        AND COALESCE(f.inscr_federal,'')=COALESCE(r.inscr_federal,'')
+        AND COALESCE(f.data_emissao,'')=COALESCE(r.data_emissao,'')
+        AND ABS(COALESCE(f.valor,0)-COALESCE(r.valor,0))<0.005)`).all(empresaId,...ids);
+  return new Set(linhas.map((m)=>Number(m.id)));
 }
 
 // Fotografias anteriores podem ter sido gravadas antes de a família de
@@ -961,4 +1007,4 @@ function reprocessarIncremental(empresaId, opcoes = {}) {
   return { empresa_id: empresaId, reprocessados: movimentoIds.length, removidos, status: 'CONCLUIDO', resultado };
 }
 
-module.exports = { executar, reprocessarIncremental, pendentesIncrementais, porFornecedor, porCliente, ultimaExecucao, resultados, resultadoMaterializado, normalizar, hashMovimento, versoesAtuais, versoesDaOperacao, idsRazaoDuplicadosPorDocumento, documentosEquivalentesRazao };
+module.exports = { executar, reprocessarIncremental, pendentesIncrementais, porFornecedor, porCliente, ultimaExecucao, resultados, resultadoMaterializado, normalizar, hashMovimento, assinaturaOrigemCanonica, versoesAtuais, versoesDaOperacao, idsRazaoDuplicadosPorDocumento, documentosEquivalentesRazao };

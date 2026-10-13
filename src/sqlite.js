@@ -26,6 +26,24 @@ function normalizar(params) {
   });
 }
 
+// Proteção de capacidade: `.all()` não pode transformar uma carteira inteira
+// de movimentos/resultados (nem o JSON que a acompanha) em um array Node.
+// Agregações SQL e lotes explicitamente delimitados continuam permitidos. Um
+// caminho legado que esqueça LIMIT/escopo falha de forma rastreável antes de
+// consumir o heap do processo web.
+function proibirCarteiraGlobal(sql) {
+  const q=String(sql||'').replace(/\s+/g,' ').toLowerCase();
+  if (!/\bfrom\s+(?:movimentos|motor_resultados)\b/.test(q)) return;
+  const limitado=/\blimit\b/.test(q);
+  const agregado=/\b(count|sum|avg|min|max)\s*\(|\bgroup by\b/.test(q);
+  const escopoExplicito=/\b(?:m\.)?id\s+in\s*\(|\b(?:m\.)?id\s*=\s*\?|\bmovimento_id\s+in\s*\(/.test(q);
+  if (!limitado && !agregado && !escopoExplicito) {
+    const erro=new Error(`LEITURA_GLOBAL_PROIBIDA: movimentos/resultados exigem LIMIT com cursor, agregação SQL ou IDs explícitos. Consulta: ${q.slice(0,180)}`);
+    erro.code='LEITURA_GLOBAL_PROIBIDA';
+    throw erro;
+  }
+}
+
 function abrirComNodeSqlite(caminho) {
   let DatabaseSync;
   try {
@@ -53,7 +71,7 @@ function abrirComNodeSqlite(caminho) {
           return { changes: Number(r.changes), lastInsertRowid: Number(r.lastInsertRowid) };
         },
         get: (...p) => st.get(...normalizar(p)),
-        all: (...p) => st.all(...normalizar(p)),
+        all: (...p) => { proibirCarteiraGlobal(sql); return st.all(...normalizar(p)); },
       };
     },
     transaction(fn) {
@@ -73,6 +91,12 @@ function abrir(caminho) {
     const db = new Better(caminho);
     db.pragma(`journal_mode = ${modoJournal()}`);
     db.pragma('foreign_keys = ON');
+    const preparar=db.prepare.bind(db);
+    db.prepare=(sql)=>{
+      const st=preparar(sql), todos=st.all.bind(st);
+      st.all=(...p)=>{ proibirCarteiraGlobal(sql); return todos(...normalizar(p)); };
+      return st;
+    };
     db.motor = 'better-sqlite3';
     return db;
   } catch (_) {

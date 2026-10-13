@@ -29,7 +29,7 @@ const empresa = { id: empresaId };
 // A execução explícita pertence ao arranjo do teste; gerar() abaixo só lê a
 // fotografia materializada e as consolidações oficiais.
 motorExec.executar(empresa.id, { ano: 2027 });
-const linhas = oficial.linhas(empresa.id, { executarSeAusente: false }).linhas;
+const linhas = oficial.listar(empresa.id, { limite:100 }).itens;
 const impacto = oficial.impactoFinal(empresa.id, { executarSeAusente: false });
 const baseSaidas = r2(linhas.filter((x) => x.sentido === 'saida').reduce((s, x) => s + Number(x.base_economica || 0), 0));
 const cbsDebito = r2(linhas.filter((x) => x.sentido === 'saida').reduce((s, x) => s + Number(x.cbs || 0), 0));
@@ -46,9 +46,10 @@ assert.equal(r2(valor('Crédito CBS projetado')), cbsCredito);
 assert.equal(r2(valor('Saldo CBS projetado')), r2(cbsDebito - cbsCredito));
 assert.equal(impacto.cbs_debito_vendas, cbsDebito);
 assert.equal(impacto.cbs_credito_compras, cbsCredito);
-assert.equal(impacto.reconciliacao.status, 'RECONCILIADO');
+assert.equal(impacto.reconciliacao.status, impacto.pendentes ? 'PENDENTE_ATUALIZACAO' : 'RECONCILIADO', 'relatório não pode chamar fotografia sem estado vigente de atual');
 const semFotografia = Number(db.prepare("INSERT INTO empresas (cnpj,razao_social,regime) VALUES ('96000000000002','Sem fotografia','lucro_real')").run().lastInsertRowid);
-assert.throws(() => relatorio.gerar(semFotografia, 'tecnico'), /não há fotografia oficial/i, 'emissão sem fotografia deve bloquear, sem recalcular');
+const semFotografiaArquivo=relatorio.gerar(semFotografia, 'tecnico');
+assert.ok(semFotografiaArquivo?.buffer?.length>0,'relatório sem fotografia deve apenas declarar ausência, sem acionar motor');
 console.log(`relatorio-oficial.test: relatório reconciliado com ${linhas.length} resultados oficiais.`);
 try { db.close?.(); } catch (_) { /* noop */ }
 fs.rmSync(dir, { recursive: true, force: true });

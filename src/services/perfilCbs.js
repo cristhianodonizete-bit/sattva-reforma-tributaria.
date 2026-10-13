@@ -61,16 +61,21 @@ function grupoCredito(linha, detalhe) {
   return 'compras_credito_indeterminado';
 }
 
-function dadosPorCompetencia(empresaId, execucaoId, periodo) {
+function dadosPorCompetencia(empresaId, execucaoId, periodo, movimentoIds = []) {
   // Uma competência só pode ser consolidada a partir da fotografia ativa. Sem
   // este recorte, execuções históricas seriam somadas à execução vigente e a
   // auditoria passaria a divergir do Perfil Tributário confirmado.
   if (!Number.isInteger(Number(execucaoId)) || Number(execucaoId) <= 0) return [];
+  if (!Array.isArray(movimentoIds) || movimentoIds.length === 0) {
+    throw new Error('MATERIALIZACAO_GLOBAL_PROIBIDA: Perfil CBS exige movimento_ids explícitos. Use listar() para leitura analítica.');
+  }
+  const marcadores = movimentoIds.map(() => '?').join(',');
   return db.prepare(`SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.modelo_documento_fiscal, m.origem,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento
     FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
-    WHERE r.empresa_id=? AND r.execucao_id=? AND COALESCE(m.competencia,'')<>''
-    ORDER BY m.competencia, r.id`).all(empresaId, Number(execucaoId))
+    LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id
+    WHERE r.empresa_id=? AND r.execucao_id=? AND r.movimento_id IN (${marcadores}) AND pe.situacao='ATUAL' AND COALESCE(m.competencia,'')<>''
+    ORDER BY m.competencia, r.id`).all(empresaId, Number(execucaoId), ...movimentoIds)
     .filter((x) => !periodo || periodoAnalisado.noPeriodo(x.competencia, periodo))
     .filter((x) => x.sentido !== 'saida'
       || receitaOperacional.compoeReceita({ ...x, tipo:x.tipo_movimento })
@@ -78,6 +83,11 @@ function dadosPorCompetencia(empresaId, execucaoId, periodo) {
 }
 
 function materializar(empresaId, opcoes = {}) {
+  const movimentoIds = Array.isArray(opcoes.movimentoIds) ? opcoes.movimentoIds.map(Number).filter(Number.isFinite) : [];
+  if (!movimentoIds.length) {
+    throw new Error('MATERIALIZACAO_GLOBAL_PROIBIDA: Perfil CBS exige movimento_ids explícitos. Use listar() para leitura analítica.');
+  }
+  invalidarMemoria();
   let execucao = motorExec.ultimaExecucao(empresaId);
   // A consolidação não possui motor próprio: quando há mudança, pede ao
   // orquestrador que atualize apenas as linhas invalidadas. A execução
@@ -89,12 +99,12 @@ function materializar(empresaId, opcoes = {}) {
   if (!execucao) return { execucao: null, competencias: [] };
   const periodo = periodoAnalisado.obter(empresaId);
   const escopo = periodo ? `${periodo.competencia_inicio}:${periodo.competencia_fim}` : 'sem-periodo';
-  const chave = `${empresaId}:${execucao.id}:${escopo}`;
+  const chave = `${empresaId}:${execucao.id}:${escopo}:${movimentoIds.slice().sort((a,b)=>a-b).join(',')}`;
   const emMemoria = perfisPorExecucao.get(chave);
   if (emMemoria) return { execucao, competencias: emMemoria, motorExecutado };
 
   const grupos = new Map();
-  for (const linha of dadosPorCompetencia(empresaId, execucao.id, periodo)) {
+  for (const linha of dadosPorCompetencia(empresaId, execucao.id, periodo, movimentoIds)) {
     const competencia = linha.competencia;
     if (!grupos.has(competencia)) grupos.set(competencia, { empresa_id: empresaId, competencia,
       receita_bruta: 0, compras_brutas: 0, base_economica_saidas: 0, base_economica_entradas: 0,
@@ -144,11 +154,31 @@ function materializar(empresaId, opcoes = {}) {
   return { execucao, periodo_analisado:periodo || null, competencias: guardarPerfil(empresaId, execucao.id, saida, escopo), motorExecutado };
 }
 
-function listar(empresaId) { return db.prepare('SELECT * FROM perfil_cbs_competencias WHERE empresa_id=? ORDER BY competencia DESC').all(empresaId); }
+function listar(empresaId, filtros={}) {
+  const limite=Math.min(100,Math.max(1,Number(filtros.limite)||100));
+  const cursor=String(filtros.cursor||'');
+  const p=[empresaId]; let onde='empresa_id=?';
+  if (cursor) { onde+=' AND competencia<?'; p.push(cursor); }
+  const linhas=db.prepare(`SELECT id,empresa_id,competencia,receita_bruta,compras_brutas,base_economica_saidas,
+    base_economica_entradas,cbs_debito,cbs_credito,cbs_liquida,aliquota_efetiva_cbs_saida,
+    taxa_recuperacao_cbs_entrada,receita_tributacao_integral,receita_reducao_cbs,
+    receita_aliquota_zero_cbs,receita_imunidade_cbs,receita_regime_especifico_cbs,
+    receita_beneficio_governo_cbs,receita_tratamento_indeterminado_cbs,compras_credito_normal,
+    compras_credito_limitado,compras_credito_simples,compras_credito_presumido,compras_sem_credito,
+    compras_credito_indeterminado,cobertura_classificacao_cbs,cobertura_base_economica,
+    cobertura_credito_cbs,percentual_real,percentual_calculado,percentual_simulado,
+    percentual_indeterminado,quantidade_documentos,quantidade_operacoes,motor_execucao_id,atualizado_em
+    FROM perfil_cbs_competencias WHERE ${onde} ORDER BY competencia DESC LIMIT ?`).all(...p,limite);
+  return {itens:linhas,paginacao:{limite,cursor:linhas.at(-1)?.competencia||null,tem_proxima:linhas.length===limite}};
+}
 function detalhes(empresaId, competencia, filtros = {}) {
-  let sql = `SELECT r.*,m.competencia,m.documento,m.chave,m.descricao,m.ncm,m.nbs,m.cfop,m.origem,m.nome,m.inscr_federal
-    FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id WHERE r.empresa_id=? AND m.competencia=?`;
+  const limite=Math.min(100,Math.max(1,Number(filtros.limite)||100));
+  let sql = `SELECT r.id resultado_id,r.movimento_id,r.sentido,r.status_classificacao,r.status_credito,r.preco_atual,r.base_economica,r.ibs,r.cbs,r.credito_ibs,r.credito_cbs,r.cst,r.cclasstrib,r.tratamento,
+    m.competencia,m.documento,m.chave,m.descricao,m.ncm,m.nbs,m.cfop,m.origem,m.nome,m.inscr_federal
+    FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
+    LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id
+    WHERE r.empresa_id=? AND m.competencia=? AND pe.situacao='ATUAL'`;
   const p = [empresaId, competencia]; if (filtros.sentido) { sql += ' AND r.sentido=?'; p.push(filtros.sentido); }
-  return db.prepare(`${sql} ORDER BY r.preco_atual DESC`).all(...p).map((x) => ({ ...x, detalhe: JSON.parse(x.detalhe || '{}') }));
+  return db.prepare(`${sql} ORDER BY r.preco_atual DESC,r.id DESC LIMIT ?`).all(...p,limite);
 }
 module.exports = { materializar, listar, detalhes, naturezaApresentacao, invalidarMemoria };

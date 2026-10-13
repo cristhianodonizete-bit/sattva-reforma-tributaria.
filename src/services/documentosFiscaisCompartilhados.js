@@ -141,19 +141,21 @@ async function listarOpcoesFiltros(cnpj, sentido) {
 // As inclusões do Razão/Questor são lançamentos contábeis, por isso também
 // precisam ser lidas diretamente pela tela de Entradas manuais quando a
 // instância ainda não recompôs a cópia local.
-async function listarEntradasQuestor(cnpj) {
+async function listarEntradasQuestor(cnpj, opcoes = null) {
   if (!process.env.SUPABASE_DB_URL) throw new Error('Fonte compartilhada indisponível para as entradas do Questor.');
   const db = await obterPool().connect();
   try {
     await db.query('BEGIN READ ONLY');
     const empresa=await db.query("SELECT id FROM public.empresas WHERE regexp_replace(cnpj,'[^0-9]','','g')=$1 LIMIT 2",[String(cnpj).replace(/\D/g,'')]);
     if (empresa.rows.length !== 1) throw new Error('Empresa compartilhada não identificada unicamente para as entradas do Questor.');
+    const l=Math.min(100,Math.max(1,Number(opcoes?.limite)||100)), p=Math.max(1,Number(opcoes?.pagina)||1), offset=(p-1)*l;
     const dados=await db.query(`SELECT id,competencia,nome,descricao,valor,origem,cst_declarado,cclasstrib_declarado,
       normalizacao_evidencia,chave,documento,criado_em
       FROM public.movimentos WHERE empresa_id=$1 AND origem IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
-      ORDER BY competencia DESC,id DESC`,[empresa.rows[0].id]);
+      ORDER BY competencia DESC,id DESC LIMIT $2 OFFSET $3`,[empresa.rows[0].id,l,offset]);
+    const total=Number((await db.query("SELECT COUNT(*)::int total FROM public.movimentos WHERE empresa_id=$1 AND origem IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')",[empresa.rows[0].id])).rows[0]?.total||0);
     await db.query('ROLLBACK');
-    return dados.rows;
+    return opcoes ? { entradas:dados.rows,total,paginacao:{pagina:p,limite:l,totalPaginas:Math.max(1,Math.ceil(total/l)),temAnterior:p>1,temProxima:offset+dados.rows.length<total} } : dados.rows;
   } catch (e) { try { await db.query('ROLLBACK'); } catch (_) {} throw e; }
   finally { db.release(); }
 }

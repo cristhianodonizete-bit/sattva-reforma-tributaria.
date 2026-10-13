@@ -56,8 +56,11 @@ function assinarEntrada(empresaId, opcoes = {}) {
   for (const tabela of [...FONTES_EMPRESA, ...FONTES_GLOBAIS]) fontes[tabela] = ordenar(linhasDaTabela(tabela, empresaId, opcoes));
   return { algoritmo:'sha256-v1', assinatura:hash(fontes), fontes: Object.fromEntries(Object.entries(fontes).map(([nome, linhas]) => [nome, linhas.length])) };
 }
-function assinarResultado(empresaId, execucaoId) {
-  const linhas = db.prepare(`SELECT movimento_id,sentido,ano,status_classificacao,status_credito,natureza,preco_atual,base_economica,ibs,cbs,credito_ibs,credito_cbs,tipo_credito,modalidade_credito,status_credito_determinacao,movimento_hash,regra_version,catalogo_version,parceiro_version,parametro_version,motor_version,regime_cbs_emitente,regime_cbs_adquirente,preco_projetado,custo_liquido,cst,cclasstrib,tratamento,perfil_destinatario,sensibilidade,estado_autonomia,codigo_causa,origem_resolucao,evidencia_utilizada,regra_vencedora,requer_intervencao_humana,motivo_intervencao,detalhe FROM motor_resultados WHERE empresa_id=? AND execucao_id=?`).all(empresaId, execucaoId);
+function assinarResultado(empresaId, execucaoId, opcoes={}) {
+  const ids=[...new Set((opcoes.movimentoIds||[]).map(Number).filter(Number.isInteger))];
+  if (!ids.length) throw new Error('Assinatura global de resultados proibida: informe os movimentos do lote.');
+  const marcas=ids.map(()=>'?').join(',');
+  const linhas = db.prepare(`SELECT movimento_id,sentido,ano,status_classificacao,status_credito,natureza,preco_atual,base_economica,ibs,cbs,credito_ibs,credito_cbs,tipo_credito,modalidade_credito,status_credito_determinacao,movimento_hash,regra_version,catalogo_version,parceiro_version,parametro_version,motor_version,regime_cbs_emitente,regime_cbs_adquirente,preco_projetado,custo_liquido,cst,cclasstrib,tratamento,perfil_destinatario,sensibilidade,estado_autonomia,codigo_causa,origem_resolucao,evidencia_utilizada,regra_vencedora,requer_intervencao_humana,motivo_intervencao,detalhe FROM motor_resultados WHERE empresa_id=? AND execucao_id=? AND movimento_id IN (${marcas})`).all(empresaId, execucaoId,...ids);
   const distintos = new Set(linhas.map((x) => String(x.movimento_id))).size;
   if (distintos !== linhas.length) throw new Error('Integridade do motor: a execução contém mais de um resultado para o mesmo item fiscal.');
   return { algoritmo:'sha256-v1', assinatura:hash(ordenar(linhas)), itens:linhas.length };

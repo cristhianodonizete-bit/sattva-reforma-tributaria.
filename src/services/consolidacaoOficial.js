@@ -14,6 +14,7 @@ const periodoAnalisado = require('./periodoAnalisado');
 const receitaOperacional = require('./receitaOperacional');
 const motor = require('../engine/motor');
 const { simplesEfetivo } = require('../engine/reconstrucao');
+const projecoesMovimentos = require('./projecoesMovimentos');
 
 const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
 const r2 = (v) => Math.round(n(v) * 100) / 100;
@@ -60,6 +61,12 @@ function ultimaExecucao(empresaId, opcoes = {}) {
 function linhas(empresaId, opcoes = {}) {
   const execucao = ultimaExecucao(empresaId, opcoes);
   if (!execucao) return { execucao: null, linhas: [] };
+  // A leitura não inicia cálculo. Ela só materializa o estado de validade da
+  // fotografia diante da fonte canônica atual; portanto uma decisão recém
+  // confirmada deixa de usar o resultado antigo imediatamente, mesmo se o
+  // worker estiver pendente ou tiver falhado.
+  // Leitura analítica não reconcilia nem recalcula: consulta exclusivamente o
+  // estado persistido publicado pelo fluxo incremental ou pela migração.
   const aplicarEscopo = (dados) => {
     const periodo = periodoAnalisado.obter(empresaId);
     const chavePeriodo = periodo ? `${periodo.competencia_inicio}:${periodo.competencia_fim}` : 'sem-periodo';
@@ -78,6 +85,7 @@ function linhas(empresaId, opcoes = {}) {
       FROM movimentos mb
       JOIN base_regime br ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(mb.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
         OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(mb.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8)
+      WHERE mb.empresa_id=?
     )
     SELECT r.*, m.competencia, m.documento, m.chave, m.descricao, m.ncm, m.nbs, m.cfop, m.modelo_documento_fiscal,
       m.nome, m.inscr_federal, m.tipo AS tipo_movimento, m.origem AS origem_movimento,
@@ -95,22 +103,47 @@ function linhas(empresaId, opcoes = {}) {
           OR LOWER(COALESCE(p.regime,'')) IN ('','regular','regime_regular','indeterminado') THEN rb.regime
         ELSE p.regime
       END,''), NULLIF(p.regime,''), r.regime_cbs_emitente, 'indeterminado') AS regime_parceiro,
-      p.descricao AS parceiro_cadastrado
+      p.descricao AS parceiro_cadastrado,
+      COALESCE(d.valor,p.regime) AS regime_canonico_atual,
+      pe.situacao AS situacao_projecao, pe.motivo AS motivo_projecao, pe.job_id AS job_atualizacao
     FROM motor_resultados r
     JOIN movimentos m ON m.id=r.movimento_id
-    LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo AND p.cnpj=m.inscr_federal
+    LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo
+      AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')=
+          REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
+    LEFT JOIN movimento_decisoes_fiscais d ON d.empresa_id=m.empresa_id AND d.movimento_id=m.id
+      AND d.campo='REGIME_FORNECEDOR' AND d.revogado_em IS NULL
     LEFT JOIN regime_base rb ON rb.id=m.id AND rb.posicao=1
+    LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=m.empresa_id AND pe.movimento_id=m.id
     WHERE r.empresa_id=?
-  ORDER BY r.preco_atual DESC, r.id`).all(empresaId).map((x) => {
+  ORDER BY r.preco_atual DESC, r.id`).all(empresaId, empresaId).map((x) => {
     let detalhe = {}; try { detalhe = JSON.parse(x.detalhe || '{}'); } catch (_) { /* detalhe inválido vira pendência */ }
-    // `parceiros` e `movimentos` entram no join apenas para localizar a linha
-    // física. A apresentação tributária vem exclusivamente do snapshot que
-    // gerou CBS/crédito, nunca do cadastro vivo atualizado depois do cálculo.
+    const vencida = x.situacao_projecao && x.situacao_projecao !== projecoesMovimentos.ESTADOS.ATUAL;
+    if (vencida) {
+      // Nunca deixe uma fotografia vencida voltar a parecer vigente por meio
+      // de um valor, detalhe ou total remanescente. A decisão canônica fica
+      // disponível para a tela, enquanto o financeiro aguarda o delta.
+      return {
+        ...x,
+        detalhe: { decisao_canonica: {
+          parceiro: x.parceiro_cadastrado || x.nome || '',
+          regime: x.regime_canonico_atual || x.regime_parceiro || 'indeterminado',
+        }, atualizacao: { situacao:x.situacao_projecao, motivo:x.motivo_projecao || null, job_id:x.job_atualizacao || null } },
+        parceiro_cadastrado: x.parceiro_cadastrado || x.nome || '',
+        regime_parceiro: x.regime_canonico_atual || x.regime_parceiro || 'indeterminado',
+        resultado_vigente:false,
+        preco_atual:null, base_economica:null, ibs:null, cbs:null, credito_ibs:null, credito_cbs:null,
+        preco_projetado:null, custo_liquido:null,
+      };
+    }
+    // Quando a assinatura confere, a fotografia mantém o contexto histórico
+    // exato que gerou o cálculo, inclusive para auditoria.
     return {
       ...x,
       detalhe,
       parceiro_cadastrado: detalhe.contraparte || x.parceiro_cadastrado || x.nome || '',
       regime_parceiro: detalhe.regimeEmitente || x.regime_cbs_emitente || x.regime_parceiro || 'indeterminado',
+      resultado_vigente:true,
     };
   }).filter((x)=>!duplicadosRazao.has(Number(x.movimento_id)));
   return aplicarEscopo(guardarLinhas(empresaId, execucao.id, dados));
@@ -414,7 +447,7 @@ function outrasReceitasDaCadeiaCliente(empresaId, periodo, ano) {
   });
 }
 
-function cadeia(empresaId, tipo, opcoes = {}) {
+function cadeiaLegadaInacessivel(empresaId, tipo, opcoes = {}) {
   const lado = tipo === 'cliente' ? 'cliente' : 'fornecedor';
   const sentido = lado === 'cliente' ? 'saida' : 'entrada';
   const regimeEmpresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime || '';
@@ -669,7 +702,7 @@ function cadeia(empresaId, tipo, opcoes = {}) {
   return resultado;
 }
 
-function impactoFinal(empresaId, opcoes = {}) {
+function impactoFinalLegadoInacessivel(empresaId, opcoes = {}) {
   const base = linhas(empresaId, opcoes); const saidas = base.linhas.filter((x) => x.sentido === 'saida'); const entradas = base.linhas.filter((x) => x.sentido === 'entrada');
   const regimeEmpresa = db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime || '';
   const soma = (lista, campo) => r2(lista.reduce((s, x) => s + n(x[campo]), 0));
@@ -729,4 +762,85 @@ function impactoFinal(empresaId, opcoes = {}) {
     drill_down: { clientes: 'clientes', fornecedores: 'fornecedores', memoria_atual: 'perfil' } };
 }
 
-module.exports = { linhas, cadeia, impactoFinal, ultimaExecucao, invalidarCacheEmpresa, faixaTributacao, leituraBeneficio, leitura200044, filtrarLinhasDoEscopo };
+/*
+ * Consulta SQL limitada. O legado acima fica temporariamente no arquivo para
+ * referência de regra de negócio, mas não é exportado nem pode ser chamado por
+ * rota alguma. Nenhuma função abaixo seleciona `detalhe` em listas ou totais.
+ */
+const MAX_PAGE = 100;
+const JOIN_PROJECAO = `
+  FROM motor_resultados r
+  JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
+  LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id
+  LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo
+    AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')=
+        REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
+  LEFT JOIN movimento_decisoes_fiscais d ON d.empresa_id=m.empresa_id AND d.movimento_id=m.id
+    AND d.campo='REGIME_FORNECEDOR' AND d.revogado_em IS NULL`;
+const PROJECAO_ATUAL = "pe.situacao='ATUAL'";
+const REGIME_CANONICO = "COALESCE(NULLIF(d.valor,''),NULLIF(p.regime,''),NULLIF(m.regime,''),r.regime_cbs_emitente,'indeterminado')";
+const ESTADO_PROJECAO = "COALESCE(pe.situacao,'PENDENCIA_REAL')";
+function rotuloRegimeSql(regime) {
+  return ({ lucro_real:'Lucro Real',lucro_presumido:'Lucro Presumido',simples_nacional:'Simples Nacional',mei:'MEI',regime_regular:'Regular' })[normalizarRegimeFornecedor(regime)] || 'Perfil desconhecido';
+}
+function escopoPersistido(empresaId, opcoes={}) {
+  const execucao=ultimaExecucao(empresaId,opcoes);
+  if(!execucao) return { execucao:null,periodo:null,where:'1=0',params:[] };
+  const periodo=periodoAnalisado.obter(empresaId); let where='r.empresa_id=? AND r.execucao_id=?'; const params=[Number(empresaId),Number(execucao.id)];
+  if(periodo?.competencia_inicio){ where+=" AND COALESCE(m.competencia,'')>=?"; params.push(periodo.competencia_inicio); }
+  if(periodo?.competencia_fim){ where+=" AND COALESCE(m.competencia,'')<=?"; params.push(periodo.competencia_fim); }
+  const sentido=opcoes.sentido || (opcoes.tipo==='cliente'?'saida':opcoes.tipo==='fornecedor'?'entrada':null);
+  if(sentido){ where+=' AND r.sentido=?'; params.push(sentido); }
+  return {execucao,periodo,where,params};
+}
+function resumo(empresaId,opcoes={}) {
+  const e=escopoPersistido(empresaId,opcoes); if(!e.execucao) return {execucao:null,periodo:null,total:0,vigentes:0,pendentes:0,totais:{}};
+  const row=db.prepare(`SELECT COUNT(*) total,SUM(CASE WHEN ${PROJECAO_ATUAL} THEN 1 ELSE 0 END) vigentes,SUM(CASE WHEN ${PROJECAO_ATUAL} THEN 0 ELSE 1 END) pendentes,
+    COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_atual ELSE 0 END),0) valor,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.base_economica ELSE 0 END),0) base_economica,
+    COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.cbs ELSE 0 END),0) cbs,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.ibs ELSE 0 END),0) ibs,
+    COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.credito_cbs ELSE 0 END),0) credito_cbs,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.credito_ibs ELSE 0 END),0) credito_ibs,
+    COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_projetado ELSE 0 END),0) preco_final,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.custo_liquido ELSE 0 END),0) custo_liquido
+    ${JOIN_PROJECAO} WHERE ${e.where}`).get(...e.params);
+  const totais={}; for(const [k,v] of Object.entries(row||{})) if(!['total','vigentes','pendentes'].includes(k)) totais[k]=r2(v);
+  return {execucao:e.execucao,periodo:e.periodo,total:n(row?.total),vigentes:n(row?.vigentes),pendentes:n(row?.pendentes),totais};
+}
+function cursorLer(valor){ try { const x=JSON.parse(Buffer.from(String(valor||''),'base64url').toString('utf8')); return Number.isInteger(Number(x?.id))?x:null; } catch(_){ return null; } }
+function cursorGravar(valor){ return Buffer.from(JSON.stringify(valor)).toString('base64url'); }
+function listar(empresaId,opcoes={}) {
+  const e=escopoPersistido(empresaId,opcoes),limite=Math.min(MAX_PAGE,Math.max(1,Number(opcoes.limite)||100)); if(!e.execucao)return {execucao:null,itens:[],limite,proximo_cursor:null};
+  const ordem=String(opcoes.ordem||opcoes.ordenar||'valor').toLowerCase(); const campos={valor:'r.preco_atual',competencia:'m.competencia',documento:'m.documento',fornecedor:'m.nome',regime:REGIME_CANONICO};
+  const campo=campos[ordem]||campos.valor,direcao=String(opcoes.direcao||'desc').toLowerCase()==='asc'?'ASC':'DESC',cursor=cursorLer(opcoes.cursor); let where=e.where; const params=[...e.params];
+  if(cursor){ const sinal=direcao==='ASC'?'>':'<'; where+=` AND (${campo} ${sinal} ? OR (${campo}=? AND r.id ${sinal} ?))`; params.push(cursor.valor,cursor.valor,Number(cursor.id)); }
+  for(const [f,col] of Object.entries({documento:"COALESCE(m.documento,m.chave,'')",fornecedor:"COALESCE(m.nome,p.descricao,'')",regime:REGIME_CANONICO,servico:"COALESCE(m.descricao,m.nbs,m.ncm,'')"})) if(opcoes[f]){where+=` AND LOWER(${col}) LIKE ?`;params.push(`%${String(opcoes[f]).toLowerCase()}%`);}
+  const rows=db.prepare(`SELECT r.id resultado_id,r.movimento_id,r.sentido,r.status_classificacao,r.status_credito,r.cst,r.cclasstrib,r.tratamento,
+    m.competencia,m.documento,m.chave,m.descricao,m.ncm,m.nbs,m.cfop,m.nome,m.inscr_federal,m.origem,${REGIME_CANONICO} regime_canonico,${ESTADO_PROJECAO} situacao_projecao,pe.motivo motivo_projecao,pe.job_id,
+    CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_atual END preco_atual,CASE WHEN ${PROJECAO_ATUAL} THEN r.base_economica END base_economica,CASE WHEN ${PROJECAO_ATUAL} THEN r.cbs END cbs,CASE WHEN ${PROJECAO_ATUAL} THEN r.ibs END ibs,
+    CASE WHEN ${PROJECAO_ATUAL} THEN r.credito_cbs END credito_cbs,CASE WHEN ${PROJECAO_ATUAL} THEN r.credito_ibs END credito_ibs,CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_projetado END preco_projetado,CASE WHEN ${PROJECAO_ATUAL} THEN r.custo_liquido END custo_liquido,${campo} valor_cursor
+    ${JOIN_PROJECAO} WHERE ${where} ORDER BY ${campo} ${direcao},r.id ${direcao} LIMIT ?`).all(...params,limite+1);
+  const mais=rows.length>limite,itens=rows.slice(0,limite).map((x)=>({...x,regime_parceiro:normalizarRegimeFornecedor(x.regime_canonico),resultado_vigente:x.situacao_projecao==='ATUAL',creditoPotencial:x.credito_cbs==null?null:r2(n(x.credito_cbs)+n(x.credito_ibs)),impactoOperacao:x.preco_atual==null?null:r2(n(x.preco_projetado)-n(x.preco_atual))})); const ultimo=itens.at(-1);
+  return {execucao:e.execucao,periodo:e.periodo,itens,limite,proximo_cursor:mais&&ultimo?cursorGravar({valor:ultimo.valor_cursor,id:ultimo.resultado_id}):null};
+}
+function detalhe(empresaId,movimentoId){
+  const e=escopoPersistido(empresaId);if(!e.execucao)return null;const row=db.prepare(`SELECT r.*,m.competencia,m.documento,m.chave,m.descricao,m.ncm,m.nbs,m.cfop,m.nome,m.inscr_federal,m.origem,${REGIME_CANONICO} regime_canonico,${ESTADO_PROJECAO} situacao_projecao,pe.motivo motivo_projecao,pe.job_id ${JOIN_PROJECAO} WHERE ${e.where} AND m.id=? LIMIT 1`).get(...e.params,Number(movimentoId));
+  if(!row)return null;let memoria={};try{memoria=JSON.parse(row.detalhe||'{}')}catch(_){memoria={erro:'DETALHE_INVALIDO'}};if(row.situacao_projecao!=='ATUAL')for(const k of ['preco_atual','base_economica','cbs','ibs','credito_cbs','credito_ibs','preco_projetado','custo_liquido'])row[k]=null;return {...row,regime_parceiro:normalizarRegimeFornecedor(row.regime_canonico),resultado_vigente:row.situacao_projecao==='ATUAL',detalhe:memoria};
+}
+function cadeia(empresaId,tipo,opcoes={}){
+  const sentido=tipo==='cliente'?'saida':'entrada',e=escopoPersistido(empresaId,{sentido}),base=resumo(empresaId,{sentido}),t=base.totais||{};
+  const totais={registros:base.total,valor:t.valor||0,baseEconomica:t.base_economica||0,cbs:t.cbs||0,ibs:t.ibs||0,creditoFinal:r2(n(t.credito_cbs)+n(t.credito_ibs)),creditoPotencial:r2(n(t.credito_cbs)+n(t.credito_ibs)),precoFinal:t.preco_final||0,custoLiquido:t.custo_liquido||0}; if(!e.execucao)return {execucao:null,totais,parceiros:[],regimes:[],detalhes:[],paginaDetalhes:{limite:MAX_PAGE,total:0},pendenciasPisCofins:[],resumoPendenciasPisCofins:{registros:0,valor:0},cenarios:[],riscos:[],operacoesBeneficios:[],tratamentoBeneficios:{operacoes:0}};
+  const parceiros=db.prepare(`SELECT COALESCE(m.inscr_federal,'') cnpj,COALESCE(NULLIF(p.descricao,''),NULLIF(m.nome,''),'Sem identificação') nome,${REGIME_CANONICO} regime,COUNT(*) itens,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_atual ELSE 0 END),0) valor,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.base_economica ELSE 0 END),0) baseEconomica,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.cbs ELSE 0 END),0) cbs,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.ibs ELSE 0 END),0) ibs,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.credito_cbs+r.credito_ibs ELSE 0 END),0) creditoFinal,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_projetado ELSE 0 END),0) precoFinal,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.custo_liquido ELSE 0 END),0) custoLiquido ${JOIN_PROJECAO} WHERE ${e.where} GROUP BY cnpj,nome,regime ORDER BY valor DESC,nome ASC LIMIT ?`).all(...e.params,MAX_PAGE).map((x)=>({...x,regime:normalizarRegimeFornecedor(x.regime),regimeLabel:rotuloRegimeSql(x.regime),representatividade:totais.valor?r4(n(x.valor)/totais.valor):0,impactoOperacao:r2(n(x.precoFinal)-n(x.valor))}));
+  const regimes=db.prepare(`SELECT ${REGIME_CANONICO} regime,COUNT(*) itens,COUNT(DISTINCT COALESCE(m.inscr_federal,m.nome,m.id)) parceiros,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_atual ELSE 0 END),0) valor,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.base_economica ELSE 0 END),0) baseEconomica,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.cbs ELSE 0 END),0) cbs,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.ibs ELSE 0 END),0) ibs,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.credito_cbs+r.credito_ibs ELSE 0 END),0) creditoFinal,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_projetado ELSE 0 END),0) precoFinal ${JOIN_PROJECAO} WHERE ${e.where} GROUP BY regime ORDER BY valor DESC`).all(...e.params).map((x)=>({...x,regime:normalizarRegimeFornecedor(x.regime),label:rotuloRegimeSql(x.regime),representatividade:totais.valor?r4(n(x.valor)/totais.valor):0,creditoPotencial:n(x.creditoFinal),impactoOperacao:r2(n(x.precoFinal)-n(x.valor))}));
+  const pagina=listar(empresaId,{sentido,limite:opcoes.limiteDetalhes||opcoes.limite,cursor:opcoes.cursor,ordenar:opcoes.ordenarDetalhes||opcoes.ordenar,direcao:opcoes.direcaoDetalhes||opcoes.direcao,documento:opcoes.filtroDocumento,fornecedor:opcoes.filtroParceiro,regime:opcoes.filtroRegime,servico:opcoes.filtroServico});
+  return {execucao:e.execucao,periodo:e.periodo,totais,parceiros,regimes,detalhes:pagina.itens,paginaDetalhes:{limite:pagina.limite,proximo_cursor:pagina.proximo_cursor,total:base.total},pendenciasPisCofins:[],resumoPendenciasPisCofins:{registros:0,valor:0},cenarios:[{ano:e.execucao.ano||2027,valor:totais.valor,baseEconomica:totais.baseEconomica,cbs:totais.cbs,ibs:totais.ibs,credito:totais.creditoFinal,precoFinal:totais.precoFinal,impactoOperacao:r2(totais.precoFinal-totais.valor)}],riscos:[],operacoesBeneficios:[],tratamentoBeneficios:{operacoes:0},estadoAtualizacao:{vigentes:base.vigentes,pendentes:base.pendentes}};
+}
+function impactoFinal(empresaId){const entradas=resumo(empresaId,{sentido:'entrada'}),saidas=resumo(empresaId,{sentido:'saida'}),e=entradas.totais||{},s=saidas.totais||{},pendentes=n(entradas.pendentes)+n(saidas.pendentes);return {execucao:saidas.execucao||entradas.execucao,cbs_debito_vendas:r2(s.cbs),cbs_credito_compras:r2(e.credito_cbs),cbs_liquida:r2(n(s.cbs)-n(e.credito_cbs)),ibs_debito_vendas:r2(s.ibs),ibs_credito_compras:r2(e.credito_ibs),ibs_liquida:r2(n(s.ibs)-n(e.credito_ibs)),pendentes,reconciliacao:{status:pendentes?'PENDENTE_ATUALIZACAO':'RECONCILIADO',mensagem:'Totais usam somente projeções ATUAL.'},fontes:{entradas,saidas}};}
+function resumoQualidade(empresaId,opcoes={}){const e=escopoPersistido(empresaId,opcoes);if(!e.execucao)return {execucao:null,total:0,por_estado:[]};const por_estado=db.prepare(`SELECT ${ESTADO_PROJECAO} situacao,COUNT(*) quantidade,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_atual ELSE 0 END),0) valor_vigente ${JOIN_PROJECAO} WHERE ${e.where} GROUP BY situacao ORDER BY situacao`).all(...e.params);return {execucao:e.execucao,total:por_estado.reduce((a,x)=>a+n(x.quantidade),0),por_estado};}
+function cadeiaLimitada(empresaId,tipo,opcoes={}) {
+  const sentido=tipo==='cliente'?'saida':'entrada', e=escopoPersistido(empresaId,{sentido}), base=resumo(empresaId,{sentido}), t=base.totais||{};
+  const totais={registros:base.total,valor:t.valor||0,baseEconomica:t.base_economica||0,cbs:t.cbs||0,ibs:t.ibs||0,creditoFinal:r2(n(t.credito_cbs)+n(t.credito_ibs)),creditoPotencial:r2(n(t.credito_cbs)+n(t.credito_ibs)),precoFinal:t.preco_final||0,custoLiquido:t.custo_liquido||0};
+  if(!e.execucao)return {execucao:null,totais,parceiros:[],regimes:[],detalhes:[],paginaDetalhes:{limite:MAX_PAGE,total:0},pendenciasPisCofins:[],resumoPendenciasPisCofins:{registros:0,valor:0},cenarios:[],riscos:[],operacoesBeneficios:[],tratamentoBeneficios:{operacoes:0}};
+  const parceiros=db.prepare(`SELECT COALESCE(m.inscr_federal,'') cnpj,COALESCE(NULLIF(p.descricao,''),NULLIF(m.nome,''),'Sem identificação') nome,${REGIME_CANONICO} regime,COUNT(*) itens,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_atual ELSE 0 END),0) valor,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.cbs ELSE 0 END),0) cbs,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.credito_cbs+r.credito_ibs ELSE 0 END),0) creditoFinal,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_projetado ELSE 0 END),0) precoFinal ${JOIN_PROJECAO} WHERE ${e.where} GROUP BY m.inscr_federal,m.nome ORDER BY valor DESC,m.id DESC LIMIT ?`).all(...e.params,MAX_PAGE).map(x=>({...x,regime:normalizarRegimeFornecedor(x.regime),regimeLabel:rotuloRegimeSql(x.regime),representatividade:totais.valor?r4(n(x.valor)/totais.valor):0,impactoOperacao:r2(n(x.precoFinal)-n(x.valor))}));
+  const regimes=db.prepare(`SELECT ${REGIME_CANONICO} regime,COUNT(*) itens,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_atual ELSE 0 END),0) valor,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.cbs ELSE 0 END),0) cbs,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.credito_cbs+r.credito_ibs ELSE 0 END),0) creditoFinal,COALESCE(SUM(CASE WHEN ${PROJECAO_ATUAL} THEN r.preco_projetado ELSE 0 END),0) precoFinal ${JOIN_PROJECAO} WHERE ${e.where} GROUP BY ${REGIME_CANONICO} ORDER BY valor DESC`).all(...e.params).map(x=>({...x,regime:normalizarRegimeFornecedor(x.regime),label:rotuloRegimeSql(x.regime),representatividade:totais.valor?r4(n(x.valor)/totais.valor):0,creditoPotencial:n(x.creditoFinal),impactoOperacao:r2(n(x.precoFinal)-n(x.valor))}));
+  const pagina=listar(empresaId,{sentido,limite:opcoes.limiteDetalhes||opcoes.limite,cursor:opcoes.cursor,ordenar:opcoes.ordenarDetalhes||opcoes.ordenar,direcao:opcoes.direcaoDetalhes||opcoes.direcao,documento:opcoes.filtroDocumento,fornecedor:opcoes.filtroParceiro,regime:opcoes.filtroRegime,servico:opcoes.filtroServico});
+  return {execucao:e.execucao,periodo:e.periodo,totais,parceiros,regimes,detalhes:pagina.itens,paginaDetalhes:{limite:pagina.limite,proximo_cursor:pagina.proximo_cursor,total:base.total},pendenciasPisCofins:[],resumoPendenciasPisCofins:{registros:0,valor:0},cenarios:[{ano:e.execucao.ano||2027,valor:totais.valor,baseEconomica:totais.baseEconomica,cbs:totais.cbs,ibs:totais.ibs,credito:totais.creditoFinal,precoFinal:totais.precoFinal,impactoOperacao:r2(totais.precoFinal-totais.valor)}],riscos:[],operacoesBeneficios:[],tratamentoBeneficios:{operacoes:0},estadoAtualizacao:{vigentes:base.vigentes,pendentes:base.pendentes}};
+}
+module.exports = { ultimaExecucao, invalidarCacheEmpresa, resumo, listar, detalhe, cadeia:cadeiaLimitada, impactoFinal, resumoQualidade, MAX_PAGE, faixaTributacao, leituraBeneficio, leitura200044 };

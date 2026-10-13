@@ -51,8 +51,11 @@ function candidatas(linha) {
   return lista;
 }
 
-function sincronizar(empresaId, execucaoId) {
-  const linhas = db.prepare('SELECT * FROM motor_resultados WHERE empresa_id=? AND execucao_id=?').all(empresaId, execucaoId);
+function sincronizar(empresaId, execucaoId, movimentoIds=[]) {
+  const ids=[...new Set((movimentoIds||[]).map(Number).filter(Number.isInteger))];
+  if (!ids.length) return resumo(empresaId,execucaoId);
+  const marcas=ids.map(()=>'?').join(',');
+  const linhas = db.prepare(`SELECT * FROM motor_resultados WHERE empresa_id=? AND execucao_id=? AND movimento_id IN (${marcas})`).all(empresaId, execucaoId,...ids);
   const agora = new Date().toISOString();
   const salvarHistorico = db.prepare(`INSERT INTO excecoes_motor
     (empresa_id,movimento_id,execucao_id,codigo,categoria,gravidade,status,natureza,origem,valor_envolvido,impacto_cbs_estimado,materialidade,detalhe,criado_em,atualizado_em)

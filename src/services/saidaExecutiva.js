@@ -105,11 +105,13 @@ function beneficiosNaFotografia(empresaId) {
   // preservado, pois representa imunidade/não incidência na fotografia.
   const filtro = `sentido='saida' AND (COALESCE(tratamento,'') NOT IN ('', 'Tributação integral — regra padrão') OR COALESCE(cst,'') LIKE '4%')`;
   const filtroR = `r.sentido='saida' AND (COALESCE(r.tratamento,'') NOT IN ('', 'Tributação integral — regra padrão') OR COALESCE(r.cst,'') LIKE '4%')`;
-  const resumo = db.prepare(`SELECT COUNT(*) AS total, COALESCE(SUM(preco_atual),0) AS valor, COALESCE(SUM(cbs),0) AS cbs
-    FROM motor_resultados WHERE empresa_id=? AND execucao_id=? AND ${filtro}`).get(empresaId, execucao.id);
+  const resumo = db.prepare(`SELECT COUNT(*) AS total, COALESCE(SUM(r.preco_atual),0) AS valor, COALESCE(SUM(r.cbs),0) AS cbs
+    FROM motor_resultados r LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id
+    WHERE r.empresa_id=? AND r.execucao_id=? AND COALESCE(pe.situacao,'ATUAL')='ATUAL' AND ${filtro}`).get(empresaId, execucao.id);
   const itens = db.prepare(`SELECT m.descricao,m.ncm,m.nbs,m.documento,m.competencia,r.preco_atual,r.cbs,r.cst,r.cclasstrib,r.tratamento
     FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
-    WHERE r.empresa_id=? AND r.execucao_id=? AND ${filtroR}
+    LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id
+    WHERE r.empresa_id=? AND r.execucao_id=? AND COALESCE(pe.situacao,'ATUAL')='ATUAL' AND ${filtroR}
     ORDER BY r.preco_atual DESC,r.id DESC LIMIT 12`).all(empresaId, execucao.id).map((x) => ({
     item:x.descricao || 'Item sem descrição', referencia:x.ncm || x.nbs || 'Sem NCM/NBS', documento:x.documento || '—', competencia:x.competencia || null,
     valor:r2(x.preco_atual), cbs:r2(x.cbs), cst:x.cst || '—', cclasstrib:x.cclasstrib || '—', tratamento:x.tratamento || 'Tratamento específico',

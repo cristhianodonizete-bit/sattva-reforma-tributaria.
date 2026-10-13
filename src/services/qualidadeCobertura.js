@@ -183,11 +183,15 @@ function consolidar(linhas) {
   };
 }
 function obter(empresaId, opcoes = {}) {
-  // Mantém os avaliadores puros testáveis sem abrir SQLite; só a consulta da
-  // fotografia ativa precisa da camada oficial.
+  // Indicadores de produção são agregados no banco. `consolidar` permanece
+  // puro para fixtures, mas não pode induzir leitura da carteira inteira.
   const oficial = require('./consolidacaoOficial');
-  const base = oficial.linhas(empresaId, opcoes);
-  return { execucao: base.execucao, ...consolidar(base.linhas) };
+  const base = oficial.resumoQualidade(empresaId, opcoes);
+  const atual = base.por_estado.find((x) => x.situacao === 'ATUAL') || { quantidade:0, valor_vigente:0 };
+  const pendentes = base.por_estado.filter((x) => x.situacao !== 'ATUAL').reduce((s,x) => s + Number(x.quantidade || 0), 0);
+  return { execucao:base.execucao, total:{ quantidade:base.total, valor:Number(atual.valor_vigente || 0) },
+    por_estado:base.por_estado, cobertura:{ tecnica_resultado:base.total ? Number(atual.quantidade || 0) / base.total : null },
+    pendencias:{ operacoes_unicas:pendentes, valor:0, ocorrencias:[] }, linhas:[] };
 }
 
 module.exports = { STATUS, avaliarLinha, consolidar, obter };

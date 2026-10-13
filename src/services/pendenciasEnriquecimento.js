@@ -62,8 +62,11 @@ function motivoDaLinha(linha) {
   return null;
 }
 
-function sincronizar(db, empresaId, execucaoId) {
-  const linhas = db.prepare('SELECT * FROM motor_resultados WHERE empresa_id=? AND execucao_id=?').all(empresaId, execucaoId);
+function sincronizar(db, empresaId, execucaoId, movimentoIds=[]) {
+  const ids=[...new Set((movimentoIds||[]).map(Number).filter(Number.isInteger))];
+  if (!ids.length) return 0;
+  const marcas=ids.map(()=>'?').join(',');
+  const linhas = db.prepare(`SELECT * FROM motor_resultados WHERE empresa_id=? AND execucao_id=? AND movimento_id IN (${marcas})`).all(empresaId, execucaoId,...ids);
   const inserir = db.prepare(`INSERT INTO pendencias_enriquecimento_fiscal
     (empresa_id,movimento_id,resultado_id,tipo_pendencia,evidencia_necessaria,prioridade,status,origem,detalhe)
     VALUES (?,?,?,?,?,?,?,?,?)
