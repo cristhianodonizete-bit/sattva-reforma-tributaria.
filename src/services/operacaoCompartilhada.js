@@ -755,7 +755,11 @@ async function prepararContextoMotorIncremental(empresaId, movimentoIds = []) {
   const ids = [...new Set((movimentoIds || []).map(Number).filter(Number.isInteger))];
   if (!ids.length) throw new Error('Preparação incremental sem movimentos explícitos.');
   const remoto = supabase.admin();
-  const { data: candidatas, error: erroEmpresa } = await remoto.from('empresas').select('id,origem_local_id')
+  // O cache precisa da identidade completa (sobretudo CNPJ) porque, ao fim
+  // do lote, a publicação do estado da projeção resolve novamente a empresa
+  // compartilhada. Trazer somente IDs fazia o cálculo terminar e falhar ao
+  // publicar o estado final como se a empresa não existisse.
+  const { data: candidatas, error: erroEmpresa } = await remoto.from('empresas').select('*')
     .or(`origem_local_id.eq.${id},id.eq.${id}`).limit(3);
   if (erroEmpresa) throw new Error(`Empresa do worker incremental: ${erroEmpresa.message}`);
   const empresaRemota = (candidatas || []).find((empresa) => Number(empresa.origem_local_id || empresa.id) === id);

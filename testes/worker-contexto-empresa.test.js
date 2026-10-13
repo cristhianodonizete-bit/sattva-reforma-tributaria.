@@ -18,6 +18,8 @@ assert.ok(gravacaoEmpresaIncremental >= inicioIncremental && gravacaoEmpresaIncr
   'o worker incremental deve gravar a empresa-pai antes dos movimentos com chave estrangeira');
 assert.match(op, /buscarPorValores\(remoto,'parceiros','cnpj',cnpjs,empresaRemota\.id\)/,
   'fornecedores incrementais devem ser filtrados pela empresa antes de entrar no cache');
+assert.match(op, /from\('empresas'\)\.select\('\*'\)/,
+  'o contexto incremental deve reidratar a identidade completa da empresa para publicar estados ao final');
 assert.match(prep, /await operacaoCompartilhada\.prepararContextoMotorEmpresa\(id\)/);
 assert.match(prep, /await operacaoCompartilhada\.restaurarEvidenciasMotorAposDocumentos\(id\)/);
 assert.ok(fila.indexOf("await require('./preparacaoMotor').preparar(job.empresa_id)") < fila.indexOf('motorStaging.criar(job.id, job.empresa_id)'), 'staging deve ser criado depois da empresa no cache do worker');
