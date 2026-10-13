@@ -27,7 +27,7 @@ const proximaTentativa = (tentativas) => new Date(Date.now() + Math.min(60_000, 
 const concorrencia = () => Math.max(1, Math.min(8, Number(process.env.PROCESSAMENTO_CARTEIRA_CONCORRENCIA) || 1));
 
 async function espelharJob(job) {
-  if (!supabase.configurado()) return;
+  if (!supabase.configurado()) return job;
   const empresaLocal=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(job.empresa_id));
   if (!empresaLocal) throw new Error('Empresa local do job não encontrada.');
   const cnpj=String(empresaLocal.cnpj||'').replace(/\D/g,'');
@@ -40,8 +40,26 @@ async function espelharJob(job) {
   // processamento_id organiza a execução somente no SQLite da instância. Ele
   // pode voltar a 1 após um reinício e, por isso, não é identidade global; o
   // UUID do job é a chave durável usada no Supabase.
-  const { error } = await supabase.admin().from('jobs_carteira').upsert({ ...job, empresa_id:Number(empresaRemota.id),payload: JSON.parse(job.payload || '{}') }, { onConflict: 'id' });
-  if (error) throw new Error(`Fila Supabase: ${error.message}`);
+  const payload=JSON.parse(job.payload || '{}');
+  // A função canônica faz insert-or-merge sob o mesmo lock do índice parcial.
+  // Assim, duas instâncias nunca transformam uma dupla solicitação em erro de
+  // chave única; o segundo pedido incorpora seus IDs ao job ativo.
+  const { data:enfileirado,error:erroEnfileirar }=await supabase.admin().rpc('enfileirar_job_carteira',{ 
+    p_id:job.id,p_processamento_id:job.processamento_id,p_grupo_id:job.grupo_id,
+    p_empresa_id:Number(empresaRemota.id),p_competencia:job.competencia,p_tipo_job:job.tipo_job,
+    p_prioridade:job.prioridade,p_payload:payload,p_criado_em:job.criado_em,
+  });
+  if (!erroEnfileirar) return Array.isArray(enfileirado) ? (enfileirado[0] || job) : (enfileirado || job);
+  // Compatibilidade durante a implantação: se a migration ainda não chegou,
+  // não expomos colisão de job à tela. Reutilizamos o ativo remoto existente.
+  const { error } = await supabase.admin().from('jobs_carteira').upsert({ ...job, empresa_id:Number(empresaRemota.id),payload }, { onConflict: 'id' });
+  if (!error) return job;
+  if (!/ux_jobs_carteira_ativo|duplicate key|23505/i.test(String(error.message || ''))) throw new Error(`Fila Supabase: ${error.message}`);
+  const { data:ativos,error:erroAtivos }=await supabase.admin().from('jobs_carteira')
+    .select('*').eq('empresa_id',Number(empresaRemota.id)).eq('competencia',job.competencia).eq('tipo_job',job.tipo_job)
+    .in('status',['PENDENTE','PROCESSANDO']).order('criado_em',{ascending:false}).limit(1);
+  if (erroAtivos || !ativos?.[0]) throw new Error(`Fila Supabase: ${(erroAtivos || error).message}`);
+  return ativos[0];
 }
 
 async function normalizarEmpresaJobRemoto(job,remotoApi){
@@ -86,7 +104,11 @@ async function iniciar(opcoes = {}) {
     competencia, tipo_job: tipo, prioridade: Number(opcoes.prioridade) || 0,
     status: 'PENDENTE', tentativas: 0, max_tentativas: 3, payload: JSON.stringify(opcoes.payload || { incremental: true }), criado_em: agora() }));
   db.transaction(() => jobs.forEach((j) => { inserirItem.run(processamentoId, j.empresa_id); inserirJob.run(j.id, j.processamento_id, j.grupo_id, j.empresa_id, j.competencia, j.tipo_job, j.prioridade, j.payload, j.criado_em); }))();
-  for (const job of jobs) await espelharJob(job);
+  for (const job of jobs) {
+    const remoto=await espelharJob(job);
+    if (String(remoto?.id || job.id)!==String(job.id)) db.prepare("UPDATE jobs_carteira SET status='CANCELADO',finalizado_em=?,erro=? WHERE id=? AND status='PENDENTE'")
+      .run(agora(),`Deduplicado pelo job canônico ${remoto.id}.`,job.id);
+  }
   // O serviço HTTP apenas registra trabalho na fila durável. Consumir a fila
   // neste processo fazia um clique do usuário disputar CPU e memória com as
   // telas, além de tornar o resultado dependente da instância web atual. A
