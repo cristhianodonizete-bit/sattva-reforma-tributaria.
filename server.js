@@ -28,6 +28,13 @@ const PORTA = process.env.PORT || process.env.PORTA || 3200;
 app.use(compression());
 app.use(express.json({ limit: '25mb' }));
 app.use(express.urlencoded({ extended: true, limit: '25mb' }));
+// Sonda pública, sem dados da empresa ou sessão: permite confirmar que o
+// Render já trocou o processo antes de o usuário validar uma tela protegida.
+app.get('/healthz', (_req, res) => res.json({
+  ok: true,
+  release: 'leitura-analitica-limitada-v2',
+  commit: process.env.RENDER_GIT_COMMIT || null,
+}));
 // A interface não pode manter JavaScript antigo depois de uma correção de
 // regra ou de uma resposta de erro. Os dados já são lidos com no-store; o
 // mesmo vale para os arquivos da aplicação, evitando uma tela antiga contra
