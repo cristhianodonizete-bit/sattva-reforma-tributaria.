@@ -531,23 +531,37 @@ async function garantirCacheOperacionalEmpresa(empresaId, opcoes = {}) {
         db.prepare(`DELETE FROM motor_pendencias WHERE empresa_id=? AND movimento_id IN (${lote.map(()=>'?').join(',')})`).run(id,...lote);
       }
     }
-    const divergentes=db.prepare(`WITH regime_base AS (
+    // A sincronização não pode comparar a empresa inteira numa única leitura.
+    // Lê IDs em páginas determinísticas e calcula divergência apenas do lote.
+    // Isso evita que a abertura de uma tela dispare materialização da carteira.
+    const listarIdsFornecedor=db.prepare(`SELECT id FROM movimentos
+      WHERE empresa_id=? AND tipo='fornecedor' AND id>? ORDER BY id LIMIT ?`);
+    const divergentesDoLote=(ids)=>db.prepare(`WITH regime_base AS (
         SELECT m.id movimento_id,br.regime,
           ROW_NUMBER() OVER (PARTITION BY m.id ORDER BY CASE WHEN br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','') THEN 0 ELSE 1 END,br.ano DESC) posicao
         FROM movimentos m JOIN base_regime br
           ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
           OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8)
-        WHERE m.empresa_id=? AND m.tipo='fornecedor'
+        WHERE m.empresa_id=? AND m.id IN (${ids.map(()=>'?').join(',')})
       ) SELECT mr.movimento_id,rb.regime FROM motor_resultados mr JOIN regime_base rb ON rb.movimento_id=mr.movimento_id AND rb.posicao=1
         WHERE mr.empresa_id=? AND LOWER(COALESCE(CASE WHEN json_valid(COALESCE(mr.detalhe,'')) THEN json_extract(mr.detalhe,'$.regimeEmitente') END,mr.regime_cbs_emitente,''))<>LOWER(rb.regime)`)
-      .all(id,id);
+      .all(id,...ids,id);
     const marcar=db.prepare(`INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
       VALUES (?,?,?,datetime('now','localtime')) ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em`);
-    db.transaction(()=>divergentes.forEach((x)=>marcar.run(id,x.movimento_id,`REGIME_BASE_CANONICA_${String(x.regime).toUpperCase()}`)))();
+    let cursorMovimento=0, totalDivergentes=0;
+    for (;;) {
+      const ids=listarIdsFornecedor.all(id,cursorMovimento,250).map((x)=>Number(x.id));
+      if (!ids.length) break;
+      const loteDivergente=divergentesDoLote(ids);
+      db.transaction(()=>loteDivergente.forEach((x)=>marcar.run(id,x.movimento_id,`REGIME_BASE_CANONICA_${String(x.regime).toUpperCase()}`)))();
+      totalDivergentes+=loteDivergente.length;
+      cursorMovimento=ids.at(-1);
+      if (ids.length<250) break;
+    }
     hidratacoesEmpresaRecentes.set(id,Date.now());
     return { ativo:true,cache:'hidratado',empresa_id:id,lotes:lotes.length,
       movimentos:movimentos.movimentos?.length||0,parceiros:parceiros.parceiros||0,auxiliares,
-      referencias_regime:referenciasRegime,regimes_atualizados:regimesAtualizados,fotografias_regime_divergente:divergentes.length };
+      referencias_regime:referenciasRegime,regimes_atualizados:regimesAtualizados,fotografias_regime_divergente:totalDivergentes };
   })().finally(()=>hidratacoesEmpresaEmAndamento.delete(id));
   hidratacoesEmpresaEmAndamento.set(id,tarefa);
   return tarefa;
