@@ -229,7 +229,7 @@ async function processarUm() {
           // permite retomar no lote seguinte após reinício sem repetir os já
           // confirmados nem manter todo o delta no heap.
           await operacao.prepararContextoMotorIncremental(job.empresa_id,lote);
-          const entradaMotor=integridadeMotor.assinarEntrada(job.empresa_id);
+          const entradaMotor=integridadeMotor.assinarEntrada(job.empresa_id,{ movimentoIds:lote });
           const resultado=motorExec.reprocessarIncremental(job.empresa_id,{ ano:Number(payload.ano)||Number(job.competencia)||2027,movimentoIds:lote });
           if (Number(resultado.reprocessados)!==lote.length) throw new Error('Execução incremental incompleta; a fotografia anterior foi preservada.');
           const execucao=motorExec.ultimaExecucao(job.empresa_id);
@@ -237,7 +237,7 @@ async function processarUm() {
           const resultadoMotor=integridadeMotor.assinarResultado(job.empresa_id,execucao.id);
           const quantidadeProduzida=Number(resultado.resultado?.entradas?.length||0)+Number(resultado.resultado?.saidas?.length||0);
           if (resultadoMotor.itens!==quantidadeProduzida) throw new Error('Integridade incremental: quantidade materializada diferente dos resultados produzidos pelo motor.');
-          integridadeMotor.exigirMesmaEntrada(entradaMotor,integridadeMotor.assinarEntrada(job.empresa_id));
+          integridadeMotor.exigirMesmaEntrada(entradaMotor,integridadeMotor.assinarEntrada(job.empresa_id,{ movimentoIds:lote }));
           const publicacao=await operacao.publicarResultadosMotor(job.empresa_id,{ ativar:false,execucao_id:execucao.id,quantidade_esperada:resultadoMotor.itens,
             integridade:{ entrada:entradaMotor,resultado:resultadoMotor,modo:'INCREMENTAL_IDS_EXPLICITOS',lote:proximo+1,total_lotes:lotes.length } });
           ultimaPromovida=await operacao.promoverFotografiaMotorIncremental(Number(publicacao.empresa_remota_id||job.empresa_id),Number(publicacao.execucao_id),resultadoMotor.itens,lote);

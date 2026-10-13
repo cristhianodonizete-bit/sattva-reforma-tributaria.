@@ -31,9 +31,19 @@ function normalizar(valor) {
 function hash(valor) {
   return crypto.createHash('sha256').update(JSON.stringify(normalizar(valor))).digest('hex');
 }
-function linhasDaTabela(tabela, empresaId) {
+function linhasDaTabela(tabela, empresaId, opcoes = {}) {
   if (!existeTabela(tabela)) return [];
   const colunas = db.prepare(`PRAGMA table_info(${tabela})`).all().map((x) => x.name);
+  const movimentoIds = tabela === 'movimentos'
+    ? [...new Set((opcoes.movimentoIds || []).map(Number).filter(Number.isInteger))]
+    : [];
+  // No modo incremental, somente os fatos explícitos do job são calculados.
+  // Assinar todo o histórico aqui fazia uma correção pontual consumir a mesma
+  // memória de uma execução completa.
+  if (movimentoIds.length && colunas.includes('empresa_id') && colunas.includes('id')) {
+    const marcadores = movimentoIds.map(() => '?').join(',');
+    return db.prepare(`SELECT * FROM ${tabela} WHERE empresa_id=? AND id IN (${marcadores})`).all(empresaId, ...movimentoIds);
+  }
   if (colunas.includes('empresa_id')) return db.prepare(`SELECT * FROM ${tabela} WHERE empresa_id=?`).all(empresaId);
   if (tabela === 'empresas') return db.prepare('SELECT * FROM empresas WHERE id=?').all(empresaId);
   return db.prepare(`SELECT * FROM ${tabela}`).all();
@@ -41,9 +51,9 @@ function linhasDaTabela(tabela, empresaId) {
 function ordenar(linhas) {
   return linhas.map(normalizar).sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b)));
 }
-function assinarEntrada(empresaId) {
+function assinarEntrada(empresaId, opcoes = {}) {
   const fontes = {};
-  for (const tabela of [...FONTES_EMPRESA, ...FONTES_GLOBAIS]) fontes[tabela] = ordenar(linhasDaTabela(tabela, empresaId));
+  for (const tabela of [...FONTES_EMPRESA, ...FONTES_GLOBAIS]) fontes[tabela] = ordenar(linhasDaTabela(tabela, empresaId, opcoes));
   return { algoritmo:'sha256-v1', assinatura:hash(fontes), fontes: Object.fromEntries(Object.entries(fontes).map(([nome, linhas]) => [nome, linhas.length])) };
 }
 function assinarResultado(empresaId, execucaoId) {
