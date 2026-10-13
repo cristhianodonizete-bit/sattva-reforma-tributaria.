@@ -3272,7 +3272,7 @@ function prepararCadeia(empresa, tipo, query = {}) {
   const referencia = aliquotas.find((a) => Number(a.ano) === 2027) || aliquotas[0];
   const anos = query.anos ? String(query.anos).split(',').map(Number)
     : (ibsAtivo ? aliquotas.map((a) => Number(a.ano)) : [Number(referencia?.ano || 2027)]);
-  return { movimentos, anos, parametrosIVA: ibsAtivo ? Object.fromEntries(aliquotas.map((a) => [Number(a.ano), a])) : referencia,
+  return { movimentos: [], anos, parametrosIVA: ibsAtivo ? Object.fromEntries(aliquotas.map((a) => [Number(a.ano), a])) : referencia,
     pendenciasReferencias: query.pendenciasReferencias || [] };
 }
 
