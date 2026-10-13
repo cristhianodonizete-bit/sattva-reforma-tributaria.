@@ -2358,6 +2358,21 @@ async function telaCadeia(el, tipo) {
   el.querySelectorAll('[data-cadeia-pagina]').forEach((botao) => {
     botao.onclick = () => { S.cache[`cadeia_pagina_${tipo}`] = Number(botao.dataset.cadeiaPagina) || 1; A.ir(eForn ? 'fornecedores' : 'clientes'); };
   });
+  const aguardarReprocessamentoFornecedor = async (jobEsperado) => {
+    // A pendência é leitura da fotografia oficial. Só redesenhamos a cadeia
+    // depois de o worker publicar o recálculo incremental, evitando a falsa
+    // impressão de que o ajuste foi ignorado.
+    for (let tentativa = 0; tentativa < 30; tentativa += 1) {
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+      const acompanhamento = await A.api(`/empresas/${S.empresaId}/motor/status`);
+      const job = acompanhamento.job || {};
+      if (jobEsperado && String(job.id || '') !== String(jobEsperado)) continue;
+      const estado = String(job.estado || job.status || '').toUpperCase();
+      if (estado === 'CONCLUIDO') return { concluido:true, job };
+      if (estado === 'FALHOU') throw new Error(job.erro || 'O reprocessamento do fornecedor falhou.');
+    }
+    return { concluido:false };
+  };
   const abrirCorrecaoPisCofins = (item) => {
     const referencia = item.nbs || item.lc116 || item.ncm || '';
     const regime = String(item.regimeEmitente || item.regimeFornecedor || item.regime || '').toLowerCase();
@@ -2375,10 +2390,17 @@ async function telaCadeia(el, tipo) {
         confirmar:'Salvar e recalcular', corpo,
         descricao:'A consulta publica exclui o Simples, mas nao distingue Lucro Real de Lucro Presumido.',
         aoConfirmar:async(f)=>{
-          await A.api(`/empresas/${S.empresaId}/movimentos/${item.movimento_id}/confirmar-regime-fornecedor`,
+          const retorno=await A.api(`/empresas/${S.empresaId}/movimentos/${item.movimento_id}/confirmar-regime-fornecedor`,
             { metodo:'POST',corpo:{cnpj:f.cnpj,regime:f.regime} });
-          A.toast('Regime confirmado. O documento entrou na fila de recalculo.','ok');
-          A.ir('fornecedores');
+          A.toast(`Regime confirmado para ${retorno.movimentos_afetados || 1} documento(s). Atualizando a fotografia…`,'ok');
+          const processamento=await aguardarReprocessamentoFornecedor(retorno.processamento_motor?.job?.id);
+          if (processamento.concluido) {
+            A.toast('Fotografia atualizada. A pendência foi reavaliada.','ok');
+            A.ir('fornecedores');
+          } else {
+            A.toast('A correção foi salva e o recálculo continua em segundo plano. A tela será atualizada automaticamente.','ok');
+            setTimeout(() => A.ir('fornecedores'), 3000);
+          }
         }
       });
       return;

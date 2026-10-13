@@ -6734,18 +6734,27 @@ router.post('/empresas/:id/movimentos/:movimentoId/confirmar-regime-fornecedor',
     const fornecedor=consulta.fornecedor;
     db.prepare("UPDATE parceiros SET regime=?,origem='REGIME_CONFIRMADO_USUARIO' WHERE id=? AND empresa_id=?")
       .run(regime,fornecedor.id,empresaId);
-    let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
-    evidencia.fornecedor_vinculado={ parceiro_id:fornecedor.id,cnpj,descricao:fornecedor.descricao,regime,origem:'REGIME_CONFIRMADO_USUARIO' };
-    evidencia.fornecedor_ajustado_em=new Date().toISOString();
-    evidencia.fornecedor_regime_justificativa='Regime de PIS/Cofins confirmado pelo usuário na pendência da cadeia de fornecedores.';
-    db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?')
-      .run(fornecedor.descricao,cnpj,regime,JSON.stringify(evidencia),movimentoId,empresaId);
-    const publicacao=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,[movimentoId]);
+    // A confirmação é do fornecedor (CNPJ), não de uma linha isolada. Todos
+    // os lançamentos de entrada já identificados com o mesmo CNPJ recebem a
+    // mesma identidade canônica e entram no mesmo recálculo incremental.
+    const movimentosAfetados=db.prepare(`SELECT id,normalizacao_evidencia FROM movimentos
+      WHERE empresa_id=? AND tipo='fornecedor' AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(inscr_federal,''),'.',''),'/',''),'-',''),' ','')=?`).all(empresaId,cnpj);
+    const afetados=movimentosAfetados.length ? movimentosAfetados : [movimento];
+    const atualizar=db.prepare('UPDATE movimentos SET nome=?,inscr_federal=?,regime=?,normalizacao_evidencia=? WHERE id=? AND empresa_id=?');
+    const agora=new Date().toISOString();
+    db.transaction(() => afetados.forEach((linha) => {
+      let evidencia={}; try { evidencia=JSON.parse(linha.normalizacao_evidencia || '{}'); } catch (_) { evidencia={}; }
+      evidencia.fornecedor_vinculado={ parceiro_id:fornecedor.id,cnpj,descricao:fornecedor.descricao,regime,origem:'REGIME_CONFIRMADO_USUARIO' };
+      evidencia.fornecedor_ajustado_em=agora;
+      evidencia.fornecedor_regime_justificativa='Regime de PIS/Cofins confirmado pelo usuário na pendência da cadeia de fornecedores.';
+      atualizar.run(fornecedor.descricao,cnpj,regime,JSON.stringify(evidencia),linha.id,empresaId);
+    }));
+    const publicacao=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,afetados.map((x)=>x.id));
     estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Regime do fornecedor confirmado');
-    const idsCanonicos=publicacao.movimento_ids_canonicos || [movimentoId];
+    const idsCanonicos=publicacao.movimento_ids_canonicos || afetados.map((x)=>x.id);
     const processamento_motor=await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:idsCanonicos });
-    auditar(req,{ empresaId,acao:'CONFIRMACAO_REGIME_FORNECEDOR',entidade:'movimentos',entidadeId:String(movimentoId),depois:{ cnpj,regime,fornecedor_id:fornecedor.id } });
-    ok(res,{ fornecedor:{ ...fornecedor,regime },publicacao,processamento_motor });
+    auditar(req,{ empresaId,acao:'CONFIRMACAO_REGIME_FORNECEDOR',entidade:'movimentos',entidadeId:afetados.map((x)=>x.id).join(','),depois:{ cnpj,regime,fornecedor_id:fornecedor.id,movimentos_afetados:afetados.length } });
+    ok(res,{ fornecedor:{ ...fornecedor,regime },movimentos_afetados:afetados.length,publicacao,processamento_motor });
   } catch(e) { erro(res,e); }
 });
 

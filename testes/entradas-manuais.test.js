@@ -87,6 +87,8 @@ assert.match(tela,/explicarPendenciaPisCofins/,'pendencia de PIS/Cofins deve exp
 assert.match(tela,/data-corrigir-pis-cofins-modal/,'lista de pendencias deve oferecer acao de correcao por documento');
 assert.match(api,/confirmar-regime-fornecedor/,'a pendencia deve permitir confirmar CNPJ e regime sem sair da tela');
 assert.match(tela,/Confirmar regime de PIS\/Cofins do fornecedor/,'a correção do regime deve explicar o motivo e ocorrer na própria pendência');
+assert.match(tela,/aguardarReprocessamentoFornecedor/,'a tela deve esperar a fotografia incremental antes de reapresentar a pendência');
+assert.match(api,/movimentos_afetados/,'a confirmação do CNPJ deve informar e reprocessar todos os documentos afetados');
 assert.match(tela,/S\.aba\.config = 'entradas_manuais'/,'acao da pendencia deve abrir o cadastro que resolve a fonte oficial');
 assert.match(config,/aplicarFiltrosItensEntrada/,'filtros do cadastro devem ser combinaveis');
 assert.match(config,/rastreabilidade-item item-entrada-manual-config/,'cada item cadastrado deve ser um cartão');
