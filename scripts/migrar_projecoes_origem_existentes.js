@@ -27,20 +27,23 @@ async function main() {
   for (const empresaId of empresas) {
     await operacao.prepararContextoMotorEmpresa(empresaId);
     await operacao.restaurarFotografiaMotorEmpresa(empresaId);
-    const ids=db.prepare('SELECT id FROM movimentos WHERE empresa_id=? ORDER BY id').all(empresaId).map(x=>x.id);
-    const contagem={}; const lote=250;
-    for(let inicio=0;inicio<ids.length;inicio+=lote) {
-      const parte=ids.slice(inicio,inicio+lote);
+    // Migração administrativa também não pode materializar a carteira: lê o
+    // próximo lote por chave, persiste seu estado e grava o checkpoint antes
+    // de seguir. Assim uma interrupção deixa somente os itens ainda não
+    // processados para a próxima execução, sem reabrir os já confirmados.
+    const total=Number(db.prepare('SELECT COUNT(*) AS total FROM movimentos WHERE empresa_id=?').get(empresaId)?.total || 0);
+    const contagem={}; const lote=250; let depoisId=0; let processados=0;
+    while (true) {
+      const parte=db.prepare('SELECT id FROM movimentos WHERE empresa_id=? AND id>? ORDER BY id LIMIT ?')
+        .all(empresaId, depoisId, lote).map((x) => Number(x.id));
+      if (!parte.length) break;
       const estados=projecoes.reconciliar(db,empresaId,parte);
       await operacao.publicarEstadosProjecoes(empresaId,parte);
       for(const estado of estados.values()) contagem[estado.situacao]=(contagem[estado.situacao]||0)+1;
-      console.log(JSON.stringify({empresa_id:empresaId,checkpoint:{inicio,inicio_proximo:inicio+parte.length,total:ids.length}}));
+      depoisId=parte.at(-1); processados+=parte.length;
+      console.log(JSON.stringify({empresa_id:empresaId,checkpoint:{depois_id:depoisId,processados,total}}));
     }
-    resumo.push({ empresa_id:empresaId,total:ids.length,estados:contagem });
-    // Libera a cópia efêmera antes da empresa seguinte; o resultado oficial
-    // já está no PostgreSQL e esta rotina não deve acumular carteiras no heap.
-    db.prepare('DELETE FROM motor_resultados WHERE empresa_id=?').run(empresaId);
-    db.prepare('DELETE FROM motor_execucoes WHERE empresa_id=?').run(empresaId);
+    resumo.push({ empresa_id:empresaId,total,processados,estados:contagem });
   }
   console.log(JSON.stringify({ empresas:resumo },null,2));
 }

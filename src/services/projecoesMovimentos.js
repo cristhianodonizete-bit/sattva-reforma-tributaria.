@@ -121,8 +121,12 @@ function reconciliar(db, empresaId, movimentoIds) {
       assinatura_origem=excluded.assinatura_origem,versao_origem=excluded.versao_origem,
       assinatura_calculada=excluded.assinatura_calculada,versao_calculada=excluded.versao_calculada,
       situacao=excluded.situacao,motivo=excluded.motivo,job_id=COALESCE(excluded.job_id,projecoes_movimentos_estado.job_id),atualizado_em=excluded.atualizado_em`);
-  const estados = new Map();
-  db.transaction(() => linhas.forEach((linha) => {
+  // A comparação retrocompatível consulta versões de regra que podem
+  // inicializar catálogos em sua própria transação. Portanto a decisão deve
+  // ser feita antes da transação curta de escrita; abrir a transação externa
+  // aqui causava "cannot start a transaction within a transaction" e deixava
+  // toda a fotografia histórica sem estado, zerando os agregados protegidos.
+  const decisoes = linhas.map((linha) => {
     const parceiro = { regime:linha.regime_canonico, regime_versao:linha.parceiro_regime_versao, regime_origem:linha.parceiro_regime_origem };
     const movimento = { ...linha, id:linha.movimento_id_fonte };
     const resultado = linha.resultado_id ? {
@@ -132,6 +136,10 @@ function reconciliar(db, empresaId, movimentoIds) {
       parametro_version:linha.resultado_parametro_version,motor_version:linha.resultado_motor_version,
     } : null;
     const estado = decidir(db, movimento, parceiro, resultado);
+    return { linha, parceiro, resultado, estado };
+  });
+  const estados = new Map();
+  db.transaction(() => decisoes.forEach(({ linha, parceiro, resultado, estado }) => {
     gravar.run(linha.empresa_id,linha.movimento_id_fonte,estado.assinatura,Number(parceiro.regime_versao || 1),resultado?.assinatura_origem || null,null,estado.situacao,estado.motivo,estado.job_id);
     estados.set(Number(linha.movimento_id_fonte), estado);
   }))();
