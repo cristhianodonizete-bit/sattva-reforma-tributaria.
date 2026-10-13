@@ -44,16 +44,33 @@ async function espelharJob(job) {
   // A função canônica faz insert-or-merge sob o mesmo lock do índice parcial.
   // Assim, duas instâncias nunca transformam uma dupla solicitação em erro de
   // chave única; o segundo pedido incorpora seus IDs ao job ativo.
-  const { data:enfileirado,error:erroEnfileirar }=await supabase.admin().rpc('enfileirar_job_carteira',{ 
-    p_id:job.id,p_processamento_id:job.processamento_id,p_grupo_id:job.grupo_id,
+  const remotoApi=supabase.admin();
+  const { data:existente,error:erroExistente }=await remotoApi.from('jobs_carteira')
+    .select('id,status,payload').eq('id',job.id).maybeSingle();
+  if (erroExistente) throw new Error(`Consulta do job compartilhado: ${erroExistente.message}`);
+  // Cache local pode sobreviver a um job remoto terminal. Esse UUID não pode
+  // ser reaproveitado: a retomada cria outro job e preserva o histórico.
+  const jobPublicavel=existente && !['PENDENTE','PROCESSANDO'].includes(String(existente.status))
+    ? { ...job,id:id(),criado_em:agora() } : job;
+  if (existente && ['PENDENTE','PROCESSANDO'].includes(String(existente.status))) {
+    const anterior=JSON.parse(existente.payload || '{}');
+    const ids=[...new Set([...(anterior.movimento_ids || []),...(payload.movimento_ids || [])].map(Number).filter(Number.isInteger))];
+    const payloadUnido={ ...anterior,...payload,movimento_ids:ids,identidade_movimento:'SUPABASE_CANONICA_V1' };
+    const { data:atualizado,error:erroAtualizar }=await remotoApi.from('jobs_carteira').update({ payload:payloadUnido })
+      .eq('id',existente.id).in('status',['PENDENTE','PROCESSANDO']).select('*').maybeSingle();
+    if (erroAtualizar) throw new Error(`Atualização do job compartilhado: ${erroAtualizar.message}`);
+    if (atualizado) return atualizado;
+  }
+  const { data:enfileirado,error:erroEnfileirar }=await remotoApi.rpc('enfileirar_job_carteira',{ 
+    p_id:jobPublicavel.id,p_processamento_id:jobPublicavel.processamento_id,p_grupo_id:jobPublicavel.grupo_id,
     p_empresa_id:Number(empresaRemota.id),p_competencia:job.competencia,p_tipo_job:job.tipo_job,
-    p_prioridade:job.prioridade,p_payload:payload,p_criado_em:job.criado_em,
+    p_prioridade:jobPublicavel.prioridade,p_payload:payload,p_criado_em:jobPublicavel.criado_em,
   });
-  if (!erroEnfileirar) return Array.isArray(enfileirado) ? (enfileirado[0] || job) : (enfileirado || job);
+  if (!erroEnfileirar) return Array.isArray(enfileirado) ? (enfileirado[0] || jobPublicavel) : (enfileirado || jobPublicavel);
   // Compatibilidade durante a implantação: se a migration ainda não chegou,
   // não expomos colisão de job à tela. Reutilizamos o ativo remoto existente.
-  const { error } = await supabase.admin().from('jobs_carteira').upsert({ ...job, empresa_id:Number(empresaRemota.id),payload }, { onConflict: 'id' });
-  if (!error) return job;
+  const { error } = await remotoApi.from('jobs_carteira').upsert({ ...jobPublicavel, empresa_id:Number(empresaRemota.id),payload }, { onConflict: 'id' });
+  if (!error) return jobPublicavel;
   if (!/ux_jobs_carteira_ativo|duplicate key|23505/i.test(String(error.message || ''))) throw new Error(`Fila Supabase: ${error.message}`);
   const { data:ativos,error:erroAtivos }=await supabase.admin().from('jobs_carteira')
     .select('*').eq('empresa_id',Number(empresaRemota.id)).eq('competencia',job.competencia).eq('tipo_job',job.tipo_job)
