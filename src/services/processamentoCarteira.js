@@ -432,4 +432,4 @@ async function ultimo() {
   return x ? consultarLocal(x.id) : null;
 }
 
-module.exports = { iniciar, executar, recuperarAbandonados, consultar, ultimo, cancelar, claim, workerId, resumirGrupo };
+module.exports = { iniciar, executar, recuperarAbandonados, consultar, ultimo, cancelar, claim, workerId, resumirGrupo, espelharJob };

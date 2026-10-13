@@ -51,7 +51,14 @@ async function solicitarIncremental(empresaId, opcoes = {}) {
         if (error) throw new Error(`Atualização da fila incremental: ${error.message}`);
       }
     }
-    return { processamento_id:ativo.processamento_id, deduplicado:true, job:{ ...ativo, payload:JSON.stringify(payload) }, movimento_ids:unidos };
+    // Um cache local pode sobreviver ao reinício enquanto o job remoto foi
+    // concluído, cancelado ou nunca chegou à fila. Espelhar de novo é
+    // idempotente no RPC e impede que uma solicitação fique "deduplicada"
+    // apenas no SQLite, sem trabalho disponível ao worker do Render.
+    const remoto = await fila.espelharJob({ ...ativo, payload:JSON.stringify(payload) });
+    if (String(remoto?.id || ativo.id) !== String(ativo.id)) db.prepare("UPDATE jobs_carteira SET status='CANCELADO',finalizado_em=?,erro=? WHERE id=? AND status IN ('PENDENTE','PROCESSANDO')")
+      .run(new Date().toISOString(),`Deduplicado pelo job canônico ${remoto.id}.`,ativo.id);
+    return { processamento_id:ativo.processamento_id, deduplicado:true, job:{ ...ativo, ...remoto, payload:JSON.stringify(payload) }, movimento_ids:unidos };
   }
   const processamento = await fila.iniciar({ empresas:[Number(empresaId)], competencia:ano, tipo:TIPO_INCREMENTAL, prioridade:10,
     payload:{ ano:Number(ano), movimento_ids:movimentoIds, identidade_movimento:'SUPABASE_CANONICA_V1', modo:'INCREMENTAL_IDS_EXPLICITOS' }, iniciarWorker:false });
@@ -92,7 +99,8 @@ function etapas(job, foto) {
 
 function statusLocal(empresaId) {
   return db.prepare(`SELECT id,empresa_id,competencia,tipo_job,status,tentativas,max_tentativas,erro,resultado,criado_em,iniciado_em,finalizado_em
-    FROM jobs_carteira WHERE empresa_id=? AND tipo_job IN (?,?) ORDER BY criado_em DESC LIMIT 1`).get(empresaId, TIPO, TIPO_INCREMENTAL);
+    FROM jobs_carteira WHERE empresa_id=? AND tipo_job IN (?,?)
+    ORDER BY CASE WHEN status IN ('PENDENTE','PROCESSANDO') THEN 0 WHEN status='FALHOU' THEN 2 ELSE 1 END, criado_em DESC LIMIT 1`).get(empresaId, TIPO, TIPO_INCREMENTAL);
 }
 
 async function status(empresaId) {
@@ -105,9 +113,17 @@ async function status(empresaId) {
     const { data, error } = await supabase.admin().from('jobs_carteira')
       .select('id,empresa_id,competencia,tipo_job,status,tentativas,max_tentativas,erro,resultado,criado_em,iniciado_em,finalizado_em')
       .eq('empresa_id', Number(empresaId)).in('tipo_job', [TIPO, TIPO_INCREMENTAL])
-      .order('criado_em', { ascending: false }).limit(1);
+      .in('status',['PENDENTE','PROCESSANDO']).order('criado_em', { ascending: false }).limit(1);
     if (error) throw new Error(`Status compartilhado do motor: ${error.message}`);
     job = data?.[0] || null;
+    if (!job) {
+      const { data: historico, error: erroHistorico } = await supabase.admin().from('jobs_carteira')
+        .select('id,empresa_id,competencia,tipo_job,status,tentativas,max_tentativas,erro,resultado,criado_em,iniciado_em,finalizado_em')
+        .eq('empresa_id', Number(empresaId)).in('tipo_job', [TIPO, TIPO_INCREMENTAL])
+        .order('criado_em', { ascending: false }).limit(1);
+      if (erroHistorico) throw new Error(`Status compartilhado do motor: ${erroHistorico.message}`);
+      job = historico?.[0] || null;
+    }
   }
   if (!job) job = statusLocal(empresaId);
   if (!job) return null;
