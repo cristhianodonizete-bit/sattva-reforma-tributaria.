@@ -3263,23 +3263,10 @@ function situacaoTributacaoServico(m, empresa, referenciaManual = null) {
 }
 
 function prepararCadeia(empresa, tipo, query = {}) {
-  let movimentos = carregarMovimentos(empresa.id, tipo);
-  const periodo = periodoAnalisado.obter(empresa.id);
-  if (periodo) movimentos = movimentos.filter((m) => periodoAnalisado.noPeriodo(m.competencia, periodo));
-  if (tipo === 'cliente') movimentos = movimentos.filter((m) => receitaOperacional.compoeReceita(m));
-  if (tipo === 'cliente') {
-    const refs = db.prepare('SELECT * FROM empresa_servicos_fiscais WHERE empresa_id=? AND ativo=1').all(empresa.id);
-    const mapaRefs = new Map(refs.map((r) => [r.chave, r]));
-    movimentos = movimentos.map((m) => {
-      const manual = encontrarReferenciaServico(m, mapaRefs);
-      const situacao = situacaoTributacaoServico(m, empresa, manual);
-      return { ...m, referenciaFiscal: situacao.referencia || manual, situacaoTributacaoServico: situacao };
-    });
-    // A ausência de cadastro individual não é pendência: o motor já usa a
-    // regra geral do regime. Divergências materiais são tratadas pela tela de
-    // Conformidade Documental, sem interromper a análise da cadeia.
-    query.pendenciasReferencias = [];
-  }
+  // A Cadeia lê a projeção persistida em consolidacaoOficial. Esta preparação
+  // só fornece parâmetros: carregar movimentos aqui duplicava a carteira em
+  // memória antes da consulta SQL paginada da própria Cadeia.
+  if (tipo === 'cliente') query.pendenciasReferencias = [];
   const aliquotas = db.prepare('SELECT * FROM param_aliquotas ORDER BY ano').all();
   const ibsAtivo = aliquotas.some((a) => Number(a.calcular_ibs) === 1);
   const referencia = aliquotas.find((a) => Number(a.ano) === 2027) || aliquotas[0];

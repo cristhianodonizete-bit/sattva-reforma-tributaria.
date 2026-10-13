@@ -808,9 +808,10 @@ const reconciliacoesEmAndamento = new Map();
 
 function lerMovimentosLocais(empresaId, opcoes = {}) {
   const escopo = escopoCompetencias(opcoes);
-  return escopo
-    ? db.prepare('SELECT * FROM movimentos WHERE empresa_id=? AND competencia>=? AND competencia<=?').all(Number(empresaId), escopo.inicio, escopo.fim)
-    : db.prepare('SELECT * FROM movimentos WHERE empresa_id=?').all(Number(empresaId));
+  const ids=[...new Set((opcoes.movimentoIds || []).map(Number).filter(Number.isInteger))];
+  if (ids.length) return db.prepare(`SELECT * FROM movimentos WHERE empresa_id=? AND id IN (${ids.map(()=>'?').join(',')})`).all(Number(empresaId),...ids);
+  if (!escopo) throw new Error('LEITURA_GLOBAL_PROIBIDA: reconciliação local exige competência ou movimento_ids explícitos.');
+  return db.prepare('SELECT * FROM movimentos WHERE empresa_id=? AND competencia>=? AND competencia<=?').all(Number(empresaId), escopo.inicio, escopo.fim);
 }
 
 // A auditoria é a trilha durável das exclusões feitas pelo usuário. Algumas
@@ -884,6 +885,17 @@ function diagnosticarDivergenciaMovimentosCanonicos(normalizadas, locais, remove
 async function reconciliarMovimentosEmpresa(empresaId, opcoes = {}) {
   const id = Number(empresaId);
   const escopo = escopoCompetencias(opcoes);
+  const movimentoIds = [...new Set((opcoes.movimentoIds || []).map(Number).filter(Number.isInteger))];
+  // Tela analítica não é sincronização integral. Sem recorte explícito, a
+  // rotina preserva a fonte já materializada e informa estado pendente, sem
+  // carregar carteiras locais/remotas em memória.
+  if (!escopo && !movimentoIds.length) {
+    return {
+      ativo: ativo(), origem:'RECONCILIACAO_GLOBAL_BLOQUEADA', bloqueada:true,
+      inseridos_ou_atualizados:0, removidos:0, sincronizado_em:Date.now(), movimentos:[],
+      motivo:'LEITURA_GLOBAL_PROIBIDA: reconciliação exige competência ou movimento_ids explícitos.',
+    };
+  }
   // A importação feita nesta instância é persistida no SQLite local. Quando a
   // operação compartilhada não foi configurada, bloquear a leitura do Perfil
   // esconderia documentos recém-importados e induziria uma nova importação.
