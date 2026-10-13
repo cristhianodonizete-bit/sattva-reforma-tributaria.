@@ -6084,7 +6084,9 @@ function referenciaPisCofinsDoFornecedor(item, regimeFornecedor) {
 // que já apontam para ele recebem a nova referência e entram na fila
 // incremental. Valores, documentos, exclusões e fechamentos não são tocados.
 async function propagarItemEntradaManualParaRazao(chave, item, empresaIdFiltro = null) {
-  const movimentos=db.prepare(`SELECT m.id,m.empresa_id,m.valor,m.nome,
+  // A propagação é incremental por item e por página. Nunca percorre a
+  // carteira para descobrir depois, em JavaScript, quais fatos usam a chave.
+  const listarMovimentosDoItem=db.prepare(`SELECT m.id,m.empresa_id,m.valor,m.nome,
       COALESCE(p.regime,m.regime,json_extract(m.normalizacao_evidencia,'$.fornecedor_vinculado.regime')) AS regime_fornecedor,
       m.normalizacao_evidencia
     FROM movimentos m JOIN empresas e ON e.id=m.empresa_id
@@ -6092,8 +6094,11 @@ async function propagarItemEntradaManualParaRazao(chave, item, empresaIdFiltro =
       AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')
         = REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
     WHERE m.origem IN ('QUESTOR_RAZAO','MANUAL_ENTRADA','QUESTOR_CONCILIACAO_ENTRADA')
-      AND (? IS NULL OR m.empresa_id=?)`).all(empresaIdFiltro,empresaIdFiltro);
-  const porEmpresa=new Map();
+      AND json_valid(COALESCE(m.normalizacao_evidencia,''))
+      AND (json_extract(m.normalizacao_evidencia,'$.item_cadastrado.chave')=?
+        OR json_extract(m.normalizacao_evidencia,'$.item_cadastrado')=?)
+      AND (? IS NULL OR m.empresa_id=?) AND m.id>?
+    ORDER BY m.id LIMIT ?`);
   const matrizPisCofins=require('../services/matrizPisCofinsEntradaManual');
   const resultadoMotor=db.prepare(`SELECT detalhe FROM motor_resultados
     WHERE empresa_id=? AND movimento_id=? ORDER BY id DESC LIMIT 1`);
@@ -6101,8 +6106,14 @@ async function propagarItemEntradaManualParaRazao(chave, item, empresaIdFiltro =
     SET cst=?,cclasstrib=?,cst_declarado=?,cclasstrib_declarado=?,
       nbs=COALESCE(NULLIF(nbs,''),?),lc116=COALESCE(NULLIF(lc116,''),?),normalizacao_evidencia=?
     WHERE id=? AND empresa_id=?`);
-  db.transaction(()=>{
-    for (const movimento of movimentos) {
+  const processamentos=[], empresas=new Set();
+  let documentos=0, cursor=0;
+  for (;;) {
+    const movimentos=listarMovimentosDoItem.all(chave,chave,empresaIdFiltro,empresaIdFiltro,cursor,250);
+    if (!movimentos.length) break;
+    const porEmpresa=new Map();
+    db.transaction(()=>{
+      for (const movimento of movimentos) {
       let evidencia={}; try { evidencia=JSON.parse(movimento.normalizacao_evidencia || '{}'); } catch (_) { continue; }
       const itemAtual=String(evidencia.item_cadastrado?.chave || evidencia.item_cadastrado || '');
       if (itemAtual!==chave) continue;
@@ -6128,16 +6139,19 @@ async function propagarItemEntradaManualParaRazao(chave, item, empresaIdFiltro =
       }
       const ids=porEmpresa.get(movimento.empresa_id) || [];
       ids.push(movimento.id); porEmpresa.set(movimento.empresa_id,ids);
+      }
+    })();
+    for (const [empresaId,ids] of porEmpresa) {
+      const publicacao=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,ids);
+      const processamento=await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:publicacao.movimento_ids_canonicos });
+      estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Cadastro de item de entrada atualizado');
+      documentos+=ids.length; empresas.add(empresaId);
+      processamentos.push({ empresa_id:empresaId, documentos:ids.length, processamento_id:processamento.processamento_id });
     }
-  })();
-  const processamentos=[];
-  for (const [empresaId,ids] of porEmpresa) {
-    const publicacao=await require('../services/operacaoCompartilhada').publicarEntradasQuestorConciliadas(empresaId,ids);
-    const processamento=await motorExecucaoFila.solicitarIncremental(empresaId,{ movimentoIds:publicacao.movimento_ids_canonicos });
-    estadoLeituraEmpresa.invalidar(db,empresaId,['documentos','motor','cadeias'],'Cadastro de item de entrada atualizado');
-    processamentos.push({ empresa_id:empresaId, documentos:ids.length, processamento_id:processamento.processamento_id });
+    cursor=Number(movimentos.at(-1).id);
+    if (movimentos.length<250) break;
   }
-  return { documentos:[...porEmpresa.values()].reduce((s,ids)=>s+ids.length,0), empresas:processamentos.length, processamentos };
+  return { documentos, empresas:empresas.size, processamentos };
 }
 const renovacoesCatalogoEntradaEmAndamento=new Map();
 async function renovarFotografiasItensEntradaManualSeNecessario(empresaId) {
