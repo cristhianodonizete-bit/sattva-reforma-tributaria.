@@ -174,5 +174,6 @@ assert.match(api,/gera_credito:itemCadastrado && regra\.gera_credito !== false/,
 assert.match(classificador,/lançamento manual de entrada/);
 assert.match(classificador,/reducao_cbs:beneficio/);
 assert.match(fs.readFileSync(path.join(raiz,'src/services/integridadeMotor.js'),'utf8'),/movimentoIds/,'a assinatura incremental deve limitar a leitura aos movimentos explícitos do lote');
+assert.match(fs.readFileSync(path.join(raiz,'src/services/operacaoCompartilhada.js'),'utf8'),/\.in\('chave', tabelas\)/,'a preparação deve baixar somente as configurações fiscais necessárias');
 assert.match(fs.readFileSync(path.join(raiz,'src/services/operacaoCompartilhada.js'),'utf8'),/MANUAL_ENTRADA/,'a publicação de entradas por chave estável deve aceitar a origem manual');
 console.log('OK: entradas manuais são aditivas, limitadas ao período e publicadas na fonte compartilhada.');

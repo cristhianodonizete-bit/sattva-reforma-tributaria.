@@ -1680,7 +1680,11 @@ async function baixarConfiguracao(tabelas = CONFIG_TABELAS, remotoInformado = nu
   // compartilhada é obrigatória para impedir divergência de alíquotas.
   if (!supabase.configurado()) return { ativo: false };
   const remoto = remotoInformado || supabase.admin();
-  const { data: configuracoes, error } = await remoto.from('parametros_operacionais').select('chave,dados').eq('tabela', 'configuracao');
+  // A tabela também abriga fotografias de configurações que não participam
+  // deste cálculo. Trazer tudo fazia o worker incremental materializar dados
+  // de outros módulos antes mesmo de chegar aos poucos documentos solicitados.
+  const { data: configuracoes, error } = await remoto.from('parametros_operacionais').select('chave,dados')
+    .eq('tabela', 'configuracao').in('chave', tabelas);
   if (error && !String(error.message).includes('does not exist')) throw error;
   const porChave = new Map((configuracoes || []).map((x) => [x.chave, x.dados]));
   const resultado = {};
