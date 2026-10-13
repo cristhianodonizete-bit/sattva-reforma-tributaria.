@@ -61,6 +61,12 @@ function ultimaExecucao(empresaId, opcoes = {}) {
 function linhas(empresaId, opcoes = {}) {
   const execucao = ultimaExecucao(empresaId, opcoes);
   if (!execucao) return { execucao: null, linhas: [] };
+  // Caminho legado desativado: nunca materialize uma execução inteira no
+  // processo. Os consumidores ativos usam resumo(), listar() e detalhe(),
+  // que aplicam escopo e limite no SQL. A resposta vazia é deliberada para
+  // que qualquer chamada residual não consiga contornar essa garantia nem
+  // derrubar a instância por OOM.
+  return { execucao, periodo: periodoAnalisado.obter(empresaId), linhas: [] };
   // A leitura não inicia cálculo. Ela só materializa o estado de validade da
   // fotografia diante da fonte canônica atual; portanto uma decisão recém
   // confirmada deixa de usar o resultado antigo imediatamente, mesmo se o
