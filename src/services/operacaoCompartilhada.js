@@ -232,9 +232,15 @@ function aplicarRegimeBaseNosVinculosQuestor(empresaId) {
   return parceiros+movimentos;
 }
 
-async function hidratarBaseRegimeDaEmpresa(empresaId) {
-  const cnpjs=db.prepare("SELECT DISTINCT inscr_federal cnpj FROM movimentos WHERE empresa_id=? AND tipo='fornecedor' AND LENGTH(REPLACE(REPLACE(REPLACE(COALESCE(inscr_federal,''),'.',''),'/',''),'-',''))=14")
-    .all(Number(empresaId)).map((x)=>String(x.cnpj || '').replace(/\D/g,'')).filter(Boolean);
+async function hidratarBaseRegimeDaEmpresa(empresaId, opcoes = {}) {
+  const limite=Math.max(1,Math.min(100,Number(opcoes.limite)||100));
+  const depois=String(opcoes.depois_cnpj || '').replace(/\D/g,'');
+  const cnpjs=db.prepare(`SELECT DISTINCT REPLACE(REPLACE(REPLACE(COALESCE(inscr_federal,''),'.',''),'/',''),'-','') cnpj
+    FROM movimentos WHERE empresa_id=? AND tipo='fornecedor'
+      AND LENGTH(REPLACE(REPLACE(REPLACE(COALESCE(inscr_federal,''),'.',''),'/',''),'-',''))=14
+      AND REPLACE(REPLACE(REPLACE(COALESCE(inscr_federal,''),'.',''),'/',''),'-','')>?
+    ORDER BY cnpj LIMIT ?`)
+    .all(Number(empresaId),depois,limite).map((x)=>String(x.cnpj || '').replace(/\D/g,'')).filter(Boolean);
   const referencias=await baseRegimeReceita.consultarCompartilhada(cnpjs);
   const unicas=[...new Map([...referencias.values()].map((x)=>[`${x.cnpj}|${x.ano}`,x])).values()];
   const inserir=db.prepare(`INSERT INTO base_regime(cnpj,raiz,regime,ano,fonte) VALUES (?,?,?,?,?)
