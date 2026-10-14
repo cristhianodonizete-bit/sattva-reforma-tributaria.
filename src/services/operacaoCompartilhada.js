@@ -470,14 +470,20 @@ async function garantirCacheOperacionalEmpresa(empresaId, opcoes = {}) {
   const tarefa=(async()=>{
     const remoto=supabase.admin();
     const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(id);
-    if (!empresa?.cnpj) throw new Error('Empresa não encontrada para hidratação operacional.');
-    const cnpj=String(empresa.cnpj).replace(/\D/g,'');
-    const { data:candidatas,error:erroEmpresa }=await remoto.from('empresas').select('id,cnpj,origem_local_id')
-      .or(`origem_local_id.eq.${id},cnpj.eq.${cnpj}`).limit(3);
+    const cnpj=String(empresa?.cnpj || '').replace(/\D/g,'');
+    // Após reinício, o SQLite pode ainda não ter a empresa-pai ou ter apenas
+    // sua identidade mínima. A fonte compartilhada conhece a origem estável;
+    // reidratamos a empresa antes de qualquer filho (período, movimentos,
+    // parceiros ou estado de leitura) para nunca violar uma chave estrangeira.
+    let consulta=remoto.from('empresas').select('*').or(`origem_local_id.eq.${id},id.eq.${id}`);
+    if (cnpj) consulta=remoto.from('empresas').select('*')
+      .or(`origem_local_id.eq.${id},id.eq.${id},cnpj.eq.${cnpj}`);
+    const { data:candidatas,error:erroEmpresa }=await consulta.limit(10);
     if (erroEmpresa) throw new Error(`Empresa compartilhada: ${erroEmpresa.message}`);
     const remota=(candidatas||[]).find((x)=>Number(x.origem_local_id||x.id)===id
-      || String(x.cnpj||'').replace(/\D/g,'')===cnpj);
+      || (cnpj && String(x.cnpj||'').replace(/\D/g,'')===cnpj));
     if (!remota) throw new Error('Empresa compartilhada não localizada para hidratação operacional.');
+    gravarEmpresas([remota]);
     const mapa=new Map([[String(remota.id),id]]);
     const buscarEmpresa=async(tabela)=>{
       const linhas=[];

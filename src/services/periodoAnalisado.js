@@ -145,10 +145,13 @@ function cobertura(empresaId, { banco = dbPadrao } = {}) {
   const empresa = banco.prepare('SELECT data_abertura FROM empresas WHERE id=?').get(Number(empresaId)) || {};
   if (!periodo) return { periodo:null, competencias:[], faltantes:[], fora_do_periodo:0, data_abertura:empresa.data_abertura || null, competencia_abertura:competenciaAbertura(empresa.data_abertura) };
   const esperadas = []; for (let c=periodo.competencia_inicio; c<=periodo.competencia_fim;) { esperadas.push(c); const [a,m]=c.split('-').map(Number); c=`${m===12?a+1:a}-${String(m===12?1:m+1).padStart(2,'0')}`; }
-  const encontradas = banco.prepare(`SELECT DISTINCT competencia FROM (
+  // É uma agregação por competência no SQLite, nunca a materialização dos
+  // movimentos. `GROUP BY` também declara explicitamente esse contrato para
+  // a proteção contra leitura global da carteira.
+  const encontradas = banco.prepare(`SELECT competencia FROM (
     SELECT competencia FROM movimentos WHERE empresa_id=? UNION SELECT competencia FROM perfil_tributario WHERE empresa_id=?
     UNION SELECT competencia FROM folhas_pagamento_competencias WHERE empresa_id=? UNION SELECT competencia FROM receitas_sem_dfe WHERE empresa_id=?
-  ) WHERE competencia IS NOT NULL AND competencia<>''`).all(empresaId, empresaId, empresaId, empresaId).map((x) => x.competencia);
+  ) WHERE competencia IS NOT NULL AND competencia<>'' GROUP BY competencia`).all(empresaId, empresaId, empresaId, empresaId).map((x) => x.competencia);
   const dentro = new Set(encontradas.filter((x) => noPeriodo(x, periodo)));
   return { periodo, janela_apuracao:janelaApuracao(periodo), competencias:esperadas, cobertas:esperadas.filter((x) => dentro.has(x)), faltantes:esperadas.filter((x) => !dentro.has(x)), fora_do_periodo:encontradas.filter((x) => competenciaValida(x) && !noPeriodo(x, periodo)).length, data_abertura:empresa.data_abertura || null, competencia_abertura:competenciaAbertura(empresa.data_abertura) };
 }

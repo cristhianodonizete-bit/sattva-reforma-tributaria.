@@ -73,6 +73,10 @@ for (const tabela of ['lotes','movimentos','parceiros','formacao_custo_itens','f
 }
 assert.match(operacao, /operacao\|\|'\'\)\.toUpperCase\(\)!==\s*'DELETE'/,'tombstones devem continuar aplicados no cache segmentado');
 assert.match(operacao, /async function garantirCacheOperacionalEmpresa/,'cache fiscal deve ser hidratado pela empresa acessada');
+assert.match(operacao, /gravarEmpresas\(\[remota\]\);/,'a empresa-pai deve ser reidratada antes de qualquer escrita filha no cache efêmero');
+assert.match(operacao, /origem_local_id\.eq\.\$\{id\},id\.eq\.\$\{id\}/,'cache vazio deve localizar a empresa por sua origem estável, sem depender do CNPJ local');
+const periodoFonte = fs.readFileSync(path.join(__dirname, '../src/services/periodoAnalisado.js'), 'utf8');
+assert.match(periodoFonte, /GROUP BY competencia/,'cobertura do período deve agregar competências no SQLite, sem leitura ampla de movimentos');
 assert.match(api, /garantirCacheOperacionalEmpresa\(Number\(alvo\)\)/,'rotas da empresa devem hidratar somente seu escopo autorizado');
 assert.match(server, /sincronizarIncremental\(\{ remoto: remotoSegundoPlano,segmentadoPorEmpresa:true \}\)/,'boot Web deve usar carga-base segmentada');
 assert.match(server, /segmentadoPorEmpresa:true/,'ciclos Web devem manter a segmentação por empresa');
