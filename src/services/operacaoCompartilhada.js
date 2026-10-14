@@ -1493,6 +1493,21 @@ function execucaoCompartilhadaLocal(linha, empresaId = null) {
   };
 }
 
+// A execução é pai de fotografias e de tabelas legadas do SQLite local.
+// DELETE e INSERT OR REPLACE removem fisicamente o pai antes de recriá-lo,
+// podendo violar uma FK já existente. A restauração web deve atualizar a
+// execução ativa sem trocar a sua identidade.
+function gravarExecucaoCompartilhadaSemReplace(linha, empresaId) {
+  const dados = execucaoCompartilhadaLocal(linha, empresaId);
+  const colunas = db.prepare('PRAGMA table_info(motor_execucoes)').all()
+    .map((coluna) => coluna.name)
+    .filter((coluna) => Object.hasOwn(dados, coluna));
+  const atualizaveis = colunas.filter((coluna) => coluna !== 'id');
+  const sql = `INSERT INTO motor_execucoes (${colunas.join(',')}) VALUES (${colunas.map(() => '?').join(',')})
+    ON CONFLICT(id) DO UPDATE SET ${atualizaveis.map((coluna) => `${coluna}=excluded.${coluna}`).join(',')}`;
+  db.prepare(sql).run(...colunas.map((coluna) => dados[coluna]));
+}
+
 function resultadoCompartilhadoLocal(linha, empresaId = null, execucaoId = null) {
   return {
     ...(linha?.dados || linha || {}),
@@ -1645,13 +1660,14 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     db.prepare('DELETE FROM cadeia_fotografias WHERE empresa_id=?').run(id);
     db.prepare('DELETE FROM telemetria_autonomia_execucoes WHERE empresa_id=?').run(id);
     db.prepare('DELETE FROM excecoes_motor_execucoes WHERE empresa_id=?').run(id);
-    db.prepare('DELETE FROM motor_resultados WHERE empresa_id=?').run(id);
-    db.prepare('DELETE FROM motor_execucoes WHERE empresa_id=?').run(id);
+    // Não remova a execução-pai: instalações anteriores podem ter referências
+    // válidas a ela. Substituímos somente os resultados da foto ativa.
+    db.prepare('DELETE FROM motor_resultados WHERE empresa_id=? AND execucao_id=?').run(id, Number(execucaoAtiva.id));
     // A projeção é uma fotografia canônica por movimento. O cache efêmero
     // pode conter versões antigas sem unicidade; mantê-las multiplicaria a
     // Cadeia. Substituímos integralmente o escopo da empresa pela foto remota.
     db.prepare('DELETE FROM projecoes_movimentos_estado WHERE empresa_id=?').run(id);
-    gravarLinhasComColunas('motor_execucoes',[execucaoCompartilhadaLocal(execucaoAtiva,id)],true);
+    gravarExecucaoCompartilhadaSemReplace(execucaoAtiva, id);
     gravarLinhasComColunas('motor_resultados',resultados.map((x)=>resultadoCompartilhadoLocal(x,id,execucaoAtiva.id)),true);
     const gravarEstado=db.prepare(`INSERT INTO projecoes_movimentos_estado
       (empresa_id,movimento_id,assinatura_origem,versao_origem,assinatura_calculada,versao_calculada,situacao,motivo,job_id,atualizado_em)
