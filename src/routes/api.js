@@ -1394,13 +1394,15 @@ router.put('/empresas/:id/periodo-analisado', async (req, res) => {
 router.get('/empresas/:id/prontidao-dados', async (req, res) => {
   try {
     const empresaId = Number(req.params.id);
-    await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido na fonte compartilhada' });
-    await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['prontidao'], () => prontidaoDados.sincronizarCompartilhado(empresaId), { motivo:'Prontidão conferida na fonte compartilhada' });
-    // A prontidão do Simples lê a confirmação durável do PGDAS. Restaure-a
-    // antes da consulta para que a troca de instância não desfaça o verde.
-    if (db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime === 'simples_nacional') await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['pgdas'], () => pgdasCompartilhado.restaurar(empresaId), { motivo:'PGDAS confirmado restaurado' });
-    else await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId), { motivo:'Apurações confirmadas restauradas' });
+    const sincronizar = async (passo, fn) => { try { await fn(); } catch (e) { console.error('[prontidao] sincronização ignorada (' + passo + '):', e.message); } };
+    await sincronizar('periodo', () => estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido na fonte compartilhada' }));
+    await sincronizar('prontidao', () => estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['prontidao'], () => prontidaoDados.sincronizarCompartilhado(empresaId), { motivo:'Prontidão conferida na fonte compartilhada' }));
+    if (db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime === 'simples_nacional') await sincronizar('pgdas', () => estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['pgdas'], () => pgdasCompartilhado.restaurar(empresaId), { motivo:'PGDAS confirmado restaurado' }));
+    else await sincronizar('apuracoes', () => estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId), { motivo:'Apurações confirmadas restauradas' }));
     ok(res, prontidaoDados.obter(empresaId));
+  }
+  catch (e) { erro(res, e); }
+});
   }
   catch (e) { erro(res, e); }
 });
