@@ -166,12 +166,12 @@ function popularCadastrosMestre() {
 }
 function fotografia(empresaId, opcoes = {}) {
   const q = qualidade.obter(empresaId, opcoes);
-  const avaliadas = q.linhas.map((x) => ({ ...x, linha: (() => { try { return db.prepare(`SELECT r.detalhe,r.regime_cbs_emitente,r.regime_cbs_adquirente,
+  const avaliadas = (q.linhas || []).map((x) => ({ ...x, linha: (() => { try { return db.prepare(`SELECT r.detalhe,r.regime_cbs_emitente,r.regime_cbs_adquirente,
       m.documento,m.chave,m.descricao,m.nome AS parceiro,m.inscr_federal AS cnpj,m.competencia,m.ncm,m.nbs,m.lc116,m.cst,
       m.normalizacao_status,m.normalizacao_pendencia,m.normalizacao_evidencia
       FROM motor_resultados r LEFT JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
       WHERE r.empresa_id=? AND r.movimento_id=? AND r.execucao_id=?`).get(empresaId, x.movimento_id, q.execucao?.id) || {}; } catch (_) { return {}; } })() })).map((x) => ({ ...x, linha: { ...x.linha, detalhe: (() => { try { return JSON.parse(x.linha.detalhe || '{}'); } catch (_) { return {}; } })() } }));
-  const dimensoes = Object.fromEntries(['classificacao','tratamento','reconstrucao','credito','resultado'].map((k) => [k, matriz(q.matrizes[k] || {})]));
+  const dimensoes = Object.fromEntries(['classificacao','tratamento','reconstrucao','credito','resultado'].map((k) => [k, matriz(q.matrizes?.[k] || {})]));
   const abertas = excecoes.listar(empresaId, { limite: 1000 });
   const agrupadas = Object.values(abertas.reduce((m, x) => { const k = `${x.codigo}:${x.categoria}`; const a = m[k] || { causa: x.codigo, categoria: x.categoria, quantidade: 0, valor: 0, impacto: 0, status: x.status }; a.quantidade++; a.valor += n(x.valor_envolvido); a.impacto += n(x.impacto_cbs_estimado); m[k] = a; return m; }, {})).map((x) => ({ ...x, valor: r2(x.valor), impacto: r2(x.impacto) })).sort((a,b) => b.valor - a.valor);
   const pendencias_operacionais = pendenciasOperacionais(avaliadas);
