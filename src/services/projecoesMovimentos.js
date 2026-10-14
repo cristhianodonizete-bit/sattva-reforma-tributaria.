@@ -90,6 +90,10 @@ function decidir(db, movimento, parceiro, resultado) {
     return { assinatura, situacao: ESTADOS.FORA_ESCOPO,
       motivo: 'Movimento de saída: não integra pendências de PIS/Cofins de fornecedores.', job_id: null };
   }
+  if (['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(movimento.situacao_documento || '').toUpperCase())) {
+    return { assinatura, situacao: ESTADOS.FORA_ESCOPO,
+      motivo: 'Documento fiscal cancelado: não integra cálculo nem pendências vigentes.', job_id: null };
+  }
   if (resultadoCompativel(movimento, parceiro, resultado)) {
     return { assinatura, situacao: ESTADOS.ATUAL, motivo: null, job_id: null };
   }

@@ -67,6 +67,12 @@ try {
   estados = projecoes.reconciliar(db,empresaId,[saidaId]);
   assert.equal(estados.get(saidaId).situacao,projecoes.ESTADOS.FORA_ESCOPO,
     'saída de cliente sem resultado não pode aparecer como pendência de fornecedor');
+  const canceladoId = Number(db.prepare(`INSERT INTO movimentos
+    (empresa_id,tipo,sentido,nome,inscr_federal,descricao,valor,competencia,reducao,regime,situacao_documento)
+    VALUES (?,'fornecedor','entrada','Fornecedor cancelado','66111111000101','Documento cancelado',500,'2027-01','integral','lucro_real','CANCELADO')`).run(empresaId).lastInsertRowid);
+  estados = projecoes.reconciliar(db,empresaId,[canceladoId]);
+  assert.equal(estados.get(canceladoId).situacao,projecoes.ESTADOS.FORA_ESCOPO,
+    'documento cancelado sem resultado não pode aparecer como pendência fiscal vigente');
   console.log('fonte-unica-projecoes.test: contenção, falha e reprocessamento incremental aprovados.');
 } finally {
   try { db.close?.(); } catch (_) { /* nada a fazer */ }
