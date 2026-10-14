@@ -82,20 +82,20 @@ function situacaoPreservada(db, empresaId, movimentoId) {
 function decidir(db, movimento, parceiro, resultado) {
   const assinatura = assinaturaOrigem(movimento, parceiro);
   const anterior = situacaoPreservada(db, movimento.empresa_id, movimento.id);
-  // A fotografia de PIS/Cofins de fornecedores não calcula saídas para
-  // clientes. Sem esta separação, uma saída sem resultado do motor aparecia
-  // falsamente como pendência fiscal de fornecedor. Mantemos o fato e sua
-  // decisão, mas o classificamos explicitamente fora do escopo desta projeção.
+  if (resultadoCompativel(movimento, parceiro, resultado)) {
+    return { assinatura, situacao: ESTADOS.ATUAL, motivo: null, job_id: null };
+  }
+  // A fotografia de PIS/Cofins de fornecedores não calcula uma saída sem
+  // resultado. Isso não transforma clientes em pendência fiscal. Esta regra
+  // vem depois da compatibilidade: uma saída que já tem cálculo válido segue
+  // ATUAL para a cadeia de clientes e a análise de receita.
   if (String(movimento.tipo || '').toLowerCase() === 'cliente' || String(movimento.sentido || '').toLowerCase() === 'saida') {
     return { assinatura, situacao: ESTADOS.FORA_ESCOPO,
-      motivo: 'Movimento de saída: não integra pendências de PIS/Cofins de fornecedores.', job_id: null };
+      motivo: 'Movimento de saída sem cálculo aplicável: não integra pendências de PIS/Cofins de fornecedores.', job_id: null };
   }
   if (['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(movimento.situacao_documento || '').toUpperCase())) {
     return { assinatura, situacao: ESTADOS.FORA_ESCOPO,
       motivo: 'Documento fiscal cancelado: não integra cálculo nem pendências vigentes.', job_id: null };
-  }
-  if (resultadoCompativel(movimento, parceiro, resultado)) {
-    return { assinatura, situacao: ESTADOS.ATUAL, motivo: null, job_id: null };
   }
   if (anterior?.situacao === ESTADOS.FALHOU) {
     return { assinatura, situacao: ESTADOS.FALHOU, motivo: anterior.motivo || 'A atualização incremental falhou.', job_id: anterior.job_id || null };

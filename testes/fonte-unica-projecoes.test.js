@@ -67,6 +67,13 @@ try {
   estados = projecoes.reconciliar(db,empresaId,[saidaId]);
   assert.equal(estados.get(saidaId).situacao,projecoes.ESTADOS.FORA_ESCOPO,
     'saída de cliente sem resultado não pode aparecer como pendência de fornecedor');
+  const saidaCalculadaId = Number(db.prepare(`INSERT INTO movimentos
+    (empresa_id,tipo,sentido,nome,inscr_federal,descricao,valor,competencia,reducao,regime,cfop,origem)
+    VALUES (?,'cliente','saida','Cliente calculado','55111111000101','Venda calculada',700,'2027-01','integral','lucro_real','5102','xml')`).run(empresaId).lastInsertRowid);
+  motorExec.executar(empresaId,{ ano:2027,movimentoIds:[saidaCalculadaId] });
+  estados = projecoes.reconciliar(db,empresaId,[saidaCalculadaId]);
+  assert.equal(estados.get(saidaCalculadaId).situacao,projecoes.ESTADOS.ATUAL,
+    'saída com resultado compatível deve permanecer atual para a cadeia de clientes');
   const canceladoId = Number(db.prepare(`INSERT INTO movimentos
     (empresa_id,tipo,sentido,nome,inscr_federal,descricao,valor,competencia,reducao,regime,situacao_documento)
     VALUES (?,'fornecedor','entrada','Fornecedor cancelado','66111111000101','Documento cancelado',500,'2027-01','integral','lucro_real','CANCELADO')`).run(empresaId).lastInsertRowid);
