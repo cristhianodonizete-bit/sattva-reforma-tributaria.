@@ -684,7 +684,8 @@ router.use(async (req, res, next) => {
   try {
     const permitidas = await empresasPermitidasUsuario(req.usuario);
     if (permitidas === null || permitidas.has(String(alvo))) {
-      await require('../services/operacaoCompartilhada').garantirCacheOperacionalEmpresa(Number(alvo));
+      try { await require('../services/operacaoCompartilhada').garantirCacheOperacionalEmpresa(Number(alvo)); }
+      catch (e) { console.error('[operacao] hidratação ignorada para empresa ' + alvo + ':', e.message); }
       return next();
     }
     return res.status(403).json({ ok: false, erro: 'Seu usuário não está vinculado a esta empresa.' });
