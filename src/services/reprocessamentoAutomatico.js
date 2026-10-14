@@ -5,7 +5,15 @@ const db = require('../db');
 const motorExec = require('./motorExec');
 const fila = require('./motorExecucaoFila');
 
+// Trava operacional: com REPROCESSAMENTO_AUTOMATICO_PAUSADO=1 nenhuma empresa
+// recebe novo pedido incremental automático. Serve para conter um loop de
+// reenfileiramento sem derrubar o serviço web.
+function pausado() {
+  return ['1', 'true', 'sim'].includes(String(process.env.REPROCESSAMENTO_AUTOMATICO_PAUSADO || '').trim().toLowerCase());
+}
+
 async function agendarPendencias() {
+  if (pausado()) return [];
   const empresas=db.prepare('SELECT id FROM empresas ORDER BY id').all();
   const resultado=[];
   for (const empresa of empresas) {
