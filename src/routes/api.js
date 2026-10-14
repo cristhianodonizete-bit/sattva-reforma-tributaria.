@@ -1400,10 +1400,7 @@ router.get('/empresas/:id/prontidao-dados', async (req, res) => {
     if (db.prepare('SELECT regime FROM empresas WHERE id=?').get(empresaId)?.regime === 'simples_nacional') await sincronizar('pgdas', () => estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['pgdas'], () => pgdasCompartilhado.restaurar(empresaId), { motivo:'PGDAS confirmado restaurado' }));
     else await sincronizar('apuracoes', () => estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['apuracoes'], () => apuracoesPisCofinsIa.restaurarCompartilhado(db, empresaId), { motivo:'Apurações confirmadas restauradas' }));
     ok(res, prontidaoDados.obter(empresaId));
-  }
-  catch (e) { erro(res, e); }
-});
-  }
+   }
   catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/prontidao-dados/declaracoes', async (req, res) => {
