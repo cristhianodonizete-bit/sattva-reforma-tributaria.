@@ -47,7 +47,7 @@ assert.match(ramoIncremental, /INCREMENTAL_IDS_EXPLICITOS_EM_LOTES/,'conclusão 
 assert.match(ramoIncremental, /promoverFotografiaMotorIncremental[\s\S]*?validarFotografiaAtivaMotor[\s\S]*?payload\.proximo_lote/,'checkpoint só pode avançar depois de promover e validar a fotografia');
 assert.doesNotMatch(ramoIncremental, /preparar\(job\.empresa_id\)/, 'execução incremental não pode preparar a empresa inteira');
 assert.doesNotMatch(ramoIncremental, /bases\.classificarMovimentos/, 'execução incremental não pode reclassificar a base inteira');
-assert.match(api, /A conferência\n\s+\/\/ fiscal canônica ocorre no worker/);
+assert.match(api, /A conferência\r?\n\s+\/\/ fiscal canônica ocorre no worker/);
 assert.match(fila, /if \(opcoes\.iniciarWorker === true\)/);
 assert.doesNotMatch(fila, /iniciarWorker !== false/);
 assert.match(fila, /telemetria_reuso_classificacao: resultado\.resumo\.telemetria_reuso_classificacao/, 'o job deve expor somente a telemetria observacional da execução');

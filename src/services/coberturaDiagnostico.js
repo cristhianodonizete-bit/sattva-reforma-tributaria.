@@ -44,7 +44,7 @@ function familia(linha) {
   return 'OPERACAO_REGULAR';
 }
 function suporte(grupo) {
-  const resultado = grupo.map((x) => x.dimensoes.resultado);
+  const resultado = grupo.map((x) => x.dimensoes?.resultado);
   if (!resultado.length) return 'NAO_IDENTIFICADO';
   if (resultado.some((x) => x === 'INDETERMINADO')) return 'IDENTIFICADO';
   if (resultado.some((x) => x === 'SUJEITO_VALIDACAO')) return 'CLASSIFICADO';
@@ -144,7 +144,7 @@ function familias(avaliadas) {
   return esperadas.map((nome) => {
     const itens = mapa.get(nome) || [];
     const valor = r2(itens.reduce((s, x) => s + n(x.valor), 0));
-    return { familia: nome, identificado: itens.length > 0, classificado: itens.some((x) => x.dimensoes.classificacao === 'DETERMINADO'),
+    return { familia: nome, identificado: itens.length > 0, classificado: itens.some((x) => x.dimensoes?.classificacao === 'DETERMINADO'),
       suportado: suporte(itens) === 'SUPORTADO', nivel_suporte: suporte(itens), quantidade: itens.length, valor,
       gap: !itens.length ? 'Sem ocorrência na fotografia ativa.' : suporte(itens) === 'SUPORTADO' ? null : 'Fatos ou regra específica ainda não comprovados; cálculo específico não foi criado.' };
   });
