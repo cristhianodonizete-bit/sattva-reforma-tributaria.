@@ -36,7 +36,7 @@ function proibirCarteiraGlobal(sql) {
   if (!/\bfrom\s+(?:movimentos|motor_resultados)\b/.test(q)) return;
   const limitado=/\blimit\b/.test(q);
   const agregado=/\b(count|sum|avg|min|max)\s*\(|\bgroup by\b/.test(q);
- onst escopoExplicito=/\b(?:m\.)?id\s+in\s*\(|\b(?:m\.)?id\s*=\s*\?|\bmovimento_id\s+in\s*\(|\bempresa_id\s*=\s*\?/.test(q);
+ const escopoExplicito=/\b(?:m\.)?id\s+in\s*\(|\b(?:m\.)?id\s*=\s*\?|\bmovimento_id\s+in\s*\(|\bempresa_id\s*=\s*\?/.test(q);
   if (!limitado && !agregado && !escopoExplicito) {
     const erro=new Error(`LEITURA_GLOBAL_PROIBIDA: movimentos/resultados exigem LIMIT com cursor, agregação SQL ou IDs explícitos. Consulta: ${q.slice(0,180)}`);
     erro.code='LEITURA_GLOBAL_PROIBIDA';
