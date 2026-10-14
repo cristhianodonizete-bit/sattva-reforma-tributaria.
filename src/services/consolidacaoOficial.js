@@ -49,13 +49,9 @@ function invalidarCacheEmpresa(empresaId) {
   for (const chave of [...cadeiasPorExecucao.keys()]) if (chave.startsWith(prefixo)) cadeiasPorExecucao.delete(chave);
 }
 
-function ultimaExecucao(empresaId, opcoes = {}) {
-  let execucao = motorExec.ultimaExecucao(empresaId);
-  if (!execucao && opcoes.executarSeAusente !== false) {
-    motorExec.executar(empresaId, { ano: Number(opcoes.ano) || 2027 });
-    execucao = motorExec.ultimaExecucao(empresaId);
-  }
-  return execucao;
+function ultimaExecucao(empresaId) {
+  const fotografia=motorExec.fotografiaOficial(empresaId);
+  return fotografia.status==='OK' ? fotografia.execucao : null;
 }
 
 function linhas(empresaId, opcoes = {}) {
@@ -737,11 +733,12 @@ function impactoFinalLegadoInacessivel(empresaId, opcoes = {}) {
   const liquida = r2(cbsDebito - cbsCredito);
   const impactoFaturamentoHibrido = ['simples_nacional', 'mei'].includes(regimeEmpresa)
     ? r2(cbsDebito - cbsDentroDoDas) : null;
-  const perfil = base.execucao ? perfilCbs.materializar(empresaId) : { competencias: [] };
+  // Impacto é leitura: nunca materializa Perfil CBS nem aciona motor.
+  const perfil = base.execucao ? perfilCbs.listar(empresaId, { limite:100 }) : { status:'ATUALIZACAO_NECESSARIA', competencias: [] };
   const pDebito = r2((perfil.competencias || []).reduce((s, x) => s + n(x.cbs_debito), 0));
   const pCredito = r2((perfil.competencias || []).reduce((s, x) => s + n(x.cbs_credito), 0));
   const tol = .01;
-  const status = !base.execucao ? 'INCOMPLETO' : Math.abs(cbsDebito - pDebito) < tol && Math.abs(cbsCredito - pCredito) < tol ? 'RECONCILIADO' : 'DIVERGENTE';
+  const status = !base.execucao ? 'ATUALIZACAO_NECESSARIA' : perfil.status !== 'OK' ? perfil.status : Math.abs(cbsDebito - pDebito) < tol && Math.abs(cbsCredito - pCredito) < tol ? 'RECONCILIADO' : 'DIVERGENTE';
   return { execucao: base.execucao,
     projecao_regime: ['simples_nacional', 'mei'].includes(regimeEmpresa) ? 'SIMPLES_HIBRIDO' : 'REGIME_ATUAL',
     leitura_projecao: ['simples_nacional', 'mei'].includes(regimeEmpresa)
@@ -761,7 +758,7 @@ function impactoFinalLegadoInacessivel(empresaId, opcoes = {}) {
     // Diferença em pontos percentuais: ambas as cargas usam a mesma venda atual.
     variacao_percentual: pisLiquido === null || !receitaAtual ? null : r4((liquida / receitaAtual) - (pisLiquido / receitaAtual)),
     credito_cbs_recebido_fornecedores: cbsCredito, credito_cbs_entregue_clientes: cbsDebito,
-    reconciliacao: { status, disponivel: Boolean(base.execucao), itens: base.linhas.length, confere: status === 'RECONCILIADO',
+    reconciliacao: { status, motivo:perfil.motivo || null, disponivel: Boolean(base.execucao) && perfil.status === 'OK', itens: base.linhas.length, confere: status === 'RECONCILIADO',
       cbsDebitoVendas: pDebito, cbsCreditoCompras: pCredito,
       motor_resultados: { cbsDebito, cbsCredito }, perfil_cbs: { cbsDebito: pDebito, cbsCredito: pCredito },
       diferencaDebito: r2(cbsDebito - pDebito), diferencaCredito: r2(cbsCredito - pCredito) },

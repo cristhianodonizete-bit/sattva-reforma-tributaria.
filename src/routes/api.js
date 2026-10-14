@@ -684,7 +684,8 @@ router.use(async (req, res, next) => {
   try {
     const permitidas = await empresasPermitidasUsuario(req.usuario);
     if (permitidas === null || permitidas.has(String(alvo))) {
-      await require('../services/operacaoCompartilhada').garantirCacheOperacionalEmpresa(Number(alvo));
+      // Autorização é leitura. Abertura de tela não pode reidratar cache,
+      // restaurar fotografia ou disparar qualquer escrita operacional.
       return next();
     }
     return res.status(403).json({ ok: false, erro: 'Seu usuário não está vinculado a esta empresa.' });
@@ -1854,16 +1855,16 @@ router.get('/empresas/:id/perfil-cbs', (req, res) => {
     // A tela só lê o agregado persistido pelo worker. Nunca reconstrói a
     // carteira nem chama o motor durante a abertura.
     const perfil=perfilCbs.listar(req.params.id,{limite:req.query.limite,cursor:req.query.cursor});
-    ok(res, { competencias:perfil.itens,paginacao:perfil.paginacao,competencias_detectadas: detectadas, ultima_execucao: motorExec.ultimaExecucao(req.params.id) });
+    ok(res, { status:perfil.status || 'OK', motivo:perfil.motivo || null, competencias:perfil.itens,paginacao:perfil.paginacao,competencias_detectadas: detectadas, ultima_execucao: perfil.execucao || null });
   }
   catch (e) { erro(res, e); }
 });
 router.post('/empresas/:id/perfil-cbs/atualizar', (req, res) => {
-  try { const perfil=perfilCbs.listar(req.params.id,{limite:req.body?.limite,cursor:req.body?.cursor}); ok(res, { competencias:perfil.itens,paginacao:perfil.paginacao,leitura:'Agregado persistido; atualização é responsabilidade do worker incremental.' }); }
+  try { const perfil=perfilCbs.listar(req.params.id,{limite:req.body?.limite,cursor:req.body?.cursor}); ok(res, { status:perfil.status,motivo:perfil.motivo || null,competencias:perfil.itens,paginacao:perfil.paginacao,leitura:'Agregado persistido; atualização é responsabilidade do worker incremental.' }); }
   catch (e) { erro(res, e); }
 });
 router.get('/empresas/:id/perfil-cbs/:competencia/detalhes', (req, res) => {
-  try { ok(res, { operacoes: perfilCbs.detalhes(req.params.id, req.params.competencia, { sentido: req.query.sentido,limite:req.query.limite }) }); }
+  try { const perfil=perfilCbs.detalhes(req.params.id, req.params.competencia, { sentido: req.query.sentido,limite:req.query.limite }); ok(res, { status:perfil.status,motivo:perfil.motivo || null,operacoes:perfil.itens }); }
   catch (e) { erro(res, e); }
 });
 // Triagem de essencialidade/relevância para o crédito histórico de

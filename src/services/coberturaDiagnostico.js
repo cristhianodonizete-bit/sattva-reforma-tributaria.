@@ -6,6 +6,7 @@ const db = require('../db');
 const qualidade = require('./qualidadeCobertura');
 const excecoes = require('./excecoesMotor');
 const supabase = require('./supabase');
+const motorExec = require('./motorExec');
 
 const n = (v) => Number.isFinite(Number(v)) ? Number(v) : 0;
 const r2 = (v) => Math.round(n(v) * 100) / 100;
@@ -13,7 +14,15 @@ const pct = (a, b) => b ? a / b : null;
 const estado = (v) => ['DETERMINADO', 'SIMULADO_POR_PREMISSA', 'NAO_APLICAVEL'].includes(v) ? 'RESOLVIDA' : v;
 
 function matriz(mapa) {
-  const itens = Object.entries(mapa || {}).map(([status, dado]) => ({ status, quantidade: n(dado.quantidade), valor: r2(dado.valor) }));
+  // A fotografia pode preservar o valor bruto para auditoria, mas os totais
+  // apresentados como vigentes só consideram projeções ATUAL. Assim, uma
+  // fotografia vencida nunca é misturada ao resultado corrente.
+  const itens = Object.entries(mapa || {}).map(([status, dado]) => ({
+    status,
+    quantidade: n(dado.quantidade),
+    valor: r2(dado.valor_vigente ?? dado.valor),
+    valor_fotografia: r2(dado.valor),
+  }));
   const total = itens.reduce((a, x) => ({ quantidade: a.quantidade + x.quantidade, valor: a.valor + x.valor }), { quantidade: 0, valor: 0 });
   const resolvida = itens.filter((x) => estado(x.status) === 'RESOLVIDA').reduce((a, x) => ({ quantidade: a.quantidade + x.quantidade, valor: a.valor + x.valor }), { quantidade: 0, valor: 0 });
   return { itens, total: { ...total, valor: r2(total.valor) }, cobertura_quantidade: pct(resolvida.quantidade, total.quantidade), cobertura_valor: pct(resolvida.valor, total.valor) };
@@ -164,19 +173,79 @@ function popularCadastrosMestre() {
     FROM base_servicos WHERE nbs<>'' OR lc116<>'' GROUP BY nbs,lc116`).run().changes;
   return { parceiros, produtos, servicos };
 }
+const EQ_STATUS = "(CASE WHEN json_valid(r.detalhe) THEN json_extract(r.detalhe,'$.classificacao.equivalenciaFiscal.status') END)";
+const EQ_IMPACTO = "(CASE WHEN json_valid(r.detalhe) THEN json_extract(r.detalhe,'$.classificacao.equivalenciaFiscal.impacto_tributario_material') END)";
+const CLASSE_SQL = `CASE WHEN r.status_classificacao='CLASSIFICADO' THEN 'DETERMINADO'
+  WHEN r.status_classificacao='PARCIAL' AND ${EQ_STATUS}='EQUIVALENTE_FISCALMENTE' AND ${EQ_IMPACTO}=0 THEN 'DETERMINADO'
+  WHEN r.status_classificacao='REQUER_VALIDACAO' THEN 'SUJEITO_VALIDACAO' ELSE 'INDETERMINADO' END`;
+const CREDITO_STATUS = "COALESCE(NULLIF(r.status_credito_determinacao,''),r.status_credito)";
+const CREDITO_SQL = `CASE WHEN r.sentido<>'entrada' THEN 'NAO_APLICAVEL'
+  WHEN ${CREDITO_STATUS} IN ('DETERMINADO','SEM_DIREITO') THEN 'DETERMINADO'
+  WHEN ${CREDITO_STATUS}='DETERMINADO_POR_PREMISSA' THEN 'SIMULADO_POR_PREMISSA'
+  WHEN ${CREDITO_STATUS} IN ('SUJEITO_VALIDACAO','DADOS_INSUFICIENTES') THEN 'SUJEITO_VALIDACAO' ELSE 'INDETERMINADO' END`;
+const RESULTADO_SQL = `CASE WHEN r.sentido='entrada' THEN ${CREDITO_SQL} ELSE ${CLASSE_SQL} END`;
+const PENDENTE_SQL = `(${RESULTADO_SQL} NOT IN ('DETERMINADO','SIMULADO_POR_PREMISSA','NAO_APLICAVEL') OR COALESCE(pe.situacao,'SEM_ESTADO')<>'ATUAL')`;
+const FROM_COBERTURA = `FROM motor_resultados r
+  JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
+  LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id`;
+
+function filtroCobertura(empresaId, execucaoId, periodo) {
+  let where='WHERE r.empresa_id=? AND r.execucao_id=?'; const params=[Number(empresaId),Number(execucaoId)];
+  // O período é sempre AAAA-MM. Movimentos históricos podem conservar a
+  // competência como data ISO; o recorte compara a mesma chave mensal.
+  const competencia="substr(COALESCE(m.competencia,''),1,7)";
+  if(periodo?.competencia_inicio){ where+=` AND ${competencia}>=?`; params.push(periodo.competencia_inicio); }
+  if(periodo?.competencia_fim){ where+=` AND ${competencia}<=?`; params.push(periodo.competencia_fim); }
+  return { where,params };
+}
+
+function respostaIndisponivel(empresaId, status, motivo) {
+  return { empresa_id:Number(empresaId), status, motivo };
+}
+
+function validarColunasExcecoesPorExecucao() {
+  const colunas=new Set(db.prepare('PRAGMA table_info(excecoes_motor_execucoes)').all().map((x)=>x.name));
+  const obrigatorias=['empresa_id','execucao_id','codigo','categoria','status','valor_envolvido','impacto_cbs_estimado'];
+  const ausentes=obrigatorias.filter((campo)=>!colunas.has(campo));
+  return ausentes.length ? `Tabela de exceções por execução incompatível: faltam ${ausentes.join(', ')}.` : null;
+}
+
 function fotografia(empresaId, opcoes = {}) {
-  const q = qualidade.obter(empresaId, opcoes);
-  const avaliadas = q.linhas.map((x) => ({ ...x, linha: (() => { try { return db.prepare(`SELECT r.detalhe,r.regime_cbs_emitente,r.regime_cbs_adquirente,
-      m.documento,m.chave,m.descricao,m.nome AS parceiro,m.inscr_federal AS cnpj,m.competencia,m.ncm,m.nbs,m.lc116,m.cst,
-      m.normalizacao_status,m.normalizacao_pendencia,m.normalizacao_evidencia
-      FROM motor_resultados r LEFT JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
-      WHERE r.empresa_id=? AND r.movimento_id=? AND r.execucao_id=?`).get(empresaId, x.movimento_id, q.execucao?.id) || {}; } catch (_) { return {}; } })() })).map((x) => ({ ...x, linha: { ...x.linha, detalhe: (() => { try { return JSON.parse(x.linha.detalhe || '{}'); } catch (_) { return {}; } })() } }));
-  const dimensoes = Object.fromEntries(['classificacao','tratamento','reconstrucao','credito','resultado'].map((k) => [k, matriz(q.matrizes[k] || {})]));
-  const abertas = excecoes.listar(empresaId, { limite: 1000 });
-  const agrupadas = Object.values(abertas.reduce((m, x) => { const k = `${x.codigo}:${x.categoria}`; const a = m[k] || { causa: x.codigo, categoria: x.categoria, quantidade: 0, valor: 0, impacto: 0, status: x.status }; a.quantidade++; a.valor += n(x.valor_envolvido); a.impacto += n(x.impacto_cbs_estimado); m[k] = a; return m; }, {})).map((x) => ({ ...x, valor: r2(x.valor), impacto: r2(x.impacto) })).sort((a,b) => b.valor - a.valor);
-  const pendencias_operacionais = pendenciasOperacionais(avaliadas);
-  return { empresa_id: Number(empresaId), execucao: q.execucao, fotografia: { total: q.total, por_sentido: q.por_sentido, cobertura: dimensoes, automacao: dimensoes.resultado, pendencias: q.pendencias, pendencias_operacionais },
-    familias: familias(avaliadas), excecoes: { resumo: excecoes.resumo(empresaId), agrupadas }, mestres: mestres(), criado_em: new Date().toISOString() };
+  const oficial=motorExec.fotografiaOficial(empresaId);
+  if(oficial.status!=='OK') return respostaIndisponivel(empresaId,'ATUALIZACAO_NECESSARIA',oficial.motivo);
+  const erroColunasExcecoes=validarColunasExcecoesPorExecucao();
+  if(erroColunasExcecoes) return respostaIndisponivel(empresaId,'DIVERGENTE',erroColunasExcecoes);
+  const periodo=require('./periodoAnalisado').obter(Number(empresaId));
+  const {where,params}=filtroCobertura(empresaId,oficial.execucao.id,periodo);
+  const duplicidade=db.prepare(`SELECT movimento_id,COUNT(*) quantidade FROM projecoes_movimentos_estado
+    WHERE empresa_id=? GROUP BY movimento_id HAVING COUNT(*)>1 LIMIT 1`).get(Number(empresaId));
+  if(duplicidade) return respostaIndisponivel(empresaId,'DIVERGENTE',`Estado de projeção duplicado para o movimento ${duplicidade.movimento_id}; cobertura não consolidada.`);
+  const grupos=(expressao)=>Object.fromEntries(db.prepare(`SELECT ${expressao} status,COUNT(*) quantidade,
+    COALESCE(SUM(r.preco_atual),0) valor,COALESCE(SUM(CASE WHEN pe.situacao='ATUAL' THEN r.preco_atual ELSE 0 END),0) valor_vigente
+    ${FROM_COBERTURA} ${where} GROUP BY status`).all(...params).map((x)=>[x.status,{quantidade:n(x.quantidade),valor:r2(x.valor),valor_vigente:r2(x.valor_vigente)}]));
+  const porSentido=Object.fromEntries(db.prepare(`SELECT r.sentido,COUNT(*) quantidade,COALESCE(SUM(r.preco_atual),0) valor,
+    COALESCE(SUM(CASE WHEN pe.situacao='ATUAL' THEN r.preco_atual ELSE 0 END),0) valor_vigente
+    ${FROM_COBERTURA} ${where} GROUP BY r.sentido`).all(...params).map((x)=>[x.sentido,{quantidade:n(x.quantidade),valor:r2(x.valor),valor_vigente:r2(x.valor_vigente)}]));
+  const estados=db.prepare(`SELECT COALESCE(pe.situacao,'SEM_ESTADO') situacao,COUNT(*) quantidade,COALESCE(SUM(r.preco_atual),0) valor
+    ${FROM_COBERTURA} ${where} GROUP BY COALESCE(pe.situacao,'SEM_ESTADO')`).all(...params).map((x)=>({...x,quantidade:n(x.quantidade),valor:r2(x.valor)}));
+  const total=Object.values(porSentido).reduce((a,x)=>({quantidade:a.quantidade+n(x.quantidade),valor:a.valor+n(x.valor_vigente),valor_fotografia:a.valor_fotografia+n(x.valor),valor_vigente:a.valor_vigente+n(x.valor_vigente)}),{quantidade:0,valor:0,valor_fotografia:0,valor_vigente:0});
+  const cobertura={ classificacao:matriz(grupos(CLASSE_SQL)),tratamento:{disponivel:false,motivo:'Tratamento não é calculado nesta leitura por totais.'},reconstrucao:{disponivel:false,motivo:'Reconstrução histórica não é calculada nesta leitura por totais.'},credito:matriz(grupos(CREDITO_SQL)),resultado:matriz(grupos(RESULTADO_SQL)) };
+  const pend=db.prepare(`SELECT COUNT(*) quantidade,COALESCE(SUM(r.preco_atual),0) valor ${FROM_COBERTURA} ${where} AND ${PENDENTE_SQL}`).get(...params);
+  const pendencias=db.prepare(`SELECT r.movimento_id,r.sentido,r.preco_atual valor,${CLASSE_SQL} classificacao,${CREDITO_SQL} credito,
+    COALESCE(pe.situacao,'SEM_ESTADO') situacao_projecao,m.documento,m.chave,m.nome parceiro,m.inscr_federal cnpj,m.competencia,m.descricao
+    ${FROM_COBERTURA} ${where} AND ${PENDENTE_SQL} ORDER BY r.preco_atual DESC,r.movimento_id LIMIT 100`).all(...params).map((x)=>({movimento_id:x.movimento_id,sentido:x.sentido,valor:r2(x.valor),dimensao:x.situacao_projecao!=='ATUAL'?'projecao':x.sentido==='entrada'?'credito':'classificacao',status:x.situacao_projecao!=='ATUAL'?x.situacao_projecao:(x.sentido==='entrada'?x.credito:x.classificacao),classificacao_atual:x.classificacao,acao:x.situacao_projecao!=='ATUAL'?'CORRIGIR_ESTADO_DA_FOTOGRAFIA':x.sentido==='entrada'?'VALIDAR_ELEGIBILIDADE_DO_CREDITO':'CLASSIFICAR_COM_EVIDENCIA_FISCAL',documento:x.documento||x.chave||'Não identificado',parceiro:x.parceiro||'Não identificado',cnpj:x.cnpj||'',competencia:x.competencia||null,descricao:x.descricao||'Não identificada'}));
+  const limiteExcecoes=Math.min(100,Math.max(1,Number(opcoes.limite_excecoes)||100)),offsetExcecoes=Math.max(0,Number(opcoes.excecoes_offset)||0);
+  const agrupadas=db.prepare(`SELECT codigo AS causa,categoria,status,COUNT(*) quantidade,COALESCE(SUM(valor_envolvido),0) valor,COALESCE(SUM(impacto_cbs_estimado),0) impacto
+    FROM excecoes_motor_execucoes WHERE empresa_id=? AND execucao_id=? AND status='ABERTA'
+    GROUP BY codigo,categoria,status ORDER BY valor DESC,codigo ASC,categoria ASC LIMIT ? OFFSET ?`).all(Number(empresaId),Number(oficial.execucao.id),limiteExcecoes+1,offsetExcecoes);
+  const maisExcecoes=agrupadas.length>limiteExcecoes;
+  const excecoesPaginadas=agrupadas.slice(0,limiteExcecoes).map((x)=>({...x,valor:r2(x.valor),impacto:r2(x.impacto)}));
+  return {empresa_id:Number(empresaId),status:'OK',execucao:{id:oficial.execucao.id,ano:oficial.execucao.ano,criado_em:oficial.execucao.criado_em},periodo:periodo?{competencia_inicio:periodo.competencia_inicio,competencia_fim:periodo.competencia_fim}:null,
+    fotografia:{total:{quantidade:total.quantidade,valor:r2(total.valor),valor_fotografia:r2(total.valor_fotografia),valor_vigente:r2(total.valor_vigente)},por_sentido:porSentido,cobertura,automacao:cobertura.resultado,pendencias:{operacoes_unicas:n(pend?.quantidade),valor:r2(pend?.valor),ocorrencias:[]},pendencias_operacionais:pendencias,pendencias_listadas:pendencias.length,estados_projecao:estados,divergencias_operacionais:estados.filter((x)=>x.situacao!=='ATUAL'),leitura:'TOTAIS_SQL_FOTOGRAFIA_OFICIAL'},
+    // Pendência da migração de leituras: excecoesMotor.js ainda possui seu
+    // resolvedor legado de execução ativa. Esta tela não o usa: fixa a
+    // execução oficial explicitamente até aquela leitura ser migrada.
+    familias:[],familias_disponivel:false,excecoes:{resumo:excecoes.resumo(empresaId,oficial.execucao.id),agrupadas:excecoesPaginadas,paginacao:{limite:limiteExcecoes,offset:offsetExcecoes,tem_proxima:maisExcecoes}},mestres:mestres(),criado_em:new Date().toISOString()};
 }
 function registrarFotografia(empresaId, tipo = 'FASE_2A') { const dados = fotografia(empresaId); const r = db.prepare('INSERT INTO cobertura_fotografias (empresa_id,execucao_id,tipo,dados) VALUES (?,?,?,?)').run(empresaId, dados.execucao?.id || null, tipo, JSON.stringify(dados)); return { id: Number(r.lastInsertRowid), ...dados }; }
 function listarFotografias(empresaId) { return db.prepare('SELECT id,execucao_id,tipo,criado_em FROM cobertura_fotografias WHERE empresa_id=? ORDER BY id DESC').all(empresaId); }

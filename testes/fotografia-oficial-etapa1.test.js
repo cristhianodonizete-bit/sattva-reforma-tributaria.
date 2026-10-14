@@ -1,0 +1,23 @@
+const assert=require('assert');
+const fs=require('fs');
+const caminho=(p)=>fs.readFileSync(p,'utf8');
+const db=caminho('src/db.js');
+const api=caminho('src/routes/api.js');
+const operacao=caminho('src/services/operacaoCompartilhada.js');
+const motor=caminho('src/services/motorExec.js');
+const consolidacao=caminho('src/services/consolidacaoOficial.js');
+const perfil=caminho('src/services/perfilCbs.js');
+
+assert.match(db,/CREATE TABLE IF NOT EXISTS fotografia_oficial/,'ponteiro da fotografia deve existir');
+assert.match(db,/execucao_id INTEGER NOT NULL REFERENCES motor_execucoes\(id\)/,'ponteiro deve referenciar a execução local');
+assert.match(db,/execucao_remota_id INTEGER NOT NULL/,'ponteiro deve registrar a identidade remota');
+assert.doesNotMatch(api,/await require\('\.\.\/services\/operacaoCompartilhada'\)\.garantirCacheOperacionalEmpresa\(Number\(alvo\)\)/,'middleware de leitura não pode hidratar ou escrever cache');
+assert.doesNotMatch(api,/garantirCacheOperacionalEmpresa\(/,'rotas HTTP não podem disparar hidratação operacional');
+assert.match(operacao,/status:'DESATIVADA'/,'carga global deve expor estado próprio, sem falha operacional');
+assert.match(operacao,/Colisão de id de execução/,'restauração deve rejeitar colisão entre empresas');
+assert.match(operacao,/validarFotografiaLocalEmpresa/,'validação explícita deve existir');
+assert.match(operacao,/compararFotografiaMotor/,'fotografia deve ser comparada antes de publicar o ponteiro');
+assert.match(motor,/function fotografiaOficial/,'leitura canônica deve validar o ponteiro');
+assert.match(consolidacao,/motorExec\.fotografiaOficial\(empresaId\)/,'consolidação não pode escolher a maior execução local');
+assert.match(perfil,/motorExec\.fotografiaOficial\(empresaId\)/,'perfil CBS deve respeitar a fotografia oficial');
+console.log('OK fotografia oficial etapa 1: contratos estruturais validados');

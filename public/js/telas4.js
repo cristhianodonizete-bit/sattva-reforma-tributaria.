@@ -197,6 +197,12 @@ Telas.bases = async (el) => {
 // dentro da cobertura do motor.
 Telas.pendenciasDiagnostico = async (el) => {
   const d = await A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`);
+  if (d.status && d.status !== 'OK') {
+    el.innerHTML = cab('DIAGNÓSTICO · ATUALIZAÇÃO NECESSÁRIA', 'Pendências do diagnóstico',
+      'A fotografia oficial ainda não está disponível para esta leitura.') +
+      `<div class="aviso atencao"><b>${A.esc(d.status)}</b><br>${A.esc(d.motivo || 'Aguarde a atualização controlada da fotografia oficial.')}</div>`;
+    return;
+  }
   const pendencias = d.fotografia?.pendencias_operacionais || [];
   const valor = pendencias.reduce((s, x) => s + (Number(x.valor) || 0), 0);
   el.innerHTML = cab('DIAGNÓSTICO · AÇÃO NECESSÁRIA', 'Pendências do diagnóstico',
@@ -329,6 +335,12 @@ Telas.classificacaoFiscalComplementar = async (el) => {
 
 Telas.coberturaDiagnostico = async (el) => {
   const d = await A.api(`/empresas/${S.empresaId}/cobertura-diagnostico`);
+  if (d.status && d.status !== 'OK') {
+    const titulo = d.status === 'DIVERGENTE' ? 'Fotografia divergente' : 'Fotografia em atualização';
+    el.innerHTML = `<div class="topo"><div><div class="olho">FASE 2A · COBERTURA</div><h1>${A.esc(titulo)}</h1><p>A cobertura não exibirá valores parciais, vencidos ou zerados como resultado atual.</p></div></div>` +
+      `<div class="aviso atencao"><b>${A.esc(d.status)}</b><br>${A.esc(d.motivo || 'A fotografia oficial ainda não está disponível.')}</div>`;
+    return;
+  }
   const p = d.fotografia;
   const pct = (v) => v == null ? '—' : A.pct(v);
   const bloco = (titulo, x) => `<div class="cartao"><h2>${titulo}</h2><table class="compacta"><thead><tr><th>Status</th><th class="num">Operações</th><th class="num">Valor</th></tr></thead><tbody>${x.itens.map((i) => `<tr><td>${A.esc(i.status)}</td><td class="num mono">${i.quantidade}</td><td class="num mono">${A.moeda(i.valor)}</td></tr>`).join('')}</tbody></table><p class="mini">Cobertura: <b>${pct(x.cobertura_quantidade)}</b> das operações · <b>${pct(x.cobertura_valor)}</b> do valor.</p></div>`;

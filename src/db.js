@@ -1831,6 +1831,21 @@ CREATE TABLE IF NOT EXISTS motor_execucoes (
   criado_em TEXT DEFAULT (datetime('now','localtime'))
 );
 
+-- Ponteiro local para a fotografia canônica já validada. Ele nunca define a
+-- verdade fiscal: apenas identifica qual cópia local integral pode ser lida
+-- pelas telas sem disparar sincronização ou cálculo.
+CREATE TABLE IF NOT EXISTS fotografia_oficial (
+  empresa_id INTEGER PRIMARY KEY REFERENCES empresas(id) ON DELETE CASCADE,
+  execucao_id INTEGER NOT NULL REFERENCES motor_execucoes(id) ON DELETE CASCADE,
+  empresa_remota_id INTEGER NOT NULL,
+  execucao_remota_id INTEGER NOT NULL,
+  quantidade_resultados INTEGER NOT NULL,
+  quantidade_estados INTEGER NOT NULL,
+  execucao_criada_em TEXT,
+  sincronizado_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_fotografia_oficial_execucao ON fotografia_oficial(execucao_id);
+
 -- Staging durável: uma execução em fila nunca toca a fotografia ativa.
 CREATE TABLE IF NOT EXISTS motor_fotografias_staging (
   job_id TEXT PRIMARY KEY,

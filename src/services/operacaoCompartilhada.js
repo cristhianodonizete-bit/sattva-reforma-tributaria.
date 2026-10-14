@@ -625,8 +625,8 @@ async function baixar(remotoInformado = null, opcoes = {}) {
   let motorCarregado = false;
   if (segmentadoPorEmpresa) resultado.cache_empresa_segmentado=true;
   else {
-    try { resultado.motor = await baixarResultadosMotor(remoto); motorCarregado = true; }
-    catch (e) { falhas.motor = e.message; }
+    resultado.motor = await baixarResultadosMotor(remoto);
+    motorCarregado = !resultado.motor?.desativada;
   }
   if (motorCarregado) {
     for (const tabela of dependentesDoMotor) {
@@ -636,7 +636,7 @@ async function baixar(remotoInformado = null, opcoes = {}) {
         resultado[tabela] = gravar(tabela, linhas);
       } catch (e) { falhas[tabela] = e.message; }
     }
-  } else if (!segmentadoPorEmpresa) {
+  } else if (!segmentadoPorEmpresa && !resultado.motor?.desativada) {
     for (const tabela of dependentesDoMotor) falhas[tabela] = 'Fotografia do motor indisponível; tabela dependente não foi carregada.';
   }
   try { Object.assign(resultado, await baixarConfiguracao(CONFIG_TABELAS, remoto)); }
@@ -1517,45 +1517,73 @@ function resultadoCompartilhadoLocal(linha, empresaId = null, execucaoId = null)
     ...(empresaId == null ? {} : { empresa_id:Number(empresaId) }),
   };
 }
-async function baixarResultadosMotor(remotoInformado = null) {
-  const remoto = remotoInformado || supabase.admin();
-  // O histórico permanece no Supabase, mas o SQLite que atende as telas deve
-  // receber exclusivamente a fotografia ativa e as execuções que ela de fato
-  // referencia. Trazer todo o histórico a cada boot crescia sem limite e era
-  // desnecessário para qualquer tela operacional.
-  const resultados = [];
-  for (let de = 0;; de += 1000) {
-    const { data, error } = await remoto.from('motor_resultados_operacionais').select('*').eq('ativo', true)
-      .order('id', { ascending:true }).range(de, de + 999);
-    if (error) throw new Error(`motor_resultados_operacionais: ${error.message}`);
-    resultados.push(...(data || []));
-    if (!data || data.length < 1000) break;
-  }
-  const execucaoIds = [...new Set(resultados.map((x) => Number(x.execucao_id)).filter(Number.isInteger))];
-  const execucoes = [];
-  for (let de = 0; de < execucaoIds.length; de += 500) {
-    const { data, error } = await remoto.from('motor_execucoes_operacionais').select('*').in('id', execucaoIds.slice(de, de + 500));
-    if (error) throw new Error(`motor_execucoes_operacionais: ${error.message}`);
-    execucoes.push(...(data || []));
-  }
-  // Validação obrigatória antes de apagar a fotografia local. Uma fotografia
-  // operacional não pode referenciar movimento que ainda não chegou à base
-  // local; anteriormente o delete ocorria antes dessa checagem e uma falha
-  // de chave estrangeira deixava o cache sem resultados.
-  const locais = new Set(db.prepare('SELECT id FROM movimentos').all().map((x) => Number(x.id)));
-  const ausentes = resultados.map((x) => Number(x.movimento_id)).filter((id) => !locais.has(id));
-  if (ausentes.length) throw new Error(`Fotografia compartilhada referencia ${ausentes.length} movimento(s) ausente(s) no cache local: ${ausentes.slice(0, 20).join(', ')}. Sincronize a operação antes de substituir a fotografia.`);
-  const gravarExecucoes = (execs) => gravarLinhasComColunas('motor_execucoes', execs.map((x) => execucaoCompartilhadaLocal(x)), true);
-  const gravarResultados = (itens) => gravarLinhasComColunas('motor_resultados', itens.map((x) => resultadoCompartilhadoLocal(x)), true);
-  let quantidadeExecucoes = 0, quantidadeResultados = 0;
-  db.transaction(() => {
-    db.prepare('DELETE FROM motor_resultados').run(); db.prepare('DELETE FROM motor_execucoes').run();
-    quantidadeExecucoes = gravarExecucoes(execucoes); quantidadeResultados = gravarResultados(resultados);
-  })();
-  return {
-    execucoes: quantidadeExecucoes,
-    resultados: quantidadeResultados,
+
+// Comparador sem efeitos colaterais. A validação de uma fotografia não se
+// limita a contagens: cada movimento, resultado e estado precisa corresponder
+// antes de uma tela poder assumir a cópia local como oficial.
+function compararFotografiaMotor({ resultadosRemotos = [], resultadosLocais = [], estadosRemotos = [], estadosLocais = [] }) {
+  const amostra=[]; let total=0; const registrar=(tipo,dados)=>{ total+=1; if(amostra.length<50) amostra.push({ tipo,...dados }); };
+  const numeroIgual=(remoto,local)=>{
+    if(remoto == null || remoto === '' || local == null || local === '') return String(remoto ?? '')===String(local ?? '');
+    const a=Number(remoto), b=Number(local);
+    return Number.isFinite(a) && Number.isFinite(b) && Math.abs(a-b)<=1e-6;
   };
+  const textoIgual=(remoto,local)=>String(remoto ?? '')===String(local ?? '');
+  const chave=(x)=>String(Number(x?.movimento_id));
+  const mapa=(linhas,tipo)=>{
+    const saida=new Map();
+    for(const linha of linhas){ const k=chave(linha); if(saida.has(k)) registrar(`${tipo}_DUPLICADO`,{movimento_id:Number(linha.movimento_id)}); else saida.set(k,linha); }
+    return saida;
+  };
+  const remotos=mapa(resultadosRemotos,'RESULTADO_REMOTO'), locais=mapa(resultadosLocais,'RESULTADO_LOCAL');
+  const camposResultadoNumericos=['preco_atual','base_economica','cbs','ibs','credito_cbs'];
+  const camposResultadoTextuais=['status_classificacao','status_credito'];
+  for(const [movimentoId,remoto] of remotos){
+    const local=locais.get(movimentoId);
+    if(!local){ registrar('RESULTADO_AUSENTE_LOCAL',{movimento_id:Number(remoto.movimento_id)}); continue; }
+    for(const campo of camposResultadoNumericos) if(!numeroIgual(remoto[campo],local[campo])) registrar('RESULTADO_DIVERGENTE',{movimento_id:Number(remoto.movimento_id),campo,remoto:String(remoto[campo] ?? ''),local:String(local[campo] ?? '')});
+    for(const campo of camposResultadoTextuais) if(!textoIgual(remoto[campo],local[campo])) registrar('RESULTADO_DIVERGENTE',{movimento_id:Number(remoto.movimento_id),campo,remoto:String(remoto[campo] ?? ''),local:String(local[campo] ?? '')});
+  }
+  for(const [movimentoId,local] of locais) if(!remotos.has(movimentoId)) registrar('RESULTADO_EXTRA_LOCAL',{movimento_id:Number(local.movimento_id)});
+  const estadosR=mapa(estadosRemotos,'ESTADO_REMOTO'), estadosL=mapa(estadosLocais,'ESTADO_LOCAL');
+  const camposEstadoTextuais=['situacao','assinatura_origem'];
+  for(const [movimentoId,remoto] of estadosR){
+    const local=estadosL.get(movimentoId);
+    if(!local){ registrar('ESTADO_AUSENTE_LOCAL',{movimento_id:Number(remoto.movimento_id)}); continue; }
+    for(const campo of camposEstadoTextuais) if(!textoIgual(remoto[campo],local[campo])) registrar('ESTADO_DIVERGENTE',{movimento_id:Number(remoto.movimento_id),campo,remoto:String(remoto[campo] ?? ''),local:String(local[campo] ?? '')});
+    if(!numeroIgual(remoto.versao_origem,local.versao_origem)) registrar('ESTADO_DIVERGENTE',{movimento_id:Number(remoto.movimento_id),campo:'versao_origem',remoto:String(remoto.versao_origem ?? ''),local:String(local.versao_origem ?? '')});
+  }
+  for(const [movimentoId,local] of estadosL) if(!estadosR.has(movimentoId)) registrar('ESTADO_EXTRA_LOCAL',{movimento_id:Number(local.movimento_id)});
+  return { ok:total===0, total, amostra };
+}
+
+function garantirColunasEstadoFotografia() {
+  const colunas=new Set(db.prepare('PRAGMA table_info(projecoes_movimentos_estado)').all().map((x)=>x.name));
+  const ausentes=['assinatura_origem','versao_origem'].filter((campo)=>!colunas.has(campo));
+  if(ausentes.length) throw new Error(`Estado de projeção incompatível: faltam colunas ${ausentes.join(', ')}. Restauração cancelada.`);
+}
+
+function resultadosLocaisFotografia(empresaId,execucaoId) {
+  const linhas=[]; let cursor=0;
+  const ler=db.prepare(`SELECT id,movimento_id,preco_atual,base_economica,cbs,ibs,credito_cbs,status_classificacao,status_credito
+    FROM motor_resultados WHERE empresa_id=? AND execucao_id=? AND id>? ORDER BY id LIMIT ?`);
+  for(;;){ const lote=ler.all(Number(empresaId),Number(execucaoId),cursor,1000); if(!lote.length) break; linhas.push(...lote); cursor=Number(lote.at(-1).id); if(lote.length<1000) break; }
+  return linhas;
+}
+
+function estadosLocaisFotografia(empresaId) {
+  const linhas=[]; let cursor=0;
+  const ler=db.prepare(`SELECT movimento_id,situacao,assinatura_origem,versao_origem
+    FROM projecoes_movimentos_estado WHERE empresa_id=? AND movimento_id>? ORDER BY movimento_id LIMIT ?`);
+  for(;;){ const lote=ler.all(Number(empresaId),cursor,1000); if(!lote.length) break; linhas.push(...lote); cursor=Number(lote.at(-1).movimento_id); if(lote.length<1000) break; }
+  return linhas;
+}
+async function baixarResultadosMotor() {
+  // O motor nunca é um canal de publicação de fatos fiscais.
+  // A carga global apagava e recriava a carteira local. Ela é incompatível
+  // com o cache por empresa e pode cruzar identidades de execuções distintas.
+  // Restaurações somente podem ocorrer por empresa e por comando explícito.
+  return { desativada:true, status:'DESATIVADA', motivo:'Carga global desativada no web; a fotografia é restaurada por empresa.' };
 }
 
 // A cadeia é uma leitura executiva: nunca pode trocar a fotografia canônica
@@ -1589,6 +1617,7 @@ function movimentosLocaisExistentes(empresaId,ids) {
 
 async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null) {
   if (!ativo()) return { ativo:false, resultados:0, execucoes:0 };
+  garantirColunasEstadoFotografia();
   const id=Number(empresaId);
   const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(id);
   if (!empresa?.cnpj) throw new Error('Empresa não encontrada para restaurar a fotografia do motor.');
@@ -1654,6 +1683,13 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     throw new Error(`Estados canônicos parciais: esperado ${quantidadeEstadosRemota}, restaurado(s) ${estadosRemotos.length}. A Cadeia não será consolidada.`);
   }
   db.transaction(()=>{
+    // `motor_execucoes.id` é hoje uma chave global no SQLite. Enquanto a
+    // separação definitiva entre id local e id remoto não estiver migrada,
+    // uma fotografia remota jamais pode assumir a execução de outra empresa.
+    const donoLocal=db.prepare('SELECT empresa_id FROM motor_execucoes WHERE id=?').get(Number(execucaoAtiva.id));
+    if(donoLocal && Number(donoLocal.empresa_id)!==id){
+      throw new Error(`Colisão de id de execução: ${execucaoAtiva.id} já pertence à empresa local ${donoLocal.empresa_id}. Restauração cancelada sem alterações.`);
+    }
     // Dependências da execução são cache derivado no disco efêmero. Algumas
     // bases SQLite antigas não possuem ON DELETE CASCADE; removê-las antes da
     // execução evita uma FK quebrada ao abrir a Cadeia.
@@ -1678,13 +1714,86 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
       job_id=excluded.job_id,atualizado_em=excluded.atualizado_em`);
     estadosRemotos.forEach((x)=>gravarEstado.run(id,x.movimento_id,x.assinatura_origem,x.versao_origem,
       x.assinatura_calculada,x.versao_calculada,x.situacao,x.motivo,x.job_id,x.atualizado_em));
+    const gravados=Number(db.prepare('SELECT COUNT(*) quantidade FROM motor_resultados WHERE empresa_id=? AND execucao_id=?')
+      .get(id,Number(execucaoAtiva.id))?.quantidade || 0);
+    const estadosGravados=Number(db.prepare('SELECT COUNT(*) quantidade FROM projecoes_movimentos_estado WHERE empresa_id=?')
+      .get(id)?.quantidade || 0);
+    if(gravados!==resultados.length || estadosGravados!==estadosRemotos.length){
+      throw new Error(`Fotografia canônica gravada parcialmente: resultados ${gravados}/${resultados.length}; estados ${estadosGravados}/${estadosRemotos.length}.`);
+    }
+    const comparacao=compararFotografiaMotor({ resultadosRemotos:resultados,
+      resultadosLocais:resultadosLocaisFotografia(id,Number(execucaoAtiva.id)),
+      estadosRemotos,estadosLocais:estadosLocaisFotografia(id) });
+    if(!comparacao.ok) throw new Error(`Fotografia canônica divergente após restauração: ${JSON.stringify(comparacao.amostra)}`);
+    db.prepare(`INSERT INTO fotografia_oficial
+      (empresa_id,execucao_id,empresa_remota_id,execucao_remota_id,quantidade_resultados,quantidade_estados,execucao_criada_em,sincronizado_em)
+      VALUES (?,?,?,?,?,?,?,datetime('now'))
+      ON CONFLICT(empresa_id) DO UPDATE SET execucao_id=excluded.execucao_id,
+        empresa_remota_id=excluded.empresa_remota_id,execucao_remota_id=excluded.execucao_remota_id,
+        quantidade_resultados=excluded.quantidade_resultados,quantidade_estados=excluded.quantidade_estados,
+        execucao_criada_em=excluded.execucao_criada_em,sincronizado_em=excluded.sincronizado_em`)
+      .run(id,Number(execucaoAtiva.id),Number(remota.id),Number(execucaoAtiva.id),resultados.length,estadosRemotos.length,execucaoAtiva.criado_em || null);
   })();
-  const gravados=Number(db.prepare('SELECT COUNT(*) quantidade FROM motor_resultados WHERE empresa_id=? AND execucao_id=?')
-    .get(id,Number(execucaoAtiva.id))?.quantidade || 0);
-  if (gravados !== resultados.length) {
-    throw new Error(`Fotografia canônica gravada parcialmente: esperado ${resultados.length}, encontrado ${gravados}. A cadeia não será exibida.`);
-  }
   return { ativo:true, resultados:resultados.length, execucoes:1, empresa_remota_id:Number(remota.id), execucao_remota_id:Number(execucaoAtiva.id) };
+}
+
+// Valida uma fotografia já presente no SQLite contra a fonte compartilhada e
+// publica somente o ponteiro local. Não baixa movimentos, não recalcula e não
+// substitui resultado algum. É o caminho seguro para a Relotec já restaurada.
+async function validarFotografiaLocalEmpresa(empresaId, remotoInformado = null) {
+  if (!ativo()) throw new Error('Fonte compartilhada não configurada.');
+  garantirColunasEstadoFotografia();
+  const id=Number(empresaId);
+  const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(id);
+  if (!empresa?.cnpj) throw new Error('Empresa não encontrada para validar a fotografia local.');
+  const remoto=remotoInformado || supabase.admin();
+  const cnpj=String(empresa.cnpj).replace(/\D/g,'');
+  const {data:candidatas,error:erroEmpresa}=await remoto.from('empresas').select('id,cnpj,origem_local_id')
+    .or(`origem_local_id.eq.${id},cnpj.eq.${cnpj}`).limit(3);
+  if(erroEmpresa) throw new Error(`Empresa compartilhada: ${erroEmpresa.message}`);
+  const remota=(candidatas || []).find((x)=>Number(x.origem_local_id || x.id)===id || String(x.cnpj || '').replace(/\D/g,'')===cnpj);
+  if(!remota) throw new Error('Empresa compartilhada não localizada para validar a fotografia.');
+  const {count:quantidadeResultados,error:erroResultados}=await remoto.from('motor_resultados_operacionais').select('id',{count:'exact',head:true})
+    .eq('empresa_id',Number(remota.id)).eq('ativo',true);
+  if(erroResultados || quantidadeResultados==null) throw new Error(`Fotografia canônica indisponível: ${erroResultados?.message || 'contagem ausente'}.`);
+  const resultadosRemotos=[]; const execucaoIds=new Set();
+  for(let de=0;;de+=1000){
+    const {data,error}=await remoto.from('motor_resultados_operacionais').select('id,movimento_id,execucao_id,preco_atual,base_economica,cbs,ibs,credito_cbs,status_classificacao,status_credito').eq('empresa_id',Number(remota.id)).eq('ativo',true).order('id',{ascending:true}).range(de,de+999);
+    if(error) throw new Error(`Execução da fotografia compartilhada: ${error.message}`);
+    resultadosRemotos.push(...(data || [])); (data || []).forEach((x)=>execucaoIds.add(Number(x.execucao_id)));
+    if(!data || data.length<1000) break;
+  }
+  if(resultadosRemotos.length!==Number(quantidadeResultados)) throw new Error(`Fotografia canônica parcial: resultados ${resultadosRemotos.length}/${quantidadeResultados}.`);
+  if(execucaoIds.size!==1) throw new Error(`Fotografia canônica inconsistente: ${execucaoIds.size} execuções ativas encontradas.`);
+  const execucaoRemotaId=[...execucaoIds][0];
+  const {data:execucoes,error:erroExecucao}=await remoto.from('motor_execucoes_operacionais').select('id,criado_em')
+    .eq('empresa_id',Number(remota.id)).eq('id',execucaoRemotaId).limit(2);
+  if(erroExecucao || execucoes?.length!==1) throw new Error(`Execução canônica indisponível: ${erroExecucao?.message || 'execução não localizada'}.`);
+  const {count:quantidadeEstados,error:erroEstados}=await remoto.from('projecoes_movimentos_estado').select('movimento_id',{count:'exact',head:true})
+    .eq('empresa_id',Number(remota.id));
+  if(erroEstados || quantidadeEstados==null) throw new Error(`Estados canônicos indisponíveis: ${erroEstados?.message || 'contagem ausente'}.`);
+  const estadosRemotos=[];
+  for(let de=0;;de+=1000){
+    const {data,error}=await remoto.from('projecoes_movimentos_estado').select('movimento_id,situacao,assinatura_origem,versao_origem').eq('empresa_id',Number(remota.id)).order('movimento_id',{ascending:true}).range(de,de+999);
+    if(error) throw new Error(`Estados da fotografia compartilhada: ${error.message}`);
+    estadosRemotos.push(...(data || [])); if(!data || data.length<1000) break;
+  }
+  if(estadosRemotos.length!==Number(quantidadeEstados)) throw new Error(`Estados canônicos parciais: ${estadosRemotos.length}/${quantidadeEstados}.`);
+  const execucaoLocal=db.prepare('SELECT id FROM motor_execucoes WHERE id=? AND empresa_id=?').get(execucaoRemotaId,id);
+  if(!execucaoLocal) throw new Error(`Execução remota ${execucaoRemotaId} não existe como execução local da empresa ${id}. Use a restauração explícita após a Etapa 2 de identidades.`);
+  const resultadosLocais=resultadosLocaisFotografia(id,execucaoRemotaId);
+  const estadosLocais=estadosLocaisFotografia(id);
+  const comparacao=compararFotografiaMotor({ resultadosRemotos,resultadosLocais,estadosRemotos,estadosLocais });
+  if(!comparacao.ok) throw new Error(`Fotografia local divergente: ${JSON.stringify(comparacao.amostra)}`);
+  db.transaction(()=>db.prepare(`INSERT INTO fotografia_oficial
+    (empresa_id,execucao_id,empresa_remota_id,execucao_remota_id,quantidade_resultados,quantidade_estados,execucao_criada_em,sincronizado_em)
+    VALUES (?,?,?,?,?,?,?,datetime('now'))
+    ON CONFLICT(empresa_id) DO UPDATE SET execucao_id=excluded.execucao_id,
+      empresa_remota_id=excluded.empresa_remota_id,execucao_remota_id=excluded.execucao_remota_id,
+      quantidade_resultados=excluded.quantidade_resultados,quantidade_estados=excluded.quantidade_estados,
+      execucao_criada_em=excluded.execucao_criada_em,sincronizado_em=excluded.sincronizado_em`)
+    .run(id,execucaoRemotaId,Number(remota.id),execucaoRemotaId,resultadosLocais.length,estadosLocais.length,execucoes[0].criado_em || null))();
+  return {empresa_id:id,empresa_remota_id:Number(remota.id),execucao_id:execucaoRemotaId,resultados:resultadosLocais.length,estados:estadosLocais.length,status:'VALIDADA'};
 }
 
 // Persiste somente o estado de validade da projeção. Não publica fatos nem
@@ -2385,6 +2494,6 @@ async function restaurarLinhaCanonica(tabela, linha, justificativa, remotoInform
 }
 
 module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, garantirCacheOperacionalEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, restaurarLinhaCanonica, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
-  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, publicarEstadosProjecoes, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
-  reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
+  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, validarFotografiaLocalEmpresa, publicarEstadosProjecoes, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
+  compararFotografiaMotor, reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
   chavesQueDevemPermanecerExcluidas };

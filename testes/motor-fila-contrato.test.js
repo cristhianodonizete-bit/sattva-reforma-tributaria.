@@ -77,7 +77,7 @@ assert.match(operacao, /gravarEmpresas\(\[remota\]\);/,'a empresa-pai deve ser r
 assert.match(operacao, /origem_local_id\.eq\.\$\{id\},id\.eq\.\$\{id\}/,'cache vazio deve localizar a empresa por sua origem estável, sem depender do CNPJ local');
 const periodoFonte = fs.readFileSync(path.join(__dirname, '../src/services/periodoAnalisado.js'), 'utf8');
 assert.match(periodoFonte, /GROUP BY competencia/,'cobertura do período deve agregar competências no SQLite, sem leitura ampla de movimentos');
-assert.match(api, /garantirCacheOperacionalEmpresa\(Number\(alvo\)\)/,'rotas da empresa devem hidratar somente seu escopo autorizado');
+assert.doesNotMatch(api, /garantirCacheOperacionalEmpresa\(Number\(alvo\)\)/,'rota de leitura não pode hidratar ou escrever cache operacional');
 assert.match(server, /sincronizarIncremental\(\{ remoto: remotoSegundoPlano,segmentadoPorEmpresa:true \}\)/,'boot Web deve usar carga-base segmentada');
 assert.match(server, /segmentadoPorEmpresa:true/,'ciclos Web devem manter a segmentação por empresa');
 console.log('motor-fila-contrato: job deduplicado e consumo exclusivo do worker: OK');

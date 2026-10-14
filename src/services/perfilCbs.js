@@ -88,7 +88,9 @@ function materializar(empresaId, opcoes = {}) {
     throw new Error('MATERIALIZACAO_GLOBAL_PROIBIDA: Perfil CBS exige movimento_ids explícitos. Use listar() para leitura analítica.');
   }
   invalidarMemoria();
-  let execucao = motorExec.ultimaExecucao(empresaId);
+  const foto = motorExec.fotografiaOficial(empresaId);
+  if (foto.status !== 'OK') return { status:'ATUALIZACAO_NECESSARIA', motivo:foto.motivo, execucao:null, competencias:[], motorExecutado:false };
+  const execucao = foto.execucao;
   // A consolidação não possui motor próprio: quando há mudança, pede ao
   // orquestrador que atualize apenas as linhas invalidadas. A execução
   // integral continua exclusiva do comando administrativo explícito.
@@ -155,9 +157,12 @@ function materializar(empresaId, opcoes = {}) {
 }
 
 function listar(empresaId, filtros={}) {
+  const fotografia=motorExec.fotografiaOficial(empresaId);
+  if(fotografia.status!=='OK') return { status:'ATUALIZACAO_NECESSARIA', motivo:fotografia.motivo, execucao:null, itens:[],paginacao:{limite:0,cursor:null,tem_proxima:false} };
+  const execucaoId=Number(fotografia.execucao.id);
   const limite=Math.min(100,Math.max(1,Number(filtros.limite)||100));
   const cursor=String(filtros.cursor||'');
-  const p=[empresaId]; let onde='empresa_id=?';
+  const p=[empresaId,execucaoId]; let onde='empresa_id=? AND motor_execucao_id=?';
   if (cursor) { onde+=' AND competencia<?'; p.push(cursor); }
   const linhas=db.prepare(`SELECT id,empresa_id,competencia,receita_bruta,compras_brutas,base_economica_saidas,
     base_economica_entradas,cbs_debito,cbs_credito,cbs_liquida,aliquota_efetiva_cbs_saida,
@@ -169,16 +174,23 @@ function listar(empresaId, filtros={}) {
     cobertura_credito_cbs,percentual_real,percentual_calculado,percentual_simulado,
     percentual_indeterminado,quantidade_documentos,quantidade_operacoes,motor_execucao_id,atualizado_em
     FROM perfil_cbs_competencias WHERE ${onde} ORDER BY competencia DESC LIMIT ?`).all(...p,limite);
-  return {itens:linhas,paginacao:{limite,cursor:linhas.at(-1)?.competencia||null,tem_proxima:linhas.length===limite}};
+  const paginacao={limite,cursor:linhas.at(-1)?.competencia||null,tem_proxima:linhas.length===limite};
+  if(!linhas.length && !cursor){
+    const total=Number(db.prepare('SELECT COUNT(*) AS total FROM motor_resultados WHERE empresa_id=? AND execucao_id=?').get(empresaId,execucaoId)?.total || 0);
+    if(total>0) return {status:'AGREGADO_PENDENTE',motivo:'Fotografia oficial sem agregado Perfil CBS persistido para esta execução.',execucao:fotografia.execucao,itens:[],paginacao};
+  }
+  return {status:'OK',execucao:fotografia.execucao,itens:linhas,paginacao};
 }
 function detalhes(empresaId, competencia, filtros = {}) {
+  const fotografia=motorExec.fotografiaOficial(empresaId);
+  if(fotografia.status!=='OK') return {status:'ATUALIZACAO_NECESSARIA',motivo:fotografia.motivo,itens:[]};
   const limite=Math.min(100,Math.max(1,Number(filtros.limite)||100));
   let sql = `SELECT r.id resultado_id,r.movimento_id,r.sentido,r.status_classificacao,r.status_credito,r.preco_atual,r.base_economica,r.ibs,r.cbs,r.credito_ibs,r.credito_cbs,r.cst,r.cclasstrib,r.tratamento,
     m.competencia,m.documento,m.chave,m.descricao,m.ncm,m.nbs,m.cfop,m.origem,m.nome,m.inscr_federal
-    FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
+    FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
     LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id
-    WHERE r.empresa_id=? AND m.competencia=? AND pe.situacao='ATUAL'`;
-  const p = [empresaId, competencia]; if (filtros.sentido) { sql += ' AND r.sentido=?'; p.push(filtros.sentido); }
-  return db.prepare(`${sql} ORDER BY r.preco_atual DESC,r.id DESC LIMIT ?`).all(...p,limite);
+    WHERE r.empresa_id=? AND r.execucao_id=? AND m.competencia=? AND pe.situacao='ATUAL'`;
+  const p = [empresaId,Number(fotografia.execucao.id),competencia]; if (filtros.sentido) { sql += ' AND r.sentido=?'; p.push(filtros.sentido); }
+  return {status:'OK',execucao:fotografia.execucao,itens:db.prepare(`${sql} ORDER BY r.preco_atual DESC,r.id DESC LIMIT ?`).all(...p,limite)};
 }
 module.exports = { materializar, listar, detalhes, naturezaApresentacao, invalidarMemoria };

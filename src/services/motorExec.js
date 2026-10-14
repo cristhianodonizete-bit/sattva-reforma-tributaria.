@@ -874,6 +874,24 @@ function ultimaExecucao(empresaId) {
   return { ...ex, resumo: JSON.parse(ex.resumo || '{}') };
 }
 
+// Leitura analítica: usa exclusivamente uma fotografia local conferida contra
+// a fonte compartilhada. A ausência é estado operacional, não resultado zero.
+function fotografiaOficial(empresaId) {
+  const ponteiro=db.prepare('SELECT * FROM fotografia_oficial WHERE empresa_id=?').get(Number(empresaId));
+  if(!ponteiro) return { status:'ATUALIZACAO_NECESSARIA', motivo:'Fotografia oficial ainda não validada para esta empresa.' };
+  const ex=db.prepare('SELECT * FROM motor_execucoes WHERE id=? AND empresa_id=?').get(Number(ponteiro.execucao_id),Number(empresaId));
+  if(!ex) return { status:'ATUALIZACAO_NECESSARIA', motivo:'Execução oficial ausente no cache local.' };
+  const resultados=Number(db.prepare('SELECT COUNT(*) quantidade FROM motor_resultados WHERE empresa_id=? AND execucao_id=?')
+    .get(Number(empresaId),Number(ponteiro.execucao_id))?.quantidade || 0);
+  const estados=Number(db.prepare('SELECT COUNT(*) quantidade FROM projecoes_movimentos_estado WHERE empresa_id=?')
+    .get(Number(empresaId))?.quantidade || 0);
+  if(resultados!==Number(ponteiro.quantidade_resultados) || estados!==Number(ponteiro.quantidade_estados)) {
+    return { status:'ATUALIZACAO_NECESSARIA', motivo:'Fotografia local incompleta ou divergente da fonte.', ponteiro };
+  }
+  let resumo={}; try { resumo=JSON.parse(ex.resumo || '{}'); } catch (_) { resumo={}; }
+  return { status:'OK', execucao:{ ...ex,resumo }, ponteiro };
+}
+
 function resultados(empresaId, filtros = {}) {
   let sql = 'SELECT * FROM motor_resultados WHERE empresa_id = ?';
   const p = [empresaId];
@@ -1014,4 +1032,4 @@ function reprocessarIncremental(empresaId, opcoes = {}) {
   return { empresa_id: empresaId, reprocessados: movimentoIds.length, removidos, status: 'CONCLUIDO', resultado };
 }
 
-module.exports = { executar, reprocessarIncremental, pendentesIncrementais, porFornecedor, porCliente, ultimaExecucao, resultados, resultadoMaterializado, normalizar, hashMovimento, assinaturaOrigemCanonica, versoesAtuais, versoesDaOperacao, idsRazaoDuplicadosPorDocumento, documentosEquivalentesRazao };
+module.exports = { executar, reprocessarIncremental, pendentesIncrementais, porFornecedor, porCliente, ultimaExecucao, fotografiaOficial, resultados, resultadoMaterializado, normalizar, hashMovimento, assinaturaOrigemCanonica, versoesAtuais, versoesDaOperacao, idsRazaoDuplicadosPorDocumento, documentosEquivalentesRazao };
