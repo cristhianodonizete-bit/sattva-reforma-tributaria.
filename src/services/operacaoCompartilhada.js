@@ -1639,6 +1639,36 @@ function movimentosLocaisExistentes(empresaId,ids) {
   return existentes;
 }
 
+const esperarFotografia=(ms)=>new Promise((resolve)=>setTimeout(resolve,ms));
+
+// A paginação por chave evita que o PostgREST reexecute offsets cada vez mais
+// caros em fotografias grandes. Uma página só é incorporada depois de chegar
+// completa; falhas transitórias não trocam a fotografia local por um recorte.
+async function lerResultadosAtivosPorChave(remoto, empresaRemotaId, opcoes = {}) {
+  const tamanhoPagina=Math.min(500,Math.max(1,Number(opcoes.tamanhoPagina) || 500));
+  const tentativas=Math.min(3,Math.max(1,Number(opcoes.tentativas) || 3));
+  const esperar=opcoes.esperar || esperarFotografia;
+  const linhas=[]; let ultimoId=0;
+  for (;;) {
+    let pagina=null; let ultimoErro=null;
+    for(let tentativa=1;tentativa<=tentativas;tentativa++) {
+      const resposta=await remoto.from('motor_resultados_operacionais').select('*')
+        .eq('empresa_id',Number(empresaRemotaId)).eq('ativo',true)
+        .gt('id',ultimoId).order('id',{ascending:true}).limit(tamanhoPagina);
+      if(!resposta.error) { pagina=resposta.data || []; break; }
+      ultimoErro=resposta.error;
+      if(tentativa<tentativas) await esperar(50);
+    }
+    if(!pagina) throw new Error(`Fotografia compartilhada da empresa: ${ultimoErro?.message || 'falha ao ler página após três tentativas'}`);
+    if(!pagina.length) return linhas;
+    const proximoId=Number(pagina.at(-1)?.id);
+    if(!Number.isFinite(proximoId) || proximoId<=ultimoId) throw new Error('Fotografia compartilhada inválida: paginação por id não avançou.');
+    linhas.push(...pagina);
+    ultimoId=proximoId;
+    if(pagina.length<tamanhoPagina) return linhas;
+  }
+}
+
 async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null) {
   if (!ativo()) return { ativo:false, resultados:0, execucoes:0 };
   garantirColunasEstadoFotografia();
@@ -1658,14 +1688,7 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   const { count:quantidadeRemota, error:erroContagem }=await remoto.from('motor_resultados_operacionais').select('id',{ count:'exact', head:true })
     .eq('empresa_id',Number(remota.id)).eq('ativo',true);
   if (erroContagem || quantidadeRemota == null) throw new Error(`Fotografia canônica indisponível: não foi possível confirmar a quantidade ativa (${erroContagem?.message || 'contagem ausente'}).`);
-  const resultados=[];
-  for (let de=0;;de+=1000) {
-    const { data,error }=await remoto.from('motor_resultados_operacionais').select('*')
-      .eq('empresa_id',Number(remota.id)).eq('ativo',true).order('id',{ascending:true}).range(de,de+999);
-    if (error) throw new Error(`Fotografia compartilhada da empresa: ${error.message}`);
-    resultados.push(...(data || []));
-    if (!data || data.length<1000) break;
-  }
+  const resultados=await lerResultadosAtivosPorChave(remoto,Number(remota.id));
   if (resultados.length !== Number(quantidadeRemota)) {
     throw new Error(`Fotografia canônica parcial: esperado ${quantidadeRemota} resultado(s) ativo(s), restaurado(s) ${resultados.length}. A Cadeia não será consolidada.`);
   }
@@ -1783,14 +1806,8 @@ async function validarFotografiaLocalEmpresa(empresaId, remotoInformado = null) 
   const {count:quantidadeResultados,error:erroResultados}=await remoto.from('motor_resultados_operacionais').select('id',{count:'exact',head:true})
     .eq('empresa_id',Number(remota.id)).eq('ativo',true);
   if(erroResultados || quantidadeResultados==null) throw new Error(`Fotografia canônica indisponível: ${erroResultados?.message || 'contagem ausente'}.`);
-  const linhasResultadosRemotas=[]; const execucaoIds=new Set();
-  for(let de=0;;de+=1000){
-    const {data,error}=await remoto.from('motor_resultados_operacionais').select('*').eq('empresa_id',Number(remota.id)).eq('ativo',true).order('id',{ascending:true}).range(de,de+999);
-    if(error) throw new Error(`Execução da fotografia compartilhada: ${error.message}`);
-    linhasResultadosRemotas.push(...(data || []));
-    (data || []).forEach((x)=>execucaoIds.add(Number(x.execucao_id)));
-    if(!data || data.length<1000) break;
-  }
+  const linhasResultadosRemotas=await lerResultadosAtivosPorChave(remoto,Number(remota.id));
+  const execucaoIds=new Set(linhasResultadosRemotas.map((x)=>Number(x.execucao_id)).filter(Number.isInteger));
   if(linhasResultadosRemotas.length!==Number(quantidadeResultados)) throw new Error(`Fotografia canônica parcial: resultados ${linhasResultadosRemotas.length}/${quantidadeResultados}.`);
   if(execucaoIds.size!==1) throw new Error(`Fotografia canônica inconsistente: ${execucaoIds.size} execuções ativas encontradas.`);
   const execucaoRemotaId=[...execucaoIds][0];
@@ -2524,5 +2541,5 @@ async function restaurarLinhaCanonica(tabela, linha, justificativa, remotoInform
 
 module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, garantirCacheOperacionalEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, restaurarLinhaCanonica, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
   baixarResultadosMotor, restaurarFotografiaMotorEmpresa, validarFotografiaLocalEmpresa, publicarEstadosProjecoes, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
-  compararFotografiaMotor, resultadoCompartilhadoLocal, reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
+  compararFotografiaMotor, resultadoCompartilhadoLocal, lerResultadosAtivosPorChave, reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
   chavesQueDevemPermanecerExcluidas };
