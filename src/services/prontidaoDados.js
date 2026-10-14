@@ -31,7 +31,7 @@ function obter(empresaId, { banco=dbPadrao } = {}) {
   }
   const competencias = esperado(periodo.competencia_inicio, periodo.competencia_fim);
   const faltam = (encontradas, declaradas) => competencias.filter((c)=>!encontradas.has(c)&&!declaradas.has(c));
-  const docs = new Set(unicos(banco.prepare('SELECT competencia FROM movimentos WHERE empresa_id=? GROUP BY competencia=?').all(empresaId)));
+ const docs = new Set(unicos(banco.prepare('SELECT competencia FROM movimentos WHERE empresa_id=? GROUP BY competencia').all(empresaId)));
   const docsFaltam = faltam(docs,declaracoes(empresaId,'DOCUMENTOS_SEM_MOVIMENTO',banco,competencias));
   const receitas = new Set(unicos(banco.prepare("SELECT DISTINCT competencia FROM receitas_sem_dfe WHERE empresa_id=? AND status_validacao<>'POSSIVEL_DUPLICIDADE'").all(empresaId)));
   const receitasFaltam = faltam(receitas,declaracoes(empresaId,'OUTRAS_RECEITAS_NAO_APLICAVEL',banco,competencias));
