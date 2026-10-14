@@ -17,6 +17,8 @@ assert.match(motor, /async function solicitarIncremental/);
 assert.match(motor, /modo:'INCREMENTAL_IDS_EXPLICITOS'/);
 assert.match(motor, /identidade_movimento:'SUPABASE_CANONICA_V1'/,'a fila incremental deve declarar que seus ids pertencem ao Supabase');
 assert.match(motor, /payload\.identidade_movimento==='SUPABASE_CANONICA_V1' \? \(payload\.movimento_ids \|\| \[\]\) : \[\]/,'um job legado com ids efêmeros deve ser substituído, não mesclado');
+assert.match(motor, /let remotoAtivo = true/,'cache local só pode unir escopo se o job remoto ainda estiver ativo');
+assert.match(motor, /remotoAtivo && payload\.identidade_movimento==='SUPABASE_CANONICA_V1'/,'job terminal no cache não pode reaproveitar IDs para o próximo reprocessamento');
 assert.match(motor, /iniciarWorker: false/);
 assert.match(motorExec, /movimentoIdsSolicitados: movimentoIds \|\| \[\]/, 'incremental deve substituir todo o escopo solicitado');
 assert.match(motorExec, /opcoes\.movimentoIdsSolicitados \|\| \[\]/, 'resultado antigo de item deduplicado deve ser removido');

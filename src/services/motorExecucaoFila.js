@@ -37,10 +37,21 @@ async function solicitarIncremental(empresaId, opcoes = {}) {
     .get(Number(empresaId),ano,TIPO_INCREMENTAL);
   if (ativo) {
     let payload={}; try { payload=json(ativo.payload,{}) || {}; } catch (_) { payload={}; }
+    let remotoAtivo = true;
+    if (supabase.configurado()) {
+      const { data, error } = await supabase.admin().from('jobs_carteira')
+        .select('status').eq('id', ativo.id).maybeSingle();
+      if (error) throw new Error(`Consulta da fila incremental: ${error.message}`);
+      remotoAtivo = Boolean(data && ['PENDENTE','PROCESSANDO'].includes(String(data.status)));
+    }
+    if (!remotoAtivo) {
+      payload = { ano:Number(ano), movimento_ids:movimentoIds,
+        identidade_movimento:'SUPABASE_CANONICA_V1', modo:'INCREMENTAL_IDS_EXPLICITOS' };
+    }
     // Jobs anteriores transportavam ids do SQLite efêmero. Ao receber a
     // primeira solicitação com o contrato canônico, substituímos esse recorte
     // inválido. Depois da marca, alterações concorrentes voltam a ser unidas.
-    const idsAnteriores=payload.identidade_movimento==='SUPABASE_CANONICA_V1' ? (payload.movimento_ids || []) : [];
+    const idsAnteriores=remotoAtivo && payload.identidade_movimento==='SUPABASE_CANONICA_V1' ? (payload.movimento_ids || []) : [];
     const unidos=[...new Set([...idsAnteriores,...movimentoIds].map(Number).filter(Number.isInteger))];
     if (payload.identidade_movimento!=='SUPABASE_CANONICA_V1' || unidos.length !== (payload.movimento_ids || []).length) {
       payload.movimento_ids=unidos;
