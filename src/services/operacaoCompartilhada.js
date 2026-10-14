@@ -1639,6 +1639,12 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     throw new Error(`Estados canônicos parciais: esperado ${quantidadeEstadosRemota}, restaurado(s) ${estadosRemotos.length}. A Cadeia não será consolidada.`);
   }
   db.transaction(()=>{
+    // Dependências da execução são cache derivado no disco efêmero. Algumas
+    // bases SQLite antigas não possuem ON DELETE CASCADE; removê-las antes da
+    // execução evita uma FK quebrada ao abrir a Cadeia.
+    db.prepare('DELETE FROM cadeia_fotografias WHERE empresa_id=?').run(id);
+    db.prepare('DELETE FROM telemetria_autonomia_execucoes WHERE empresa_id=?').run(id);
+    db.prepare('DELETE FROM excecoes_motor_execucoes WHERE empresa_id=?').run(id);
     db.prepare('DELETE FROM motor_resultados WHERE empresa_id=?').run(id);
     db.prepare('DELETE FROM motor_execucoes WHERE empresa_id=?').run(id);
     // A projeção é uma fotografia canônica por movimento. O cache efêmero
