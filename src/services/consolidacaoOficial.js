@@ -778,9 +778,16 @@ const JOIN_PROJECAO = `
   FROM motor_resultados r
   JOIN movimentos m ON m.id=r.movimento_id AND m.empresa_id=r.empresa_id
   LEFT JOIN projecoes_movimentos_estado pe ON pe.empresa_id=r.empresa_id AND pe.movimento_id=r.movimento_id
-  LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo
-    AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')=
-        REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
+  LEFT JOIN (
+    SELECT empresa_id,tipo,
+      REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cnpj,''),'.',''),'/',''),'-',''),' ','') cnpj_normalizado,
+      MAX(id) id
+    FROM parceiros
+    GROUP BY empresa_id,tipo,cnpj_normalizado
+  ) parceiro_canonico ON parceiro_canonico.empresa_id=m.empresa_id AND parceiro_canonico.tipo=m.tipo
+    AND parceiro_canonico.cnpj_normalizado=
+      REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
+  LEFT JOIN parceiros p ON p.id=parceiro_canonico.id
   LEFT JOIN movimento_decisoes_fiscais d ON d.empresa_id=m.empresa_id AND d.movimento_id=m.id
     AND d.campo='REGIME_FORNECEDOR' AND d.revogado_em IS NULL`;
 const PROJECAO_ATUAL = "pe.situacao='ATUAL'";

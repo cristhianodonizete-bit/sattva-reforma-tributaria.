@@ -1584,6 +1584,12 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   if (erroEmpresa) throw new Error(`Empresa compartilhada: ${erroEmpresa.message}`);
   const remota=(candidatas || []).find((x)=>Number(x.origem_local_id || x.id)===id || String(x.cnpj || '').replace(/\D/g,'')===cnpj);
   if (!remota) throw new Error('Empresa compartilhada não localizada para restaurar a fotografia.');
+  // A Cadeia só pode consolidar uma fotografia integral. A contagem vem da
+  // fonte canônica antes da paginação para que uma falha de rede/página não
+  // pareça uma carteira vazia no cache efêmero do serviço web.
+  const { count:quantidadeRemota, error:erroContagem }=await remoto.from('motor_resultados_operacionais').select('id',{ count:'exact', head:true })
+    .eq('empresa_id',Number(remota.id)).eq('ativo',true);
+  if (erroContagem || quantidadeRemota == null) throw new Error(`Fotografia canônica indisponível: não foi possível confirmar a quantidade ativa (${erroContagem?.message || 'contagem ausente'}).`);
   const resultados=[];
   for (let de=0;;de+=1000) {
     const { data,error }=await remoto.from('motor_resultados_operacionais').select('*')
@@ -1591,6 +1597,9 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     if (error) throw new Error(`Fotografia compartilhada da empresa: ${error.message}`);
     resultados.push(...(data || []));
     if (!data || data.length<1000) break;
+  }
+  if (resultados.length !== Number(quantidadeRemota)) {
+    throw new Error(`Fotografia canônica parcial: esperado ${quantidadeRemota} resultado(s) ativo(s), restaurado(s) ${resultados.length}. A Cadeia não será consolidada.`);
   }
   const movimentoIds=[...new Set(resultados.map((x)=>Number(x.movimento_id)).filter(Number.isInteger))];
   let locais=movimentosLocaisExistentes(id,movimentoIds);
@@ -1612,6 +1621,12 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   if (erroExecucao) throw new Error(`Execução da fotografia compartilhada: ${erroExecucao.message}`);
   if (!execucoes?.length) throw new Error('Fotografia canônica sem execução compartilhada para a empresa.');
   const execucaoAtiva=execucoes[0];
+  // Os estados também são uma fotografia integral por empresa. A contagem
+  // antecede qualquer DELETE local: falha de rede jamais pode apagar um
+  // estado válido e substituir a tela por uma versão parcial.
+  const { count:quantidadeEstadosRemota, error:erroContagemEstados }=await remoto.from('projecoes_movimentos_estado').select('movimento_id',{ count:'exact', head:true })
+    .eq('empresa_id',Number(remota.id));
+  if (erroContagemEstados || quantidadeEstadosRemota == null) throw new Error(`Estados canônicos indisponíveis: não foi possível confirmar a quantidade (${erroContagemEstados?.message || 'contagem ausente'}).`);
   const estadosRemotos=[];
   for (let de=0;;de+=1000) {
     const {data,error}=await remoto.from('projecoes_movimentos_estado').select('*')
@@ -1620,9 +1635,16 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     estadosRemotos.push(...(data || []));
     if (!data || data.length<1000) break;
   }
+  if (estadosRemotos.length !== Number(quantidadeEstadosRemota)) {
+    throw new Error(`Estados canônicos parciais: esperado ${quantidadeEstadosRemota}, restaurado(s) ${estadosRemotos.length}. A Cadeia não será consolidada.`);
+  }
   db.transaction(()=>{
     db.prepare('DELETE FROM motor_resultados WHERE empresa_id=?').run(id);
     db.prepare('DELETE FROM motor_execucoes WHERE empresa_id=?').run(id);
+    // A projeção é uma fotografia canônica por movimento. O cache efêmero
+    // pode conter versões antigas sem unicidade; mantê-las multiplicaria a
+    // Cadeia. Substituímos integralmente o escopo da empresa pela foto remota.
+    db.prepare('DELETE FROM projecoes_movimentos_estado WHERE empresa_id=?').run(id);
     gravarLinhasComColunas('motor_execucoes',[execucaoCompartilhadaLocal(execucaoAtiva,id)],true);
     gravarLinhasComColunas('motor_resultados',resultados.map((x)=>resultadoCompartilhadoLocal(x,id,execucaoAtiva.id)),true);
     const gravarEstado=db.prepare(`INSERT INTO projecoes_movimentos_estado
