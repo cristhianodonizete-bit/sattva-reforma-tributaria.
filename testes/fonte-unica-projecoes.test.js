@@ -60,6 +60,13 @@ try {
   assert.equal(leitura.resultado_vigente,true);
   assert.equal(leitura.resultado_vigente,true,'a nova fotografia é a única fonte financeira vigente');
   assert.equal(perfilCbs.materializar(empresaId,{ movimentoIds:[movimentoId] }).competencias.length,1,'perfil CBS volta a materializar somente após a projeção ficar atual');
+
+  const saidaId = Number(db.prepare(`INSERT INTO movimentos
+    (empresa_id,tipo,sentido,nome,inscr_federal,descricao,valor,competencia,reducao,regime)
+    VALUES (?,'cliente','saida','Cliente prova','77111111000101','Venda de prova',500,'2027-01','integral','lucro_real')`).run(empresaId).lastInsertRowid);
+  estados = projecoes.reconciliar(db,empresaId,[saidaId]);
+  assert.equal(estados.get(saidaId).situacao,projecoes.ESTADOS.FORA_ESCOPO,
+    'saída de cliente sem resultado não pode aparecer como pendência de fornecedor');
   console.log('fonte-unica-projecoes.test: contenção, falha e reprocessamento incremental aprovados.');
 } finally {
   try { db.close?.(); } catch (_) { /* nada a fazer */ }

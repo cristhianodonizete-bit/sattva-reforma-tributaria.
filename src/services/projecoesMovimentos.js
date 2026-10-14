@@ -15,6 +15,7 @@ const ESTADOS = Object.freeze({
   PENDENTE: 'ATUALIZACAO_PENDENTE',
   FALHOU: 'FALHOU',
   PENDENCIA_REAL: 'PENDENCIA_REAL',
+  FORA_ESCOPO: 'FORA_ESCOPO',
 });
 
 const hash = (valor) => crypto.createHash('sha256').update(JSON.stringify(valor)).digest('hex');
@@ -81,6 +82,14 @@ function situacaoPreservada(db, empresaId, movimentoId) {
 function decidir(db, movimento, parceiro, resultado) {
   const assinatura = assinaturaOrigem(movimento, parceiro);
   const anterior = situacaoPreservada(db, movimento.empresa_id, movimento.id);
+  // A fotografia de PIS/Cofins de fornecedores não calcula saídas para
+  // clientes. Sem esta separação, uma saída sem resultado do motor aparecia
+  // falsamente como pendência fiscal de fornecedor. Mantemos o fato e sua
+  // decisão, mas o classificamos explicitamente fora do escopo desta projeção.
+  if (String(movimento.tipo || '').toLowerCase() === 'cliente' || String(movimento.sentido || '').toLowerCase() === 'saida') {
+    return { assinatura, situacao: ESTADOS.FORA_ESCOPO,
+      motivo: 'Movimento de saída: não integra pendências de PIS/Cofins de fornecedores.', job_id: null };
+  }
   if (resultadoCompativel(movimento, parceiro, resultado)) {
     return { assinatura, situacao: ESTADOS.ATUAL, motivo: null, job_id: null };
   }
