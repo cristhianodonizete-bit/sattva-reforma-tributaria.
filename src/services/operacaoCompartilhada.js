@@ -1614,7 +1614,8 @@ async function baixarResultadosMotor() {
 // por uma parcela que tenha sobrevivido no disco efêmero do Render. Esta
 // restauração é restrita à empresa aberta (não recarrega a carteira inteira)
 // e é chamada depois de os movimentos canônicos já estarem no cache local.
-async function restaurarMovimentosDaFotografia(remoto,empresaRemota,empresaLocal,ids) {
+// Apenas lê: a gravação local acontece depois, dentro da transação final.
+async function buscarMovimentosDaFotografia(remoto,empresaRemota,empresaLocal,ids) {
   const linhas=[];
   for (let de=0;de<ids.length;de+=500) {
     const {data,error}=await remoto.from('movimentos').select('*')
@@ -1623,7 +1624,7 @@ async function restaurarMovimentosDaFotografia(remoto,empresaRemota,empresaLocal
     linhas.push(...(data || []));
   }
   const mapa=new Map([[String(empresaRemota.id),Number(empresaLocal)]]);
-  return gravar('movimentos',normalizarEmpresaIdDoCache('movimentos',linhas,mapa));
+  return normalizarEmpresaIdDoCache('movimentos',linhas,mapa);
 }
 
 function movimentosLocaisExistentes(empresaId,ids) {
@@ -1692,13 +1693,28 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   if (resultados.length !== Number(quantidadeRemota)) {
     throw new Error(`Fotografia canônica parcial: esperado ${quantidadeRemota} resultado(s) ativo(s), restaurado(s) ${resultados.length}. A Cadeia não será consolidada.`);
   }
-  const movimentoIds=[...new Set(resultados.map((x)=>Number(x.movimento_id)).filter(Number.isInteger))];
-  let locais=movimentosLocaisExistentes(id,movimentoIds);
-  const ausentes=movimentoIds.filter((movimentoId)=>!locais.has(movimentoId));
-  if (ausentes.length) await restaurarMovimentosDaFotografia(remoto,remota,id,ausentes);
-  locais=movimentosLocaisExistentes(id,movimentoIds);
-  const aindaAusentes=movimentoIds.filter((movimentoId)=>!locais.has(movimentoId));
-  if (aindaAusentes.length) throw new Error(`Fotografia canonica possui ${aindaAusentes.length} documento(s) ausente(s) na fonte.`);
+  // Os estados também são uma fotografia integral por empresa. A contagem
+  // antecede qualquer escrita local: falha de rede jamais pode apagar um
+  // estado válido e substituir a tela por uma versão parcial. Estados e
+  // resultados referenciam movimentos, por isso os dois entram na união abaixo.
+  const { count:quantidadeEstadosRemota, error:erroContagemEstados }=await remoto.from('projecoes_movimentos_estado').select('movimento_id',{ count:'exact', head:true })
+    .eq('empresa_id',Number(remota.id));
+  if (erroContagemEstados || quantidadeEstadosRemota == null) throw new Error(`Estados canônicos indisponíveis: não foi possível confirmar a quantidade (${erroContagemEstados?.message || 'contagem ausente'}).`);
+  const estadosRemotos=[];
+  for (let de=0;;de+=1000) {
+    const {data,error}=await remoto.from('projecoes_movimentos_estado').select('*')
+      .eq('empresa_id',Number(remota.id)).order('movimento_id',{ascending:true}).range(de,de+999);
+    if (error) throw new Error(`Estado compartilhado da projeção: ${error.message}`);
+    estadosRemotos.push(...(data || []));
+    if (!data || data.length<1000) break;
+  }
+  if (estadosRemotos.length !== Number(quantidadeEstadosRemota)) {
+    throw new Error(`Estados canônicos parciais: esperado ${quantidadeEstadosRemota}, restaurado(s) ${estadosRemotos.length}. A Cadeia não será consolidada.`);
+  }
+  const movimentoIds=[...new Set([
+    ...resultados.map((x)=>Number(x.movimento_id)),
+    ...estadosRemotos.map((x)=>Number(x.movimento_id)),
+  ].filter(Number.isInteger))];
   // A execução é a indicada pelas linhas ativas, nunca a última execução da
   // empresa. Usar a mais recente misturava uma foto histórica com metadados
   // de outro cálculo e permitia que uma reexecução falha parecesse publicada.
@@ -1714,24 +1730,15 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   const execucaoAtiva=execucoes[0];
   const execucaoAtivaLocal=execucaoCompartilhadaLocal(execucaoAtiva,id);
   const resultadosTraduzidos=resultados.map((linha)=>resultadoCompartilhadoLocal(linha,id,execucaoAtiva.id));
-  // Os estados também são uma fotografia integral por empresa. A contagem
-  // antecede qualquer DELETE local: falha de rede jamais pode apagar um
-  // estado válido e substituir a tela por uma versão parcial.
-  const { count:quantidadeEstadosRemota, error:erroContagemEstados }=await remoto.from('projecoes_movimentos_estado').select('movimento_id',{ count:'exact', head:true })
-    .eq('empresa_id',Number(remota.id));
-  if (erroContagemEstados || quantidadeEstadosRemota == null) throw new Error(`Estados canônicos indisponíveis: não foi possível confirmar a quantidade (${erroContagemEstados?.message || 'contagem ausente'}).`);
-  const estadosRemotos=[];
-  for (let de=0;;de+=1000) {
-    const {data,error}=await remoto.from('projecoes_movimentos_estado').select('*')
-      .eq('empresa_id',Number(remota.id)).order('movimento_id',{ascending:true}).range(de,de+999);
-    if (error) throw new Error(`Estado compartilhado da projeção: ${error.message}`);
-    estadosRemotos.push(...(data || []));
-    if (!data || data.length<1000) break;
-  }
-  if (estadosRemotos.length !== Number(quantidadeEstadosRemota)) {
-    throw new Error(`Estados canônicos parciais: esperado ${quantidadeEstadosRemota}, restaurado(s) ${estadosRemotos.length}. A Cadeia não será consolidada.`);
-  }
   const estadosTraduzidos=estadosRemotos.map((linha)=>estadoCompartilhadoLocal(linha,id));
+  // Movimentos faltantes são lidos da fonte antes de qualquer escrita. Se a
+  // fonte não devolver todos, a cópia local permanece intacta.
+  const locais=movimentosLocaisExistentes(id,movimentoIds);
+  const ausentes=movimentoIds.filter((movimentoId)=>!locais.has(movimentoId));
+  const movimentosRestaurados=ausentes.length ? await buscarMovimentosDaFotografia(remoto,remota,id,ausentes) : [];
+  if (movimentosRestaurados.length !== ausentes.length) {
+    throw new Error(`Fotografia canonica possui ${ausentes.length - movimentosRestaurados.length} documento(s) ausente(s) na fonte.`);
+  }
   db.transaction(()=>{
     // `motor_execucoes.id` é hoje uma chave global no SQLite. Enquanto a
     // separação definitiva entre id local e id remoto não estiver migrada,
@@ -1740,6 +1747,8 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     if(donoLocal && Number(donoLocal.empresa_id)!==id){
       throw new Error(`Colisão de id de execução: ${execucaoAtiva.id} já pertence à empresa local ${donoLocal.empresa_id}. Restauração cancelada sem alterações.`);
     }
+    // Movimentos vêm antes das demais linhas: resultados e estados os referenciam.
+    if (movimentosRestaurados.length) gravar('movimentos', movimentosRestaurados, true);
     // Dependências da execução são cache derivado no disco efêmero. Algumas
     // bases SQLite antigas não possuem ON DELETE CASCADE; removê-las antes da
     // execução evita uma FK quebrada ao abrir a Cadeia.
