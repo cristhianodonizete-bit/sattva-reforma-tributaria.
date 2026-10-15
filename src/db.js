@@ -713,6 +713,21 @@ CREATE TABLE IF NOT EXISTS contraparte_regime_evidencias (
 );
 CREATE INDEX IF NOT EXISTS ix_contraparte_evidencias ON contraparte_regime_evidencias(parceiro_id);
 
+-- Histórico versionado de regime. Nesta etapa é apenas lido pela auditoria.
+CREATE TABLE IF NOT EXISTS historico_regimes_parceiro (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cnpj TEXT NOT NULL,
+  regime TEXT NOT NULL,
+  versao INTEGER NOT NULL,
+  vigencia_inicio TEXT NOT NULL,
+  vigencia_fim TEXT,
+  fonte TEXT NOT NULL,
+  registrado_em TEXT DEFAULT (datetime('now','localtime')),
+  justificativa TEXT,
+  UNIQUE(cnpj, versao)
+);
+CREATE INDEX IF NOT EXISTS ix_historico_regimes_parceiro_vigencia ON historico_regimes_parceiro(cnpj,vigencia_inicio,vigencia_fim);
+
 -- ============ MOVIMENTAÇÃO ============
 CREATE TABLE IF NOT EXISTS movimentos (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

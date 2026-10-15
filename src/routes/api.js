@@ -3647,6 +3647,15 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
   } catch (e) { erro(res, e); }
 });
 
+// Auditoria de vigência de regime — etapa 1: leitura exclusiva, sem fila ou recálculo.
+router.get('/empresas/:id/regimes/auditoria-vigencia', (req, res) => {
+  try {
+    const empresaId=Number(req.params.id);
+    if (!db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId)) throw new Error('Empresa não encontrada.');
+    ok(res,require('../services/auditoriaRegimeVigencia').listar(db,empresaId));
+  } catch (e) { erro(res,e); }
+});
+
 // Validação humana de benefício fiscal. A rota expõe somente benefícios já
 // aplicados pelo motor; não cria candidatos nem altera o documento fiscal.
 router.get('/empresas/:id/beneficios-fiscais/revisao', async (req, res) => {

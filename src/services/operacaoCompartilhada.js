@@ -203,7 +203,7 @@ function aplicarRegimeBaseNosVinculosQuestor(empresaId) {
       JOIN base_regime br ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')
         OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ',''),1,8)
       WHERE p.empresa_id=? AND p.tipo='fornecedor' AND COALESCE(p.cnpj,'')<>''
-        AND UPPER(COALESCE(p.origem,'')) IN ('QUESTOR_PESSOA_CONTRAPARTIDA','QUESTOR_PESSOA_HISTORICO')
+        AND UPPER(COALESCE(p.regime_origem,'')) NOT IN ('MANUAL_USUARIO','REGIME_CONFIRMADO_USUARIO')
     ), resolvidos AS (
       SELECT id,regime FROM candidatos WHERE posicao=1
     )
@@ -221,7 +221,7 @@ function aplicarRegimeBaseNosVinculosQuestor(empresaId) {
       JOIN base_regime br ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
         OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8)
       WHERE m.empresa_id=? AND m.tipo='fornecedor'
-        AND UPPER(COALESCE(m.origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
+        AND UPPER(COALESCE(m.regime_fonte,'')) NOT IN ('MANUAL_USUARIO','REGIME_CONFIRMADO_USUARIO')
         AND LENGTH(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''))=14
     ), resolvidos AS (
       SELECT id,regime FROM candidatos WHERE posicao=1
