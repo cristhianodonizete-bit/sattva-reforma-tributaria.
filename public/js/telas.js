@@ -1992,7 +1992,7 @@ async function telaCadeia(el, tipo) {
     regime:filtrosRastreabilidadeItens.regime || '', servico:filtrosRastreabilidadeItens.servico || '',
     ordenar:filtrosRastreabilidadeItens.ordenar || 'competencia', direcao:filtrosRastreabilidadeItens.direcao || 'desc',
   });
-  const [cadeiaResposta, creditosCbsResposta, documentosCreditoCbsResposta, entradasQuestorResposta, entradasRastreabilidadeResposta, elegibilidadePisCofinsResposta] = await Promise.all([
+  const [cadeiaResposta, creditosCbsResposta, documentosCreditoCbsResposta, entradasQuestorResposta, entradasRastreabilidadeResposta, elegibilidadePisCofinsResposta, auditoriaRegimeResposta] = await Promise.all([
     A.api(`/empresas/${S.empresaId}/cadeia/${tipo}?repasse=${rep}&detalhes=${mostrarRastreabilidadeItens ? 1 : 0}&beneficios=${mostrarBeneficios ? 1 : 0}&pagina=${paginaRastreabilidade}&limite=100&pagina_parceiros=${paginaParceiros}&limite_parceiros=100&${parametrosRastreabilidadeItens.toString()}`),
     // A cadeia consolidada continua disponível mesmo se a visão auxiliar de
     // rastreabilidade não puder ser lida em uma fotografia antiga.
@@ -2004,6 +2004,7 @@ async function telaCadeia(el, tipo) {
     // PIS/Cofins, mas não pode decidir quais notas ficam visíveis.
     eForn && mostrarRastreabilidade ? A.api(`/empresas/${S.empresaId}/documentos-fiscais?sentido=fornecedor&limite=100&pagina=${paginaDocumentosCreditoCbs}`).catch(() => ({ documentos:[], total:0, paginacao:{}, leitura:'Entradas fiscais indisponíveis.' })) : Promise.resolve({ documentos:[], total:0, paginacao:{} }),
     eForn && mostrarRastreabilidade ? A.api(`/empresas/${S.empresaId}/elegibilidade-pis-cofins/entradas`).catch(() => ({ documentos:[], resumo:{}, leitura:'Triagem de PIS/Cofins indisponível.' })) : Promise.resolve({ documentos:[], resumo:{} }),
+    eForn ? A.api(`/empresas/${S.empresaId}/regimes/auditoria-vigencia`).catch(() => ({ resumo:{ total:0, atual:0, divergente:0, sem_historico:0 }, indisponivel:true })) : Promise.resolve({ resumo:{ total:0, atual:0, divergente:0, sem_historico:0 } }),
   ]);
   const { analise, pendenciasReferencias = [] } = cadeiaResposta;
   // A fotografia do motor não é recalculada automaticamente ao incluir uma
@@ -2047,6 +2048,7 @@ async function telaCadeia(el, tipo) {
     : documentosMotor.map((x)=>({ ...x, origem_questor:Boolean(x.origem_questor), origem_razao:false }));
   const documentosEntradaExibidos=[...documentosEntradaBase,...pendentesQuestor]
     .map((x)=>({...x,elegibilidade_pis_cofins:elegibilidadePorNota.get(chaveElegibilidade(x)) || null}));
+  const resumoAuditoriaRegime=auditoriaRegimeResposta?.resumo || { total:0, atual:0, divergente:0, sem_historico:0 };
   const t = analise.totais;
   const rotuloRegimeFornecedor=(regime)=>({
     lucro_real:'Lucro Real', lucro_presumido:'Lucro Presumido', simples_nacional:'Simples Nacional', simples_das:'Simples Nacional',
@@ -2133,7 +2135,7 @@ async function telaCadeia(el, tipo) {
       <div class="rastreabilidade-item-topo">
         <div><span class="olho">DOCUMENTO</span><b class="mono">${A.esc(d.documento || 'sem número')}</b><small>${A.esc(d.competencia || '—')}</small></div>
         <div><span class="olho">${eForn ? 'FORNECEDOR' : 'CLIENTE'}</span><b>${A.esc(d.parceiro || 'Não identificado')}</b><small class="mono">${A.cnpjFmt(d.cnpj || '')}</small></div>
-        ${eForn ? `<div><span class="olho">REGIME | CATÁLOGO PIS/COFINS</span><span class="tag ${String(d.regimeEmitente || '').toLowerCase()==='indeterminado' ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(d.regimeEmitente))}</span>${rotuloCatalogoPisCofins(d.origemPisCofins) ? `<small>${A.esc(rotuloCatalogoPisCofins(d.origemPisCofins))}</small>` : ''}</div>` : ''}
+        ${eForn ? `<div><span class="olho">REGIME | CADASTRO COMPARTILHADO</span><span class="tag ${String(d.regimeEmitente || '').toLowerCase()==='indeterminado' ? 'a' : 'c'}">${A.esc(rotuloRegimeFornecedor(d.regimeEmitente))}</span>${d.regimeFotografia && d.regimeFotografia !== d.regimeEmitente ? `<small>Fotografia do motor: ${A.esc(rotuloRegimeFornecedor(d.regimeFotografia))} · atualização pendente</small>` : (rotuloCatalogoPisCofins(d.origemPisCofins) ? `<small>${A.esc(rotuloCatalogoPisCofins(d.origemPisCofins))}</small>` : '')}</div>` : ''}
         <div class="rastreabilidade-item-produto"><span class="olho">ITEM / REFERÊNCIA</span><b>${A.esc(d.produto || 'Sem descrição')}</b><small><span class="tag ${produto ? 'c' : servico ? 'a' : cadastroManual ? 'c' : 'n'}">${produto ? 'Produto' : servico ? 'Serviço' : cadastroManual ? 'Cadastro manual' : 'A classificar'}</span> <span class="mono">${A.esc(referencia)}</span></small><small><b>${A.esc(classificacaoVisivel)}</b>${fundamentoVisivel ? ` · ${A.esc(fundamentoVisivel)}` : ''}</small></div>
       </div>
       <div class="rastreabilidade-valores">
@@ -2210,6 +2212,7 @@ async function telaCadeia(el, tipo) {
     (!eForn && t.dasHibridoProvisorio ? `<div class="aviso neutro" style="margin-top:12px"><b>Memória provisória do DAS usada na projeção.</b><br>O PGDAS extraído já identificou a linha de locação e sua repartição de PIS/Cofins. A confirmação do documento mantém a rastreabilidade e substitui esta memória pela informação oficialmente validada.</div>` : '') +
     (!eForn && outrasReceitasSemCliente.registros ? `<div class="aviso neutro" style="margin-top:16px"><b>${outrasReceitasSemCliente.registros} lançamento(s) de outras receitas, no total de ${A.moeda(outrasReceitasSemCliente.valor)}, foram consolidados em “Clientes diversos”.</b><br>O grupo segue a regra de regime regular e não atribui artificialmente um cliente individual.</div>` : '') +
     (!eForn && pendenciasReferencias.length ? `<div class="aviso atencao" style="margin-top:16px"><b>${pendenciasReferencias.length} lançamento(s) de serviço estão sem referência fiscal específica.</b> A análise foi carregada com a melhor evidência disponível (documento, catálogo ou regime da empresa). <button class="btn pq vazio" id="corrigirDadosCadeia">Corrigir na Central de Dados</button> Esses itens permanecem <b>a validar</b>.</div>` : '') : '') +
+    (eForn && !auditoriaRegimeResposta?.indisponivel ? `<div class="aviso ${resumoAuditoriaRegime.divergente ? 'atencao' : resumoAuditoriaRegime.sem_historico ? 'neutro' : 'bom'}" style="margin-top:16px"><b>Auditoria histórica de regime:</b> ${resumoAuditoriaRegime.atual} compatível(is), ${resumoAuditoriaRegime.divergente} divergente(s) e ${resumoAuditoriaRegime.sem_historico} sem histórico suficiente. Esta leitura não altera valores nem agenda reprocessamento.</div>` : '') +
     (t.registros ? `
     ${exibirResumoAtual ? `
     <div class="grade g4">
