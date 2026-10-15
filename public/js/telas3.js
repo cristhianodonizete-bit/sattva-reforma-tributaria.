@@ -594,16 +594,19 @@ Telas.cadastrosCnpj = async (el) => {
           <tr><th>Consultado em</th><td>${A.esc(cadastro.consultado_em || 'Não informado')}</td></tr>
         </tbody></table>
         <h3 class="subtitulo-modal">Confirmação manual de regime</h3>
-        <div class="aviso atencao">Use somente quando houver evidência cadastral ou fiscal. A confirmação vale para os vínculos deste CNPJ no cadastro compartilhado e não reprocessa documentos automaticamente.</div>
+        <div class="aviso atencao">Use somente quando houver evidência cadastral ou fiscal. Informe desde quando ela vale: essa vigência é gravada no cadastro compartilhado e não reprocessa documentos automaticamente.</div>
         <div class="grade g2" style="margin-top:12px">
           ${A.selecao('regime','Regime confirmado manualmente',[
             {v:'mei',t:'MEI'}, {v:'simples_nacional',t:'Simples Nacional'}, {v:'regime_regular',t:'Regime regular'},
             {v:'lucro_real',t:'Lucro Real'}, {v:'lucro_presumido',t:'Lucro Presumido'},
             {v:'lucro_arbitrado',t:'Lucro Arbitrado'}, {v:'imune_isento',t:'Imune / Isento'}
           ], cadastro.regime || '')}
+          <label class="campo"><span>Início da vigência da evidência</span><input type="date" name="vigencia_inicio" required></label>
+          <label class="campo"><span>Fim da vigência (opcional)</span><input type="date" name="vigencia_fim"></label>
           ${A.area('justificativa','Justificativa / evidência','',3)}
         </div>`, aoConfirmar:async (dados) => {
           if (!dados.regime) throw new Error('Selecione o regime confirmado.');
+          if (!dados.vigencia_inicio) throw new Error('Informe o início da vigência da evidência.');
           if (String(dados.justificativa || '').trim().length < 8) throw new Error('Informe a justificativa que sustenta a confirmação manual.');
           const salvo=await A.api(`/cadastros-cnpj/${encodeURIComponent(cadastro.cnpj)}/regime-manual`, { metodo:'POST', corpo:dados });
           A.toast(`${rotuloRegime(salvo.regime)} gravado no cadastro compartilhado.`, 'ok');
