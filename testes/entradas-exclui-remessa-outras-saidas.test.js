@@ -30,4 +30,21 @@ const consolidadas=filtrarLinhasDoEscopo([
   entrada('1102', { movimento_id:3 }),
 ], 'fornecedor');
 assert.deepEqual(consolidadas.map((x)=>x.movimento_id), [3], 'consolidação de fornecedor não pode agregar remessa ou 5949');
+
+// Fotografia antiga: a leitura do motor não pode reintroduzir a remessa ou
+// outras saídas como compra/crédito, sem apagar seus documentos de origem.
+const db=require('../src/db');
+const motorExec=require('../src/services/motorExec');
+const empresaId=Number(db.prepare("INSERT INTO empresas(cnpj,razao_social) VALUES (?,?)").run('00999999000191','Fixture CFOP').lastInsertRowid);
+const execucaoId=Number(db.prepare("INSERT INTO motor_execucoes(empresa_id,ano,resumo) VALUES (?,?,?)").run(empresaId,2027,'{}').lastInsertRowid);
+const inserirMovimento=db.prepare("INSERT INTO movimentos(empresa_id,tipo,sentido,origem,cfop,valor) VALUES (?,?,?,?,?,?)");
+const inserirResultado=db.prepare("INSERT INTO motor_resultados(empresa_id,movimento_id,execucao_id,sentido,preco_atual,base_economica,credito_ibs,credito_cbs,detalhe) VALUES (?,?,?,?,?,?,?,?,?)");
+for (const [cfop,valor] of [['5901',100],['5949',200],['1102',300]]) {
+  const movimentoId=Number(inserirMovimento.run(empresaId,'fornecedor','entrada','xml',cfop,valor).lastInsertRowid);
+  inserirResultado.run(empresaId,movimentoId,execucaoId,'entrada',valor,valor,10,20,JSON.stringify({sentido:'entrada',precoAtual:valor,baseEconomica:valor,creditoIbs:10,creditoCbs:20,credito:{status:'ELEGIVEL'}}));
+}
+const foto=motorExec.resultadoMaterializado(db.prepare('SELECT * FROM empresas WHERE id=?').get(empresaId));
+assert.deepEqual(foto.entradas.map((x)=>x.precoAtual), [300], 'fotografia deve manter somente a compra válida');
+assert.equal(foto.resumo.comprasAnalisadas,300,'remessa e 5949 não podem voltar a compras');
+assert.equal(foto.entradas.reduce((total,x)=>total + Number(x.creditoIbs || 0) + Number(x.creditoCbs || 0),0),30,'remessa e 5949 não podem voltar a crédito');
 console.log('entradas-exclui-remessa-outras-saidas.test.js: OK');
