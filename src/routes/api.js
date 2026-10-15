@@ -382,8 +382,11 @@ router.get('/cadastros-cnpj', async (req, res) => {
       if (filtros.etiqueta && filtros.etiqueta !== 'COM_ETIQUETA' && !x.etiquetas.some((e) => e.codigo === filtros.etiqueta)) return false;
       return true;
     });
+    const resumo = cadastrosComEtiquetas.reduce((acumulado, cadastro) => {
+      acumulado[cadastro.situacao_regime] = (acumulado[cadastro.situacao_regime] || 0) + 1;
+      return acumulado;
+    }, { SEM_CONSULTA:0, INCONCLUSIVO:0, CONFIRMADO:0 });
     const total = cadastros.length;
-    ok(res, { cadastros: cadastros.slice((pagina - 1) * tamanho, pagina * tamanho), total, pagina, tamanho, filtros });
   } catch (e) { erro(res, e); }
 });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });
