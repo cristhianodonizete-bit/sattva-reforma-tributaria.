@@ -345,7 +345,8 @@ async function iniciarProcessamentoCadastrosCnpj() {
       const [{ data: parceiros, error: erroParceiros }, { data: cadastrosPendentes, error: erroCadastros }] = await Promise.all([
         remoto.from('parceiros').select('cnpj,regime_confirmado_em,ativo')
           .eq('ativo', true).not('cnpj', 'is', null).is('regime_confirmado_em', null).limit(5000),
-        remoto.from('cadastros_cnpj').select('cnpj').is('regime_derivado', null).limit(5000),
+        remoto.from('cadastros_cnpj').select('cnpj')
+          .or('regime_derivado.is.null,regime_derivado.eq.regime_regular,regime_derivado.eq.indeterminado').limit(5000),
       ]);
       if (erroParceiros) throw erroParceiros;
       if (erroCadastros) throw erroCadastros;
@@ -477,10 +478,12 @@ router.get('/cadastros-cnpj', async (req, res) => {
     const paginaCadastros = cadastros.slice(inicio, inicio + tamanho);
     const rfbPagina = await baseRegime.consultarCompartilhada(paginaCadastros.map((x) => x.cnpj), 2024);
     const cadastrosDaPagina = paginaCadastros.map((cadastro) => {
-      // Mesmo antes da materialização pela fila, a página deve respeitar a
-      // base interna por CNPJ/raiz: não exibir uma filial conhecida como
-      // "sem consulta" seria uma informação falsa para o usuário.
-      if (cadastro.regime) return cadastro;
+      // A base interna por CNPJ/raiz resolve pendências e também refina o
+      // resultado genérico "regime_regular" das APIs em Real/Presumido.
+      // Não substitui confirmação manual, Simples, MEI ou outro regime já
+      // específico informado por fonte cadastral.
+      const regimeGenerico=['', 'indeterminado', 'regime_regular'].includes(String(cadastro.regime || '').toLowerCase());
+      if (!regimeGenerico) return cadastro;
       const cnpj = String(cadastro.cnpj || '').replace(/\D/g, '');
       const referencia = rfbPagina.get(cnpj) || rfbPagina.get(cnpj.slice(0, 8));
       if (!referencia?.regime) return cadastro;
