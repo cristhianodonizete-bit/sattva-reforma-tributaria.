@@ -824,7 +824,7 @@ function escopoPersistido(empresaId, opcoes={}) {
   if(periodo?.competencia_fim){ where+=" AND COALESCE(m.competencia,'')<=?"; params.push(periodo.competencia_fim); }
   const sentido=opcoes.sentido || (opcoes.tipo==='cliente'?'saida':opcoes.tipo==='fornecedor'?'entrada':null);
   if(sentido){ where+=' AND r.sentido=?'; params.push(sentido); }
-  if(sentido==='entrada') where+=` AND NOT ${FORA_COMPOSICAO_ENTRADAS_SQL}`;
+  if(sentido==='entrada') where+=` AND NOT COALESCE(${FORA_COMPOSICAO_ENTRADAS_SQL},0)`;
   return {execucao,periodo,where,params};
 }
 function resumo(empresaId,opcoes={}) {

@@ -42,25 +42,25 @@ const inserirMovimento=db.prepare("INSERT INTO movimentos(empresa_id,tipo,sentid
 const inserirResultado=db.prepare("INSERT INTO motor_resultados(empresa_id,movimento_id,execucao_id,sentido,preco_atual,base_economica,credito_ibs,credito_cbs,detalhe) VALUES (?,?,?,?,?,?,?,?,?)");
 const inserirEstado=db.prepare("INSERT INTO projecoes_movimentos_estado(empresa_id,movimento_id,assinatura_origem,situacao) VALUES (?,?,?,?)");
 const movimentosPorCfop=new Map();
-for (const [cfop,valor] of [['5901',100],['5949',200],['1102',300]]) {
-  const movimentoId=Number(inserirMovimento.run(empresaId,'fornecedor','entrada','xml',cfop,valor).lastInsertRowid);
+for (const [cfop,valor,origem] of [['5901',100,'xml'],['5949',200,'xml'],['1102',300,'xml'],['',400,'QUESTOR_RAZAO']]) {
+  const movimentoId=Number(inserirMovimento.run(empresaId,'fornecedor','entrada',origem,cfop,valor).lastInsertRowid);
   movimentosPorCfop.set(cfop,movimentoId);
   inserirResultado.run(empresaId,movimentoId,execucaoId,'entrada',valor,valor,10,20,JSON.stringify({sentido:'entrada',precoAtual:valor,baseEconomica:valor,creditoIbs:10,creditoCbs:20,credito:{status:'ELEGIVEL'}}));
   inserirEstado.run(empresaId,movimentoId,`fixture-${cfop}`,'ATUAL');
 }
 db.prepare("INSERT INTO fotografia_oficial(empresa_id,execucao_id,empresa_remota_id,execucao_remota_id,quantidade_resultados,quantidade_estados,sincronizado_em) VALUES (?,?,?,?,?,?,datetime('now'))")
-  .run(empresaId,execucaoId,empresaId,execucaoId,3,3);
+  .run(empresaId,execucaoId,empresaId,execucaoId,4,4);
 const foto=motorExec.resultadoMaterializado(db.prepare('SELECT * FROM empresas WHERE id=?').get(empresaId));
-assert.deepEqual(foto.entradas.map((x)=>x.precoAtual), [300], 'fotografia deve manter somente a compra válida');
-assert.equal(foto.resumo.comprasAnalisadas,300,'remessa e 5949 não podem voltar a compras');
-assert.equal(foto.entradas.reduce((total,x)=>total + Number(x.creditoIbs || 0) + Number(x.creditoCbs || 0),0),30,'remessa e 5949 não podem voltar a crédito');
+assert.deepEqual(foto.entradas.map((x)=>x.precoAtual).sort((a,b)=>a-b), [300,400], 'fotografia deve manter a compra válida e a entrada Questor sem CFOP');
+assert.equal(foto.resumo.comprasAnalisadas,700,'remessa e 5949 não podem voltar a compras, sem excluir serviço Questor sem CFOP');
+assert.equal(foto.entradas.reduce((total,x)=>total + Number(x.creditoIbs || 0) + Number(x.creditoCbs || 0),0),60,'remessa e 5949 não podem voltar a crédito, sem excluir serviço Questor sem CFOP');
 
 // A tela de cadeia usa a consolidação SQL persistida, não a lista em memória.
 // Ela precisa aplicar o mesmo Mapa de CFOP a fotografias antigas.
 const cadeia=consolidacaoOficial.cadeia(empresaId,'fornecedor');
-assert.equal(cadeia.totais.registros,1,'cadeia SQL deve contar apenas a compra válida');
-assert.equal(cadeia.totais.valor,300,'cadeia SQL não pode somar remessa ou 5949 em compras');
-assert.equal(cadeia.totais.baseEconomica,300,'cadeia SQL não pode somar remessa ou 5949 na base econômica');
-assert.equal(cadeia.totais.creditoFinal,30,'cadeia SQL não pode somar crédito de remessa ou 5949');
-assert.deepEqual(cadeia.detalhes.map((x)=>x.movimento_id),[movimentosPorCfop.get('1102')],'remessas seguem rastreáveis fora da cadeia, mas não aparecem nas operações econômicas');
+assert.equal(cadeia.totais.registros,2,'cadeia SQL deve manter compra válida e entrada Questor sem CFOP');
+assert.equal(cadeia.totais.valor,700,'cadeia SQL não pode somar remessa ou 5949, nem excluir entrada Questor sem CFOP');
+assert.equal(cadeia.totais.baseEconomica,700,'cadeia SQL não pode somar remessa ou 5949 na base econômica, preservando entrada Questor sem CFOP');
+assert.equal(cadeia.totais.creditoFinal,60,'cadeia SQL não pode somar crédito de remessa ou 5949, preservando entrada Questor sem CFOP');
+assert.deepEqual(cadeia.detalhes.map((x)=>x.movimento_id).sort((a,b)=>a-b),[movimentosPorCfop.get('1102'),movimentosPorCfop.get('')].sort((a,b)=>a-b),'remessas seguem rastreáveis fora da cadeia, sem remover a entrada Questor sem CFOP das operações econômicas');
 console.log('entradas-exclui-remessa-outras-saidas.test.js: OK');
