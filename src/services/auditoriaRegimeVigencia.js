@@ -40,13 +40,16 @@ async function registrosDisponiveis(db,empresaId,cnpjs){
 async function listar(db,empresaId){
   const execucao=db.prepare('SELECT id FROM motor_execucoes WHERE empresa_id=? ORDER BY id DESC LIMIT 1').get(Number(empresaId));
   if(!execucao)return {execucao_id:null,resumo:{total:0,atual:0,divergente:0,sem_historico:0},itens:[]};
-  const itens=db.prepare("SELECT m.id movimento_id,m.inscr_federal cnpj,m.documento,m.competencia,m.data_emissao,COALESCE(NULLIF(json_extract(CASE WHEN json_valid(COALESCE(r.detalhe,'')) THEN r.detalhe ELSE '{}' END,'$.regimeEmitente'),''),r.regime_cbs_emitente,m.regime) regime_fotografia,m.regime_parceiro_versao versao_fotografia FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id WHERE r.empresa_id=? AND r.execucao_id=? AND r.sentido='entrada' AND LENGTH(REPLACE(REPLACE(REPLACE(m.inscr_federal,'.',''),'/',''),'-',''))=14 ORDER BY m.competencia,m.id").all(Number(empresaId),Number(execucao.id));
+  const itens=db.prepare("SELECT m.id movimento_id,m.inscr_federal cnpj,m.documento,m.competencia,m.data_emissao,COALESCE(NULLIF(json_extract(CASE WHEN json_valid(COALESCE(r.detalhe,'')) THEN r.detalhe ELSE '{}' END,'$.regimeEmitente'),''),r.regime_cbs_emitente,m.regime) regime_fotografia,m.regime_parceiro_versao versao_fotografia,COALESCE(p.regime,m.regime,CASE WHEN json_valid(COALESCE(m.normalizacao_evidencia,'')) THEN json_extract(m.normalizacao_evidencia,'$.fornecedor_vinculado.regime') END) regime_cadastro FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id LEFT JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo=m.tipo AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','') WHERE r.empresa_id=? AND r.execucao_id=? AND r.sentido='entrada' AND LENGTH(REPLACE(REPLACE(REPLACE(m.inscr_federal,'.',''),'/',''),'-',''))=14 ORDER BY m.competencia,m.id").all(Number(empresaId),Number(execucao.id));
   const cnpjs=[...new Set(itens.map(x=>digitos(x.cnpj)))]; const porCnpj=new Map();
   const fontes=await registrosDisponiveis(db,empresaId,cnpjs); const raizesCanonicas=new Set(fontes.filter((r)=>r.canonica).map((r)=>digitos(r.raiz)||digitos(r.cnpj).slice(0,8))); for(const r of fontes){const k=digitos(r.cnpj); const raiz=digitos(r.raiz)||k.slice(0,8); if(!r.canonica && raizesCanonicas.has(raiz))continue; if(!porCnpj.has(k))porCnpj.set(k,[]); porCnpj.get(k).push(r); if(raiz.length===8)for(const c of cnpjs)if(c.startsWith(raiz)){if(!porCnpj.has(c))porCnpj.set(c,[]); if(c!==k)porCnpj.get(c).push({...r,cnpj:c});}}
   const auditados=itens.map(x=>{
     const parte=String(x.data_emissao||x.competencia||'').slice(0,7);
     const dataDocumento=/^\d{4}-\d{2}$/.test(parte)?parte+'-01':parte;
-    const registros=porCnpj.get(digitos(x.cnpj))||[];
+    const regimeCadastro=String(x.regime_cadastro||'').trim();
+    // O motor só recebe documento com parceiro resolvido — real ou genérico.
+    // Reutilizamos a mesma resolução canônica, sem nova inferência de CNPJ.
+    const registros=regimeCadastro ? [{cnpj:x.cnpj,regime:regimeCadastro,versao:Number(x.versao_fotografia||0),vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:'Parceiro vinculado ao documento'}] : (porCnpj.get(digitos(x.cnpj))||[]);
     const vigente=resolverNaData(registros,x.cnpj,dataDocumento);
     return {...x,data_documento:dataDocumento,...avaliarFotografia({registros,cnpj:x.cnpj,dataDocumento,regimeFotografia:x.regime_fotografia,versaoFotografia:x.versao_fotografia}),fonte_vigente:vigente?.fonte||null,vigencia_inicio:vigente?.vigencia_inicio||null,vigencia_fim:vigente?.vigencia_fim||null};
   });
