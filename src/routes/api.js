@@ -2727,7 +2727,8 @@ router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
     const limite=Math.min(Math.max(Number(req.query.limite) || 100, 1), 2000);
     const pagina=Math.max(1, Number(req.query.pagina) || 1);
     const filtros={ competencia:req.query.competencia, modelo:req.query.modelo, sentido:req.query.sentido,
-      busca:req.query.busca, valor_minimo:req.query.valor_minimo, valor_maximo:req.query.valor_maximo };
+      busca:req.query.busca, valor_minimo:req.query.valor_minimo, valor_maximo:req.query.valor_maximo,
+      ordenar_por:req.query.ordenar_por, ordem:req.query.ordem };
     const leituraLocal=incorporarEntradasQuestorNaListaFiscal(listarDocumentosFiscais(req.params.id,limite,pagina,filtros),Number(req.params.id),filtros);
     ok(res,{ ...leituraLocal, leitura_estado: estadoLeituraEmpresa.estado(db, Number(req.params.id), ['documentos','cancelamentos']) });
   } catch (e) { erro(res,e); }
