@@ -51,6 +51,15 @@ function natureza(movimento = {}) {
 // rótulo: devolução de venda diminui faturamento e devolução a fornecedor
 // diminui compras. O consumidor da regra decide como apresentar o efeito,
 // sem alterar o documento original ou presumir valores negativos na origem.
+// Define, pelo Mapa de CFOP, entradas que ficam disponíveis para auditoria,
+// mas não integram compras, crédito ou agregações econômicas.
+function foraDaComposicaoDeEntradas(movimento = {}) {
+  if (movimento.sentido !== 'entrada') return false;
+  const classificacao=natureza(movimento);
+  const cfop=cfopEfetivo(movimento);
+  return classificacao === 'remessa' || classificacao === 'retorno_remessa'
+    || (classificacao === 'outra_saida' && ['5949','6949'].includes(cfop));
+}
 function efeitoBase(movimento = {}) {
   const classificacao = natureza(movimento);
   if (classificacao === 'devolucao_venda') return 'REDUZ_FATURAMENTO';
@@ -115,4 +124,4 @@ function motivo(movimento = {}) {
   return 'OPERACAO_SEM_EVIDENCIA_DE_VENDA';
 }
 
-module.exports = { ehSaida, cfopEfetivo, natureza, efeitoBase, compoeReceita, compoeReceitaComEvidencia, motivo };
+module.exports = { ehSaida, cfopEfetivo, natureza, foraDaComposicaoDeEntradas, efeitoBase, compoeReceita, compoeReceitaComEvidencia, motivo };

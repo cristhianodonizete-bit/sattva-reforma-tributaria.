@@ -348,7 +348,10 @@ function executar(empresaId, opcoes = {}) {
   const empresaOptanteSimples = ['simples_nacional', 'mei'].includes(empresa.regime);
 
   // ------------------------------------------------------------------ ENTRADAS
+  // Os documentos continuam no acervo para rastreabilidade, mas operações
+  // bloqueadas pelo Mapa de CFOP não podem atingir a composição econômica.
   for (const m of carregar(empresaId, 'entrada', movimentoIds)) {
+    if (receitaOperacional.foraDaComposicaoDeEntradas(m)) continue;
     const regime = regimeFornecedor.resolver(m.regime_cadastro || m.regime, m.nome_cadastro || m.nome);
     const item = normalizar(m);
 
@@ -958,20 +961,6 @@ function idsRazaoDuplicadosPorDocumento(empresaId,movimentoIds=[]) {
   return new Set(linhas.map((m)=>Number(m.id)));
 }
 
-// Fotografias anteriores podem ter sido gravadas antes de a família de
-// remessas ser bloqueada na entrada. A leitura não pode manter crédito ou
-// compra nessas linhas enquanto o reprocessamento incremental é agendado.
-// O documento permanece disponível na rastreabilidade; apenas não participa
-// de qualquer cálculo econômico.
-function entradaRemessaSemAquisicao(registro = {}) {
-  if (registro.sentido !== 'entrada') return false;
-  const natureza=receitaOperacional.natureza({
-    ...registro,
-    tipo:registro.tipo_movimento || registro.tipo,
-    origem:registro.origem_movimento || registro.origem,
-  });
-  return natureza === 'remessa' || natureza === 'retorno_remessa';
-}
 
 function resultadoMaterializado(empresa, ano) {
   const execucao = ultimaExecucao(empresa.id);
@@ -987,7 +976,7 @@ function resultadoMaterializado(empresa, ano) {
     FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id
     WHERE r.empresa_id=?`).all(empresa.id)
     .filter((r) => !duplicadosRazao.has(Number(r.movimento_id)))
-    .filter((r) => !entradaRemessaSemAquisicao(r))
+    .filter((r) => !receitaOperacional.foraDaComposicaoDeEntradas(r))
     .filter((r) => r.sentido !== 'saida' || receitaOperacional.compoeReceitaComEvidencia({ ...r, tipo:r.tipo_movimento, origem:r.origem_movimento }));
   const linhas = registros.map((r) => { try { return JSON.parse(r.detalhe || '{}'); } catch (_) { return null; } }).filter(Boolean);
   const entradas = linhas.filter((x) => x.sentido === 'entrada');

@@ -151,6 +151,7 @@ function linhas(empresaId, opcoes = {}) {
   return aplicarEscopo(guardarLinhas(empresaId, execucao.id, dados));
 }
 
+
 function filtrarLinhasDoEscopo(linhas, tipo, periodo) {
   const lado = tipo === 'fornecedor' ? 'fornecedor' : tipo === 'cliente' ? 'cliente' : null;
   return (linhas || []).filter((linha) => {
@@ -160,9 +161,7 @@ function filtrarLinhasDoEscopo(linhas, tipo, periodo) {
     // Compatibilidade de fotografia: uma remessa fica rastreável no
     // documento, mas nunca pode reaparecer como compra ou crédito por ter
     // sido materializada antes da regra de CFOP atual.
-    if (lado === 'fornecedor' && ['remessa','retorno_remessa'].includes(receitaOperacional.natureza({
-      ...linha, tipo:linha.tipo_movimento || linha.tipo, origem:linha.origem_movimento || linha.origem,
-    }))) return false;
+    if (lado === 'fornecedor' && receitaOperacional.foraDaComposicaoDeEntradas(linha)) return false;
     if (lado === 'fornecedor' || linha.sentido !== 'saida') return true;
     return receitaOperacional.compoeReceitaComEvidencia({
       ...linha, tipo: linha.tipo_movimento || linha.tipo, origem: linha.origem_movimento || linha.origem,
@@ -876,4 +875,4 @@ function cadeiaLimitada(empresaId,tipo,opcoes={}) {
   const totalPaginas=Math.max(1,Math.ceil(pagina.total/pagina.limite)),paginaAtual=Math.min(totalPaginas,Math.max(1,Number(opcoes.paginaDetalhes)||1));
   return {execucao:e.execucao,periodo:e.periodo,totais,parceiros,regimes,detalhes:pagina.itens,paginacaoDetalhes:{incluido:opcoes.incluirDetalhes!==false,pagina:paginaAtual,limite:pagina.limite,total:pagina.total,totalSemFiltro:base.total,totalPaginas,temAnterior:paginaAtual>1,temProxima:paginaAtual<totalPaginas},pendenciasPisCofins:pendenciasPagina,resumoPendenciasPisCofins:{registros:n(pendenciasResumo.registros),valor:r2(pendenciasResumo.valor)},cenarios:[{ano:e.execucao.ano||2027,valor:totais.valor,baseEconomica:totais.baseEconomica,cbs:totais.cbs,ibs:totais.ibs,credito:totais.creditoFinal,precoFinal:totais.precoFinal,impactoOperacao:r2(totais.precoFinal-totais.valor)}],riscos:[],operacoesBeneficios:[],tratamentoBeneficios:{operacoes:0},estadoAtualizacao:{vigentes:base.vigentes,pendentes:base.pendentes}};
 }
-module.exports = { ultimaExecucao, invalidarCacheEmpresa, resumo, listar, detalhe, cadeia:cadeiaLimitada, impactoFinal, resumoQualidade, MAX_PAGE, faixaTributacao, leituraBeneficio, leitura200044 };
+module.exports = { ultimaExecucao, invalidarCacheEmpresa, resumo, listar, detalhe, cadeia:cadeiaLimitada, impactoFinal, resumoQualidade, MAX_PAGE, faixaTributacao, leituraBeneficio, leitura200044, filtrarLinhasDoEscopo };
