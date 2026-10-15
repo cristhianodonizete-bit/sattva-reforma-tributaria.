@@ -2419,7 +2419,7 @@ async function publicarCfopsQuestorConciliados(empresaId, movimentoIds = []) {
 // XMLs. Elas não podem depender da publicação genérica por id local: esse id
 // é efêmero entre instâncias. A chave estável do lançamento permite publicar
 // somente esses fatos confirmados, sem reenviar a fotografia inteira.
-async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) {
+async function publicarEntradasQuestorConciliadasDireto(empresaId, movimentoIds = []) {
   if (!ativo()) return { ativo:false, publicados:0, pendentes:movimentoIds.length };
   const ids=[...new Set(movimentoIds.map(Number).filter(Number.isInteger))];
   if (!ids.length) return { ativo:true, publicados:0, pendentes:0 };
@@ -2548,7 +2548,43 @@ async function restaurarLinhaCanonica(tabela, linha, justificativa, remotoInform
   return { tabela, restaurada:true };
 }
 
-module.exports = { ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, garantirCacheOperacionalEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, restaurarLinhaCanonica, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
+// Confirma, por chave, quais entradas Questor existem na fonte. Usa a mesma
+// resolução de empresa do publicador: sem empresa única, nada é confirmado.
+async function confirmarEntradasQuestorNaFonte(empresaId, identidades = []) {
+  const presentes = new Set();
+  const pedidos = new Set(identidades.map((x) => `${String(x.chave)}|${Number(x.item_numero ?? 0)}`));
+  const lista = [...new Set(identidades.map((x) => String(x.chave)).filter(Boolean))];
+  if (!lista.length || !ativo()) return presentes;
+  const empresa = db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(empresaId));
+  if (!empresa?.cnpj) throw new Error('Empresa não encontrada para confirmar as entradas.');
+  const remoto = supabase.admin();
+  const cnpj = String(empresa.cnpj).replace(/\D/g,'');
+  const { data:candidatas, error:erroEmpresa } = await remoto.from('empresas').select('id,cnpj,origem_local_id')
+    .or(`origem_local_id.eq.${Number(empresaId)},cnpj.eq.${cnpj}`).limit(10);
+  if (erroEmpresa) throw new Error(`Empresa compartilhada: ${erroEmpresa.message}`);
+  const empresas = (candidatas || []).filter((x) => Number(x.origem_local_id)===Number(empresaId) || String(x.cnpj || '').replace(/\D/g,'')===cnpj);
+  if (empresas.length!==1) throw new Error('Empresa compartilhada não localizada de forma única; confirmação indisponível.');
+  const { data, error } = await remoto.from('movimentos').select('chave,item_numero').eq('empresa_id', Number(empresas[0].id)).in('chave', lista);
+  if (error) throw new Error(`Confirmação de entradas: ${error.message}`);
+  // Identidade composta: a mesma chave com outro item na fonte não confirma o item local.
+  for (const x of data || []) {
+    const id = `${String(x.chave)}|${Number(x.item_numero ?? 0)}`;
+    if (pedidos.has(id)) presentes.add(id);
+  }
+  return presentes;
+}
+
+// Toda publicação de entradas Questor passa pela outbox: a decisão de sucesso
+// por item vem da própria fonte (chave presente), não da contagem do lote.
+async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) {
+  return require('./entradasQuestorOutbox').executarPublicacao(
+    empresaId, movimentoIds,
+    () => publicarEntradasQuestorConciliadasDireto(empresaId, movimentoIds),
+    (identidades) => confirmarEntradasQuestorNaFonte(empresaId, identidades),
+  );
+}
+
+module.exports = { confirmarEntradasQuestorNaFonte, ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, garantirCacheOperacionalEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, restaurarLinhaCanonica, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
   baixarResultadosMotor, restaurarFotografiaMotorEmpresa, validarFotografiaLocalEmpresa, publicarEstadosProjecoes, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   compararFotografiaMotor, resultadoCompartilhadoLocal, lerResultadosAtivosPorChave, reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
   chavesQueDevemPermanecerExcluidas };

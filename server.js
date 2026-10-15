@@ -265,6 +265,32 @@ function iniciar() {
   setTimeout(executarMonitoramentoNormativo, 10 * 60 * 1000).unref?.();
   setInterval(() => monitoramentoAtualizacoes.executar()
     .catch((e) => console.error('  monitoramento normativo:', e.message)), 60 * 60 * 1000).unref();
+  // Worker da outbox das entradas Questor. Desligado por padrão: só roda com
+  // ENTRADAS_OUTBOX_ATIVA=true. Recupera leases expirados e retenta itens
+  // elegíveis, respeitando backoff e limite de tentativas (plano aprovado).
+  const outboxEntradas = require('./src/services/entradasQuestorOutbox');
+  if (outboxEntradas.ativa()) {
+    const outbox = outboxEntradas;
+    const operacao = require('./src/services/operacaoCompartilhada');
+    const sb = require('./src/services/supabase');
+    // Uma linha de auditoria por item recuperado: empresa, identidade, estado anterior e data.
+    const auditarAutomatico = (evento) => {
+      if (!sb.configurado()) return;
+      const registros = evento.itens.map((i) => ({
+        empresa_id: i.empresa_id, usuario_id: null, acao: evento.acao, entidade: 'entradas_questor_publicacao',
+        entidade_id: `${i.identidade}|${i.item_numero}`,
+        antes: { estado: i.estado_anterior },
+        depois: { estado: i.estado_novo, empresa_id: i.empresa_id, identidade: i.identidade, item_numero: i.item_numero, data: i.data, automatico: true },
+      }));
+      sb.admin().from('auditoria').insert(registros)
+        .then(({ error }) => { if (error) console.error('[outbox] auditoria:', error.message); })
+        .catch((e) => console.error('[outbox] auditoria:', e.message));
+    };
+    setInterval(() => outbox.processarPendentes({
+      publicarPorEmpresa: (empresaId, ids) => operacao.publicarEntradasQuestorConciliadas(empresaId, ids),
+      auditar: auditarAutomatico,
+    }).catch((e) => console.error('  outbox entradas Questor:', e.message)), 60 * 1000).unref();
+  }
   // NCM e NBS são referências de consulta: a sincronização diária só inclui
   // novas versões oficiais e não altera regras, cálculos ou resultados já
   // fechados para qualquer empresa.
