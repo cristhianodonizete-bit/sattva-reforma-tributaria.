@@ -430,7 +430,7 @@ router.get('/cadastros-cnpj', async (req, res) => {
     }
     // A tela não usa o regime copiado do cadastro operacional. Ela consulta a
     // mesma RFB compartilhada usada pelo motor, para não haver duas verdades.
-    const rfb = await baseRegime.consultarCompartilhada(dados.map((x) => x.cnpj), 2024);
+    const rfb = new Map();
     const cadastrosComEtiquetas = dados.map((x) => {
       const cnpj = String(x.cnpj || '').replace(/\D/g, '');
       const r = rfb.get(cnpj) || rfb.get(cnpj.slice(0, 8));
@@ -461,6 +461,18 @@ router.get('/cadastros-cnpj', async (req, res) => {
       return acumulado;
     }, { SEM_CONSULTA:0, INCONCLUSIVO:0, CONFIRMADO:0 });
     const total = cadastros.length;
+    const inicio = (pagina - 1) * tamanho;
+    const paginaCadastros = cadastros.slice(inicio, inicio + tamanho);
+    const rfbPagina = await baseRegime.consultarCompartilhada(paginaCadastros.map((x) => x.cnpj), 2024);
+    const cadastrosDaPagina = paginaCadastros.map((cadastro) => {
+      if (cadastro.pendente_regime || cadastro.regime) return cadastro;
+      const cnpj = String(cadastro.cnpj || '').replace(/\D/g, '');
+      const referencia = rfbPagina.get(cnpj) || rfbPagina.get(cnpj.slice(0, 8));
+      if (!referencia?.regime) return cadastro;
+      return { ...cadastro, regime:referencia.regime, situacao_regime:'CONFIRMADO',
+        fonte_regime:`Base RFB ${referencia.ano}` };
+    });
+    ok(res, { cadastros:cadastrosDaPagina, total, pagina, tamanho, filtros, resumo });
   } catch (e) { erro(res, e); }
 });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });
