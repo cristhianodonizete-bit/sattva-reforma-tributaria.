@@ -22,13 +22,13 @@ async function registrosDisponiveis(db,empresaId,cnpjs){
     if(porRaiz.error)throw new Error(`Histórico compartilhado: ${porRaiz.error.message}`);
     if(cadastrosExatos.error)throw new Error(`Cadastro compartilhado: ${cadastrosExatos.error.message}`);
     compartilhados=[...(porCnpj.data||[]),...(porRaiz.data||[])];
-    cadastrosCanonicos=(cadastrosExatos.data||[]).filter((x)=>String(x.regime_derivado||'').trim()).map((x)=>({cnpj:x.cnpj,raiz:digitos(x.cnpj).slice(0,8),regime:x.regime_derivado,versao:999999,vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:`Cadastro compartilhado: ${x.fonte||'origem não informada'}`,registrado_em:x.consultado_em||'',canonica:true}));
+    cadastrosCanonicos=(cadastrosExatos.data||[]).filter((x)=>String(x.regime_derivado||'').trim()).map((x)=>({cnpj:x.cnpj,raiz:digitos(x.cnpj).slice(0,8),regime:x.regime_derivado,versao:null,vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:`Cadastro compartilhado: ${x.fonte||'origem não informada'}`,registrado_em:x.consultado_em||'',canonica:true}));
     // Busca por raiz mantém a regra já adotada para filiais; é feita em lotes
     // para não exceder o limite do filtro OR do PostgREST.
     for(let i=0;i<raizesRemotas.length;i+=20){
       const lote=raizesRemotas.slice(i,i+20); const {data,error}=await remoto.from('cadastros_cnpj').select('cnpj,regime_derivado,fonte,consultado_em').or(lote.map((raiz)=>`cnpj.like.${raiz}%`).join(','));
       if(error)throw new Error(`Cadastro compartilhado: ${error.message}`);
-      for(const x of (data||[]))if(String(x.regime_derivado||'').trim())cadastrosCanonicos.push({cnpj:x.cnpj,raiz:digitos(x.cnpj).slice(0,8),regime:x.regime_derivado,versao:999999,vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:`Cadastro compartilhado: ${x.fonte||'origem não informada'}`,registrado_em:x.consultado_em||'',canonica:true});
+      for(const x of (data||[]))if(String(x.regime_derivado||'').trim())cadastrosCanonicos.push({cnpj:x.cnpj,raiz:digitos(x.cnpj).slice(0,8),regime:x.regime_derivado,versao:null,vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:`Cadastro compartilhado: ${x.fonte||'origem não informada'}`,registrado_em:x.consultado_em||'',canonica:true});
     }
   }
   const raizes=[...new Set(cnpjs.map(x=>x.slice(0,8)))]; const q1=cnpjs.map(()=>'?').join(','); const q2=raizes.map(()=>'?').join(',');

@@ -25,7 +25,7 @@ function resolverNaData(registros, cnpj, dataDocumento, fallback = null) {
   if (!candidatos.length) return fallback ? { ...fallback, origem_resolucao:'FALLBACK_SEM_HISTORICO' } : null;
   const escolhido=candidatos[0];
   return {
-    cnpj:digitos(cnpj), regime:normalizar(escolhido.regime), versao:Number(escolhido.versao ?? 1),
+    cnpj:digitos(cnpj), regime:normalizar(escolhido.regime), versao:escolhido.versao === null || escolhido.versao === undefined || escolhido.versao === '' ? null : Number(escolhido.versao),
     vigencia_inicio:data(escolhido.vigencia_inicio), vigencia_fim:escolhido.vigencia_fim ? data(escolhido.vigencia_fim) : null,
     fonte:escolhido.fonte || null, origem_resolucao:'HISTORICO_VIGENTE'
   };
@@ -35,7 +35,9 @@ function avaliarFotografia({ registros, cnpj, dataDocumento, regimeFotografia, v
   const vigente=resolverNaData(registros,cnpj,dataDocumento);
   if (!vigente) return { status:'SEM_HISTORICO', regime_vigente:null, regime_fotografia:normalizar(regimeFotografia), reprocessar:false };
   const igualRegime=vigente.regime===normalizar(regimeFotografia);
-  const igualVersao=Number(versaoFotografia || 0)===vigente.versao;
+  // Cadastro compartilhado não publica uma versão de fotografia. Nesse caso a
+  // comparação segura é pelo regime, sem inventar uma versão divergente.
+  const igualVersao=vigente.versao === null || Number(versaoFotografia || 0)===vigente.versao;
   return { status:igualRegime && igualVersao ? 'ATUAL' : 'DIVERGENTE', regime_vigente:vigente.regime,
     versao_vigente:vigente.versao, regime_fotografia:normalizar(regimeFotografia), versao_fotografia:Number(versaoFotografia || 0),
     reprocessar:!(igualRegime && igualVersao) };
