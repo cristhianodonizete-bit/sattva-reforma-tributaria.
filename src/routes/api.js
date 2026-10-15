@@ -336,7 +336,7 @@ async function iniciarProcessamentoCadastrosCnpj() {
     return resumoFilaCadastrosCnpj();
   }
   const fila = { status:'AGENDADO', inicio:null, fim:null, total:0, processados:0,
-    resolvidos:0, semResultado:0, erros:[], cnpjAtual:null };
+    resolvidos:0, resolvidosBase:0, semResultado:0, erros:[], cnpjAtual:null };
   filaProcessamentoCadastrosCnpj = fila;
   setImmediate(async () => {
     fila.status = 'EXECUTANDO'; fila.inicio = new Date().toISOString();
@@ -349,15 +349,24 @@ async function iniciarProcessamentoCadastrosCnpj() {
         .map((x) => String(x.cnpj || '').replace(/\D/g, ''))
         .filter((cnpj) => cnpj.length === 14))];
       fila.total = alvos.length;
+      const referenciasInternas = await baseRegime.consultarCompartilhada(alvos, 2024);
       for (const cnpj of alvos) {
         fila.cnpjAtual = cnpj;
         try {
-          const resultado = await cnpjReceita.consultar(cnpj, { forcar:true, finalidade:'regime_parceiro' });
+          const referencia = referenciasInternas.get(cnpj) || referenciasInternas.get(cnpj.slice(0, 8));
+          const resultado = referencia?.regime
+            ? { regime_derivado:referencia.regime, fonte:`Base RFB ${referencia.ano}`, origem:'base_interna' }
+            : await cnpjReceita.consultar(cnpj, { forcar:true, finalidade:'regime_parceiro' });
           if (resultado.regime_derivado) {
             await remoto.from('parceiros').update({ regime:resultado.regime_derivado,
               regime_confirmado_em:new Date().toISOString(), regime_origem:resultado.fonte || 'consulta_cadastral' })
               .eq('cnpj', cnpj).is('regime_confirmado_em', null);
+            await remoto.from('cadastros_cnpj').upsert({ cnpj,
+              regime_derivado:resultado.regime_derivado, fonte:resultado.fonte || 'consulta_cadastral',
+              justificativa:referencia ? 'Regime encontrado na base anual RFB compartilhada.' : 'Regime confirmado em consulta cadastral.',
+              consultado_em:new Date().toISOString() }, { onConflict:'cnpj' });
             fila.resolvidos++;
+            if (referencia) fila.resolvidosBase++;
           }
           else fila.semResultado++;
           const intervalo = Math.max(Number(resultado.intervaloUsado) || 0, 0);
