@@ -22,13 +22,13 @@ async function registrosDisponiveis(db,empresaId,cnpjs){
     if(porRaiz.error)throw new Error(`Histórico compartilhado: ${porRaiz.error.message}`);
     if(cadastrosExatos.error)throw new Error(`Cadastro compartilhado: ${cadastrosExatos.error.message}`);
     compartilhados=[...(porCnpj.data||[]),...(porRaiz.data||[])];
-    cadastrosCanonicos=(cadastrosExatos.data||[]).filter((x)=>String(x.regime_derivado||'').trim()).map((x)=>({cnpj:x.cnpj,raiz:digitos(x.cnpj).slice(0,8),regime:x.regime_derivado,versao:999999,vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:`Cadastro compartilhado: ${x.fonte||'origem não informada'}`,registrado_em:x.consultado_em||'',canonica:true}));
+    cadastrosCanonicos=(cadastrosExatos.data||[]).filter((x)=>String(x.regime_derivado||'').trim()).map((x)=>({cnpj:x.cnpj,raiz:digitos(x.cnpj).slice(0,8),regime:x.regime_derivado,versao:null,vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:`Cadastro compartilhado: ${x.fonte||'origem não informada'}`,registrado_em:x.consultado_em||'',canonica:true}));
     // Busca por raiz mantém a regra já adotada para filiais; é feita em lotes
     // para não exceder o limite do filtro OR do PostgREST.
     for(let i=0;i<raizesRemotas.length;i+=20){
       const lote=raizesRemotas.slice(i,i+20); const {data,error}=await remoto.from('cadastros_cnpj').select('cnpj,regime_derivado,fonte,consultado_em').or(lote.map((raiz)=>`cnpj.like.${raiz}%`).join(','));
       if(error)throw new Error(`Cadastro compartilhado: ${error.message}`);
-      for(const x of (data||[]))if(String(x.regime_derivado||'').trim())cadastrosCanonicos.push({cnpj:x.cnpj,raiz:digitos(x.cnpj).slice(0,8),regime:x.regime_derivado,versao:999999,vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:`Cadastro compartilhado: ${x.fonte||'origem não informada'}`,registrado_em:x.consultado_em||'',canonica:true});
+      for(const x of (data||[]))if(String(x.regime_derivado||'').trim())cadastrosCanonicos.push({cnpj:x.cnpj,raiz:digitos(x.cnpj).slice(0,8),regime:x.regime_derivado,versao:null,vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:`Cadastro compartilhado: ${x.fonte||'origem não informada'}`,registrado_em:x.consultado_em||'',canonica:true});
     }
   }
   const raizes=[...new Set(cnpjs.map(x=>x.slice(0,8)))]; const q1=cnpjs.map(()=>'?').join(','); const q2=raizes.map(()=>'?').join(',');
@@ -52,7 +52,11 @@ async function listar(db,empresaId){
     const regimeCadastro=String(x.regime_cadastro||'').trim();
     // O motor só recebe documento com parceiro resolvido — real ou genérico.
     // Reutilizamos a mesma resolução canônica, sem nova inferência de CNPJ.
-    const registros=regimeCadastro ? [{cnpj:x.cnpj,regime:regimeCadastro,versao:Number(x.versao_fotografia||0),vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:'Parceiro vinculado ao documento'}] : (porCnpj.get(digitos(x.cnpj))||[]);
+    const registrosDisponiveisParaCnpj=porCnpj.get(digitos(x.cnpj))||[];
+    const cadastroCompartilhado=registrosDisponiveisParaCnpj.filter((r)=>r.canonica);
+    // Cadastro compartilhado é a referência do parceiro. A cópia local só é
+    // usada quando a central ainda não possui esse CNPJ.
+    const registros=cadastroCompartilhado.length ? cadastroCompartilhado : (regimeCadastro ? [{cnpj:x.cnpj,regime:regimeCadastro,versao:Number(x.versao_fotografia||0),vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:'Parceiro vinculado ao documento'}] : registrosDisponiveisParaCnpj);
     const vigente=resolverNaData(registros,x.cnpj,dataDocumento);
     return {...x,data_documento:dataDocumento,...avaliarFotografia({registros,cnpj:x.cnpj,dataDocumento,regimeFotografia:x.regime_fotografia,versaoFotografia:x.versao_fotografia}),fonte_vigente:vigente?.fonte||null,vigencia_inicio:vigente?.vigencia_inicio||null,vigencia_fim:vigente?.vigencia_fim||null};
   });

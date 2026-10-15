@@ -3672,6 +3672,17 @@ router.post('/empresas/:id/regimes/auditoria-vigencia/reprocessar', async (req, 
     if (!db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId)) throw new Error('Empresa não encontrada.');
     const cnpjs=[...new Set((req.body?.cnpjs || []).map((x)=>String(x || '').replace(/\D/g,'')).filter((x)=>x.length===14))];
     if (!cnpjs.length) throw new Error('Selecione ao menos um parceiro com divergência confirmada.');
+    // A fotografia não pode ser recriada com a cópia local antiga. Primeiro
+    // exigimos e replicamos a fonte compartilhada para os parceiros escolhidos.
+    const cadastros=[];
+    for(const cnpj of cnpjs){
+      const cadastro=await cnpjReceita.consultar(cnpj,{ finalidade:'sincronizacao_fotografia_regime' });
+      if(cadastro?.origem!=='cadastro_compartilhado' || !String(cadastro.regime_derivado||'').trim()) throw new Error(`Cadastro compartilhado indisponível ou sem regime para ${cnpj}. Nenhuma fotografia foi reprocessada.`);
+      cadastros.push({cnpj,regime:String(cadastro.regime_derivado).trim()});
+    }
+    const atualizarParceiro=db.prepare("UPDATE parceiros SET regime=?,regime_resolvido=?,origem='cadastro_compartilhado' WHERE empresa_id=? AND tipo='fornecedor' AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cnpj,''),'.',''),'/',''),'-',''),' ','')=?");
+    const atualizarMovimentos=db.prepare("UPDATE movimentos SET regime=? WHERE empresa_id=? AND tipo='fornecedor' AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(inscr_federal,''),'.',''),'/',''),'-',''),' ','')=?");
+    db.transaction(()=>{ for(const cadastro of cadastros){ atualizarParceiro.run(cadastro.regime,cadastro.regime,empresaId,cadastro.cnpj); atualizarMovimentos.run(cadastro.regime,empresaId,cadastro.cnpj); } })();
     const auditoria=await require('../services/auditoriaRegimeVigencia').listar(db,empresaId);
     const grupos=(auditoria.divergencias || []).filter((x)=>cnpjs.includes(String(x.cnpj)));
     const movimentoIds=[...new Set(grupos.flatMap((x)=>x.movimento_ids || []).map(Number).filter(Boolean))];
