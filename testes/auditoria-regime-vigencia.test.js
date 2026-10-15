@@ -9,19 +9,20 @@ const db={prepare(sql){return {get(){return sql.includes('motor_execucoes')?{id:
 const configuradoOriginal=supabase.configurado;
 const adminOriginal=supabase.admin;
 supabase.configurado=()=>true;
-supabase.admin=()=>({ from(tabela){ return { select(){ return { in:async()=>({data:tabela==='cadastros_cnpj'?[{cnpj,regime_derivado:'imune_isento',fonte:'teste',consultado_em:'2026-10-15'}]:[],error:null}), or:async()=>({data:[],error:null}) }; } }; } });
+supabase.admin=()=>({ from(tabela){ return { select(){ return { in:async()=>({data:tabela==='cadastros_cnpj'?[{cnpj,regime_derivado:'regime_regular',fonte:'BrasilAPI',consultado_em:'2026-10-15'}]:[],error:null}), or:async()=>({data:tabela==='cadastros_cnpj'?[{cnpj:'03773700009999',regime_derivado:'regime_regular',fonte:'filial-teste',consultado_em:'2026-10-16'}]:[],error:null}) }; } }; } });
 const r=await listar(db,2);
 supabase.configurado=configuradoOriginal;
 supabase.admin=adminOriginal;
 assert.equal(r.execucao_id,99);
 assert.equal(r.itens[0].status,'ATUAL','o cadastro compartilhado deve prevalecer sobre parceiro local regular desatualizado');
 assert.equal(r.itens[0].regime_vigente,'imune_isento','a auditoria deve usar o regime da central, não o valor local');
+assert.equal(r.itens[0].fonte_vigente,'Base RFB 2024 (referência anual anterior)','a Base RFB específica deve refinar regime_regular do cadastro compartilhado');
 assert.equal(r.itens[1].status,'ATUAL','o parceiro vinculado deve cobrir documentos posteriores sem nova busca');
 assert.deepEqual(r.resumo,{total:3,atual:2,divergente:1,sem_historico:0});
 assert.deepEqual(r.divergencias,[{cnpj,fornecedor:'Fornecedor de teste',regime_fotografia:['lucro_real'],regime_vigente:['imune_isento'],movimento_ids:[9],documentos:1,valor:125.5}], 'a seleção em lote deve conter somente documentos efetivamente divergentes');
 assert.deepEqual(r.cobertura,[
-  {ano:'2024',documentos:2,cnpjs:1,com_cobertura:2,sem_cobertura:0,fontes:[{fonte:'Cadastro compartilhado: teste',documentos:2}]},
-  {ano:'2025',documentos:1,cnpjs:1,com_cobertura:1,sem_cobertura:0,fontes:[{fonte:'Cadastro compartilhado: teste',documentos:1}]},
+  {ano:'2024',documentos:2,cnpjs:1,com_cobertura:2,sem_cobertura:0,fontes:[{fonte:'Base RFB 2024 (referência anual anterior)',documentos:2}]},
+  {ano:'2025',documentos:1,cnpjs:1,com_cobertura:1,sem_cobertura:0,fontes:[{fonte:'Base RFB 2024 (referência anual anterior)',documentos:1}]},
 ],'a auditoria deve registrar a fonte canônica do cadastro compartilhado');
 console.log('auditoria-regime-vigencia.test.js: OK');
 })().catch((erro)=>{ console.error(erro); process.exit(1); });
