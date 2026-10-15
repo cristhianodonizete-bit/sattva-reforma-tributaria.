@@ -423,7 +423,15 @@ function lerXml(conteudo, cnpjEmpresa) {
 
   // --- sentido da operação (item 4)
   let sentido = 'requer_validacao', tipoParceiro = null, parceiro = {};
-  if (alvo && c.destinatario_cnpj === alvo) {
+  const operacaoInterna = Boolean(alvo && c.emitente_cnpj === alvo && c.destinatario_cnpj === alvo);
+  // Baixas, transferências e demais NF-e internas podem identificar a própria
+  // empresa nos dois polos. Nelas, tpNF/CFOP prevalecem sobre o destinatário.
+  const saidaInterna = operacaoInterna && (String(c.tipo_operacao) === '1'
+    || doc.itens.some((item) => /^[567]/.test(String(item.cfop || ''))));
+  if (saidaInterna) {
+    sentido = 'saida'; tipoParceiro = 'cliente';
+    parceiro = { cnpj: c.destinatario_cnpj, nome: c.destinatario_nome, uf: c.destinatario_uf, indIEDest: c.indIEDest };
+  } else if (alvo && c.destinatario_cnpj === alvo) {
     sentido = 'entrada'; tipoParceiro = 'fornecedor';
     parceiro = { cnpj: c.emitente_cnpj, nome: c.emitente_nome, uf: c.emitente_uf, crt: c.emitente_crt };
   } else if (alvo && c.emitente_cnpj === alvo) {
