@@ -511,7 +511,7 @@ Telas.configComercial = async (el) => {
 // ===========================================================================
 Telas.cadastrosCnpj = async (el) => {
   let pagina = 1; let busca = '';
-  let filtros = { regime:'', cnae:'', natureza:'', etiqueta:'', fonte:'' };
+  let filtros = { regime:'', cnae:'', natureza:'', etiqueta:'', fonte:'', situacao:'' };
   const cnaesSecundarios = (valor) => {
     if (Array.isArray(valor)) return valor;
     try { return JSON.parse(valor || '[]'); } catch (_) { return []; }
@@ -530,12 +530,13 @@ Telas.cadastrosCnpj = async (el) => {
           <label class="campo" style="margin:0"><span>Natureza / EFR</span><input data-cc-filtro="natureza" value="${A.esc(filtros.natureza)}" placeholder="Natureza jurídica ou EFR"></label>
           <label class="campo" style="margin:0"><span>Etiqueta fiscal</span><select data-cc-filtro="etiqueta"><option value="">Todas</option><option value="COM_ETIQUETA" ${filtros.etiqueta==='COM_ETIQUETA'?'selected':''}>Com etiqueta</option><option value="GOVERNO" ${filtros.etiqueta==='GOVERNO'?'selected':''}>Ente público elegível</option><option value="PENDENTE_PERFIL_FISCAL" ${filtros.etiqueta==='PENDENTE_PERFIL_FISCAL'?'selected':''}>Perfil fiscal pendente</option></select></label>
           <label class="campo" style="margin:0"><span>Fonte</span><input data-cc-filtro="fonte" value="${A.esc(filtros.fonte)}" placeholder="BrasilAPI, ReceitaWS…"></label>
+          <label class="campo" style="margin:0"><span>Situação da consulta</span><select data-cc-filtro="situacao"><option value="">Todas</option><option value="SEM_CONSULTA" ${filtros.situacao==='SEM_CONSULTA'?'selected':''}>Sem consulta de regime</option><option value="INCONCLUSIVO" ${filtros.situacao==='INCONCLUSIVO'?'selected':''}>Consulta inconclusiva</option><option value="CONFIRMADO" ${filtros.situacao==='CONFIRMADO'?'selected':''}>Regime confirmado</option></select></label>
           <button class="btn vazio" id="ccLimparFiltros">Limpar filtros</button>
         </div>
         <div class="mini" style="margin-top:14px"><b>${r.total.toLocaleString('pt-BR')}</b> cadastro(s) central(is) · página ${pagina} de ${totalPaginas}</div>
         ${A.tabela([
           { t: 'CNPJ / razão social', r: (x) => `<span class="mono">${A.esc(x.cnpj)}</span><div><b>${A.esc(x.razao_social || 'Sem razão social')}</b></div><div class="mini">${A.esc([x.municipio, x.uf].filter(Boolean).join(' / ') || 'localidade não informada')}</div>` },
-          { t: 'Regime', r: (x) => `<span class="tag">${A.esc(rotuloRegime(x.regime))}</span><div class="mini">${A.esc(x.fonte_regime || '')}</div>` },
+          { t: 'Regime', r: (x) => x.situacao_regime==='SEM_CONSULTA' ? `<span class="tag a">Sem consulta</span><div class="mini">Aguardando consulta de regime</div>` : `<span class="tag ${x.situacao_regime==='INCONCLUSIVO'?'a':''}">${A.esc(rotuloRegime(x.regime))}</span><div class="mini">${A.esc(x.fonte_regime || '')}</div>` },
           { t: 'CNAE / endereço', r: (x) => `<span class="mono mini">${A.esc(x.cnae || 'CNAE não informado')}</span><div class="mini">${A.esc(x.cnae_descricao || '')}</div><div class="mini">${A.esc([x.municipio, x.uf].filter(Boolean).join(' / ') || 'Endereço não informado')}</div>` },
           { t: 'Natureza / EFR', r: (x) => `<span class="mini">${A.esc(x.natureza_juridica || 'não informado')}</span>${x.efr ? `<div class="mini">EFR: ${A.esc(x.efr)}</div>` : ''}` },
           { t: 'Etiquetas', r: (x) => x.etiquetas?.length ? x.etiquetas.map((e) => `<span class="tag ${e.codigo==='PENDENTE_PERFIL_FISCAL'?'a':'b'}" title="${A.esc(e.detalhe || '')}">${A.esc(e.rotulo)}</span>`).join('<div style="height:4px"></div>') : '<span class="mini">—</span>' },
@@ -547,7 +548,7 @@ Telas.cadastrosCnpj = async (el) => {
     document.getElementById('ccBuscar').oninput = () => {};
     document.getElementById('ccBuscar').closest('.cartao').querySelector('#ccBuscar').onclick = () => { busca = document.getElementById('ccBusca').value.trim(); pagina = 1; render(); };
     el.querySelectorAll('[data-cc-filtro]').forEach((campo) => { campo.onchange = () => { filtros[campo.dataset.ccFiltro] = campo.value.trim(); pagina = 1; render(); }; campo.onkeydown = (e) => { if (e.key === 'Enter') { filtros[campo.dataset.ccFiltro] = campo.value.trim(); pagina = 1; render(); } }; });
-    document.getElementById('ccLimparFiltros').onclick = () => { filtros = { regime:'', cnae:'', natureza:'', etiqueta:'', fonte:'' }; pagina = 1; render(); };
+    document.getElementById('ccLimparFiltros').onclick = () => { filtros = { regime:'', cnae:'', natureza:'', etiqueta:'', fonte:'', situacao:'' }; pagina = 1; render(); };
     document.getElementById('ccAnterior').onclick = () => { pagina--; render(); };
     document.getElementById('ccProximo').onclick = () => { pagina++; render(); };
     el.querySelectorAll('[data-cc-detalhe]').forEach((botao) => { botao.onclick = () => {

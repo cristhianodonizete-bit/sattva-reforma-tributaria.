@@ -328,7 +328,8 @@ router.get('/cadastros-cnpj', async (req, res) => {
     const busca = String(req.query.busca || '').replace(/[^\w\s.\-\/]/g, '').trim();
     const filtro = (nome) => String(req.query[nome] || '').trim().slice(0, 120);
     const filtros = { regime: filtro('regime').toLowerCase(), cnae: filtro('cnae').toLowerCase(),
-      natureza: filtro('natureza').toLowerCase(), etiqueta: filtro('etiqueta').toUpperCase(), fonte: filtro('fonte').toLowerCase() };
+      natureza: filtro('natureza').toLowerCase(), etiqueta: filtro('etiqueta').toUpperCase(), fonte: filtro('fonte').toLowerCase(),
+      situacao: filtro('situacao').toUpperCase() };
     let consulta = supabase.admin().from('cadastros_cnpj')
       .select('cnpj,razao_social,situacao,porte,cnae,cnae_descricao,cnaes_secundarios,uf,municipio,logradouro,numero,complemento,bairro,cep,regime_derivado,natureza_juridica,codigo_natureza_juridica,efr,fonte,consultado_em', { count: 'exact' })
       .order('consultado_em', { ascending: false });
@@ -341,16 +342,28 @@ router.get('/cadastros-cnpj', async (req, res) => {
     // uma busca administrativa transforme a tela em exportação ilimitada.
     const { data, error } = await consulta.limit(5000);
     if (error) throw error;
+    const dados = data || [];
+    const { data: parceirosPendentes, error: erroParceirosPendentes } = await supabase.admin().from('parceiros')
+      .select('cnpj,descricao,regime,regime_confirmado_em,regime_origem,origem,ativo')
+      .eq('ativo', true).not('cnpj', 'is', null).is('regime_confirmado_em', null).limit(5000);
+    if (erroParceirosPendentes) throw erroParceirosPendentes;
+    const cnpjsCentrais = new Set(dados.map((x) => String(x.cnpj || '').replace(/\D/g, '')));
+    for (const parceiro of (parceirosPendentes || [])) {
+      const cnpj = String(parceiro.cnpj || '').replace(/\D/g, '');
+      if (cnpj.length !== 14 || cnpjsCentrais.has(cnpj)) continue;
+      cnpjsCentrais.add(cnpj);
+      dados.push({ cnpj, razao_social:parceiro.descricao || '', regime_derivado:null, fonte:parceiro.origem || 'PARCEIRO_IMPORTADO', consultado_em:null, pendente_regime:true });
+    }
     // A tela não usa o regime copiado do cadastro operacional. Ela consulta a
     // mesma RFB compartilhada usada pelo motor, para não haver duas verdades.
-    const rfb = await baseRegime.consultarCompartilhada((data || []).map((x) => x.cnpj), 2024);
-    const cadastrosComEtiquetas = (data || []).map((x) => {
+    const rfb = await baseRegime.consultarCompartilhada(dados.map((x) => x.cnpj), 2024);
+    const cadastrosComEtiquetas = dados.map((x) => {
       const cnpj = String(x.cnpj || '').replace(/\D/g, '');
       const r = rfb.get(cnpj) || rfb.get(cnpj.slice(0, 8));
       // O regime cadastral não é substituído por uma consulta histórica. A
       // base RFB anual apenas supre o campo quando o CNPJ ainda não possui
       // regime no cadastro compartilhado, sempre com sua fonte explícita.
-      const regime = x.regime_derivado || r?.regime || null;
+      const regime = x.pendente_regime ? null : (x.regime_derivado || r?.regime || null);
       const fonteRegime = x.regime_derivado
         ? `RFB — consulta cadastral (${x.fonte || 'fonte não informada'})`
         : r ? `Base RFB ${r.ano}` : 'Regime ainda não informado';
@@ -360,9 +373,10 @@ router.get('/cadastros-cnpj', async (req, res) => {
         : governo.aplicar_regra_compra_governamental === 'A VALIDAR'
           ? [{ codigo:'PENDENTE_PERFIL_FISCAL', rotulo:'Perfil fiscal pendente', detalhe:'Natureza jurídica não disponível' }]
           : [];
-      return { ...x, regime, fonte_regime: fonteRegime, etiquetas };
+      return { ...x, regime, fonte_regime: fonteRegime, situacao_regime: x.pendente_regime ? 'SEM_CONSULTA' : (regime ? 'CONFIRMADO' : 'INCONCLUSIVO'), etiquetas };
     });
     const cadastros = cadastrosComEtiquetas.filter((x) => {
+      if (filtros.situacao && x.situacao_regime !== filtros.situacao) return false;
       if (filtros.regime && !`${x.regime || ''} ${x.fonte_regime || ''}`.toLowerCase().includes(filtros.regime)) return false;
       if (filtros.etiqueta === 'COM_ETIQUETA' && !x.etiquetas.length) return false;
       if (filtros.etiqueta && filtros.etiqueta !== 'COM_ETIQUETA' && !x.etiquetas.some((e) => e.codigo === filtros.etiqueta)) return false;
