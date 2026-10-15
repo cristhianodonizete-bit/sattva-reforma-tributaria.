@@ -1,5 +1,5 @@
 'use strict';
-const { avaliarFotografia }=require('./regimeVigencia');
+const { avaliarFotografia,resolverNaData }=require('./regimeVigencia');
 const digitos=(v)=>String(v || '').replace(/\D/g,'');
 const historicoDoAno=(cnpj,regime,ano,fonte)=>({cnpj,regime,versao:0,vigencia_inicio:String(ano)+'-01-01',vigencia_fim:String(ano)+'-12-31',fonte,registrado_em:''});
 function registrosDisponiveis(db,empresaId,cnpjs){
@@ -17,8 +17,24 @@ function listar(db,empresaId){
   const itens=db.prepare("SELECT m.id movimento_id,m.inscr_federal cnpj,m.documento,m.competencia,m.data_emissao,COALESCE(NULLIF(json_extract(CASE WHEN json_valid(COALESCE(r.detalhe,'')) THEN r.detalhe ELSE '{}' END,'$.regimeEmitente'),''),r.regime_cbs_emitente,m.regime) regime_fotografia,m.regime_parceiro_versao versao_fotografia FROM motor_resultados r JOIN movimentos m ON m.id=r.movimento_id WHERE r.empresa_id=? AND r.execucao_id=? AND r.sentido='entrada' AND LENGTH(REPLACE(REPLACE(REPLACE(m.inscr_federal,'.',''),'/',''),'-',''))=14 ORDER BY m.competencia,m.id").all(Number(empresaId),Number(execucao.id));
   const cnpjs=[...new Set(itens.map(x=>digitos(x.cnpj)))]; const porCnpj=new Map();
   for(const r of registrosDisponiveis(db,empresaId,cnpjs)){const k=digitos(r.cnpj); if(!porCnpj.has(k))porCnpj.set(k,[]); porCnpj.get(k).push(r); if(k.length===8)for(const c of cnpjs)if(c.startsWith(k)){if(!porCnpj.has(c))porCnpj.set(c,[]);porCnpj.get(c).push({...r,cnpj:c});}}
-  const auditados=itens.map(x=>{const parte=String(x.data_emissao||x.competencia||'').slice(0,7);const dataDocumento=/^\d{4}-\d{2}$/.test(parte)?parte+'-01':parte;return {...x,data_documento:dataDocumento,...avaliarFotografia({registros:porCnpj.get(digitos(x.cnpj))||[],cnpj:x.cnpj,dataDocumento,regimeFotografia:x.regime_fotografia,versaoFotografia:x.versao_fotografia})};});
+  const auditados=itens.map(x=>{
+    const parte=String(x.data_emissao||x.competencia||'').slice(0,7);
+    const dataDocumento=/^\d{4}-\d{2}$/.test(parte)?parte+'-01':parte;
+    const registros=porCnpj.get(digitos(x.cnpj))||[];
+    const vigente=resolverNaData(registros,x.cnpj,dataDocumento);
+    return {...x,data_documento:dataDocumento,...avaliarFotografia({registros,cnpj:x.cnpj,dataDocumento,regimeFotografia:x.regime_fotografia,versaoFotografia:x.versao_fotografia}),fonte_vigente:vigente?.fonte||null,vigencia_inicio:vigente?.vigencia_inicio||null,vigencia_fim:vigente?.vigencia_fim||null};
+  });
   const resumo={total:auditados.length,atual:auditados.filter(x=>x.status==='ATUAL').length,divergente:auditados.filter(x=>x.status==='DIVERGENTE').length,sem_historico:auditados.filter(x=>x.status==='SEM_HISTORICO').length};
-  return {execucao_id:Number(execucao.id),resumo,itens:auditados};
+  // Só há cobertura quando a vigência da evidência alcança a data da nota.
+  const grupos=new Map();
+  for(const item of auditados){
+    const ano=String(item.data_documento||'').slice(0,4)||'sem_data';
+    if(!grupos.has(ano))grupos.set(ano,{ano,documentos:0,cnpjs:new Set(),com_cobertura:0,sem_cobertura:0,fontes:new Map()});
+    const grupo=grupos.get(ano); grupo.documentos++; grupo.cnpjs.add(digitos(item.cnpj));
+    if(item.status==='SEM_HISTORICO')grupo.sem_cobertura++;
+    else {const fonte=item.fonte_vigente||'Histórico cadastrado'; grupo.com_cobertura++; grupo.fontes.set(fonte,(grupo.fontes.get(fonte)||0)+1);}
+  }
+  const cobertura=[...grupos.values()].sort((a,b)=>String(a.ano).localeCompare(String(b.ano))).map(x=>({ano:x.ano,documentos:x.documentos,cnpjs:x.cnpjs.size,com_cobertura:x.com_cobertura,sem_cobertura:x.sem_cobertura,fontes:[...x.fontes.entries()].map(([fonte,documentos])=>({fonte,documentos}))}));
+  return {execucao_id:Number(execucao.id),resumo,cobertura,itens:auditados};
 }
 module.exports={listar,registrosDisponiveis};

@@ -2049,6 +2049,7 @@ async function telaCadeia(el, tipo) {
   const documentosEntradaExibidos=[...documentosEntradaBase,...pendentesQuestor]
     .map((x)=>({...x,elegibilidade_pis_cofins:elegibilidadePorNota.get(chaveElegibilidade(x)) || null}));
   const resumoAuditoriaRegime=auditoriaRegimeResposta?.resumo || { total:0, atual:0, divergente:0, sem_historico:0 };
+  const coberturaHistoricaRegime=auditoriaRegimeResposta?.cobertura || [];
   const t = analise.totais;
   const rotuloRegimeFornecedor=(regime)=>({
     lucro_real:'Lucro Real', lucro_presumido:'Lucro Presumido', simples_nacional:'Simples Nacional', simples_das:'Simples Nacional',
@@ -2212,7 +2213,7 @@ async function telaCadeia(el, tipo) {
     (!eForn && t.dasHibridoProvisorio ? `<div class="aviso neutro" style="margin-top:12px"><b>Memória provisória do DAS usada na projeção.</b><br>O PGDAS extraído já identificou a linha de locação e sua repartição de PIS/Cofins. A confirmação do documento mantém a rastreabilidade e substitui esta memória pela informação oficialmente validada.</div>` : '') +
     (!eForn && outrasReceitasSemCliente.registros ? `<div class="aviso neutro" style="margin-top:16px"><b>${outrasReceitasSemCliente.registros} lançamento(s) de outras receitas, no total de ${A.moeda(outrasReceitasSemCliente.valor)}, foram consolidados em “Clientes diversos”.</b><br>O grupo segue a regra de regime regular e não atribui artificialmente um cliente individual.</div>` : '') +
     (!eForn && pendenciasReferencias.length ? `<div class="aviso atencao" style="margin-top:16px"><b>${pendenciasReferencias.length} lançamento(s) de serviço estão sem referência fiscal específica.</b> A análise foi carregada com a melhor evidência disponível (documento, catálogo ou regime da empresa). <button class="btn pq vazio" id="corrigirDadosCadeia">Corrigir na Central de Dados</button> Esses itens permanecem <b>a validar</b>.</div>` : '') : '') +
-    (eForn && !auditoriaRegimeResposta?.indisponivel ? `<div class="aviso ${resumoAuditoriaRegime.divergente ? 'atencao' : resumoAuditoriaRegime.sem_historico ? 'neutro' : 'bom'}" style="margin-top:16px"><b>Auditoria histórica de regime:</b> ${resumoAuditoriaRegime.atual} compatível(is), ${resumoAuditoriaRegime.divergente} divergente(s) e ${resumoAuditoriaRegime.sem_historico} sem histórico suficiente. Esta leitura não altera valores nem agenda reprocessamento.</div>` : '') +
+    (eForn && !auditoriaRegimeResposta?.indisponivel ? `<div class="aviso ${resumoAuditoriaRegime.divergente ? 'atencao' : resumoAuditoriaRegime.sem_historico ? 'neutro' : 'bom'}" style="margin-top:16px"><b>Auditoria histórica de regime:</b> ${resumoAuditoriaRegime.atual} compatível(is), ${resumoAuditoriaRegime.divergente} divergente(s) e ${resumoAuditoriaRegime.sem_historico} sem histórico suficiente. Esta leitura não altera valores nem agenda reprocessamento.${coberturaHistoricaRegime.length ? `<div class="mini" style="margin-top:8px"><b>Cobertura por período:</b> ${coberturaHistoricaRegime.map((x)=>`${A.esc(x.ano)}: ${x.com_cobertura} com evidência, ${x.sem_cobertura} sem evidência (${x.cnpjs} CNPJ(s))${x.fontes.length ? ` · ${A.esc(x.fontes.map((f)=>f.fonte).join(', '))}` : ''}`).join(' · ')}. Regime atual do cadastro não é usado como prova histórica.</div>` : ''}</div>` : '') +
     (t.registros ? `
     ${exibirResumoAtual ? `
     <div class="grade g4">
