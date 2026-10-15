@@ -3664,6 +3664,23 @@ router.get('/empresas/:id/regimes/auditoria-vigencia', async (req, res) => {
   } catch (e) { erro(res,e); }
 });
 
+// Processa somente documentos que a auditoria atual confirmou como divergentes.
+// A seleção é por parceiro; o motor mantém todas as demais fotografias intactas.
+router.post('/empresas/:id/regimes/auditoria-vigencia/reprocessar', async (req, res) => {
+  try {
+    const empresaId=Number(req.params.id);
+    if (!db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId)) throw new Error('Empresa não encontrada.');
+    const cnpjs=[...new Set((req.body?.cnpjs || []).map((x)=>String(x || '').replace(/\D/g,'')).filter((x)=>x.length===14))];
+    if (!cnpjs.length) throw new Error('Selecione ao menos um parceiro com divergência confirmada.');
+    const auditoria=await require('../services/auditoriaRegimeVigencia').listar(db,empresaId);
+    const grupos=(auditoria.divergencias || []).filter((x)=>cnpjs.includes(String(x.cnpj)));
+    const movimentoIds=[...new Set(grupos.flatMap((x)=>x.movimento_ids || []).map(Number).filter(Boolean))];
+    if (!movimentoIds.length) throw new Error('Nenhuma divergência selecionada permanece na fotografia atual. Atualize a tela e tente novamente.');
+    const reprocessamento=motorExec.reprocessarIncremental(empresaId,{ ano:Number(req.body?.ano)||2027,movimentoIds });
+    auditar(req,{empresaId,acao:'Reprocessou fotografias de regime selecionadas',entidade:'auditoria_regime_vigencia',entidadeId:String(auditoria.execucao_id || ''),antes:{cnpjs,divergencias:movimentoIds.length},depois:{reprocessados:reprocessamento.reprocessados}});
+    ok(res,{ selecionados:grupos.length,movimentos:movimentoIds.length,reprocessamento });
+  } catch (e) { erro(res,e); }
+});
 // Validação humana de benefício fiscal. A rota expõe somente benefícios já
 // aplicados pelo motor; não cria candidatos nem altera o documento fiscal.
 router.get('/empresas/:id/beneficios-fiscais/revisao', async (req, res) => {
