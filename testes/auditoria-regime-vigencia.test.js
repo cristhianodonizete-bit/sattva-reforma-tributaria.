@@ -9,4 +9,8 @@ assert.equal(r.execucao_id,99);
 assert.equal(r.itens[0].status,'ATUAL','a evidência de 2024 deve validar documento de 2024');
 assert.equal(r.itens[1].status,'SEM_HISTORICO','a evidência anual não pode ser estendida para 2025');
 assert.deepEqual(r.resumo,{total:2,atual:1,divergente:0,sem_historico:1});
+assert.deepEqual(r.cobertura,[
+  {ano:'2024',documentos:1,cnpjs:1,com_cobertura:1,sem_cobertura:0,fontes:[{fonte:'Base RFB 2024',documentos:1}]},
+  {ano:'2025',documentos:1,cnpjs:1,com_cobertura:0,sem_cobertura:1,fontes:[]},
+],'a cobertura deve separar o período efetivamente provado do período sem evidência');
 console.log('auditoria-regime-vigencia.test.js: OK');
