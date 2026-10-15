@@ -342,10 +342,17 @@ async function iniciarProcessamentoCadastrosCnpj() {
     fila.status = 'EXECUTANDO'; fila.inicio = new Date().toISOString();
     try {
       const remoto = supabase.admin({ prazoMs: 60_000 });
-      const { data: parceiros, error: erroParceiros } = await remoto.from('parceiros')
-        .select('cnpj,regime_confirmado_em,ativo').eq('ativo', true).not('cnpj', 'is', null).is('regime_confirmado_em', null).limit(5000);
+      const [{ data: parceiros, error: erroParceiros }, { data: cadastrosPendentes, error: erroCadastros }] = await Promise.all([
+        remoto.from('parceiros').select('cnpj,regime_confirmado_em,ativo')
+          .eq('ativo', true).not('cnpj', 'is', null).is('regime_confirmado_em', null).limit(5000),
+        remoto.from('cadastros_cnpj').select('cnpj').is('regime_derivado', null).limit(5000),
+      ]);
       if (erroParceiros) throw erroParceiros;
-      const alvos = [...new Set((parceiros || [])
+      if (erroCadastros) throw erroCadastros;
+      // A fila usa a união dos vínculos operacionais e do cadastro central.
+      // Sem isso, uma filial trazida por XML poderia aparecer como pendente na
+      // tela, mas jamais alcançar a busca por raiz na base RFB.
+      const alvos = [...new Set([...(parceiros || []), ...(cadastrosPendentes || [])]
         .map((x) => String(x.cnpj || '').replace(/\D/g, ''))
         .filter((cnpj) => cnpj.length === 14))];
       fila.total = alvos.length;
@@ -470,11 +477,14 @@ router.get('/cadastros-cnpj', async (req, res) => {
     const paginaCadastros = cadastros.slice(inicio, inicio + tamanho);
     const rfbPagina = await baseRegime.consultarCompartilhada(paginaCadastros.map((x) => x.cnpj), 2024);
     const cadastrosDaPagina = paginaCadastros.map((cadastro) => {
-      if (cadastro.pendente_regime || cadastro.regime) return cadastro;
+      // Mesmo antes da materialização pela fila, a página deve respeitar a
+      // base interna por CNPJ/raiz: não exibir uma filial conhecida como
+      // "sem consulta" seria uma informação falsa para o usuário.
+      if (cadastro.regime) return cadastro;
       const cnpj = String(cadastro.cnpj || '').replace(/\D/g, '');
       const referencia = rfbPagina.get(cnpj) || rfbPagina.get(cnpj.slice(0, 8));
       if (!referencia?.regime) return cadastro;
-      return { ...cadastro, regime:referencia.regime, situacao_regime:'CONFIRMADO',
+      return { ...cadastro, pendente_regime:false, regime:referencia.regime, situacao_regime:'CONFIRMADO',
         fonte_regime:`Base RFB ${referencia.ano}` };
     });
     ok(res, { cadastros:cadastrosDaPagina, total, pagina, tamanho, filtros, resumo });
