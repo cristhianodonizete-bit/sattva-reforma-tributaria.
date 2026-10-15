@@ -2457,7 +2457,7 @@ function agendarEnriquecimentoAutomatico(empresaId) {
   // reaproveitada se o fornecedor futuramente também for cliente; o motor só
   // a consome quando o parceiro for destinatário em uma saída.
   return cnpjReceita.agendarEnriquecimento(Number(empresaId), {
-    finalidade: 'cnae_carteira', limite: 500,
+    finalidade: 'regime_parceiro', limite: 500,
   });
 }
 

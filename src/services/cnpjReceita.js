@@ -660,7 +660,7 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
   // Um parceiro com regime informado ainda precisa ser enriquecido se não há
   // natureza jurídica disponível para avaliar a condição do 200043.
   const filtro = opcoes.sobrescrever ? '' : `AND (
-    regime IS NULL OR regime = '' OR regime = 'indeterminado'
+    regime IS NULL OR regime = '' OR regime = 'indeterminado' OR regime = 'regime_regular'
     OR NOT EXISTS (SELECT 1 FROM cnpj_cache k WHERE k.cnpj=parceiros.cnpj
       AND k.codigo_natureza_juridica IS NOT NULL AND k.codigo_natureza_juridica <> '')
   )`;
@@ -704,11 +704,25 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
       else if (r.origem === 'nao_encontrado') { rel.naoEncontrados++; continue; }
 
       const regimeAusente = !String(p.regime || '').trim() || p.regime === 'indeterminado';
-      if (r.regime_derivado && (regimeAusente || opcoes.sobrescrever)) {
-        up.run(r.regime_derivado, r.regime_derivado, p.id);
-        evidencia.run(p.id, r.regime_derivado, r.fonte || cfg.nome, r.justificativa || 'Consulta automática de cadastro público.');
+      let regimeResolvido = r.regime_derivado;
+      let fonteRegime = r.fonte || cfg.nome;
+      let justificativa = r.justificativa || 'Consulta automática de cadastro público.';
+      if (regimeResolvido === 'regime_regular') {
+        const baseRegime = require('./baseRegimeReceita');
+        const cnpj = soDigitos(p.cnpj);
+        const remotos = await baseRegime.consultarCompartilhada([cnpj]);
+        const encontrado = remotos.get(cnpj) || remotos.get(cnpj.slice(0, 8)) || baseRegime.consultar(cnpj);
+        if (encontrado?.regime) {
+          regimeResolvido = encontrado.regime;
+          fonteRegime = `base_regime:${encontrado.fonte || 'compartilhada'}`;
+          justificativa = 'Regime refinado pela base compartilhada.';
+        }
+      }
+      if (regimeResolvido && (regimeAusente || p.regime === 'regime_regular' || opcoes.sobrescrever)) {
+        up.run(regimeResolvido, regimeResolvido, p.id);
+        evidencia.run(p.id, regimeResolvido, fonteRegime, justificativa);
         rel.atualizados++;
-        rel.porRegime[r.regime_derivado] = (rel.porRegime[r.regime_derivado] || 0) + 1;
+        rel.porRegime[regimeResolvido] = (rel.porRegime[regimeResolvido] || 0) + 1;
       }
       // A natureza jurídica é um fato do CNPJ, não do papel momentâneo na
       // operação. Mantemos a etiqueta também no fornecedor para reaproveitá-la
