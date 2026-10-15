@@ -643,6 +643,7 @@ Telas.dados = async (el) => {
           <button class="btn documentos-filtros-aplicar" id="aplicarFiltrosDocumentos">Aplicar filtros <span aria-hidden="true">→</span></button>
         </div>
       </section>
+      ${abaDocumentosFiscais === 'entradas' ? '<div data-entradas-questor-pendencias></div>' : ''}
       ${A.tabela([
         { t:cabecalhoOrdenavel('Competência','competencia'), r:d=>A.esc(d.competencia || 'Não identificada') },
         { t:cabecalhoOrdenavel('Série / nº documento','documento'), r:d=>`<b>${A.esc(d.documento)}</b><div class="mini">${A.esc(d.modelo_documento_fiscal || 'modelo não identificado')}</div>${['CANCELADO','DENEGADO','INUTILIZADO'].includes(String(d.situacao_documento || '').toUpperCase()) ? `<span class="tag a">${A.esc(d.situacao_documento)}</span><div class="mini">${A.esc(d.cancelamento_origem === 'QUESTOR_RELATORIO_CANCELADOS' ? 'Confirmado pelo Questor' : d.cancelamento_origem === 'MANUAL_USUARIO' ? 'Cancelamento manual' : d.cancelamento_origem || '')}${d.cancelamento_motivo ? ` · ${A.esc(d.cancelamento_motivo)}` : ''}</div>` : ''}` },
@@ -726,6 +727,31 @@ Telas.dados = async (el) => {
     document.getElementById('aplicarFiltrosDocumentos')?.addEventListener('click', atualizarFiltroDocumentos);
     document.getElementById('filtroDocumentoBusca')?.addEventListener('keydown', (evento) => { if (evento.key === 'Enter') { evento.preventDefault(); atualizarFiltroDocumentos(); } });
     document.getElementById('limparFiltrosDocumentos')?.addEventListener('click', () => { S.aba.documentosFiscais = {}; S.cache.documentosFiscaisPagina = 1; A.ir('dados'); });
+    // Pendências de publicação das entradas Questor: bloco separado da tabela paginada.
+    // Vem da outbox, com página própria; nunca é anexado às linhas da lista.
+    const alvoPendencias = el.querySelector('[data-entradas-questor-pendencias]');
+    if (alvoPendencias && S.empresaId) {
+      const carregarPendencias = (pagina) => {
+        alvoPendencias.innerHTML = '<div class="mini">Carregando pendências de publicação…</div>';
+        A.api(`/empresas/${S.empresaId}/entradas-questor/pendencias?limite=20&pagina=${pagina}`).then((r) => {
+          const resumo = r.resumo || {};
+          const total = Number(r.total || 0);
+          if (!total) { alvoPendencias.innerHTML = ''; return; }
+          const paginas = Math.max(1, Math.ceil(total / (r.limite || 20)));
+          const linhas = (r.itens || []).map((i) => `<div class="mini">${A.esc(i.origem)} · ${A.esc(i.identidade_outbox)} · item ${Number(i.item_numero)} · ${A.esc(i.estado)} · tentativas ${Number(i.tentativas)}${i.ultimo_erro ? ` · ${A.esc(i.ultimo_erro)}` : ''}</div>`).join('');
+          alvoPendencias.innerHTML = `<div class="aviso info"><b>Pendências de publicação Questor:</b> ${Object.entries(resumo).map(([k, v]) => `${A.esc(k)}: ${Number(v)}`).join(' · ')}. Estes lançamentos ainda não estão na lista acima.${linhas}
+            <div class="mini">Página ${r.pagina} de ${paginas} · ${total} no total</div>
+            <div style="display:flex;gap:8px;margin-top:6px"><button class="btn vazio" data-pend-anterior ${r.pagina <= 1 ? 'disabled' : ''}>Anterior</button><button class="btn vazio" data-pend-proxima ${r.pagina >= paginas ? 'disabled' : ''}>Próxima</button></div></div>`;
+          const anterior = alvoPendencias.querySelector('[data-pend-anterior]');
+          const proxima = alvoPendencias.querySelector('[data-pend-proxima]');
+          if (anterior) anterior.onclick = () => carregarPendencias(r.pagina - 1);
+          if (proxima) proxima.onclick = () => carregarPendencias(r.pagina + 1);
+        }).catch(() => {
+          alvoPendencias.innerHTML = '<div class="aviso alerta">Não foi possível carregar as pendências de publicação agora. A lista acima não é afetada; atualize a tela para tentar de novo.</div>';
+        });
+      };
+      carregarPendencias(1);
+    }
     el.querySelectorAll('[data-ordenar-documentos]').forEach((botao) => botao.addEventListener('click', () => {
       const campo=botao.dataset.ordenarDocumentos;
       const atual=S.aba.documentosFiscaisOrdenacao || { campo:'competencia', direcao:'desc' };

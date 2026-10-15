@@ -2540,6 +2540,7 @@ function filtroSqlDocumentosFiscais(filtros = {}) {
   if (busca) { condicoes.push("LOWER(COALESCE(NULLIF(documento,''), NULLIF(chave,''), 'Lançamento #' || item_id) || ' ' || COALESCE(chave,'') || ' ' || COALESCE(parceiro,'')) LIKE ?"); valores.push(`%${busca}%`); }
   return { sql:condicoes.length ? ` WHERE ${condicoes.join(' AND ')}` : '', valores };
 }
+const entradasOutbox = require('../services/entradasQuestorOutbox');
 function ordenacaoSqlDocumentosFiscais(filtros = {}) {
   const campos={
     competencia:"COALESCE(data_emissao, competencia, criado_em)",
@@ -2645,43 +2646,11 @@ function entradasQuestorPendentesNaListaFiscal(empresaId, filtros = {}) {
     });
 }
 
-// O Razão não fornece itens fiscais. A confirmação do usuário fica gravada na
-// prévia para impedir reimportação; se uma sincronização antiga tiver perdido
-// o movimento materializado, essa confirmação continua visível como lançamento
-// contábil (nota, valor e classificação), sem fingir que há item de XML.
-function confirmacoesRazaoDaPrevia(empresaId, filtros = {}) {
-  const previa=db.prepare('SELECT resultado_json FROM questor_razao_previas WHERE empresa_id=?').get(Number(empresaId));
-  if (!previa) return [];
-  let resultado={}; try { resultado=JSON.parse(previa.resultado_json || '{}'); } catch (_) { return []; }
-  const presentes=new Set(db.prepare("SELECT normalizacao_evidencia FROM movimentos WHERE empresa_id=? AND origem='QUESTOR_RAZAO'").all(Number(empresaId)).map((x)=>{
-    try { return String(JSON.parse(x.normalizacao_evidencia || '{}').razao_identificador || ''); } catch (_) { return ''; }
-  }).filter(Boolean));
-  const linhas=(resultado.linhas || []).filter((x)=>x?.situacao==='INCLUIDO_QUESTOR_RAZAO' && x.identificador && !presentes.has(String(x.identificador)))
-    .map((x)=>({
-      referencia:`razao-previa:${x.identificador}`,
-      documento:String(x.documento || '').trim() || `Lançamento ${x.sequencia || 'do Razão'}`,
-      competencia:String(x.data || '').slice(0,7), data_emissao:String(x.data || '').slice(0,10) || null,
-      chave:null, tipo:'fornecedor', origem:'QUESTOR_RAZAO', modelo_documento_fiscal:'RAZAO_QUESTOR',
-      parceiro:String(x.participante || '').trim() || 'Razão Questor', valor:Number(x.valor || 0), itens:0,
-      classificacao_questor:x.item_sugerido?.nome || 'Classificação cadastrada', conta_questor:x.conta_codigo || null,
-      lancamento_questor:x.sequencia || null, razao_confirmacao_persistida:true,
-      operacao_receita:false, motivo_operacao:'Lançamento contábil de entrada; não compõe receita.',
-    }));
-  return filtrarDocumentosFiscais(linhas,{ ...filtros, sentido:'fornecedor' });
-}
-// Vale tanto para a leitura direta quanto para a leitura canônica normal.
-// A origem de uma entrada confirmada não pode depender da chave de ativação
-// temporária da leitura direta, pois isso a faria desaparecer da mesma tela.
+// Leitura compartilhada e contingência local: nada é anexado depois da paginação.
+// Os pendentes da outbox aparecem somente no resumo e no bloco próprio.
 function incorporarEntradasQuestorNaListaFiscal(leitura, empresaId, filtros = {}) {
   if (String(filtros.sentido || '') !== 'fornecedor') return leitura;
-  const pendentes=[...entradasQuestorPendentesNaListaFiscal(empresaId, filtros),...confirmacoesRazaoDaPrevia(empresaId, filtros)];
-  const referencias=new Set((leitura.documentos || []).map((d) => String(d.referencia || `chave:${d.chave || ''}`)));
-  const adicionais=pendentes.filter((d) => !referencias.has(String(d.referencia || `chave:${d.chave || ''}`)));
-  if (!adicionais.length) return leitura;
-  const documentos=[...(leitura.documentos || []), ...adicionais].sort((a,b) => String(b.data_emissao || b.competencia || b.criado_em || '').localeCompare(String(a.data_emissao || a.competencia || a.criado_em || '')) || Number(b.item_id || 0)-Number(a.item_id || 0));
-  const total=Number(leitura.total || 0)+adicionais.length;
-  return { ...leitura, documentos, total, limitado:true,
-    leitura_metricas:{ ...(leitura.leitura_metricas || {}), entradas_questor_pendentes_publicacao:adicionais.length } };
+  return { ...leitura, leitura_metricas:{ ...(leitura.leitura_metricas || {}), entradas_questor_pendencias:entradasOutbox.resumoPendencias(empresaId) } };
 }
 // Documento fiscal é uma evidência operacional. A tela e a exportação não
 // podem aceitar um cache antigo após cancelamento/retificação no Questor: a
@@ -2719,6 +2688,17 @@ router.get('/empresas/:id/estado-dados', (req, res) => {
     ok(res, { estados: estadoLeituraEmpresa.estado(db, Number(req.params.id), recursos.length ? recursos : undefined) });
   } catch (e) { erro(res, e); }
 });
+router.get('/empresas/:id/entradas-questor/pendencias', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const empresaId = Number(req.params.id);
+    const limite = Math.min(Math.max(Number(req.query.limite) || 50, 1), 200);
+    const pagina = Math.max(1, Number(req.query.pagina) || 1);
+    // Com a flag desligada, a visualização também fica desligada (rollback aprovado).
+    if (!entradasOutbox.ativa()) return ok(res, { desativado: true, resumo: {}, total: 0, pagina, limite, itens: [] });
+    ok(res, { resumo: entradasOutbox.resumoPendencias(empresaId), total: entradasOutbox.contarPendencias(empresaId), pagina, limite, itens: entradasOutbox.listarPendencias(empresaId, { pagina, limite }) });
+  } catch (e) { erro(res, e); }
+});
 router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
   try {
     const empresa=db.prepare('SELECT id,cnpj FROM empresas WHERE id=?').get(Number(req.params.id));
@@ -2726,7 +2706,7 @@ router.get('/empresas/:id/documentos-fiscais', async (req, res) => {
       try {
         await garantirEmpresaPermitida(req, req.params.id);
         const leituraRemota=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { limite:req.query.limite, pagina:req.query.pagina });
-        const leitura=incorporarEntradasQuestorNaListaFiscal(leituraRemota, Number(req.params.id), req.query);
+        const leitura=incorporarEntradasQuestorNaListaFiscal(leituraRemota, Number(req.params.id), req.query, { fonteCompartilhada:true });
         // A fonte compartilhada traz os fatos do documento; a indicação de
         // receita é uma regra de apresentação já usada pela rota histórica.
         // Reaplicá-la aqui evita que a leitura direta trate ausência de campo
@@ -2763,7 +2743,7 @@ router.get('/empresas/:id/documentos-fiscais/exportar', async (req, res) => {
       // defensivo: acima dele a exportação assíncrona deverá ser usada, nunca
       // uma planilha parcial ou uma sobrecarga silenciosa do Web Service.
       const leituraRemota=await require('../services/documentosFiscaisCompartilhados').listar(empresa?.cnpj, req.query, { exportacao:true });
-      const leitura=incorporarEntradasQuestorNaListaFiscal(leituraRemota, Number(req.params.id), req.query);
+      const leitura=incorporarEntradasQuestorNaListaFiscal(leituraRemota, Number(req.params.id), req.query, { fonteCompartilhada:true });
       if (leitura.exportacao_limitada) throw new Error(`Exportação direta excede ${leitura.documentos.length} documentos; gere-a pelo fluxo assíncrono para preservar a navegação.`);
       resultado={ documentos:leitura.documentos.map((d)=>({
         ...d,
@@ -6650,6 +6630,7 @@ router.post('/empresas/:id/questor/razao/incluir', async (req, res) => {
         fornecedor_vinculado:{ parceiro_id:fornecedor.id, cnpj:fornecedor.cnpj || null, descricao:fornecedor.descricao, regime:fornecedor.regime, origem:fornecedor.origem==='QUESTOR_RAZAO_GENERICO'?'FORNECEDOR_GENERICO_SIMPLES':linha?.fornecedor_sugerido?.origem==='CONTRAPARTIDA_QUESTOR'?'CONTRAPARTIDA_QUESTOR':String(linha?.fornecedor_sugerido?.origem || '').startsWith('HISTORICO_')?linha.fornecedor_sugerido.origem:'HISTORICO_RAZAO', evidencia_pessoa:linha?.fornecedor_sugerido?.evidencia_pessoa || null }, incluido_em:new Date().toISOString() };
       const inserido=inserir.run(empresaId,fornecedor.descricao,fornecedor.cnpj || null,fornecedor.regime,regra.nome || cadastro.label || 'Entrada do razão',competencia,valor,valor,valor,beneficio,
         regra.cst || '',regra.cclasstrib || '',regra.cst || '',regra.cclasstrib || '',itemChave,documento || null,1,chave,JSON.stringify(referencia));
+      entradasOutbox.registrarPendente({ empresa_id:empresaId, movimento_id:Number(inserido.lastInsertRowid), origem:'QUESTOR_RAZAO', identidade_outbox:String(idBase), item_numero:0, chave_publicacao:chave, agora:new Date().toISOString() });
       resultado.incluidos++; resultado.movimento_ids.push(Number(inserido.lastInsertRowid)); resultado.identificadores_incluidos.push(idBase);
     }})();
     if (resultado.incluidos) {
@@ -7089,6 +7070,7 @@ router.post('/empresas/:id/questor/conector/conciliacoes-entradas/:tarefaId/incl
       const evidencia=JSON.stringify({fonte:'QUESTOR_CONFERENCIA_ENTRADAS',tarefa_id:tarefaId,lancamento_questor:nota.lancamento,fornecedor_questor:nota.fornecedor||null,documento_questor:nota.documento,serie_questor:nota.serie,valor_documento_questor:nota.valor,item_questor:item});
       const r=inserir.run(empresaId,nota.fornecedor||'Fornecedor informado pelo Questor',nota.cnpj||null,item.descricao||`Nota ${nota.documento}`,item.ncm||null,String(nota.data||'').slice(0,7),Number(item.valor ?? nota.valor ?? 0),Number(item.valor ?? nota.valor ?? 0),Number(item.valor ?? nota.valor ?? 0),Number(item.pis||0),Number(item.cofins||0),`${nota.serie||''}/${nota.documento}`,Number(item.sequencia||1),chave,nota.modelo||null,nota.data||null,evidencia,Number(item.quantidade||0)||null);
       ids.push(r.lastInsertRowid);
+      entradasOutbox.registrarPendente({ empresa_id:empresaId, movimento_id:Number(r.lastInsertRowid), origem:'QUESTOR_CONCILIACAO_ENTRADA', identidade_outbox:chave, item_numero:Number(item.sequencia||1), chave_publicacao:chave, agora:new Date().toISOString() });
     }
     inclusoes[nota.identificador]={status:'INCLUIDA',incluida_em:new Date().toISOString(),movimento_ids:ids};
     inseridos.push({identificador:nota.identificador,documento:nota.documento,serie:nota.serie,valor:nota.valor,movimento_ids:ids});
