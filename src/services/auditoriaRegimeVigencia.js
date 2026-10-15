@@ -52,7 +52,11 @@ async function listar(db,empresaId){
     const regimeCadastro=String(x.regime_cadastro||'').trim();
     // O motor só recebe documento com parceiro resolvido — real ou genérico.
     // Reutilizamos a mesma resolução canônica, sem nova inferência de CNPJ.
-    const registros=regimeCadastro ? [{cnpj:x.cnpj,regime:regimeCadastro,versao:Number(x.versao_fotografia||0),vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:'Parceiro vinculado ao documento'}] : (porCnpj.get(digitos(x.cnpj))||[]);
+    const registrosDisponiveisParaCnpj=porCnpj.get(digitos(x.cnpj))||[];
+    const cadastroCompartilhado=registrosDisponiveisParaCnpj.filter((r)=>r.canonica);
+    // Cadastro compartilhado é a referência do parceiro. A cópia local só é
+    // usada quando a central ainda não possui esse CNPJ.
+    const registros=cadastroCompartilhado.length ? cadastroCompartilhado : (regimeCadastro ? [{cnpj:x.cnpj,regime:regimeCadastro,versao:Number(x.versao_fotografia||0),vigencia_inicio:'0000-01-01',vigencia_fim:null,fonte:'Parceiro vinculado ao documento'}] : registrosDisponiveisParaCnpj);
     const vigente=resolverNaData(registros,x.cnpj,dataDocumento);
     return {...x,data_documento:dataDocumento,...avaliarFotografia({registros,cnpj:x.cnpj,dataDocumento,regimeFotografia:x.regime_fotografia,versaoFotografia:x.versao_fotografia}),fonte_vigente:vigente?.fonte||null,vigencia_inicio:vigente?.vigencia_inicio||null,vigencia_fim:vigente?.vigencia_fim||null};
   });
