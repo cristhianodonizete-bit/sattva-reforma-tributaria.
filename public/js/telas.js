@@ -1446,6 +1446,8 @@ Telas.dados = async (el) => {
           ${A.kpi('Tempo estimado', p.tempoEstimadoSegundos < 60 ? `${p.tempoEstimadoSegundos}s` : `${min} min`,
             `${p.provedor}, ${(p.intervalo / 1000).toFixed(1)}s entre consultas`, 'destaque')}
         </div>
+        ${(p.itens || []).length ? `<table class="compacta" style="margin-top:14px"><thead><tr><th>Parceiro</th><th>Motivo</th><th class="num">Documentos</th><th class="num">Valor</th><th></th></tr></thead><tbody>${p.itens.map((x) => `<tr><td><b>${A.esc(x.descricao || x.cnpj)}</b><div class="mini">${A.esc(x.tipo)} · ${A.esc(x.cnpj)}</div></td><td>${A.esc(x.motivo)}</td><td class="num">${x.documentos}</td><td class="num">${A.moeda(x.valor)}</td><td><button class="btn pq vazio" onclick="App.api('/empresas/${S.empresaId}/parceiros/${x.id}/consultar-regime',{metodo:'POST'}).then(()=>App.ir('dados')).catch(e=>App.toast(e.message,'erro'))">Consultar novamente</button><button class="btn pq vazio" onclick="App.ir('dados')">Informar regime</button></td></tr>`).join('')}</tbody></table>` : ''}
+        <div class="mini" style="margin-top:8px">Depois de confirmar o regime, reprocese somente os documentos daquele parceiro.</div>
         <div class="aviso" style="margin-top:14px"><b>O que a consulta resolve</b>
           A base pública informa a opção pelo Simples e pelo SIMEI. Não distingue Lucro Real de
           Presumido — e não precisa: para IBS/CBS o que importa é estar dentro ou fora do Simples.

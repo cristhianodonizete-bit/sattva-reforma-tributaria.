@@ -666,10 +666,10 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
   )`;
   const tipoFiltro = opcoes.tipo ? 'AND tipo = ?' : '';
   const params = [empresaId];
-  if (opcoes.tipo) params.push(opcoes.tipo);
+  if (opcoes.tipo) params.push(opcoes.tipo); if (opcoes.parceiroId) params.push(Number(opcoes.parceiroId));
 
   const alvos = db().prepare(`SELECT id, cnpj, descricao, tipo, regime FROM parceiros
-    WHERE empresa_id = ? AND cnpj <> '' ${filtro} ${tipoFiltro}
+    WHERE empresa_id = ? AND cnpj <> '' ${filtro} ${tipoFiltro}${opcoes.parceiroId ? ' AND id = ?' : ''}
     ORDER BY id`).all(...params).slice(0, Number(opcoes.limite) || 500);
 
   const rel = { total: alvos.length, processados: 0, atualizados: 0, cache: 0,
@@ -798,8 +798,16 @@ function pendencias(empresaId) {
     JOIN cnpj_cache k ON k.cnpj = p.cnpj
     WHERE p.empresa_id = ? AND (p.regime IS NULL OR p.regime = '' OR p.regime = 'indeterminado')`).get(empresaId).c;
   const total = linhas.reduce((s, l) => s + l.n, 0);
+  const itens = db().prepare(`SELECT p.id,p.tipo,p.cnpj,p.descricao,p.regime,
+      COUNT(m.id) documentos,COALESCE(SUM(m.valor),0) valor,
+      CASE WHEN k.cnpj IS NULL THEN 'Ainda não consultado' WHEN k.regime_derivado IS NULL THEN 'A fonte não confirmou o regime' ELSE 'Regime pendente de confirmação' END motivo
+    FROM parceiros p LEFT JOIN movimentos m ON m.empresa_id=p.empresa_id AND m.tipo=p.tipo AND m.inscr_federal=p.cnpj
+      LEFT JOIN cnpj_cache k ON k.cnpj=p.cnpj
+    WHERE p.empresa_id=? AND p.cnpj<>'' AND (p.regime IS NULL OR p.regime='' OR p.regime='indeterminado')
+    GROUP BY p.id,p.tipo,p.cnpj,p.descricao,p.regime,k.cnpj,k.regime_derivado
+    ORDER BY documentos DESC,p.descricao`).all(empresaId);
   return {
-    porTipo: linhas, total, emCache,
+    porTipo: linhas, total, emCache, itens,
     aConsultar: Math.max(total - emCache, 0),
     provedor: cfg.nome, intervalo: cfg.intervalo,
     tempoEstimadoSegundos: Math.round(Math.max(total - emCache, 0) * cfg.intervalo / 1000),

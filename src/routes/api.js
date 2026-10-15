@@ -8770,6 +8770,25 @@ router.post('/empresas/:id/parceiros/enriquecer', async (req, res) => {
     } catch (_) { /* segue */ }
     ok(res, { ...r, classificacao });
   } catch (e) { erro(res, e); }
+
+router.post('/empresas/:id/parceiros/:parceiroId/consultar-regime', async (req, res) => {
+  try {
+    const r = await cnpjReceita.enriquecerParceiros(Number(req.params.id), { parceiroId:Number(req.params.parceiroId), forcar:true, sobrescrever:false, finalidade:'regime_parceiro', limite:1 });
+    ok(res, r);
+  } catch (e) { erro(res, e); }
+});
+
+router.post('/empresas/:id/parceiros/:parceiroId/reprocessar-regime', async (req, res) => {
+  try {
+    const empresaId=Number(req.params.id), parceiroId=Number(req.params.parceiroId);
+    const parceiro=db.prepare('SELECT id,tipo,cnpj,regime FROM parceiros WHERE id=? AND empresa_id=?').get(parceiroId,empresaId);
+    if (!parceiro) throw new Error('Parceiro não encontrado.');
+    if (!parceiro.regime || parceiro.regime==='indeterminado') throw new Error('Confirme o regime do parceiro antes de reprocessar.');
+    const ids=db.prepare("SELECT id FROM movimentos WHERE empresa_id=? AND tipo=? AND replace(replace(replace(coalesce(inscr_federal,''),'.',''),'/',''),'-','')=replace(replace(replace(? ,'.',''),'/',''),'-','')").all(empresaId,parceiro.tipo,parceiro.cnpj).map(x=>x.id);
+    if (!ids.length) return ok(res,{ movimentos:0, reprocessamento:null });
+    ok(res,{ movimentos:ids.length,reprocessamento:motorExec.reprocessarIncremental(empresaId,{ ano:Number(req.body?.ano)||2027,movimentoIds:ids }) });
+  } catch (e) { erro(res,e); }
+});
 });
 
 // Saneamento controlado do Anexo XI. A execução anterior permanece no histórico
