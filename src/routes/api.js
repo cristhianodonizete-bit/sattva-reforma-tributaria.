@@ -510,6 +510,10 @@ router.post('/cadastros-cnpj/:cnpj/regime-manual', async (req, res) => {
     const regimesPermitidos=new Set(['mei','simples_nacional','regime_regular','lucro_real','lucro_presumido','lucro_arbitrado','imune_isento']);
     const regime=String(req.body?.regime || '').trim().toLowerCase();
     const justificativa=String(req.body?.justificativa || '').trim().slice(0, 1000);
+    const vigenciaInicio=String(req.body?.vigencia_inicio || '').slice(0,10);
+    const vigenciaFim=String(req.body?.vigencia_fim || '').slice(0,10) || null;
+    if(!/^\d{4}-\d{2}-\d{2}$/.test(vigenciaInicio)) throw new Error('Informe a data inicial da vigência da evidência.');
+    if(vigenciaFim && (!/^\d{4}-\d{2}-\d{2}$/.test(vigenciaFim) || vigenciaFim<vigenciaInicio)) throw new Error('A data final da vigência é inválida.');
     if (!regimesPermitidos.has(regime)) throw new Error('Selecione um regime válido.');
     if (justificativa.length < 8) throw new Error('Informe uma justificativa com ao menos 8 caracteres.');
     const remoto=supabase.admin();
@@ -525,6 +529,10 @@ router.post('/cadastros-cnpj/:cnpj/regime-manual', async (req, res) => {
       regime_derivado:regime, fonte:'MANUAL_USUARIO', justificativa, consultado_em:agora,
     }, { onConflict:'cnpj' });
     if (erroGravacao) throw erroGravacao;
+    const { data: historicoExistente, error: erroHistoricoLeitura }=await remoto.from('historico_regimes_cnpj').select('versao').eq('cnpj',cnpj).eq('vigencia_inicio',vigenciaInicio).maybeSingle();
+    if(erroHistoricoLeitura) throw new Error(`Histórico de regime: ${erroHistoricoLeitura.message}`);
+    const { error: erroHistorico }=await remoto.from('historico_regimes_cnpj').upsert({cnpj,raiz:cnpj.slice(0,8),regime,versao:Number(historicoExistente?.versao || 0)+1,vigencia_inicio:vigenciaInicio,vigencia_fim:vigenciaFim,fonte:'MANUAL_USUARIO',justificativa,registrado_em:agora},{onConflict:'cnpj,vigencia_inicio'});
+    if(erroHistorico) throw new Error(`Histórico de regime: ${erroHistorico.message}`);
     await Promise.all((parceiros || []).map(async (parceiro) => {
       const { error }=await remoto.from('parceiros').update({ regime, regime_origem:'MANUAL_USUARIO',
         regime_confirmado_em:agora, regime_versao:Number(parceiro.regime_versao || 0) + 1 })
@@ -533,8 +541,8 @@ router.post('/cadastros-cnpj/:cnpj/regime-manual', async (req, res) => {
     }));
     auditar(req,{ acao:'REGIME_PARCEIRO_CONFIRMADO_MANUALMENTE', entidade:'cadastros_cnpj', entidadeId:cnpj,
       antes:{ regime:cadastro?.regime_derivado || null, fonte:cadastro?.fonte || null },
-      depois:{ regime, fonte:'MANUAL_USUARIO', justificativa, parceiros_atualizados:(parceiros || []).length } });
-    ok(res,{ cnpj, regime, fonte:'MANUAL_USUARIO', parceiros_atualizados:(parceiros || []).length,
+      depois:{ regime, fonte:'MANUAL_USUARIO', justificativa, vigencia_inicio:vigenciaInicio, vigencia_fim:vigenciaFim, parceiros_atualizados:(parceiros || []).length } });
+    ok(res,{ cnpj, regime, fonte:'MANUAL_USUARIO', vigencia_inicio:vigenciaInicio, vigencia_fim:vigenciaFim, parceiros_atualizados:(parceiros || []).length,
       aviso:'Regime manual gravado no cadastro compartilhado. Documentos e cálculos existentes não foram reprocessados.' });
   } catch (e) { erro(res, e); }
 });
@@ -3648,11 +3656,11 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
 });
 
 // Auditoria de vigência de regime — etapa 1: leitura exclusiva, sem fila ou recálculo.
-router.get('/empresas/:id/regimes/auditoria-vigencia', (req, res) => {
+router.get('/empresas/:id/regimes/auditoria-vigencia', async (req, res) => {
   try {
     const empresaId=Number(req.params.id);
     if (!db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId)) throw new Error('Empresa não encontrada.');
-    ok(res,require('../services/auditoriaRegimeVigencia').listar(db,empresaId));
+    ok(res,await require('../services/auditoriaRegimeVigencia').listar(db,empresaId));
   } catch (e) { erro(res,e); }
 });
 
