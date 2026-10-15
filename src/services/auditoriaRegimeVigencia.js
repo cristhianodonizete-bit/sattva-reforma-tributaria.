@@ -3,6 +3,9 @@ const { avaliarFotografia,resolverNaData }=require('./regimeVigencia');
 const supabase=require('./supabase');
 const digitos=(v)=>String(v || '').replace(/\D/g,'');
 const historicoDoAno=(cnpj,regime,ano,fonte)=>({cnpj,regime,versao:0,vigencia_inicio:String(ano)+'-01-01',vigencia_fim:String(ano)+'-12-31',fonte,registrado_em:''});
+// Regra aprovada: a última base anual disponível de não-Simples continua como
+// referência até surgir base anual mais nova ou confirmação manual datada.
+const referenciaAnualAnterior=(cnpj,regime,ano,fonte)=>({cnpj,regime,versao:0,vigencia_inicio:String(ano)+'-01-01',vigencia_fim:null,fonte:`${fonte || 'Base RFB'} (referência anual anterior)`,registrado_em:''});
 async function registrosDisponiveis(db,empresaId,cnpjs){
   const persistidos=db.prepare('SELECT cnpj,regime,versao,vigencia_inicio,vigencia_fim,fonte,registrado_em FROM historico_regimes_parceiro').all();
   if(!cnpjs.length)return persistidos;
@@ -18,7 +21,7 @@ async function registrosDisponiveis(db,empresaId,cnpjs){
   const raizes=[...new Set(cnpjs.map(x=>x.slice(0,8)))]; const q1=cnpjs.map(()=>'?').join(','); const q2=raizes.map(()=>'?').join(',');
   const bases=db.prepare('SELECT cnpj,raiz,regime,ano,fonte FROM base_regime WHERE cnpj IN ('+q1+') OR raiz IN ('+q2+')').all(...cnpjs,...raizes);
   const evidencias=db.prepare("SELECT p.cnpj,e.regime,e.ano_referencia,e.fonte FROM contraparte_regime_evidencias e JOIN parceiros p ON p.id=e.parceiro_id WHERE p.empresa_id=? AND p.tipo='fornecedor'").all(Number(empresaId));
-  const anuais=[...bases.map(x=>historicoDoAno(x.cnpj||x.raiz,x.regime,x.ano,x.fonte||'Base RFB')),...evidencias.filter(x=>Number(x.ano_referencia)>0).map(x=>historicoDoAno(x.cnpj,x.regime,x.ano_referencia,x.fonte||'Evidência cadastral'))];
+  const anuais=[...bases.map(x=>referenciaAnualAnterior(x.cnpj||x.raiz,x.regime,x.ano,x.fonte||'Base RFB')),...evidencias.filter(x=>Number(x.ano_referencia)>0).map(x=>historicoDoAno(x.cnpj,x.regime,x.ano_referencia,x.fonte||'Evidência cadastral'))];
   return [...persistidos,...compartilhados,...anuais];
 }
 async function listar(db,empresaId){
