@@ -320,6 +320,80 @@ async function atualizarConfiguracaoDeCalculo() {
 router.get('/cnpj/:cnpj/governo', async (req, res) => { try { const d = await cnpjReceita.consultar(req.params.cnpj); ok(res, { resultado: cnpjReceita.classificarEnteGovernamental(d, String(req.params.cnpj).replace(/\D/g, '')) }); } catch (e) { erro(res, e); } });
 // Cadastro central: não pertence a uma empresa específica. Os vínculos de
 // cliente/fornecedor continuam em `parceiros`, isolados por empresa.
+
+// A fila é intencionalmente leve: consulta o cadastro compartilhado sem tocar
+// em documentos, parceiros locais ou fotografias do motor.
+let filaProcessamentoCadastrosCnpj = null;
+
+function resumoFilaCadastrosCnpj() {
+  if (!filaProcessamentoCadastrosCnpj) return null;
+  const { cnpjAtual, ...resumo } = filaProcessamentoCadastrosCnpj;
+  return { ...resumo, cnpj_atual: cnpjAtual || null };
+}
+
+async function iniciarProcessamentoCadastrosCnpj() {
+  if (filaProcessamentoCadastrosCnpj && ['AGENDADO', 'EXECUTANDO'].includes(filaProcessamentoCadastrosCnpj.status)) {
+    return resumoFilaCadastrosCnpj();
+  }
+  const fila = { status:'AGENDADO', inicio:null, fim:null, total:0, processados:0,
+    resolvidos:0, semResultado:0, erros:[], cnpjAtual:null };
+  filaProcessamentoCadastrosCnpj = fila;
+  setImmediate(async () => {
+    fila.status = 'EXECUTANDO'; fila.inicio = new Date().toISOString();
+    try {
+      const remoto = supabase.admin({ prazoMs: 60_000 });
+      const [{ data: parceiros, error: erroParceiros }, { data: cadastros, error: erroCadastros }] = await Promise.all([
+        remoto.from('parceiros').select('cnpj,regime_confirmado_em,ativo').eq('ativo', true).not('cnpj', 'is', null).is('regime_confirmado_em', null).limit(5000),
+        remoto.from('cadastros_cnpj').select('cnpj,consultado_em').limit(5000),
+      ]);
+      if (erroParceiros) throw erroParceiros;
+      if (erroCadastros) throw erroCadastros;
+      const jaConsultados = new Set((cadastros || [])
+        .filter((x) => x.consultado_em)
+        .map((x) => String(x.cnpj || '').replace(/\D/g, '')));
+      const alvos = [...new Set((parceiros || [])
+        .map((x) => String(x.cnpj || '').replace(/\D/g, ''))
+        .filter((cnpj) => cnpj.length === 14 && !jaConsultados.has(cnpj)))];
+      fila.total = alvos.length;
+      for (const cnpj of alvos) {
+        fila.cnpjAtual = cnpj;
+        try {
+          const resultado = await cnpjReceita.consultar(cnpj, { forcar:true, finalidade:'regime_parceiro' });
+          if (resultado.regime_derivado) {
+            await remoto.from('parceiros').update({ regime:resultado.regime_derivado,
+              regime_confirmado_em:new Date().toISOString(), regime_origem:resultado.fonte || 'consulta_cadastral' })
+              .eq('cnpj', cnpj).is('regime_confirmado_em', null);
+            fila.resolvidos++;
+          }
+          else fila.semResultado++;
+          const intervalo = Math.max(Number(resultado.intervaloUsado) || 0, 0);
+          if (intervalo) await new Promise((resolver) => setTimeout(resolver, intervalo));
+        } catch (erro) {
+          fila.erros.push({ cnpj, mensagem: erro.message });
+        } finally {
+          fila.processados++;
+        }
+      }
+      fila.status = 'CONCLUIDO';
+    } catch (erro) {
+      fila.status = 'ERRO'; fila.erro = erro.message;
+    } finally {
+      fila.cnpjAtual = null; fila.fim = new Date().toISOString();
+    }
+  });
+  return resumoFilaCadastrosCnpj();
+}
+
+router.get('/cadastros-cnpj/processamento-pendentes', (_req, res) => {
+  ok(res, { fila: resumoFilaCadastrosCnpj() });
+});
+
+router.post('/cadastros-cnpj/processamento-pendentes', async (_req, res) => {
+  try {
+    if (!supabase.configurado()) throw new Error('Base compartilhada não configurada.');
+    ok(res, { fila: await iniciarProcessamentoCadastrosCnpj() });
+  } catch (e) { erro(res, e); }
+});
 router.get('/cadastros-cnpj', async (req, res) => {
   try {
     if (!supabase.configurado()) throw new Error('Base compartilhada não configurada.');

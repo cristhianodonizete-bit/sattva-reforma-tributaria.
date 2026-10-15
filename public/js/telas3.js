@@ -533,7 +533,7 @@ Telas.cadastrosCnpj = async (el) => {
           <label class="campo" style="margin:0"><span>Situação da consulta</span><select data-cc-filtro="situacao"><option value="">Todas</option><option value="SEM_CONSULTA" ${filtros.situacao==='SEM_CONSULTA'?'selected':''}>Sem consulta de regime</option><option value="INCONCLUSIVO" ${filtros.situacao==='INCONCLUSIVO'?'selected':''}>Consulta inconclusiva</option><option value="CONFIRMADO" ${filtros.situacao==='CONFIRMADO'?'selected':''}>Regime confirmado</option></select></label>
           <button class="btn vazio" id="ccLimparFiltros">Limpar filtros</button>
         </div>
-        <div class="mini" style="margin-top:14px"><b>${r.total.toLocaleString('pt-BR')}</b> cadastro(s) central(is) · página ${pagina} de ${totalPaginas}<span class="tag a" style="margin-left:8px">${Number(r.resumo?.SEM_CONSULTA || 0).toLocaleString('pt-BR')} sem consulta</span><span class="tag a" style="margin-left:6px">${Number(r.resumo?.INCONCLUSIVO || 0).toLocaleString('pt-BR')} inconclusivo(s)</span></div>
+        <div class="mini" style="margin-top:14px"><b>${r.total.toLocaleString('pt-BR')}</b> cadastro(s) central(is) · página ${pagina} de ${totalPaginas}<span class="tag a" style="margin-left:8px">${Number(r.resumo?.SEM_CONSULTA || 0).toLocaleString('pt-BR')} sem consulta</span><span class="tag a" style="margin-left:6px">${Number(r.resumo?.INCONCLUSIVO || 0).toLocaleString('pt-BR')} inconclusivo(s)</span><button class="btn pq ouro" id="ccProcessarPendentes" ${Number(r.resumo?.SEM_CONSULTA || 0) ? '' : 'disabled'} style="margin-left:8px">Processar sem consulta</button><span id="ccStatusProcessamento" class="mini" style="margin-left:8px"></span></div>
         ${A.tabela([
           { t: 'CNPJ / razão social', r: (x) => `<span class="mono">${A.esc(x.cnpj)}</span><div><b>${A.esc(x.razao_social || 'Sem razão social')}</b></div><div class="mini">${A.esc([x.municipio, x.uf].filter(Boolean).join(' / ') || 'localidade não informada')}</div>` },
           { t: 'Regime', r: (x) => x.situacao_regime==='SEM_CONSULTA' ? `<span class="tag a">Sem consulta</span><div class="mini">Aguardando consulta de regime</div>` : x.situacao_regime==='INCONCLUSIVO' ? `<span class="tag a">Consulta inconclusiva</span><div class="mini">${A.esc(x.fonte_regime || 'A fonte não informou o regime')}</div>` : `<span class="tag">${A.esc(rotuloRegime(x.regime))}</span><div class="mini">${A.esc(x.fonte_regime || '')}</div>` },
@@ -549,6 +549,20 @@ Telas.cadastrosCnpj = async (el) => {
     document.getElementById('ccBuscar').closest('.cartao').querySelector('#ccBuscar').onclick = () => { busca = document.getElementById('ccBusca').value.trim(); pagina = 1; render(); };
     el.querySelectorAll('[data-cc-filtro]').forEach((campo) => { campo.onchange = () => { filtros[campo.dataset.ccFiltro] = campo.value.trim(); pagina = 1; render(); }; campo.onkeydown = (e) => { if (e.key === 'Enter') { filtros[campo.dataset.ccFiltro] = campo.value.trim(); pagina = 1; render(); } }; });
     document.getElementById('ccLimparFiltros').onclick = () => { filtros = { regime:'', cnae:'', natureza:'', etiqueta:'', fonte:'', situacao:'' }; pagina = 1; render(); };
+    document.getElementById('ccProcessarPendentes')?.addEventListener('click', () => A.confirmar('Consultar todos os parceiros sem consulta de regime? Isso consulta apenas o cadastro público; não reprocessa documentos.', async () => {
+      const status = document.getElementById('ccStatusProcessamento');
+      const acompanhar = async () => {
+        const resposta = await A.api('/cadastros-cnpj/processamento-pendentes');
+        const fila = resposta.fila;
+        if (!fila) { status.textContent = 'Fila não iniciada.'; return; }
+        status.textContent = `${fila.processados}/${fila.total} processados · ${fila.resolvidos} com regime${fila.erros?.length ? ` · ${fila.erros.length} erro(s)` : ''}`;
+        if (['AGENDADO', 'EXECUTANDO'].includes(fila.status)) { setTimeout(acompanhar, 1500); return; }
+        if (fila.status === 'CONCLUIDO') { A.toast('Consulta de parceiros concluída.', 'ok'); render(); }
+        else A.toast(fila.erro || 'A consulta foi interrompida.', 'erro');
+      };
+      await A.api('/cadastros-cnpj/processamento-pendentes', { metodo:'POST' });
+      await acompanhar();
+    }));
     document.getElementById('ccAnterior').onclick = () => { pagina--; render(); };
     document.getElementById('ccProximo').onclick = () => { pagina++; render(); };
     el.querySelectorAll('[data-cc-detalhe]').forEach((botao) => { botao.onclick = () => {
