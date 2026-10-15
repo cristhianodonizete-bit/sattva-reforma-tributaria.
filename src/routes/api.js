@@ -324,6 +324,7 @@ router.get('/cnpj/:cnpj/governo', async (req, res) => { try { const d = await cn
 // A fila é intencionalmente leve: consulta o cadastro compartilhado sem tocar
 // em documentos, parceiros locais ou fotografias do motor.
 let filaProcessamentoCadastrosCnpj = null;
+let filaSincronizacaoFotografiaCadastros = null;
 
 function resumoFilaCadastrosCnpj() {
   if (!filaProcessamentoCadastrosCnpj) return null;
@@ -404,6 +405,45 @@ router.post('/cadastros-cnpj/processamento-pendentes', async (_req, res) => {
     if (!supabase.configurado()) throw new Error('Base compartilhada não configurada.');
     ok(res, { fila: await iniciarProcessamentoCadastrosCnpj() });
   } catch (e) { erro(res, e); }
+});
+
+// Espelha no Supabase a fotografia já consultada nesta instância. Não chama
+// provedores, não altera parceiros locais e não reprocessa documentos.
+async function iniciarSincronizacaoFotografiaCadastros() {
+  if (filaSincronizacaoFotografiaCadastros && ['AGENDADO','EXECUTANDO'].includes(filaSincronizacaoFotografiaCadastros.status)) return filaSincronizacaoFotografiaCadastros;
+  const fila={ status:'AGENDADO', inicio:null, fim:null, total:0, processados:0, atualizados:0, manuais_preservados:0, erros:[] };
+  filaSincronizacaoFotografiaCadastros=fila;
+  setImmediate(async()=>{
+    fila.status='EXECUTANDO'; fila.inicio=new Date().toISOString();
+    try {
+      const locais=db.prepare("SELECT * FROM cnpj_cache WHERE LENGTH(cnpj)=14 AND COALESCE(regime_derivado,'')<>'' ORDER BY consultado_em DESC").all();
+      fila.total=locais.length;
+      const remoto=supabase.admin({ prazoMs:60_000 });
+      for(let i=0;i<locais.length;i+=200){
+        const lote=locais.slice(i,i+200), cnpjs=lote.map((x)=>x.cnpj);
+        const {data:existentes,error:erroLeitura}=await remoto.from('cadastros_cnpj').select('cnpj,fonte').in('cnpj',cnpjs);
+        if(erroLeitura) throw erroLeitura;
+        const manuais=new Set((existentes||[]).filter((x)=>x.fonte==='MANUAL_USUARIO').map((x)=>x.cnpj));
+        const registros=lote.filter((x)=>!manuais.has(x.cnpj)).map((x)=>({ ...x,
+          optante_simples:Boolean(x.optante_simples), optante_mei:Boolean(x.optante_mei) }));
+        fila.manuais_preservados+=lote.length-registros.length;
+        if(registros.length){
+          const {error}=await remoto.from('cadastros_cnpj').upsert(registros,{onConflict:'cnpj'});
+          if(error) throw error;
+          fila.atualizados+=registros.length;
+        }
+        fila.processados+=lote.length;
+      }
+      fila.status='CONCLUIDO';
+    } catch(e){ fila.status='ERRO'; fila.erro=e.message; }
+    finally { fila.fim=new Date().toISOString(); }
+  });
+  return fila;
+}
+router.get('/cadastros-cnpj/sincronizar-fotografia', (_req,res)=>ok(res,{fila:filaSincronizacaoFotografiaCadastros}));
+router.post('/cadastros-cnpj/sincronizar-fotografia', async (_req,res)=>{
+  try { if(!supabase.configurado()) throw new Error('Base compartilhada não configurada.'); ok(res,{fila:await iniciarSincronizacaoFotografiaCadastros()}); }
+  catch(e){ erro(res,e); }
 });
 router.get('/cadastros-cnpj', async (req, res) => {
   try {
