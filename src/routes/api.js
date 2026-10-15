@@ -411,6 +411,7 @@ router.get('/cadastros-cnpj', async (req, res) => {
     const pagina = Math.max(1, Number(req.query.pagina) || 1);
     const tamanho = Math.min(100, Math.max(10, Number(req.query.tamanho) || 25));
     const busca = String(req.query.busca || '').replace(/[^\w\s.\-\/]/g, '').trim();
+    const buscaCnpj = busca.replace(/\D/g, '');
     const filtro = (nome) => String(req.query[nome] || '').trim().slice(0, 120);
     const filtros = { regime: filtro('regime').toLowerCase(), cnae: filtro('cnae').toLowerCase(),
       natureza: filtro('natureza').toLowerCase(), etiqueta: filtro('etiqueta').toUpperCase(), fonte: filtro('fonte').toLowerCase(),
@@ -418,7 +419,11 @@ router.get('/cadastros-cnpj', async (req, res) => {
     let consulta = supabase.admin().from('cadastros_cnpj')
       .select('cnpj,razao_social,situacao,porte,cnae,cnae_descricao,cnaes_secundarios,uf,municipio,logradouro,numero,complemento,bairro,cep,regime_derivado,natureza_juridica,codigo_natureza_juridica,efr,fonte,consultado_em', { count: 'exact' })
       .order('consultado_em', { ascending: false });
-    if (busca) consulta = consulta.or(`cnpj.ilike.%${busca}%,razao_social.ilike.%${busca}%`);
+    if (busca) {
+      const termosBusca=[`razao_social.ilike.%${busca}%`];
+      if (buscaCnpj) termosBusca.unshift(`cnpj.ilike.%${buscaCnpj}%`);
+      consulta = consulta.or(termosBusca.join(','));
+    }
     if (filtros.cnae) consulta = consulta.or(`cnae.ilike.%${filtros.cnae}%,cnae_descricao.ilike.%${filtros.cnae}%,municipio.ilike.%${filtros.cnae}%,uf.ilike.%${filtros.cnae}%`);
     if (filtros.natureza) consulta = consulta.or(`natureza_juridica.ilike.%${filtros.natureza}%,efr.ilike.%${filtros.natureza}%`);
     if (filtros.fonte) consulta = consulta.ilike('fonte', `%${filtros.fonte}%`);
@@ -435,9 +440,13 @@ router.get('/cadastros-cnpj', async (req, res) => {
     const cnpjsCentrais = new Set(dados.map((x) => String(x.cnpj || '').replace(/\D/g, '')));
     for (const parceiro of (parceirosPendentes || [])) {
       const cnpj = String(parceiro.cnpj || '').replace(/\D/g, '');
-      if (cnpj.length !== 14 || cnpjsCentrais.has(cnpj)) continue;
+      const razaoSocial=String(parceiro.descricao || '');
+      const correspondeBusca=!busca || (buscaCnpj
+        ? cnpj.includes(buscaCnpj)
+        : razaoSocial.toLowerCase().includes(busca.toLowerCase()));
+      if (cnpj.length !== 14 || cnpjsCentrais.has(cnpj) || !correspondeBusca) continue;
       cnpjsCentrais.add(cnpj);
-      dados.push({ cnpj, razao_social:parceiro.descricao || '', regime_derivado:null, fonte:parceiro.origem || 'PARCEIRO_IMPORTADO', consultado_em:null, pendente_regime:true });
+      dados.push({ cnpj, razao_social:razaoSocial, regime_derivado:null, fonte:parceiro.origem || 'PARCEIRO_IMPORTADO', consultado_em:null, pendente_regime:true });
     }
     // A tela não usa o regime copiado do cadastro operacional. Ela consulta a
     // mesma RFB compartilhada usada pelo motor, para não haver duas verdades.

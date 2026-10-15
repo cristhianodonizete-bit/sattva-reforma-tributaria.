@@ -518,7 +518,7 @@ Telas.cadastrosCnpj = async (el) => {
   };
   const rotuloRegime = (regime) => A.regimeLabel(regime) || regime || 'Não informado';
   const render = async () => {
-    const parametros = new URLSearchParams({ pagina:String(pagina), busca, ...filtros });
+    const parametros = new URLSearchParams({ pagina:String(pagina), busca, ...filtros, atualizacao:String(Date.now()) });
     const r = await A.api(`/cadastros-cnpj?${parametros.toString()}`);
     const totalPaginas = Math.max(1, Math.ceil(r.total / r.tamanho));
     el.innerHTML = cab('Cadastro central', 'Cadastros compartilhados',
@@ -544,11 +544,12 @@ Telas.cadastrosCnpj = async (el) => {
           { t: '', r: (x) => `<button class="btn pq vazio" data-cc-detalhe="${A.esc(x.cnpj)}">Ver cadastro</button>` },
         ], r.cadastros, { vazio: 'Nenhum CNPJ centralizado ainda. Os cadastros são incluídos automaticamente na primeira consulta oficial.' })}
         <div class="acoes-topo" style="margin-top:14px"><button class="btn vazio" id="ccAnterior" ${pagina <= 1 ? 'disabled' : ''}>Anterior</button><button class="btn vazio" id="ccProximo" ${pagina >= totalPaginas ? 'disabled' : ''}>Próxima</button></div></div>`;
-    document.getElementById('ccBuscar').onkeydown = (e) => { if (e.key === 'Enter') { busca = e.target.value.trim(); pagina = 1; render(); } };
-    document.getElementById('ccBuscar').oninput = () => {};
-    document.getElementById('ccBuscar').closest('.cartao').querySelector('#ccBuscar').onclick = () => { busca = document.getElementById('ccBusca').value.trim(); pagina = 1; render(); };
+    const entradaBusca=el.querySelector('#ccBusca');
+    const executarBusca=() => { busca = entradaBusca.value.trim(); pagina = 1; render(); };
+    entradaBusca.onkeydown = (e) => { if (e.key === 'Enter') executarBusca(); };
+    el.querySelector('#ccBuscar').onclick = executarBusca;
     el.querySelectorAll('[data-cc-filtro]').forEach((campo) => { campo.onchange = () => { filtros[campo.dataset.ccFiltro] = campo.value.trim(); pagina = 1; render(); }; campo.onkeydown = (e) => { if (e.key === 'Enter') { filtros[campo.dataset.ccFiltro] = campo.value.trim(); pagina = 1; render(); } }; });
-    document.getElementById('ccLimparFiltros').onclick = () => { filtros = { regime:'', cnae:'', natureza:'', etiqueta:'', fonte:'', situacao:'' }; pagina = 1; render(); };
+    el.querySelector('#ccLimparFiltros').onclick = () => { busca = ''; filtros = { regime:'', cnae:'', natureza:'', etiqueta:'', fonte:'', situacao:'' }; pagina = 1; render(); };
     document.getElementById('ccProcessarPendentes')?.addEventListener('click', () => A.confirmar('Consultar todos os parceiros sem consulta de regime? Isso consulta apenas o cadastro público; não reprocessa documentos.', async () => {
       const status = document.getElementById('ccStatusProcessamento');
       const acompanhar = async () => {
