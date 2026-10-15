@@ -451,7 +451,7 @@ function doCache(cnpj, validadeDias) {
   return r;
 }
 
-function gravarCache(cnpj, d, fonte) {
+async function gravarCache(cnpj, d, fonte) {
   const reg = derivarRegime(d);
   db().prepare(`INSERT INTO cnpj_cache (cnpj, razao_social, situacao, porte, cnae, cnae_descricao, cnaes_secundarios,
     uf, municipio, logradouro, numero, complemento, bairro, cep, optante_simples, data_opcao_simples, data_exclusao_simples,
@@ -475,9 +475,10 @@ function gravarCache(cnpj, d, fonte) {
       reg.regime, reg.justificativa, d.natureza_juridica || '', d.codigo_natureza_juridica || '', d.efr || '', dataAbertura(d.data_abertura), fonte);
   const salvo = db().prepare('SELECT * FROM cnpj_cache WHERE cnpj = ?').get(cnpj);
   const compartilhado = { ...salvo, optante_simples: Boolean(salvo.optante_simples), optante_mei: Boolean(salvo.optante_mei) };
-  if (supabase.configurado()) supabase.admin().from('cadastros_cnpj').upsert(compartilhado, { onConflict: 'cnpj' })
-    .then(({ error }) => { if (error) console.error('[supabase] cadastro CNPJ:', error.message); })
-    .catch((e) => console.error('[supabase] cadastro CNPJ:', e.message));
+  if (supabase.configurado()) {
+    const { error } = await supabase.admin().from('cadastros_cnpj').upsert(compartilhado, { onConflict: 'cnpj' });
+    if (error) throw new Error(`Não foi possível gravar o cadastro da API no Supabase: ${error.message}`);
+  }
   return { ...salvo, cnaes_secundarios: normalizarCnaesSecundarios(salvo.cnaes_secundarios) };
 }
 
@@ -487,6 +488,62 @@ async function cadastroCentral(cnpj, validadeDias) {
   if (error || !data) return null; // migração ainda não aplicada: segue pelo cache/API
   const dias = (Date.now() - new Date(String(data.consultado_em).replace(' ', 'T')).getTime()) / 86400000;
   return dias <= validadeDias ? { ...data, origem: 'cadastro_compartilhado' } : null;
+}
+
+const REGIMES_ESPECIFICOS = new Set(['mei', 'simples_nacional', 'lucro_real', 'lucro_presumido', 'imune_isento']);
+const regimeEspecifico = (regime) => REGIMES_ESPECIFICOS.has(String(regime || '').trim().toLowerCase());
+
+async function gravarCadastroCentral(cnpj, regime, fonte, justificativa) {
+  if (!supabase.configurado() || !regime) return;
+  const { data, error } = await supabase.admin().from('cadastros_cnpj').upsert({
+    cnpj: soDigitos(cnpj), regime_derivado: regime, fonte, justificativa,
+    consultado_em: new Date().toISOString(),
+  }, { onConflict: 'cnpj' }).select('cnpj,regime_derivado,fonte').single();
+  if (error) throw new Error(`Não foi possível gravar o regime no cadastro compartilhado: ${error.message}`);
+  if (data?.cnpj !== soDigitos(cnpj) || data?.regime_derivado !== regime) {
+    throw new Error('O cadastro compartilhado não confirmou o regime gravado. Parceiro local não foi atualizado.');
+  }
+}
+
+/**
+ * Regra única para XML, planilhas e Razão quando o CNPJ foi identificado:
+ * Base RFB (Real/Presumido/Imune) -> API (Simples/MEI) -> Regular.
+ * Nunca usa o "regular" já gravado como motivo para pular a Base RFB.
+ */
+async function resolverRegimeCompartilhado(cnpj, opcoes = {}) {
+  const c = soDigitos(cnpj);
+  if (c.length === 11) return consultar(c, opcoes);
+  if (c.length !== 14) throw new Error(`CNPJ inválido: ${cnpj}`);
+
+  const central = await cadastroCentral(c, config().validade_dias);
+  if (!opcoes.forcar && central && regimeEspecifico(central.regime_derivado)) return central;
+
+  const baseRegime = require('./baseRegimeReceita');
+  const referencias = await baseRegime.consultarCompartilhada([c]);
+  const referencia = referencias.get(c) || referencias.get(c.slice(0, 8)) || baseRegime.consultar(c);
+  if (referencia?.regime) {
+    const resultado = {
+      cnpj: c, regime_derivado: referencia.regime,
+      fonte: `Base RFB ${referencia.ano || 'vigente'}`,
+      justificativa: 'Regime específico localizado na Base RFB compartilhada.',
+      origem: 'base_rfb',
+    };
+    await gravarCadastroCentral(c, resultado.regime_derivado, resultado.fonte, resultado.justificativa);
+    return resultado;
+  }
+
+  // A API só é chamada quando a Base RFB não classificou o CNPJ. forcar evita
+  // que um "regime_regular" antigo do cadastro central impeça a consulta.
+  const api = await consultar(c, { ...opcoes, forcar: true });
+  const regime = api.regime_derivado || 'regime_regular';
+  const resultado = {
+    ...api, regime_derivado: regime,
+    fonte: api.fonte || 'consulta cadastral',
+    justificativa: api.justificativa || 'Base RFB sem registro e API sem confirmação de Simples/MEI; classificado como regime regular.',
+    origem: api.origem || 'consulta',
+  };
+  await gravarCadastroCentral(c, resultado.regime_derivado, resultado.fonte, resultado.justificativa);
+  return resultado;
 }
 
 /**
@@ -543,7 +600,8 @@ async function consultar(cnpj, opcoes = {}) {
       throw new Error(`${provedor.nome}: ${bruto.code_message || `código ${bruto.code}`}`);
     }
     const d = provedor.mapear(bruto);
-    return { ...gravarCache(c, d, provedor.nome), qsa: d.qsa || [], origem: 'consulta', intervaloUsado: provedor.intervalo };
+    const salvo = await gravarCache(c, d, provedor.nome);
+    return { ...salvo, qsa: d.qsa || [], origem: 'consulta', intervaloUsado: provedor.intervalo };
     } catch (e) {
     if (e.name === 'AbortError') throw new Error(`Tempo esgotado na consulta ao ${provedor.nome}.`);
     if (e.cause && ['ENOTFOUND', 'ECONNREFUSED', 'EAI_AGAIN'].includes(e.cause.code)) {
@@ -694,9 +752,8 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
       // Nunca forçar consulta só porque este processo ainda não tem cache
       // local: consultar() verifica antes o cadastro compartilhado. Forçar
       // aqui faria um mesmo CNPJ ser consultado novamente em cada empresa.
-      const r = await consultar(p.cnpj, {
-        forcar: Boolean(opcoes.forcar),
-        finalidade: opcoes.finalidade || 'cnae_carteira',
+      const r = await resolverRegimeCompartilhado(p.cnpj, {
+        forcar: Boolean(opcoes.forcar), finalidade: opcoes.finalidade || 'regime_parceiro',
       });
       if (r.origem === 'cache') rel.cache++;
       else if (r.origem === 'cadastro_compartilhado') rel.compartilhado++;
@@ -707,17 +764,6 @@ async function enriquecerParceiros(empresaId, opcoes = {}) {
       let regimeResolvido = r.regime_derivado;
       let fonteRegime = r.fonte || cfg.nome;
       let justificativa = r.justificativa || 'Consulta automática de cadastro público.';
-      if (regimeResolvido === 'regime_regular') {
-        const baseRegime = require('./baseRegimeReceita');
-        const cnpj = soDigitos(p.cnpj);
-        const remotos = await baseRegime.consultarCompartilhada([cnpj]);
-        const encontrado = remotos.get(cnpj) || remotos.get(cnpj.slice(0, 8)) || baseRegime.consultar(cnpj);
-        if (encontrado?.regime) {
-          regimeResolvido = encontrado.regime;
-          fonteRegime = `base_regime:${encontrado.fonte || 'compartilhada'}`;
-          justificativa = 'Regime refinado pela base compartilhada.';
-        }
-      }
       if (regimeResolvido && (regimeAusente || p.regime === 'regime_regular' || opcoes.sobrescrever)) {
         up.run(regimeResolvido, regimeResolvido, p.id);
         evidencia.run(p.id, regimeResolvido, fonteRegime, justificativa);
@@ -822,5 +868,5 @@ function estatisticasCache() {
     .map(([k, v]) => ({ chave: k, nome: v.nome, intervalo: v.intervalo, site: v.site, exigeChave: v.exigeChave })) };
 }
 
-module.exports = { consultar, preconsultarCadastroEmpresa, consumirPreconsultaCadastro, preencherCadastroEmpresaSeVazio, persistirQsaConsultado, enriquecerParceiros, enriquecerQsaEmpresa, publicarQsaEmpresa, sincronizarConfirmacoesManuaisQsa, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
+module.exports = { consultar, resolverRegimeCompartilhado, preconsultarCadastroEmpresa, consumirPreconsultaCadastro, preencherCadastroEmpresaSeVazio, persistirQsaConsultado, enriquecerParceiros, enriquecerQsaEmpresa, publicarQsaEmpresa, sincronizarConfirmacoesManuaisQsa, agendarEnriquecimento, statusFila, pendencias, estatisticasCache,
   config, salvarConfig, derivarRegime, classificarEnteGovernamental, PROVEDORES };

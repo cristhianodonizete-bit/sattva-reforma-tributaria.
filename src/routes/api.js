@@ -3673,11 +3673,13 @@ router.post('/empresas/:id/regimes/auditoria-vigencia/reprocessar', async (req, 
     const cnpjs=[...new Set((req.body?.cnpjs || []).map((x)=>String(x || '').replace(/\D/g,'')).filter((x)=>x.length===14))];
     if (!cnpjs.length) throw new Error('Selecione ao menos um parceiro com divergência confirmada.');
     // A fotografia não pode ser recriada com a cópia local antiga. Primeiro
-    // exigimos e replicamos a fonte compartilhada para os parceiros escolhidos.
+    // reconcilia cada parceiro com a fonte canônica compartilhada; se ela só
+    // possuir "regular", a resolução única ainda confere a Base RFB antes de
+    // aceitar esse fallback. A escrita é confirmada no Supabase pelo serviço.
     const cadastros=[];
     for(const cnpj of cnpjs){
-      const cadastro=await cnpjReceita.consultar(cnpj,{ finalidade:'sincronizacao_fotografia_regime' });
-      if(cadastro?.origem!=='cadastro_compartilhado' || !String(cadastro.regime_derivado||'').trim()) throw new Error(`Cadastro compartilhado indisponível ou sem regime para ${cnpj}. Nenhuma fotografia foi reprocessada.`);
+      const cadastro=await cnpjReceita.resolverRegimeCompartilhado(cnpj,{ finalidade:'sincronizacao_fotografia_regime' });
+      if(!String(cadastro?.regime_derivado||'').trim()) throw new Error(`Cadastro compartilhado indisponível ou sem regime para ${cnpj}. Nenhuma fotografia foi reprocessada.`);
       cadastros.push({cnpj,regime:String(cadastro.regime_derivado).trim()});
     }
     const atualizarParceiro=db.prepare("UPDATE parceiros SET regime=?,regime_resolvido=?,origem='cadastro_compartilhado' WHERE empresa_id=? AND tipo='fornecedor' AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cnpj,''),'.',''),'/',''),'-',''),' ','')=?");
