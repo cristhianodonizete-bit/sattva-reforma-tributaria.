@@ -342,18 +342,12 @@ async function iniciarProcessamentoCadastrosCnpj() {
     fila.status = 'EXECUTANDO'; fila.inicio = new Date().toISOString();
     try {
       const remoto = supabase.admin({ prazoMs: 60_000 });
-      const [{ data: parceiros, error: erroParceiros }, { data: cadastros, error: erroCadastros }] = await Promise.all([
-        remoto.from('parceiros').select('cnpj,regime_confirmado_em,ativo').eq('ativo', true).not('cnpj', 'is', null).is('regime_confirmado_em', null).limit(5000),
-        remoto.from('cadastros_cnpj').select('cnpj,consultado_em').limit(5000),
-      ]);
+      const { data: parceiros, error: erroParceiros } = await remoto.from('parceiros')
+        .select('cnpj,regime_confirmado_em,ativo').eq('ativo', true).not('cnpj', 'is', null).is('regime_confirmado_em', null).limit(5000);
       if (erroParceiros) throw erroParceiros;
-      if (erroCadastros) throw erroCadastros;
-      const jaConsultados = new Set((cadastros || [])
-        .filter((x) => x.consultado_em)
-        .map((x) => String(x.cnpj || '').replace(/\D/g, '')));
       const alvos = [...new Set((parceiros || [])
         .map((x) => String(x.cnpj || '').replace(/\D/g, ''))
-        .filter((cnpj) => cnpj.length === 14 && !jaConsultados.has(cnpj)))];
+        .filter((cnpj) => cnpj.length === 14))];
       fila.total = alvos.length;
       for (const cnpj of alvos) {
         fila.cnpjAtual = cnpj;
