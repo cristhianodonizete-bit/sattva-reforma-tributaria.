@@ -2050,6 +2050,8 @@ async function telaCadeia(el, tipo) {
     .map((x)=>({...x,elegibilidade_pis_cofins:elegibilidadePorNota.get(chaveElegibilidade(x)) || null}));
   const resumoAuditoriaRegime=auditoriaRegimeResposta?.resumo || { total:0, atual:0, divergente:0, sem_historico:0 };
   const coberturaHistoricaRegime=auditoriaRegimeResposta?.cobertura || [];
+  const divergenciasAuditoriaRegime=auditoriaRegimeResposta?.divergencias || [];
+  const blocoDivergenciasAuditoria=eForn && divergenciasAuditoriaRegime.length ? `<section class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><div class="olho">CORREÇÃO AUTOMATIZADA</div><h2>Fotografias de regime a atualizar</h2><p class="desc">Selecione parceiros; uma única ação recalcula todos os documentos divergentes de cada parceiro usando o regime canônico já resolvido. Nenhum documento fora da seleção é alterado.</p></div><button class="btn" id="reprocessarRegimesSelecionados" disabled>Reprocessar selecionados</button></div><label class="mini" style="display:block;margin:10px 0"><input type="checkbox" id="selecionarTodosRegimesDivergentes"> Selecionar todos os parceiros divergentes</label>${A.tabela([{t:'',r:x=>`<input type="checkbox" data-regime-divergente value="${A.esc(x.cnpj)}">`},{t:'Parceiro',r:x=>`<b>${A.esc(x.fornecedor)}</b><div class="mini mono">${A.cnpjFmt(x.cnpj)}</div>`},{t:'Fotografia → cadastro',r:x=>`<span class="tag n">${A.esc((x.regime_fotografia||[]).join(', '))}</span> → <span class="tag ok">${A.esc((x.regime_vigente||[]).join(', '))}</span>`},{t:'Documentos',num:true,r:x=>String(x.documentos)},{t:'Valor',num:true,r:x=>A.moeda(x.valor)}],divergenciasAuditoriaRegime)}</section>` : '';
   const t = analise.totais;
   const rotuloRegimeFornecedor=(regime)=>({
     lucro_real:'Lucro Real', lucro_presumido:'Lucro Presumido', simples_nacional:'Simples Nacional', simples_das:'Simples Nacional',
@@ -2213,7 +2215,7 @@ async function telaCadeia(el, tipo) {
     (!eForn && t.dasHibridoProvisorio ? `<div class="aviso neutro" style="margin-top:12px"><b>Memória provisória do DAS usada na projeção.</b><br>O PGDAS extraído já identificou a linha de locação e sua repartição de PIS/Cofins. A confirmação do documento mantém a rastreabilidade e substitui esta memória pela informação oficialmente validada.</div>` : '') +
     (!eForn && outrasReceitasSemCliente.registros ? `<div class="aviso neutro" style="margin-top:16px"><b>${outrasReceitasSemCliente.registros} lançamento(s) de outras receitas, no total de ${A.moeda(outrasReceitasSemCliente.valor)}, foram consolidados em “Clientes diversos”.</b><br>O grupo segue a regra de regime regular e não atribui artificialmente um cliente individual.</div>` : '') +
     (!eForn && pendenciasReferencias.length ? `<div class="aviso atencao" style="margin-top:16px"><b>${pendenciasReferencias.length} lançamento(s) de serviço estão sem referência fiscal específica.</b> A análise foi carregada com a melhor evidência disponível (documento, catálogo ou regime da empresa). <button class="btn pq vazio" id="corrigirDadosCadeia">Corrigir na Central de Dados</button> Esses itens permanecem <b>a validar</b>.</div>` : '') : '') +
-    (eForn && !auditoriaRegimeResposta?.indisponivel ? `<div class="aviso ${resumoAuditoriaRegime.divergente ? 'atencao' : resumoAuditoriaRegime.sem_historico ? 'neutro' : 'bom'}" style="margin-top:16px"><b>Auditoria histórica de regime:</b> ${resumoAuditoriaRegime.atual} compatível(is), ${resumoAuditoriaRegime.divergente} divergente(s) e ${resumoAuditoriaRegime.sem_historico} sem histórico suficiente. Esta leitura não altera valores nem agenda reprocessamento.${coberturaHistoricaRegime.length ? `<div class="mini" style="margin-top:8px"><b>Cobertura por período:</b> ${coberturaHistoricaRegime.map((x)=>`${A.esc(x.ano)}: ${x.com_cobertura} com evidência, ${x.sem_cobertura} sem evidência (${x.cnpjs} CNPJ(s))${x.fontes.length ? ` · ${A.esc(x.fontes.map((f)=>f.fonte).join(', '))}` : ''}`).join(' · ')}. Regime atual do cadastro não é usado como prova histórica.</div>` : ''}</div>` : '') +
+    (eForn && !auditoriaRegimeResposta?.indisponivel ? `<div class="aviso ${resumoAuditoriaRegime.divergente ? 'atencao' : resumoAuditoriaRegime.sem_historico ? 'neutro' : 'bom'}" style="margin-top:16px"><b>Auditoria de fotografias de regime:</b> ${resumoAuditoriaRegime.atual} compatível(is), ${resumoAuditoriaRegime.divergente} divergente(s) e ${resumoAuditoriaRegime.sem_historico} sem histórico suficiente. A divergência só permanece até o reprocessamento seletivo; o cadastro compartilhado é a referência.${coberturaHistoricaRegime.length ? `<div class="mini" style="margin-top:8px"><b>Cobertura por período:</b> ${coberturaHistoricaRegime.map((x)=>`${A.esc(x.ano)}: ${x.com_cobertura} com evidência, ${x.sem_cobertura} sem evidência (${x.cnpjs} CNPJ(s))${x.fontes.length ? ` · ${A.esc(x.fontes.map((f)=>f.fonte).join(', '))}` : ''}`).join(' · ')}. </div>` : ''}</div>` : '') + blocoDivergenciasAuditoria +
     (t.registros ? `
     ${exibirResumoAtual ? `
     <div class="grade g4">
@@ -2482,6 +2484,23 @@ async function telaCadeia(el, tipo) {
   });
   el.querySelectorAll('[data-documentos-credito-cbs-pagina]').forEach((botao) => {
     botao.onclick = () => { S.cache.documentosCreditoCbsPagina=Number(botao.dataset.documentosCreditoCbsPagina) || 1; A.ir('fornecedores'); };
+  });
+  const atualizarSelecaoRegimeDivergente=()=>{
+    const marcados=[...el.querySelectorAll('[data-regime-divergente]:checked')];
+    const botao=el.querySelector('#reprocessarRegimesSelecionados');
+    if(botao){botao.disabled=!marcados.length;botao.textContent=marcados.length ? `Reprocessar ${marcados.length} parceiro(s)` : 'Reprocessar selecionados';}
+    const todos=el.querySelector('#selecionarTodosRegimesDivergentes');
+    if(todos)todos.checked=marcados.length===el.querySelectorAll('[data-regime-divergente]').length && marcados.length>0;
+  };
+  el.querySelector('#selecionarTodosRegimesDivergentes')?.addEventListener('change',(evento)=>{el.querySelectorAll('[data-regime-divergente]').forEach((campo)=>{campo.checked=evento.target.checked;});atualizarSelecaoRegimeDivergente();});
+  el.querySelectorAll('[data-regime-divergente]').forEach((campo)=>campo.addEventListener('change',atualizarSelecaoRegimeDivergente));
+  el.querySelector('#reprocessarRegimesSelecionados')?.addEventListener('click',()=>{
+    const cnpjs=[...el.querySelectorAll('[data-regime-divergente]:checked')].map((campo)=>campo.value);
+    A.confirmar(`Reprocessar automaticamente todos os documentos divergentes de ${cnpjs.length} parceiro(s)? Apenas esses documentos terão uma nova fotografia; o cadastro compartilhado e os demais documentos não serão alterados.`,async()=>{
+      const retorno=await A.api(`/empresas/${S.empresaId}/regimes/auditoria-vigencia/reprocessar`,{metodo:'POST',corpo:{cnpjs}});
+      A.toast(`${retorno.movimentos} documento(s) de ${retorno.selecionados} parceiro(s) foram reprocessados.`, 'ok');
+      A.ir('fornecedores');
+    });
   });
   document.getElementById('corrigirDadosCadeia')?.addEventListener('click', () => {
     S.aba.dados = 'cliente'; S.aba.dadosMotor = 'atual'; A.ir('dados');
