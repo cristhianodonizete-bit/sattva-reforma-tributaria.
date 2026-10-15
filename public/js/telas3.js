@@ -533,7 +533,7 @@ Telas.cadastrosCnpj = async (el) => {
           <label class="campo" style="margin:0"><span>Situação da consulta</span><select data-cc-filtro="situacao"><option value="">Todas</option><option value="SEM_CONSULTA" ${filtros.situacao==='SEM_CONSULTA'?'selected':''}>Sem consulta de regime</option><option value="INCONCLUSIVO" ${filtros.situacao==='INCONCLUSIVO'?'selected':''}>Consulta inconclusiva</option><option value="CONFIRMADO" ${filtros.situacao==='CONFIRMADO'?'selected':''}>Regime confirmado</option></select></label>
           <button class="btn vazio" id="ccLimparFiltros">Limpar filtros</button>
         </div>
-        <div class="mini" style="margin-top:14px"><b>${r.total.toLocaleString('pt-BR')}</b> cadastro(s) central(is) · página ${pagina} de ${totalPaginas}<span class="tag a" style="margin-left:8px">${Number(r.resumo?.SEM_CONSULTA || 0).toLocaleString('pt-BR')} sem consulta</span><span class="tag a" style="margin-left:6px">${Number(r.resumo?.INCONCLUSIVO || 0).toLocaleString('pt-BR')} inconclusivo(s)</span><button class="btn pq ouro" id="ccProcessarPendentes" ${Number(r.resumo?.SEM_CONSULTA || 0) ? '' : 'disabled'} style="margin-left:8px">Processar sem consulta</button><span id="ccStatusProcessamento" class="mini" style="margin-left:8px"></span></div>
+        <div class="mini" style="margin-top:14px"><b>${r.total.toLocaleString('pt-BR')}</b> cadastro(s) central(is) · página ${pagina} de ${totalPaginas}<span class="tag a" style="margin-left:8px">${Number(r.resumo?.SEM_CONSULTA || 0).toLocaleString('pt-BR')} sem consulta</span><span class="tag a" style="margin-left:6px">${Number(r.resumo?.INCONCLUSIVO || 0).toLocaleString('pt-BR')} inconclusivo(s)</span><button class="btn pq ouro" id="ccProcessarPendentes" ${Number(r.resumo?.SEM_CONSULTA || 0) ? '' : 'disabled'} style="margin-left:8px">Processar sem consulta</button><button class="btn pq vazio" id="ccSincronizarFotografia" style="margin-left:8px">Sincronizar fotografia atual</button><span id="ccStatusProcessamento" class="mini" style="margin-left:8px"></span></div>
         ${A.tabela([
           { t: 'CNPJ / razão social', r: (x) => `<span class="mono">${A.esc(x.cnpj)}</span><div><b>${A.esc(x.razao_social || 'Sem razão social')}</b></div><div class="mini">${A.esc([x.municipio, x.uf].filter(Boolean).join(' / ') || 'localidade não informada')}</div>` },
           { t: 'Regime', r: (x) => x.situacao_regime==='SEM_CONSULTA' ? `<span class="tag a">Sem consulta</span><div class="mini">Aguardando consulta de regime</div>` : x.situacao_regime==='INCONCLUSIVO' ? `<span class="tag a">Consulta inconclusiva</span><div class="mini">${A.esc(x.fonte_regime || 'A fonte não informou o regime')}</div>` : `<span class="tag">${A.esc(rotuloRegime(x.regime))}</span><div class="mini">${A.esc(x.fonte_regime || '')}</div>` },
@@ -563,6 +563,18 @@ Telas.cadastrosCnpj = async (el) => {
       };
       await A.api('/cadastros-cnpj/processamento-pendentes', { metodo:'POST' });
       await acompanhar();
+    }));
+    document.getElementById('ccSincronizarFotografia')?.addEventListener('click', () => A.confirmar('Copiar para o Supabase a fotografia de CNPJs já consultada nesta instância? Não chama API, não reprocessa documentos e preserva confirmações manuais.', async () => {
+      const status=document.getElementById('ccStatusProcessamento');
+      const acompanhar=async()=>{
+        const resposta=await A.api('/cadastros-cnpj/sincronizar-fotografia'); const fila=resposta.fila;
+        if(!fila){ status.textContent='Fila não iniciada.'; return; }
+        status.textContent=`${fila.processados}/${fila.total} sincronizados · ${fila.manuais_preservados||0} manual(is) preservado(s)`;
+        if(['AGENDADO','EXECUTANDO'].includes(fila.status)){ setTimeout(acompanhar,1000); return; }
+        if(fila.status==='CONCLUIDO'){ A.toast(`${fila.atualizados} cadastro(s) sincronizado(s) ao Supabase.`, 'ok'); render(); }
+        else A.toast(fila.erro||'A sincronização foi interrompida.','erro');
+      };
+      await A.api('/cadastros-cnpj/sincronizar-fotografia',{metodo:'POST'}); await acompanhar();
     }));
     document.getElementById('ccAnterior').onclick = () => { pagina--; render(); };
     document.getElementById('ccProximo').onclick = () => { pagina++; render(); };
