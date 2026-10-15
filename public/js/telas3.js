@@ -569,7 +569,7 @@ Telas.cadastrosCnpj = async (el) => {
       const cadastro = r.cadastros.find((x) => String(x.cnpj) === String(botao.dataset.ccDetalhe));
       if (!cadastro) return;
       const secundarios = cnaesSecundarios(cadastro.cnaes_secundarios);
-      A.modal({ titulo: `Cadastro CNPJ — ${cadastro.razao_social || cadastro.cnpj}`, largura: 780, confirmar: 'Fechar',
+      A.modal({ titulo: `Cadastro CNPJ — ${cadastro.razao_social || cadastro.cnpj}`, largura: 780, confirmar: 'Salvar regime manual',
         corpo: `<div class="grade g3">
           ${A.kpi('CNPJ', A.esc(cadastro.cnpj || '—'))}
           ${A.kpi('Situação cadastral', A.esc(cadastro.situacao || 'Não informada'))}
@@ -591,7 +591,23 @@ Telas.cadastrosCnpj = async (el) => {
           <tr><th>Endereço</th><td>${A.esc([[cadastro.logradouro, cadastro.numero].filter(Boolean).join(', '), cadastro.complemento, cadastro.bairro, [cadastro.municipio, cadastro.uf].filter(Boolean).join(' / '), cadastro.cep ? `CEP ${cadastro.cep}` : ''].filter(Boolean).join(' · ') || 'Não informado')}</td></tr>
           <tr><th>Fonte</th><td>${A.esc(cadastro.fonte || 'Não informada')}</td></tr>
           <tr><th>Consultado em</th><td>${A.esc(cadastro.consultado_em || 'Não informado')}</td></tr>
-        </tbody></table>` });
+        </tbody></table>
+        <h3 class="subtitulo-modal">Confirmação manual de regime</h3>
+        <div class="aviso atencao">Use somente quando houver evidência cadastral ou fiscal. A confirmação vale para os vínculos deste CNPJ no cadastro compartilhado e não reprocessa documentos automaticamente.</div>
+        <div class="grade g2" style="margin-top:12px">
+          ${A.selecao('regime','Regime confirmado manualmente',[
+            {v:'mei',t:'MEI'}, {v:'simples_nacional',t:'Simples Nacional'}, {v:'regime_regular',t:'Regime regular'},
+            {v:'lucro_real',t:'Lucro Real'}, {v:'lucro_presumido',t:'Lucro Presumido'},
+            {v:'lucro_arbitrado',t:'Lucro Arbitrado'}, {v:'imune_isento',t:'Imune / Isento'}
+          ], cadastro.regime || '')}
+          ${A.area('justificativa','Justificativa / evidência','',3)}
+        </div>`, aoConfirmar:async (dados) => {
+          if (!dados.regime) throw new Error('Selecione o regime confirmado.');
+          if (String(dados.justificativa || '').trim().length < 8) throw new Error('Informe a justificativa que sustenta a confirmação manual.');
+          const salvo=await A.api(`/cadastros-cnpj/${encodeURIComponent(cadastro.cnpj)}/regime-manual`, { metodo:'POST', corpo:dados });
+          A.toast(`${rotuloRegime(salvo.regime)} gravado no cadastro compartilhado.`, 'ok');
+          await render();
+        } });
     }; });
   };
   await render();

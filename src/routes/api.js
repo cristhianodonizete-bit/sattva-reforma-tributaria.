@@ -441,9 +441,11 @@ router.get('/cadastros-cnpj', async (req, res) => {
       // base RFB anual apenas supre o campo quando o CNPJ ainda não possui
       // regime no cadastro compartilhado, sempre com sua fonte explícita.
       const regime = x.pendente_regime ? null : (x.regime_derivado || r?.regime || null);
-      const fonteRegime = x.regime_derivado
-        ? `RFB — consulta cadastral (${x.fonte || 'fonte não informada'})`
-        : r ? `Base RFB ${r.ano}` : 'Regime ainda não informado';
+      const fonteRegime = x.fonte === 'MANUAL_USUARIO'
+        ? 'Confirmado manualmente pelo usuário'
+        : x.regime_derivado
+          ? `RFB — consulta cadastral (${x.fonte || 'fonte não informada'})`
+          : r ? `Base RFB ${r.ano}` : 'Regime ainda não informado';
       const governo = cnpjReceita.classificarEnteGovernamental(x, cnpj);
       const etiquetas = governo.aplicar_regra_compra_governamental === 'SIM'
         ? [{ codigo:'GOVERNO', rotulo:'Ente público elegível', detalhe:governo.tipo_ente_governamental || 'Natureza jurídica elegível' }]
@@ -476,6 +478,42 @@ router.get('/cadastros-cnpj', async (req, res) => {
         fonte_regime:`Base RFB ${referencia.ano}` };
     });
     ok(res, { cadastros:cadastrosDaPagina, total, pagina, tamanho, filtros, resumo });
+  } catch (e) { erro(res, e); }
+});
+router.post('/cadastros-cnpj/:cnpj/regime-manual', async (req, res) => {
+  try {
+    if (!supabase.configurado()) throw new Error('Base compartilhada não configurada.');
+    const cnpj=String(req.params.cnpj || '').replace(/\D/g, '');
+    if (cnpj.length !== 14) throw new Error('Informe um CNPJ com 14 dígitos.');
+    const regimesPermitidos=new Set(['mei','simples_nacional','regime_regular','lucro_real','lucro_presumido','lucro_arbitrado','imune_isento']);
+    const regime=String(req.body?.regime || '').trim().toLowerCase();
+    const justificativa=String(req.body?.justificativa || '').trim().slice(0, 1000);
+    if (!regimesPermitidos.has(regime)) throw new Error('Selecione um regime válido.');
+    if (justificativa.length < 8) throw new Error('Informe uma justificativa com ao menos 8 caracteres.');
+    const remoto=supabase.admin();
+    const [{ data: cadastro, error: erroCadastro }, { data: parceiros, error: erroParceiros }]=await Promise.all([
+      remoto.from('cadastros_cnpj').select('cnpj,razao_social,regime_derivado,fonte,justificativa').eq('cnpj',cnpj).maybeSingle(),
+      remoto.from('parceiros').select('id,descricao,regime,regime_versao').eq('cnpj',cnpj),
+    ]);
+    if (erroCadastro) throw erroCadastro;
+    if (erroParceiros) throw erroParceiros;
+    const agora=new Date().toISOString();
+    const { error: erroGravacao }=await remoto.from('cadastros_cnpj').upsert({
+      cnpj, razao_social:cadastro?.razao_social || parceiros?.find((x)=>x.descricao)?.descricao || null,
+      regime_derivado:regime, fonte:'MANUAL_USUARIO', justificativa, consultado_em:agora,
+    }, { onConflict:'cnpj' });
+    if (erroGravacao) throw erroGravacao;
+    await Promise.all((parceiros || []).map(async (parceiro) => {
+      const { error }=await remoto.from('parceiros').update({ regime, regime_origem:'MANUAL_USUARIO',
+        regime_confirmado_em:agora, regime_versao:Number(parceiro.regime_versao || 0) + 1 })
+        .eq('id',parceiro.id);
+      if (error) throw error;
+    }));
+    auditar(req,{ acao:'REGIME_PARCEIRO_CONFIRMADO_MANUALMENTE', entidade:'cadastros_cnpj', entidadeId:cnpj,
+      antes:{ regime:cadastro?.regime_derivado || null, fonte:cadastro?.fonte || null },
+      depois:{ regime, fonte:'MANUAL_USUARIO', justificativa, parceiros_atualizados:(parceiros || []).length } });
+    ok(res,{ cnpj, regime, fonte:'MANUAL_USUARIO', parceiros_atualizados:(parceiros || []).length,
+      aviso:'Regime manual gravado no cadastro compartilhado. Documentos e cálculos existentes não foram reprocessados.' });
   } catch (e) { erro(res, e); }
 });
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 40 * 1024 * 1024 } });
