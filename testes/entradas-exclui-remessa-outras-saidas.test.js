@@ -2,7 +2,8 @@ const assert=require('assert');
 const fs=require('fs'); const os=require('os'); const path=require('path');
 process.env.SATTVA_DADOS=fs.mkdtempSync(path.join(os.tmpdir(),'sattva-entradas-cfop-'));
 const { foraDaComposicaoDeEntradas }=require('../src/services/receitaOperacional');
-const { filtrarLinhasDoEscopo }=require('../src/services/consolidacaoOficial');
+const consolidacaoOficial=require('../src/services/consolidacaoOficial');
+const { filtrarLinhasDoEscopo }=consolidacaoOficial;
 
 const entrada=(cfop, extra={}) => ({ sentido:'entrada', tipo:'fornecedor', origem:'xml', modelo_documento_fiscal:'nfe', cfop, ...extra });
 
@@ -39,12 +40,27 @@ const empresaId=Number(db.prepare("INSERT INTO empresas(cnpj,razao_social) VALUE
 const execucaoId=Number(db.prepare("INSERT INTO motor_execucoes(empresa_id,ano,resumo) VALUES (?,?,?)").run(empresaId,2027,'{}').lastInsertRowid);
 const inserirMovimento=db.prepare("INSERT INTO movimentos(empresa_id,tipo,sentido,origem,cfop,valor) VALUES (?,?,?,?,?,?)");
 const inserirResultado=db.prepare("INSERT INTO motor_resultados(empresa_id,movimento_id,execucao_id,sentido,preco_atual,base_economica,credito_ibs,credito_cbs,detalhe) VALUES (?,?,?,?,?,?,?,?,?)");
+const inserirEstado=db.prepare("INSERT INTO projecoes_movimentos_estado(empresa_id,movimento_id,assinatura_origem,situacao) VALUES (?,?,?,?)");
+const movimentosPorCfop=new Map();
 for (const [cfop,valor] of [['5901',100],['5949',200],['1102',300]]) {
   const movimentoId=Number(inserirMovimento.run(empresaId,'fornecedor','entrada','xml',cfop,valor).lastInsertRowid);
+  movimentosPorCfop.set(cfop,movimentoId);
   inserirResultado.run(empresaId,movimentoId,execucaoId,'entrada',valor,valor,10,20,JSON.stringify({sentido:'entrada',precoAtual:valor,baseEconomica:valor,creditoIbs:10,creditoCbs:20,credito:{status:'ELEGIVEL'}}));
+  inserirEstado.run(empresaId,movimentoId,`fixture-${cfop}`,'ATUAL');
 }
+db.prepare("INSERT INTO fotografia_oficial(empresa_id,execucao_id,empresa_remota_id,execucao_remota_id,quantidade_resultados,quantidade_estados,sincronizado_em) VALUES (?,?,?,?,?,?,datetime('now'))")
+  .run(empresaId,execucaoId,empresaId,execucaoId,3,3);
 const foto=motorExec.resultadoMaterializado(db.prepare('SELECT * FROM empresas WHERE id=?').get(empresaId));
 assert.deepEqual(foto.entradas.map((x)=>x.precoAtual), [300], 'fotografia deve manter somente a compra válida');
 assert.equal(foto.resumo.comprasAnalisadas,300,'remessa e 5949 não podem voltar a compras');
 assert.equal(foto.entradas.reduce((total,x)=>total + Number(x.creditoIbs || 0) + Number(x.creditoCbs || 0),0),30,'remessa e 5949 não podem voltar a crédito');
+
+// A tela de cadeia usa a consolidação SQL persistida, não a lista em memória.
+// Ela precisa aplicar o mesmo Mapa de CFOP a fotografias antigas.
+const cadeia=consolidacaoOficial.cadeia(empresaId,'fornecedor');
+assert.equal(cadeia.totais.registros,1,'cadeia SQL deve contar apenas a compra válida');
+assert.equal(cadeia.totais.valor,300,'cadeia SQL não pode somar remessa ou 5949 em compras');
+assert.equal(cadeia.totais.baseEconomica,300,'cadeia SQL não pode somar remessa ou 5949 na base econômica');
+assert.equal(cadeia.totais.creditoFinal,30,'cadeia SQL não pode somar crédito de remessa ou 5949');
+assert.deepEqual(cadeia.detalhes.map((x)=>x.movimento_id),[movimentosPorCfop.get('1102')],'remessas seguem rastreáveis fora da cadeia, mas não aparecem nas operações econômicas');
 console.log('entradas-exclui-remessa-outras-saidas.test.js: OK');

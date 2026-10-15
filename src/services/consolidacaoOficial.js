@@ -792,6 +792,20 @@ const FORNECEDOR_EVIDENCIA_NOME = "json_extract(CASE WHEN json_valid(COALESCE(m.
 const FORNECEDOR_EVIDENCIA_REGIME = "json_extract(CASE WHEN json_valid(COALESCE(m.normalizacao_evidencia,'')) THEN m.normalizacao_evidencia ELSE '{}' END, '$.fornecedor_vinculado.regime')";
 const REGIME_CANONICO = `COALESCE(NULLIF(d.valor,''),NULLIF(${FORNECEDOR_EVIDENCIA_REGIME},''),NULLIF(p.regime,''),NULLIF(m.regime,''),r.regime_cbs_emitente,'indeterminado')`;
 const ESTADO_PROJECAO = "COALESCE(pe.situacao,'PENDENCIA_REAL')";
+// A cadeia SQL precisa consultar o mesmo Mapa de CFOP usado pelo motor. A
+// leitura permanece somente leitura: a regra filtra a composição econômica,
+// sem apagar o documento ou sua rastreabilidade.
+const CFOP_EFETIVO_SQL = `REPLACE(REPLACE(REPLACE(COALESCE(NULLIF(json_extract(CASE WHEN json_valid(COALESCE(m.normalizacao_evidencia,'')) THEN m.normalizacao_evidencia ELSE '{}' END, '$.cfop_efetivo'),''),NULLIF(json_extract(CASE WHEN json_valid(COALESCE(m.normalizacao_evidencia,'')) THEN m.normalizacao_evidencia ELSE '{}' END, '$.cfop_questor'),''),m.cfop,''),'.',''),'-',''),' ','')`;
+const NATUREZA_CFOP_EFETIVO_SQL = `(SELECT mapa.natureza FROM param_cfop mapa
+  WHERE COALESCE(mapa.ativo,1)<>0 AND LENGTH(${CFOP_EFETIVO_SQL})=4
+    AND (mapa.grupo IS NULL OR mapa.grupo=SUBSTR(${CFOP_EFETIVO_SQL},2,3))
+    AND (mapa.prefixo IS NULL OR mapa.prefixo=SUBSTR(${CFOP_EFETIVO_SQL},1,1))
+  ORDER BY COALESCE(mapa.prioridade,2),mapa.natureza,mapa.grupo LIMIT 1)`;
+const FORA_COMPOSICAO_ENTRADAS_SQL = `(r.sentido='entrada' AND (
+  ${CFOP_EFETIVO_SQL} IN ('5916','6916')
+  OR ${NATUREZA_CFOP_EFETIVO_SQL}='remessa'
+  OR (${NATUREZA_CFOP_EFETIVO_SQL}='outra_saida' AND ${CFOP_EFETIVO_SQL} IN ('5949','6949'))
+))`;
 // `detalhe` permanece fora das listas. Estes extratos escalares permitem que
 // a rastreabilidade exiba a evidência de PIS/Cofins sem materializar a
 // fotografia inteira no Node.
@@ -810,6 +824,7 @@ function escopoPersistido(empresaId, opcoes={}) {
   if(periodo?.competencia_fim){ where+=" AND COALESCE(m.competencia,'')<=?"; params.push(periodo.competencia_fim); }
   const sentido=opcoes.sentido || (opcoes.tipo==='cliente'?'saida':opcoes.tipo==='fornecedor'?'entrada':null);
   if(sentido){ where+=' AND r.sentido=?'; params.push(sentido); }
+  if(sentido==='entrada') where+=` AND NOT ${FORA_COMPOSICAO_ENTRADAS_SQL}`;
   return {execucao,periodo,where,params};
 }
 function resumo(empresaId,opcoes={}) {
