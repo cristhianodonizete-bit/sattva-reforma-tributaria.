@@ -8219,6 +8219,10 @@ router.post('/config/processamentos-carteira/jobs/:id/cancelar', async (req, res
   try { ok(res, await processamentoCarteira.cancelar(req.params.id)); }
   catch (e) { erro(res, e); }
 });
+router.post('/config/processamentos-carteira/cancelar-ativos', async (_req, res) => {
+  try { ok(res, await processamentoCarteira.cancelarAtivos()); }
+  catch (e) { erro(res, e); }
+});
 
 // Central de exceções: não cria cálculo novo. Mostra somente o que o motor
 // não conseguiu resolver automaticamente, em ordem de materialidade.
