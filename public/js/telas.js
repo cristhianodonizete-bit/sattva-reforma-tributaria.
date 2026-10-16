@@ -2051,7 +2051,7 @@ async function telaCadeia(el, tipo) {
   const resumoAuditoriaRegime=auditoriaRegimeResposta?.resumo || { total:0, atual:0, divergente:0, sem_historico:0 };
   const coberturaHistoricaRegime=auditoriaRegimeResposta?.cobertura || [];
   const divergenciasAuditoriaRegime=auditoriaRegimeResposta?.divergencias || [];
-  const blocoDivergenciasAuditoria=eForn && divergenciasAuditoriaRegime.length ? `<section class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><div class="olho">CORREÇÃO AUTOMATIZADA</div><h2>Fotografias de regime a atualizar</h2><p class="desc">Selecione parceiros; uma única ação recalcula todos os documentos divergentes de cada parceiro usando o regime canônico já resolvido. Nenhum documento fora da seleção é alterado.</p></div><button class="btn" id="reprocessarRegimesSelecionados" disabled>Reprocessar selecionados</button></div><label class="mini" style="display:block;margin:10px 0"><input type="checkbox" id="selecionarTodosRegimesDivergentes"> Selecionar todos os parceiros divergentes</label>${A.tabela([{t:'',r:x=>`<input type="checkbox" data-regime-divergente value="${A.esc(x.cnpj)}">`},{t:'Parceiro',r:x=>`<b>${A.esc(x.fornecedor)}</b><div class="mini mono">${A.cnpjFmt(x.cnpj)}</div>`},{t:'Fotografia → cadastro',r:x=>`<span class="tag n">${A.esc((x.regime_fotografia||[]).join(', '))}</span> → <span class="tag ok">${A.esc((x.regime_vigente||[]).join(', '))}</span>`},{t:'Documentos',num:true,r:x=>String(x.documentos)},{t:'Valor',num:true,r:x=>A.moeda(x.valor)}],divergenciasAuditoriaRegime)}</section>` : '';
+  const blocoDivergenciasAuditoria=eForn && divergenciasAuditoriaRegime.length ? `<section class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><div class="olho">ATUALIZAÇÃO DA FOTOGRAFIA</div><h2>Fotografia de regime desatualizada</h2><p class="desc">A decisão canônica já foi resolvida. Uma única ação atualiza todos os documentos divergentes desta empresa; não há seleção manual de parceiros.</p></div><button class="btn" id="atualizarFotografiaRegimes">Atualizar fotografia oficial</button></div>${A.tabela([{t:'Parceiro',r:x=>`<b>${A.esc(x.fornecedor)}</b><div class="mini mono">${A.cnpjFmt(x.cnpj)}</div>`},{t:'Fotografia → cadastro',r:x=>`<span class="tag n">${A.esc((x.regime_fotografia||[]).join(', '))}</span> → <span class="tag ok">${A.esc((x.regime_vigente||[]).join(', '))}</span>`},{t:'Documentos',num:true,r:x=>String(x.documentos)},{t:'Valor',num:true,r:x=>A.moeda(x.valor)}],divergenciasAuditoriaRegime)}</section>` : '';
   const t = analise.totais;
   const rotuloRegimeFornecedor=(regime)=>({
     lucro_real:'Lucro Real', lucro_presumido:'Lucro Presumido', simples_nacional:'Simples Nacional', simples_das:'Simples Nacional',
@@ -2513,19 +2513,9 @@ async function telaCadeia(el, tipo) {
   el.querySelectorAll('[data-documentos-credito-cbs-pagina]').forEach((botao) => {
     botao.onclick = () => { S.cache.documentosCreditoCbsPagina=Number(botao.dataset.documentosCreditoCbsPagina) || 1; A.ir('fornecedores'); };
   });
-  const atualizarSelecaoRegimeDivergente=()=>{
-    const marcados=[...el.querySelectorAll('[data-regime-divergente]:checked')];
-    const botao=el.querySelector('#reprocessarRegimesSelecionados');
-    if(botao){botao.disabled=!marcados.length;botao.textContent=marcados.length ? `Reprocessar ${marcados.length} parceiro(s)` : 'Reprocessar selecionados';}
-    const todos=el.querySelector('#selecionarTodosRegimesDivergentes');
-    if(todos)todos.checked=marcados.length===el.querySelectorAll('[data-regime-divergente]').length && marcados.length>0;
-  };
-  el.querySelector('#selecionarTodosRegimesDivergentes')?.addEventListener('change',(evento)=>{el.querySelectorAll('[data-regime-divergente]').forEach((campo)=>{campo.checked=evento.target.checked;});atualizarSelecaoRegimeDivergente();});
-  el.querySelectorAll('[data-regime-divergente]').forEach((campo)=>campo.addEventListener('change',atualizarSelecaoRegimeDivergente));
-  el.querySelector('#reprocessarRegimesSelecionados')?.addEventListener('click',()=>{
-    const cnpjs=[...el.querySelectorAll('[data-regime-divergente]:checked')].map((campo)=>campo.value);
-    A.confirmar(`Reprocessar automaticamente todos os documentos divergentes de ${cnpjs.length} parceiro(s)? Apenas esses documentos terão uma nova fotografia; o cadastro compartilhado e os demais documentos não serão alterados.`,async()=>{
-      const retorno=await A.api(`/empresas/${S.empresaId}/regimes/auditoria-vigencia/reprocessar`,{metodo:'POST',corpo:{cnpjs}});
+  el.querySelector('#atualizarFotografiaRegimes')?.addEventListener('click',()=>{
+    A.confirmar('Atualizar toda a fotografia divergente desta empresa com a decisão canônica já auditada? Nenhuma nova consulta cadastral será feita.',async()=>{
+      const retorno=await A.api(`/empresas/${S.empresaId}/regimes/auditoria-vigencia/reprocessar`,{metodo:'POST',corpo:{}});
       A.toast(`${retorno.movimentos} documento(s) de ${retorno.selecionados} parceiro(s) estão sendo publicados na fotografia oficial…`, 'ok');
       const processamento=await aguardarReprocessamentoFornecedor(retorno.processamento_motor?.job?.id);
       if(processamento.concluido){
