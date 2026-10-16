@@ -3789,6 +3789,10 @@ router.get('/empresas/:id/regimes/auditoria-vigencia', async (req, res) => {
   try {
     const empresaId=Number(req.params.id);
     if (!db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId)) throw new Error('Empresa não encontrada.');
+    // Não permita que a auditoria leia uma execução local anterior enquanto a
+    // Cadeia está restaurando a fotografia ativa. A fonte compartilhada é a
+    // mesma fotografia usada no cartão e na rastreabilidade.
+    if (supabase.configurado()) await require('../services/operacaoCompartilhada').restaurarFotografiaMotorEmpresa(empresaId);
     ok(res,await require('../services/auditoriaRegimeVigencia').listar(db,empresaId));
   } catch (e) { erro(res,e); }
 });

@@ -563,7 +563,9 @@ async function garantirCacheOperacionalEmpresa(empresaId, opcoes = {}) {
             OR SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ',''),1,8)=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8))
         WHERE m.empresa_id=? AND m.id IN (${ids.map(()=>'?').join(',')})
           AND COALESCE(p.regime,'')<>'' AND LOWER(p.regime)<>'indeterminado'
-      ) SELECT mr.movimento_id,rc.regime FROM motor_resultados mr JOIN regime_cadastro rc ON rc.movimento_id=mr.movimento_id AND rc.posicao=1
+      ) SELECT mr.movimento_id,rc.regime FROM motor_resultados mr
+        JOIN fotografia_oficial fo ON fo.empresa_id=mr.empresa_id AND fo.execucao_id=mr.execucao_id
+        JOIN regime_cadastro rc ON rc.movimento_id=mr.movimento_id AND rc.posicao=1
         WHERE mr.empresa_id=? AND LOWER(COALESCE(CASE WHEN json_valid(COALESCE(mr.detalhe,'')) THEN json_extract(mr.detalhe,'$.regimeEmitente') END,mr.regime_cbs_emitente,''))<>LOWER(rc.regime)`)
       .all(id,...ids,id);
     const marcar=db.prepare(`INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)

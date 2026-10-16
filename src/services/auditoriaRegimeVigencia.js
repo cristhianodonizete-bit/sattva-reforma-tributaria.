@@ -1,6 +1,7 @@
 'use strict';
 const { avaliarFotografia,resolverNaData }=require('./regimeVigencia');
 const supabase=require('./supabase');
+const {execucaoDaFotografiaOficial}=require('./fotografiaOficial');
 const digitos=(v)=>String(v || '').replace(/\D/g,'');
 const regimeGenerico=(v)=>['','indeterminado','regime_regular'].includes(String(v || '').trim().toLowerCase());
 const historicoDoAno=(cnpj,regime,ano,fonte)=>({cnpj,regime,versao:0,vigencia_inicio:String(ano)+'-01-01',vigencia_fim:String(ano)+'-12-31',fonte,registrado_em:''});
@@ -39,7 +40,7 @@ async function registrosDisponiveis(db,empresaId,cnpjs){
   return [...persistidos,...compartilhados,...cadastrosCanonicos,...anuais];
 }
 async function listar(db,empresaId){
-  const execucao=db.prepare('SELECT id FROM motor_execucoes WHERE empresa_id=? ORDER BY id DESC LIMIT 1').get(Number(empresaId));
+  const execucao=execucaoDaFotografiaOficial(db,empresaId);
   if(!execucao)return {execucao_id:null,resumo:{total:0,atual:0,divergente:0,sem_historico:0},itens:[]};
   // A auditoria deve usar a mesma precedência do motor. Comparar a fotografia
   // com uma resolução diferente criava falsos "divergentes" para documentos
