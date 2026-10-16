@@ -54,6 +54,7 @@ const autonomiaTelemetry = require('../services/autonomiaTelemetry');
 const coberturaDiagnostico = require('../services/coberturaDiagnostico');
 const processamentoCarteira = require('../services/processamentoCarteira');
 const motorExecucaoFila = require('../services/motorExecucaoFila');
+const permissaoCriacaoJobsMotor = require('../services/permissaoCriacaoJobsMotor');
 const supabase = require('../services/supabase');
 const { executar: sincronizarGestaoSupabase, excluirEmpresa: excluirEmpresaSupabase } = require('../../scripts/sincronizar_gestao_supabase');
 const implantacaoEscopo = require('../services/implantacaoEscopo');
@@ -622,7 +623,7 @@ router.use((req, res, next) => {
 });
 
 const ok = (res, dados) => res.json({ ok: true, ...dados });
-const erro = (res, e, status = 400) => res.status(status).json({ ok: false, erro: e.message || String(e) });
+const erro = (res, e, status = 400) => res.status(e?.status || status).json({ ok: false, erro: e.message || String(e) });
 const sincronizarGestao = () => sincronizarGestaoSupabase().catch((e) => console.error('[supabase] sincronização de gestão:', e.message));
 async function empresaRemotaParaAuditoria(empresaId) {
   if (!supabase.configurado()) return null;
@@ -784,6 +785,10 @@ async function atualizarDiagnosticoSeAberto(empresaId, submodulo, opcoes = {}) {
   if (submoduloFechado(empresaId, submodulo)) return { empresa_id:Number(empresaId), reprocessados:0, status:'FOTOGRAFIA_FECHADA' };
   const pendentes = motorExec.pendentesIncrementais(Number(empresaId), opcoes);
   if (!pendentes.length) return { empresa_id:Number(empresaId), reprocessados:0, pendentes:0, status:'FOTOGRAFIA_ATUAL' };
+  if (!permissaoCriacaoJobsMotor.permitida()) {
+    console.warn(`[motor] criação de job suprimida em GET (${submodulo}) para empresa ${Number(empresaId)}.`);
+    return { empresa_id:Number(empresaId), reprocessados:0, pendentes:pendentes.length, status:'CRIACAO_DE_JOB_BLOQUEADA' };
+  }
   const processamento_motor = await motorExecucaoFila.solicitarIncremental(Number(empresaId), {
     ano:Number(opcoes.ano) || 2027, movimentoIds:pendentes,
   });
@@ -1403,6 +1408,7 @@ async function reprocessarSaidasPorQsa(empresaId) {
   // A confirmação do QSA só é concluída após a fotografia calculada estar na
   // fonte compartilhada. Assim um reinício não pode restaurar o cálculo
   // anterior à confirmação societária.
+  permissaoCriacaoJobsMotor.exigir();
   const reprocessamento = motorExec.reprocessarIncremental(empresaId, {
     movimentoIds: saidas, ano: 2027, publicarAssincrona: false,
   });
@@ -3862,6 +3868,7 @@ router.get('/empresas/:id/beneficios-fiscais/revisao', async (req, res) => {
 router.post('/empresas/:id/beneficios-fiscais/revisao', (req, res) => {
   try {
     const empresaId = Number(req.params.id);
+    permissaoCriacaoJobsMotor.exigir();
     const criado = revisaoBeneficiosFiscais.criar(empresaId, req.body || {});
     const reprocessamento = motorExec.reprocessarIncremental(empresaId, { ano: 2027, movimentoIds: criado.movimento_ids });
     revisaoBeneficiosFiscais.registrarExecucaoPosterior(criado.id, motorExec.ultimaExecucao(empresaId)?.id || null);
@@ -3874,6 +3881,7 @@ router.post('/empresas/:id/beneficios-fiscais/revisao', (req, res) => {
 router.post('/empresas/:id/beneficios-fiscais/revisoes/:revisaoId/reverter', (req, res) => {
   try {
     const empresaId = Number(req.params.id);
+    permissaoCriacaoJobsMotor.exigir();
     const revertida = revisaoBeneficiosFiscais.reverter(empresaId, Number(req.params.revisaoId), req.body?.motivo);
     const reprocessamento = motorExec.reprocessarIncremental(empresaId, { ano: 2027, movimentoIds: revertida.movimento_ids });
     auditar(req, { empresaId, acao: 'Reverteu revisão de benefício fiscal', entidade: 'revisao_beneficio_fiscal', entidadeId: req.params.revisaoId,
@@ -8190,6 +8198,7 @@ router.post('/config/processamentos-carteira', async (req, res) => {
   try {
     // Empresa atendida equivale a um projeto de implementação. Não aceite a
     // ausência de seleção como sinônimo de "toda a carteira": isso evita que
+    permissaoCriacaoJobsMotor.exigir();
     // um clique operacional recalcule projetos não escolhidos.
     const empresaId = Number(req.body?.empresa_id);
     if (!Number.isInteger(empresaId) || empresaId <= 0) throw new Error('Selecione o projeto a recalcular.');
@@ -9210,6 +9219,7 @@ router.post('/empresas/:id/elegibilidade-anexo-xi/sanear', async (req, res) => {
     // O saneamento não consulta nem substitui QSA. A condição 200044 usa
     // exclusivamente o quadro já confirmado; consulta só pelo botão próprio.
     const qsa = { status: 'NAO_CONSULTADO_AUTOMATICAMENTE', mensagem: 'Use “Consultar cadastro” no Quadro societário caso queira buscar dados externos.' };
+    permissaoCriacaoJobsMotor.exigir();
     const parceiros = await cnpjReceita.enriquecerParceiros(empresaId, { sobrescrever: true, forcar: true, limite: 500 });
     const execucao = motorExec.executar(empresaId, { ano: Number(req.body.ano) || 2027 });
     const depois = contarRequerValidacao();
