@@ -8186,11 +8186,22 @@ router.post('/config/controle/enriquecer', (_req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.post('/config/processamentos-carteira', async (_req, res) => {
+router.post('/config/processamentos-carteira', async (req, res) => {
   // “Recalcular projeto” precisa produzir a mesma fotografia canônica que o
   // motor integral. O tipo legado RECALCULO_INCREMENTAL recalculava somente o
   // SQLite e fazia o resultado voltar na próxima restauração do Supabase.
-  try { ok(res, { processamento: await processamentoCarteira.iniciar({ tipo: 'MOTOR_COMPLETO' }) }); }
+  try {
+    // Empresa atendida equivale a um projeto de implementação. Não aceite a
+    // ausência de seleção como sinônimo de "toda a carteira": isso evita que
+    // um clique operacional recalcule projetos não escolhidos.
+    const empresaId = Number(req.body?.empresa_id);
+    if (!Number.isInteger(empresaId) || empresaId <= 0) throw new Error('Selecione o projeto a recalcular.');
+    const empresa = db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa) throw new Error('O projeto selecionado não foi encontrado. Atualize a tela e tente novamente.');
+    ok(res, { processamento: await processamentoCarteira.iniciar({
+      tipo: 'MOTOR_COMPLETO', empresas: [empresa.id], payload: { origem: 'RECALCULO_PROJETO_SELECIONADO' },
+    }) });
+  }
   catch (e) { erro(res, e); }
 });
 async function consultarProcessamentoCarteira(req, res) {

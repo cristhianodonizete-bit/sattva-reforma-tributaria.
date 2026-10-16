@@ -27,6 +27,10 @@ const App = (() => {
   const esperar = (ms) => new Promise((resolver) => setTimeout(resolver, ms));
   function api(caminho, opcoes = {}) {
     const metodo = opcoes.metodo || 'GET';
+    // Nenhuma tela pode permanecer aguardando indefinidamente uma conexão que
+    // morreu entre o navegador e o servidor. Chamadores críticos podem reduzir
+    // o prazo; o padrão preserva espaço para leituras analíticas mais pesadas.
+    const prazoMs = Number.isFinite(Number(opcoes.timeoutMs)) ? Number(opcoes.timeoutMs) : 45000;
     const chaveLeitura = `${metodo}:${caminho}`;
     if (metodo === 'GET' && leiturasEmAndamento.has(chaveLeitura)) return leiturasEmAndamento.get(chaveLeitura);
     const executar = async () => {
@@ -37,15 +41,27 @@ const App = (() => {
     // 503 é transitório e específico da primeira carga; repetir somente GET
     // impede que o usuário veja uma indisponibilidade normal do boot, sem
     // jamais repetir uma ação que possa alterar dados.
+    const limiteEm = Date.now() + prazoMs;
     for (let tentativa = 0; tentativa < 24; tentativa++) {
-    const r = await fetch('/api' + caminho, {
-      method: metodo,
-      headers,
-      body: opcoes.corpo instanceof FormData ? opcoes.corpo : (opcoes.corpo ? JSON.stringify(opcoes.corpo) : undefined),
-      // Leituras tributárias não podem reutilizar uma resposta anterior do
-      // navegador após conciliação, reimportação ou alteração de situação.
-      cache: 'no-store',
-    });
+    const restanteMs = limiteEm - Date.now();
+    if (restanteMs <= 0) throw new Error(`A consulta ${caminho} excedeu ${Math.ceil(prazoMs / 1000)} segundos. Tente novamente.`);
+    const controlador = new AbortController();
+    const temporizador = setTimeout(() => controlador.abort(), restanteMs);
+    let r;
+    try {
+      r = await fetch('/api' + caminho, {
+        method: metodo,
+        headers,
+        body: opcoes.corpo instanceof FormData ? opcoes.corpo : (opcoes.corpo ? JSON.stringify(opcoes.corpo) : undefined),
+        // Leituras tributárias não podem reutilizar uma resposta anterior do
+        // navegador após conciliação, reimportação ou alteração de situação.
+        cache: 'no-store',
+        signal: controlador.signal,
+      });
+    } catch (erro) {
+      if (controlador.signal.aborted) throw new Error(`A consulta ${caminho} excedeu ${Math.ceil(prazoMs / 1000)} segundos. Tente novamente.`);
+      throw erro;
+    } finally { clearTimeout(temporizador); }
     // Não esconda uma falha de infraestrutura como se fosse um erro de regra
     // tributária. Quando um proxy, uma página de erro ou uma versão desatualizada
     // responder HTML, o usuário precisa ver o código HTTP para podermos rastrear
