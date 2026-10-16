@@ -9123,7 +9123,15 @@ router.post('/empresas/:id/parceiros/:parceiroId/reprocessar-regime', async (req
     if (!parceiro.regime || parceiro.regime==='indeterminado') throw new Error('Confirme o regime do parceiro antes de reprocessar.');
     const ids=db.prepare("SELECT id FROM movimentos WHERE empresa_id=? AND tipo=? AND replace(replace(replace(coalesce(inscr_federal,''),'.',''),'/',''),'-','')=replace(replace(replace(? ,'.',''),'/',''),'-','')").all(empresaId,parceiro.tipo,parceiro.cnpj).map(x=>x.id);
     if (!ids.length) return ok(res,{ movimentos:0, reprocessamento:null });
-    ok(res,{ movimentos:ids.length,reprocessamento:motorExec.reprocessarIncremental(empresaId,{ ano:Number(req.body?.ano)||2027,movimentoIds:ids }) });
+    // O cálculo local é somente staging. Para a alteração sobreviver à troca
+    // de instância e aparecer nas Cadeias, o recorte precisa passar pela fila
+    // incremental: ela publica a candidata e promove a fotografia no
+    // Supabase após validar a integridade do lote.
+    const processamento_motor=await motorExecucaoFila.solicitarIncremental(empresaId,{
+      ano:Number(req.body?.ano)||2027,movimentoIds:ids,
+    });
+    ok(res,{ movimentos:ids.length,processamento_motor,
+      mensagem:'Reprocessamento agendado. A fotografia será atualizada no Supabase antes de aparecer como concluída.' });
   } catch (e) { erro(res,e); }
 });
 });

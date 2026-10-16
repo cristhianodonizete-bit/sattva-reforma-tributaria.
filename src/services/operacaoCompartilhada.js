@@ -537,20 +537,34 @@ async function garantirCacheOperacionalEmpresa(empresaId, opcoes = {}) {
         db.prepare(`DELETE FROM motor_pendencias WHERE empresa_id=? AND movimento_id IN (${lote.map(()=>'?').join(',')})`).run(id,...lote);
       }
     }
+    // A auditoria de fotografia deve usar o regime já consolidado no vínculo
+    // compartilhado do parceiro. `base_regime` é apenas uma evidência anual
+    // auxiliar (e não cobre, por exemplo, Simples); usá-la aqui fazia a tela
+    // recriar pendências logo após um reprocessamento correto.
+    //
+    // Também removemos somente marcas técnicas da versão anterior desta
+    // auditoria. Pendências de classificação, documento ou regra fiscal não
+    // são tocadas durante a abertura da tela.
+    db.prepare(`DELETE FROM motor_pendencias
+      WHERE empresa_id=? AND motivo LIKE 'REGIME_BASE_CANONICA_%'`).run(id);
+
     // A sincronização não pode comparar a empresa inteira numa única leitura.
     // Lê IDs em páginas determinísticas e calcula divergência apenas do lote.
     // Isso evita que a abertura de uma tela dispare materialização da carteira.
     const listarIdsFornecedor=db.prepare(`SELECT id FROM movimentos
       WHERE empresa_id=? AND tipo='fornecedor' AND id>? ORDER BY id LIMIT ?`);
-    const divergentesDoLote=(ids)=>db.prepare(`WITH regime_base AS (
-        SELECT m.id movimento_id,br.regime,
-          ROW_NUMBER() OVER (PARTITION BY m.id ORDER BY CASE WHEN br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','') THEN 0 ELSE 1 END,br.ano DESC) posicao
-        FROM movimentos m JOIN base_regime br
-          ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
-          OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8)
+    const divergentesDoLote=(ids)=>db.prepare(`WITH regime_cadastro AS (
+        SELECT m.id movimento_id,p.regime,
+          ROW_NUMBER() OVER (PARTITION BY m.id ORDER BY
+            CASE WHEN REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','') THEN 0 ELSE 1 END,
+            p.id DESC) posicao
+        FROM movimentos m JOIN parceiros p ON p.empresa_id=m.empresa_id AND p.tipo='fornecedor'
+          AND (REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
+            OR SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ',''),1,8)=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8))
         WHERE m.empresa_id=? AND m.id IN (${ids.map(()=>'?').join(',')})
-      ) SELECT mr.movimento_id,rb.regime FROM motor_resultados mr JOIN regime_base rb ON rb.movimento_id=mr.movimento_id AND rb.posicao=1
-        WHERE mr.empresa_id=? AND LOWER(COALESCE(CASE WHEN json_valid(COALESCE(mr.detalhe,'')) THEN json_extract(mr.detalhe,'$.regimeEmitente') END,mr.regime_cbs_emitente,''))<>LOWER(rb.regime)`)
+          AND COALESCE(p.regime,'')<>'' AND LOWER(p.regime)<>'indeterminado'
+      ) SELECT mr.movimento_id,rc.regime FROM motor_resultados mr JOIN regime_cadastro rc ON rc.movimento_id=mr.movimento_id AND rc.posicao=1
+        WHERE mr.empresa_id=? AND LOWER(COALESCE(CASE WHEN json_valid(COALESCE(mr.detalhe,'')) THEN json_extract(mr.detalhe,'$.regimeEmitente') END,mr.regime_cbs_emitente,''))<>LOWER(rc.regime)`)
       .all(id,...ids,id);
     const marcar=db.prepare(`INSERT INTO motor_pendencias(empresa_id,movimento_id,motivo,atualizado_em)
       VALUES (?,?,?,datetime('now','localtime')) ON CONFLICT(empresa_id,movimento_id) DO UPDATE SET motivo=excluded.motivo,atualizado_em=excluded.atualizado_em`);
@@ -559,7 +573,7 @@ async function garantirCacheOperacionalEmpresa(empresaId, opcoes = {}) {
       const ids=listarIdsFornecedor.all(id,cursorMovimento,250).map((x)=>Number(x.id));
       if (!ids.length) break;
       const loteDivergente=divergentesDoLote(ids);
-      db.transaction(()=>loteDivergente.forEach((x)=>marcar.run(id,x.movimento_id,`REGIME_BASE_CANONICA_${String(x.regime).toUpperCase()}`)))();
+      db.transaction(()=>loteDivergente.forEach((x)=>marcar.run(id,x.movimento_id,`REGIME_CADASTRO_COMPARTILHADO_${String(x.regime).toUpperCase()}`)))();
       totalDivergentes+=loteDivergente.length;
       cursorMovimento=ids.at(-1);
       if (ids.length<250) break;
