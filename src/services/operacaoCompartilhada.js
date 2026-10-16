@@ -1513,7 +1513,17 @@ function gravarLinhasComColunas(tabela, linhas, dentroDaTransacao = false) {
   const colunas = db.prepare(`PRAGMA table_info(${tabela})`).all().map((x) => x.name);
   if (!colunas.length || !linhas.length) return 0;
   const inserir = db.prepare(`INSERT OR REPLACE INTO ${tabela} (${colunas.join(',')}) VALUES (${colunas.map(() => '?').join(',')})`);
-  const gravar = () => linhas.forEach((x) => inserir.run(...colunas.map((c) => x[c] ?? null)));
+  // PostgREST entrega JSON/JSONB já desserializado. O SQLite, porém, usa
+  // TEXT para campos como `detalhe` e `resumo`; passar o objeto diretamente
+  // faz o driver persistir "[object Object]", quebrando a próxima leitura da
+  // fotografia com JSON.parse. A fronteira Supabase -> SQLite deve sempre
+  // materializar esses valores como JSON textual.
+  const serializarValor = (valor) => {
+    if (valor === null || valor === undefined) return null;
+    if (typeof valor === 'object' && !Buffer.isBuffer(valor) && !(valor instanceof Date)) return JSON.stringify(valor);
+    return valor;
+  };
+  const gravar = () => linhas.forEach((x) => inserir.run(...colunas.map((c) => serializarValor(x[c]))));
   if (dentroDaTransacao) gravar(); else db.transaction(gravar)();
   return linhas.length;
 }
@@ -1546,7 +1556,12 @@ function gravarExecucaoCompartilhadaSemReplace(linha, empresaId) {
   const atualizaveis = colunas.filter((coluna) => coluna !== 'id');
   const sql = `INSERT INTO motor_execucoes (${colunas.join(',')}) VALUES (${colunas.map(() => '?').join(',')})
     ON CONFLICT(id) DO UPDATE SET ${atualizaveis.map((coluna) => `${coluna}=excluded.${coluna}`).join(',')}`;
-  db.prepare(sql).run(...colunas.map((coluna) => dados[coluna]));
+  const serializarValor = (valor) => {
+    if (valor === null || valor === undefined) return null;
+    if (typeof valor === 'object' && !Buffer.isBuffer(valor) && !(valor instanceof Date)) return JSON.stringify(valor);
+    return valor;
+  };
+  db.prepare(sql).run(...colunas.map((coluna) => serializarValor(dados[coluna])));
 }
 
 function resultadoCompartilhadoLocal(linha, empresaId = null, execucaoId = null) {

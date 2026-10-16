@@ -23,8 +23,8 @@ const MOVIMENTO_SO_ESTADO=999002;
 // só são aplicados quando a consulta é aguardada, como no cliente real.
 const tabelas={
   empresas:[{id:EMPRESA_REMOTA,cnpj:CNPJ,origem_local_id:null,razao_social:'Teste'}],
-  motor_resultados_operacionais:[{id:1,empresa_id:EMPRESA_REMOTA,movimento_id:MOVIMENTO_COM_RESULTADO,execucao_id:EXECUCAO,ativo:true,dados:{cbs:1}}],
-  motor_execucoes_operacionais:[{id:EXECUCAO,empresa_id:EMPRESA_REMOTA,ano:2026,itens:2,classificados:2,requer_validacao:0,sem_correspondencia:0,resumo:null,criado_em:'2026-01-01'}],
+  motor_resultados_operacionais:[{id:1,empresa_id:EMPRESA_REMOTA,movimento_id:MOVIMENTO_COM_RESULTADO,execucao_id:EXECUCAO,ativo:true,dados:{cbs:1,detalhe:{reconstrucao:{origem:'TESTE'}}}}],
+  motor_execucoes_operacionais:[{id:EXECUCAO,empresa_id:EMPRESA_REMOTA,ano:2026,itens:2,classificados:2,requer_validacao:0,sem_correspondencia:0,resumo:{origem:'TESTE'},criado_em:'2026-01-01'}],
   movimentos:[],
   projecoes_movimentos_estado:[
     {empresa_id:EMPRESA_REMOTA,movimento_id:MOVIMENTO_COM_RESULTADO,assinatura_origem:'a',versao_origem:1,assinatura_calculada:'b',versao_calculada:1,situacao:'ok',motivo:null,job_id:null,atualizado_em:'2026-01-01'},
@@ -88,6 +88,10 @@ const remoto={ from:(tabela)=>consultaSobre(tabela) };
   assert.ok(movimentoRestaurado,'o movimento citado só pelo estado deve ser restaurado');
   const fotografia=db.prepare('SELECT quantidade_resultados,quantidade_estados FROM fotografia_oficial WHERE empresa_id=?').get(Number(empresaLocal));
   assert.deepEqual({...fotografia},{quantidade_resultados:1,quantidade_estados:2});
+  const resultadoLocal=db.prepare('SELECT detalhe FROM motor_resultados WHERE empresa_id=? AND movimento_id=?').get(Number(empresaLocal),MOVIMENTO_COM_RESULTADO);
+  assert.deepEqual(JSON.parse(resultadoLocal.detalhe),{reconstrucao:{origem:'TESTE'}},'detalhe JSONB precisa permanecer JSON textual no cache SQLite');
+  const execucaoLocal=db.prepare('SELECT resumo FROM motor_execucoes WHERE id=?').get(EXECUCAO);
+  assert.deepEqual(JSON.parse(execucaoLocal.resumo),{origem:'TESTE'},'resumo JSONB precisa permanecer JSON textual no cache SQLite');
   // Execução inconsistente na fonte: a restauração precisa falhar sem tocar o
   // cache local, inclusive nos movimentos que estariam faltando.
   const EXECUCAO_2=987655;
