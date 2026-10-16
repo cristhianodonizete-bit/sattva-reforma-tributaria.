@@ -8187,7 +8187,10 @@ router.post('/config/controle/enriquecer', (_req, res) => {
 });
 
 router.post('/config/processamentos-carteira', async (_req, res) => {
-  try { ok(res, { processamento: await processamentoCarteira.iniciar({ tipo: 'RECALCULO_INCREMENTAL' }) }); }
+  // “Recalcular projeto” precisa produzir a mesma fotografia canônica que o
+  // motor integral. O tipo legado RECALCULO_INCREMENTAL recalculava somente o
+  // SQLite e fazia o resultado voltar na próxima restauração do Supabase.
+  try { ok(res, { processamento: await processamentoCarteira.iniciar({ tipo: 'MOTOR_COMPLETO' }) }); }
   catch (e) { erro(res, e); }
 });
 async function consultarProcessamentoCarteira(req, res) {

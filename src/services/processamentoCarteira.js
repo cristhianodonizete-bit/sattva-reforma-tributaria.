@@ -6,6 +6,7 @@ const bases = require('./basesReforma');
 const motorExec = require('./motorExec');
 const excecoesMotor = require('./excecoesMotor');
 const motorStaging = require('./motorStaging');
+const { exigePublicacaoFotografia } = require('./tipoProcessamentoMotor');
 const lotesIncrementais = require('./lotesIncrementais');
 const integridadeMotor = require('./integridadeMotor');
 
@@ -218,7 +219,7 @@ async function processarUm(processamentoId = null) {
     if (!job) break;
     try {
       db.prepare('UPDATE jobs_carteira SET heartbeat=? WHERE id=?').run(agora(), job.id);
-      if (job.tipo_job === 'MOTOR_COMPLETO') {
+      if (exigePublicacaoFotografia(job.tipo_job)) {
         const payload = JSON.parse(job.payload || '{}');
         const cnpj = require('./cnpjReceita');
         const operacao = require('./operacaoCompartilhada');
@@ -338,7 +339,7 @@ async function processarUm(processamentoId = null) {
         try { await require('./operacaoCompartilhada').publicarEstadosProjecoes(job.empresa_id,ids); }
         catch (erroEstado) { console.error('[projeção] não foi possível publicar estado de falha:', erroEstado.message); }
       }
-      if (job.tipo_job === 'MOTOR_COMPLETO') motorStaging.atualizar(job.id, 'FALHOU', { erro: e.message });
+      if (exigePublicacaoFotografia(job.tipo_job)) motorStaging.atualizar(job.id, 'FALHOU', { erro: e.message });
       const atual = db.prepare('SELECT tentativas,max_tentativas FROM jobs_carteira WHERE id=?').get(job.id) || job;
       const status = Number(atual.tentativas) < Number(atual.max_tentativas) ? 'PENDENTE' : 'FALHOU';
       const proxima = status === 'PENDENTE' ? proximaTentativa(atual.tentativas) : null;
