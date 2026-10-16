@@ -97,6 +97,14 @@ const auditoriaFontesOperacionais = require('../services/auditoriaFontesOperacio
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+// Critério de leitura do Controle operacional. Mantido local para que o
+// painel não dependa de um helper privado do motor e falhe apenas ao abrir.
+const requerReferenciaFiscalServico = (movimento = {}) => {
+  const ehServico = Boolean(String(movimento.nbs || '').replace(/\D/g, ''))
+    || Number(movimento.iss || 0) !== 0
+    || (!String(movimento.ncm || '').replace(/\D/g, '') && Boolean(String(movimento.descricao || '').trim()));
+  return ehServico && (Number(movimento.pis || 0) + Number(movimento.cofins || 0) <= 0);
+};
 const exigirPeriodoParaImportacao = async (req) => {
   await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id));
   return periodoAnalisado.exigir(Number(req.params.id));
