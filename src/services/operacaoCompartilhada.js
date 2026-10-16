@@ -1791,8 +1791,9 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   }
   // Os estados também são uma fotografia integral por empresa. A contagem
   // antecede qualquer escrita local: falha de rede jamais pode apagar um
-  // estado válido e substituir a tela por uma versão parcial. Estados e
-  // resultados referenciam movimentos, por isso os dois entram na união abaixo.
+  // estado válido e substituir a tela por uma versão parcial. Estado de
+  // projeção não é fato fiscal: pode existir para um movimento que não faz
+  // parte da fotografia ativa. Esses órfãos nunca bloqueiam a restauração.
   const { count:quantidadeEstadosRemota, error:erroContagemEstados }=await remoto.from('projecoes_movimentos_estado').select('movimento_id',{ count:'exact', head:true })
     .eq('empresa_id',Number(remota.id));
   if (erroContagemEstados || quantidadeEstadosRemota == null) throw new Error(`Estados canônicos indisponíveis: não foi possível confirmar a quantidade (${erroContagemEstados?.message || 'contagem ausente'}).`);
@@ -1807,10 +1808,10 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   if (estadosRemotos.length !== Number(quantidadeEstadosRemota)) {
     throw new Error(`Estados canônicos parciais: esperado ${quantidadeEstadosRemota}, restaurado(s) ${estadosRemotos.length}. A Cadeia não será consolidada.`);
   }
-  const movimentoIds=[...new Set([
-    ...resultados.map((x)=>Number(x.movimento_id)),
-    ...estadosRemotos.map((x)=>Number(x.movimento_id)),
-  ].filter(Number.isInteger))];
+  // A presença dos fatos locais é requisito somente dos resultados ativos da
+  // fotografia oficial. Estados são derivados e serão copiados apenas quando
+  // o respectivo fato já existir no cache local.
+  const movimentoIdsResultados=[...new Set(resultados.map((x)=>Number(x.movimento_id)).filter(Number.isInteger))];
   // A execução é a indicada pelas linhas ativas, nunca a última execução da
   // empresa. Usar a mais recente misturava uma foto histórica com metadados
   // de outro cálculo e permitia que uma reexecução falha parecesse publicada.
@@ -1826,14 +1827,17 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   const execucaoAtiva=execucoes[0];
   const execucaoAtivaLocal=execucaoCompartilhadaLocal(execucaoAtiva,id);
   const resultadosTraduzidos=resultados.map((linha)=>resultadoCompartilhadoLocal(linha,id,execucaoAtiva.id));
-  const estadosTraduzidos=estadosRemotos.map((linha)=>estadoCompartilhadoLocal(linha,id));
   // A restauração da fotografia não pode alterar fatos fiscais. A carteira
   // precisa ter sido hidratada pelo fluxo operacional próprio antes da leitura
   // da Cadeia; se faltar movimento, preservamos o cache e falhamos de forma
   // explícita em vez de recriar gatilhos e pendências durante um GET.
-  const locais=movimentosLocaisExistentes(id,movimentoIds);
-  const ausentes=movimentoIds.filter((movimentoId)=>!locais.has(movimentoId));
+  const locais=movimentosLocaisExistentes(id,movimentoIdsResultados);
+  const ausentes=movimentoIdsResultados.filter((movimentoId)=>!locais.has(movimentoId));
   if (ausentes.length) throw new Error(`Fotografia canônica requer ${ausentes.length} movimento(s) ausente(s) no cache local. Atualize a carteira operacional; a abertura da Cadeia não altera movimentos.`);
+  const estadosTraduzidos=estadosRemotos
+    .filter((linha)=>locais.has(Number(linha.movimento_id)))
+    .map((linha)=>estadoCompartilhadoLocal(linha,id));
+  const movimentoIdsEstadosRestaurados=new Set(estadosTraduzidos.map((linha)=>Number(linha.movimento_id)));
   db.transaction(()=>{
     // `motor_execucoes.id` é hoje uma chave global no SQLite. Enquanto a
     // separação definitiva entre id local e id remoto não estiver migrada,
@@ -1851,10 +1855,9 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     // Não remova a execução-pai: instalações anteriores podem ter referências
     // válidas a ela. Substituímos somente os resultados da foto ativa.
     db.prepare('DELETE FROM motor_resultados WHERE empresa_id=? AND execucao_id=?').run(id, Number(execucaoAtiva.id));
-    // A projeção é uma fotografia canônica por movimento. O cache efêmero
-    // pode conter versões antigas sem unicidade; mantê-las multiplicaria a
-    // Cadeia. Substituímos integralmente o escopo da empresa pela foto remota.
-    db.prepare('DELETE FROM projecoes_movimentos_estado WHERE empresa_id=?').run(id);
+    // Estados órfãos da fonte não são fatos fiscais e não podem remover ou
+    // bloquear o cache local. Os estados restauráveis são atualizados por
+    // chave; nenhum estado local fora dessa interseção é apagado nesta leitura.
     gravarExecucaoCompartilhadaSemReplace(execucaoAtiva, id);
     gravarLinhasComColunas('motor_resultados',resultadosTraduzidos.map((linha)=>({ ...linha,execucao_id:Number(execucaoAtiva.id) })),true);
     const gravarEstado=db.prepare(`INSERT INTO projecoes_movimentos_estado
@@ -1868,14 +1871,16 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
       x.assinatura_calculada,x.versao_calculada,x.situacao,x.motivo,x.job_id,x.atualizado_em));
     const gravados=Number(db.prepare('SELECT COUNT(*) quantidade FROM motor_resultados WHERE empresa_id=? AND execucao_id=?')
       .get(id,Number(execucaoAtiva.id))?.quantidade || 0);
-    const estadosGravados=Number(db.prepare('SELECT COUNT(*) quantidade FROM projecoes_movimentos_estado WHERE empresa_id=?')
-      .get(id)?.quantidade || 0);
-    if(gravados!==resultados.length || estadosGravados!==estadosRemotos.length){
-      throw new Error(`Fotografia canônica gravada parcialmente: resultados ${gravados}/${resultados.length}; estados ${estadosGravados}/${estadosRemotos.length}.`);
+    const estadosGravados=movimentoIdsEstadosRestaurados.size
+      ? Number(db.prepare(`SELECT COUNT(*) quantidade FROM projecoes_movimentos_estado WHERE empresa_id=? AND movimento_id IN (${[...movimentoIdsEstadosRestaurados].map(()=>'?').join(',')})`)
+        .get(id,...movimentoIdsEstadosRestaurados)?.quantidade || 0)
+      : 0;
+    if(gravados!==resultados.length || estadosGravados!==estadosTraduzidos.length){
+      throw new Error(`Fotografia canônica gravada parcialmente: resultados ${gravados}/${resultados.length}; estados ${estadosGravados}/${estadosTraduzidos.length}.`);
     }
     const comparacao=compararFotografiaMotor({ resultadosRemotos:resultadosTraduzidos,
       resultadosLocais:resultadosLocaisFotografia(id,Number(execucaoAtiva.id)),
-      estadosRemotos:estadosTraduzidos,estadosLocais:estadosLocaisFotografia(id) });
+      estadosRemotos:estadosTraduzidos,estadosLocais:estadosLocaisFotografia(id).filter((linha)=>movimentoIdsEstadosRestaurados.has(Number(linha.movimento_id))) });
     if(!comparacao.ok) throw new Error(`Fotografia canônica divergente após restauração: ${JSON.stringify(comparacao.amostra)}`);
     db.prepare(`INSERT INTO fotografia_oficial
       (empresa_id,execucao_id,empresa_remota_id,execucao_remota_id,quantidade_resultados,quantidade_estados,execucao_criada_em,sincronizado_em)
@@ -1884,7 +1889,7 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
         empresa_remota_id=excluded.empresa_remota_id,execucao_remota_id=excluded.execucao_remota_id,
         quantidade_resultados=excluded.quantidade_resultados,quantidade_estados=excluded.quantidade_estados,
         execucao_criada_em=excluded.execucao_criada_em,sincronizado_em=excluded.sincronizado_em`)
-      .run(id,Number(execucaoAtiva.id),Number(remota.id),Number(execucaoAtiva.id),resultados.length,estadosRemotos.length,execucaoAtivaLocal.criado_em || null);
+      .run(id,Number(execucaoAtiva.id),Number(remota.id),Number(execucaoAtiva.id),resultados.length,estadosTraduzidos.length,execucaoAtivaLocal.criado_em || null);
   })();
   return { ativo:true, resultados:resultados.length, execucoes:1, empresa_remota_id:Number(remota.id), execucao_remota_id:Number(execucaoAtiva.id) };
 }
