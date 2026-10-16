@@ -2334,8 +2334,9 @@ async function telaCadeia(el, tipo) {
       ], analise.operacoesBeneficios, { vazio: 'Nenhum benefício foi aplicado pelo motor nesta execução.' })}`
       : `<div class="aviso neutro" style="margin-top:14px"><b>Nenhuma venda com benefício fiscal aplicado nesta execução.</b><br>Quando o motor aplicar redução de CBS ou alíquota zero a uma operação, ela aparecerá nesta lista com o respectivo fundamento.</div>`}
     </div>` : ''}
-    ${mostrarRastreabilidadeItens ? `<div class="cartao" style="margin-top:16px"><h2>Rastreabilidade por item</h2>
+    ${mostrarRastreabilidadeItens ? `<div class="cartao" style="margin-top:16px"><div class="cabecalho-lista"><div><h2>Rastreabilidade por item</h2>
       <p class="desc">Mostra, item a item, tributos identificados e os efetivamente retirados na metodologia ${ibsAtivo ? 'integral' : 'CBS-only'}. As notas e os itens com crédito CBS acima são recortes desta mesma fotografia; nada é recalculado nesta tela.</p>
+      </div><button class="btn pq vazio" id="exportarRastreabilidadeItens">Exportar Excel</button></div>
       <section class="documentos-filtros" aria-label="Filtros da rastreabilidade por item" style="margin-top:14px"><div class="documentos-filtros-topo"><div><span class="olho">LOCALIZAR ITENS</span><p>Os filtros e a ordenação percorrem toda a fotografia, antes da paginação.</p></div><button class="btn vazio pq" id="limparFiltrosRastreabilidadeItens">Limpar filtros</button></div><div class="documentos-filtros-campos">
         <label class="campo"><span>Documento</span><input id="filtroRastreabilidadeItemDocumento" value="${A.esc(filtrosRastreabilidadeItens.documento || '')}" placeholder="Número ou chave"></label>
         <label class="campo"><span>${eForn ? 'Fornecedor' : 'Cliente'}</span><input id="filtroRastreabilidadeItemFornecedor" value="${A.esc(filtrosRastreabilidadeItens.fornecedor || '')}" placeholder="Nome ou CNPJ"></label>
@@ -2382,6 +2383,12 @@ async function telaCadeia(el, tipo) {
     S.aba[`rastreabilidadeItens_${tipo}`]={ ordenar:'competencia',direcao:'desc' };
     S.cache[`cadeia_pagina_${tipo}`]=1;
     A.ir(eForn ? 'fornecedores' : 'clientes');
+  });
+  document.getElementById('exportarRastreabilidadeItens')?.addEventListener('click', async () => {
+    const filtros = new URLSearchParams(filtrosRastreabilidadeItens);
+    try {
+      await A.baixarArquivo(`/empresas/${S.empresaId}/cadeia/${tipo}/rastreabilidade/exportar${filtros.toString() ? `?${filtros}` : ''}`, `rastreabilidade-${tipo}.xlsx`);
+    } catch (erro) { A.toast(erro.message || 'Não foi possível exportar a rastreabilidade.', 'erro'); }
   });
   el.querySelectorAll('[data-cadeia-pagina]').forEach((botao) => {
     botao.onclick = () => { S.cache[`cadeia_pagina_${tipo}`] = Number(botao.dataset.cadeiaPagina) || 1; A.ir(eForn ? 'fornecedores' : 'clientes'); };
