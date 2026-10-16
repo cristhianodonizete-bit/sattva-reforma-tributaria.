@@ -243,7 +243,7 @@ function carregar(empresaId, sentido, movimentoIds = null) {
       WHERE mq.empresa_id=? AND mq.tipo=?
         AND UPPER(COALESCE(mq.origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
     )
-    SELECT m.*, COALESCE(d.valor,q.regime,p.regime,m.regime,
+    SELECT m.*, COALESCE(d.valor,CASE WHEN m.regime_fonte='AUDITORIA_REGIME_CANONICA' THEN m.regime END,q.regime,p.regime,m.regime,
       CASE WHEN json_valid(COALESCE(m.normalizacao_evidencia,'')) THEN json_extract(m.normalizacao_evidencia,'$.fornecedor_vinculado.regime') END) AS regime_cadastro,
       p.perfil_economico AS perfil_cadastro, COALESCE(p.descricao,m.nome) AS nome_cadastro,
       p.cnpj AS cnpj_cadastro, p.uf AS uf_parceiro, p.multinacional AS multinacional_cadastro
