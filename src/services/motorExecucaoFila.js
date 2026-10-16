@@ -10,6 +10,16 @@ const json = (valor, padrao = null) => {
   return typeof valor === 'string' ? JSON.parse(valor) : valor;
 };
 
+// O worker dedicado continua sendo o consumidor preferencial. Porém, um
+// deploy sem esse serviço não pode deixar uma correção aprovada parada na
+// fila. O Web consome apenas o processamento que acabou de receber; o claim
+// condicional no Supabase garante que nunca dispute o mesmo job com o worker.
+function iniciarConsumidorContingencia(processamentoId, habilitado = true) {
+  if (!habilitado || !processamentoId) return;
+  setImmediate(() => fila.executar(processamentoId)
+    .catch((erro) => console.error('[fila contingência web]', erro.message)));
+}
+
 async function solicitar(empresaId, opcoes = {}) {
   const empresa = db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId);
   if (!empresa) throw new Error('Empresa não encontrada.');
@@ -69,11 +79,13 @@ async function solicitarIncremental(empresaId, opcoes = {}) {
     const remoto = await fila.espelharJob({ ...ativo, payload:JSON.stringify(payload) });
     if (String(remoto?.id || ativo.id) !== String(ativo.id)) db.prepare("UPDATE jobs_carteira SET status='CANCELADO',finalizado_em=?,erro=? WHERE id=? AND status IN ('PENDENTE','PROCESSANDO')")
       .run(new Date().toISOString(),`Deduplicado pelo job canônico ${remoto.id}.`,ativo.id);
+    iniciarConsumidorContingencia(ativo.processamento_id, opcoes.iniciarWorker !== false);
     return { processamento_id:ativo.processamento_id, deduplicado:true, job:{ ...ativo, ...remoto, payload:JSON.stringify(payload) }, movimento_ids:unidos };
   }
   const processamento = await fila.iniciar({ empresas:[Number(empresaId)], competencia:ano, tipo:TIPO_INCREMENTAL, prioridade:10,
     payload:{ ano:Number(ano), movimento_ids:movimentoIds, identidade_movimento:'SUPABASE_CANONICA_V1', modo:'INCREMENTAL_IDS_EXPLICITOS' }, iniciarWorker:false });
   const job = (processamento.jobs || []).find((x) => Number(x.empresa_id) === Number(empresaId) && x.tipo_job === TIPO_INCREMENTAL) || null;
+  iniciarConsumidorContingencia(processamento.id, opcoes.iniciarWorker !== false);
   return { processamento_id:processamento.id, deduplicado:Boolean(processamento.deduplicado), job, movimento_ids:movimentoIds };
 }
 
