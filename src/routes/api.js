@@ -3666,6 +3666,58 @@ router.get('/empresas/:id/cadeia/:tipo/pendencias-pis-cofins', async (req, res) 
   } catch (e) { erro(res, e); }
 });
 
+router.get('/empresas/:id/cadeia/:tipo/rastreabilidade/exportar', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    await garantirEmpresaPermitida(req, empresaId);
+    const empresa = db.prepare('SELECT id FROM empresas WHERE id = ?').get(empresaId);
+    if (!empresa) throw new Error('Empresa não encontrada');
+    const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';
+    const opcoes = {
+      sentido: tipo === 'cliente' ? 'saida' : 'entrada',
+      documento:req.query.documento, fornecedor:req.query.fornecedor,
+      regime:req.query.regime, servico:req.query.servico,
+      ordenar:req.query.ordenar || 'competencia', direcao:req.query.direcao || 'desc',
+      limite:100, pagina:1,
+    };
+    const primeira = consolidacaoOficial.listar(empresaId, opcoes);
+    const itens = [...primeira.itens];
+    const totalPaginas = Math.ceil(primeira.total / primeira.limite);
+    // A planilha representa o recorte completo da fotografia. A tela, por
+    // desempenho, é paginada; a exportação percorre todas as suas páginas.
+    for (let pagina = 2; pagina <= totalPaginas; pagina++) {
+      itens.push(...consolidacaoOficial.listar(empresaId, { ...opcoes, pagina }).itens);
+    }
+    const linhas = itens.map((x) => ({
+      'Competência':x.competencia || '', 'Documento':x.documento || '', 'Chave fiscal':x.chave || '',
+      'Parceiro':x.parceiro || '', 'CNPJ/CPF parceiro':x.cnpj || '',
+      'Regime do cadastro':x.regimeEmitente || '', 'Regime da fotografia':x.regimeFotografia || '',
+      'Situação da projeção':x.situacao_projecao || '', 'Motivo da projeção':x.motivoBaseEconomica || '',
+      'Item / descrição':x.descricao || x.produto || '', 'NCM':x.ncm || '', 'NBS':x.nbs || '', 'LC 116':x.lc116 || '',
+      'CFOP':x.cfop || '', 'CST':x.cst || '', 'cClassTrib':x.cclasstrib || '', 'Tratamento':x.tratamento || '',
+      'Valor atual':Number(x.valor || 0), 'PIS/Cofins atual':x.pisCofinsAtual == null ? '' : Number(x.pisCofinsAtual),
+      'Origem PIS/Cofins':x.origemPisCofins || '', 'Base econômica':x.baseEconomica == null ? '' : Number(x.baseEconomica),
+      'CBS':x.cbs == null ? '' : Number(x.cbs), 'Crédito CBS':x.creditoCbs == null ? '' : Number(x.creditoCbs),
+      'IBS':x.ibs == null ? '' : Number(x.ibs), 'Crédito IBS':x.creditoIbs == null ? '' : Number(x.creditoIbs),
+      'Preço projetado':x.precoFinal == null ? '' : Number(x.precoFinal), 'Impacto':x.impactoOperacao == null ? '' : Number(x.impactoOperacao),
+    }));
+    const ws = XLSX.utils.json_to_sheet(linhas.length ? linhas : [{ Informação:'Nenhum item atende aos filtros selecionados.' }]);
+    ws['!freeze'] = { xSplit:0, ySplit:1 };
+    ws['!autofilter'] = { ref:`A1:${XLSX.utils.encode_col(Math.max(0, Object.keys(linhas[0] || { Informação:'' }).length - 1))}${Math.max(2, linhas.length + 1)}` };
+    ws['!cols'] = [13,18,48,36,20,18,18,18,38,48,14,14,12,10,10,12,20,16,18,18,20,16,14,16,14,16,14,18,14].map((wch) => ({ wch }));
+    for (const celula of Object.keys(ws)) {
+      const linha = Number(celula.match(/\d+$/)?.[0]);
+      if (/^(R|S|U|V|W|X|Y|Z|AA)\d+$/.test(celula) && linha > 1) ws[celula].z = 'R$ #,##0.00';
+    }
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Rastreabilidade por item');
+    const arquivo = XLSX.write(wb, { type:'buffer', bookType:'xlsx', compression:true });
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="rastreabilidade-${tipo}-${empresaId}.xlsx"`);
+    res.send(arquivo);
+  } catch (e) { erro(res, e); }
+});
+
 router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
   try {
     await atualizarConfiguracaoDeCalculo();
