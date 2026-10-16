@@ -147,14 +147,22 @@ async function recuperarAbandonados() {
 }
 
 async function claim(processamentoId = null) {
-  if (supabase.configurado() && !processamentoId) {
+  if (supabase.configurado()) {
+    // Um consumidor de contingência do Web conhece o processamento que acabou
+    // de criar. Para ele, não usamos a RPC genérica (que poderia escolher
+    // outro job); a atualização condicional abaixo continua sendo o claim
+    // atômico na fonte compartilhada. O worker separado segue usando a RPC.
     const remotoApi = supabase.admin();
-    const { data, error } = await remotoApi.rpc('claim_job_carteira', { p_worker_id: workerId });
-    if (!error && data?.length) {
-      const remoto = data[0];
-      db.prepare("UPDATE jobs_carteira SET status='PROCESSANDO',worker_id=?,tentativas=?,heartbeat=? WHERE id=?").run(workerId, remoto.tentativas, remoto.heartbeat, remoto.id);
-      const normalizado=await normalizarEmpresaJobRemoto(remoto,remotoApi);
-      return { ...normalizado, payload: JSON.stringify(remoto.payload || {}) };
+    let erroRpc = null;
+    if (!processamentoId) {
+      const { data, error } = await remotoApi.rpc('claim_job_carteira', { p_worker_id: workerId });
+      erroRpc = error;
+      if (!error && data?.length) {
+        const remoto = data[0];
+        db.prepare("UPDATE jobs_carteira SET status='PROCESSANDO',worker_id=?,tentativas=?,heartbeat=? WHERE id=?").run(workerId, remoto.tentativas, remoto.heartbeat, remoto.id);
+        const normalizado=await normalizarEmpresaJobRemoto(remoto,remotoApi);
+        return { ...normalizado, payload: JSON.stringify(remoto.payload || {}) };
+      }
     }
     // Algumas versões da função RPC não enxergam imediatamente o job recém
     // publicado. Não deixamos a empresa presa na fila: o fallback faz uma
@@ -162,7 +170,7 @@ async function claim(processamentoId = null) {
     // instâncias e só permite que uma delas assuma o mesmo UUID.
     const local = db.prepare(`SELECT * FROM jobs_carteira WHERE status='PENDENTE' AND (proxima_tentativa_em IS NULL OR proxima_tentativa_em<=?)${processamentoId ? ' AND processamento_id=?' : ''} ORDER BY prioridade DESC,criado_em LIMIT 1`).get(agora(), ...(processamentoId ? [processamentoId] : []));
     if (!local) {
-      if (error) throw new Error(`Claim da fila: ${error.message}`);
+      if (erroRpc) throw new Error(`Claim da fila: ${erroRpc.message}`);
       return null;
     }
     const momento = agora();
