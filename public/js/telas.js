@@ -2451,30 +2451,51 @@ async function telaCadeia(el, tipo) {
   el.querySelectorAll('[data-corrigir-pis-cofins]').forEach((botao) => {
     botao.onclick = () => abrirCorrecaoPisCofins(pendenciasPisCofins[Number(botao.dataset.corrigirPisCofins)]);
   });
-  el.querySelector('[data-pis-cofins-pendencias]')?.addEventListener('click', () => {
-    const itens = pendenciasPisCofins;
-    const modal = A.modal({
-      titulo: 'Documentos pendentes de PIS/Cofins histórico',
-      largura: 1200,
-      confirmar: 'Fechar',
-      descricao: `${itens.length} documento(s), no total de ${A.moeda(resumoPendenciasPisCofins.valor)}, ainda não possuem carga histórica determinada. O valor exibido no resumo é a parcela já identificada; esta lista não recalcula nem altera nenhum dado.`,
-      corpo: A.tabela([
-        {t:'Documento / competência',r:d=>`<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '—')}</div>`},
-        {t:eForn ? 'Fornecedor' : 'Cliente',r:d=>`${A.esc(d.parceiro || 'Não identificado')}<div class="mini mono">${A.cnpjFmt(d.cnpj || '')}</div>`},
-        {t:'Item',r:d=>A.esc(d.descricao || d.produto || 'Sem descrição')},
-        {t:'Valor',num:true,r:d=>A.moeda(d.valor)},
-        {t:'Motivo',r:d=>{const motivo=explicarPendenciaPisCofins(d);return `<span class="tag a">${A.esc(motivo.titulo)}</span><div class="mini">${A.esc(motivo.detalhe)}</div>`;}},
-        {t:'Correção',r:d=>{const motivo=explicarPendenciaPisCofins(d);return `<button class="btn pq" data-corrigir-pis-cofins-modal="${indicePendenciaPisCofins(d)}">${A.esc(motivo.acao)}</button>`;}},
-      ], itens, { vazio:'Não há documentos pendentes.' }),
-      aoConfirmar: async () => {},
-    });
-    modal.fundo.querySelectorAll('[data-corrigir-pis-cofins-modal]').forEach((botao) => {
-      botao.onclick = () => {
-        const item = pendenciasPisCofins[Number(botao.dataset.corrigirPisCofinsModal)];
-        modal.fechar();
-        abrirCorrecaoPisCofins(item);
-      };
-    });
+  const abrirListaCompletaPendenciasPisCofins = async (pagina = 1) => {
+    try {
+      // O cartão consolida a fotografia inteira. A lista do modal deve buscar
+      // a mesma coleção, e não repetir apenas os itens da página aberta.
+      const leitura = await A.api(`/empresas/${S.empresaId}/cadeia/${tipo}/pendencias-pis-cofins?pagina=${pagina}`);
+      const itens = leitura.pendencias || [];
+      const resumo = leitura.resumo || { registros:itens.length, valor:itens.reduce((s, x) => s + Number(x.valor || 0), 0) };
+      const paginacao = leitura.paginacao || { pagina:1, totalPaginas:1 };
+      const modal = A.modal({
+        titulo: 'Documentos pendentes de PIS/Cofins histórico',
+        largura: 1200,
+        confirmar: 'Fechar',
+        descricao: `${resumo.registros} documento(s), no total de ${A.moeda(resumo.valor)}, ainda não possuem carga histórica determinada. O valor exibido no resumo é a parcela já identificada; esta lista não recalcula nem altera nenhum dado.`,
+        corpo: A.tabela([
+          {t:'Documento / competência',r:d=>`<b class="mono">${A.esc(d.documento || 'sem número')}</b><div class="mini">${A.esc(d.competencia || '—')}</div>`},
+          {t:eForn ? 'Fornecedor' : 'Cliente',r:d=>`${A.esc(d.parceiro || 'Não identificado')}<div class="mini mono">${A.cnpjFmt(d.cnpj || '')}</div>`},
+          {t:'Item',r:d=>A.esc(d.descricao || d.produto || 'Sem descrição')},
+          {t:'Valor',num:true,r:d=>A.moeda(d.valor)},
+          {t:'Motivo',r:d=>{const motivo=explicarPendenciaPisCofins(d);return `<span class="tag a">${A.esc(motivo.titulo)}</span><div class="mini">${A.esc(motivo.detalhe)}</div>`;}},
+          {t:'Correção',r:d=>{const motivo=explicarPendenciaPisCofins(d);return `<button class="btn pq" data-corrigir-pis-cofins-modal="${itens.indexOf(d)}">${A.esc(motivo.acao)}</button>`;}},
+        ], itens, { vazio:'Não há documentos pendentes.' }) + (paginacao.totalPaginas > 1 ? `<div class="acoes" style="margin-top:12px;justify-content:flex-end"><span class="mini">Página ${paginacao.pagina} de ${paginacao.totalPaginas}</span><button class="btn pq vazio" data-pis-cofins-pagina="${paginacao.pagina - 1}" ${paginacao.pagina <= 1 ? 'disabled' : ''}>Anterior</button><button class="btn pq vazio" data-pis-cofins-pagina="${paginacao.pagina + 1}" ${paginacao.pagina >= paginacao.totalPaginas ? 'disabled' : ''}>Próxima</button></div>` : ''),
+        aoConfirmar: async () => {},
+      });
+      modal.fundo.querySelectorAll('[data-corrigir-pis-cofins-modal]').forEach((botao) => {
+        botao.onclick = () => {
+          const item = itens[Number(botao.dataset.corrigirPisCofinsModal)];
+          modal.fechar();
+          abrirCorrecaoPisCofins(item);
+        };
+      });
+      modal.fundo.querySelectorAll('[data-pis-cofins-pagina]').forEach((botao) => {
+        botao.onclick = async () => {
+          modal.fechar();
+          await abrirListaCompletaPendenciasPisCofins(Number(botao.dataset.pisCofinsPagina) || 1);
+        };
+      });
+    } catch (erro) {
+      A.toast(erro.message || 'Não foi possível carregar as pendências completas.', 'erro');
+    }
+  };
+  el.querySelector('[data-pis-cofins-pendencias]')?.addEventListener('click', async (evento) => {
+    const botaoAbrir = evento.currentTarget;
+    botaoAbrir.disabled = true;
+    try { await abrirListaCompletaPendenciasPisCofins(); }
+    finally { botaoAbrir.disabled = false; }
   });
   el.querySelectorAll('[data-cadeia-parceiros]').forEach((botao) => {
     botao.onclick = () => { S.cache[`cadeia_parceiros_${tipo}`] = Number(botao.dataset.cadeiaParceiros) || 1; A.ir(tipo === 'fornecedor' ? 'fornecedores' : 'clientes'); };
