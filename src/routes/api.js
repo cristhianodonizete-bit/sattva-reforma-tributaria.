@@ -3737,11 +3737,9 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
   try {
     await atualizarConfiguracaoDeCalculo();
     const empresaId = Number(req.params.id);
-    // A correção de uma regra do catálogo não pode depender de o usuário abrir
-    // antes a tela de Configurações. Em instâncias efêmeras, a cadeia baixa a
-    // configuração canônica e aplica a migração idempotente antes de restaurar
-    // a fotografia. Quando há mudança, apenas os lançamentos vinculados aos
-    // itens alterados são publicados e enfileirados para recálculo incremental.
+    // A Cadeia é leitura. Alterações do catálogo e seus recálculos incrementais
+    // pertencem exclusivamente à rota que salva o parâmetro; nunca à abertura
+    // desta tela.
     await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['periodo'], () => periodoAnalisado.sincronizarCompartilhado(empresaId), { motivo:'Período conferido para a cadeia' });
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(empresaId);
     if (!empresa) throw new Error('Empresa não encontrada');
@@ -3765,13 +3763,11 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     // antes de consolidar outras receitas do Simples; sem isso, um reinício
     // da instância fazia o DAS aparecer como “A validar” mesmo já extraído.
     if (empresa.regime === 'simples_nacional') await estadoLeituraEmpresa.atualizarComSeguranca(db, empresaId, ['pgdas'], () => pgdasCompartilhado.restaurar(empresa.id), { motivo:'PGDAS confirmado restaurado para a cadeia' });
-    const renovacaoFotografia=await renovarFotografiasItensEntradaManualSeNecessario(empresaId);
     const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';
     // A execução é materializada antes da leitura. A cadeia apenas agrega
-    // motor_resultados; ela não recalcula base, CBS, IBS ou crédito.
-    // Leitura operacional nunca refaz a empresa inteira. Só atualiza a
-    // fotografia se alguma dependência efetivamente mudou.
-    const atualizacaoFotografia=await atualizarDiagnosticoSeAberto(empresa.id, tipo === 'cliente' ? 'clientes' : 'fornecedores', { ano: 2027 });
+    // motor_resultados; ela não recalcula base, CBS, IBS ou crédito. Em
+    // especial, a abertura não registra job incremental: esse fluxo pertence
+    // à alteração explícita do parâmetro que afetou os documentos.
     const cfg = prepararCadeia(empresa, tipo, req.query);
     const detalhesSolicitados = req.query.detalhes === undefined ? true : String(req.query.detalhes) === '1';
     const resultado = consolidacaoOficial.cadeia(empresa.id, tipo, {
@@ -3789,7 +3785,7 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
       paginaParceiros: req.query.pagina_parceiros,
       limiteParceiros: req.query.limite_parceiros,
     });
-    ok(res, { empresa, analise: resultado, renovacaoFotografia, atualizacaoFotografia,
+    ok(res, { empresa, analise: resultado,
       pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', lc116:m.lc116 || '', valor: Number(m.valor) || 0 })) });
   } catch (e) { erro(res, e); }
 });
