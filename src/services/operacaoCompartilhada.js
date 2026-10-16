@@ -1536,10 +1536,17 @@ function gravarLinhasComColunas(tabela, linhas, dentroDaTransacao = false) {
 // compartilhada ao restaurar o espelho local.
 function execucaoCompartilhadaLocal(linha, empresaId = null) {
   const dados=(linha?.dados && typeof linha.dados==='object') ? linha.dados : {};
+  const jsonTextoSeguro = (valor, padrao = '{}') => {
+    if (valor === null || valor === undefined || valor === '') return padrao;
+    if (typeof valor === 'object' && !Buffer.isBuffer(valor) && !(valor instanceof Date)) return JSON.stringify(valor);
+    if (typeof valor !== 'string') return padrao;
+    try { JSON.parse(valor); return valor; } catch (_) { return padrao; }
+  };
   return {
     ...(linha || {}),
     ...dados,
     id: Number(linha?.id),
+    resumo:jsonTextoSeguro(dados.resumo ?? linha?.resumo),
     ...(empresaId == null ? {} : { empresa_id:Number(empresaId) }),
   };
 }
@@ -1566,10 +1573,17 @@ function gravarExecucaoCompartilhadaSemReplace(linha, empresaId) {
 
 function resultadoCompartilhadoLocal(linha, empresaId = null, execucaoId = null) {
   const dados=(linha?.dados && typeof linha.dados==='object') ? linha.dados : {};
+  const jsonTextoSeguro = (valor, padrao = '{}') => {
+    if (valor === null || valor === undefined || valor === '') return padrao;
+    if (typeof valor === 'object' && !Buffer.isBuffer(valor) && !(valor instanceof Date)) return JSON.stringify(valor);
+    if (typeof valor !== 'string') return padrao;
+    try { JSON.parse(valor); return valor; } catch (_) { return padrao; }
+  };
   return {
     ...(linha || {}),
     ...dados,
     id: Number(linha?.id),
+    detalhe:jsonTextoSeguro(dados.detalhe ?? linha?.detalhe),
     movimento_id:Number(linha?.movimento_id ?? dados.movimento_id),
     execucao_id:Number(execucaoId == null ? linha?.execucao_id : execucaoId),
     ...(empresaId == null ? {} : { empresa_id:Number(empresaId) }),
@@ -2639,6 +2653,6 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
 }
 
 module.exports = { confirmarEntradasQuestorNaFonte, ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, garantirCacheOperacionalEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, restaurarLinhaCanonica, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
-  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, validarFotografiaLocalEmpresa, publicarEstadosProjecoes, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, listarMovimentosCanonicosEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
+  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, validarFotografiaLocalEmpresa, publicarEstadosProjecoes, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, listarMovimentosCanonicosEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais, execucaoCompartilhadaLocal,
   compararFotografiaMotor, resultadoCompartilhadoLocal, lerResultadosAtivosPorChave, reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
   chavesQueDevemPermanecerExcluidas };

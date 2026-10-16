@@ -6,7 +6,7 @@ const dir=fs.mkdtempSync(path.join(os.tmpdir(),'sattva-comparador-fotografia-'))
 process.env.SATTVA_DADOS=dir;
 delete process.env.SUPABASE_URL; delete process.env.SUPABASE_SERVICE_ROLE_KEY;
 const db=require('../src/db');
-const {compararFotografiaMotor,resultadoCompartilhadoLocal}=require('../src/services/operacaoCompartilhada');
+const {compararFotografiaMotor,resultadoCompartilhadoLocal,execucaoCompartilhadaLocal}=require('../src/services/operacaoCompartilhada');
 const resultado={id:10,movimento_id:20,preco_atual:100,base_economica:90,cbs:8.25,ibs:0,credito_cbs:1.5,status_classificacao:'CLASSIFICADO',status_credito:'DETERMINADO'};
 const estado={movimento_id:20,situacao:'ATUAL',assinatura_origem:'abc',versao_origem:3};
 try {
@@ -19,6 +19,10 @@ try {
   assert.equal(compararFotografiaMotor({resultadosRemotos:[remotoTraduzido],resultadosLocais:[{...resultado,id:91,execucao_id:77,empresa_id:2}],estadosRemotos:[estado],estadosLocais:[estado]}).ok,true,'resultado remoto em dados deve validar contra a linha local equivalente');
   const remotoAlterado=resultadoCompartilhadoLocal({...remotoComDados,dados:{...remotoComDados.dados,cbs:9}},2,77);
   assert.equal(compararFotografiaMotor({resultadosRemotos:[remotoAlterado],resultadosLocais:[{...resultado,id:91,execucao_id:77,empresa_id:2}],estadosRemotos:[estado],estadosLocais:[estado]}).ok,false,'alteração em dados deve divergir da linha local');
+  const legadoCorrompido=resultadoCompartilhadoLocal({...remotoComDados,dados:{...remotoComDados.dados,detalhe:'[object Object]'}},2,77);
+  assert.equal(legadoCorrompido.detalhe,'{}','detalhe legado inválido não pode interromper a restauração');
+  const execucaoLegada=execucaoCompartilhadaLocal({id:77,dados:{resumo:'[object Object]'}},2);
+  assert.equal(execucaoLegada.resumo,'{}','resumo legado inválido não pode interromper a restauração');
   const ausente=compararFotografiaMotor({resultadosRemotos:[resultado],resultadosLocais:[],estadosRemotos:[estado],estadosLocais:[estado]});
   assert.equal(ausente.ok,false); assert.equal(ausente.amostra[0].tipo,'RESULTADO_AUSENTE_LOCAL');
   const divergente=compararFotografiaMotor({resultadosRemotos:[resultado],resultadosLocais:[{...resultado,cbs:9}],estadosRemotos:[estado],estadosLocais:[estado]});
