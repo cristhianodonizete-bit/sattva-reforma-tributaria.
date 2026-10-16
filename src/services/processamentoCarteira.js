@@ -375,6 +375,33 @@ async function cancelar(idJob) {
   return { cancelado: true, job_id: idJob };
 }
 
+// Interrupção operacional controlada: encerra somente trabalhos ainda ativos.
+// Não remove histórico nem toca em resultados, movimentos ou fotografias.
+async function cancelarAtivos() {
+  const instante = agora();
+  const motivo = 'Cancelado pelo usuário antes de nova execução controlada.';
+  let remotos = [];
+  if (supabase.configurado()) {
+    const remotoApi = supabase.admin();
+    const { data, error } = await remotoApi.from('jobs_carteira')
+      .select('id,empresa_id,tipo_job,status')
+      .in('status', ['PENDENTE', 'PROCESSANDO']);
+    if (error) throw new Error(`Consulta para cancelamento da fila: ${error.message}`);
+    remotos = data || [];
+    if (remotos.length) {
+      const { error: erroAtualizar } = await remotoApi.from('jobs_carteira')
+        .update({ status: 'CANCELADO', finalizado_em: instante, heartbeat: instante, erro: motivo })
+        .in('id', remotos.map((job) => job.id))
+        .in('status', ['PENDENTE', 'PROCESSANDO']);
+      if (erroAtualizar) throw new Error(`Cancelamento da fila compartilhada: ${erroAtualizar.message}`);
+    }
+  }
+  const locais = db.prepare("SELECT id,empresa_id,tipo_job FROM jobs_carteira WHERE status IN ('PENDENTE','PROCESSANDO')").all();
+  db.prepare("UPDATE jobs_carteira SET status='CANCELADO',finalizado_em=?,heartbeat=?,erro=? WHERE status IN ('PENDENTE','PROCESSANDO')")
+    .run(instante, instante, motivo);
+  return { cancelados: supabase.configurado() ? remotos.length : locais.length, jobs: supabase.configurado() ? remotos : locais };
+}
+
 function consultarLocal(idProcessamento) {
   const cabecalho = db.prepare('SELECT * FROM processamentos_carteira WHERE id=?').get(idProcessamento);
   if (!cabecalho) return null;
@@ -458,4 +485,4 @@ async function ultimo() {
   return x ? consultarLocal(x.id) : null;
 }
 
-module.exports = { iniciar, executar, recuperarAbandonados, consultar, ultimo, cancelar, claim, workerId, resumirGrupo, espelharJob };
+module.exports = { iniciar, executar, recuperarAbandonados, consultar, ultimo, cancelar, cancelarAtivos, claim, workerId, resumirGrupo, espelharJob };

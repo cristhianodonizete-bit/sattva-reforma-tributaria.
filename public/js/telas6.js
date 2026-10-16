@@ -18,6 +18,12 @@ async function recalcularProjeto(empresaId) {
   return r;
 }
 
+async function cancelarJobsAtivos() {
+  const r = await A.api('/config/processamentos-carteira/cancelar-ativos', { metodo: 'POST', corpo: {} });
+  A.toast(`${r.cancelados || 0} job(s) ativo(s) cancelado(s). Histórico preservado.`, 'ok');
+  A.ir('controleProjeto');
+}
+
 const ABAS = [
   { id: 'aliquotas', t: 'Alíquotas e transição' },
   { id: 'tributos', t: 'Forma de cálculo' },
@@ -226,7 +232,7 @@ async function controle(box) {
         <div class="aviso neutro"><b>Último job concluído</b><br>${saude.fila?.ultimo_concluido ? `Empresa ${A.esc(saude.fila.ultimo_concluido.empresa_id || '—')} · ${formatarDataSaude(saude.fila.ultimo_concluido.finalizado_em)}` : 'Nenhum job concluído entre os últimos 100 registros.'}</div>
         <div class="aviso ${saude.fila?.ultimo_falho ? 'atencao' : 'bom'}"><b>Último job falho</b><br>${saude.fila?.ultimo_falho ? `Empresa ${A.esc(saude.fila.ultimo_falho.empresa_id || '—')} · ${formatarDataSaude(saude.fila.ultimo_falho.finalizado_em)}${saude.fila.ultimo_falho.erro ? `<div class="mini">${A.esc(saude.fila.ultimo_falho.erro)}</div>` : ''}` : 'Nenhuma falha entre os últimos 100 registros.'}</div>
       </div>
-      ${saude.alertas?.length ? `<div class="aviso atencao" style="margin-top:16px"><b>Atenções:</b> ${saude.alertas.map((a) => A.esc(a.mensagem)).join(' · ')}</div>` : '<div class="aviso bom" style="margin-top:16px"><b>Sem alertas operacionais neste instante.</b></div>'}
+      ${saude.alertas?.length ? `<div class="aviso atencao" style="margin-top:16px"><b>Atenções:</b> ${saude.alertas.map((a) => A.esc(a.mensagem)).join(' · ')}${Number(saude.fila?.pendentes || 0) ? '<p><button class="btn pq" id="cancelarJobsAtivos">Cancelar jobs ativos</button></p>' : ''}</div>` : '<div class="aviso bom" style="margin-top:16px"><b>Sem alertas operacionais neste instante.</b></div>'}
       ${detalhesIntegridade}
     </div>`;
   box.innerHTML = `<div class="grade g4">
@@ -255,6 +261,7 @@ async function controle(box) {
       ], d.empresas)}</div>`;
   document.getElementById('atualizarCarteira')?.addEventListener('click', () => A.ir('configuracoes'));
   document.getElementById('atualizarSaude')?.addEventListener('click', () => A.ir('controleProjeto'));
+  document.getElementById('cancelarJobsAtivos')?.addEventListener('click', cancelarJobsAtivos);
   box.querySelectorAll('[data-corrigir]').forEach((botao) => { botao.onclick = async () => {
     localStorage.setItem('sattva_empresa', botao.dataset.corrigir); await A.carregarEmpresas();
     if (botao.dataset.destino === 'dados') S.aba.dados = 'cliente';
