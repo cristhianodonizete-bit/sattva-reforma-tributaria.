@@ -288,8 +288,29 @@ async function controle(box) {
 }
 
 const salvar = async (caminho, corpo, msg) => {
-  try { await A.api(caminho, { metodo: 'PUT', corpo }); await A.carregarParametros(); A.toast(msg || 'Regra atualizada', 'ok'); A.ir('configuracoes'); }
+  if (!S.empresaId) { A.toast('Selecione a empresa cujos valores devem ser recalculados antes de salvar.', 'erro'); return; }
+  try {
+    const resposta = await A.api(caminho, { metodo: 'PUT', corpo: { ...corpo, empresa_id:S.empresaId } });
+    const documentos = resposta?.reprocessamento?.documentos;
+    await A.carregarParametros();
+    A.toast(`${msg || 'Regra atualizada'}${Number.isInteger(documentos) ? `: ${documentos} lançamento(s) entraram no recálculo incremental.` : ''}`, 'ok');
+    A.ir('configuracoes');
+  }
   catch (e) { A.toast(e.message, 'erro'); }
+};
+
+Telas.recalcularParametrosMotor = async (el) => {
+  if (!S.empresaId) { el.innerHTML = '<div class="aviso atencao">Selecione uma empresa antes de recalcular valores por parâmetro.</div>'; return; }
+  el.innerHTML = cab('Motor tributário', 'Recalcular valores por parâmetros',
+    'Recalcula somente os lançamentos canônicos da empresa selecionada e promove uma fotografia oficial atômica. Não reimporta documentos nem executa outros projetos.',
+    '<button class="btn" id="recalcularParametros">Recalcular valores</button>') + '<div class="aviso neutro">A tela continua usando a fotografia oficial atual até o job incremental concluir e promovê-la no Supabase.</div>';
+  el.querySelector('#recalcularParametros').onclick = async () => {
+    try {
+      const r = await A.api(`/empresas/${S.empresaId}/motor/recalcular-parametros`, { metodo:'POST', corpo:{} });
+      A.toast(`${r.documentos || 0} lançamento(s) agendado(s) para recálculo incremental.`, 'ok');
+      A.ir('controleProjeto');
+    } catch (e) { A.toast(e.message, 'erro'); }
+  };
 };
 
 // -------------------------------------------------------------- ALÍQUOTAS

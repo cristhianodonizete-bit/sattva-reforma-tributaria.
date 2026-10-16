@@ -8650,24 +8650,37 @@ async function confirmarParametrosCompartilhados() {
   await operacao.publicarConfiguracao();
   invalidarConfiguracaoDeCalculo();
 }
-async function agendarRecalculoDuravelPorConfiguracao() {
-  const filaDuravel = require('../services/motorExecucaoFila');
-  const empresas = db.prepare('SELECT id FROM empresas ORDER BY id').all();
-  const resumo = { empresas: empresas.length, enfileirados: 0, deduplicados: 0, erros: [] };
-  for (const empresa of empresas) {
-    try {
-      const ultima = db.prepare('SELECT ano FROM motor_execucoes WHERE empresa_id=? ORDER BY id DESC LIMIT 1').get(empresa.id);
-      const pedido = await filaDuravel.solicitar(empresa.id, { ano: ultima ? ultima.ano : 2027 });
-      resumo.enfileirados += pedido.deduplicado ? 0 : 1;
-      resumo.deduplicados += pedido.deduplicado ? 1 : 0;
-    } catch (e) {
-      resumo.erros.push({ empresa_id: empresa.id, erro: e.message });
-    }
-  }
-  return resumo;
+// Parâmetro alterado não dispara MOTOR_COMPLETO para toda a carteira. A fila
+// recebe somente IDs canônicos da empresa escolhida e promove a fotografia
+// no Supabase depois de validar o lote incremental.
+async function agendarRecalculoPorParametro(empresaId, motivo = 'Parâmetro fiscal atualizado') {
+  const id = Number(empresaId);
+  if (!Number.isInteger(id) || id <= 0) throw new Error('Selecione a empresa cujos valores devem ser recalculados.');
+  const empresa = db.prepare('SELECT id,razao_social FROM empresas WHERE id=?').get(id);
+  if (!empresa) throw new Error('Empresa não encontrada para o recálculo por parâmetro.');
+  const operacao = require('../services/operacaoCompartilhada');
+  const escopo = await operacao.listarMovimentosCanonicosEmpresa(id);
+  if (!escopo.movimento_ids.length) return { empresa_id:id, empresa:empresa.razao_social, documentos:0, status:'SEM_DOCUMENTOS' };
+  const ultima = db.prepare('SELECT ano FROM motor_execucoes WHERE empresa_id=? ORDER BY id DESC LIMIT 1').get(id);
+  const processamento_motor = await require('../services/motorExecucaoFila').solicitarIncremental(id, {
+    ano: ultima ? ultima.ano : 2027, movimentoIds: escopo.movimento_ids,
+  });
+  // Não há cálculo transitório de tela: até a promoção atômica, a leitura
+  // permanece na fotografia oficial; em seguida o cache local é descartado.
+  estadoLeituraEmpresa.invalidar(db,id,['motor','cadeias'],motivo);
+  return { empresa_id:id, empresa:empresa.razao_social, documentos:escopo.movimento_ids.length,
+    empresa_remota_id:escopo.empresa_remota_id, status:'PROCESSAMENTO_INCREMENTAL_AGENDADO', processamento_motor };
 }
+router.post('/empresas/:id/motor/recalcular-parametros', async (req, res) => {
+  try {
+    await garantirEmpresaPermitida(req, req.params.id);
+    const resultado = await agendarRecalculoPorParametro(req.params.id, 'Recálculo por parâmetro solicitado');
+    auditar(req,{ empresaId:Number(req.params.id), acao:'RECALCULO_INCREMENTAL_POR_PARAMETRO', entidade:'movimentos', entidadeId:'PARAMETROS', depois:{ documentos:resultado.documentos, processamento_id:resultado.processamento_motor?.processamento_id || null } });
+    ok(res, resultado);
+  } catch (e) { erro(res, e); }
+});
 router.put('/config/regras/:grupo/:chave', async (req, res) => {
-  try { regras.salvarRegra(req.params.grupo, req.params.chave, req.body.valor, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
+  try { regras.salvarRegra(req.params.grupo, req.params.chave, req.body.valor, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoPorParametro(req.body.empresa_id, 'Regra fiscal atualizada') }); }
   catch (e) { erro(res, e); }
 });
 
@@ -8680,42 +8693,46 @@ router.put('/config/regras-itens-receita/:id', async (req, res) => {
     db.prepare(`UPDATE regras_itens_receita_regime SET pis_percentual=?,cofins_percentual=?,tratamento_atual=?,tratamento_reforma=?,cst=?,cclasstrib=?,reducao_cbs=?,reducao_ibs=?,requer_classificacao=?,fundamento=?,vigencia_inicio=?,vigencia_fim=?,ativo=? WHERE id=?`)
       .run(n(req.body.pis_percentual, 'PIS'), n(req.body.cofins_percentual, 'Cofins'), String(req.body.tratamento_atual || '').trim(), String(req.body.tratamento_reforma || '').trim(), String(req.body.cst || '').trim() || null, String(req.body.cclasstrib || '').trim() || null, reducao(req.body.reducao_cbs, 'Redução CBS'), reducao(req.body.reducao_ibs, 'Redução IBS'), req.body.requer_classificacao ? 1 : 0, String(req.body.fundamento || '').trim() || null, String(req.body.vigencia_inicio || '').trim() || '2026-01-01', String(req.body.vigencia_fim || '').trim() || null, req.body.ativo ? 1 : 0, Number(req.params.id));
     await confirmarParametrosCompartilhados();
-    ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() });
+    ok(res, { reprocessamento: await agendarRecalculoPorParametro(req.body.empresa_id, 'Regra de receita atualizada') });
   } catch (e) { erro(res, e); }
 });
 
 router.put('/config/tributos/:chave', async (req, res) => {
-  try { regras.salvarTributo(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
+  try { regras.salvarTributo(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoPorParametro(req.body.empresa_id, 'Parâmetro de tributo atualizado') }); }
   catch (e) { erro(res, e); }
 });
 
 router.put('/config/regimes/:chave', async (req, res) => {
-  try { regras.salvarRegime(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
+  try { regras.salvarRegime(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoPorParametro(req.body.empresa_id, 'Parâmetro de regime atualizado') }); }
   catch (e) { erro(res, e); }
 });
 
 router.put('/config/reducoes/:chave', async (req, res) => {
-  try { regras.salvarReducao(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
+  try { regras.salvarReducao(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoPorParametro(req.body.empresa_id, 'Parâmetro de redução atualizado') }); }
   catch (e) { erro(res, e); }
 });
 
 router.put('/config/aliquotas/:ano', async (req, res) => {
-  try { regras.salvarAliquota(Number(req.params.ano), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
+  try { regras.salvarAliquota(Number(req.params.ano), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoPorParametro(req.body.empresa_id, 'Alíquota atualizada') }); }
   catch (e) { erro(res, e); }
 });
 
 router.put('/config/simples/:anexo/:faixa', async (req, res) => {
-  try { regras.salvarSimples(req.params.anexo, Number(req.params.faixa), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
+  try { regras.salvarSimples(req.params.anexo, Number(req.params.faixa), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoPorParametro(req.body.empresa_id, 'Faixa do Simples atualizada') }); }
   catch (e) { erro(res, e); }
 });
 
 router.put('/config/cfop/:id', async (req, res) => {
-  try { regras.salvarCfop(Number(req.params.id), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
+  try { regras.salvarCfop(Number(req.params.id), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoPorParametro(req.body.empresa_id, 'Mapa CFOP atualizado') }); }
   catch (e) { erro(res, e); }
 });
 
 router.post('/config/cfop', async (req, res) => {
-  try { const cfop = regras.cadastrarCfop(req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { cfop }); }
+  try {
+    const cfop = regras.cadastrarCfop(req.body, req.body.usuario);
+    await confirmarParametrosCompartilhados();
+    ok(res, { cfop, reprocessamento: await agendarRecalculoPorParametro(req.body.empresa_id, 'Mapa CFOP cadastrado') });
+  }
   catch (e) { erro(res, e); }
 });
 

@@ -826,6 +826,29 @@ async function prepararContextoMotorIncremental(empresaId, movimentoIds = []) {
   return { ...contexto, movimentos: movimentos.length, evidencias };
 }
 
+// O worker pode iniciar em outra instância e só reconhece IDs canônicos da
+// fonte compartilhada. Esta leitura não altera documentos nem fotografias.
+async function listarMovimentosCanonicosEmpresa(empresaId) {
+  if (!ativo()) throw new Error('A fonte compartilhada não está disponível para agendar o recálculo por parâmetro.');
+  const idLocal = Number(empresaId);
+  if (!Number.isInteger(idLocal) || idLocal <= 0) throw new Error('Empresa inválida para o recálculo por parâmetro.');
+  const remoto = supabase.admin();
+  const { data: empresas, error: erroEmpresa } = await remoto.from('empresas').select('id,origem_local_id')
+    .or(`origem_local_id.eq.${idLocal},id.eq.${idLocal}`).limit(3);
+  if (erroEmpresa) throw new Error(`Empresa do recálculo por parâmetro: ${erroEmpresa.message}`);
+  const empresaRemota = (empresas || []).find((empresa) => Number(empresa.origem_local_id || empresa.id) === idLocal);
+  if (!empresaRemota) throw new Error('Empresa compartilhada não identificada para o recálculo por parâmetro.');
+  const movimento_ids = [];
+  for (let de = 0;; de += 1000) {
+    const { data, error } = await remoto.from('movimentos').select('id')
+      .eq('empresa_id', Number(empresaRemota.id)).range(de, de + 999);
+    if (error) throw new Error(`Movimentos do recálculo por parâmetro: ${error.message}`);
+    movimento_ids.push(...(data || []).map((linha) => Number(linha.id)).filter(Number.isInteger));
+    if (!data || data.length < 1000) break;
+  }
+  return { empresa_remota_id: Number(empresaRemota.id), movimento_ids: [...new Set(movimento_ids)] };
+}
+
 // Evidências apontam para movimentos fiscais. Elas só podem ser restauradas
 // depois que a reconciliação da empresa inseriu os documentos no SQLite do
 // worker; restaurá-las antes violaria FK e interromperia o job sem cálculo.
@@ -2601,6 +2624,6 @@ async function publicarEntradasQuestorConciliadas(empresaId, movimentoIds = []) 
 }
 
 module.exports = { confirmarEntradasQuestorNaFonte, ativo, baixar, baixarRegrasEnquadramento, restaurarParceirosEmpresa, garantirCacheOperacionalEmpresa, reconciliarMovimentosEmpresa, invalidarReconciliacaoMovimentosEmpresa, excluirDocumentoFiscalCanonico, restaurarLinhaCanonica, sincronizarIncremental, baixarConfiguracao, publicarConfiguracao, baixarParametrosIrpjCsll, baixarGestao, publicar, publicarOperacaoEmpresa, publicarClassificacoesMovimentos, publicarCfopsQuestorConciliados, publicarEntradasQuestorConciliadas, deduplicarXmlParaPublicacao, deduplicarMovimentosFiscais, configuracaoFiscalCertificada, mapaEmpresasLocais, normalizarEmpresaIdDoCache, buscarColecoes, chaveConflitoTabela, chaveConflitoPublicacao,
-  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, validarFotografiaLocalEmpresa, publicarEstadosProjecoes, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
+  baixarResultadosMotor, restaurarFotografiaMotorEmpresa, validarFotografiaLocalEmpresa, publicarEstadosProjecoes, publicarResultadosMotor, promoverFotografiaMotor, promoverFotografiaMotorIncremental, validarFotografiaAtivaMotor, integridadeFotografiaAtivaMotor, prepararContextoMotorEmpresa, prepararContextoMotorIncremental, listarMovimentosCanonicosEmpresa, restaurarEvidenciasMotorAposDocumentos, filtrarOrfaosOperacionais,
   compararFotografiaMotor, resultadoCompartilhadoLocal, lerResultadosAtivosPorChave, reduzirEventosIncrementais, chaveEvento, validarEventoIncremental, diagnosticarDivergenciaMovimentosCanonicos,
   chavesQueDevemPermanecerExcluidas };
