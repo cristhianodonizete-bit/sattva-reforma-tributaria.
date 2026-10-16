@@ -4,6 +4,7 @@
 const db = require('../db');
 const motorExec = require('./motorExec');
 const fila = require('./motorExecucaoFila');
+const permissaoCriacaoJobsMotor = require('./permissaoCriacaoJobsMotor');
 
 // Trava operacional: com REPROCESSAMENTO_AUTOMATICO_PAUSADO=1 nenhuma empresa
 // recebe novo pedido incremental automático. Serve para conter um loop de
@@ -13,7 +14,7 @@ function pausado() {
 }
 
 async function agendarPendencias() {
-  if (pausado()) return [];
+  if (pausado() || !permissaoCriacaoJobsMotor.permitida()) return [];
   const empresas=db.prepare('SELECT id FROM empresas ORDER BY id').all();
   const resultado=[];
   for (const empresa of empresas) {

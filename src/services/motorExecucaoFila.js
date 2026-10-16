@@ -2,6 +2,7 @@ const db = require('../db');
 const fila = require('./processamentoCarteira');
 const staging = require('./motorStaging');
 const supabase = require('./supabase');
+const permissaoCriacaoJobsMotor = require('./permissaoCriacaoJobsMotor');
 
 const TIPO = 'MOTOR_COMPLETO';
 const TIPO_INCREMENTAL = 'MOTOR_INCREMENTAL';
@@ -15,13 +16,14 @@ const json = (valor, padrao = null) => {
 // fila. O Web consome apenas o processamento que acabou de receber; o claim
 // condicional no Supabase garante que nunca dispute o mesmo job com o worker.
 function iniciarConsumidorContingencia(processamentoId, habilitado = true) {
-  if (!habilitado || !processamentoId) return;
+  if (!habilitado || !processamentoId || !permissaoCriacaoJobsMotor.permitida()) return;
   setImmediate(() => fila.executar(processamentoId)
     .catch((erro) => console.error('[fila contingência web]', erro.message)));
 }
 
 async function solicitar(empresaId, opcoes = {}) {
   const empresa = db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId);
+  permissaoCriacaoJobsMotor.exigir();
   if (!empresa) throw new Error('Empresa não encontrada.');
   const ano = String(Number(opcoes.ano) || 2027);
   const processamento = await fila.iniciar({ empresas: [Number(empresaId)], competencia: ano, tipo: TIPO, prioridade: 10,
@@ -35,6 +37,7 @@ async function solicitar(empresaId, opcoes = {}) {
 // disparar preparação, reconciliação ou releitura da empresa inteira.
 async function solicitarIncremental(empresaId, opcoes = {}) {
   const empresa = db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId);
+  permissaoCriacaoJobsMotor.exigir();
   if (!empresa) throw new Error('Empresa não encontrada.');
   const movimentoIds = [...new Set((opcoes.movimentoIds || []).map(Number).filter(Number.isInteger))];
   if (!movimentoIds.length) throw new Error('Informe ao menos um lançamento para o reprocessamento incremental.');
