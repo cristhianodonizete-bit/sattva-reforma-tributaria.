@@ -97,6 +97,15 @@ const auditoriaFontesOperacionais = require('../services/auditoriaFontesOperacio
 
 const router = express.Router();
 const r2 = (v) => Math.round((Number(v) || 0) * 100) / 100;
+const versaoBuild = () => String(process.env.RENDER_GIT_COMMIT || process.env.GIT_COMMIT || process.env.RENDER_GIT_BRANCH || 'local').slice(0, 12);
+// Critério de leitura do Controle operacional. Mantido local para que o
+// painel não dependa de um helper privado do motor e falhe apenas ao abrir.
+const requerReferenciaFiscalServico = (movimento = {}) => {
+  const ehServico = Boolean(String(movimento.nbs || '').replace(/\D/g, ''))
+    || Number(movimento.iss || 0) !== 0
+    || (!String(movimento.ncm || '').replace(/\D/g, '') && Boolean(String(movimento.descricao || '').trim()));
+  return ehServico && (Number(movimento.pis || 0) + Number(movimento.cofins || 0) <= 0);
+};
 const exigirPeriodoParaImportacao = async (req) => {
   await periodoAnalisado.sincronizarCompartilhado(Number(req.params.id));
   return periodoAnalisado.exigir(Number(req.params.id));
@@ -915,6 +924,7 @@ router.use(async (req, res, next) => {
 // OPERAÇÃO COMPARTILHADA — dashboard lido da base Supabase
 // ===========================================================================
 router.get('/operacao/performance', (_req, res) => ok(res, performanceTelemetry.resumo()));
+router.get('/versao', (_req, res) => ok(res, { build: versaoBuild(), gerado_em: new Date().toISOString() }));
 router.get('/operacao/saude', async (_req, res) => {
   try { ok(res, await saudeOperacional.resumo(db, { supabase, telemetria:performanceTelemetry })); }
   catch (e) { erro(res, e); }
