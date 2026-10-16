@@ -3586,6 +3586,38 @@ router.post('/empresas/:id/referencias-vendas/importar', upload.single('arquivo'
   } catch (e) { erro(res, e); }
 });
 
+router.get('/empresas/:id/cadeia/:tipo/pendencias-pis-cofins', async (req, res) => {
+  try {
+    const empresaId = Number(req.params.id);
+    const empresa = db.prepare('SELECT id FROM empresas WHERE id = ?').get(empresaId);
+    if (!empresa) throw new Error('Empresa não encontrada');
+    const tipo = req.params.tipo === 'cliente' ? 'cliente' : 'fornecedor';
+    const pagina = Math.max(1, Number(req.query.pagina) || 1);
+    // Esta leitura não reutiliza a página da rastreabilidade: o cartão e o
+    // modal precisam referir-se ao mesmo conjunto integral de pendências.
+    const resumo = consolidacaoOficial.cadeia(empresaId, tipo, { incluirDetalhes:false })
+      .resumoPendenciasPisCofins || { registros:0, valor:0 };
+    const lista = consolidacaoOficial.listar(empresaId, {
+      sentido: tipo === 'cliente' ? 'saida' : 'entrada',
+      somentePendenciasPisCofins:true,
+      pagina,
+      limite:100,
+      ordenar:'competencia',
+      direcao:'asc',
+    });
+    ok(res, {
+      pendencias: lista.itens,
+      resumo,
+      paginacao: {
+        pagina,
+        limite:lista.limite,
+        total:lista.total,
+        totalPaginas:Math.max(1, Math.ceil(lista.total / lista.limite)),
+      },
+    });
+  } catch (e) { erro(res, e); }
+});
+
 router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
   try {
     await atualizarConfiguracaoDeCalculo();
