@@ -11,10 +11,10 @@ const cab = (olho, titulo, texto, acoes = '') =>
   `<div class="topo"><div><div class="olho">${olho}</div><h1>${titulo}</h1>${texto ? `<p>${texto}</p>` : ''}</div>
    <div class="acoes-topo">${acoes}</div></div>`;
 
-async function recalcularProjeto() {
-  const r = await A.api('/config/processamentos-carteira', { metodo: 'POST' });
+async function recalcularProjeto(empresaId) {
+  const r = await A.api('/config/processamentos-carteira', { metodo: 'POST', corpo: { empresa_id: empresaId } });
   const p = r.processamento;
-  A.toast(`Processamento da carteira iniciado: ${p.total_empresas} empresa(s). Acompanhe no Controle do projeto.`, 'ok');
+  A.toast(`Processamento iniciado: ${p.total_empresas} empresa(s). Acompanhe no Controle do projeto.`, 'ok');
   return r;
 }
 
@@ -45,12 +45,20 @@ Telas.configuracoes = async (el) => {
      `) + '<div id="corpoConfig"></div>';
 
   el.querySelectorAll('[data-c]').forEach((b) => { b.onclick = () => { S.aba.config = b.dataset.c; A.ir('configuracoes'); }; });
-  document.getElementById('recalcularProjeto').onclick = () => A.confirmar(
-    'Recalcular todas as empresas? A fila recalcula e promove a fotografia oficial com as regras atuais.',
-    async () => {
-      await recalcularProjeto();
-      A.ir('configuracoes');
+  document.getElementById('recalcularProjeto').onclick = () => {
+    const projetos = (S.empresas || []).slice().sort((a, b) => String(a.razao_social || '').localeCompare(String(b.razao_social || ''), 'pt-BR'));
+    if (!projetos.length) { A.toast('Não há projeto cadastrado para recalcular.', 'erro'); return; }
+    A.modal({
+      titulo: 'Recalcular projeto',
+      descricao: 'Escolha somente o projeto que deve receber uma nova fotografia oficial. Nenhuma outra empresa será incluída.',
+      corpo: `<label class="campo"><span>Projeto</span><select name="empresa_id" required>${projetos.map((empresa) => `<option value="${A.esc(empresa.id)}">${A.esc(empresa.razao_social || empresa.nome_fantasia || `Empresa ${empresa.id}`)}</option>`).join('')}</select></label>`,
+      confirmar: 'Iniciar recálculo',
+      aoConfirmar: async (dados) => {
+        await recalcularProjeto(Number(dados.empresa_id));
+        A.ir('controleProjeto');
+      },
     });
+  };
   const box = document.getElementById('corpoConfig');
   ({ controle, aliquotas, tributos, regimes, reducoes, simples, cfop, entradas_manuais, outras_receitas, limiares, ensaio, historico }[aba])(box, d);
 };
@@ -172,11 +180,23 @@ Telas.controleProjeto = async (el) => Telas.configuracoes(el);
 
 async function controle(box) {
   box.innerHTML = '<div class="carregando">Verificando o projeto…</div>';
-  const [d, carteiraResposta, saude] = await Promise.all([
-    A.api('/config/controle'),
-    A.api('/config/processamentos-carteira'),
+  // O painel é uma leitura administrativa. Se uma dependência parar, mostre
+  // qual consulta falhou e mantenha uma ação de nova tentativa; nunca deixe a
+  // pessoa presa em um carregamento infinito.
+  const respostas = await Promise.allSettled([
+    A.api('/config/controle', { timeoutMs: 15000 }),
+    A.api('/config/processamentos-carteira', { timeoutMs: 15000 }),
     A.api('/operacao/saude').catch((erro) => ({ erro: erro.message || 'Painel de saúde indisponível.' })),
   ]);
+  const falhas = respostas.slice(0, 2).flatMap((resultado, indice) => resultado.status === 'rejected'
+    ? [{ nome: indice === 0 ? 'resumo da carteira' : 'status do processamento', erro: resultado.reason?.message || 'Falha desconhecida.' }]
+    : []);
+  if (falhas.length) {
+    box.innerHTML = `<div class="aviso alto"><b>Não foi possível carregar o controle operacional.</b><br>${falhas.map((falha) => `${A.esc(falha.nome)}: ${A.esc(falha.erro)}`).join('<br>')}<p><button class="btn" id="tentarControleProjeto">Tentar novamente</button></p></div>`;
+    document.getElementById('tentarControleProjeto')?.addEventListener('click', () => A.ir('controleProjeto'));
+    return;
+  }
+  const [d, carteiraResposta, saude] = respostas.map((resultado) => resultado.value);
   const carteira = carteiraResposta.processamento;
   const ibsAtivo = Boolean(S.params?.modoAnalise?.ibsAtivo);
   const formatarDataSaude = (valor) => valor ? new Date(valor).toLocaleString('pt-BR') : '—';

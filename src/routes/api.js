@@ -3803,25 +3803,16 @@ router.post('/empresas/:id/regimes/auditoria-vigencia/reprocessar', async (req, 
   try {
     const empresaId=Number(req.params.id);
     if (!db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId)) throw new Error('Empresa não encontrada.');
-    const cnpjs=[...new Set((req.body?.cnpjs || []).map((x)=>String(x || '').replace(/\D/g,'')).filter((x)=>x.length===14))];
-    if (!cnpjs.length) throw new Error('Selecione ao menos um parceiro com divergência confirmada.');
-    // A fotografia não pode ser recriada com a cópia local antiga. Primeiro
-    // reconcilia cada parceiro com a fonte canônica compartilhada; se ela só
-    // possuir "regular", a resolução única ainda confere a Base RFB antes de
-    // aceitar esse fallback. A escrita é confirmada no Supabase pelo serviço.
-    const cadastros=[];
-    for(const cnpj of cnpjs){
-      const cadastro=await cnpjReceita.resolverRegimeCompartilhado(cnpj,{ finalidade:'sincronizacao_fotografia_regime' });
-      if(!String(cadastro?.regime_derivado||'').trim()) throw new Error(`Cadastro compartilhado indisponível ou sem regime para ${cnpj}. Nenhuma fotografia foi reprocessada.`);
-      cadastros.push({cnpj,regime:String(cadastro.regime_derivado).trim()});
-    }
-    const atualizarParceiro=db.prepare("UPDATE parceiros SET regime=?,regime_resolvido=?,origem='cadastro_compartilhado' WHERE empresa_id=? AND tipo='fornecedor' AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(cnpj,''),'.',''),'/',''),'-',''),' ','')=?");
-    const atualizarMovimentos=db.prepare("UPDATE movimentos SET regime=? WHERE empresa_id=? AND tipo='fornecedor' AND REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(inscr_federal,''),'.',''),'/',''),'-',''),' ','')=?");
-    db.transaction(()=>{ for(const cadastro of cadastros){ atualizarParceiro.run(cadastro.regime,cadastro.regime,empresaId,cadastro.cnpj); atualizarMovimentos.run(cadastro.regime,empresaId,cadastro.cnpj); } })();
     const auditoria=await require('../services/auditoriaRegimeVigencia').listar(db,empresaId);
-    const grupos=(auditoria.divergencias || []).filter((x)=>cnpjs.includes(String(x.cnpj)));
-    const movimentoIds=[...new Set(grupos.flatMap((x)=>x.movimento_ids || []).map(Number).filter(Boolean))];
-    if (!movimentoIds.length) throw new Error('Nenhuma divergência selecionada permanece na fotografia atual. Atualize a tela e tente novamente.');
+    const itens=(auditoria.itens || []).filter((x)=>x.status==='DIVERGENTE' && String(x.regime_vigente || '').trim());
+    if (!itens.length) throw new Error('A fotografia oficial já está compatível com o cadastro canônico.');
+    // A auditoria é a única decisão desta operação. Consultar API/Base outra
+    // vez aqui permitia que o reprocessamento escolhesse um regime diferente
+    // daquele que gerou a pendência e fazia a mesma linha reaparecer depois.
+    const atualizarMovimento=db.prepare("UPDATE movimentos SET regime=?,regime_fonte='AUDITORIA_REGIME_CANONICA' WHERE id=? AND empresa_id=? AND tipo='fornecedor'");
+    db.transaction(()=>itens.forEach((item)=>atualizarMovimento.run(String(item.regime_vigente).trim(),Number(item.movimento_id),empresaId)))();
+    const grupos=auditoria.divergencias || [];
+    const movimentoIds=[...new Set(itens.map((x)=>Number(x.movimento_id)).filter(Boolean))];
     // A auditoria é exibida a partir da fotografia ativa no Supabase. Rodar
     // apenas o motor local faria a divergência desaparecer até a próxima
     // restauração de cache e voltar em seguida. A fila incremental publica e
@@ -3829,7 +3820,7 @@ router.post('/empresas/:id/regimes/auditoria-vigencia/reprocessar', async (req, 
     const processamento_motor=await motorExecucaoFila.solicitarIncremental(empresaId,{
       ano:Number(req.body?.ano)||2027,movimentoIds,
     });
-    auditar(req,{empresaId,acao:'Agendou republicação de fotografias de regime selecionadas',entidade:'auditoria_regime_vigencia',entidadeId:String(auditoria.execucao_id || ''),antes:{cnpjs,divergencias:movimentoIds.length},depois:{processamento_id:processamento_motor.processamento_id,job_id:processamento_motor.job?.id || null}});
+    auditar(req,{empresaId,acao:'Agendou republicação integral de fotografias de regime',entidade:'auditoria_regime_vigencia',entidadeId:String(auditoria.execucao_id || ''),antes:{divergencias:movimentoIds.length},depois:{processamento_id:processamento_motor.processamento_id,job_id:processamento_motor.job?.id || null}});
     ok(res,{ selecionados:grupos.length,movimentos:movimentoIds.length,processamento_motor,
       mensagem:'Reprocessamento agendado. A auditoria será reavaliada após a fotografia ser publicada no Supabase.' });
   } catch (e) { erro(res,e); }
@@ -8186,11 +8177,22 @@ router.post('/config/controle/enriquecer', (_req, res) => {
   } catch (e) { erro(res, e); }
 });
 
-router.post('/config/processamentos-carteira', async (_req, res) => {
+router.post('/config/processamentos-carteira', async (req, res) => {
   // “Recalcular projeto” precisa produzir a mesma fotografia canônica que o
   // motor integral. O tipo legado RECALCULO_INCREMENTAL recalculava somente o
   // SQLite e fazia o resultado voltar na próxima restauração do Supabase.
-  try { ok(res, { processamento: await processamentoCarteira.iniciar({ tipo: 'MOTOR_COMPLETO' }) }); }
+  try {
+    // Empresa atendida equivale a um projeto de implementação. Não aceite a
+    // ausência de seleção como sinônimo de "toda a carteira": isso evita que
+    // um clique operacional recalcule projetos não escolhidos.
+    const empresaId = Number(req.body?.empresa_id);
+    if (!Number.isInteger(empresaId) || empresaId <= 0) throw new Error('Selecione o projeto a recalcular.');
+    const empresa = db.prepare('SELECT id FROM empresas WHERE id=?').get(empresaId);
+    if (!empresa) throw new Error('O projeto selecionado não foi encontrado. Atualize a tela e tente novamente.');
+    ok(res, { processamento: await processamentoCarteira.iniciar({
+      tipo: 'MOTOR_COMPLETO', empresas: [empresa.id], payload: { origem: 'RECALCULO_PROJETO_SELECIONADO' },
+    }) });
+  }
   catch (e) { erro(res, e); }
 });
 async function consultarProcessamentoCarteira(req, res) {
