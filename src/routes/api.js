@@ -766,15 +766,20 @@ async function garantirEmpresaPermitida(req, empresaId) {
 function submoduloFechado(empresaId, submodulo) {
   return fechamentoModulos.listar(Number(empresaId)).modulos.find((m) => m.chave === submodulo)?.status === 'FECHADO';
 }
-function atualizarDiagnosticoSeAberto(empresaId, submodulo, opcoes) {
-  // GET é leitura: nunca executa motor. Isso vale para módulo aberto e
-  // fechado. Um cálculo é disparado somente por importação, alteração que
-  // invalide movimentos, fila explícita ou comando do operador. Assim abrir
-  // Cadeias, Cenários ou Impacto não consome CPU nem cria execuções extras.
+async function atualizarDiagnosticoSeAberto(empresaId, submodulo, opcoes = {}) {
+  // GET é leitura: nunca executa o motor neste processo. Quando uma
+  // fotografia materializada ficou incompatível com a versão do cálculo,
+  // registra somente um job incremental durável. O worker é quem recalcula,
+  // publica e promove a fotografia no Supabase; a leitura não disputa CPU
+  // nem devolve um cálculo transitório.
   if (submoduloFechado(empresaId, submodulo)) return { empresa_id:Number(empresaId), reprocessados:0, status:'FOTOGRAFIA_FECHADA' };
   const pendentes = motorExec.pendentesIncrementais(Number(empresaId), opcoes);
+  if (!pendentes.length) return { empresa_id:Number(empresaId), reprocessados:0, pendentes:0, status:'FOTOGRAFIA_ATUAL' };
+  const processamento_motor = await motorExecucaoFila.solicitarIncremental(Number(empresaId), {
+    ano:Number(opcoes.ano) || 2027, movimentoIds:pendentes,
+  });
   return { empresa_id:Number(empresaId), reprocessados:0, pendentes:pendentes.length,
-    status: pendentes.length ? 'PROCESSAMENTO_PENDENTE' : 'FOTOGRAFIA_ATUAL' };
+    status:'PROCESSAMENTO_PENDENTE', processamento_motor };
 }
 
 // Fechamento é um marco de governança, não uma alteração fiscal. O histórico
@@ -3756,7 +3761,7 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
     // motor_resultados; ela não recalcula base, CBS, IBS ou crédito.
     // Leitura operacional nunca refaz a empresa inteira. Só atualiza a
     // fotografia se alguma dependência efetivamente mudou.
-    atualizarDiagnosticoSeAberto(empresa.id, tipo === 'cliente' ? 'clientes' : 'fornecedores', { ano: 2027 });
+    const atualizacaoFotografia=await atualizarDiagnosticoSeAberto(empresa.id, tipo === 'cliente' ? 'clientes' : 'fornecedores', { ano: 2027 });
     const cfg = prepararCadeia(empresa, tipo, req.query);
     const detalhesSolicitados = req.query.detalhes === undefined ? true : String(req.query.detalhes) === '1';
     const resultado = consolidacaoOficial.cadeia(empresa.id, tipo, {
@@ -3774,7 +3779,7 @@ router.get('/empresas/:id/cadeia/:tipo', async (req, res) => {
       paginaParceiros: req.query.pagina_parceiros,
       limiteParceiros: req.query.limite_parceiros,
     });
-    ok(res, { empresa, analise: resultado, renovacaoFotografia,
+    ok(res, { empresa, analise: resultado, renovacaoFotografia, atualizacaoFotografia,
       pendenciasReferencias: cfg.pendenciasReferencias.map((m) => ({ chave: chaveReferenciaServico(m), descricao: m.descricao || 'Serviço sem descrição', nbs: m.nbs || '', lc116:m.lc116 || '', valor: Number(m.valor) || 0 })) });
   } catch (e) { erro(res, e); }
 });
@@ -3825,7 +3830,7 @@ router.get('/empresas/:id/beneficios-fiscais/revisao', async (req, res) => {
     const empresaId = Number(req.params.id);
     const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(empresaId);
     if (!empresa) throw new Error('Empresa não encontrada.');
-    atualizarDiagnosticoSeAberto(empresaId, 'conformidade', { ano: 2027 });
+    await atualizarDiagnosticoSeAberto(empresaId, 'conformidade', { ano: 2027 });
     // A revisão só pode partir de benefícios já materializados pelo motor.
     // A cadeia não transfere o detalhamento de benefícios por padrão (para
     // manter a leitura normal leve); nesta rota ele é justamente o objeto da
@@ -3875,7 +3880,7 @@ router.get('/empresas/:id/impacto-final-cbs', async (req, res) => {
     await atualizarConfiguracaoDeCalculo();
     const empresa = db.prepare('SELECT * FROM empresas WHERE id=?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
-    atualizarDiagnosticoSeAberto(empresa.id, 'impacto_cbs', { ano: 2027 });
+    await atualizarDiagnosticoSeAberto(empresa.id, 'impacto_cbs', { ano: 2027 });
     ok(res, { empresa, ...consolidacaoOficial.impactoFinal(empresa.id, { executarSeAusente: false }) });
   } catch (e) { erro(res, e); }
 });
@@ -3884,7 +3889,7 @@ router.get('/empresas/:id/cenarios', async (req, res) => {
     await atualizarConfiguracaoDeCalculo();
     const empresa = db.prepare('SELECT * FROM empresas WHERE id = ?').get(req.params.id);
     if (!empresa) throw new Error('Empresa não encontrada');
-    atualizarDiagnosticoSeAberto(empresa.id, 'cenarios', { ano: 2027 });
+    await atualizarDiagnosticoSeAberto(empresa.id, 'cenarios', { ano: 2027 });
     const compras = consolidacaoOficial.cadeia(empresa.id, 'fornecedor', { executarSeAusente: false });
     const vendas = consolidacaoOficial.cadeia(empresa.id, 'cliente', { executarSeAusente: false });
     const c = compras.cenarios[0] || {}, v = vendas.cenarios[0] || {};
