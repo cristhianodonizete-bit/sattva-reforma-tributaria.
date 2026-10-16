@@ -8603,22 +8603,18 @@ router.post('/config/recalcular', async (_req, res) => {
       await require('../services/operacaoCompartilhada').baixarConfiguracao(['param_regimes','param_aliquotas','param_regras','param_reducoes','param_simples']);
       regras.invalidar();
     }
-    const empresas = db.prepare('SELECT * FROM empresas ORDER BY id').all();
-    const saida = { empresas: empresas.length, motores: 0, movimentos: 0, itensPrecificacao: 0, erros: [] };
-
+    const empresas = db.prepare('SELECT id,razao_social FROM empresas ORDER BY id').all();
+    const saida = { empresas: empresas.length, enfileirados: 0, deduplicados: 0, erros: [] };
+    const filaDuravel = require('../services/motorExecucaoFila');
     for (const empresa of empresas) {
       try {
-        // Garante que regras de natureza/classificação também sejam aplicadas
-        // antes da nova projeção, sem depender de uma ação manual separada.
-        const classificacao = bases.classificarMovimentos(empresa.id);
-        saida.movimentos += classificacao.total || 0;
-
-        const ultima = db.prepare('SELECT ano FROM motor_execucoes WHERE empresa_id = ? ORDER BY id DESC LIMIT 1').get(empresa.id);
-        motorExec.executar(empresa.id, { ano: ultima ? ultima.ano : 2027, integral: true });
-        saida.motores++;
-
-        // Itens de precificação legados não são recalculados. A visão oficial
-        // é montada sob demanda a partir de motor_resultados + formação de custo.
+        // O resultado do motor só passa a ser visível quando a fila publica e
+        // promove a fotografia no Supabase. Executar motorExec diretamente
+        // aqui gerava uma cópia SQLite que era substituída na próxima leitura.
+        const ultima = db.prepare('SELECT ano FROM motor_execucoes WHERE empresa_id=? ORDER BY id DESC LIMIT 1').get(empresa.id);
+        const pedido = await filaDuravel.solicitar(empresa.id, { ano: ultima ? ultima.ano : 2027 });
+        saida.enfileirados += pedido.deduplicado ? 0 : 1;
+        saida.deduplicados += pedido.deduplicado ? 1 : 0;
       } catch (e) {
         saida.erros.push({ empresa_id: empresa.id, empresa: empresa.razao_social, erro: e.message });
       }
@@ -8635,8 +8631,24 @@ async function confirmarParametrosCompartilhados() {
   await operacao.publicarConfiguracao();
   invalidarConfiguracaoDeCalculo();
 }
+async function agendarRecalculoDuravelPorConfiguracao() {
+  const filaDuravel = require('../services/motorExecucaoFila');
+  const empresas = db.prepare('SELECT id FROM empresas ORDER BY id').all();
+  const resumo = { empresas: empresas.length, enfileirados: 0, deduplicados: 0, erros: [] };
+  for (const empresa of empresas) {
+    try {
+      const ultima = db.prepare('SELECT ano FROM motor_execucoes WHERE empresa_id=? ORDER BY id DESC LIMIT 1').get(empresa.id);
+      const pedido = await filaDuravel.solicitar(empresa.id, { ano: ultima ? ultima.ano : 2027 });
+      resumo.enfileirados += pedido.deduplicado ? 0 : 1;
+      resumo.deduplicados += pedido.deduplicado ? 1 : 0;
+    } catch (e) {
+      resumo.erros.push({ empresa_id: empresa.id, erro: e.message });
+    }
+  }
+  return resumo;
+}
 router.put('/config/regras/:grupo/:chave', async (req, res) => {
-  try { regras.salvarRegra(req.params.grupo, req.params.chave, req.body.valor, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
+  try { regras.salvarRegra(req.params.grupo, req.params.chave, req.body.valor, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
   catch (e) { erro(res, e); }
 });
 
@@ -8649,37 +8661,37 @@ router.put('/config/regras-itens-receita/:id', async (req, res) => {
     db.prepare(`UPDATE regras_itens_receita_regime SET pis_percentual=?,cofins_percentual=?,tratamento_atual=?,tratamento_reforma=?,cst=?,cclasstrib=?,reducao_cbs=?,reducao_ibs=?,requer_classificacao=?,fundamento=?,vigencia_inicio=?,vigencia_fim=?,ativo=? WHERE id=?`)
       .run(n(req.body.pis_percentual, 'PIS'), n(req.body.cofins_percentual, 'Cofins'), String(req.body.tratamento_atual || '').trim(), String(req.body.tratamento_reforma || '').trim(), String(req.body.cst || '').trim() || null, String(req.body.cclasstrib || '').trim() || null, reducao(req.body.reducao_cbs, 'Redução CBS'), reducao(req.body.reducao_ibs, 'Redução IBS'), req.body.requer_classificacao ? 1 : 0, String(req.body.fundamento || '').trim() || null, String(req.body.vigencia_inicio || '').trim() || '2026-01-01', String(req.body.vigencia_fim || '').trim() || null, req.body.ativo ? 1 : 0, Number(req.params.id));
     await confirmarParametrosCompartilhados();
-    ok(res, {});
+    ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() });
   } catch (e) { erro(res, e); }
 });
 
 router.put('/config/tributos/:chave', async (req, res) => {
-  try { regras.salvarTributo(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
+  try { regras.salvarTributo(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
   catch (e) { erro(res, e); }
 });
 
 router.put('/config/regimes/:chave', async (req, res) => {
-  try { regras.salvarRegime(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
+  try { regras.salvarRegime(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
   catch (e) { erro(res, e); }
 });
 
 router.put('/config/reducoes/:chave', async (req, res) => {
-  try { regras.salvarReducao(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
+  try { regras.salvarReducao(req.params.chave, req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
   catch (e) { erro(res, e); }
 });
 
 router.put('/config/aliquotas/:ano', async (req, res) => {
-  try { regras.salvarAliquota(Number(req.params.ano), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
+  try { regras.salvarAliquota(Number(req.params.ano), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
   catch (e) { erro(res, e); }
 });
 
 router.put('/config/simples/:anexo/:faixa', async (req, res) => {
-  try { regras.salvarSimples(req.params.anexo, Number(req.params.faixa), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
+  try { regras.salvarSimples(req.params.anexo, Number(req.params.faixa), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
   catch (e) { erro(res, e); }
 });
 
 router.put('/config/cfop/:id', async (req, res) => {
-  try { regras.salvarCfop(Number(req.params.id), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, {}); }
+  try { regras.salvarCfop(Number(req.params.id), req.body, req.body.usuario); await confirmarParametrosCompartilhados(); ok(res, { reprocessamento: await agendarRecalculoDuravelPorConfiguracao() }); }
   catch (e) { erro(res, e); }
 });
 

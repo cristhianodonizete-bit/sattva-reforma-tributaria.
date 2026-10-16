@@ -38,7 +38,7 @@ Telas.configuracoes = async (el) => {
   const aba = modoControle ? 'controle' : (S.aba.config || 'aliquotas');
 
   el.innerHTML = cab(modoControle ? 'Operação da carteira' : 'Configurações técnicas', modoControle ? 'Controle operacional da carteira' : 'Regras e parâmetros do motor',
-    modoControle ? 'Acompanha qualidade dos dados, pendências, enriquecimento e processamento. Não altera escopos contratados nem substitui o dashboard operacional.' : 'Parâmetros técnicos usados pelo motor. Alterações exigem permissão e afetam apenas execuções futuras.',
+    modoControle ? 'Acompanha qualidade dos dados, pendências, enriquecimento e processamento. Não altera escopos contratados nem substitui o dashboard operacional.' : 'Parâmetros técnicos usados pelo motor. Ao salvar, o sistema enfileira uma nova fotografia oficial com as regras atualizadas.',
     '<button class="btn" id="recalcularProjeto">Recalcular projeto</button>') +
     (modoControle ? '' : `<div class="abas">${ABAS.map((a) =>
       `<button data-c="${a.id}" class="${aba === a.id ? 'ativo' : ''}">${a.t}</button>`).join('')}</div>
@@ -46,7 +46,7 @@ Telas.configuracoes = async (el) => {
 
   el.querySelectorAll('[data-c]').forEach((b) => { b.onclick = () => { S.aba.config = b.dataset.c; A.ir('configuracoes'); }; });
   document.getElementById('recalcularProjeto').onclick = () => A.confirmar(
-    'Recalcular todas as empresas? Isso atualiza Classificações e itens salvos de Precificação com as regras atuais.',
+    'Recalcular todas as empresas? A fila recalcula e promove a fotografia oficial com as regras atuais.',
     async () => {
       await recalcularProjeto();
       A.ir('configuracoes');
