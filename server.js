@@ -6,6 +6,19 @@ const autenticacao = require('./src/services/autenticacao');
 const supabase = require('./src/services/supabase');
 const performanceTelemetry = require('./src/services/performanceTelemetry');
 
+// Escritas disparadas por boot, cron, telemetria e outbox exigem liberação explícita.
+// Rotas POST permanecem sujeitas à autorização própria; esta guarda não cria escrita em GET.
+function escritasAutomaticasPermitidas() {
+  return String(process.env.ESCRITAS_AUTOMATICAS_PERMITIDAS || '').toLowerCase() === 'true';
+}
+function restauracaoCacheLocalPermitida() {
+  return String(process.env.RESTAURAR_CACHE_LOCAL ?? 'true').trim().toLowerCase() !== 'false';
+}
+
+function suprimirEscritaAutomatica(origem) {
+  console.info(`[automação] escrita suprimida em ${origem}: ESCRITAS_AUTOMATICAS_PERMITIDAS diferente de true`);
+}
+
 const app = express();
 // O processo HTTP não deve aguardar uma carga-base remota para abrir a porta.
 // Em uma instância sem fotografia local, as APIs operacionais ficam
@@ -113,6 +126,11 @@ function possuiBaseOperacionalLocal() {
 }
 
 async function iniciarOperacao() {
+  if (!restauracaoCacheLocalPermitida()) {
+    console.info('[automacao] restauracao do cache local suprimida no boot: RESTAURAR_CACHE_LOCAL=false');
+    return;
+  }
+  if (!escritasAutomaticasPermitidas()) suprimirEscritaAutomatica('boot:operacoes remotas');
   let sincronizacaoConcluida = false;
   try {
     const operacao = require('./src/services/operacaoCompartilhada');
@@ -163,7 +181,7 @@ async function iniciarOperacao() {
             remoto: supabase.admin({ prazoMs: prazoSegundoPlano }),
             segmentadoPorEmpresa:true,
           });
-          if (Date.now() - ultimaRetencaoEm >= intervaloRetencaoMs) {
+          if (escritasAutomaticasPermitidas() && Date.now() - ultimaRetencaoEm >= intervaloRetencaoMs) {
             try {
               const remotoRetencao = supabase.admin({ prazoMs: prazoSegundoPlano });
               const { data: retencao, error: erroRetencao } = await remotoRetencao.rpc('limpar_eventos_sincronizacao_operacional');
@@ -176,8 +194,12 @@ async function iniciarOperacao() {
               console.error('  retenção da fila operacional falhou:', erroRetencao.message);
             }
           }
-          const reprocessamentos=await require('./src/services/reprocessamentoAutomatico').agendarPendencias();
-          if (reprocessamentos.length) console.log(`  reprocessamentos incrementais automáticos: ${JSON.stringify(reprocessamentos)}`);
+          if (escritasAutomaticasPermitidas()) {
+            const reprocessamentos=await require('./src/services/reprocessamentoAutomatico').agendarPendencias();
+            if (reprocessamentos.length) console.log('  reprocessamentos incrementais automaticos: '+JSON.stringify(reprocessamentos));
+          } else {
+            suprimirEscritaAutomatica('sincronizacao:agendar pendencias');
+          }
           if (Number(atualizado?.eventos || 0) > 0 || atualizado?.modo === 'fallback_completo') {
             console.log(`  operação compartilhada atualizada: ${JSON.stringify(atualizado)}`);
           }
@@ -201,9 +223,13 @@ async function iniciarOperacao() {
       // Processar uma fila durante a carga-base concorria com a leitura dos
       // dados e esgotava a memória da instância antes do primeiro acesso.
       const fila = require('./src/services/processamentoCarteira');
-      await fila.recuperarAbandonados();
-      const reprocessamentos=await require('./src/services/reprocessamentoAutomatico').agendarPendencias();
-      if (reprocessamentos.length) console.log(`  reprocessamentos incrementais automáticos: ${JSON.stringify(reprocessamentos)}`);
+      if (escritasAutomaticasPermitidas()) {
+        await fila.recuperarAbandonados();
+        const reprocessamentos=await require('./src/services/reprocessamentoAutomatico').agendarPendencias();
+        if (reprocessamentos.length) console.log('  reprocessamentos incrementais automaticos: '+JSON.stringify(reprocessamentos));
+      } else {
+        suprimirEscritaAutomatica('boot:recuperar jobs e agendar pendencias');
+      }
       console.log('  motor geral aguarda acionamento explícito; alterações pontuais seguem para a fila incremental automaticamente');
     }
   } catch (e) {
@@ -241,6 +267,10 @@ function iniciar() {
   // minuto da instância. Ela é auxiliar e pode aguardar a estabilização.
   const intervaloTelemetria = Math.max(60_000, Number(process.env.SUPABASE_BACKGROUND_INTERVAL_MS || 5 * 60_000));
   const persistirTelemetria = () => {
+    if (!escritasAutomaticasPermitidas()) {
+      suprimirEscritaAutomatica('agendamento:telemetria');
+      return;
+    }
     if (supabase.configurado()) {
       performanceTelemetry.persistir(supabase.admin({ prazoMs: 45_000 }))
         .catch((e) => console.error('  telemetria de performance:', e.message));
@@ -257,19 +287,24 @@ function iniciar() {
   // somente abre uma atualização para revisão: jamais muda RAG, catálogo ou
   // motor sem decisão humana registrada.
   const monitoramentoAtualizacoes = require('./src/services/monitoramentoAtualizacoesReforma');
-  const executarMonitoramentoNormativo = () => monitoramentoAtualizacoes.executar()
-    .catch((e) => console.error('  monitoramento normativo:', e.message));
+  const executarMonitoramentoNormativo = () => {
+    if (!escritasAutomaticasPermitidas()) {
+      suprimirEscritaAutomatica('agendamento:monitoramento-normativo');
+      return Promise.resolve();
+    }
+    return monitoramentoAtualizacoes.executar()
+      .catch((e) => console.error('  monitoramento normativo:', e.message));
+  };
   // Em produção, a primeira execução não pode competir com a retomada da
   // sessão de quem acabou de entrar. O intervalo recorrente permanece igual;
   // apenas a execução pós-reinício aguarda a instância estabilizar.
   setTimeout(executarMonitoramentoNormativo, 10 * 60 * 1000).unref?.();
-  setInterval(() => monitoramentoAtualizacoes.executar()
-    .catch((e) => console.error('  monitoramento normativo:', e.message)), 60 * 60 * 1000).unref();
+  setInterval(executarMonitoramentoNormativo, 60 * 60 * 1000).unref();
   // Worker da outbox das entradas Questor. Desligado por padrão: só roda com
   // ENTRADAS_OUTBOX_ATIVA=true. Recupera leases expirados e retenta itens
   // elegíveis, respeitando backoff e limite de tentativas (plano aprovado).
   const outboxEntradas = require('./src/services/entradasQuestorOutbox');
-  if (outboxEntradas.ativa()) {
+  if (escritasAutomaticasPermitidas() && outboxEntradas.ativa()) {
     const outbox = outboxEntradas;
     const operacao = require('./src/services/operacaoCompartilhada');
     const sb = require('./src/services/supabase');
@@ -295,11 +330,16 @@ function iniciar() {
   // novas versões oficiais e não altera regras, cálculos ou resultados já
   // fechados para qualquer empresa.
   const referenciasFiscais = require('./src/services/referenciasFiscaisOficiais');
-  const sincronizarReferenciasFiscais = () => referenciasFiscais.sincronizarReferenciasOficiaisVigentes()
-    .catch((e) => console.error('  referências fiscais oficiais:', e.message));
+  const sincronizarReferenciasFiscais = () => {
+    if (!escritasAutomaticasPermitidas()) {
+      suprimirEscritaAutomatica('agendamento:referencias-fiscais');
+      return Promise.resolve();
+    }
+    return referenciasFiscais.sincronizarReferenciasOficiaisVigentes()
+      .catch((e) => console.error('  referências fiscais oficiais:', e.message));
+  };
   setTimeout(sincronizarReferenciasFiscais, 15 * 60 * 1000).unref?.();
-  setInterval(() => referenciasFiscais.sincronizarReferenciasOficiaisVigentes()
-    .catch((e) => console.error('  referências fiscais oficiais:', e.message)), 24 * 60 * 60 * 1000).unref();
+  setInterval(sincronizarReferenciasFiscais, 24 * 60 * 60 * 1000).unref();
   // Não aguardar: Render pode considerar a instância indisponível enquanto a
   // primeira carga-base baixa dezenas de coleções.
   iniciarOperacao().catch((e) => console.error('  inicialização operacional não concluída:', e.message));

@@ -191,47 +191,6 @@ function normalizarIdsParceirosDoCache(linhas) {
 // Esses vínculos nascem com Simples apenas como premissa operacional. Quando
 // a base oficial por CNPJ — ou pela raiz da filial — trouxer um regime, ela
 // deve prevalecer tanto na leitura quanto antes de o motor calcular.
-function aplicarRegimeBaseNosVinculosQuestor(empresaId) {
-  // SQLite não permite referenciar a tabela-alvo dentro da subconsulta
-  // correlacionada de UPDATE. Resolvemos primeiro por id no CTE e somente
-  // então atualizamos o parceiro; assim o worker não aborta antes de
-  // publicar a fotografia.
-  const parceiros=db.prepare(`WITH candidatos AS (
-      SELECT p.id, br.regime,
-        ROW_NUMBER() OVER (PARTITION BY p.id ORDER BY CASE WHEN br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','') THEN 0 ELSE 1 END, br.ano DESC) AS posicao
-      FROM parceiros p
-      JOIN base_regime br ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ','')
-        OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(p.cnpj,''),'.',''),'/',''),'-',''),' ',''),1,8)
-      WHERE p.empresa_id=? AND p.tipo='fornecedor' AND COALESCE(p.cnpj,'')<>''
-        AND UPPER(COALESCE(p.origem,'')) IN ('QUESTOR_PESSOA_CONTRAPARTIDA','QUESTOR_PESSOA_HISTORICO')
-    ), resolvidos AS (
-      SELECT id,regime FROM candidatos WHERE posicao=1
-    )
-    UPDATE parceiros SET regime=(SELECT r.regime FROM resolvidos r WHERE r.id=parceiros.id)
-    WHERE id IN (SELECT id FROM resolvidos WHERE regime IS NOT NULL)
-      AND COALESCE(regime,'') IS NOT COALESCE((SELECT r.regime FROM resolvidos r WHERE r.id=parceiros.id),'')`).run(Number(empresaId)).changes;
-  // O Razão também pode trazer o CNPJ já identificado no próprio lançamento,
-  // sem que o parceiro tenha sido materializado pela rotina de pessoas. A
-  // premissa inicial de Simples é apenas um fallback de importação; nunca
-  // pode prevalecer sobre a base de regimes por CNPJ/raiz nessa situação.
-  const movimentos=db.prepare(`WITH candidatos AS (
-      SELECT m.id, br.regime,
-        ROW_NUMBER() OVER (PARTITION BY m.id ORDER BY CASE WHEN br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','') THEN 0 ELSE 1 END, br.ano DESC) AS posicao
-      FROM movimentos m
-      JOIN base_regime br ON br.cnpj=REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ','')
-        OR br.raiz=SUBSTR(REPLACE(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''),' ',''),1,8)
-      WHERE m.empresa_id=? AND m.tipo='fornecedor'
-        AND UPPER(COALESCE(m.origem,'')) IN ('QUESTOR_RAZAO','QUESTOR_CONCILIACAO_ENTRADA')
-        AND LENGTH(REPLACE(REPLACE(REPLACE(COALESCE(m.inscr_federal,''),'.',''),'/',''),'-',''))=14
-    ), resolvidos AS (
-      SELECT id,regime FROM candidatos WHERE posicao=1
-    )
-    UPDATE movimentos SET regime=(SELECT r.regime FROM resolvidos r WHERE r.id=movimentos.id)
-    WHERE id IN (SELECT id FROM resolvidos)
-      AND COALESCE(regime,'') IS NOT COALESCE((SELECT r.regime FROM resolvidos r WHERE r.id=movimentos.id),'')`).run(Number(empresaId)).changes;
-  return parceiros+movimentos;
-}
-
 async function hidratarBaseRegimeDaEmpresa(empresaId, opcoes = {}) {
   const limite=Math.max(1,Math.min(100,Number(opcoes.limite)||100));
   const depois=String(opcoes.depois_cnpj || '').replace(/\D/g,'');
@@ -455,7 +414,7 @@ async function restaurarParceirosEmpresa(empresaId, remotoInformado = null) {
   if (error) throw new Error(`Parceiros compartilhados: ${error.message}`);
   const linhas = normalizarEmpresaIdDoCache('parceiros', data || [], new Map([[String(empresaRemota.id), Number(empresaId)]]));
   const parceiros=gravar('parceiros', linhas);
-  const regimes_atualizados=aplicarRegimeBaseNosVinculosQuestor(empresaId);
+  const regimes_atualizados=0;
   return { ativo:true, parceiros, regimes_atualizados, empresa_remota_id:empresaRemota.id };
 }
 
@@ -522,7 +481,7 @@ async function garantirCacheOperacionalEmpresa(empresaId, opcoes = {}) {
     }
     auxiliares.formacao_custo_componentes=gravar('formacao_custo_componentes',componentes);
     const referenciasRegime=await hidratarBaseRegimeDaEmpresa(id);
-    const regimesAtualizados=aplicarRegimeBaseNosVinculosQuestor(id);
+    const regimesAtualizados=0;
     await restaurarFotografiaMotorEmpresa(id,remoto);
     // A restauração do cache dispara os mesmos gatilhos locais de uma edição.
     // Linhas já cobertas pela fotografia ativa não devem virar recálculo só
@@ -760,7 +719,7 @@ async function prepararContextoMotorEmpresa(empresaId) {
     resultado.dados_empresa[tabela] = tabela === 'empresa_qsa' ? gravarEmpresaQsa(linhas) : gravar(tabela, linhas);
   }
   resultado.referencias.base_regime=await hidratarBaseRegimeDaEmpresa(id);
-  resultado.dados_empresa.regimes_base_questor=aplicarRegimeBaseNosVinculosQuestor(id);
+  resultado.dados_empresa.regimes_base_questor=0;
   try { require('./regras').invalidar(); } catch (_) { /* somente cache */ }
   return resultado;
 }
@@ -810,7 +769,7 @@ async function prepararContextoMotorIncremental(empresaId, movimentoIds = []) {
   // é escopada pelos CNPJs desses movimentos, hidrate-a novamente após o lote
   // chegar e antes de qualquer cálculo.
   contexto.referencias.base_regime = await hidratarBaseRegimeDaEmpresa(id);
-  contexto.dados_empresa.regimes_base_questor = aplicarRegimeBaseNosVinculosQuestor(id);
+  contexto.dados_empresa.regimes_base_questor = 0;
   const evidencias = {};
   for (const tabela of TABELAS_MOTOR_APOS_DOCUMENTOS) {
     const linhas=[];
@@ -1416,13 +1375,16 @@ async function sincronizarIncrementalV2(remoto, opcoes = {}) {
   return { disponivel:true, modo:'incremental_v2', consumidor, sequencia:fim, ...aplicado };
 }
 
-async function sincronizarIncremental(opcoes = {}) {
-  if (!ativo()) return { ativo: false };
-  const remoto = opcoes.remoto || supabase.admin({ prazoMs: opcoes.prazoMs });
-  if (!opcoes.forcarLegado) {
-    const v2=await sincronizarIncrementalV2(remoto,opcoes);
-    if (v2.disponivel) return v2;
-  }
+function restauracaoCacheLocalPermitida() {
+  return String(process.env.RESTAURAR_CACHE_LOCAL ?? 'true').trim().toLowerCase() !== 'false';
+}
+function escritasAutomaticasPermitidas() {
+  return String(process.env.ESCRITAS_AUTOMATICAS_PERMITIDAS || '').trim().toLowerCase() === 'true';
+}
+
+// Esta parte só lê o Supabase e recompõe o SQLite local. Ela não registra
+// consumidor, não publica eventos e não confirma checkpoint remoto.
+async function restaurarCacheLocalIncremental(remoto, opcoes = {}) {
   const sequencia = lerSequenciaIncremental();
   // A primeira instalação cria uma base íntegra e somente depois habilita o
   // delta. Eventos ocorridos durante a carga são reaplicados idempotentemente.
@@ -1439,22 +1401,29 @@ async function sincronizarIncremental(opcoes = {}) {
       validarCargaBase(recuperacao, 'Recuperação incremental');
       marcoAplicado = marcoCobertoPeloFallback;
     }
-    // O marco não pode avançar além de um evento efetivamente aplicado. Eventos
-    // que chegarem após esta leitura serão buscados no próximo ciclo.
     db.transaction(() => salvarSequenciaIncremental(marcoAplicado))();
-    return { modo: 'carga_base', sequencia: Number(marcoAplicado), ...aplicado };
+    return { modo: 'carga_base_local', sequencia: Number(marcoAplicado), ...aplicado };
   }
   const eventos = await buscarEventosIncrementais(remoto, sequencia);
-  if (!eventos.length) return { modo: 'incremental', eventos: 0, aplicadas: 0, removidas: 0, sequencia };
+  if (!eventos.length) return { modo: 'incremental_local', eventos: 0, aplicadas: 0, removidas: 0, sequencia };
   const aplicado = await aplicarEventosIncrementais(remoto, eventos,opcoes);
-  if (!aplicado.fallback) return { modo: 'incremental', sequencia: lerSequenciaIncremental(), ...aplicado };
-  // Fallback intencional: a tabela ainda não possui semântica incremental ou
-  // o evento é sensível. Nada do lote foi aplicado antes desta decisão.
+  if (!aplicado.fallback) return { modo: 'incremental_local', sequencia: lerSequenciaIncremental(), ...aplicado };
   const marcoCobertoPeloFallback = await maiorSequenciaIncremental(remoto);
   const completo = await baixar(remoto,opcoes);
   validarCargaBase(completo, 'Fallback incremental');
   db.transaction(() => salvarSequenciaIncremental(marcoCobertoPeloFallback))();
-  return { modo: 'fallback_completo', sequencia: Number(marcoCobertoPeloFallback), eventos: eventos.length, ...aplicado };
+  return { modo: 'fallback_completo_local', sequencia: Number(marcoCobertoPeloFallback), eventos: eventos.length, ...aplicado };
+}
+
+async function sincronizarIncremental(opcoes = {}) {
+  if (!ativo()) return { ativo: false };
+  if (!restauracaoCacheLocalPermitida()) return { ativo: true, restauracao: false, motivo: 'RESTAURAR_CACHE_LOCAL_DESLIGADA' };
+  const remoto = opcoes.remoto || supabase.admin({ prazoMs: opcoes.prazoMs });
+  if (escritasAutomaticasPermitidas() && !opcoes.forcarLegado) {
+    const v2=await sincronizarIncrementalV2(remoto,opcoes);
+    if (v2.disponivel) return v2;
+  }
+  return restaurarCacheLocalIncremental(remoto,opcoes);
 }
 
 // A fotografia do motor (resultados CBS e telemetria) é uma camada derivada.
