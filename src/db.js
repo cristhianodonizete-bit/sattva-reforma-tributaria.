@@ -766,6 +766,17 @@ CREATE INDEX IF NOT EXISTS ix_mov_insc ON movimentos(empresa_id, inscr_federal);
 CREATE INDEX IF NOT EXISTS ix_mov_empresa_tipo_competencia_id ON movimentos(empresa_id, tipo, competencia DESC, id DESC);
 CREATE INDEX IF NOT EXISTS ix_mov_empresa_origem_id ON movimentos(empresa_id, origem, id);
 
+-- Índice descartável remoto→local. A resolução fiscal continua determinística
+-- quando este cache some num reinício do serviço web.
+CREATE TABLE IF NOT EXISTS movimentos_cache_remoto (
+  empresa_id INTEGER NOT NULL REFERENCES empresas(id) ON DELETE CASCADE,
+  movimento_remoto_id INTEGER NOT NULL,
+  movimento_local_id INTEGER NOT NULL REFERENCES movimentos(id) ON DELETE CASCADE,
+  sincronizado_em TEXT NOT NULL DEFAULT (datetime('now')),
+  PRIMARY KEY (empresa_id, movimento_remoto_id),
+  UNIQUE (empresa_id, movimento_local_id)
+);
+
 -- Cancelamentos conhecidos antes da chegada do XML. O relatório fiscal pode
 -- ser posterior à emissão; preservar essa identidade impede que uma NFS-e
 -- importada futuramente entre como autorizada por não ter evento XML próprio.

@@ -1736,6 +1736,70 @@ function movimentosLocaisExistentes(empresaId,ids) {
   return existentes;
 }
 
+
+function chaveFiscalMovimento(linha) {
+  const digitos=(valor)=>String(valor ?? '').replace(/\D/g,'');
+  if (linha.chave) return 'CHAVE|'+String(linha.chave)+'|ITEM|'+Number(linha.item_numero || 0);
+  return [
+    digitos(linha.emitente_cnpj),
+    digitos(linha.destinatario_cnpj),
+    String(linha.documento || ''),
+    String(linha.data_emissao || ''),
+    Number(linha.item_numero || 0),
+    Number(linha.valor || 0).toFixed(2),
+  ].join('|');
+}
+
+function validarIdentidadesCanonicas(remotos) {
+  const porChave=new Map();
+  for (const remoto of remotos) {
+    const chave=chaveFiscalMovimento(remoto);
+    const anterior=porChave.get(chave);
+    if (anterior != null) {
+      throw new Error('Fonte canônica contém identidade fiscal duplicada para os movimentos '+anterior+' e '+remoto.id+'; a restauração foi cancelada sem escrita.');
+    }
+    porChave.set(chave, Number(remoto.id));
+  }
+}
+
+function hidratarMovimentosCanonicos(empresaId, remotos) {
+  // A tabela é apenas índice descartável. Se ela desaparecer num reinício, a
+  // resolução abaixo volta à mesma chave fiscal, nunca a um id efêmero.
+  const campos=CAMPOS.movimentos.filter((campo)=>campo!=='id');
+  const inserir=db.prepare('INSERT INTO movimentos ('+campos.join(',')+') VALUES ('+campos.map(()=>'?').join(',')+')');
+  const porDocumento=db.prepare('SELECT * FROM movimentos WHERE empresa_id=? AND COALESCE(documento,\'\')=? AND COALESCE(data_emissao,\'\')=? AND COALESCE(item_numero,0)=? AND ABS(COALESCE(valor,0)-?)<0.000001');
+  const porChave=db.prepare('SELECT * FROM movimentos WHERE empresa_id=? AND chave=? AND COALESCE(item_numero,0)=?');
+  const registrarIndice=db.prepare('INSERT OR IGNORE INTO movimentos_cache_remoto (empresa_id,movimento_remoto_id,movimento_local_id,sincronizado_em) VALUES (?,?,?,datetime(\'now\'))');
+  const porRemoto=new Map(); let inseridos=0;
+
+  validarIdentidadesCanonicas(remotos);
+  for (const remoto of remotos) {
+    const chave=chaveFiscalMovimento(remoto);
+    const preselecionados=remoto.chave
+      ? porChave.all(Number(empresaId),String(remoto.chave),Number(remoto.item_numero || 0))
+      : porDocumento.all(Number(empresaId),String(remoto.documento || ''),String(remoto.data_emissao || ''),Number(remoto.item_numero || 0),Number(remoto.valor || 0));
+    const candidatos=preselecionados.filter((local)=>chaveFiscalMovimento(local)===chave);
+    if (candidatos.length>1) {
+      throw new Error('Identidade fiscal ambígua para o movimento canônico '+remoto.id+'; a restauração foi cancelada sem escrita.');
+    }
+
+    let localId=Number(candidatos[0]?.id);
+    if (!localId) {
+      const linha={...remoto,empresa_id:Number(empresaId)};
+      const valor=(campo)=>{
+        const item=linha[campo];
+        return item && typeof item==='object' && !Buffer.isBuffer(item) && !(item instanceof Date)
+          ? JSON.stringify(item)
+          : (item ?? null);
+      };
+      localId=Number(inserir.run(...campos.map(valor)).lastInsertRowid);
+      inseridos++;
+    }
+    registrarIndice.run(Number(empresaId),Number(remoto.id),localId);
+    porRemoto.set(Number(remoto.id),localId);
+  }
+  return {porRemoto,inseridos};
+}
 const esperarFotografia=(ms)=>new Promise((resolve)=>setTimeout(resolve,ms));
 
 // A paginação por chave evita que o PostgREST reexecute offsets cada vez mais
@@ -1811,7 +1875,10 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   // A presença dos fatos locais é requisito somente dos resultados ativos da
   // fotografia oficial. Estados são derivados e serão copiados apenas quando
   // o respectivo fato já existir no cache local.
-  const movimentoIdsResultados=[...new Set(resultados.map((x)=>Number(x.movimento_id)).filter(Number.isInteger))];
+  const movimentoIds=[...new Set([
+    ...resultados.map((x)=>Number(x.movimento_id)),
+    ...estadosRemotos.map((x)=>Number(x.movimento_id)),
+  ].filter(Number.isInteger))];
   // A execução é a indicada pelas linhas ativas, nunca a última execução da
   // empresa. Usar a mais recente misturava uma foto histórica com metadados
   // de outro cálculo e permitia que uma reexecução falha parecesse publicada.
@@ -1826,18 +1893,13 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   if (!execucoes?.length) throw new Error('Fotografia canônica sem execução compartilhada para a empresa.');
   const execucaoAtiva=execucoes[0];
   const execucaoAtivaLocal=execucaoCompartilhadaLocal(execucaoAtiva,id);
-  const resultadosTraduzidos=resultados.map((linha)=>resultadoCompartilhadoLocal(linha,id,execucaoAtiva.id));
-  // A restauração da fotografia não pode alterar fatos fiscais. A carteira
-  // precisa ter sido hidratada pelo fluxo operacional próprio antes da leitura
-  // da Cadeia; se faltar movimento, preservamos o cache e falhamos de forma
-  // explícita em vez de recriar gatilhos e pendências durante um GET.
-  const locais=movimentosLocaisExistentes(id,movimentoIdsResultados);
-  const ausentes=movimentoIdsResultados.filter((movimentoId)=>!locais.has(movimentoId));
-  if (ausentes.length) throw new Error(`Fotografia canônica requer ${ausentes.length} movimento(s) ausente(s) no cache local. Atualize a carteira operacional; a abertura da Cadeia não altera movimentos.`);
-  const estadosTraduzidos=estadosRemotos
-    .filter((linha)=>locais.has(Number(linha.movimento_id)))
-    .map((linha)=>estadoCompartilhadoLocal(linha,id));
-  const movimentoIdsEstadosRestaurados=new Set(estadosTraduzidos.map((linha)=>Number(linha.movimento_id)));
+  const movimentosCanonicos=movimentoIds.length ? await buscarMovimentosDaFotografia(remoto,remota,id,movimentoIds) : [];
+  const idsCanonicos=new Set(movimentosCanonicos.map((linha)=>Number(linha.id)));
+  const faltantesCanonicos=movimentoIds.filter((movimentoId)=>!idsCanonicos.has(movimentoId));
+  if (faltantesCanonicos.length) {
+    throw new Error('Fotografia canônica não pode ser restaurada: '+faltantesCanonicos.length+' movimento(s) da fotografia não existe(m) na fonte canônica.');
+  }
+
   db.transaction(()=>{
     // `motor_execucoes.id` é hoje uma chave global no SQLite. Enquanto a
     // separação definitiva entre id local e id remoto não estiver migrada,
@@ -1846,6 +1908,15 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     if(donoLocal && Number(donoLocal.empresa_id)!==id){
       throw new Error(`Colisão de id de execução: ${execucaoAtiva.id} já pertence à empresa local ${donoLocal.empresa_id}. Restauração cancelada sem alterações.`);
     }
+    const hidratacao=hidratarMovimentosCanonicos(id,movimentosCanonicos);
+    const localDoRemoto=(movimentoId)=>{
+      const local=hidratacao.porRemoto.get(Number(movimentoId));
+      if (!local) throw new Error('Movimento remoto '+movimentoId+' sem mapeamento local.');
+      return local;
+    };
+    const resultadosTraduzidos=resultados.map((linha)=>resultadoCompartilhadoLocal({ ...linha,movimento_id:localDoRemoto(linha.movimento_id) },id,execucaoAtiva.id));
+    const estadosTraduzidos=estadosRemotos.map((linha)=>estadoCompartilhadoLocal({ ...linha,movimento_id:localDoRemoto(linha.movimento_id) },id));
+    const movimentoIdsEstadosRestaurados=new Set(estadosTraduzidos.map((linha)=>Number(linha.movimento_id)));
     // Dependências da execução são cache derivado no disco efêmero. Algumas
     // bases SQLite antigas não possuem ON DELETE CASCADE; removê-las antes da
     // execução evita uma FK quebrada ao abrir a Cadeia.
