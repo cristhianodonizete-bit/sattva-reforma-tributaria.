@@ -3818,9 +3818,16 @@ router.post('/empresas/:id/regimes/auditoria-vigencia/reprocessar', async (req, 
     const grupos=(auditoria.divergencias || []).filter((x)=>cnpjs.includes(String(x.cnpj)));
     const movimentoIds=[...new Set(grupos.flatMap((x)=>x.movimento_ids || []).map(Number).filter(Boolean))];
     if (!movimentoIds.length) throw new Error('Nenhuma divergência selecionada permanece na fotografia atual. Atualize a tela e tente novamente.');
-    const reprocessamento=motorExec.reprocessarIncremental(empresaId,{ ano:Number(req.body?.ano)||2027,movimentoIds });
-    auditar(req,{empresaId,acao:'Reprocessou fotografias de regime selecionadas',entidade:'auditoria_regime_vigencia',entidadeId:String(auditoria.execucao_id || ''),antes:{cnpjs,divergencias:movimentoIds.length},depois:{reprocessados:reprocessamento.reprocessados}});
-    ok(res,{ selecionados:grupos.length,movimentos:movimentoIds.length,reprocessamento });
+    // A auditoria é exibida a partir da fotografia ativa no Supabase. Rodar
+    // apenas o motor local faria a divergência desaparecer até a próxima
+    // restauração de cache e voltar em seguida. A fila incremental publica e
+    // promove a nova fotografia antes de a interface reavaliá-la.
+    const processamento_motor=await motorExecucaoFila.solicitarIncremental(empresaId,{
+      ano:Number(req.body?.ano)||2027,movimentoIds,
+    });
+    auditar(req,{empresaId,acao:'Agendou republicação de fotografias de regime selecionadas',entidade:'auditoria_regime_vigencia',entidadeId:String(auditoria.execucao_id || ''),antes:{cnpjs,divergencias:movimentoIds.length},depois:{processamento_id:processamento_motor.processamento_id,job_id:processamento_motor.job?.id || null}});
+    ok(res,{ selecionados:grupos.length,movimentos:movimentoIds.length,processamento_motor,
+      mensagem:'Reprocessamento agendado. A auditoria será reavaliada após a fotografia ser publicada no Supabase.' });
   } catch (e) { erro(res,e); }
 });
 // Validação humana de benefício fiscal. A rota expõe somente benefícios já

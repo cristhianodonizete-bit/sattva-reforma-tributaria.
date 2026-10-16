@@ -2526,8 +2526,15 @@ async function telaCadeia(el, tipo) {
     const cnpjs=[...el.querySelectorAll('[data-regime-divergente]:checked')].map((campo)=>campo.value);
     A.confirmar(`Reprocessar automaticamente todos os documentos divergentes de ${cnpjs.length} parceiro(s)? Apenas esses documentos terão uma nova fotografia; o cadastro compartilhado e os demais documentos não serão alterados.`,async()=>{
       const retorno=await A.api(`/empresas/${S.empresaId}/regimes/auditoria-vigencia/reprocessar`,{metodo:'POST',corpo:{cnpjs}});
-      A.toast(`${retorno.movimentos} documento(s) de ${retorno.selecionados} parceiro(s) foram reprocessados.`, 'ok');
-      A.ir('fornecedores');
+      A.toast(`${retorno.movimentos} documento(s) de ${retorno.selecionados} parceiro(s) estão sendo publicados na fotografia oficial…`, 'ok');
+      const processamento=await aguardarReprocessamentoFornecedor(retorno.processamento_motor?.job?.id);
+      if(processamento.concluido){
+        A.toast('Fotografia publicada no Supabase. A auditoria foi reavaliada.', 'ok');
+        A.ir('fornecedores');
+      } else {
+        A.toast('A republicação continua em segundo plano. A tela será atualizada quando a fotografia oficial concluir.', 'ok');
+        setTimeout(() => A.ir('fornecedores'), 3000);
+      }
     });
   });
   document.getElementById('corrigirDadosCadeia')?.addEventListener('click', () => {
