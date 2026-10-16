@@ -454,7 +454,35 @@ async function restaurarParceirosEmpresa(empresaId, remotoInformado = null) {
     .eq('empresa_id', empresaRemota.id).eq('ativo', true);
   if (error) throw new Error(`Parceiros compartilhados: ${error.message}`);
   const linhas = normalizarEmpresaIdDoCache('parceiros', data || [], new Map([[String(empresaRemota.id), Number(empresaId)]]));
-  const parceiros=gravar('parceiros', linhas);
+  // O cadastro compartilhado é a fonte canônica do regime. O parceiro é um
+  // vínculo operacional e o SQLite é cache: uma confirmação manual local só
+  // permanece válida se já coincidir com o regime publicado no cadastro.
+  const normalizarCnpj=(valor)=>String(valor || '').replace(/\D/g,'');
+  const cnpjs=[...new Set(linhas.map((linha)=>normalizarCnpj(linha.cnpj)).filter((x)=>x.length===14))];
+  const cadastros=[];
+  for(let inicio=0;inicio<cnpjs.length;inicio+=200){
+    const lote=cnpjs.slice(inicio,inicio+200);
+    const { data:linhasCadastro,error:erroCadastro }=await remoto.from('cadastros_cnpj')
+      .select('cnpj,regime_derivado,fonte,consultado_em').in('cnpj',lote);
+    if(erroCadastro) throw new Error(`Cadastro compartilhado de regime: ${erroCadastro.message}`);
+    cadastros.push(...(linhasCadastro || []));
+  }
+  const cadastroPorCnpj=new Map(cadastros
+    .filter((cadastro)=>normalizarCnpj(cadastro.cnpj).length===14 && String(cadastro.regime_derivado || '').trim()
+      && String(cadastro.regime_derivado).toLowerCase()!=='indeterminado')
+    .map((cadastro)=>[normalizarCnpj(cadastro.cnpj),cadastro]));
+  const linhasCanonicas=linhas.map((parceiro)=>{
+    const cadastro=cadastroPorCnpj.get(normalizarCnpj(parceiro.cnpj));
+    if(!cadastro) return parceiro;
+    const regime=String(cadastro.regime_derivado).trim();
+    const confirmacaoManualCanonica=String(parceiro.regime_origem || '').toUpperCase().includes('MANUAL')
+      && String(parceiro.regime || '').trim().toLowerCase()===regime.toLowerCase();
+    return { ...parceiro, regime,
+      regime_origem:confirmacaoManualCanonica ? parceiro.regime_origem : `CADASTRO_COMPARTILHADO:${cadastro.fonte || 'REGIME_DERIVADO'}`,
+      regime_confirmado_em:confirmacaoManualCanonica ? parceiro.regime_confirmado_em : (cadastro.consultado_em || parceiro.regime_confirmado_em || null),
+    };
+  });
+  const parceiros=gravar('parceiros', linhasCanonicas);
   const regimes_atualizados=aplicarRegimeBaseNosVinculosQuestor(empresaId);
   return { ativo:true, parceiros, regimes_atualizados, empresa_remota_id:empresaRemota.id };
 }
@@ -1745,14 +1773,13 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
   const execucaoAtivaLocal=execucaoCompartilhadaLocal(execucaoAtiva,id);
   const resultadosTraduzidos=resultados.map((linha)=>resultadoCompartilhadoLocal(linha,id,execucaoAtiva.id));
   const estadosTraduzidos=estadosRemotos.map((linha)=>estadoCompartilhadoLocal(linha,id));
-  // Movimentos faltantes são lidos da fonte antes de qualquer escrita. Se a
-  // fonte não devolver todos, a cópia local permanece intacta.
+  // A restauração da fotografia não pode alterar fatos fiscais. A carteira
+  // precisa ter sido hidratada pelo fluxo operacional próprio antes da leitura
+  // da Cadeia; se faltar movimento, preservamos o cache e falhamos de forma
+  // explícita em vez de recriar gatilhos e pendências durante um GET.
   const locais=movimentosLocaisExistentes(id,movimentoIds);
   const ausentes=movimentoIds.filter((movimentoId)=>!locais.has(movimentoId));
-  const movimentosRestaurados=ausentes.length ? await buscarMovimentosDaFotografia(remoto,remota,id,ausentes) : [];
-  if (movimentosRestaurados.length !== ausentes.length) {
-    throw new Error(`Fotografia canonica possui ${ausentes.length - movimentosRestaurados.length} documento(s) ausente(s) na fonte.`);
-  }
+  if (ausentes.length) throw new Error(`Fotografia canônica requer ${ausentes.length} movimento(s) ausente(s) no cache local. Atualize a carteira operacional; a abertura da Cadeia não altera movimentos.`);
   db.transaction(()=>{
     // `motor_execucoes.id` é hoje uma chave global no SQLite. Enquanto a
     // separação definitiva entre id local e id remoto não estiver migrada,
@@ -1761,8 +1788,6 @@ async function restaurarFotografiaMotorEmpresa(empresaId, remotoInformado = null
     if(donoLocal && Number(donoLocal.empresa_id)!==id){
       throw new Error(`Colisão de id de execução: ${execucaoAtiva.id} já pertence à empresa local ${donoLocal.empresa_id}. Restauração cancelada sem alterações.`);
     }
-    // Movimentos vêm antes das demais linhas: resultados e estados os referenciam.
-    if (movimentosRestaurados.length) gravar('movimentos', movimentosRestaurados, true);
     // Dependências da execução são cache derivado no disco efêmero. Algumas
     // bases SQLite antigas não possuem ON DELETE CASCADE; removê-las antes da
     // execução evita uma FK quebrada ao abrir a Cadeia.
