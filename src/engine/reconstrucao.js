@@ -55,8 +55,9 @@ const tem = (v) => v !== undefined && v !== null && v !== '' && Number.isFinite(
  * de Configurações.
  */
 const ESTIMATIVA_PIS_COFINS = {
-  // Não optante pelo Simples sem distinção entre Real e Presumido: não dá para
-  // estimar PIS/COFINS sem escolher um dos dois. Só se usa o valor destacado.
+  // Não optante pelo Simples sem distinção entre Real e Presumido: a
+  // reconstrução econômica usa a premissa rastreável cadastrada em
+  // Parâmetros, definida mais abaixo, e nunca o valor destacado no XML.
   regime_regular: null,
   lucro_real: 9.25,            // não cumulativo: PIS 1,65% + COFINS 7,6%
   lucro_presumido: 3.65,       // cumulativo: PIS 0,65% + COFINS 3%
@@ -183,15 +184,20 @@ function reconstruir(item, contexto = {}) {
       const p = regras.estimativaPisCofins(regime);
       if (p !== null && p !== undefined) resolucao = { percentual: p, valor: aplicarPercentual(valor, p), origem: 'REGRA_REGIME', natureza: 'CALCULADO', metodo: 'REGRA_GERAL_REGIME', catalogo: resolucao.catalogo, justificativa: 'Fallback parametrizado em Regimes e crédito; aplicado após ausência de documento e regra específica conclusiva.' };
     }
-    // Premissa econômica de última precedência para fornecedor do regime
-    // regular sem carga atual determinada. Ela existe somente para recompor
-    // a base econômica comparável à CBS: não afirma a apuração real de
-    // PIS/Cofins do fornecedor e permanece identificada como SIMULADA.
-    if (resolucao.percentual === null && ['lucro_real', 'lucro_presumido'].includes(String(item.regime || ''))) {
-      const p = 3.65;
+    // Premissa econômica de última precedência para fornecedor fora do
+    // Simples sem carga atual determinada. Regime regular é justamente o
+    // retorno público de “não optante pelo Simples”; a regra operacional é
+    // aplicar a alíquota cadastrada em Parâmetros para regime_regular, sem
+    // usar o XML e sem obrigar confirmação manual entre Real e Presumido.
+    if (resolucao.percentual === null && ['regime_regular', 'lucro_real', 'lucro_presumido'].includes(String(item.regime || ''))) {
+      const p = regime === 'regime_regular' ? regras.estimativaPisCofins('regime_regular') : 3.65;
+      if (p !== null && p !== undefined) {
       resolucao = { percentual: p, valor: aplicarPercentual(valor, p), origem: 'PREMISSA_FORNECEDOR_REGULAR', natureza: 'SIMULADO',
-        metodo: 'PREMISSA_FORNECEDOR_REGULAR_365', catalogo: resolucao.catalogo,
-        justificativa: 'Premissa econômica de 3,65% para retirar PIS/Cofins da base de comparação da CBS; não substitui a apuração efetiva do fornecedor.' };
+        metodo: regime === 'regime_regular' ? 'PREMISSA_FORNECEDOR_REGULAR_PARAMETRIZADA' : 'PREMISSA_FORNECEDOR_REGULAR_365', catalogo: resolucao.catalogo,
+        justificativa: regime === 'regime_regular'
+          ? 'Premissa econômica cadastrada em Parâmetros para regime regular; não substitui a apuração efetiva do fornecedor.'
+          : 'Premissa econômica de 3,65% para retirar PIS/Cofins da base de comparação da CBS; não substitui a apuração efetiva do fornecedor.' };
+      }
     }
     if (resolucao.percentual !== null) {
       registrarCargaResolvida(resolucao);

@@ -39,12 +39,24 @@ assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 3.65);
 assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'PREMISSA_FORNECEDOR_REGULAR_365');
 assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_natureza, 'SIMULADO');
 
-// Saber apenas que o fornecedor esta fora do Simples nao autoriza escolher
-// silenciosamente entre a carga de 9,25% do Real e 3,65% do Presumido.
+// O retorno público “regime regular” confirma apenas que o fornecedor não é
+// do Simples. Pela regra operacional, ele recebe a premissa econômica
+// cadastrada em Parâmetros, sempre simulada e nunca extraída do XML.
+db.prepare(`INSERT INTO param_regimes (chave,label,pis_cofins) VALUES ('regime_regular','Regime regular',3.65)
+  ON CONFLICT(chave) DO UPDATE SET pis_cofins=excluded.pis_cofins`).run();
+regras.invalidar();
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'regime_regular' });
-assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_valor, null);
-assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_percentual, null);
-assert.equal(r.pendencias.some((x) => x.includes('PIS/COFINS nao determinado') || x.includes('PIS/COFINS não determinado')), true);
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_valor, 3.65);
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_percentual, 3.65);
+assert.equal(r.memoriaPisCofins.base_reconstrucao_metodo, 'PREMISSA_FORNECEDOR_REGULAR_PARAMETRIZADA');
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_natureza, 'SIMULADO');
+assert.equal(r.pendencias.some((x) => x.includes('PIS/COFINS nao determinado') || x.includes('PIS/COFINS não determinado')), false);
+db.prepare("UPDATE param_regimes SET pis_cofins=4.2 WHERE chave='regime_regular'").run();
+regras.invalidar();
+r = reconstruir({ valor: 100, tipo: 'servico', regime: 'regime_regular' });
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_valor, 4.2, 'regime regular deve ler o percentual da tela de Parâmetros');
+db.prepare("UPDATE param_regimes SET pis_cofins=3.65 WHERE chave='regime_regular'").run();
+regras.invalidar();
 
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', pis: 1.65, cofins: 7.6,
   pis_cofins_documentado: true, regra_geral_regime_confirmada: true });

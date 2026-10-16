@@ -58,7 +58,7 @@ const crypto = require('crypto');
 // preservar o valor informado no XML em fotografias já materializadas; esta
 // troca exige republicação para que a regra parametrizada do regime (inclusive
 // os 2,5% do Simples) seja a única fonte do valor exibido.
-const MOTOR_VERSION = 'motor-cbs-2026-10-15-pis-cofins-calculado-v1';
+const MOTOR_VERSION = 'motor-cbs-2026-10-15-pis-cofins-regime-regular-365-v2';
 const hash = (v) => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex').slice(0, 24);
 // Assinatura da origem canônica, independente da fotografia resultante. Ela é
 // gravada junto ao resultado para que a leitura possa rejeitar precisamente a
