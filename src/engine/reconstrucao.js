@@ -137,14 +137,10 @@ function reconstruir(item, contexto = {}) {
   }
 
   // PIS/COFINS
-  const valorPisCofinsDocumento = num(item.pis) + num(item.cofins);
-  // A projeção trabalha com carga saneada. Valores do XML permanecem como
-  // evidência histórica, mas não comandam a reconstrução quando a matriz
-  // fiscal versionada já resolve a operação. Uma tela de auditoria pode optar
-  // expressamente por usar o documento, sem mudar o padrão da projeção.
-  const usarDocumentoComoCarga = item.usar_documento_pis_cofins === true;
-  const temPisCofins = usarDocumentoComoCarga
-    && (valorPisCofinsDocumento > 0 || item.pis_cofins_zero_comprovado === true);
+  // PIS/Cofins extraídos do XML são dados brutos de importação, nunca a
+  // carga da fotografia econômica. A carga atual é sempre saneada por regra
+  // fiscal, catálogo ou parâmetro do regime; assim um destaque indevido no
+  // documento não altera base econômica, CBS nem a cadeia de clientes.
   let memoriaPisCofins = null;
   let pisCofinsResolvido = false;
   const registrarCargaResolvida = (resolucao) => {
@@ -159,13 +155,7 @@ function reconstruir(item, contexto = {}) {
     memoriaTributos.pis = memoriaTributo({ valor: pis, base: valor, aliquota: partes.aliquotaPis, origem: resolucao.origem, regra: resolucao.metodo, evidencia: resolucao.catalogo ? 'Catálogo fiscal e parâmetros centrais' : 'Parâmetro central de regime', natureza: resolucao.natureza, status: 'DETERMINADO', justificativa: resolucao.justificativa || resolucao.metodo });
     memoriaTributos.cofins = memoriaTributo({ valor: cofins, base: valor, aliquota: partes.aliquotaCofins, origem: resolucao.origem, regra: resolucao.metodo, evidencia: resolucao.catalogo ? 'Catálogo fiscal e parâmetros centrais' : 'Parâmetro central de regime', natureza: resolucao.natureza, status: 'DETERMINADO', justificativa: resolucao.justificativa || resolucao.metodo });
   };
-  if (temPisCofins) {
-    pis = num(item.pis); cofins = num(item.cofins);
-    passos.push({ tributo: 'PIS/COFINS', forma: 'por dentro', origem: 'documento', valor: r2(pis + cofins) });
-    memoriaPisCofins = { carga_atual_pis_cofins_valor: r2(pis + cofins), carga_atual_pis_cofins_percentual: valor ? r6(percentualDeValor(pis + cofins, valor)) : 0, carga_atual_pis_cofins_origem: 'DOCUMENTO', carga_atual_pis_cofins_natureza: 'REAL', modo_reconstrucao_monofasia: 'VALOR_REAL_DOCUMENTO', base_reconstrucao_metodo: 'DOCUMENTO', base_reconstrucao_percentual: valor ? r6(percentualDeValor(pis + cofins, valor)) : 0, base_reconstrucao_valor_excluido: r2(pis + cofins), base_reconstrucao_fonte: 'DOCUMENTO', base_reconstrucao_natureza: 'REAL' };
-    memoriaTributos.pis = memoriaTributo({ valor: pis, base: valor, aliquota: percentualDeValor(pis, valor), origem: 'DOCUMENTO', regra: 'VALOR_DESTACADO_DOCUMENTO', evidencia: 'Campo PIS do documento fiscal', natureza: 'REAL', status: 'DETERMINADO', justificativa: 'PIS documentado.' });
-    memoriaTributos.cofins = memoriaTributo({ valor: cofins, base: valor, aliquota: percentualDeValor(cofins, valor), origem: 'DOCUMENTO', regra: 'VALOR_DESTACADO_DOCUMENTO', evidencia: 'Campo COFINS do documento fiscal', natureza: 'REAL', status: 'DETERMINADO', justificativa: 'COFINS documentado.' });
-  } else if (item.entradaManual?.itemChave && item.pis_cofins_referencia !== null && item.pis_cofins_referencia !== undefined) {
+  if (item.entradaManual?.itemChave && item.pis_cofins_referencia !== null && item.pis_cofins_referencia !== undefined) {
     // A natureza escolhida no catálogo de entradas manuais é a evidência
     // fiscal parametrizada para fatos vindos do Razão, que não traz item/NCM.
     // Ela tem precedência sobre a ausência de correspondência no catálogo
@@ -178,7 +168,7 @@ function reconstruir(item, contexto = {}) {
   } else {
     // Regra específica do item (alíquota zero ou monofasia) precede o regime.
     // O documento é preservado, mas deliberadamente não é usado como cálculo.
-    let resolucao = catalogoFiscal.resolver(item, { ignorarDocumento: !usarDocumentoComoCarga });
+    let resolucao = catalogoFiscal.resolver(item, { ignorarDocumento: true });
     if (resolucao.percentual !== null) {
       registrarCargaResolvida(resolucao);
     } else if (!['simples_nacional'].includes(regime)) {

@@ -53,7 +53,7 @@ function resolver(item, opcoes = {}) {
   // houver evidência fiscal explícita para a alíquota zero.
   // Zero só é aceito quando foi comprovado; não é o mesmo que o valor positivo
   // destacado em XML, que a projeção pode substituir pela matriz saneada.
-  if (item.pis_cofins_zero_comprovado === true || (!opcoes.ignorarDocumento && documento > 0)) return { percentual: percentualDeValor(documento, item.valor), valor: documento, origem: 'DOCUMENTO', natureza: 'REAL', metodo: 'DOCUMENTO', modoMonofasia: 'VALOR_REAL_DOCUMENTO', catalogo: null };
+  if (!opcoes.ignorarDocumento && (item.pis_cofins_zero_comprovado === true || documento > 0)) return { percentual: percentualDeValor(documento, item.valor), valor: documento, origem: 'DOCUMENTO', natureza: 'REAL', metodo: 'DOCUMENTO', modoMonofasia: 'VALOR_REAL_DOCUMENTO', catalogo: null };
   const c = localizar(item);
   // Ausência de catálogo não é autorização para escolher uma carga por
   // conveniência. A regra geral de regime continua sendo uma regra válida

@@ -75,11 +75,11 @@ r = reconstruir({ valor: 70, tipo: 'servico', regime: 'lucro_presumido',
 assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_valor, 2.55);
 assert.equal(r.baseEconomica, 67.44);
 
-// Zero comprovado por regra/evidência continua tendo precedência sobre o fallback.
+// Zero informado no XML não é regra fiscal: a carga continua saneada pelo regime.
 r = reconstruir({ valor: 100, tipo: 'servico', regime: 'lucro_presumido', pis: 0, cofins: 0,
   pis_cofins_documentado: true, pis_cofins_zero_comprovado: true, regra_geral_regime_confirmada: true });
-assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 0);
-assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_origem, 'DOCUMENTO');
+assert.equal(r.tributosAtuais.pis + r.tributosAtuais.cofins, 3.65);
+assert.equal(r.memoriaPisCofins.carga_atual_pis_cofins_origem, 'REGRA_REGIME');
 
 // A orquestração do motor confirma a regra do regime da empresa: a tela não
 // precisa nem pode depender de uma flag vinda do XML para sanear a ausência.
