@@ -303,13 +303,22 @@ Telas.recalcularParametrosMotor = async (el) => {
   if (!S.empresaId) { el.innerHTML = '<div class="aviso atencao">Selecione uma empresa antes de recalcular valores por parâmetro.</div>'; return; }
   el.innerHTML = cab('Motor tributário', 'Recalcular valores por parâmetros',
     'Recalcula somente os lançamentos canônicos da empresa selecionada e promove uma fotografia oficial atômica. Não reimporta documentos nem executa outros projetos.',
-    '<button class="btn" id="recalcularParametros">Recalcular valores</button>') + '<div class="aviso neutro">A tela continua usando a fotografia oficial atual até o job incremental concluir e promovê-la no Supabase.</div>';
+    '<button class="btn" id="recalcularParametros">Recalcular valores</button>') + '<div class="aviso neutro" id="statusRecalculoParametros">A tela continua usando a fotografia oficial atual até o job incremental concluir e promovê-la no Supabase.</div>';
   el.querySelector('#recalcularParametros').onclick = async () => {
+    const botao = el.querySelector('#recalcularParametros');
+    const status = el.querySelector('#statusRecalculoParametros');
+    botao.disabled = true;
+    status.textContent = 'Solicitando o recálculo incremental da empresa selecionada…';
     try {
       const r = await A.api(`/empresas/${S.empresaId}/motor/recalcular-parametros`, { metodo:'POST', corpo:{} });
+      const job = r.processamento_motor?.job?.id || r.processamento_motor?.processamento_id || '—';
+      status.innerHTML = `<b>Recálculo incremental agendado.</b> ${r.documentos || 0} lançamento(s) da empresa selecionada · job ${A.esc(job)}. A fotografia atual permanece visível até a promoção atômica no Supabase.`;
       A.toast(`${r.documentos || 0} lançamento(s) agendado(s) para recálculo incremental.`, 'ok');
-      A.ir('controleProjeto');
-    } catch (e) { A.toast(e.message, 'erro'); }
+    } catch (e) {
+      botao.disabled = false;
+      status.textContent = `Não foi possível agendar o recálculo incremental: ${e.message}`;
+      A.toast(e.message, 'erro');
+    }
   };
 };
 
